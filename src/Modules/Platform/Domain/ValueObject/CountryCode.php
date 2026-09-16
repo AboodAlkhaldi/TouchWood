@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Domain\ValueObject;
 
 use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
@@ -15,7 +17,7 @@ final readonly class CountryCode
 
     public static function fromString(string $value): self
     {
-        if (preg_match('/^[A-Z]{2}$/', $value) !== 1) {
+        if (preg_match('/^[A-Z]{2}\z/', $value) !== 1) {
             throw new InvalidStoreAttribute('country', 'expected a two-letter ISO 3166-1 code');
         }
 

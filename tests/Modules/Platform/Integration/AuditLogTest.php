@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -13,6 +15,7 @@ use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrency;
 use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrencyHandler;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStore;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditLog;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
@@ -83,6 +86,25 @@ describe('the table', function () {
 
         expect(fn () => DB::table('platform.audit_entries')->delete())
             ->toThrow(QueryException::class, 'append-only');
+    });
+
+    it('refuses to truncate the log', function () {
+        auditSomething();
+
+        expect(fn () => DB::statement('TRUNCATE platform.audit_entries'))
+            ->toThrow(QueryException::class, 'append-only');
+    });
+
+    it('refuses to record an entry outside a transaction', function () {
+        // The test's own transaction wraps only the default connection, so a second connection to
+        // the same database genuinely has no transaction open.
+        config(['database.connections.outside_transaction' => config('database.connections.pgsql')]);
+        $connection = DB::connection('outside_transaction');
+        $log = new DatabaseAuditLog($connection, app(ActorContext::class), app());
+
+        expect($connection->transactionLevel())->toBe(0)
+            ->and(fn () => $log->record(new AuditEntryDto('testing.thing.changed', 'testing.thing', 'thing-1', null, AuditChanges::none())))
+            ->toThrow(LogicException::class, 'inside the transaction');
     });
 
     it('refuses an IP address on a customer or system entry', function (string $actorType, ?string $actorId) {

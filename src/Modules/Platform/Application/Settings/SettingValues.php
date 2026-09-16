@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Application\Settings;
 
 /**
@@ -23,5 +25,8 @@ interface SettingValues
      */
     public function save(string $key, ?string $storeId, mixed $value, ?string $updatedBy): int;
 
-    public function forget(): void;
+    /**
+     * Call inside the transaction that changes a setting; takes effect once it commits.
+     */
+    public function invalidate(): void;
 }

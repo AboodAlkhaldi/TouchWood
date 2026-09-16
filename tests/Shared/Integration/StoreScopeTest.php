@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Shared\Application\CrossStoreWrite;
 use Shared\Application\MissingStoreContext;
 use Shared\Application\StoreContext;
 use Shared\Domain\ValueObject\StoreId;
@@ -132,6 +135,53 @@ it('refuses to create a row with no store context', function () {
     storeScopeFixture();
 
     expect(fn () => ScopedWidget::query()->create(['name' => 'orphan']))->toThrow(MissingStoreContext::class);
+});
+
+it('refuses to create a row for another store', function () {
+    $fixture = storeScopeFixture();
+    $fixture->stores->store = $fixture->storeA;
+
+    expect(fn () => ScopedWidget::query()->create(['name' => 'smuggled', 'store_id' => $fixture->storeB->value]))
+        ->toThrow(CrossStoreWrite::class)
+        ->and(DB::table('scope_test_widgets')->where('name', 'smuggled')->exists())->toBeFalse();
+});
+
+it('refuses to move a row to another store', function () {
+    $fixture = storeScopeFixture();
+    $fixture->stores->store = $fixture->storeA;
+    $widget = ScopedWidget::query()->where('name', 'a-hinge')->firstOrFail();
+
+    $widget->setAttribute('store_id', $fixture->storeB->value);
+
+    expect(fn () => $widget->save())->toThrow(CrossStoreWrite::class);
+});
+
+it('refuses to save or delete another store row loaded across stores', function (string $write) {
+    $fixture = storeScopeFixture();
+    $fixture->stores->store = $fixture->storeA;
+    $otherStoreRow = ScopedWidget::query()->acrossStores()->where('name', 'b-handle')->firstOrFail();
+
+    expect(function () use ($otherStoreRow, $write) {
+        if ($write === 'save') {
+            $otherStoreRow->setAttribute('name', 'renamed');
+            $otherStoreRow->save();
+        } else {
+            $otherStoreRow->delete();
+        }
+    })->toThrow(CrossStoreWrite::class)
+        ->and(DB::table('scope_test_widgets')->where('name', 'b-handle')->exists())->toBeTrue();
+})->with(['save', 'delete']);
+
+it('saves and deletes its own store rows', function () {
+    $fixture = storeScopeFixture();
+    $fixture->stores->store = $fixture->storeA;
+    $widget = ScopedWidget::query()->where('name', 'a-hinge')->firstOrFail();
+
+    $widget->setAttribute('name', 'a-renamed');
+    $widget->save();
+    ScopedWidget::query()->where('name', 'a-slide')->firstOrFail()->delete();
+
+    expect(ScopedWidget::query()->orderBy('name')->pluck('name')->all())->toBe(['a-renamed']);
 });
 
 it('reads across stores only through the explicit opt-out', function () {

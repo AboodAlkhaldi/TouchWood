@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -7,16 +9,26 @@ use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
 use Modules\Platform\Application\Command\CreateStore\CreateStoreHandler;
-use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Domain\Repository\CurrencyRepository;
+use Modules\Platform\Domain\Repository\StoreRepository;
+use Modules\Platform\Domain\ValueObject\CurrencyCode;
+use Modules\Platform\Domain\ValueObject\StoreCode;
 
 /**
  * The three launch stores and their currencies (Platform spec §5.7). Country and currency
  * values live here as data — never in Domain/ or Application/. Safe to run more than once.
+ *
+ * What already exists is read from the database, never the cache: a cache that outlived a
+ * wiped database would otherwise make the seeder skip everything.
  */
 final class PlatformSeeder extends Seeder
 {
-    public function run(PlatformApi $platform, CreateCurrencyHandler $currencies, CreateStoreHandler $stores): void
-    {
+    public function run(
+        CurrencyRepository $existingCurrencies,
+        StoreRepository $existingStores,
+        CreateCurrencyHandler $currencies,
+        CreateStoreHandler $stores,
+    ): void {
         $seedCurrencies = [
             // Saudi Riyal sign U+20C1 (Unicode 17.0).
             new CreateCurrency('SAR', 2, 'ريال سعودي', 'Saudi Riyal', 'ر.س', 'SAR', "\u{20C1}"),
@@ -27,7 +39,7 @@ final class PlatformSeeder extends Seeder
         ];
 
         foreach ($seedCurrencies as $currency) {
-            if ($platform->currency($currency->code) === null) {
+            if (! $existingCurrencies->exists(CurrencyCode::fromString($currency->code))) {
                 $currencies->handle($currency);
             }
         }
@@ -39,7 +51,7 @@ final class PlatformSeeder extends Seeder
         ];
 
         foreach ($seedStores as $store) {
-            if ($platform->storeByCode($store->code) === null) {
+            if (! $existingStores->codeExists(StoreCode::fromString($store->code))) {
                 $stores->handle($store);
             }
         }

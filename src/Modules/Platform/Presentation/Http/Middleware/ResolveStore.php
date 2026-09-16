@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Presentation\Http\Middleware;
 
 use Closure;
@@ -25,11 +27,6 @@ final readonly class ResolveStore
     public const string COOKIE = 'tw_store';
 
     public const string REQUEST_ATTRIBUTE = 'store';
-
-    /**
-     * Two to eight lowercase letters that are not a reserved top-level path.
-     */
-    public const string SEGMENT_PATTERN = '(?!(?:up|admin|api|build|storage)$)[a-z]{2,8}';
 
     private const int COOKIE_MINUTES = 60 * 24 * 365;
 

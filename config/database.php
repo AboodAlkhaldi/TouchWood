@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
@@ -95,6 +97,8 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
+            // Timestamps are sent without an offset, so the session must read them as UTC.
+            'timezone' => 'UTC',
             // Every module schema must be listed here, or migrate:fresh will not wipe it.
             'search_path' => 'public,platform',
             'sslmode' => env('DB_SSLMODE', 'prefer'),

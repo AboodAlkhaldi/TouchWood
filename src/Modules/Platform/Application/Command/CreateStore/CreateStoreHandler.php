@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Application\Command\CreateStore;
 
 use Carbon\CarbonImmutable;
@@ -67,11 +69,9 @@ final readonly class CreateStoreHandler
 
             $this->stores->add($store);
             $this->auditLog->record(StoreAudit::created($store));
+            $this->directory->invalidate();
             $this->events->dispatch(new StoreCreated((string) Str::uuid(), $store->id()->value, CarbonImmutable::now()));
         });
-
-        // After the commit, so no other request can re-cache the old data in between.
-        $this->directory->forget();
 
         return $store->id();
     }

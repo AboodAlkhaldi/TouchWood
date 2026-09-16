@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shared\Infrastructure\Http;
 
 use Closure;
@@ -22,7 +24,7 @@ final class AssignCorrelationId
     {
         $incoming = $request->headers->get(self::HEADER);
 
-        $id = is_string($incoming) && preg_match('/^[A-Za-z0-9-]{8,64}$/', $incoming) === 1
+        $id = is_string($incoming) && preg_match('/^[A-Za-z0-9-]{8,64}\z/', $incoming) === 1
             ? $incoming
             : strtolower((string) Str::ulid());
 

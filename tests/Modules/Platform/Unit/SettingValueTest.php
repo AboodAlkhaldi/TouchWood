@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Modules\Platform\Public\Dto\SettingValueDto;
 
 function settingHolding(mixed $value): SettingValueDto

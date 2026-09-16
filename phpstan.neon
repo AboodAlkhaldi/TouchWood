@@ -8,6 +8,4 @@ parameters:
         - src
         - database
         - tests
-    excludePaths:
-        - src/Modules/*/Infrastructure/Persistence/Migrations/*
     tmpDir: storage/framework/cache/phpstan

@@ -54,4 +54,5 @@ jobs:
       - name: Module boundaries (BLOCKING)
         run: vendor/bin/deptrac analyse --fail-on-uncovered --report-uncovered --no-progress
       - name: Tests
-        run: vendor/bin/pest
+        # --ci makes a committed ->only() fail the run instead of silently skipping every other test.
+        run: vendor/bin/pest --ci

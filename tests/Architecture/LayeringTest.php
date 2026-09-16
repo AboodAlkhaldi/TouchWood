@@ -1,19 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 /*
 | Handoff §4.3 and §19. Module-to-module imports are enforced by Deptrac
 | (deptrac.yaml); these tests cover the rules inside a module.
 */
 
-$modules = array_map('basename', glob(__DIR__.'/../../src/Modules/*', GLOB_ONLYDIR) ?: []);
+require_once __DIR__.'/helpers.php';
 
 arch('the shared domain is framework-free', function () {
-    expect('Shared\Domain')->not->toUse(['Illuminate', 'Laravel']);
+    expect('Shared\Domain')->not->toUse(['Illuminate', 'Laravel', ...LARAVEL_HELPERS]);
 });
 
-foreach ($modules as $module) {
+it('finds modules with code to check', function () {
+    expect(modulesWithCode())->toContain('Platform');
+});
+
+foreach (modulesWithCode() as $module) {
     arch("{$module}: Domain is framework-free", function () use ($module) {
-        expect("Modules\\{$module}\\Domain")->not->toUse(['Illuminate', 'Laravel']);
+        expect("Modules\\{$module}\\Domain")->not->toUse(['Illuminate', 'Laravel', ...LARAVEL_HELPERS]);
     });
 
     arch("{$module}: Public never references Eloquent", function () use ($module) {

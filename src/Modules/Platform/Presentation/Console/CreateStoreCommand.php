@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Presentation\Console;
 
 use Illuminate\Console\Command;
@@ -31,7 +33,7 @@ final class CreateStoreCommand extends Command
         $position = $this->option('position');
 
         foreach (['tax-basis-points' => $taxRate, 'position' => $position] as $option => $value) {
-            if (! is_string($value) || preg_match('/^\d+$/', $value) !== 1) {
+            if (! is_string($value) || preg_match('/^\d+\z/', $value) !== 1) {
                 $this->error("--{$option} is required and must be a whole number.");
 
                 return self::FAILURE;

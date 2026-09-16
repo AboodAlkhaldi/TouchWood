@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Shared\Domain\Error\DomainError;
 
 /*
@@ -10,23 +12,24 @@ use Shared\Domain\Error\DomainError;
 | only checked the first of them.
 */
 
-$modules = array_map('basename', glob(__DIR__.'/../../src/Modules/*', GLOB_ONLYDIR) ?: []);
-$httpNamespaces = ['Illuminate\Http', 'Symfony\Component\HttpFoundation', 'Symfony\Component\HttpKernel\Exception'];
+require_once __DIR__.'/helpers.php';
+
+$http = ['Illuminate\Http', 'Symfony\Component\HttpFoundation', 'Symfony\Component\HttpKernel\Exception', ...LARAVEL_HTTP_HELPERS];
 
 foreach (['Shared\Domain', 'Shared\Application'] as $layer) {
-    arch("{$layer} never knows HTTP", function () use ($layer, $httpNamespaces) {
-        expect($layer)->not->toUse($httpNamespaces);
+    arch("{$layer} never knows HTTP", function () use ($layer, $http) {
+        expect($layer)->not->toUse($http);
     });
 }
 
-foreach ($modules as $module) {
+foreach (modulesWithCode() as $module) {
     arch("{$module}: every domain error extends DomainError", function () use ($module) {
         expect("Modules\\{$module}\\Domain\\Exception")->toExtend(DomainError::class);
     });
 
     foreach (['Domain', 'Application'] as $layer) {
-        arch("{$module}: {$layer} never knows HTTP", function () use ($module, $layer, $httpNamespaces) {
-            expect("Modules\\{$module}\\{$layer}")->not->toUse($httpNamespaces);
+        arch("{$module}: {$layer} never knows HTTP", function () use ($module, $layer, $http) {
+            expect("Modules\\{$module}\\{$layer}")->not->toUse($http);
         });
     }
 }

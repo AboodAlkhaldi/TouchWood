@@ -1,8 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
+use Modules\Platform\Domain\ValueObject\StoreCode;
 
 use function Pest\Laravel\get;
 use function Pest\Laravel\getJson;
@@ -41,6 +45,22 @@ it('answers a JSON request for an unknown store with a problem document', functi
 
 it('does not treat reserved paths as store codes', function () {
     get('/up')->assertOk();
+});
+
+it('keeps reserved paths out of every storefront route, not only at the top level', function (string $path, int $status) {
+    Route::middleware('web')->prefix('{store}')->middleware('store')->get('/_probe/{slug}', fn () => 'storefront');
+
+    get($path)->assertStatus($status);
+})->with([
+    'a store' => ['/sa/_probe/hinges', 200],
+    'admin below the top level' => ['/admin/_probe/login', 404],
+    'api below the top level' => ['/api/_probe/orders', 404],
+]);
+
+it('keeps a store whose code starts like a reserved word reachable', function () {
+    // "upx" is a valid code: only the exact reserved segments are excluded.
+    expect(preg_match('#^'.StoreCode::ROUTE_PATTERN.'$#', 'upx'))->toBe(1)
+        ->and(preg_match('#^'.StoreCode::ROUTE_PATTERN.'$#', 'up'))->toBe(0);
 });
 
 it('sends a visitor back to the store in their cookie', function () {

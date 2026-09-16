@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Application\Command\CreateCurrency;
 
 use Illuminate\Database\ConnectionInterface;
@@ -44,9 +46,7 @@ final readonly class CreateCurrencyHandler
 
             $this->currencies->add($currency);
             $this->auditLog->record(CurrencyAudit::created($currency));
+            $this->directory->invalidate();
         });
-
-        // After the commit, so no other request can re-cache the old data in between.
-        $this->directory->forget();
     }
 }

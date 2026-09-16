@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Brick\Math\RoundingMode;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\MoneyException;
@@ -28,7 +30,7 @@ describe('creating', function () {
 
     it('rejects a malformed currency code', function (string $code) {
         Money::of(100, $code);
-    })->throws(MoneyException::class)->with(['sar', 'SA', 'SARS', '', 'S1R']);
+    })->throws(MoneyException::class)->with(['sar', 'SA', 'SARS', '', 'S1R', "SAR\n"]);
 });
 
 describe('parsing decimals', function () {
@@ -49,7 +51,7 @@ describe('parsing decimals', function () {
 
     it('rejects anything that is not a plain decimal', function (string $amount) {
         Money::fromDecimal($amount, 'SAR', 2);
-    })->throws(MoneyException::class)->with(['abc', '1,000.00', '', ' 12.50', '1e3', '.50', '+12']);
+    })->throws(MoneyException::class)->with(['abc', '1,000.00', '', ' 12.50', '1e3', '.50', '+12', "12\n"]);
 
     it('rejects a negative exponent', function () {
         Money::fromDecimal('1', 'SAR', -1);
@@ -109,7 +111,7 @@ describe('multiplying', function () {
 
     it('rejects a factor that is not a plain decimal', function (string $factor) {
         Money::of(100, 'SAR')->multiply($factor, RoundingMode::HalfUp);
-    })->throws(MoneyException::class)->with(['abc', '1e2', ' 0.15', '0,15']);
+    })->throws(MoneyException::class)->with(['abc', '1e2', ' 0.15', '0,15', "0.15\n"]);
 
     it('fails loudly on overflow', function () {
         Money::of(PHP_INT_MAX, 'SAR')->multiply(2, RoundingMode::Unnecessary);

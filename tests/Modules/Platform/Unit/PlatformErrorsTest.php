@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Modules\Platform\Domain\Exception\PlatformError;
 use Shared\Domain\Error\ErrorCategory;
 

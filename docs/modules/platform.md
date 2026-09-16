@@ -36,7 +36,7 @@ A country storefront: `sa`, `eg`, `ae`, and any added later.
 
 | Attribute | Invariant |
 |---|---|
-| `code` | 2–8 lowercase letters. Unique. **Immutable** — it is the URL segment (`brand.com/sa`) and part of every slug history. |
+| `code` | 2–8 lowercase letters, never a reserved top-level path (`up`, `admin`, `api`, `build`, `storage` — such a store could never be reached). Unique. **Immutable** — it is the URL segment (`brand.com/sa`) and part of every slug history. |
 | `name` | Arabic and English both required and non-empty. |
 | `country_code` | ISO 3166-1 alpha-2. **Immutable.** |
 | `currency_code` | Must reference an existing currency. **Immutable** — every price, order and point balance in the store is denominated in it. |
@@ -123,7 +123,8 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
 
 A permanent record of who changed what.
 
-- **Append-only.** A database trigger rejects every `UPDATE` and `DELETE`.
+- **Append-only.** Database triggers reject every `UPDATE`, `DELETE` and `TRUNCATE`.
+- Recording an entry outside a transaction throws: the change and its entry must commit together.
 - Written **in the same transaction** as the change it records. If the change rolls back, so
   does the entry. There is no audited change without its entry.
 - Every entry has: when, action, actor (staff, customer or system), subject, and the store when
@@ -202,13 +203,18 @@ that a key's prefix is the declaring module. A malformed, foreign or duplicate k
 that fails its own rules, throws `InvalidSettingDefinition` (a `LogicException`, not a
 `DomainError`) at boot.
 
-### 2.3 DTOs (`Public/Dto`, spatie/laravel-data)
+### 2.3 DTOs (`Public/Dto`)
+
+DTOs that carry Platform's data out (`StoreDto`, `CurrencyDto`, `TranslatedTextDto`) are
+spatie/laravel-data objects. The ones other modules build and pass in (`AuditEntryDto`,
+`AuditChanges`, `SettingDefinitionDto`) and `SettingValueDto` are plain readonly classes: they
+hold a builder, Laravel validation rules, or a `mixed` value that laravel-data would try to cast.
 
 | DTO | Fields |
 |---|---|
 | `StoreDto` | `id`, `code`, `name` (ar, en), `countryCode`, `currencyCode`, `currencyExponent`, `currencySign`, `currencyAbbreviation` (ar, en), `taxRateBasisPoints`, `timezone`, `position` |
 | `CurrencyDto` | `code`, `exponent`, `name` (ar, en), `abbreviation` (ar, en), `sign`; `displaySymbol(locale)` returns the sign, or the abbreviation when there is no sign |
-| `SettingDefinitionDto` | `key`, `scope`, `rules` (Laravel validation rules for the value), `default`, `permission` |
+| `SettingDefinitionDto` | `key`, `scope`, `type` (checked strictly before any rule), `rules` (further Laravel validation rules), `default`, `permission` |
 | `SettingValueDto` | `key`, `storeId`, `isDefault`; typed readers `int()`, `bool()`, `string()`, `list()` that throw if the stored type does not match |
 | `MediaDto` | `id`, `visibility`, `mime`, `bytes`, `width`, `height`, `alt` (ar, en), `variantsStatus` |
 | `MediaUrlsDto` | `original`, `variants` (size → format → URL), `expiresAt` (PRIVATE only) |
@@ -218,7 +224,7 @@ that fails its own rules, throws `InvalidSettingDefinition` (a `LogicException`,
 
 ### 2.4 Enums (`Public/Enums`, stored as strings)
 
-`SettingScope` (`GLOBAL`, `STORE`) · `MediaVisibility` (`PUBLIC`, `PRIVATE`) ·
+`SettingScope` (`GLOBAL`, `STORE`) · `SettingType` (`INTEGER`, `BOOLEAN`, `TEXT`, `LIST`) · `MediaVisibility` (`PUBLIC`, `PRIVATE`) ·
 `MediaVariantsStatus` (`PENDING`, `READY`, `FAILED`) · `MediaSize` (`THUMB`, `CARD`, `DETAIL`, `ZOOM`) ·
 `ImageFormat` (`AVIF`, `WEBP`, `JPEG`)
 
@@ -233,7 +239,7 @@ cannot import Platform's interior. They count toward the ~20-class ceiling.
 | `StoreContext` (interface) | `Shared/Application` | `current(): StoreId` (throws `MissingStoreContext`), `has()`, `runIn(StoreId, callable)`. Implemented by Platform. |
 | `Authorizer` (interface) | `Shared/Application` | `authorize(string $permission, ?StoreId $store): void`, throws `Unauthorized`. Implemented by Access. |
 | `ActorContext` (interface) + `Actor` | `Shared/Application` | Who is acting: staff, customer or system, and their id. Implemented by Access. |
-| `BelongsToStore` trait + `StoreScope` | `Shared/Infrastructure/Persistence` | The Eloquent global scope every store-scoped model uses. |
+| `BelongsToStore` trait + `StoreScope` | `Shared/Infrastructure/Persistence` | The Eloquent global scope every store-scoped model uses. It also refuses to create, move, save or delete a row of another store (`CrossStoreWrite`). |
 | `DomainError` + `ErrorCategory` | `Shared/Domain` | The base of every expected business error, and the short list of error kinds. See §7. |
 
 Until Access exists, Platform's own code runs with a system actor from console commands, and

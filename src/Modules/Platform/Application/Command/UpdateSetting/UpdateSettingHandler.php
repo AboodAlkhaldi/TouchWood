@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Application\Command\UpdateSetting;
 
 use Carbon\CarbonImmutable;
@@ -72,6 +74,7 @@ final readonly class UpdateSettingHandler
 
             $actor = $this->actors->current();
             $id = $this->values->save($command->key, $store?->value, $value, $actor->type === ActorType::Staff ? $actor->id : null);
+            $this->values->invalidate();
 
             $this->auditLog->record(new AuditEntryDto(
                 'platform.setting.updated',
@@ -86,9 +89,6 @@ final readonly class UpdateSettingHandler
 
             $this->events->dispatch(new SettingChanged((string) Str::uuid(), $command->key, $store?->value, CarbonImmutable::now()));
         });
-
-        // After the commit, so no other request can re-cache the old value in between.
-        $this->values->forget();
     }
 
     private function storeId(string $code): StoreId

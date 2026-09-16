@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
@@ -9,25 +11,27 @@ use Modules\Platform\Application\Settings\SettingValues;
 use Modules\Platform\Application\Settings\StoredSetting;
 
 /**
- * Every stored setting, loaded in one query and kept in the shared cache until one changes.
- * Nothing is memoised in the process, for the same reason as the store directory: long-running
- * workers would keep stale values.
+ * Every stored setting, loaded in one query and kept in the shared cache until one changes (see
+ * VersionedCache). Nothing is memoised in the process, for the same reason as the store
+ * directory: long-running workers would keep stale values.
  *
  * @phpstan-type Snapshot array<string, array{id: int, value: mixed}>
  */
 final readonly class DatabaseSettings implements SettingValues
 {
-    private const string CACHE_KEY = 'platform:settings:v1';
+    private VersionedCache $cache;
 
     public function __construct(
-        private Cache $cache,
+        Cache $cache,
         private ConnectionInterface $db,
-    ) {}
+    ) {
+        $this->cache = new VersionedCache($cache, 'platform:settings');
+    }
 
     public function find(string $key, ?string $storeId): ?StoredSetting
     {
         /** @var Snapshot $snapshot */
-        $snapshot = $this->cache->rememberForever(self::CACHE_KEY, fn (): array => $this->load());
+        $snapshot = $this->cache->remember(fn (): array => $this->load());
         $row = $snapshot[self::slot($key, $storeId)] ?? null;
 
         return $row === null ? null : new StoredSetting($row['id'], $row['value']);
@@ -35,6 +39,10 @@ final readonly class DatabaseSettings implements SettingValues
 
     public function lockForUpdate(string $key, ?string $storeId): ?StoredSetting
     {
+        // A row lock locks nothing while the row does not exist yet, so two first writes would
+        // both read the default. A transaction-scoped advisory lock on the slot serialises them.
+        $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [self::slot($key, $storeId)], useReadPdo: false);
+
         $row = $this->db->table('platform.settings')
             ->where('key', $key)
             ->where('store_id', $storeId)
@@ -55,14 +63,16 @@ final readonly class DatabaseSettings implements SettingValues
                 RETURNING id
                 SQL,
             [$storeId, $key, json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), $updatedBy, CarbonImmutable::now()],
+            // A write: it must never be sent to a read replica.
+            useReadPdo: false,
         );
 
         return (int) $row->id;
     }
 
-    public function forget(): void
+    public function invalidate(): void
     {
-        $this->cache->forget(self::CACHE_KEY);
+        $this->cache->invalidate();
     }
 
     /**

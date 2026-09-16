@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,6 +18,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Dto\SettingDefinitionDto;
 use Modules\Platform\Public\Enums\SettingScope;
+use Modules\Platform\Public\Enums\SettingType;
 use Modules\Platform\Public\Events\SettingChanged;
 use Shared\Application\Authorizer;
 use Shared\Domain\ValueObject\StoreId;
@@ -39,8 +42,9 @@ function defineTestSettings(): void
 {
     app(SettingsRegistry::class)->define(
         'testing',
-        new SettingDefinitionDto('testing.otp.max_resends', SettingScope::Store, ['integer', 'min:1', 'max:10'], 3, 'testing.settings.update'),
-        new SettingDefinitionDto('testing.maintenance.enabled', SettingScope::Global, ['boolean'], false, 'testing.maintenance.update'),
+        new SettingDefinitionDto('testing.otp.max_resends', SettingScope::Store, SettingType::Integer, ['min:1', 'max:10'], 3, 'testing.settings.update'),
+        new SettingDefinitionDto('testing.maintenance.enabled', SettingScope::Global, SettingType::Boolean, [], false, 'testing.maintenance.update'),
+        new SettingDefinitionDto('testing.sms.sender_name', SettingScope::Global, SettingType::Text, ['max:11'], 'TouchWood', 'testing.settings.update'),
     );
 }
 
@@ -61,11 +65,11 @@ beforeEach(function () {
 
 describe('declaring', function () {
     it('refuses a key that does not follow module.area.name', function (string $key) {
-        app(SettingsRegistry::class)->define('testing', new SettingDefinitionDto($key, SettingScope::Global, ['boolean'], false, 'testing.settings.update'));
-    })->throws(InvalidSettingDefinition::class)->with(['testing.enabled', 'Testing.Otp.Max', 'testing..max', 'testing.otp.max-resends']);
+        app(SettingsRegistry::class)->define('testing', new SettingDefinitionDto($key, SettingScope::Global, SettingType::Boolean, [], false, 'testing.settings.update'));
+    })->throws(InvalidSettingDefinition::class)->with(['testing.enabled', 'Testing.Otp.Max', 'testing..max', 'testing.otp.max-resends', "testing.otp.max\n"]);
 
     it('refuses a key that belongs to another module', function () {
-        app(SettingsRegistry::class)->define('loyalty', new SettingDefinitionDto('testing.points.expiry_days', SettingScope::Store, ['integer'], 365, 'loyalty.settings.update'));
+        app(SettingsRegistry::class)->define('loyalty', new SettingDefinitionDto('testing.points.expiry_days', SettingScope::Store, SettingType::Integer, [], 365, 'loyalty.settings.update'));
     })->throws(InvalidSettingDefinition::class, 'must start with "loyalty."');
 
     it('refuses a key declared twice', function () {
@@ -73,8 +77,17 @@ describe('declaring', function () {
     })->throws(InvalidSettingDefinition::class, 'already declared');
 
     it('refuses a default that fails its own rules', function () {
-        app(SettingsRegistry::class)->define('testing', new SettingDefinitionDto('testing.otp.length', SettingScope::Global, ['integer', 'min:4'], 2, 'testing.settings.update'));
-    })->throws(InvalidSettingDefinition::class, 'fails its own rules');
+        app(SettingsRegistry::class)->define('testing', new SettingDefinitionDto('testing.otp.length', SettingScope::Global, SettingType::Integer, ['min:4'], 2, 'testing.settings.update'));
+    })->throws(InvalidSettingDefinition::class, 'fails its own type or rules');
+
+    it('refuses a default of the wrong type', function (SettingType $type, mixed $default) {
+        app(SettingsRegistry::class)->define('testing', new SettingDefinitionDto('testing.otp.length', SettingScope::Global, $type, [], $default, 'testing.settings.update'));
+    })->throws(InvalidSettingDefinition::class, 'fails its own type or rules')->with([
+        'numeric text as an integer' => [SettingType::Integer, '6'],
+        'one as a boolean' => [SettingType::Boolean, 1],
+        'empty text' => [SettingType::Text, ''],
+        'a map as a list' => [SettingType::List, ['a' => 1]],
+    ]);
 });
 
 describe('reading', function () {
@@ -139,6 +152,28 @@ describe('changing', function () {
     it('refuses a value that breaks the rules', function (mixed $value) {
         setSetting('testing.otp.max_resends', 'sa', $value);
     })->throws(InvalidSettingValue::class)->with([11, 0, 'many', null]);
+
+    it('refuses a value of the wrong type that Laravel rules alone would let through', function (string $key, ?string $store, mixed $value) {
+        setSetting($key, $store, $value);
+    })->throws(InvalidSettingValue::class)->with([
+        // Laravel skips non-implicit rules for an empty string.
+        'empty string as an integer' => ['testing.otp.max_resends', 'sa', ''],
+        'whitespace as an integer' => ['testing.otp.max_resends', 'sa', '   '],
+        // Non-strict "integer" and "boolean" accept these.
+        'numeric text as an integer' => ['testing.otp.max_resends', 'sa', '5'],
+        'one as a boolean' => ['testing.maintenance.enabled', null, 1],
+        'empty text' => ['testing.sms.sender_name', null, ''],
+    ]);
+
+    it('can always read back a value it accepted', function () {
+        setSetting('testing.otp.max_resends', 'sa', 7);
+        setSetting('testing.maintenance.enabled', null, true);
+        setSetting('testing.sms.sender_name', null, 'TW Store');
+
+        expect(app(PlatformApi::class)->setting('testing.otp.max_resends', storeIdFor('sa'))->int())->toBe(7)
+            ->and(app(PlatformApi::class)->setting('testing.maintenance.enabled')->bool())->toBeTrue()
+            ->and(app(PlatformApi::class)->setting('testing.sms.sender_name')->string())->toBe('TW Store');
+    });
 
     it('refuses the wrong scope and an unknown store', function (string $key, ?string $storeCode, string $error) {
         expect(fn () => setSetting($key, $storeCode, 1))->toThrow($error);

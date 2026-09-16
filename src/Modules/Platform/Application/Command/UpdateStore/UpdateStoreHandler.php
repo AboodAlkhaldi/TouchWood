@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Application\Command\UpdateStore;
 
 use Carbon\CarbonImmutable;
@@ -36,12 +38,15 @@ final readonly class UpdateStoreHandler
     public function handle(UpdateStore $command): void
     {
         $code = StoreCode::fromString($command->storeCode);
+        $known = $this->directory->storeByCode($code->value) ?? throw new StoreNotFound($code->value);
+
+        // Checked against this store, before any row is locked: an admin of one store cannot
+        // edit another. Store codes are public URL segments, so "not found" reveals nothing.
+        $this->authorizer->authorize(self::PERMISSION, $known->storeId());
 
         $this->db->transaction(function () use ($command, $code) {
             $store = $this->stores->byCode($code) ?? throw new StoreNotFound($code->value);
 
-            // Checked against this store: an admin of one store cannot edit another.
-            $this->authorizer->authorize(self::PERMISSION, $store->id());
             $this->refuseImmutableChanges($store, $command);
             $before = StoreAudit::attributes($store);
 
@@ -73,11 +78,9 @@ final readonly class UpdateStoreHandler
 
             $this->stores->update($store);
             $this->auditLog->record(StoreAudit::updated($store, $before, $changed));
+            $this->directory->invalidate();
             $this->events->dispatch(new StoreUpdated((string) Str::uuid(), $store->id()->value, $changed, CarbonImmutable::now()));
         });
-
-        // After the commit, so no other request can re-cache the old data in between.
-        $this->directory->forget();
     }
 
     private function refuseImmutableChanges(Store $store, UpdateStore $command): void

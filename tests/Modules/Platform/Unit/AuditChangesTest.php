@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Modules\Platform\Public\Dto\AuditChanges;
 
 it('records the old and new value of an ordinary attribute', function () {

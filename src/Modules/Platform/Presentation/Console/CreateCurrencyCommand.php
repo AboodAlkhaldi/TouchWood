@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Presentation\Console;
 
 use Illuminate\Console\Command;
@@ -24,7 +26,7 @@ final class CreateCurrencyCommand extends Command
     {
         $exponent = $this->argument('exponent');
 
-        if (preg_match('/^\d+$/', $exponent) !== 1) {
+        if (preg_match('/^\d+\z/', $exponent) !== 1) {
             $this->error('The exponent must be a whole number.');
 
             return self::FAILURE;

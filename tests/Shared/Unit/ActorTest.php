@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Shared\Application\Actor;
 use Shared\Application\ActorType;
 

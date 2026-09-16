@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Infrastructure\Eloquent;
 
 use Illuminate\Contracts\Cache\Repository as Cache;
@@ -11,7 +13,7 @@ use Modules\Platform\Public\Dto\TranslatedTextDto;
 
 /**
  * Every store and currency, loaded in two queries and kept in the shared cache until a
- * handler changes one of them. Nothing is memoised in the process: queue workers live for
+ * handler changes one of them (see VersionedCache). Nothing is memoised in the process: queue workers live for
  * hours, and a copy held in memory would go stale when another process updates a store.
  *
  * @phpstan-type Translated array{ar: string, en: string}
@@ -21,12 +23,14 @@ use Modules\Platform\Public\Dto\TranslatedTextDto;
  */
 final readonly class CachedStoreDirectory implements StoreDirectory
 {
-    private const string CACHE_KEY = 'platform:store-directory:v1';
+    private VersionedCache $cache;
 
     public function __construct(
-        private Cache $cache,
+        Cache $cache,
         private ConnectionInterface $db,
-    ) {}
+    ) {
+        $this->cache = new VersionedCache($cache, 'platform:store-directory');
+    }
 
     public function stores(): array
     {
@@ -58,9 +62,9 @@ final readonly class CachedStoreDirectory implements StoreDirectory
         );
     }
 
-    public function forget(): void
+    public function invalidate(): void
     {
-        $this->cache->forget(self::CACHE_KEY);
+        $this->cache->invalidate();
     }
 
     /**
@@ -85,7 +89,7 @@ final readonly class CachedStoreDirectory implements StoreDirectory
     private function snapshot(): array
     {
         /** @var Snapshot */
-        return $this->cache->rememberForever(self::CACHE_KEY, fn (): array => $this->load());
+        return $this->cache->remember(fn (): array => $this->load());
     }
 
     /**
