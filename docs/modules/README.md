@@ -1,7 +1,8 @@
 # Module specifications
 
-One file per module. Access is written first and defines the shape every other
-module follows.
+One file per module, written and reviewed before the module's first line of code.
+Platform comes first in the build order (handoff §20); Access then sets the shape every
+later module follows (handoff §18).
 
 Each specification contains, in this order:
 
@@ -19,7 +20,7 @@ Each specification contains, in this order:
 
 | Module | Spec | Blocked by |
 |---|---|---|
-| Platform | not started | — |
+| Platform | [draft — in review](platform.md) | owner answers to its 7 open questions |
 | Access | not started | — |
 | B2B | not started | — |
 | Feedback | not started | — |
