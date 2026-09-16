@@ -259,6 +259,9 @@ constraint); **transactional outbox for the ~8 critical events only**, not all o
 | No `Public/` class references Eloquent | Models crossing boundaries | In place |
 | `Domain/Repository` contains interfaces only | Persistence leaking into the domain | In place |
 | No `Domain/` or `Application/` file contains a country or currency literal | Hardcoded store assumptions | In place |
+| Every class in `Domain/Exception` extends `DomainError` | A module inventing its own error shape | In place |
+| `Domain/` and `Application/` never import HTTP classes | Business code deciding HTTP statuses | In place |
+| Reading across stores (`acrossStores()`, removing global scopes) only in `Application/Query` and Ops | Accidental cross-store reads | In place |
 | Every store-scoped Eloquent model declares the store global scope | A forgotten `where store_id` | With the first store-scoped model |
 | Every command handler asserts a permission | An unprotected use case | With the command bus |
 | No storefront endpoint exceeds N queries | The N+1 that made the old system take 5 seconds | With the first storefront endpoint |

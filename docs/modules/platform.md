@@ -613,4 +613,4 @@ stack traces, SQL, or another customer's data.
 
 ### 9.2 Still open
 
-None. This spec is ready for approval.
+None.

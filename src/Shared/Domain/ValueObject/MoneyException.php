@@ -2,10 +2,21 @@
 
 namespace Shared\Domain\ValueObject;
 
-use DomainException;
+use Shared\Domain\Error\DomainError;
+use Shared\Domain\Error\ErrorCategory;
 
-final class MoneyException extends DomainException
+final class MoneyException extends DomainError
 {
+    public function type(): string
+    {
+        return 'shared.invalid_money';
+    }
+
+    public function category(): ErrorCategory
+    {
+        return ErrorCategory::Invalid;
+    }
+
     public static function invalidCurrencyCode(string $code): self
     {
         return new self("Invalid currency code \"{$code}\": expected three uppercase letters.");
