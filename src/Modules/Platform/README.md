@@ -66,7 +66,7 @@ ids only and are dispatched after the transaction commits.
 | `Application/Audit` | Builds the audit entry for each kind of change (`StoreAudit`, `CurrencyAudit`, `MediaAudit`). |
 | `Application/Settings` | The settings registry, strict type checks and reading with defaults. |
 | `Application/Media` | What media needs from the outside world, as interfaces (storage, file inspection, resizing, the queue), plus `MediaSettings` (the upload-limit declarations) and `InspectedFile`. |
-| `Application/Query` | `StoreDirectory`, the cached read side for stores and currencies. |
+| `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached) and `MediaReader`. |
 | `Infrastructure/` | Eloquent and query-builder repositories, caching, the audit writer, Laravel disks, Intervention Image, the queued job, migrations and the service provider. |
 | `Presentation/` | The `store` middleware, the country-choice page, a placeholder store home page, console commands, Arabic and English translations. |
 
@@ -199,8 +199,10 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
   commits.
 - **Variants are generated once, in the background, outside any transaction**, then marked READY
   in a short transaction that checks the media is still PENDING. Running the job twice is
-  harmless. If the media was deleted meanwhile, the job removes what it wrote. Only one decoded
-  bitmap is held: sizes are made largest first, each shrinking the previous one. Each size keeps
+  harmless. If the media was deleted meanwhile, the job removes what it wrote. Only one full-size
+  bitmap is held: sizes are made largest first, each shrinking the previous one, and a sideways
+  photo is turned upright only after the first shrink (turning it at full size would hold three
+  full-size copies: 780 MB for a 50-megapixel photo). Each size keeps
   the whole image, limits only its longest side (200 / 600 / 1200 / 2400 px) and never enlarges.
   Photos are turned upright, metadata is stripped, and transparency becomes white in JPEG.
 - **Lost jobs are recovered.** `variants_queued_at` records when generation was last queued. An
@@ -210,8 +212,9 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
   storefront page never waits on, or blocks, a change.
 - **Media in use cannot be deleted.** Other modules reference `platform.media(id)` with
   `ON DELETE RESTRICT`. The database refuses the delete and Platform reports `MediaInUse`.
-- **Private files** are served only through signed links that expire after 30 minutes, and
-  download under their original name. They never get variants and never go through the CDN.
+- **Private files** are served only through signed links that expire after 30 minutes. On
+  S3-compatible storage they download under their original name; Laravel's local disk ignores that
+  and serves them under their object key. They never get variants and never go through the CDN.
   Platform does not know who may see a private file: the module that owns it checks its viewer
   before asking for the link.
 - **No media package.** `spatie/laravel-medialibrary` ties files to another module's Eloquent
@@ -233,7 +236,9 @@ provider later is configuration, not code:
 
 When the provider is chosen, define its disks in `config/filesystems.php` (an S3-compatible disk
 with the CDN as its `url`, and a private disk that supports temporary URLs), then point the two
-variables at them. They must be different disks: the storage refuses to start otherwise.
+variables at them. They must be different disks: the storage refuses to start otherwise. File
+visibility (public or private) comes from each disk's own configuration; the code never sets it,
+ because many S3 buckets refuse per-object ACLs.
 
 The server needs:
 - **PHP extensions** `gd` (built with AVIF and WebP), `exif` and `fileinfo`. `composer.json`

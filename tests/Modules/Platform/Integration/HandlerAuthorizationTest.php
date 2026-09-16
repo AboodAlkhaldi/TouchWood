@@ -76,7 +76,7 @@ function mediaRowWithoutPermission(?string $variantsStatus = 'FAILED'): string
     DB::table('platform.media')->insert([
         'id' => $id,
         'visibility' => 'PUBLIC',
-        'disk' => 'public',
+        'disk' => 'local',
         'object_key' => "media/{$id}.jpg",
         'original_filename' => 'hinge.jpg',
         'mime' => 'image/jpeg',
@@ -176,4 +176,19 @@ it('refuses every web request until Access exists, even though nobody has logged
         ->toThrow(Unauthorized::class);
 
     (new SystemOnlyAuthorizer(new SystemActorContext, runningInConsole: true))->authorize('platform.media.upload');
+});
+
+it('binds the interim authorizer so that a real handler refuses a web request', function () {
+    // Tests run in the console; pretend this one serves a web request, as PHP-FPM would.
+    $console = new ReflectionProperty(app(), 'isRunningInConsole');
+    $console->setValue(app(), false);
+    app()->forgetScopedInstances();
+
+    try {
+        expect(fn () => app(RetryMediaVariantsHandler::class)->handle(new RetryMediaVariants(mediaRowWithoutPermission())))
+            ->toThrow(Unauthorized::class);
+    } finally {
+        $console->setValue(app(), true);
+        app()->forgetScopedInstances();
+    }
 });

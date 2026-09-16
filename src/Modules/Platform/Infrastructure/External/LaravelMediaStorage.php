@@ -20,6 +20,9 @@ use RuntimeException;
 /**
  * Media on Laravel disks. config/platform.php names the two disks; the provider (S3-compatible
  * storage, CDN URL) is configured there and in .env, never in code.
+ *
+ * Writes pass no visibility: each disk's own configuration decides it. Many S3 buckets refuse
+ * per-object ACLs, so forcing one here would make a provider unusable without a code change.
  */
 final readonly class LaravelMediaStorage implements MediaStorage
 {
@@ -51,7 +54,7 @@ final readonly class LaravelMediaStorage implements MediaStorage
         }
 
         try {
-            $this->write($this->disk($media->disk()), $media->disk(), $media->objectKey(), $stream, 'private');
+            $this->write($this->disk($media->disk()), $media->disk(), $media->objectKey(), $stream);
         } finally {
             fclose($stream);
         }
@@ -64,7 +67,7 @@ final readonly class LaravelMediaStorage implements MediaStorage
 
     public function putVariant(Media $media, MediaSize $size, ImageFormat $format, string $contents): void
     {
-        $this->write($this->variantsDisk(), $this->config['public_disk'], $media->variantKey($size, $format), $contents, 'public');
+        $this->write($this->variantsDisk(), $this->config['public_disk'], $media->variantKey($size, $format), $contents);
     }
 
     public function deleteNow(Media $media): void
@@ -94,7 +97,8 @@ final readonly class LaravelMediaStorage implements MediaStorage
     public function temporaryOriginalUrl(Media $media, CarbonImmutable $expiresAt): string
     {
         return $this->urls($this->disk($media->disk()), $media->disk())->temporaryUrl($media->objectKey(), $expiresAt, [
-            // Honoured by S3-compatible storage: download, never render in the storage's origin.
+            // Honoured by S3-compatible storage only: download, never render in the storage's origin.
+            // Laravel's local disk ignores it and serves the file under its object key.
             'ResponseContentDisposition' => self::attachment($media->originalFilename()),
         ]);
     }
@@ -102,9 +106,9 @@ final readonly class LaravelMediaStorage implements MediaStorage
     /**
      * @param  string|resource  $contents
      */
-    private function write(Filesystem $disk, string $diskName, string $key, mixed $contents, string $visibility): void
+    private function write(Filesystem $disk, string $diskName, string $key, mixed $contents): void
     {
-        if (! $disk->put($key, $contents, ['visibility' => $visibility])) {
+        if (! $disk->put($key, $contents)) {
             throw new RuntimeException("Could not write \"{$key}\" to the {$diskName} disk.");
         }
     }

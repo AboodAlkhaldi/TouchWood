@@ -122,7 +122,8 @@ src/Modules/{Name}/
 │   ├── Persistence/
 │   │   └── Migrations/     Module-owned. Own schema: catalog.products
 │   ├── Listener/           Infrastructure-level subscribers
-│   ├── Queue/              Queued jobs; each only calls an Application handler
+│   ├── Queue/              Queued jobs, each only calling an Application handler,
+│   │                       and the adapters that dispatch them
 │   └── External/           Third-party adapters (gateways, providers, file storage)
 │
 └── Presentation/

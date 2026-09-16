@@ -119,7 +119,7 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
   exhausts memory. An animated WebP is refused: it cannot be resized.
 - **[PROPOSED — added in implementation]** Only the base name of the uploaded file is kept (no
   directories, no control or invisible formatting characters such as a right-to-left override),
-  at most 255 characters. A private file downloads under this name.
+  at most 255 characters. On S3-compatible storage a private file downloads under this name.
 - A Media row referenced by another module cannot be deleted. The referencing tables hold a
   foreign key with `ON DELETE RESTRICT` (cross-schema foreign keys are allowed, handoff §4.3),
   so the database refuses and Platform reports `MediaInUse`.
@@ -661,8 +661,8 @@ stack traces, SQL, or another customer's data.
   publishes `MediaVariantsReady`; deleting the media mid-run leaves no variant behind.
 - An image stuck in `PENDING` 15 minutes is queued again by the sweep and by staff Retry; a
   recent one is not.
-- A private media URL is signed, downloads under the original file name, and stops working after
-  it expires; no original and no private file is ever on the public disk.
+- A private media URL is signed, asks the storage to download under the original file name, and
+  stops working after it expires; no original and no private file is ever on the public disk.
 - Reading media never locks its row.
 - A staff action's audit entry records the staff member's IP address.
 - Error responses match the RFC 7807 shape in both Arabic and English; each category gets its

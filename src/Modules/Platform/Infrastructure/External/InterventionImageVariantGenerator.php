@@ -18,8 +18,11 @@ use Modules\Platform\Public\Enums\MediaSize;
  * only the longest side, and never enlarges a smaller original. Metadata is stripped; photos are
  * rotated by their EXIF orientation first; transparency becomes white in JPEG.
  *
- * Memory: the decoded bitmap is the expensive part (4 bytes a pixel), so only one copy is ever
- * held. The sizes are made from largest to smallest, each shrinking the previous one in place.
+ * Memory: the decoded bitmap is the expensive part (4 bytes a pixel), so only one full-size copy
+ * is ever held. The sizes are made from largest to smallest, each shrinking the previous one in
+ * place, and a sideways photo is turned upright only after the first shrink: turning a full-size
+ * bitmap a quarter holds three full-size copies at once (780 MB for a 50-megapixel photo). The
+ * size limit is a square box, so shrinking before or after turning gives the same image.
  */
 final class InterventionImageVariantGenerator implements ImageVariantGenerator
 {
@@ -31,15 +34,21 @@ final class InterventionImageVariantGenerator implements ImageVariantGenerator
 
     public function variants(string $original): iterable
     {
-        $manager = new ImageManager(new Driver, autoOrientation: true, decodeAnimation: false, backgroundColor: 'ffffff', strip: true);
+        $manager = new ImageManager(new Driver, autoOrientation: false, decodeAnimation: false, backgroundColor: 'ffffff', strip: true);
         $image = $manager->decodeBinary($original);
         unset($original);
 
         $sizes = MediaSize::cases();
         usort($sizes, fn (MediaSize $a, MediaSize $b): int => $b->longestEdge() <=> $a->longestEdge());
+        $upright = false;
 
         foreach ($sizes as $size) {
             $image->scaleDown($size->longestEdge(), $size->longestEdge());
+
+            if (! $upright) {
+                $image->orient();
+                $upright = true;
+            }
 
             foreach (ImageFormat::cases() as $format) {
                 $encoder = match ($format) {

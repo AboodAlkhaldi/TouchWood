@@ -13,6 +13,7 @@ return [
         //   with the CDN as its URL once a provider is chosen.
         // - private: every original, public or private, and every private document. It must
         //   support temporary (signed) URLs and must never be served by the CDN.
+        // File visibility comes from each disk's own configuration, never from code.
         'public_disk' => env('MEDIA_PUBLIC_DISK', 'public'),
         'private_disk' => env('MEDIA_PRIVATE_DISK', 'local'),
 

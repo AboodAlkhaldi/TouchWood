@@ -96,6 +96,15 @@ describe('uploading', function () {
         'alt text' => [fn () => mediaForTest()->changeAltText("bad\xC3\x28", null)],
     ]);
 
+    it('refuses control characters in alt text, but keeps direction marks Arabic text may need', function () {
+        $media = mediaForTest();
+        $media->changeAltText("مفصلة\u{200F} 35mm", null);
+
+        expect($media->altAr())->toBe("مفصلة\u{200F} 35mm")
+            ->and(fn () => $media->changeAltText("a\0b", null))->toThrow(InvalidMediaAttribute::class)
+            ->and(fn () => $media->changeAltText("line\nbreak", null))->toThrow(InvalidMediaAttribute::class);
+    });
+
     it('refuses an empty file name', function () {
         mediaForTest(filename: "\n");
     })->throws(InvalidMediaAttribute::class);

@@ -293,15 +293,18 @@ describe('uploading', function () {
     });
 
     it('records a sideways phone photo with its upright width and height', function () {
-        // Stored 300×200, displayed turned a quarter (EXIF orientation 6): 200 wide, 300 tall.
-        $id = uploadMedia(withExifOrientation(imageFile(300, 200), 6));
+        // Stored 3000×2000, displayed turned a quarter (EXIF orientation 6): 2000 wide, 3000 tall.
+        // Large enough that the generator shrinks it before turning it upright.
+        $id = uploadMedia(withExifOrientation(imageFile(3000, 2000), 6));
 
-        expect([app(PlatformApi::class)->media($id)?->width, app(PlatformApi::class)->media($id)?->height])->toBe([200, 300]);
+        expect([app(PlatformApi::class)->media($id)?->width, app(PlatformApi::class)->media($id)?->height])->toBe([2000, 3000]);
 
         runQueuedVariants($id);
         $zoom = getimagesizefromstring((string) Storage::disk('public')->get(variantBase($id).'/zoom.jpg'));
+        $card = getimagesizefromstring((string) Storage::disk('public')->get(variantBase($id).'/card.webp'));
 
-        expect([$zoom[0] ?? null, $zoom[1] ?? null])->toBe([200, 300]);
+        expect([$zoom[0] ?? null, $zoom[1] ?? null])->toBe([1600, 2400])
+            ->and([$card[0] ?? null, $card[1] ?? null])->toBe([400, 600]);
     });
 
     it('refuses an animated WebP, which cannot be resized', function () {
@@ -310,6 +313,19 @@ describe('uploading', function () {
         file_put_contents($path, 'RIFF'.pack('V', 22).'WEBP'.'VP8X'.pack('V', 10)."\x02\x00\x00\x00"."\x63\x00\x00"."\x63\x00\x00");
 
         expect(fn () => uploadMedia($path, name: 'animated.webp'))->toThrow(UnsupportedMediaType::class, 'animated');
+    });
+
+    it('accepts a still WebP that uses the extended header, such as one with transparency', function () {
+        $image = imagecreatetruecolor(40, 40);
+        imagealphablending($image, false);
+        imagesavealpha($image, true);
+        imagefill($image, 0, 0, (int) imagecolorallocatealpha($image, 200, 80, 40, 60));
+        $path = mediaTestPath('transparent.webp');
+        imagewebp($image, $path);
+
+        // The same VP8X header an animated file uses, without the animation flag.
+        expect(substr((string) file_get_contents($path, length: 16), 12, 4))->toBe('VP8X')
+            ->and(mediaRow(uploadMedia($path, name: 'transparent.webp'))->mime)->toBe('image/webp');
     });
 
     it('applies each visibility\'s upload limit from settings', function (string $key, Closure $upload) {
@@ -529,12 +545,14 @@ describe('the stuck-variants sweep', function () {
         expect(app(RequeueStuckMediaVariantsHandler::class)->handle(new RequeueStuckMediaVariants))->toBe(0);
     });
 
-    it('runs from the console every ten minutes', function () {
+    it('runs from the console every ten minutes, on one server at a time', function () {
         $events = collect(app(Schedule::class)->events())
             ->filter(fn (ScheduledEvent $event): bool => str_contains((string) $event->command, RequeueStuckMediaVariantsCommand::NAME));
 
         expect($events)->toHaveCount(1)
-            ->and($events->first()?->expression)->toBe('*/10 * * * *');
+            ->and($events->first()?->expression)->toBe('*/10 * * * *')
+            ->and($events->first()?->withoutOverlapping)->toBeTrue()
+            ->and($events->first()?->onOneServer)->toBeTrue();
 
         expect(Artisan::call(RequeueStuckMediaVariantsCommand::NAME))->toBe(0)
             ->and(Artisan::output())->toContain('0 stuck image(s)');

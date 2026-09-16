@@ -378,6 +378,12 @@ final class Media
 
         $text = $text === null ? null : trim($text);
 
+        // Control characters (a NUL, a line break) have no place in alt text, and PostgreSQL
+        // refuses a NUL outright. Format characters stay: Arabic text may need direction marks.
+        if ($text !== null && preg_match('/\p{Cc}/u', $text) === 1) {
+            throw new InvalidMediaAttribute($attribute, 'no control characters');
+        }
+
         if ($text !== null && mb_strlen($text) > self::MAX_TEXT_LENGTH) {
             throw new InvalidMediaAttribute($attribute, 'at most 255 characters');
         }

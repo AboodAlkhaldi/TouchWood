@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Application\Audit;
 
+use DateTimeImmutable;
 use Modules\Platform\Domain\Model\Media;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
@@ -49,10 +50,11 @@ final class MediaAudit
      * A staff member asked for the variants again. The system's own sweep of stuck images is not
      * audited: nobody acted.
      */
-    public static function variantsRetried(Media $media, ?MediaVariantsStatus $before): AuditEntryDto
+    public static function variantsRetried(Media $media, ?MediaVariantsStatus $before, ?DateTimeImmutable $queuedBefore): AuditEntryDto
     {
         return new AuditEntryDto('platform.media.variants_retried', self::SUBJECT, $media->id(), null, AuditChanges::none()
-            ->changed('variants_status', $before?->value, $media->variantsStatus()?->value));
+            ->changed('variants_status', $before?->value, $media->variantsStatus()?->value)
+            ->changed('variants_queued_at', $queuedBefore?->format(DATE_ATOM), $media->variantsQueuedAt()?->format(DATE_ATOM)));
     }
 
     public static function deleted(Media $media): AuditEntryDto

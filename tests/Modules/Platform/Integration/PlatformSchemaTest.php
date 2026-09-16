@@ -58,9 +58,6 @@ function insertAuditRow(array $overrides = []): void
 }
 
 /**
- * @return array<array-key, mixed> column name => data type
- */
-/**
  * @param  array<string, mixed>  $overrides
  */
 function insertMediaRow(array $overrides = []): void

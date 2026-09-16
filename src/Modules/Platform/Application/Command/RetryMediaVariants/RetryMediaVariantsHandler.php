@@ -35,11 +35,11 @@ final readonly class RetryMediaVariantsHandler
 
         $this->db->transaction(function () use ($command) {
             $media = $this->media->lockById($command->mediaId) ?? throw new MediaNotFound($command->mediaId);
-            $before = $media->variantsStatus();
+            [$before, $queuedBefore] = [$media->variantsStatus(), $media->variantsQueuedAt()];
 
             $media->retryVariants(CarbonImmutable::now());
             $this->media->update($media);
-            $this->auditLog->record(MediaAudit::variantsRetried($media, $before));
+            $this->auditLog->record(MediaAudit::variantsRetried($media, $before, $queuedBefore));
             $this->variants->generate($media->id());
         });
     }
