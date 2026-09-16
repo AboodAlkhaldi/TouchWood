@@ -20,7 +20,7 @@ Each specification contains, in this order:
 
 | Module | Spec | Blocked by |
 |---|---|---|
-| Platform | [draft — in review](platform.md) | owner answers to its 7 open questions |
+| Platform | [draft v2 — in review](platform.md) | owner approval; 1 open question (UAE Dirham symbol) |
 | Access | not started | — |
 | B2B | not started | — |
 | Feedback | not started | — |

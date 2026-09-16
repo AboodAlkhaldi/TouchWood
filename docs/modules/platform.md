@@ -1,6 +1,7 @@
 # Platform — Module Specification
 
-**Status:** DRAFT — waiting for owner review. No code is written until this is approved.
+**Status:** DRAFT v2 — owner's answers to the first seven questions applied (2026-09-16).
+Waiting for approval. No code is written until this is approved.
 **Tier:** 3 (foundation). **Depends on:** nothing. **Build stage:** 1.
 **Source:** `docs/HANDOFF.md` §1, §4, §5, §7.5, §10.3, §14, §17–§20.
 
@@ -8,8 +9,9 @@ Platform owns the things every other module needs before it can do anything: whi
 exist, what currency they use, their tax rate, configurable settings, uploaded media, and the
 audit log. It also owns **store context** — how a request or a job knows which store it is in.
 
-Items marked **[PROPOSED]** are my design choices where the handoff is silent. Items marked
-**[QUESTION n]** need your answer and are listed in §9.
+Items marked **[PROPOSED]** are design choices where the handoff is silent. Items marked
+**[DECIDED]** are the owner's answers to this spec's questions; §9 records them. Items marked
+**[QUESTION n]** still need an answer.
 
 ---
 
@@ -92,9 +94,23 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
   so the database refuses and Platform reports `MediaInUse`.
 - Deleting removes the original and all variants from object storage **after** the database
   commit.
-- **[QUESTION 2, 3]** Visibility: `PUBLIC` (catalog images served from the CDN) or `PRIVATE`
-  (company registration documents, bank-transfer receipts — served only through short-lived
-  signed URLs, never the CDN).
+- **[DECIDED]** Every file lives in this one table, with a visibility:
+  - `PUBLIC` — catalog and content images, served from the CDN.
+  - `PRIVATE` — company registration documents and bank-transfer receipts. Stored on a private
+    disk and served **only** through short-lived signed URLs, never the CDN.
+- **[DECIDED]** Upload limits, checked before anything is stored:
+
+  | Visibility | Accepted types | Maximum size |
+  |---|---|---|
+  | `PUBLIC` | JPEG, PNG, WebP | 10 MB |
+  | `PRIVATE` | PDF, JPEG, PNG | 10 MB |
+
+  The type is detected from the file's contents, not its name or the browser's claim. The size
+  limits are global settings (`platform.media.max_public_bytes`, `platform.media.max_private_bytes`)
+  so they can change without a deploy; the accepted types are fixed in code for safety.
+- **[DECIDED]** No third-party media package: `spatie/laravel-medialibrary` links each file to
+  another module's database model, which the boundary rule forbids (handoff §4.3). Resizing uses
+  Intervention Image.
 
 ### 1.5 Audit entry
 
@@ -108,6 +124,9 @@ A permanent record of who changed what.
 - **[PROPOSED]** `changes` never stores the *values* of personal fields (name, email, phone,
   address) — only that the field changed. Account anonymization (handoff §7.9) then never has
   to rewrite audit history.
+- **[DECIDED]** Entries are **kept forever**. Nothing deletes or archives them.
+- **[DECIDED]** When the actor is a staff member, the entry records their **IP address**.
+  Customer and system entries never record an IP.
 
 ### 1.6 Store context
 
@@ -115,7 +134,9 @@ Not an aggregate — a rule that holds for every request, job and command.
 
 - A storefront request resolves exactly one store from the first path segment:
   `brand.com/sa/...` → the `sa` store. An unknown code returns 404.
-- **[QUESTION 4]** What `brand.com/` with no store segment does.
+- Visiting a store remembers it in a cookie.
+- **[DECIDED]** `brand.com/` with no store segment: if the cookie names a store that still
+  exists, redirect there; otherwise show a page to choose a country. No IP-based detection.
 - A queued job runs in the store it was dispatched from. The store travels with the job
   automatically; the job does not have to pass it by hand.
 - A console command that touches store-scoped data takes an explicit `--store=` option or
@@ -201,6 +222,7 @@ cannot import Platform's interior. They count toward the ~20-class ceiling.
 | `Authorizer` (interface) | `Shared/Application` | `authorize(string $permission, ?StoreId $store): void`, throws `Unauthorized`. Implemented by Access. |
 | `ActorContext` (interface) + `Actor` | `Shared/Application` | Who is acting: staff, customer or system, and their id. Implemented by Access. |
 | `BelongsToStore` trait + `StoreScope` | `Shared/Infrastructure/Persistence` | The Eloquent global scope every store-scoped model uses. |
+| `DomainError` + `ErrorCategory` | `Shared/Domain` | The base of every expected business error, and the short list of error kinds. See §7. |
 
 Until Access exists, Platform's own code runs with a system actor from console commands, and
 tests bind fakes for `Authorizer` and `ActorContext`.
@@ -229,6 +251,7 @@ permission exists so every handler asserts one, but it is never offered in the r
 | `ViewAuditLog` | Staff | `platform.audit.view` | Entries for stores in scope; entries with no store need all-stores access |
 | `RecordAuditEntry` | Other modules | System — called inside an already-authorized handler | — |
 | `ResolveStoreContext` | Every storefront request | None | — |
+| `ChooseStore` — the country page at `brand.com/`, and the cookie redirect | Any visitor | None | — |
 
 **Delivery [PROPOSED].** Stage 1 builds the domain, persistence, store resolution, the public
 contract, and console commands to create stores and currencies (seeding `sa`, `eg`, `ae`).
@@ -317,7 +340,7 @@ Columns from handoff §5.5, plus the ones marked **[PROPOSED]**.
 | Column | Type | Rules |
 |---|---|---|
 | `id` | `char(26)` PK | ULID |
-| `visibility` | `varchar(16)` NOT NULL | `PUBLIC` or `PRIVATE` **[QUESTION 3]** |
+| `visibility` | `varchar(16)` NOT NULL | `PUBLIC` or `PRIVATE` |
 | `disk` | `varchar(32)` NOT NULL | |
 | `object_key` | `varchar(255)` NOT NULL | |
 | `original_filename` | `varchar(255)` NOT NULL | **[PROPOSED]** download name for private documents |
@@ -353,6 +376,9 @@ Variant object keys are derived, not stored: `{object_key without extension}/{si
 | `subject_id` | `varchar(64)` NOT NULL | |
 | `changes` | `jsonb` NOT NULL DEFAULT `'{}'` | `{"tax_rate_basis_points": [1500, 1600]}`; personal fields record only `"changed"` |
 | `correlation_id` | `varchar(64)` NULL | Links the entry to the request's logs |
+| `ip_address` | `inet` NULL | Staff actors only. `CHECK (ip_address IS NULL OR actor_type = 'STAFF')` |
+
+No retention job: entries are kept forever.
 
 Indexes:
 - `(subject_type, subject_id, occurred_at DESC)` — history of one thing
@@ -377,9 +403,13 @@ created in Stage 1; they belong to `Shared/Infrastructure`, not to Platform.
 
 | Currency | Exponent | Symbol (ar / en) |
 |---|---|---|
-| SAR | 2 | **[QUESTION 7]** |
+| SAR | 2 | **[DECIDED]** the new official Saudi Riyal sign, Unicode `U+20C1`, in both locales |
 | EGP | 2 | ج.م / EGP |
-| AED | 2 | د.إ / AED |
+| AED | 2 | د.إ / AED **[QUESTION 8]** |
+
+**Font requirement:** because `U+20C1` is new, the storefront and admin fonts must include a
+glyph for it. This is a hard requirement on the font chosen in the frontend milestone, checked
+by eye on a real price before that milestone is merged.
 
 | Store | Country | Currency | Tax | Timezone | Position |
 |---|---|---|---|---|---|
@@ -419,31 +449,66 @@ None. Failed variant generation shows on the media library screen instead.
 
 ## 7 · Error hierarchy
 
-```
-PlatformException                         (abstract, module base)
-├── StoreNotFound                         404
-├── StoreCodeTaken                        409
-├── StoreAttributeImmutable               422   code, country or currency
-├── InvalidTaxRate                        422
-├── InvalidTimezone                       422
-├── CurrencyNotFound                      404
-├── CurrencyExponentLocked                409
-├── UnknownSetting                        422
-├── InvalidSettingValue                   422
-├── SettingScopeMismatch                  422
-├── MediaNotFound                         404
-├── UnsupportedMediaType                  415
-├── MediaTooLarge                         413
-└── MediaInUse                            409
+**[DECIDED] One global standard; each module names its own errors.** Platform is the first
+module, so this section fixes the pattern every later module follows.
 
-Shared (not Platform-owned, used everywhere)
-├── MissingStoreContext                   500   a programming error, never user-facing text
-├── Unauthorized                          403
-└── MoneyException                        422   already implemented
+### 7.1 The global standard — in `Shared`, written once
+
+- **`DomainError`** — the abstract base of every *expected* business error in the system (a rule
+  was broken, something was not found). It carries:
+  - `type()` — a stable machine key, e.g. `platform.store_code_taken`
+  - `category()` — one `ErrorCategory`
+  - `context()` — the values the translated message needs, e.g. `['code' => 'sa']`
+- **`ErrorCategory`** — the short, fixed list of error kinds. Domain code picks a category; it
+  never knows HTTP.
+
+  | Category | HTTP status |
+  |---|---|
+  | `NOT_FOUND` | 404 |
+  | `FORBIDDEN` | 403 |
+  | `CONFLICT` | 409 |
+  | `INVALID` | 422 |
+  | `UNSUPPORTED` | 415 |
+  | `TOO_LARGE` | 413 |
+
+- **One exception handler** (`bootstrap/app.php`) turns every `DomainError` into the same
+  RFC 7807 response. The category-to-status table above exists only there. Anything that is not
+  a `DomainError` is a bug: it is logged with the correlation id and answered with a generic 500
+  that reveals nothing internal.
+- **Global errors** — only the ones that genuinely belong to no module:
+  `Unauthorized` (`FORBIDDEN`), `MoneyException` (`INVALID`), and Laravel's own validation
+  errors, which use the same envelope. `MissingStoreContext` is a programming error, not a
+  `DomainError`, so it always becomes a 500.
+
+### 7.2 Why module errors instead of one global list of errors
+
+A single global list would be one file every module edits for every new rule. It would grow
+without limit, break the ~20-class ceiling on `Shared`, and let one module's change touch every
+other module. Keeping the *standard* global and the *errors* local gives consistent responses
+everywhere, while each module owns the meaning of its own failures — and its own translations,
+under the module's namespace (`platform::errors.store_code_taken`).
+
+### 7.3 Platform's errors
+
+```
+PlatformError  extends DomainError        (abstract, module base)
+├── StoreNotFound                         NOT_FOUND
+├── StoreCodeTaken                        CONFLICT
+├── StoreAttributeImmutable               INVALID     code, country or currency
+├── InvalidTaxRate                        INVALID
+├── InvalidTimezone                       INVALID
+├── CurrencyNotFound                      NOT_FOUND
+├── CurrencyExponentLocked                CONFLICT
+├── UnknownSetting                        INVALID
+├── InvalidSettingValue                   INVALID
+├── SettingScopeMismatch                  INVALID
+├── MediaNotFound                         NOT_FOUND
+├── UnsupportedMediaType                  UNSUPPORTED
+├── MediaTooLarge                         TOO_LARGE
+└── MediaInUse                            CONFLICT
 ```
 
-**HTTP envelope [PROPOSED]** — Platform is the first module, so it fixes the RFC 7807 shape every
-module uses:
+### 7.4 The response
 
 ```json
 {
@@ -456,8 +521,8 @@ module uses:
 ```
 
 `title` is translated into the signed-in person's **stored** locale (handoff §5.2); for a guest,
-the locale of the page they are on. `type` is a stable machine key, one per exception class. **[QUESTION 1]** whether this exception style is
-what you meant by the "error/result pattern".
+the locale of the page they are on. `type` is the error's stable key. `detail` never contains
+stack traces, SQL, or another customer's data.
 
 ---
 
@@ -472,7 +537,10 @@ what you meant by the "error/result pattern".
 - Setting write: rejects undeclared key, wrong scope, value failing the definition's rules.
 - Setting read: returns the default when nothing is stored; typed reader throws on type mismatch.
 - Media variants: `PENDING → READY`, `PENDING → FAILED`, `FAILED → PENDING`; `READY` cannot change.
+- Media upload rules: public accepts JPEG, PNG, WebP; private accepts PDF, JPEG, PNG; the type
+  comes from the file's contents, so a PDF renamed `.jpg` is rejected as public.
 - Audit changes: personal fields are recorded as `"changed"`, never their values.
+- Every Platform error has a unique `type` and a category.
 
 ### Integration (PostgreSQL `touchwood_test`)
 
@@ -486,17 +554,22 @@ what you meant by the "error/result pattern".
 - `PlatformApi` returns DTOs, never Eloquent models.
 - Store and currency caches are invalidated on update.
 - An audit entry recorded inside a transaction that rolls back does not exist afterwards.
+- The database refuses an IP address on a customer or system audit entry.
 
 ### Feature (HTTP and console)
 
-- `/sa/...` resolves the KSA store; `/xx/...` returns 404; `/` behaves as decided in Question 4.
+- `/sa/...` resolves the KSA store and sets the store cookie; `/xx/...` returns 404.
+- `/` with a valid store cookie redirects to that store; with no cookie, or a cookie naming a
+  store that does not exist, it shows the country page.
 - **Resolving the store costs zero database queries with a warm cache** (the query-count guard).
 - `platform:store:create` refuses an incomplete store and creates a complete one with its audit entry.
 - Seeding creates `sa`, `eg`, `ae` with the values in §5.7.
 - Upload: identical bytes return the existing media; unsupported type → 415; oversize → 413.
 - Variants job writes all 12 variant objects to fake storage and publishes `MediaVariantsReady`.
-- A private media URL is signed and stops working after it expires.
-- Error responses match the RFC 7807 shape in both Arabic and English.
+- A private media URL is signed and stops working after it expires; private files are never on the CDN.
+- A staff action's audit entry records the staff member's IP address.
+- Error responses match the RFC 7807 shape in both Arabic and English; each category gets its
+  HTTP status; an unexpected exception returns a generic 500 with no internal detail.
 - Admin-permission scenarios (403 for a staff member scoped to `sa` editing `ae`) are written in
   Stage 2, when Access provides real roles.
 
@@ -505,34 +578,30 @@ what you meant by the "error/result pattern".
 - Every Platform command handler asserts a permission (the first real use of this §19 rule).
 - The store-scope opt-out appears only in `Application/Query` and Ops.
 - Platform enum columns are stored as strings.
+- Every class in any module's `Domain/Exception` extends `DomainError` (applies to all later modules).
+- `ErrorCategory` → HTTP status mapping appears only in the exception handler, never in `Domain/`.
+- No `spatie/laravel-medialibrary` dependency exists.
 
 ---
 
-## 9 · Open questions
+## 9 · Questions
 
-1. **Errors.** In the chat you mentioned an "error/result pattern". The handoff (§5.3) specifies
-   exceptions: each module has its own exception classes, and one error format at the HTTP edge,
-   shown in §7 above. Is that what you meant? My recommendation is to keep exceptions: PHP has
-   no built-in Result type, and Laravel turns exceptions into error responses in one central place.
-2. **Media library package.** The handoff lists `spatie/laravel-medialibrary` (§3) but also
-   defines its own `media` table (§5.5). They don't fit together: the Spatie package links
-   every file to another module's database model, which breaks the "no cross-module model
-   relationships" rule (§4.3). **I recommend our own `media` table as specified above**, with an
-   image library (Intervention Image) only for resizing. Do you agree to drop the Spatie media package?
-3. **Private files.** Company registration documents and bank-transfer receipts must not be
-   publicly reachable. Should they live in the same `media` table with `PRIVATE` visibility and
-   expiring signed links (my recommendation), or should B2B and Payments store them separately?
-4. **The root URL.** What should `brand.com/` (no `/sa`, `/eg`, `/ae`) do? Options:
-   (a) a simple page to pick a country; (b) remember the last store in a cookie, otherwise show
-   the picker; (c) detect the country from the visitor's IP. I recommend (b) — no third-party
-   IP lookup to maintain.
-5. **Upload limits.** Maximum file size and accepted types. I propose images up to 10 MB
-   (JPEG, PNG, WebP) and private documents up to 10 MB (PDF, JPEG, PNG). Change these if needed.
-6. **Audit log retention.** Keep audit entries forever (my assumption, matching orders), or delete
-   them after a period? Also: should an entry store the staff member's IP address? I left it out
-   because IP addresses are personal data under PDPL, and the correlation id already links the
-   entry to the request logs.
-7. **Riyal symbol.** Your storefront mockups use `﷼`. Saudi Arabia introduced a new official
-   Riyal symbol in 2025; it now has its own Unicode character, but many fonts don't include it
-   yet. Which should we show — `﷼`, the new symbol, or the letters `ر.س`? Whichever you choose
-   is just data on the currency row, so it can change later without code changes.
+### 9.1 Answered by the owner — 2026-09-16
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Errors: one global list, or errors per module? | **One global standard, errors per module** (§7). The owner asked for a recommendation; this is it, and approving this spec confirms it. |
+| 2 | `spatie/laravel-medialibrary` or our own `media` table? | **Our own table.** The package is dropped; Intervention Image does the resizing. |
+| 3 | Where private files live | **Same `media` table**, `PRIVATE` visibility, served only through expiring signed URLs. |
+| 4 | What `brand.com/` does | **Redirect to the store in the cookie; otherwise show the country page.** No IP detection. |
+| 5 | Upload limits | **10 MB.** Public: JPEG, PNG, WebP. Private: PDF, JPEG, PNG. |
+| 6 | Audit retention and staff IP | **Kept forever. Staff IP address recorded.** |
+| 7 | Saudi Riyal symbol | **The new official sign, `U+20C1`**, with fonts chosen to include it. |
+
+### 9.2 Still open
+
+8. **UAE Dirham symbol.** The UAE Central Bank also introduced a new Dirham symbol in 2025.
+   Since the Saudi store will use its new sign, do you want the UAE store to use the new Dirham
+   symbol too? I have not confirmed whether it has its own Unicode character yet. If it does not,
+   it cannot be stored as plain text and would need a custom font glyph or an image. Until you
+   decide, the seed uses `د.إ` / `AED`. Egypt has not changed its symbol.
