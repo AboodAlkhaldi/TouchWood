@@ -263,8 +263,8 @@ constraint); **transactional outbox for the ~8 critical events only**, not all o
 | `Domain/` and `Application/` never import HTTP classes | Business code deciding HTTP statuses | In place |
 | Reading across stores (`acrossStores()`, removing global scopes) only in `Application/Query` and Ops | Accidental cross-store reads | In place |
 | Every store-scoped Eloquent model declares the store global scope | A forgotten `where store_id` | With the first store-scoped model |
-| Every command handler asserts a permission | An unprotected use case | With the command bus |
-| No storefront endpoint exceeds N queries | The N+1 that made the old system take 5 seconds | With the first storefront endpoint |
+| Every command handler asserts a permission | An unprotected use case | In place |
+| No storefront endpoint exceeds N queries | The N+1 that made the old system take 5 seconds | Started: store resolution costs 0 queries once warm; a general per-endpoint budget comes with Catalog |
 | Every money column is `bigint` | A `DECIMAL` sneaking in | With the first money column |
 | Enums are stored as strings, never integers | Unreadable rows at 2am | With the first enum column |
 
