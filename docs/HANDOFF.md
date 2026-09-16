@@ -34,7 +34,7 @@ Each amendment is applied in place in the section named; this list only records 
 |---|---|---|---|
 | 2026-09-16 | §3 | `spatie/laravel-medialibrary` dropped; Intervention Image resizes | Platform spec review, Q2 |
 | 2026-09-16 | §4.1 | What `brand.com/` with no store segment does | Platform spec review, Q4 |
-| 2026-09-16 | §5.1 | Saudi Riyal shown with the new official sign `U+20C1` | Platform spec review, Q7 |
+| 2026-09-16 | §5.1 | Currency signs (Riyal `U+20C1`, Dirham `U+20C3`) with a letters fallback for every store | Platform spec review, Q7, Q8 |
 | 2026-09-16 | §5.3 | Error standard made concrete; audit log retention and staff IP | Platform spec review, Q1, Q6 |
 | 2026-09-16 | §5.5 | Private files, visibility, upload limits | Platform spec review, Q3, Q5 |
 
@@ -296,8 +296,11 @@ Money = (int minorUnits, string currencyCode)
 ```
 
 Exponent from the `currencies` row (SAR 2, EGP 2, AED 2 — but read it, never assume).
-Currency symbols are also data on that row. The Saudi Riyal uses the new official sign,
-Unicode `U+20C1`, so every font the site uses must include that glyph.
+How a price shows its currency is also data on that row: an optional official **sign**
+(Saudi Riyal `U+20C1`, UAE Dirham `U+20C3`) and required **letters** in Arabic and English
+(`ر.س` / `SAR`). A price shows the sign when there is one; otherwise the letters. If a sign has
+no Unicode character or the site's font cannot draw it, the sign is cleared and that currency
+shows its letters — the same rule for every store.
 Must expose `format()`, `add()`, `multiply()` and **`allocate()`**. Allocation matters:
 splitting a 100.00 discount across three lines must not lose a halala. An architecture
 test asserts every money column is `bigint`.

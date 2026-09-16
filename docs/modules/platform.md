@@ -1,7 +1,7 @@
 # Platform — Module Specification
 
-**Status:** DRAFT v2 — owner's answers to the first seven questions applied (2026-09-16).
-Waiting for approval. No code is written until this is approved.
+**Status:** DRAFT v3 — every question answered (2026-09-16). **Waiting for the owner's
+approval.** No Platform code is written until this spec is approved.
 **Tier:** 3 (foundation). **Depends on:** nothing. **Build stage:** 1.
 **Source:** `docs/HANDOFF.md` §1, §4, §5, §7.5, §10.3, §14, §17–§20.
 
@@ -57,9 +57,16 @@ Global, not store-scoped.
 |---|---|
 | `code` | ISO 4217, three uppercase letters. Primary key. Immutable. |
 | `exponent` | 0–6. **Immutable once any store uses the currency** — changing it would silently reinterpret every stored minor-unit amount. |
-| `name`, `symbol` | Arabic and English both required. |
+| `name` | Arabic and English both required. |
+| `abbreviation` | Arabic and English both required — the letters, e.g. `ر.س` / `SAR`. Always available. |
+| `sign` | Optional — the official currency sign as one Unicode character, e.g. `U+20C1`. |
 
 `Money` never assumes an exponent (handoff §5.1); it is always read from this row.
+
+**[DECIDED] How a price shows its currency:** the `sign` when the currency has one; otherwise
+the `abbreviation` in the page's language. If a sign cannot be displayed — no Unicode character
+yet, or the site's font has no glyph for it — the `sign` is cleared on the currency row and every
+price falls back to the letters. That is a data change, never a code change or a deploy.
 
 ### 1.3 Setting
 
@@ -194,15 +201,15 @@ interface SettingsRegistry
 
 | DTO | Fields |
 |---|---|
-| `StoreDto` | `id`, `code`, `name` (ar, en), `countryCode`, `currencyCode`, `currencyExponent`, `currencySymbol` (ar, en), `taxRateBasisPoints`, `timezone`, `position` |
-| `CurrencyDto` | `code`, `exponent`, `name` (ar, en), `symbol` (ar, en) |
+| `StoreDto` | `id`, `code`, `name` (ar, en), `countryCode`, `currencyCode`, `currencyExponent`, `currencySign`, `currencyAbbreviation` (ar, en), `taxRateBasisPoints`, `timezone`, `position` |
+| `CurrencyDto` | `code`, `exponent`, `name` (ar, en), `abbreviation` (ar, en), `sign`; `displaySymbol(locale)` returns the sign, or the abbreviation when there is no sign |
 | `SettingDefinitionDto` | `key`, `scope`, `rules` (Laravel validation rules for the value), `default`, `permission` |
 | `SettingValueDto` | `key`, `storeId`, `isDefault`; typed readers `int()`, `bool()`, `string()`, `list()` that throw if the stored type does not match |
 | `MediaDto` | `id`, `visibility`, `mime`, `bytes`, `width`, `height`, `alt` (ar, en), `variantsStatus` |
 | `MediaUrlsDto` | `original`, `variants` (size → format → URL), `expiresAt` (PRIVATE only) |
 | `AuditEntryDto` | `action`, `subjectType`, `subjectId`, `storeId`, `changes`. The actor and correlation id are filled in by Platform from the current context. |
 
-`StoreDto` carries the currency exponent and symbol so a price can be formatted with one call.
+`StoreDto` carries the currency exponent, sign and abbreviation so a price can be formatted with one call.
 
 ### 2.4 Enums (`Public/Enums`, stored as strings)
 
@@ -240,7 +247,7 @@ permission exists so every handler asserts one, but it is never offered in the r
 | `UpdateStore` — name, tax rate, timezone, position | Staff | `platform.store.update` | That store |
 | `ListStores` / `ViewStore` (admin) | Staff | `platform.store.view` | Only stores in the actor's scope |
 | `CreateCurrency` | Super Admin | `platform.currency.create` (reserved) | — |
-| `UpdateCurrency` — name, symbol; exponent only while no store uses it | Super Admin | `platform.currency.update` (reserved) | — |
+| `UpdateCurrency` — name, abbreviation, sign (including clearing it); exponent only while no store uses it | Super Admin | `platform.currency.update` (reserved) | — |
 | `ViewSettings` | Staff | `platform.settings.view` | That store; `GLOBAL` keys need all-stores access |
 | `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update` | That store; `GLOBAL` keys need all-stores access |
 | `UploadMedia` | Staff | `platform.media.upload` | — (media is global) |
@@ -301,7 +308,8 @@ strings. IDs are ULIDs (`char(26)`) except where noted.
 | `code` | `char(3)` PK | `CHECK (code ~ '^[A-Z]{3}$')` — **[PROPOSED]** the natural ISO code is the key rather than a ULID, because `Money` carries the code and it never changes |
 | `exponent` | `smallint` NOT NULL | `CHECK (exponent BETWEEN 0 AND 6)` |
 | `name` | `jsonb` NOT NULL | `{"ar": "...", "en": "..."}` |
-| `symbol` | `jsonb` NOT NULL | `{"ar": "...", "en": "..."}` |
+| `abbreviation` | `jsonb` NOT NULL | `{"ar": "...", "en": "..."}` |
+| `sign` | `varchar(8)` NULL | One Unicode character; NULL means show the abbreviation |
 | `created_at`, `updated_at` | `timestamptz` | |
 
 ### 5.2 `platform.stores`
@@ -401,15 +409,16 @@ created in Stage 1; they belong to `Shared/Infrastructure`, not to Platform.
 
 ### 5.7 Seed data
 
-| Currency | Exponent | Symbol (ar / en) |
-|---|---|---|
-| SAR | 2 | **[DECIDED]** the new official Saudi Riyal sign, Unicode `U+20C1`, in both locales |
-| EGP | 2 | ج.م / EGP |
-| AED | 2 | د.إ / AED **[QUESTION 8]** |
+| Currency | Exponent | Sign | Abbreviation (ar / en) |
+|---|---|---|---|
+| SAR | 2 | **[DECIDED]** Saudi Riyal sign, `U+20C1` (Unicode 17.0) | ر.س / SAR |
+| EGP | 2 | none — Egypt has no official sign | ج.م / EGP |
+| AED | 2 | **[DECIDED]** UAE Dirham sign, `U+20C3` (Unicode 18.0, September 2026) | د.إ / AED |
 
-**Font requirement:** because `U+20C1` is new, the storefront and admin fonts must include a
-glyph for it. This is a hard requirement on the font chosen in the frontend milestone, checked
-by eye on a real price before that milestone is merged.
+**Font check:** both signs are very new — `U+20C3` was published this month — so few fonts
+include them yet. In the frontend milestone, each sign is checked on a real price in the chosen
+font before that milestone is merged. Any sign the font cannot draw is cleared, and that
+currency shows its letters until a font update supports it.
 
 | Store | Country | Currency | Tax | Timezone | Position |
 |---|---|---|---|---|---|
@@ -533,6 +542,8 @@ stack traces, SQL, or another customer's data.
 - Store: rejects bad `code` format, missing Arabic or English name, tax rate outside 0–10000,
   invalid timezone; refuses to change `code`, `country_code` or `currency_code`.
 - Currency: rejects bad code and exponent; refuses exponent change when in use; allows it when not.
+- Currency display: shows the sign when set; shows the abbreviation in the page's language when
+  the sign is empty; clearing the sign switches every price to letters.
 - SettingDefinition: rejects a key whose prefix is not the declaring module; rejects duplicate keys.
 - Setting write: rejects undeclared key, wrong scope, value failing the definition's rules.
 - Setting read: returns the default when nothing is stored; typed reader throws on type mismatch.
@@ -590,18 +601,16 @@ stack traces, SQL, or another customer's data.
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Errors: one global list, or errors per module? | **One global standard, errors per module** (§7). The owner asked for a recommendation; this is it, and approving this spec confirms it. |
+| 1 | Errors: one global list, or errors per module? | **One global standard, errors per module** (§7). Recommended in review and accepted by the owner. |
 | 2 | `spatie/laravel-medialibrary` or our own `media` table? | **Our own table.** The package is dropped; Intervention Image does the resizing. |
 | 3 | Where private files live | **Same `media` table**, `PRIVATE` visibility, served only through expiring signed URLs. |
 | 4 | What `brand.com/` does | **Redirect to the store in the cookie; otherwise show the country page.** No IP detection. |
 | 5 | Upload limits | **10 MB.** Public: JPEG, PNG, WebP. Private: PDF, JPEG, PNG. |
 | 6 | Audit retention and staff IP | **Kept forever. Staff IP address recorded.** |
 | 7 | Saudi Riyal symbol | **The new official sign, `U+20C1`**, with fonts chosen to include it. |
+| 8 | UAE Dirham symbol | **The new official sign, `U+20C3`** (Unicode 18.0). |
+| — | Fallback | **Any currency whose sign has no Unicode character, or which the font cannot draw, shows its letters instead** — same rule for every store (§1.2). |
 
 ### 9.2 Still open
 
-8. **UAE Dirham symbol.** The UAE Central Bank also introduced a new Dirham symbol in 2025.
-   Since the Saudi store will use its new sign, do you want the UAE store to use the new Dirham
-   symbol too? I have not confirmed whether it has its own Unicode character yet. If it does not,
-   it cannot be stored as plain text and would need a custom font glyph or an image. Until you
-   decide, the seed uses `د.إ` / `AED`. Egypt has not changed its symbol.
+None. This spec is ready for approval.
