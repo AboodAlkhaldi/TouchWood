@@ -1,0 +1,249 @@
+# Module boundary enforcement. CI-blocking from commit one.
+#
+# THE RULE (handoff §2.1)
+#   A module may import ONLY  Modules/{Other}/Public/**  and  Shared/**.
+#   No baseline file, no skipped violations.
+#
+# HOW IT IS ENCODED
+#   Every module is split into two NON-OVERLAPPING layers:
+#     {Name}Public  — src/Modules/{Name}/Public/**
+#     {Name}        — everything else in the module
+#   Deptrac requires every layer a class belongs to be allowed, so the two must
+#   never overlap or every legal cross-module import is reported as a violation.
+#
+#   {Name}Public lists the other Public surfaces the module may reference.
+#   {Name} is "+{Name}Public": its own Public surface plus everything that
+#   surface is allowed to see. The dependency graph (handoff §4.4) therefore
+#   lives in exactly one place per module.
+#
+#   Vendor namespaces are a layer so --fail-on-uncovered stays meaningful: a
+#   dependency on anything not listed here fails the build until it is added
+#   deliberately. Framework-free Domain/ is enforced by tests/Architecture, not
+#   here.
+
+deptrac:
+  paths:
+    - ./src
+
+  layers:
+    - name: Shared
+      collectors: [{ type: directory, value: src/Shared/.* }]
+
+    - name: Vendor
+      collectors:
+        - type: classNameRegex
+          value: '#^(Illuminate|Laravel|Symfony|Psr|Carbon|Brick|Spatie|Inertia|Predis)\\#'
+
+    # ---- Tier 3 — foundation ------------------------------------------------
+    - name: PlatformPublic
+      collectors: [{ type: directory, value: src/Modules/Platform/Public/.* }]
+    - name: Platform
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Platform/.* }]
+          must_not: [{ type: directory, value: src/Modules/Platform/Public/.* }]
+
+    - name: ContentPublic
+      collectors: [{ type: directory, value: src/Modules/Content/Public/.* }]
+    - name: Content
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Content/.* }]
+          must_not: [{ type: directory, value: src/Modules/Content/Public/.* }]
+
+    - name: OpsPublic
+      collectors: [{ type: directory, value: src/Modules/Ops/Public/.* }]
+    - name: Ops
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Ops/.* }]
+          must_not: [{ type: directory, value: src/Modules/Ops/Public/.* }]
+
+    # ---- Tier 2 — identity & support ----------------------------------------
+    - name: AccessPublic
+      collectors: [{ type: directory, value: src/Modules/Access/Public/.* }]
+    - name: Access
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Access/.* }]
+          must_not: [{ type: directory, value: src/Modules/Access/Public/.* }]
+
+    - name: B2BPublic
+      collectors: [{ type: directory, value: src/Modules/B2B/Public/.* }]
+    - name: B2B
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/B2B/.* }]
+          must_not: [{ type: directory, value: src/Modules/B2B/Public/.* }]
+
+    - name: PromotionsPublic
+      collectors: [{ type: directory, value: src/Modules/Promotions/Public/.* }]
+    - name: Promotions
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Promotions/.* }]
+          must_not: [{ type: directory, value: src/Modules/Promotions/Public/.* }]
+
+    - name: LoyaltyPublic
+      collectors: [{ type: directory, value: src/Modules/Loyalty/Public/.* }]
+    - name: Loyalty
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Loyalty/.* }]
+          must_not: [{ type: directory, value: src/Modules/Loyalty/Public/.* }]
+
+    - name: ShippingPublic
+      collectors: [{ type: directory, value: src/Modules/Shipping/Public/.* }]
+    - name: Shipping
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Shipping/.* }]
+          must_not: [{ type: directory, value: src/Modules/Shipping/Public/.* }]
+
+    - name: PaymentsPublic
+      collectors: [{ type: directory, value: src/Modules/Payments/Public/.* }]
+    - name: Payments
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Payments/.* }]
+          must_not: [{ type: directory, value: src/Modules/Payments/Public/.* }]
+
+    - name: FeedbackPublic
+      collectors: [{ type: directory, value: src/Modules/Feedback/Public/.* }]
+    - name: Feedback
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Feedback/.* }]
+          must_not: [{ type: directory, value: src/Modules/Feedback/Public/.* }]
+
+    - name: SyncPublic
+      collectors: [{ type: directory, value: src/Modules/Sync/Public/.* }]
+    - name: Sync
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Sync/.* }]
+          must_not: [{ type: directory, value: src/Modules/Sync/Public/.* }]
+
+    # ---- Tier 1 — commerce core ---------------------------------------------
+    - name: CatalogPublic
+      collectors: [{ type: directory, value: src/Modules/Catalog/Public/.* }]
+    - name: Catalog
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Catalog/.* }]
+          must_not: [{ type: directory, value: src/Modules/Catalog/Public/.* }]
+
+    - name: PricingPublic
+      collectors: [{ type: directory, value: src/Modules/Pricing/Public/.* }]
+    - name: Pricing
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Pricing/.* }]
+          must_not: [{ type: directory, value: src/Modules/Pricing/Public/.* }]
+
+    - name: InventoryPublic
+      collectors: [{ type: directory, value: src/Modules/Inventory/Public/.* }]
+    - name: Inventory
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Inventory/.* }]
+          must_not: [{ type: directory, value: src/Modules/Inventory/Public/.* }]
+
+    - name: SalesPublic
+      collectors: [{ type: directory, value: src/Modules/Sales/Public/.* }]
+    - name: Sales
+      collectors:
+        - type: bool
+          must: [{ type: directory, value: src/Modules/Sales/.* }]
+          must_not: [{ type: directory, value: src/Modules/Sales/Public/.* }]
+
+  ruleset:
+    Shared: [Vendor]
+
+    # Platform → nothing
+    PlatformPublic: [Shared, Vendor]
+    Platform: [+PlatformPublic]
+
+    # Access → Platform
+    AccessPublic: [Shared, Vendor, PlatformPublic]
+    Access: [+AccessPublic]
+
+    # B2B → Platform, Access
+    B2BPublic: [Shared, Vendor, PlatformPublic, AccessPublic]
+    B2B: [+B2BPublic]
+
+    # Catalog → Platform
+    CatalogPublic: [Shared, Vendor, PlatformPublic]
+    Catalog: [+CatalogPublic]
+
+    # Pricing → Platform, Catalog, B2B (company approval status)
+    PricingPublic: [Shared, Vendor, PlatformPublic, CatalogPublic, B2BPublic]
+    Pricing: [+PricingPublic]
+
+    # Inventory → Platform, Catalog
+    InventoryPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]
+    Inventory: [+InventoryPublic]
+
+    # Promotions → Platform, Access, Catalog, Pricing, Sales
+    PromotionsPublic: [Shared, Vendor, PlatformPublic, AccessPublic, CatalogPublic, PricingPublic, SalesPublic]
+    Promotions: [+PromotionsPublic]
+
+    # Loyalty → Platform, Access
+    LoyaltyPublic: [Shared, Vendor, PlatformPublic, AccessPublic]
+    Loyalty: [+LoyaltyPublic]
+
+    # Shipping → Platform, Catalog
+    ShippingPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]
+    Shipping: [+ShippingPublic]
+
+    # Payments → Platform. Takes an order id and an amount, nothing more.
+    PaymentsPublic: [Shared, Vendor, PlatformPublic]
+    Payments: [+PaymentsPublic]
+
+    # Feedback → Platform, Access, Catalog, Sales (verified purchase)
+    FeedbackPublic: [Shared, Vendor, PlatformPublic, AccessPublic, CatalogPublic, SalesPublic]
+    Feedback: [+FeedbackPublic]
+
+    # Sync → Platform, Catalog, Pricing, Inventory
+    SyncPublic: [Shared, Vendor, PlatformPublic, CatalogPublic, PricingPublic, InventoryPublic]
+    Sync: [+SyncPublic]
+
+    # Sales → the transaction. The widest surface in the system, by design.
+    SalesPublic:
+      - Shared
+      - Vendor
+      - PlatformPublic
+      - AccessPublic
+      - B2BPublic
+      - CatalogPublic
+      - PricingPublic
+      - InventoryPublic
+      - PromotionsPublic
+      - LoyaltyPublic
+      - ShippingPublic
+      - PaymentsPublic
+    Sales: [+SalesPublic]
+
+    # Content → Platform, Catalog, Pricing
+    ContentPublic: [Shared, Vendor, PlatformPublic, CatalogPublic, PricingPublic]
+    Content: [+ContentPublic]
+
+    # Ops listens everywhere and is depended on by nothing.
+    OpsPublic:
+      - Shared
+      - Vendor
+      - PlatformPublic
+      - AccessPublic
+      - B2BPublic
+      - CatalogPublic
+      - PricingPublic
+      - InventoryPublic
+      - PromotionsPublic
+      - LoyaltyPublic
+      - ShippingPublic
+      - SalesPublic
+      - PaymentsPublic
+      - FeedbackPublic
+      - SyncPublic
+      - ContentPublic
+    Ops: [+OpsPublic]

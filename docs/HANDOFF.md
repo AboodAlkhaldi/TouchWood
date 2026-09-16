@@ -1,0 +1,1274 @@
+# TouchWood Platform — Implementation Handoff (FINAL)
+
+**Version:** 3.0 · supersedes handoff v2 entirely
+**Status:** All conflicts resolved. Ready to implement.
+**Audience:** the engineer or agent writing the code.
+
+---
+
+## 0 · How to use this document
+
+This is the complete and only source of truth. Handoff v2 is **obsolete** — it contains
+resolved conflicts, reversed decisions and a payment-gateway name that was a misspelling.
+If you have it, discard it.
+
+Three rules for working from this document:
+
+1. **Anything in §2 is decided.** Do not re-open it, do not propose the conventional
+   alternative, do not "improve" it. Several decisions here deliberately reject the
+   standard answer; §16 lists them with reasons so you can see they were considered.
+2. **Anything in §15 is open.** Those need the owner's input. Flag them when you reach
+   them; do not invent an answer and proceed.
+3. **Specify before you code, per module.** §14 defines the deliverable. The owner's
+   standing instruction is that a module is specified in full before its first line of
+   code, and the specification is reviewed before implementation starts.
+
+If something in this document contradicts something the owner says later, the owner wins
+and the document is amended.
+
+---
+
+## 1 · The business
+
+**TouchWood** sells kitchen and wardrobe hardware in Saudi Arabia: hinges, drawer slides,
+handles, wardrobe organizers, under-cabinet lighting, fittings and fixings. Warehouse in
+Al-Khumrah, Jeddah. Exclusive Saudi agent for **Tallsen**; distributor for **Hettich**,
+**Blum** and **Häfele**; and it sells its own **TouchWood** house brand.
+
+Two customer populations buying the same goods:
+
+- **Individuals** fitting one kitchen. Buy by the piece, no minimum.
+- **Workshops, carpenters, fit-out contractors** fitting ten a month. Buy by volume at
+  tier prices, often on a company account.
+
+Roughly 840 products across six top categories, each with several variants.
+
+**Why this project exists:** the current system takes about five seconds to serve a page.
+Performance is not a nice-to-have here; it is the reason for the rebuild. Every decision
+about read models, pagination and query counts in this document traces back to that.
+
+### Countries
+
+| Store | Currency | VAT | Status |
+|---|---|---|---|
+| Saudi Arabia (`sa`) | SAR | 15% | Launch |
+| Egypt (`eg`) | EGP | 14% | Launch |
+| UAE (`ae`) | AED | 5% | Launch |
+
+All three launch together. There is no per-store launch lifecycle.
+
+---
+
+## 2 · Non-negotiable rules
+
+Memorize these. Most defects in a system like this are one of these being violated.
+
+1. **A module imports only `Modules/{Other}/Public/**` and `Shared/**`.** Deptrac blocks
+   CI from commit one. No baseline file, no skipped violations.
+2. **No country name, currency code, country code or store code appears anywhere in
+   `Domain/` or `Application/`.** Grepping for `SA`, `saudi`, `SAR`, `EGP`, `KSA` in those
+   directories must return nothing. Everything is driven by the store row.
+3. **Money is `(bigint minor_units, string currency_code)`.** Never DECIMAL, never float,
+   never a hardcoded `/100`, never `number_format($x, 2)`. The exponent comes from the
+   `currencies` row.
+4. **The frontend is never trusted for any amount.** Not price, not stock, not discount,
+   not VAT, not total. Checkout posts a quote id. The server recomputes everything.
+5. **Out of stock is never a boolean.** It is always a stock movement.
+6. **Never pass an Eloquent model across a module boundary.** DTOs only.
+7. **A feature is not finished until its tests are written.**
+
+---
+
+## 3 · Stack
+
+| | |
+|---|---|
+| Backend | Laravel 13, PHP 8.4 |
+| Frontend | Inertia + React + shadcn/ui, SSR enabled |
+| Database | PostgreSQL 17 |
+| Cache / queue | Redis + Laravel Horizon |
+| Search | PostgreSQL FTS + `pg_trgm`. **No Elasticsearch.** |
+| Auth | Laravel session authentication. **No JWT.** |
+| Boundaries | Deptrac, CI-blocking |
+| Static analysis | Larastan level 8 |
+| Tests | Pest |
+| Media | S3-compatible object storage + CDN |
+
+Key packages: `spatie/laravel-data`, `spatie/laravel-model-states`,
+`spatie/laravel-permission`, `spatie/laravel-medialibrary`, `spatie/laravel-query-builder`,
+`spatie/laravel-translatable`, `brick/money`.
+
+---
+
+## 4 · Architecture
+
+### 4.1 Shape
+
+One codebase, one database, one deployment, serving three country stores at
+`brand.com/sa|eg|ae`. Adding a fourth country is an INSERT plus configuration — never a
+deploy, never a code change.
+
+**Global (not store-scoped):** product identity, SKU, variants, attribute definitions,
+categories, brands, translations, media, staff users, roles, permissions, customer
+identity, wishlists.
+
+**Store-scoped:** availability, visibility, prices, stock, slugs, tax, payment
+configuration, carriers, coupons, promotions, homepage content, loyalty configuration and
+balances, carts, orders, payments, reviews, questions.
+
+Every store-scoped Eloquent model declares a global scope binding it to the current store
+context. An architecture test enforces this — a forgotten `where store_id` is the highest-
+probability catastrophic bug in a multi-tenant schema.
+
+### 4.2 The 15 modules
+
+```
+TIER 3 — foundation
+  Platform     Stores, currencies, tax rate, settings, media, audit log
+  Content      CMS pages, banners, homepage config, campaigns & themes, pop-ups,
+               alert banners, smart bar, blog, projects, SEO
+  Ops          Notifications (email/SMS), newsletters, subscribers, reports, exports
+
+TIER 2 — identity & support
+  Access       Customer + StaffUser identity, auth, verification, OTP, roles,
+               permissions, staff invitations, addresses, sessions
+  B2B          Company registration, documents, approval lifecycle
+  Promotions   Coupons, customer segments, automatic promotions, gifts
+  Loyalty      Points: earn, redeem, expiry, per-store configuration
+  Shipping     Carriers, fixed rate tables, packaging engine, shipments, tracking
+  Payments     Gateway adapters, transactions, manual refunds, bank transfer verification
+  Feedback     Reviews, ratings, product questions & answers
+  Sync         External inventory provider adapters, mapping, outbox, conflict log
+
+TIER 1 — commerce core
+  Catalog      Products, variants, categories, brands, attributes, per-store
+               availability, search read model, synonyms, search query log, relations
+  Pricing      Price lists, tiers, company prices, campaign prices, resolution engine,
+               tax application
+  Inventory    Stock, reservations, movement ledger, display bands
+  Sales        Cart, quote, order, cancellation, return
+```
+
+**Why `Feedback` exists as its own module.** Reviews, ratings and product Q&A are all
+customer-written, product-attached, staff-moderated, bilingual content needing
+translate-on-demand. They change together and share nothing with "what we sell and how
+it's found." Catalog is already the largest module on the critical path.
+
+### 4.3 Internal structure — identical in every module
+
+```
+src/Modules/{Name}/
+├── Public/              ← the ONLY namespace other modules may import
+│   ├── Contracts/       {Name}Api.php
+│   ├── Dto/             spatie/laravel-data objects crossing the boundary
+│   ├── Events/          integration events — carry IDs, never payloads
+│   └── Enums/
+├── Domain/              framework-free: no Eloquent, no facades, no container
+│   ├── Model/           aggregates and entities
+│   ├── ValueObject/
+│   ├── Repository/      INTERFACES ONLY
+│   ├── Event/           internal domain events, never leave the module
+│   ├── Service/         domain services (PricingEngine, PackagingEngine)
+│   └── Exception/       module-owned hierarchy, one base class
+├── Application/
+│   ├── Command/         one directory per use case: PublishProduct/{Command,Handler}.php
+│   ├── Query/           read models — raw SQL / query builder → DTO out
+│   ├── Listener/        reacts to other modules' Public\Events
+│   └── {Name}ApiImpl.php
+├── Infrastructure/
+│   ├── Eloquent/        models + repository implementations
+│   ├── Persistence/Migrations/     module-owned, own schema: catalog.products
+│   ├── Listener/
+│   └── External/        third-party adapters
+└── Presentation/
+    ├── Http/{Controller,Request,Resource}/
+    └── routes.php
+```
+
+Consequences that are easy to get wrong:
+
+- No cross-module Eloquent relationships. No `Order::product()`. Call `CatalogApi`.
+- Foreign keys **across schemas are allowed** for referential integrity. The ban is on the
+  ORM relationship, not the database constraint.
+- Never leak `ModelNotFoundException` across a boundary. Return `null` or throw a
+  module-owned exception.
+- `Domain/` never imports Laravel. If it needs the time, inject a `Clock`.
+- Transactions live in the command handler, never in a repository. One aggregate per
+  transaction.
+
+### 4.4 Dependency graph
+
+```
+Platform   → (nothing)
+Access     → Platform
+B2B        → Platform, Access
+Catalog    → Platform
+Pricing    → Platform, Catalog, B2B
+Inventory  → Platform, Catalog
+Promotions → Platform, Access, Catalog, Pricing, Sales
+Loyalty    → Platform, Access
+Shipping   → Platform, Catalog
+Payments   → Platform
+Feedback   → Platform, Access, Catalog, Sales
+Sync       → Platform, Catalog, Pricing, Inventory
+Sales      → everything above
+Content    → Platform, Catalog, Pricing
+Ops        → every Public surface
+```
+
+Two modules have a wide fan-in for opposite reasons. **Sales** is the transaction and
+legitimately needs price, stock, discount, points, shipping and payment in one flow.
+**Ops** notifies and reports on everything — and nothing may ever depend on Ops in return.
+
+### 4.5 Communication — three channels
+
+**A. Synchronous public contracts** for anything needing an answer now.
+
+```php
+interface PricingApi
+{
+    public function quoteCart(QuoteRequest $request): PriceQuote;
+    public function unitPrice(VariantId $v, StoreId $s, Audience $a, Quantity $q): ?Money;
+}
+```
+
+**B. Asynchronous integration events** carrying IDs, not payloads.
+
+```php
+final readonly class OrderPlaced
+{
+    public function __construct(
+        public string $eventId,          // UUID — the consumer's idempotency key
+        public string $orderId,
+        public string $storeId,
+        public string $customerId,
+        public CarbonImmutable $occurredAt,
+    ) {}
+}
+```
+
+Three non-negotiables: publish **after commit** (`'after_commit' => true` globally);
+**idempotent consumers** via a `processed_events(event_id, listener)` table with a unique
+constraint; a **transactional outbox for the ~8 critical events only** — order placed,
+payment succeeded, payment failed, order cancelled, order delivered, stock movement
+recorded, company approved, return completed.
+
+**C. Shared kernel** — small and stable.
+
+```
+src/Shared/Domain/ValueObject/   Money · StoreId · Sku · Quantity · Locale ·
+                                 Percentage · Weight · Dimensions
+src/Shared/Domain/Event/         DomainEvent · IntegrationEvent
+src/Shared/Domain/Model/         AggregateRoot · Clock
+src/Shared/Application/          CommandBus · EventBus interfaces
+```
+
+**Hard ceiling: ~20 classes.** If Shared grows past that, something leaked into it. A type
+belongs here only if three or more modules need it and it will essentially never change.
+When in doubt, duplicate it in both modules.
+
+---
+
+## 5 · Cross-cutting concerns
+
+### 5.1 Money
+
+```php
+Money = (int minorUnits, string currencyCode)
+```
+
+Exponent from the `currencies` row (SAR 2, EGP 2, AED 2 — but read it, never assume).
+Must expose `format()`, `add()`, `multiply()` and **`allocate()`**. Allocation matters:
+splitting a 100.00 discount across three lines must not lose a halala. An architecture
+test asserts every money column is `bigint`.
+
+### 5.2 Internationalization
+
+Arabic is the default language. Both locales are first-class.
+
+- **Translation tables** for searchable entities (products, categories, brands, blog
+  posts). **JSON columns** for non-searchable labels.
+- **No fallback on name and slug.** Publishing is blocked if a locale is missing. A
+  half-Arabic page is worse than a blocked publish.
+- **Arabic slugs for `ar`, Latin slugs for `en`.** Both carry history for 301 redirects.
+- **Tailwind logical properties only** — `ms-4`, never `ml-4`. No RTL stylesheet.
+- PostgreSQL `ar-x-icu` collation for Arabic sorting.
+- **Arabic normalization on write and on query**, both sides, or search silently fails:
+  strip tashkeel and tatweel, normalize alef forms (`أ إ آ → ا`), `ى → ي`, `ة → ه`,
+  convert Arabic-Indic digits to Latin.
+- Backend-generated text (emails, SMS, validation, status labels) resolves from the
+  **customer's stored locale**, never the request locale — a nightly job has no request.
+
+### 5.3 Identifiers, time, errors
+
+| | |
+|---|---|
+| Primary keys | ULID. `bigint` for high-volume ledgers (`stock_movements`, `point_entries`). |
+| Public identifiers | Separate human-facing codes — `TW-10428`. Never expose the ULID. |
+| Timestamps | `timestamptz`, UTC in the database, converted at the presentation edge using the store timezone. |
+| Soft deletes | Only where genuinely needed. **Never** on ledgers or orders. |
+| Errors | Module-owned hierarchy under one base class. One RFC 7807-style envelope at the HTTP edge. |
+| Enums | PHP 8 backed enums, stored as **strings**. |
+| Validation | Two layers — form requests for shape and type, domain objects for invariants. |
+| Webhooks | Idempotency key on every one. |
+| Logging | Structured. Correlation id through the request and its queued jobs. |
+
+Naming: tables plural snake_case under the module schema; commands imperative
+(`PublishProduct`); events past tense (`ProductPublished`).
+
+### 5.4 Performance
+
+The five-second page is the enemy. Concretely:
+
+- **Materialized read models** — `product_search`, `effective_prices` — rebuilt by job,
+  never computed at request time.
+- **Keyset pagination** on listings. No `OFFSET` on large tables.
+- **DTO-only listings.** Never hydrate Eloquent for a product grid.
+- **Cached homepage payload** with explicit invalidation.
+- **A CI test that fails the build on query count** for storefront endpoints. This is the
+  single highest-value guard in the project.
+
+### 5.5 Media
+
+Object storage plus CDN. The application stores only a key; the browser fetches from the
+edge. Images never go in PostgreSQL — it turns the database into a file server competing
+with real queries, balloons backups, and defeats edge caching.
+
+Pre-generate sizes on upload (thumb, card, detail, zoom) in WebP and AVIF with a JPEG
+fallback. **Never resize at request time.** Explicit width and height attributes to
+prevent layout shift. Lazy load below the fold.
+
+```
+media
+├── id, disk, object_key, mime, bytes
+├── width, height, checksum          ← dedupe identical uploads
+├── alt_ar, alt_en
+└── uploaded_by, created_at
+```
+
+Permissions: `platform.media.upload`, `platform.media.delete`.
+
+---
+
+## 6 · The two axes
+
+This is the most important modelling decision in the system and the easiest to collapse
+by accident. They are **independent**.
+
+| Axis | Values | Means | Lives on |
+|---|---|---|---|
+| **`audience`** | `PUBLIC` / `COMPANY` | Who is buying | Price lists, coupons, promotions, gift rules, homepage config, loyalty redemption mode |
+| **`sale_mode`** | `RETAIL` / `WHOLESALE` | How it is being sold | Product enablement per store, quantity rules and MOQ, cart lines, order lines, wholesale page |
+
+They combine freely:
+
+- A private customer buying at MOQ → `PUBLIC` + `WHOLESALE`
+- An approved company buying one piece → `COMPANY` + `RETAIL`
+
+`COMPANY` means `company.status == APPROVED`. Everyone else — guests, individuals,
+pending, rejected and suspended companies — is `PUBLIC` for pricing eligibility, with one
+exception noted in §8.2.
+
+**Wholesale is public.** Any customer can buy a wholesale-only product if they meet the
+minimum order quantity. Wholesale is a quantity concept, not a permission.
+
+**Nothing in the schema is named `b2c` or `b2b`.** Those are UI words only.
+
+---
+
+## 7 · Access module
+
+### 7.1 Two actor types
+
+`Customer` and `StaffUser` are separate tables with separate guards. They never share a
+table with a boolean discriminator.
+
+### 7.2 Registration and verification
+
+Registration is **by email only**. Flow:
+
+```
+register (email + password) → email verification link
+  → add phone → SMS OTP → phone verified
+  → ordering unlocked
+```
+
+Ordering requires **both** email and phone verified.
+
+Account type (`INDIVIDUAL` | `COMPANY`) is chosen at registration and **never changes**.
+No upgrade, no downgrade, from any state, in either direction. Do not build a transition.
+
+### 7.3 Phone
+
+One phone per account. Never null once set. Changing it:
+
+```
+customers.phone, customers.phone_verified_at
+pending_phone_changes(customer_id, new_phone, otp_hash, expires_at)
+```
+
+The old number stays live and usable until the new one verifies. On success, swap and
+delete the pending row. There is no way to remove a phone and leave the field empty.
+
+### 7.4 Account status vs company status
+
+Separate concerns, separate columns, different owning modules. Never conflate them.
+
+```
+customers.status   ACTIVE | BLOCKED          ← Access.  Controls LOGIN.
+companies.status   PENDING | APPROVED        ← B2B.     Controls ORDERING and PRICING.
+                 | REJECTED | SUSPENDED
+```
+
+A `BLOCKED` person cannot log in regardless of company status. A `SUSPENDED` company logs
+in fine but cannot order. Both audited independently.
+
+The ordering gate is one function with no branching by account type:
+
+```
+canPlaceOrder(customer) =
+       customer.status == ACTIVE
+   AND customer.email_verified_at != null
+   AND customer.phone_verified_at != null
+   AND (customer.account_type == INDIVIDUAL
+        OR customer.company.status == APPROVED)
+```
+
+### 7.5 Roles and permissions
+
+Roles are **database rows created by the admin at runtime**, named in Arabic and English,
+built by checking permissions. A role may be **cloned from an existing role as a copy at
+creation time** — never live inheritance. Editing the parent later must not change the
+child.
+
+Permissions are `{module}.{resource}.{action}`, derived from the use-case catalog. Checked
+in the **application layer**, not in controllers. Deny by default.
+
+**Super Admin** bypasses via `Gate::before`, is non-deletable and non-editable, and is
+**seeded**. It is the only actor that sees every store and the only one that can create
+admins and set their store scope.
+
+**Store access lives on the role assignment, not the user:**
+
+```
+role_assignments
+├── staff_user_id, role_id
+├── access_level    ALL_STORES | SELECTED_STORES
+└── store_ids[]     when SELECTED_STORES
+```
+
+This is how an admin can own KSA and Egypt and have no authority over UAE, and how their
+staff inherit the same boundary.
+
+**Admin navigation is derived from the permission set**, never hardcoded. A staff member
+with catalog permissions only sees catalog tabs.
+
+### 7.6 Staff onboarding
+
+Admin creates the record → the system emails an expiring invitation link → the staff
+member sets their own password. The admin never knows it. Invitations can be cancelled and
+resent.
+
+**Two-factor authentication for staff is in v1.**
+
+Staff profile carries: first name, last name, job title, date of birth, email, phone,
+country, address, avatar. Plus **per-staff notification preferences** — new orders,
+company applications, low stock, campaign expiry — each toggleable for email and in-panel.
+
+### 7.7 Sessions
+
+Session authentication. Session policy, lockout thresholds and OTP parameters are
+configurable per store; defaults are provisional until the SMS provider is chosen and may
+be tuned then.
+
+### 7.8 Addresses
+
+Each store owns its own address shape, so a change to the Egyptian format cannot affect
+Saudi Arabia.
+
+```
+addresses
+├── customer_id, store_id, label, recipient_name, phone, is_default
+└── fields  JSONB                  ← the country-specific shape
+
+store_address_formats
+├── store_id
+├── field definitions: key, label_ar, label_en, required, validation, display_order
+└── display_template               ← rendering on the order and the shipping label
+```
+
+**The per-store formats are still owed by the owner.** Build the configuration mechanism;
+seed KSA with the Saudi National Address format (building number, street, district,
+city, postal code, additional number) and flag the other two.
+
+### 7.9 Account deletion
+
+**Anonymize, never hard delete.**
+
+- The account can no longer log in.
+- Customer personal fields are overwritten: name → "Deleted customer", email → an
+  irreversible hash placeholder preserving uniqueness, phone → null, saved addresses
+  purged, preferences cleared.
+- **Orders keep their snapshot** of name, phone and delivery address as captured at order
+  time. This is a financial record and it never gets anonymized, with no retention cutoff.
+- **Reviews and questions survive**, attributed to "Deleted customer".
+
+---
+
+## 8 · B2B module
+
+### 8.1 Registration
+
+Required: company name, company type, responsible person and their phone, address,
+Commercial Registration number, Tax Number, plus a document upload area.
+
+Document types are a **configurable table**, not hardcoded. Known types: VAT certificate,
+commercial registration certificate, authorised signatory ID.
+
+### 8.2 Status — four values only
+
+```
+PENDING     Can log in, browse, build a cart. CANNOT order. Sees company prices.
+APPROVED    Can order. Company prices. IBAN visible.
+REJECTED    Can log in, edit company info, reapply. CANNOT order.
+SUSPENDED   Can log in, view past orders and the suspension notice. CANNOT order.
+```
+
+**Ordering rule, no special cases:** `company.status === APPROVED`.
+
+- Reapplication is unlimited. `REJECTED` → submit a new application with documents and a
+  note → back to `PENDING`. A company **cannot** submit a new application while one is
+  already pending.
+- Reapplying never temporarily restores ordering.
+- `SUSPENDED` is assigned manually by staff from any state. It does not block login.
+- To block a person entirely, use `customers.status = BLOCKED`. Never use company status
+  for that.
+- **A `PENDING` company sees company prices, not public prices.** It simply cannot check
+  out. This is the one exception to "`COMPANY` means approved" in §6, and it applies to
+  price display only.
+
+`AWAITING_DOCUMENTS`, `REJECTED_ONCE`, `REJECTED_BLOCKED` and every account-type
+transition do not exist. Do not build them.
+
+The company profile shows its own status and, when rejected, a section to submit a new
+application.
+
+### 8.3 Company payment — absolute
+
+**Companies never pay online. There is no credit, no terms, no Net 30, no instalments —
+regardless of gateway.** A company order is placed, flagged for staff, and settled by bank
+transfer to the IBAN shown on the site, either immediately after ordering or after staff
+contact.
+
+**The IBAN is hidden from the UI unless `company.status == APPROVED`**, so an unapproved
+company cannot send money.
+
+BNPL products (Tamara, Tabby) are available to **individual customers only**.
+
+---
+
+## 9 · Catalog module
+
+### 9.1 Products and variants
+
+**Every product has at least one variant.** A "simple" product is a product with exactly
+one variant. There is no second code path — this removes an entire class of bug from
+pricing, stock, cart and order.
+
+Product data is identical across every store — name, slug, photos, description,
+attributes — **except price and stock**.
+
+Attributes are one of three kinds: informational, filterable, or variant-generating.
+Price is per combination, **never additive**. The backend resolves the variant from the
+selected attribute values; the frontend never computes it.
+
+### 9.2 Status — three independent axes
+
+```
+editorial          DRAFT | ACTIVE | ARCHIVED
+availability       derived from stock — never stored as a flag
+force_unavailable  boolean, per store, own permission
+```
+
+`force_unavailable` surfaces in the admin as **"Not available now."** It is for recalls,
+pricing errors and legal holds — stock exists but must not be sold. It does not touch
+stock.
+
+Stock consumed by an offline sale is a **movement** with `reason = OFFLINE_SALE`,
+recordable in our admin in **every** store. Where an external provider is connected, it
+can also arrive from there; the idempotency key on `external_ref` prevents double-counting
+when both paths fire.
+
+### 9.3 Categories
+
+Nest without limit. Each carries an admin-set rank per store. **One global category tree**
+— Tallsen products sit inside it alongside everything else. There is no second tree. The
+"Tallsen section" a customer sees is the tree filtered to that brand.
+
+Known top-level categories: Handles · Slides and runners · Hinges · Wardrobe organizers ·
+Lighting and electrical · Fittings and fixings.
+
+### 9.4 Brands
+
+```
+brands                                  ← global, not store-scoped
+├── id, slug, name_ar, name_en, logo, description
+├── origin_country
+├── agency_type        house | exclusive_agent | distributor
+├── is_default                          ← TouchWood
+├── show_in_default_listings            ← TouchWood true, Tallsen false
+└── position, is_active
+```
+
+`products.brand_id` is **NOT NULL**; the admin form pre-selects TouchWood so staff never
+think about it for house goods. One brand per product.
+
+**Do not create a table per brand.** 840 products filtered on an indexed integer is
+sub-millisecond work. Separate tables would force UNIONs in search, double the external
+mapping, and turn "add a brand" into a migration.
+
+`show_in_default_listings` is **denormalized into `product_search`** so the default grid is
+one indexed predicate with no join:
+
+```sql
+default grid:   WHERE store_id=? AND locale=? AND brand_visible_by_default = true
+brand page:     WHERE store_id=? AND locale=? AND brand_id = ?
+filter facet:   brand_id IN (...)
+```
+
+Indexes: `(store_id, locale, brand_visible_by_default, sales_rank)` and
+`(store_id, locale, brand_id)`. Toggling a brand's visibility fires a re-stamp job for that
+brand's rows — a rare action, a cheap job.
+
+Known brands: Tallsen (China, exclusive agent, **hidden from default listings**),
+TouchWood (Saudi Arabia, house brand), Hettich (Germany), Blum (Austria), Häfele.
+
+### 9.5 Search
+
+PostgreSQL FTS + `pg_trgm`. Ranking, in one SQL expression:
+
+```
+1. exact match
+2. prefix match
+3. trigram similarity          ← "nearest to what they typed"
+4. synonym match
+   tiebreakers: in stock, then sales_rank
+```
+
+Per-product **alternative search names** (synonyms), entered by staff or seeded.
+
+A **`search_queries` log** records every search including zero-result ones. The zero-result
+list is the source material for the synonym table — it is the highest-value report in the
+system.
+
+### 9.6 Listing filters
+
+From the storefront design, on the category page: sale mode, brand, variant attributes
+(length, finish…), price range, availability (in stock only). Sorting includes
+best-selling. Grid view and a technical list view with SKU and finish columns.
+
+---
+
+## 10 · Pricing module
+
+### 10.1 One mechanism for everything
+
+Everything is a price list. They differ only by `audience`, `kind`, `priority` and date
+window.
+
+| Concept | Expressed as |
+|---|---|
+| Retail base price | `PUBLIC`, priority 0, min_qty 1, no dates |
+| Sale price | `PUBLIC`, priority 10, dated |
+| Wholesale tiers | One row per quantity band |
+| Seasonal campaign | `kind = CAMPAIGN`, higher priority, dated |
+| Company price | `audience = COMPANY` |
+
+**Resolution:** filter by store, audience eligibility and active date → order by
+`priority DESC` → match the quantity band → first hit wins.
+
+Materialized into **`effective_prices`** so resolution never runs at request time.
+
+```php
+PricingEngine::calculate(PricingContext): PriceQuote
+```
+
+A **pure function with no database access.** Near-100% unit test coverage. This is the
+most heavily tested class in the system.
+
+Per-store price editing is permission-scoped through the existing store-access model.
+
+### 10.2 Canonical amounts
+
+Every threshold in the system binds to one of these names. This is what stops "free
+shipping over 1000", "coupon minimum 500" and "gift over 2000" from quietly meaning three
+different numbers.
+
+```
+gross_subtotal  = Σ (list price × qty)
+net_subtotal    = Σ (effective unit price × qty)
+coupon_discount
+points_discount
+goods_total     = net_subtotal − coupon_discount − points_discount
+shipping
+taxable_base    = goods_total + shipping
+vat             = taxable_base × store.tax_percentage
+order_total     = taxable_base + vat
+```
+
+| Threshold | Binds to |
+|---|---|
+| Coupon minimum | `net_subtotal` |
+| Free shipping | `goods_total` |
+| Gift eligibility | `goods_total` |
+| Points earning base | `goods_total` |
+| Max points redemption % | `net_subtotal` |
+| Discount ceiling | `gross_subtotal` |
+| VAT | `taxable_base` |
+
+### 10.3 Tax
+
+**A fixed percentage per store.** No tax classes, no zero-rating, no exemptions, no
+per-product tax field. KSA 15%, Egypt 14%, UAE 5%, read from the store row.
+
+---
+
+## 11 · Discounts, coupons, points
+
+### 11.1 Coupons
+
+**One coupon code per order.** The customer chooses either a personal code or a public one.
+Never two.
+
+**Line-level application.** A coupon applies only to the lines it is eligible for. A mixed
+cart of discounted and normal products does not cause a rejection — the coupon lands on the
+eligible lines and leaves the rest alone.
+
+Each coupon carries:
+
+```
+coupons
+├── code, name_ar, name_en, store_id
+├── eligibility        PUBLIC | ASSIGNED
+├── discount type + value
+├── starts_at, ends_at
+├── max_uses_per_customer          ← null = unlimited within the window
+├── allow_with_points              ← per-coupon, admin-set
+└── eligibility rules (products, categories, brands, sale_mode, audience)
+```
+
+Expiry date and max-uses-per-customer both apply; whichever is hit first ends it.
+
+Coupons are **store-scoped** while accounts are global — the same person can use a coupon
+in KSA and not in Egypt. That is intended.
+
+### 11.2 Assigned coupons and segments
+
+```
+coupon_assignments(coupon_id, customer_id, assigned_at, notified_at, used_at)
+```
+
+Only assigned customers can use an `ASSIGNED` coupon. They are notified, and it appears in
+their account centre.
+
+Assignment is **by segment**, not one customer at a time:
+
+```
+customer_segments
+├── name_ar, name_en
+├── type        DYNAMIC (rule-based) | STATIC (hand-picked)
+├── audience    INDIVIDUAL | COMPANY
+└── rules       no_orders_ever | last_order_before(X)
+               | order_count >= N within period | store
+
+customer_segment_members     ← materialized, nightly + on demand
+```
+
+In scope: frequent buyers, monthly buyers, no order in 6 months, no order in a year.
+**Not** in scope: spend-based grouping.
+
+**Assignment snapshots membership at the moment of assigning.** Resolving a segment writes
+rows into `coupon_assignments` and they are static from then on. Without this, a customer in
+a "hasn't ordered in 6 months" segment loses their coupon the instant they order — the
+opposite of the intent.
+
+Segments are reusable: newsletters, pop-up targeting, notifications. Not coupon-only.
+
+### 11.3 The discount ceiling
+
+Per store, admin-defined `max_discount_percent` (0–100). Measured against
+`gross_subtotal` — the full reduction from list price.
+
+**It only ever refuses customer-applied discounts. It never blocks an order that breaches
+from merchant pricing alone.** A clearance item at 70% off under a 50% ceiling sells
+normally; the ceiling simply means no coupon or points can stack on top of it.
+
+Evaluation is strictly ordered, so the outcome is always deterministic:
+
+```
+1. Prices resolve (campaign / company / tier)      → net_subtotal
+2. Coupon applies to eligible lines
+      would breach the ceiling? → reject the coupon, show a message
+3. Points, capped by max_redemption_percent
+      still breaches the ceiling? → reject the whole redemption,
+                                     return the points unused
+```
+
+Points are evaluated last and refused first. Points are all-or-nothing, so a partial
+application is never attempted.
+
+### 11.4 Two guards, different scopes
+
+They are not the same rule and both apply:
+
+| Guard | Scope | Base | Protects against |
+|---|---|---|---|
+| `max_redemption_percent` | Points only | `net_subtotal` | A customer with a huge balance clearing an order with points |
+| `max_discount_percent` | The whole order | `gross_subtotal` | Total stacking eroding margin |
+
+### 11.5 Points
+
+The only loyalty mechanism. **There is no wallet, no store credit, no cashback balance, no
+tier system, no per-product earn rate.** Points are the cashback.
+
+- Earn on **DELIVERED**. Reverse on cancellation or completed return, proportionally on
+  partial return. Only those triggers.
+- Per store, isolated — KSA points do not spend in Egypt.
+- FIFO expiry with an admin-defined period.
+- Earn rate and redeem rate are separate admin values.
+- Minimum redemption threshold.
+- Redemption mode `ALL_OR_NOTHING` or `PARTIAL`, set **separately per audience**.
+- Maximum redemption percentage of an order (see §11.4).
+- Points redeem as a **direct discount at checkout**, never a generated code.
+- Negative balances are allowed, never expire, and show a checkout warning.
+
+### 11.6 Gifts and free shipping
+
+Both admin-configured thresholds, nothing more:
+
+- **Gift:** when the order reaches an admin-set amount, a defined gift is attached.
+- **Free shipping:** when `goods_total` reaches an admin-set amount per store per carrier.
+
+---
+
+## 12 · Inventory, Sales, Payments, Shipping
+
+### 12.1 Inventory
+
+**One stock pool per store. There is no warehouse entity. Physical locations are outside
+this system's scope.** Do not model warehouses, branches, bins or transfers.
+
+```
+available_to_sell = on_hand − reserved − safety_buffer
+```
+
+Reservation is an **atomic conditional UPDATE** — zero affected rows means insufficient
+stock. No explicit lock, no race, no deadlock.
+
+`stock_movements` is an **append-only ledger** with a unique `external_ref`. It doubles as
+the sync mechanism. Reservations expire; a scheduled job releases them.
+
+Customers see display bands (in stock / low stock / out of stock), never raw counts.
+
+**No pre-order, no backorder, no incoming stock column.** A customer cannot order what is
+not available.
+
+### 12.2 External inventory providers (Sync)
+
+Every store **always reads stock from our own tables**. An external provider is a
+synchronization partner, never a read-time source. **No external call ever happens inside a
+web request.**
+
+Any store may optionally connect a provider. Odoo is one adapter, not the domain. A store
+with no connection row has the sync layer dormant.
+
+**Connection is all-or-nothing per store** — if a provider is connected, every product in
+that store syncs.
+
+Rules:
+
+- **Stock** syncs as **signed movements** with idempotency refs, never absolute quantities.
+  Absolute values are used only for nightly reconciliation and never silently overwrite.
+- **Prices and product details** sync **last-write-wins in both directions**. Neither side
+  "wins" by rule; the most recent edit applies. Every resolution writes a
+  `sync_conflicts` row so a lost edit is visible rather than silent.
+- Event-driven both ways on edit, a 15-minute cursor poll as a safety net, a nightly full
+  reconciliation that **reports** drift without auto-correcting.
+- FIFO **per entity**, not one global queue.
+- Failure is halt-and-escalate, never rollback: four attempts, then dead-letter, halt that
+  entity's FIFO only, notify staff, admin screen to retry or resolve.
+- Loop prevention by origin tagging **plus** content checksum. Both required.
+
+**Price mapping.** Only two rows ever sync. Everything else is ours exclusively:
+
+| External field | Maps to |
+|---|---|
+| Product price | `kind = BASE`, `audience = PUBLIC`, min_qty 1, no dates |
+| Discount + expiry | `kind = SALE`, `audience = PUBLIC`, dated |
+| — | Wholesale tiers, company prices, campaign prices — **never synced** |
+
+When an external discount expires, the SALE row's window closes and BASE resolves again on
+its own. The original price was never overwritten, so there is nothing to restore and
+nothing to lose.
+
+Bulk external price changes must batch, not fire one job per product.
+
+### 12.3 Sales
+
+```
+Cart   — mutable, permissive, NO invariants, one store only, survives 30+ days
+  ↓ StartCheckout
+Quote  — server-computed, itemised, immutable, ~15 minute TTL
+  ↓ PlaceOrder(quoteId)          ← the client posts an id, never amounts
+Order  — permanent, fully snapshotted
+```
+
+The Cart deliberately has no invariants — it must never block a customer from adding
+something. All validation happens at Quote.
+
+**A cart may contain both retail and wholesale lines.** Mixed carts are allowed.
+
+All orders, individual and company, pass **manual staff approval**. Historical orders never
+change when the catalog changes — everything is snapshotted.
+
+**Four independent state machines:** order, payment, fulfilment (per shipment), return.
+The customer sees **one derived status**; staff see all four.
+
+Customer-facing statuses from the design: New · Processing · Shipped · Delivered ·
+Cancelled · Refunded.
+
+**Cancellation.** The customer clicks cancel, selects a reason, confirms. Status → 
+`CANCELLED`, staff notified, stock released, points reversed. The self-serve window
+**closes at `SHIPPED`** — once the parcel is with the carrier it becomes a return, not a
+cancellation. If the order was paid, the refund is manual (§12.4).
+
+### 12.4 Payments
+
+Gateway adapters live in code behind a `PaymentGateway` interface. **The interface has no
+`refund()` method.**
+
+The admin configures adapters but cannot add or edit them: enable per store, credentials in
+an encrypted column, display name, logo, ordering, min/max order value, audience
+restriction.
+
+**All refunds are manual**, partial and full alike. Staff execute a bank transfer and
+record it against the order.
+
+| Store | Gateway | Methods |
+|---|---|---|
+| KSA | **MyFatoorah** (فاتورتي) | Mada, Visa, Apple Pay, **Tamara** |
+| Egypt | undecided | Visa, Fawry |
+| UAE | undecided | Visa, Apple Pay, **Tabby** |
+
+MyFatoorah is a real GCC payment gateway with public API documentation and a sandbox.
+Earlier project notes referred to "Fatoorati" — that was a misspelling and the risk it
+created is closed. Egypt and UAE gateways get adapters when chosen; the base makes that
+cheap.
+
+**No cash on delivery** in any store.
+
+Tamara and Tabby pay the merchant in full, so there is no instalment logic on our side.
+They are available to **individual customers only**.
+
+**Bank transfer verification:** the customer uploads a receipt image, staff verify against
+the order, with an admin-set "hours to verify" target and a "hold stock while verifying"
+setting.
+
+### 12.5 Shipping
+
+Carriers are **fixed-rate tables** defined by staff. **No live carrier rate APIs.**
+Tracking is a URL template rendered with the tracking number. Domestic only per store.
+Free-shipping threshold per store per carrier.
+
+**Packaging engine.** Products are auto or manual. Auto compares weight and three
+dimensions against box maxima with admin-set padding and picks the smallest fit. Manual
+bypasses the engine entirely and flags the order for staff. **No 3D bin packing.**
+
+**Returns.** Window is admin-configurable per store; return shipping is paid by the
+company; refund is manual.
+
+### 12.6 Invoicing
+
+**This system does not issue invoices.** The external accounting system does, and the
+customer is notified by SMS.
+
+The order screen's "print" action produces an **order confirmation / packing document**,
+not a tax invoice. If a real invoice is needed later, wire the button to fetch it from the
+external system — do not rebuild invoicing here.
+
+---
+
+## 13 · Feedback, Content, Ops
+
+### 13.1 Feedback
+
+**Reviews.** Rating plus text, tied to a verified purchase, showing the purchased variant.
+Aggregated rating and count cached on the product. Staff moderation. A translate button
+appears only when the review's language differs from the interface language, and after
+translating it becomes "show original".
+
+**Product questions and answers.** Public, product-attached, staff-answered.
+
+```
+product_questions
+├── product_id, customer_id, body, locale
+├── status      PENDING | ANSWERED | REJECTED
+├── answer_body, answered_by, answered_at
+└── created_at
+```
+
+**A question becomes publicly visible only once it is answered.** `PENDING` is staff-only;
+`REJECTED` never appears. Staff work a queue filtered by status.
+
+This replaces live chat entirely. There is no chat, no ticketing system, no channel
+configuration. Anything beyond a single product question goes to WhatsApp support, which is
+just a link.
+
+**Wishlist.** One list per customer, global, with each item carrying its `store_id` so the
+list is grouped by store in the UI. A product not sold in the current store shows as
+unavailable rather than disappearing. **No favourites ranking or report.**
+
+### 13.2 Content
+
+CMS pages, banners, homepage configuration, SEO metadata, blog posts and categories,
+project showcases, pop-up offers, alert banners, the smart bar above listings, and
+campaigns.
+
+**Campaigns carry both a theme and prices, independently switchable:**
+
+```
+campaigns
+├── store_id, name_ar, name_en, slug
+├── starts_at, ends_at
+├── theme_enabled     BOOL      → preset, colours, background, artwork, copy
+├── pricing_enabled   BOOL      → links to a price_list (kind = CAMPAIGN)
+├── price_list_id     nullable
+├── positions[]       announcement bar · homepage hero · homepage promo ·
+│                     listing banners · product badges · cart messaging
+└── is_active
+```
+
+The admin chooses theme only, prices only, or both. One cardinality difference matters:
+**only one theme may be live at a time** — the site has one look — but **multiple pricing
+campaigns may run simultaneously**, resolved by price-list priority.
+
+Twelve theme presets exist in the design: Ramadan, Eid, Eid Al-Fitr, Saudi National Day,
+Founding Day, New Year, Summer, Flash Sale, Limited-time offers, 15 SAR offers, Wholesale
+offers, Jeddah branch opening.
+
+### 13.3 Ops
+
+Notifications, newsletters, subscribers, reports, exports.
+
+**Notifications are event-driven.** Every notification is a queued listener on an event a
+module already publishes, resolved against the recipient's stored locale. There is no
+central notification matrix document — each module's specification lists its events, and the
+notifications fall out of that. This is a per-module deliverable, not a blocking artefact.
+
+**Reports** are all store-scoped:
+
+- Revenue by period, store and category
+- Product sales — units and value per product and variant
+- Stock levels
+- **Customer searches, including zero-result searches** ← feeds the synonym table
+- Favourites (the feature, not a ranking)
+
+**There is no profit report and no cost-of-goods field.** Cost and margin are outside this
+system's scope. Reporting covers revenue — money coming in — and nothing about what the
+goods cost. Do not add `unit_cost`, `variant_costs` or anything similar.
+
+**Newsletters and subscribers** live here rather than in Content, because Ops already owns
+email delivery, templates and provider adapters, and splitting would put email in two
+modules.
+
+---
+
+## 14 · Admin panel
+
+Everything is **store-scoped**. An admin may own KSA and Egypt and have no authority over
+UAE; their staff inherit that boundary. Only the seeded Super Admin sees every store and
+assigns admins and their scopes. Navigation renders from the permission set.
+
+**Dashboard** — charts giving a quick read on the store: sales and goods for the month,
+three months and year; total orders; orders not yet shipped; completed orders; cancelled
+orders; low stock; pending company approvals; recent orders. Plus a monthly sales target
+with achieved and remaining.
+
+**Agreed section tree:**
+
+```
+Products      Add product · All products · Categories · Category discounts · Brands
+              Custom labels · Variations · Colours · Warranty · Smart bar · Product apps
+Notes         Add note · Notes list          (internal notes on product / order / company)
+Wholesale     Add wholesale product · All wholesale products
+Sales         All orders · Store orders · Unpaid orders
+Customers     Customer list · Company accounts · Favourited products · Loyalty
+Library       Media files
+Reports       Revenue · Product sales · Stock · Favourites · Customer searches
+Blog          All posts · Post categories
+Marketing     Campaigns · Pop-up offers · Alert offers · Newsletters · Subscribers
+              · Coupons · Segments
+Support       Product questions
+Points        Points settings · Redemptions
+Payments      Bank payment settings · Bank transfer requests
+Staff         All staff · Employee permissions
+Configuration Account & settings · Store settings
+```
+
+Removed from the design's tree, because they are out of scope: warehouse pickup, wallet
+top-up requests, wallet top-up history, cashback settings, per-product cashback, offline
+subscription payments, live chat, contact channels, product enquiries as a separate
+concept, and profit reporting.
+
+Permission groups seen in the design: catalog and variants · pricing and campaigns · orders
+and fulfilment · company approvals · staff and permissions · store settings and tax.
+
+Example roles: Owner · Catalog manager · Order fulfilment · Company accounts · Support.
+
+---
+
+## 15 · Still open
+
+### 15.1 Owner owes vendor data
+
+| Item | Blocks |
+|---|---|
+| **External provider schema, credentials, real product sample** | Catalog, Pricing, Inventory, Sync — the longest pole |
+| MyFatoorah API docs and sandbox | Payments |
+| Egypt and UAE gateway choice | Payments |
+| Box list with inner dimensions and max weights | Shipping packaging |
+| Carrier list and rate tables | Shipping |
+| SMS provider | Access (OTP), Ops |
+| Email provider and sending domain | Access, Ops |
+| Per-store address formats | Access, Shipping |
+| Old database dump | Migration |
+
+### 15.2 Deferred to their build stage
+
+Decide these when the owning module is reached; do not design them now.
+
+- **Bundles / kits.** Confirmed as wanted but never specified — there is no prior
+  definition to build from. Out of scope until Catalog and Sales are underway.
+- **Category discounts, custom labels, colour library, warranty records, product add-ons,
+  CSV product import.** Most will be built; the details are open.
+- **Save for later, abandoned cart, grid/technical-list toggle, branches page, public
+  order tracking, technical catalog PDF, guest price visibility toggle.**
+
+### 15.3 Provisional
+
+- OTP length, expiry and resend throttle — defaults stand until the SMS provider is chosen.
+- Session lifetime and lockout thresholds — same.
+
+---
+
+## 16 · Rejected — do not re-propose
+
+Each of these was considered and decided against. If you find yourself reaching for one,
+that is the signal to stop.
+
+| Rejected | Instead |
+|---|---|
+| JWT authentication | Laravel sessions |
+| Microservices | Modular monolith |
+| Elasticsearch | Postgres FTS + `pg_trgm` |
+| Store credits / wallet | Points only |
+| Cashback tiers, per-product earn rates | One flat points configuration |
+| Invoicing in this system | External system issues invoices |
+| `refund()` on the gateway interface | All refunds manual |
+| Live carrier rate APIs | Fixed rate tables |
+| 3D bin packing | Smallest-fit box comparison |
+| B2C ↔ B2B account switching | Account type is immutable |
+| Company online payment, credit, Net 30 | Bank transfer only, always |
+| Cash on delivery | Not offered |
+| Company-restricted wholesale | Wholesale is public, gated by MOQ |
+| Warehouses, branches, stock locations | One pool per store |
+| Per-product tax classes, zero-rating | Fixed percentage per store |
+| Pre-order / backorder / incoming stock | Cannot order what is unavailable |
+| A boolean out-of-stock flag | Stock movements |
+| Live chat, ticketing, contact channels | Product Q&A + a WhatsApp link |
+| Cost of goods, profit reporting | Revenue reporting only |
+| Favourites ranking report | The wishlist feature alone |
+| A table per brand | One `brand_id` column |
+| A separate Tallsen category tree | One global tree, filtered by brand |
+| Per-store launch lifecycle | All three launch together |
+| Two coupons on one order | One code per order |
+| All-or-nothing coupon rejection on mixed carts | Line-level application |
+
+---
+
+## 17 · Build order
+
+```
+STAGE 1   Platform      stores, currencies, tax, settings, media, audit
+STAGE 2   Access        identity, auth, verification, RBAC, staff, addresses, 2FA
+STAGE 3   B2B           company lifecycle
+STAGE 4   Feedback      reviews + product Q&A   (touches the Catalog schema)
+──────── everything above depends on nothing external ────────
+STAGE 5   Catalog       BLOCKED on the external provider schema
+STAGE 6   Pricing · Inventory · Sync
+STAGE 7   Sales · Promotions · Loyalty
+STAGE 8   Payments · Shipping     (blocked on vendor data)
+STAGE 9   Content · Ops
+STAGE 10  Migration, hardening, launch
+```
+
+Platform precedes Access because store context is a parameter of nearly everything in
+Access — staff store scoping, per-store settings, per-store verification configuration.
+
+Stages 1–4 depend on nothing external, which is why they run first while the provider
+schema is being chased.
+
+---
+
+## 18 · Per-module deliverable
+
+Write the specification, have it reviewed, then implement. Every module specification
+contains these nine sections, in this order, without exception:
+
+1. Aggregates and their invariants
+2. The public contract interface
+3. Every use case with its permission string
+4. Complete state machines
+5. Tables with columns and indexes
+6. Events published and consumed
+7. The error type hierarchy
+8. The test scenario list
+9. Open questions this module raised
+
+Save as `docs/modules/{name}.md`. **Access is written first** and its shape becomes the
+template every later module follows. The permission catalog accumulates across modules and
+becomes the RBAC seed.
+
+---
+
+## 19 · Architecture tests
+
+In `tests/Architecture/`, failing the build:
+
+| Test | Catches |
+|---|---|
+| `Domain/` imports nothing from `Illuminate\*` | Framework leaking into the domain |
+| Every store-scoped model declares the store global scope | A forgotten `where store_id` |
+| No `Public/Dto` class references an Eloquent model | Models crossing boundaries |
+| Every command handler asserts a permission | An unprotected use case |
+| **No storefront endpoint exceeds N queries** | The N+1 that made the old system slow |
+| Every money column is `bigint` | A DECIMAL sneaking in |
+| Enums stored as strings, never integers | Unreadable rows at 2am |
+| No `Domain/` or `Application/` file contains a country or currency literal | Hardcoded store assumptions |
+
+---
+
+## 20 · Start here
+
+1. Extract the repository skeleton. It has all 15 modules with the internal structure
+   already laid out, plus `deptrac.yaml`, `phpstan.neon`, `composer.json` and the CI
+   workflow.
+2. `composer install`, bring up Postgres and Redis, confirm `composer check` runs — pint,
+   phpstan, **deptrac**, pest. Deptrac must be green and blocking before any domain code
+   is written.
+3. Write the Shared kernel: `Money` first, with `allocate()` and full unit tests.
+4. Write `docs/modules/platform.md` using the §18 format. Have it reviewed.
+5. Implement Platform.
+6. Write `docs/modules/access.md`. It sets the template for everything after it.
+
+Flag anything in §15 the moment you reach it. Do not invent an answer and proceed.

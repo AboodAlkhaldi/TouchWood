@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: touchwood
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: touchwood_test
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+        ports: ['5432:5432']
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: touchwood
+      DB_PASSWORD: secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, pgsql, intl, bcmath, mbstring
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare environment
+        run: cp .env.example .env && php artisan key:generate
+
+      # Order matters: style, then types, then BOUNDARIES, then tests.
+      # Deptrac is blocking. A boundary violation fails the build even if
+      # every test passes — retrofitting boundaries is what kills these.
+      - name: Code style
+        run: vendor/bin/pint --test
+      - name: Static analysis (Larastan level 8)
+        run: vendor/bin/phpstan analyse --memory-limit=2G --no-progress
+      - name: Module boundaries (BLOCKING)
+        run: vendor/bin/deptrac analyse --fail-on-uncovered --report-uncovered --no-progress
+      - name: Tests
+        run: vendor/bin/pest
