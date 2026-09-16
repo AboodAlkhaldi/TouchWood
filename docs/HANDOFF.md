@@ -33,6 +33,7 @@ Each amendment is applied in place in the section named; this list only records 
 | Date | Section | Change | Source |
 |---|---|---|---|
 | 2026-09-16 | §3 | `spatie/laravel-medialibrary` dropped; Intervention Image resizes | Platform spec review, Q2 |
+| 2026-09-16 | §3 | `brick/money` replaced by `brick/math` | Owner approval of PR #3 (Money) |
 | 2026-09-16 | §4.1 | What `brand.com/` with no store segment does | Platform spec review, Q4 |
 | 2026-09-16 | §5.1 | Currency signs (Riyal `U+20C1`, Dirham `U+20C3`) with a letters fallback for every store | Platform spec review, Q7, Q8 |
 | 2026-09-16 | §5.3 | Error standard made concrete; audit log retention and staff IP | Platform spec review, Q1, Q6 |
@@ -108,7 +109,11 @@ Memorize these. Most defects in a system like this are one of these being violat
 
 Key packages: `spatie/laravel-data`, `spatie/laravel-model-states`,
 `spatie/laravel-permission`, `spatie/laravel-query-builder`,
-`spatie/laravel-translatable`, `brick/money`, `intervention/image`.
+`spatie/laravel-translatable`, `brick/math`, `intervention/image`.
+
+`brick/money` is **not** used: it carries its own currency list with built-in exponents, while
+§5.1 requires the exponent to come from our `currencies` row. `Money` is our own value object;
+`brick/math` gives it exact arithmetic.
 
 `spatie/laravel-medialibrary` is **not** used: it attaches each file to another module's
 Eloquent model, which §4.3 forbids. Media is Platform's own table (§5.5).

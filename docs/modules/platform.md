@@ -1,7 +1,7 @@
 # Platform — Module Specification
 
-**Status:** DRAFT v3 — every question answered (2026-09-16). **Waiting for the owner's
-approval.** No Platform code is written until this spec is approved.
+**Status:** **APPROVED** by the owner, 2026-09-16. Changes from here on are amendments and need
+the owner's agreement.
 **Tier:** 3 (foundation). **Depends on:** nothing. **Build stage:** 1.
 **Source:** `docs/HANDOFF.md` §1, §4, §5, §7.5, §10.3, §14, §17–§20.
 

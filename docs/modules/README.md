@@ -20,7 +20,7 @@ Each specification contains, in this order:
 
 | Module | Spec | Blocked by |
 |---|---|---|
-| Platform | [draft v3 — all questions answered](platform.md) | owner approval |
+| Platform | [approved](platform.md) — implementation in progress | — |
 | Access | not started | — |
 | B2B | not started | — |
 | Feedback | not started | — |
