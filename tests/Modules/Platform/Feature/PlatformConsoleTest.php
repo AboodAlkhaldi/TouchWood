@@ -6,6 +6,7 @@ use Illuminate\Testing\PendingCommand;
 use Modules\Platform\Public\Contracts\PlatformApi;
 
 use function Pest\Laravel\artisan;
+use function Pest\Laravel\assertDatabaseHas;
 
 uses(RefreshDatabase::class);
 
@@ -67,6 +68,11 @@ it('creates a complete store', function () {
         ->assertSuccessful();
 
     expect(app(PlatformApi::class)->storeByCode('sa')?->timezone)->toBe('Asia/Riyadh');
+    assertDatabaseHas('platform.audit_entries', [
+        'action' => 'platform.store.created',
+        'store_id' => app(PlatformApi::class)->storeByCode('sa')?->id,
+        'actor_type' => 'SYSTEM',
+    ]);
 });
 
 it('refuses an incomplete store and creates nothing', function (string $missing, string $message) {

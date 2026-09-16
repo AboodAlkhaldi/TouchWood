@@ -6,6 +6,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
+use Modules\Platform\Application\Audit\StoreAudit;
+use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Domain\Exception\StoreAttributeImmutable;
 use Modules\Platform\Domain\Exception\StoreNotFound;
@@ -28,6 +30,7 @@ final readonly class UpdateStoreHandler
         private ConnectionInterface $db,
         private Dispatcher $events,
         private StoreDirectory $directory,
+        private AuditLog $auditLog,
     ) {}
 
     public function handle(UpdateStore $command): void
@@ -40,6 +43,7 @@ final readonly class UpdateStoreHandler
             // Checked against this store: an admin of one store cannot edit another.
             $this->authorizer->authorize(self::PERMISSION, $store->id());
             $this->refuseImmutableChanges($store, $command);
+            $before = StoreAudit::attributes($store);
 
             if ($command->nameAr !== null || $command->nameEn !== null) {
                 $store->rename(TranslatedText::of(
@@ -68,6 +72,7 @@ final readonly class UpdateStoreHandler
             }
 
             $this->stores->update($store);
+            $this->auditLog->record(StoreAudit::updated($store, $before, $changed));
             $this->events->dispatch(new StoreUpdated((string) Str::uuid(), $store->id()->value, $changed, CarbonImmutable::now()));
         });
 

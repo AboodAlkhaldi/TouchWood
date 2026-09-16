@@ -6,6 +6,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
+use Modules\Platform\Application\Audit\StoreAudit;
+use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Domain\Exception\CurrencyNotFound;
 use Modules\Platform\Domain\Exception\StoreCodeTaken;
@@ -33,6 +35,7 @@ final readonly class CreateStoreHandler
         private ConnectionInterface $db,
         private Dispatcher $events,
         private StoreDirectory $directory,
+        private AuditLog $auditLog,
     ) {}
 
     public function handle(CreateStore $command): StoreId
@@ -63,6 +66,7 @@ final readonly class CreateStoreHandler
             }
 
             $this->stores->add($store);
+            $this->auditLog->record(StoreAudit::created($store));
             $this->events->dispatch(new StoreCreated((string) Str::uuid(), $store->id()->value, CarbonImmutable::now()));
         });
 

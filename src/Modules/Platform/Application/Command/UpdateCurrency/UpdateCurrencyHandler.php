@@ -6,6 +6,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
+use Modules\Platform\Application\Audit\CurrencyAudit;
+use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Domain\Exception\CurrencyNotFound;
 use Modules\Platform\Domain\Repository\CurrencyRepository;
@@ -24,6 +26,7 @@ final readonly class UpdateCurrencyHandler
         private ConnectionInterface $db,
         private Dispatcher $events,
         private StoreDirectory $directory,
+        private AuditLog $auditLog,
     ) {}
 
     public function handle(UpdateCurrency $command): void
@@ -34,6 +37,7 @@ final readonly class UpdateCurrencyHandler
 
         $this->db->transaction(function () use ($command, $code) {
             $currency = $this->currencies->byCode($code) ?? throw new CurrencyNotFound($code->value);
+            $before = CurrencyAudit::attributes($currency);
 
             if ($command->exponent !== null) {
                 $currency->changeExponent($command->exponent, $this->currencies->isUsedByAnyStore($code));
@@ -68,6 +72,7 @@ final readonly class UpdateCurrencyHandler
             }
 
             $this->currencies->update($currency);
+            $this->auditLog->record(CurrencyAudit::updated($currency, $before, $changed));
             $this->events->dispatch(new CurrencyUpdated((string) Str::uuid(), $code->value, $changed, CarbonImmutable::now()));
         });
 
