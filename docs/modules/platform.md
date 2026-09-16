@@ -2,7 +2,8 @@
 
 **Status:** **APPROVED** by the owner, 2026-09-16. Changes from here on are amendments and need
 the owner's agreement.
-**Tier:** 3 (foundation). **Depends on:** nothing. **Build stage:** 1.
+**Tier:** 3 (foundation). **Depends on:** nothing. **Needs from shared plumbing:** nothing (it
+publishes events but consumes none, so the §5.6 event tables are not needed yet). **Build stage:** 1.
 **Source:** `docs/HANDOFF.md` §1, §4, §5, §7.5, §10.3, §14, §17–§20.
 
 Platform owns the things every other module needs before it can do anything: which stores
@@ -91,20 +92,46 @@ hours to verify a bank transfer, and so on.
 An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
 
 - The original file is immutable. Replacing an image means uploading a new Media.
-- `checksum` is the SHA-256 of the original bytes. Uploading identical bytes returns the
-  existing Media instead of creating a duplicate.
-- Images get width and height recorded at upload.
+- `checksum` is the SHA-256 of the original bytes. **[DECIDED 2026-09-16]** Uploading an
+  identical **public** image returns the existing Media instead of creating a duplicate.
+  **Private files are never deduplicated:** two companies uploading the same receipt get two
+  separate Media, so neither ever sees the other's file name or shares its document.
+- **[DECIDED 2026-09-16] Every original is kept private**, public images included: a phone photo
+  carries metadata such as its GPS location. A public image is shown only through its variants,
+  which carry no metadata. Until its variants are ready, it has no URL at all.
+- Images get width and height recorded at upload, **as displayed**: a sideways phone photo
+  records its upright size.
 - Image variants — `thumb`, `card`, `detail`, `zoom`, each as AVIF, WebP and JPEG — are generated
   **once, after upload, by a queued job**. Never at request time.
+  - **[DECIDED 2026-09-16]** Each size keeps the whole image and its shape (no cropping) and
+    limits only the longest side: thumb 200px, card 600px, detail 1200px, zoom 2400px. A smaller
+    original is never enlarged. Photos are turned upright and their metadata is stripped.
+  - **[PROPOSED — added in implementation]** Only **public** images get variants. Private files
+    (documents, receipts), including private JPEG and PNG, are served as uploaded: variants exist
+    for CDN display, and private files never go through the CDN.
+  - The job tries three times; then the image is `FAILED` and staff can retry it.
+  - **[DECIDED 2026-09-16] A lost job is recovered.** If the job never runs — the queue was down
+    at upload, or a worker died — the image would stay `PENDING` forever. So an image still
+    `PENDING` **15 minutes** after it was queued is queued again, both by a scheduled sweep every
+    10 minutes and by staff pressing Retry. Queuing twice is harmless: a finished job does nothing.
+- **[PROPOSED — added in implementation]** An image over 12,000px on a side or 50 million pixels
+  is refused as too large, whatever its file size — a small file can decode into a bitmap that
+  exhausts memory. An animated WebP is refused: it cannot be resized.
+- **[PROPOSED — added in implementation]** Only the base name of the uploaded file is kept (no
+  directories, no control or invisible formatting characters such as a right-to-left override),
+  at most 255 characters. A private file downloads under this name.
 - A Media row referenced by another module cannot be deleted. The referencing tables hold a
   foreign key with `ON DELETE RESTRICT` (cross-schema foreign keys are allowed, handoff §4.3),
   so the database refuses and Platform reports `MediaInUse`.
 - Deleting removes the original and all variants from object storage **after** the database
   commit.
 - **[DECIDED]** Every file lives in this one table, with a visibility:
-  - `PUBLIC` — catalog and content images, served from the CDN.
+  - `PUBLIC` — catalog and content images. Their variants are served from the CDN.
   - `PRIVATE` — company registration documents and bank-transfer receipts. Stored on a private
     disk and served **only** through short-lived signed URLs, never the CDN.
+    **[DECIDED 2026-09-16]** A link works for **30 minutes**. Platform does not know who may see
+    a private file: the module that owns it (B2B, Payments) checks its viewer before asking for
+    the link.
 - **[DECIDED]** Upload limits, checked before anything is stored:
 
   | Visibility | Accepted types | Maximum size |
@@ -115,6 +142,8 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
   The type is detected from the file's contents, not its name or the browser's claim. The size
   limits are global settings (`platform.media.max_public_bytes`, `platform.media.max_private_bytes`)
   so they can change without a deploy; the accepted types are fixed in code for safety.
+  **[PROPOSED — added in implementation]** Each limit can be set between 1 byte and 100 MB, and
+  changing one needs `platform.settings.update`.
 - **[DECIDED]** No third-party media package: `spatie/laravel-medialibrary` links each file to
   another module's database model, which the boundary rule forbids (handoff §4.3). Resizing uses
   Intervention Image.
@@ -216,11 +245,15 @@ hold a builder, Laravel validation rules, or a `mixed` value that laravel-data w
 | `CurrencyDto` | `code`, `exponent`, `name` (ar, en), `abbreviation` (ar, en), `sign`; `displaySymbol(locale)` returns the sign, or the abbreviation when there is no sign |
 | `SettingDefinitionDto` | `key`, `scope`, `type` (checked strictly before any rule), `rules` (further Laravel validation rules), `default`, `permission` |
 | `SettingValueDto` | `key`, `storeId`, `isDefault`; typed readers `int()`, `bool()`, `string()`, `list()` that throw if the stored type does not match |
-| `MediaDto` | `id`, `visibility`, `mime`, `bytes`, `width`, `height`, `alt` (ar, en), `variantsStatus` |
-| `MediaUrlsDto` | `original`, `variants` (size → format → URL), `expiresAt` (PRIVATE only) |
+| `MediaDto` | `id`, `visibility`, `mime`, `bytes`, `width`, `height`, `originalFilename`¹, `altAr`, `altEn`¹, `variantsStatus` |
+| `MediaUrlsDto` | `original` (PRIVATE only: the expiring link; null for a public image, whose original is never served), `variants` (size slug → format extension → CDN URL, empty until ready), `expiresAt` (PRIVATE only) |
 | `AuditEntryDto` | `action`, `subjectType`, `subjectId`, `storeId`, `changes`. The actor and correlation id are filled in by Platform from the current context. |
 
 `StoreDto` carries the currency exponent, sign and abbreviation so a price can be formatted with one call.
+
+¹ Changed in implementation. `originalFilename` is the download name of a private document (it is
+already a §5.4 column). Alt text is two separate nullable fields instead of a `TranslatedTextDto`,
+because a name needs both languages while alt text may be written in one language or none yet.
 
 ### 2.4 Enums (`Public/Enums`, stored as strings)
 
@@ -260,12 +293,13 @@ permission exists so every handler asserts one, but it is never offered in the r
 | `CreateCurrency` | Super Admin | `platform.currency.create` (reserved) | — |
 | `UpdateCurrency` — name, abbreviation, sign (including clearing it); exponent only while no store uses it | Super Admin | `platform.currency.update` (reserved) | — |
 | `ViewSettings` | Staff | `platform.settings.view` | That store; `GLOBAL` keys need all-stores access |
-| `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update` | That store; `GLOBAL` keys need all-stores access |
+| `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update`. Platform's own settings (the media upload limits) use `platform.settings.update` **[PROPOSED]** | That store; `GLOBAL` keys need all-stores access |
 | `UploadMedia` | Staff | `platform.media.upload` | — (media is global) |
 | `UpdateMediaAltText` | Staff | `platform.media.update` **[PROPOSED]** — handoff lists only upload and delete | — |
 | `DeleteMedia` | Staff | `platform.media.delete` | — |
-| `RetryMediaVariants` | Staff | `platform.media.upload` | — |
-| `GenerateMediaVariants` | Queued job | System | — |
+| `RetryMediaVariants` — a `FAILED` image, or one `PENDING` for 15 minutes | Staff | `platform.media.upload` | — |
+| `GenerateMediaVariants` | Queued job | System — `platform.media.variants.generate` (reserved) | — |
+| `RequeueStuckMediaVariants` — every 10 minutes | Scheduler | System — `platform.media.variants.generate` (reserved) | — |
 | `ViewAuditLog` | Staff | `platform.audit.view` | Entries for stores in scope; entries with no store need all-stores access |
 | `RecordAuditEntry` | Other modules | System — called inside an already-authorized handler | — |
 | `ResolveStoreContext` | Every storefront request | None | — |
@@ -283,21 +317,28 @@ exist, because a screen with no login cannot be protected.
 ### 4.1 Media variants
 
 ```
-            upload (image)
-                 │
-                 ▼
-            ┌─────────┐   job succeeds    ┌───────┐
-            │ PENDING │ ────────────────▶ │ READY │   (final — originals never change)
-            └─────────┘                   └───────┘
-              │     ▲
- 3 attempts   │     │ RetryMediaVariants
- fail         ▼     │
-            ┌────────┐
-            │ FAILED │
-            └────────┘
+          upload (public image)
+                   │
+                   ▼
+             ┌─────────┐    job succeeds     ┌───────┐
+      ┌────▶ │ PENDING │ ──────────────────▶ │ READY │   (final — originals never change)
+      │      └─────────┘                     └───────┘
+      │        │     ▲
+      │        │     │
+      │        │     │ RetryMediaVariants (staff)
+      │        ▼     │
+      │      ┌────────┐
+      │      │ FAILED │ ◀── entered when 3 attempts fail
+      │      └────────┘
+      │
+      └── still PENDING 15 minutes after queuing: queued again
+          (scheduled sweep every 10 minutes, or staff Retry)
 ```
 
-Non-image files (PDF) have no variants; their status is empty.
+A `PENDING` image queued again keeps its status and gets a new queue time
+(`variants_queued_at`), so it is not stuck again for another 15 minutes.
+
+Files without variants — PDFs and every private file — have no status (empty).
 
 ### 4.2 No other state machines
 
@@ -360,26 +401,38 @@ Columns from handoff §5.5, plus the ones marked **[PROPOSED]**.
 |---|---|---|
 | `id` | `char(26)` PK | ULID |
 | `visibility` | `varchar(16)` NOT NULL | `PUBLIC` or `PRIVATE` |
-| `disk` | `varchar(32)` NOT NULL | |
-| `object_key` | `varchar(255)` NOT NULL | |
+| `disk` | `varchar(32)` NOT NULL | The private disk that keeps the original. Variants of public images are on the configured public disk |
+| `object_key` | `varchar(255)` NOT NULL | The original's key |
 | `original_filename` | `varchar(255)` NOT NULL | **[PROPOSED]** download name for private documents |
 | `mime` | `varchar(100)` NOT NULL | |
 | `bytes` | `bigint` NOT NULL | |
 | `width`, `height` | `integer` NULL | Required for images, NULL for PDF |
 | `checksum` | `char(64)` NOT NULL | SHA-256, hex |
 | `alt_ar`, `alt_en` | `varchar(255)` NULL | |
-| `variants_status` | `varchar(16)` NULL | `PENDING`, `READY`, `FAILED`; NULL for non-images **[PROPOSED]** |
+| `variants_status` | `varchar(16)` NULL | `PENDING`, `READY`, `FAILED`; NULL for files without variants (PDFs and private files) **[PROPOSED]** |
+| `variants_queued_at` | `timestamptz` NULL | When generation was last queued; set exactly when `variants_status` is. Finds images whose job was lost (§4.1) |
 | `variants_generated_at` | `timestamptz` NULL | **[PROPOSED]** |
 | `uploaded_by` | `char(26)` NULL | Staff user id |
 | `created_at`, `updated_at` | `timestamptz` | |
 
 Indexes:
 - `UNIQUE (disk, object_key)`
-- `UNIQUE (visibility, checksum)` — the dedupe rule
+- `UNIQUE (checksum) WHERE visibility = 'PUBLIC'` (`media_public_checksum_unique`) — the dedupe
+  rule, for public images only
 - `(created_at DESC, id DESC)` — keyset pagination for the media library screen
-- `(variants_status) WHERE variants_status <> 'READY'` — finds stuck or failed generation
+- `(variants_status, variants_queued_at) WHERE variants_status <> 'READY'` — finds failed
+  generation, and stuck `PENDING` images oldest first
 
 Variant object keys are derived, not stored: `{object_key without extension}/{size}.{format}`.
+
+CHECK constraints (added in implementation): `media_visibility`, `media_variants_status`,
+`media_variants_queued` (a queue time exactly when there is a status), `media_bytes_positive`,
+`media_dimensions` (width and height both set and positive, or both NULL),
+`media_checksum_format` (64 lowercase hex characters).
+
+**[DECIDED 2026-09-16]** Object keys contain the media's ULID (`media/01j8z3….jpg`). Handoff
+§5.3's "never expose the ULID" is about identifiers people read and type, such as order numbers;
+a file path is not one.
 
 ### 5.5 `platform.audit_entries`
 
@@ -409,8 +462,13 @@ Trigger: `BEFORE UPDATE OR DELETE` raises an exception.
 
 ### 5.6 Shared infrastructure tables — **[PROPOSED]** in the `public` schema, not `platform`
 
-Laravel's own tables and the event plumbing every module uses. Listed here because they are
-created in Stage 1; they belong to `Shared/Infrastructure`, not to Platform.
+Laravel's own tables and the event plumbing every module uses. They belong to
+`Shared/Infrastructure`, not to Platform.
+
+**[DECIDED 2026-09-16]** `processed_events` and `outbox_messages` are **not** built in Stage 1.
+They are built together with the first module that consumes an event or publishes a critical
+one, when the real need shapes them. Each module's spec lists what it needs from other modules
+and from this plumbing, so the need is visible before its code starts.
 
 | Table | Purpose |
 |---|---|
@@ -529,11 +587,14 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── MediaNotFound                         NOT_FOUND
 ├── UnsupportedMediaType                  UNSUPPORTED
 ├── MediaTooLarge                         TOO_LARGE
-└── MediaInUse                            CONFLICT
+├── MediaInUse                            CONFLICT
+├── InvalidMediaVariantsTransition        CONFLICT    e.g. retrying an image that did not fail  ¹
+└── InvalidMediaAttribute                 INVALID     file name or alt text too long / empty  ¹
 ```
 
-¹ Added during implementation. The approved list had no error for the format rules in §1.1–§1.2
-and §8 (a malformed code, a missing translation, a duplicate currency); these name them.
+¹ Added during implementation. The approved list had no error for some rules in §1 and §8 (a
+malformed code, a missing translation, a duplicate currency, an invalid variant transition, an
+over-long file name or alt text); these name them.
 
 ### 7.4 The response
 
@@ -593,9 +654,16 @@ stack traces, SQL, or another customer's data.
 - **Resolving the store costs zero database queries with a warm cache** (the query-count guard).
 - `platform:store:create` refuses an incomplete store and creates a complete one with its audit entry.
 - Seeding creates `sa`, `eg`, `ae` with the values in §5.7.
-- Upload: identical bytes return the existing media; unsupported type → 415; oversize → 413.
-- Variants job writes all 12 variant objects to fake storage and publishes `MediaVariantsReady`.
-- A private media URL is signed and stops working after it expires; private files are never on the CDN.
+- Upload: an identical public image returns the existing media; identical private files stay
+  separate; unsupported type → 415; oversize → 413.
+- Upload inside a caller's transaction that rolls back leaves no file behind.
+- Variants job writes all 12 variant objects, each really in its format, to the public disk and
+  publishes `MediaVariantsReady`; deleting the media mid-run leaves no variant behind.
+- An image stuck in `PENDING` 15 minutes is queued again by the sweep and by staff Retry; a
+  recent one is not.
+- A private media URL is signed, downloads under the original file name, and stops working after
+  it expires; no original and no private file is ever on the public disk.
+- Reading media never locks its row.
 - A staff action's audit entry records the staff member's IP address.
 - Error responses match the RFC 7807 shape in both Arabic and English; each category gets its
   HTTP status; an unexpected exception returns a generic 500 with no internal detail.
@@ -628,6 +696,13 @@ stack traces, SQL, or another customer's data.
 | 7 | Saudi Riyal symbol | **The new official sign, `U+20C1`**, with fonts chosen to include it. |
 | 8 | UAE Dirham symbol | **The new official sign, `U+20C3`** (Unicode 18.0). |
 | — | Fallback | **Any currency whose sign has no Unicode character, or which the font cannot draw, shows its letters instead** — same rule for every store (§1.2). |
+| 9 | Image variant sizes | **Keep the whole image, limit the longest side** (200 / 600 / 1200 / 2400 px), never enlarge (§1.4). |
+| 10 | How long a private file link works | **30 minutes** (§1.4). |
+| 11 | Build the event tables (`processed_events`, `outbox_messages`) now? | **No — with the first module that needs them** (§5.6). |
+| 12 | Deduplicate identical private files? | **No — public images only.** Companies never share a document (§1.4). |
+| 13 | Recover an image whose resize job was lost | **Both:** a sweep every 10 minutes and staff Retry, for images `PENDING` 15 minutes (§1.4, §4.1). |
+| 14 | Public originals carry photo metadata (GPS) | **Keep every original private;** public images are shown only through their variants (§1.4). |
+| 15 | ULIDs in image file paths vs handoff "never expose the ULID" | **Keep them:** the rule is about human-facing identifiers (§5.4). |
 
 ### 9.2 Still open
 

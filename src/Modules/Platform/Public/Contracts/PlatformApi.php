@@ -6,14 +6,15 @@ namespace Modules\Platform\Public\Contracts;
 
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Dto\CurrencyDto;
+use Modules\Platform\Public\Dto\MediaDto;
+use Modules\Platform\Public\Dto\MediaUrlsDto;
 use Modules\Platform\Public\Dto\SettingValueDto;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * What other modules may ask Platform (Platform spec §2.1). Media methods are added when media
- * is built.
+ * What other modules may ask Platform (Platform spec §2.1).
  */
 interface PlatformApi
 {
@@ -39,6 +40,18 @@ interface PlatformApi
      * @throws DomainError for an undeclared key or the wrong scope
      */
     public function setting(string $key, ?StoreId $store = null): SettingValueDto;
+
+    public function media(string $mediaId): ?MediaDto;
+
+    /**
+     * For a public image, the CDN URL of every variant once they are ready; its original is never
+     * served. For a private file, an expiring link (30 minutes) to the original, which never goes
+     * through the CDN.
+     *
+     * Platform does not know who may see a private file: the calling module checks that its
+     * viewer may see it (e.g. B2B for a company's documents) before asking for the link.
+     */
+    public function mediaUrls(string $mediaId): ?MediaUrlsDto;
 
     /**
      * Call inside the transaction of the change being audited, after checking permission.
