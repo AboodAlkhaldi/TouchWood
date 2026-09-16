@@ -193,9 +193,14 @@ Used once, at boot, by each module's service provider.
 ```php
 interface SettingsRegistry
 {
-    public function define(SettingDefinitionDto ...$definitions): void;
+    public function define(string $module, SettingDefinitionDto ...$definitions): void;
 }
 ```
+
+`$module` was added during implementation: without it the registry cannot enforce §1.3's rule
+that a key's prefix is the declaring module. A malformed, foreign or duplicate key, or a default
+that fails its own rules, throws `InvalidSettingDefinition` (a `LogicException`, not a
+`DomainError`) at boot.
 
 ### 2.3 DTOs (`Public/Dto`, spatie/laravel-data)
 

@@ -3,9 +3,11 @@
 namespace Modules\Platform\Application;
 
 use Modules\Platform\Application\Query\StoreDirectory;
+use Modules\Platform\Application\Settings\ReadSetting;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Dto\CurrencyDto;
+use Modules\Platform\Public\Dto\SettingValueDto;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -14,6 +16,7 @@ final readonly class PlatformApiImpl implements PlatformApi
     public function __construct(
         private StoreDirectory $directory,
         private AuditLog $auditLog,
+        private ReadSetting $readSetting,
     ) {}
 
     public function store(StoreId $id): ?StoreDto
@@ -34,6 +37,11 @@ final readonly class PlatformApiImpl implements PlatformApi
     public function currency(string $code): ?CurrencyDto
     {
         return $this->directory->currency($code);
+    }
+
+    public function setting(string $key, ?StoreId $store = null): SettingValueDto
+    {
+        return ($this->readSetting)($key, $store);
     }
 
     public function recordAudit(AuditEntryDto $entry): void

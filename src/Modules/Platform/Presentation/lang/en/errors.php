@@ -41,6 +41,18 @@ return [
         'title' => 'Invalid currency details',
         'detail' => 'The currency :attribute is not valid.',
     ],
+    'unknown_setting' => [
+        'title' => 'Unknown setting',
+        'detail' => 'There is no setting named ":key".',
+    ],
+    'invalid_setting_value' => [
+        'title' => 'Invalid setting value',
+        'detail' => 'The value for ":key" is not valid.',
+    ],
+    'setting_scope_mismatch' => [
+        'title' => 'Wrong setting scope',
+        'detail' => 'The setting ":key" cannot be used this way: check whether it is set per store or for all stores.',
+    ],
     'missing_translation' => [
         'title' => 'Translation missing',
         'detail' => 'The :attribute needs both an Arabic and an English value.',
