@@ -9,7 +9,8 @@
         "brick/math": "^0.19.1",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
-        "predis/predis": "^3.6"
+        "predis/predis": "^3.6",
+        "spatie/laravel-data": "^4.23"
     },
     "require-dev": {
         "deptrac/deptrac": "^4.7",

@@ -21,6 +21,16 @@
 - `src/Shared/` is the kernel, ~20 classes hard ceiling.
 - Tests: `tests/Modules/{Name}/{Unit,Integration,Feature}`, `tests/Architecture`.
   Integration and Feature tests run against PostgreSQL (`touchwood_test`), never SQLite.
+- Each module owns a PostgreSQL schema (`platform.stores`). A new schema must be added to
+  `search_path` in `config/database.php`, or `migrate:fresh` will not wipe it.
+- Each module registers its own bindings, migrations, routes, views and translations in
+  `Infrastructure/{Name}ServiceProvider.php`, listed in `bootstrap/providers.php`.
+- Storefront routes live under `{store}` with the `store` middleware
+  (`ResolveStore::SEGMENT_PATTERN` keeps reserved paths like `/up` and `/admin` out).
+- Until Access exists, `ActorContext` and `Authorizer` are interim Platform bindings that allow
+  only the system actor. Access replaces them.
+- In Pest tests use the `Pest\Laravel\*` functions (`get()`, `artisan()`, `seed()`) rather than
+  `$this->…`, so PHPStan can check the tests.
 
 ## Local environment (Windows)
 

@@ -441,7 +441,7 @@ the critical outbox events.
 |---|---|---|
 | `StoreCreated` | `eventId`, `storeId`, `occurredAt` | Ops |
 | `StoreUpdated` | `eventId`, `storeId`, `changed` (attribute names), `occurredAt` | Pricing (tax rate), Content (cached homepage), Ops |
-| `CurrencyUpdated` | `eventId`, `currencyCode`, `occurredAt` | Content, Ops |
+| `CurrencyUpdated` | `eventId`, `currencyCode`, `changed` (attribute names), `occurredAt` | Content, Ops |
 | `SettingChanged` | `eventId`, `key`, `storeId`, `occurredAt` | Whichever module owns the key |
 | `MediaVariantsReady` | `eventId`, `mediaId`, `occurredAt` | Catalog (refresh image URLs in `product_search`), Content |
 | `MediaDeleted` | `eventId`, `mediaId`, `occurredAt` | Catalog, Content |
@@ -504,9 +504,13 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── StoreNotFound                         NOT_FOUND
 ├── StoreCodeTaken                        CONFLICT
 ├── StoreAttributeImmutable               INVALID     code, country or currency
+├── InvalidStoreAttribute                 INVALID     code, country or position format  ¹
 ├── InvalidTaxRate                        INVALID
 ├── InvalidTimezone                       INVALID
+├── MissingTranslation                    INVALID     an Arabic or English value is empty  ¹
 ├── CurrencyNotFound                      NOT_FOUND
+├── CurrencyAlreadyExists                 CONFLICT  ¹
+├── InvalidCurrencyAttribute              INVALID     code, exponent or sign format  ¹
 ├── CurrencyExponentLocked                CONFLICT
 ├── UnknownSetting                        INVALID
 ├── InvalidSettingValue                   INVALID
@@ -516,6 +520,9 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── MediaTooLarge                         TOO_LARGE
 └── MediaInUse                            CONFLICT
 ```
+
+¹ Added during implementation. The approved list had no error for the format rules in §1.1–§1.2
+and §8 (a malformed code, a missing translation, a duplicate currency); these name them.
 
 ### 7.4 The response
 

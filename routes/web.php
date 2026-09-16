@@ -1,7 +1,6 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-
-Route::get('/', function () {
-    return view('welcome');
-});
+/*
+| Routes live in each module's Presentation/routes.php, loaded by the module's service
+| provider. Keep this file empty.
+*/

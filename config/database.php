@@ -95,7 +95,8 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
+            // Every module schema must be listed here, or migrate:fresh will not wipe it.
+            'search_path' => 'public,platform',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
