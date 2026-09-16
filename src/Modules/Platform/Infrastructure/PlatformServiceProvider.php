@@ -5,11 +5,13 @@ namespace Modules\Platform\Infrastructure;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\PlatformApiImpl;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Domain\Repository\CurrencyRepository;
 use Modules\Platform\Domain\Repository\StoreRepository;
 use Modules\Platform\Infrastructure\Eloquent\CachedStoreDirectory;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditLog;
 use Modules\Platform\Infrastructure\Eloquent\EloquentCurrencyRepository;
 use Modules\Platform\Infrastructure\Eloquent\EloquentStoreRepository;
 use Modules\Platform\Presentation\Console\CreateCurrencyCommand;
@@ -27,6 +29,7 @@ final class PlatformServiceProvider extends ServiceProvider
      */
     public array $singletons = [
         PlatformApi::class => PlatformApiImpl::class,
+        AuditLog::class => DatabaseAuditLog::class,
         StoreDirectory::class => CachedStoreDirectory::class,
         StoreRepository::class => EloquentStoreRepository::class,
         CurrencyRepository::class => EloquentCurrencyRepository::class,

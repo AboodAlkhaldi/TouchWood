@@ -3,6 +3,8 @@
 namespace Modules\Platform\Application\Command\CreateCurrency;
 
 use Illuminate\Database\ConnectionInterface;
+use Modules\Platform\Application\Audit\CurrencyAudit;
+use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Domain\Exception\CurrencyAlreadyExists;
 use Modules\Platform\Domain\Model\Currency;
@@ -20,6 +22,7 @@ final readonly class CreateCurrencyHandler
         private CurrencyRepository $currencies,
         private ConnectionInterface $db,
         private StoreDirectory $directory,
+        private AuditLog $auditLog,
     ) {}
 
     public function handle(CreateCurrency $command): void
@@ -40,6 +43,7 @@ final readonly class CreateCurrencyHandler
             }
 
             $this->currencies->add($currency);
+            $this->auditLog->record(CurrencyAudit::created($currency));
         });
 
         // After the commit, so no other request can re-cache the old data in between.
