@@ -55,6 +55,30 @@ return [
         'title' => 'Wrong setting scope',
         'detail' => 'The setting ":key" cannot be used this way: check whether it is set per store or for all stores.',
     ],
+    'media_not_found' => [
+        'title' => 'File not found',
+        'detail' => 'The file does not exist.',
+    ],
+    'unsupported_media_type' => [
+        'title' => 'File type not allowed',
+        'detail' => 'Images must be JPEG, PNG or WebP; documents must be PDF, JPEG or PNG.',
+    ],
+    'media_too_large' => [
+        'title' => 'File too large',
+        'detail' => 'The file is larger than the upload limit.',
+    ],
+    'media_in_use' => [
+        'title' => 'File in use',
+        'detail' => 'The file is still used and cannot be deleted.',
+    ],
+    'invalid_media_variants_transition' => [
+        'title' => 'Cannot retry',
+        'detail' => 'Only an image whose sizes failed to generate can be retried.',
+    ],
+    'invalid_media_attribute' => [
+        'title' => 'Invalid file details',
+        'detail' => 'The :attribute of the file is not valid.',
+    ],
     'missing_translation' => [
         'title' => 'Translation missing',
         'detail' => 'The :attribute needs both an Arabic and an English value.',

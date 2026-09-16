@@ -35,7 +35,8 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: pdo_pgsql, pgsql, intl, bcmath, mbstring
+          # gd (with AVIF and WebP), exif and fileinfo are needed for media uploads and image variants.
+          extensions: pdo_pgsql, pgsql, intl, bcmath, mbstring, gd, exif, fileinfo
           coverage: none
 
       - name: Install dependencies

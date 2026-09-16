@@ -6,7 +6,11 @@
     "license": "proprietary",
     "require": {
         "php": "^8.4",
+        "ext-exif": "*",
+        "ext-fileinfo": "*",
+        "ext-gd": "*",
         "brick/math": "^0.19.1",
+        "intervention/image": "^4.3",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
         "predis/predis": "^3.6",

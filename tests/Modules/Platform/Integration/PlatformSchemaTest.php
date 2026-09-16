@@ -58,6 +58,28 @@ function insertAuditRow(array $overrides = []): void
 }
 
 /**
+ * @param  array<string, mixed>  $overrides
+ */
+function insertMediaRow(array $overrides = []): void
+{
+    DB::table('platform.media')->insert([
+        'id' => strtolower((string) Str::ulid()),
+        'visibility' => 'PUBLIC',
+        'disk' => 'local',
+        'object_key' => 'media/'.uniqid().'.jpg',
+        'original_filename' => 'hinge.jpg',
+        'mime' => 'image/jpeg',
+        'bytes' => 1000,
+        'width' => 10,
+        'height' => 10,
+        'checksum' => hash('sha256', uniqid()),
+        'variants_status' => 'PENDING',
+        'variants_queued_at' => now(),
+        ...$overrides,
+    ]);
+}
+
+/**
  * @return array<array-key, mixed> column name => data type
  */
 function platformColumnTypes(string $table): array
@@ -71,7 +93,7 @@ function platformColumnTypes(string $table): array
 
 it('creates the platform schema and its tables', function (string $table) {
     expect(Schema::hasTable("platform.{$table}"))->toBeTrue();
-})->with(['currencies', 'stores', 'audit_entries', 'settings']);
+})->with(['currencies', 'stores', 'audit_entries', 'settings', 'media']);
 
 it('creates every index from the spec', function () {
     $indexes = DB::table('pg_indexes')->where('schemaname', 'platform')->pluck('indexname')->all();
@@ -83,6 +105,10 @@ it('creates every index from the spec', function () {
         'audit_entries_actor_idx',
         'audit_entries_action_idx',
         'settings_store_key_unique',
+        'platform_media_disk_object_key_unique',
+        'media_public_checksum_unique',
+        'media_created_idx',
+        'media_variants_pending_idx',
     );
 });
 
@@ -109,6 +135,12 @@ it('creates every check constraint and foreign key from the spec', function () {
         'audit_entries_ip_staff_only',
         'platform_audit_entries_store_id_foreign',
         'platform_settings_store_id_foreign',
+        'media_visibility',
+        'media_variants_status',
+        'media_variants_queued',
+        'media_bytes_positive',
+        'media_dimensions',
+        'media_checksum_format',
     );
 });
 
@@ -149,6 +181,16 @@ it('uses the column types from the spec', function () {
         'exponent' => 'smallint',
         'abbreviation' => 'jsonb',
         'sign' => 'character varying',
+    ])->and(platformColumnTypes('media'))->toMatchArray([
+        'id' => 'character',
+        'visibility' => 'character varying',
+        'bytes' => 'bigint',
+        'width' => 'integer',
+        'checksum' => 'character',
+        'variants_status' => 'character varying',
+        'variants_queued_at' => 'timestamp with time zone',
+        'variants_generated_at' => 'timestamp with time zone',
+        'uploaded_by' => 'character',
     ]);
 });
 
@@ -172,7 +214,24 @@ it('refuses rows that break the rules, even when they skip the domain', function
     'audit entry with an unknown actor type' => [fn () => insertAuditRow(['actor_type' => 'ROBOT', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_actor_type'],
     'system audit entry with an actor id' => [fn () => insertAuditRow(['actor_type' => 'SYSTEM', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_actor_id'],
     'staff audit entry without an actor id' => [fn () => insertAuditRow(['actor_type' => 'STAFF', 'actor_id' => null]), 'audit_entries_actor_id'],
+    'media with an unknown visibility' => [fn () => insertMediaRow(['visibility' => 'SECRET']), 'media_visibility'],
+    'media with an unknown variants status' => [fn () => insertMediaRow(['variants_status' => 'DONE']), 'media_variants_status'],
+    'pending media never queued' => [fn () => insertMediaRow(['variants_queued_at' => null]), 'media_variants_queued'],
+    'a PDF with a queue time' => [fn () => insertMediaRow(['variants_status' => null, 'width' => null, 'height' => null]), 'media_variants_queued'],
+    'an empty file' => [fn () => insertMediaRow(['bytes' => 0]), 'media_bytes_positive'],
+    'a width without a height' => [fn () => insertMediaRow(['height' => null]), 'media_dimensions'],
+    'a zero width' => [fn () => insertMediaRow(['width' => 0]), 'media_dimensions'],
+    'a checksum in capitals' => [fn () => insertMediaRow(['checksum' => strtoupper(hash('sha256', 'x'))]), 'media_checksum_format'],
 ]);
+
+it('deduplicates public images by checksum, but never private files', function () {
+    $checksum = hash('sha256', 'same bytes');
+    insertMediaRow(['visibility' => 'PRIVATE', 'checksum' => $checksum, 'variants_status' => null, 'variants_queued_at' => null]);
+    insertMediaRow(['visibility' => 'PRIVATE', 'checksum' => $checksum, 'variants_status' => null, 'variants_queued_at' => null]);
+    insertMediaRow(['checksum' => $checksum]);
+
+    expect(fn () => insertMediaRow(['checksum' => $checksum]))->toThrow(QueryException::class, 'media_public_checksum_unique');
+});
 
 it('refuses a second store with the same code', function () {
     insertCurrencyRow();

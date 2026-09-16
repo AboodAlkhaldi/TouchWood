@@ -38,6 +38,9 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-16 | §5.1 | Currency signs (Riyal `U+20C1`, Dirham `U+20C3`) with a letters fallback for every store | Platform spec review, Q7, Q8 |
 | 2026-09-16 | §5.3 | Error standard made concrete; audit log retention and staff IP | Platform spec review, Q1, Q6 |
 | 2026-09-16 | §5.5 | Private files, visibility, upload limits | Platform spec review, Q3, Q5 |
+| 2026-09-16 | §5.3 | "Never expose the ULID" applies to human-facing identifiers; media file paths may contain it | Platform media review, Q15 |
+| 2026-09-16 | §5.5 | Dedupe public images only; every original kept private; lost resize jobs recovered after 15 minutes | Platform media review, Q12–Q14 |
+| 2026-09-16 | §4.5 | `processed_events` / `outbox_messages` built with the first module that needs them, not in Stage 1 | Owner, Platform stage close |
 
 ---
 
@@ -276,6 +279,9 @@ constraint; a **transactional outbox for the ~8 critical events only** — order
 payment succeeded, payment failed, order cancelled, order delivered, stock movement
 recorded, company approved, return completed.
 
+Both tables are built together with the first module that consumes an event or publishes a
+critical one, not in advance. Each module's specification says what it needs from this plumbing.
+
 **C. Shared kernel** — small and stable.
 
 ```
@@ -332,7 +338,7 @@ Arabic is the default language. Both locales are first-class.
 | | |
 |---|---|
 | Primary keys | ULID. `bigint` for high-volume ledgers (`stock_movements`, `point_entries`). |
-| Public identifiers | Separate human-facing codes — `TW-10428`. Never expose the ULID. |
+| Public identifiers | Separate human-facing codes — `TW-10428`. Never expose the ULID as an identifier people read or type. File paths such as media object keys may contain it. |
 | Timestamps | `timestamptz`, UTC in the database, converted at the presentation edge using the store timezone. |
 | Soft deletes | Only where genuinely needed. **Never** on ledgers or orders. |
 | Errors | One global standard, errors owned by modules. Every expected business error extends `DomainError` (Shared) and declares a stable `type` and an `ErrorCategory`. One exception handler maps category → HTTP status and renders one RFC 7807-style envelope. Each module defines its own error classes under its own base. |
@@ -370,14 +376,20 @@ prevent layout shift. Lazy load below the fold.
 ```
 media
 ├── id, visibility, disk, object_key, mime, bytes
-├── width, height, checksum          ← dedupe identical uploads
+├── width, height, checksum          ← dedupe identical PUBLIC images (never private files)
 ├── alt_ar, alt_en
 └── uploaded_by, created_at
 ```
 
+**Originals stay private.** Every uploaded original is kept on a private disk: a phone photo
+carries metadata such as GPS location. A public image reaches the CDN only as its generated
+sizes, which carry no metadata. A size job that is lost (queue down, worker died) is queued again
+once the image has waited 15 minutes, by a scheduled sweep or by staff.
+
 **Private files** — company registration documents, bank-transfer receipts — live in the same
 table with `visibility = PRIVATE`. They are stored on a private disk and served only through
-short-lived signed URLs, never through the CDN.
+short-lived signed URLs (30 minutes), never through the CDN. Two identical private uploads are
+always two separate files.
 
 **Upload limits:** 10 MB. Public files: JPEG, PNG, WebP. Private files: PDF, JPEG, PNG. The type
 is detected from the file's contents.

@@ -15,7 +15,7 @@ it('checks a permission in every command handler', function () {
     $unprotected = [];
 
     // Guards against a moved directory making this test pass over nothing.
-    expect(count($handlers))->toBeGreaterThanOrEqual(5);
+    expect(count($handlers))->toBeGreaterThanOrEqual(11);
 
     foreach ($handlers as $handler) {
         if (preg_match('/->authorize\s*\(/', codeWithoutComments($handler)) !== 1) {

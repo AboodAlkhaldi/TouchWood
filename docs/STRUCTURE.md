@@ -107,16 +107,24 @@ src/Modules/{Name}/
 │   │                         PublishProduct/{Command,Handler}.php
 │   │                       Transactions and authorization live HERE.
 │   ├── Query/              Read models. Raw SQL / query builder → DTO out.
-│   │                       Never hydrates Eloquent for listings.
+│   │                       Never hydrates Eloquent for listings. The interface
+│   │                       lives here; a cached or database implementation
+│   │                       lives in Infrastructure.
 │   ├── Listener/           Reacts to other modules' Public\Events
+│   ├── {Area}/             Optional. What one area of the module needs from the
+│   │                       outside world, as interfaces, plus small helpers
+│   │                       its handlers share — Platform: Audit/, Settings/, Media/
 │   └── {Name}ApiImpl.php   Implements Public\Contracts\{Name}Api
 │
 ├── Infrastructure/
-│   ├── Eloquent/           Models + repository implementations
+│   ├── Eloquent/           Persistence: models, repository and read-model
+│   │                       implementations — Eloquent or the query builder
 │   ├── Persistence/
 │   │   └── Migrations/     Module-owned. Own schema: catalog.products
 │   ├── Listener/           Infrastructure-level subscribers
-│   └── External/           Third-party adapters (gateways, providers)
+│   ├── Queue/              Queued jobs, each only calling an Application handler,
+│   │                       and the adapters that dispatch them
+│   └── External/           Third-party adapters (gateways, providers, file storage)
 │
 └── Presentation/
     ├── Http/
@@ -290,7 +298,7 @@ happening again.
 | | |
 |---|---|
 | Primary keys | ULID. `bigint` for high-volume ledgers (`stock_movements`, `point_entries`). |
-| Public identifiers | Separate human-facing codes — `TW-10428`. Never expose the ULID. |
+| Public identifiers | Separate human-facing codes — `TW-10428`. Never expose the ULID as an identifier people read or type; file paths such as media object keys may contain it. |
 | Timestamps | `timestamptz`, UTC in the database, converted at the presentation edge using the store's timezone. |
 | Soft deletes | Only where genuinely needed. **Never** on ledgers or orders. |
 | Transactions | One aggregate per transaction. `DB::transaction()` in the command handler, **never** in a repository. |
