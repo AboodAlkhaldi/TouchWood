@@ -9,6 +9,7 @@
             <directory>tests/Architecture</directory>
         </testsuite>
         <testsuite name="Unit">
+            <directory>tests/Shared/Unit</directory>
             <directory>tests/Modules/*/Unit</directory>
         </testsuite>
         <testsuite name="Integration">
