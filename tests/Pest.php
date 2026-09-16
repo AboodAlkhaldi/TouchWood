@@ -7,4 +7,9 @@ use Tests\TestCase;
 | application against PostgreSQL (see phpunit.xml).
 */
 
-pest()->extend(TestCase::class)->in('Modules/*/Integration', 'Modules/*/Feature');
+pest()->extend(TestCase::class)->in(
+    'Shared/Integration',
+    'Shared/Feature',
+    'Modules/*/Integration',
+    'Modules/*/Feature',
+);
