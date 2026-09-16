@@ -1,6 +1,6 @@
 # TouchWood Platform — Implementation Handoff (FINAL)
 
-**Version:** 3.0 · supersedes handoff v2 entirely
+**Version:** 3.1 · supersedes handoff v2 entirely · amendments listed in §0.1
 **Status:** All conflicts resolved. Ready to implement.
 **Audience:** the engineer or agent writing the code.
 
@@ -25,6 +25,19 @@ Three rules for working from this document:
 
 If something in this document contradicts something the owner says later, the owner wins
 and the document is amended.
+
+### 0.1 Amendments
+
+Each amendment is applied in place in the section named; this list only records what changed.
+
+| Date | Section | Change | Source |
+|---|---|---|---|
+| 2026-09-16 | §3 | `spatie/laravel-medialibrary` dropped; Intervention Image resizes | Platform spec review, Q2 |
+| 2026-09-16 | §3 | `brick/money` replaced by `brick/math` | Owner approval of PR #3 (Money) |
+| 2026-09-16 | §4.1 | What `brand.com/` with no store segment does | Platform spec review, Q4 |
+| 2026-09-16 | §5.1 | Currency signs (Riyal `U+20C1`, Dirham `U+20C3`) with a letters fallback for every store | Platform spec review, Q7, Q8 |
+| 2026-09-16 | §5.3 | Error standard made concrete; audit log retention and staff IP | Platform spec review, Q1, Q6 |
+| 2026-09-16 | §5.5 | Private files, visibility, upload limits | Platform spec review, Q3, Q5 |
 
 ---
 
@@ -95,8 +108,15 @@ Memorize these. Most defects in a system like this are one of these being violat
 | Media | S3-compatible object storage + CDN |
 
 Key packages: `spatie/laravel-data`, `spatie/laravel-model-states`,
-`spatie/laravel-permission`, `spatie/laravel-medialibrary`, `spatie/laravel-query-builder`,
-`spatie/laravel-translatable`, `brick/money`.
+`spatie/laravel-permission`, `spatie/laravel-query-builder`,
+`spatie/laravel-translatable`, `brick/math`, `intervention/image`.
+
+`brick/money` is **not** used: it carries its own currency list with built-in exponents, while
+§5.1 requires the exponent to come from our `currencies` row. `Money` is our own value object;
+`brick/math` gives it exact arithmetic.
+
+`spatie/laravel-medialibrary` is **not** used: it attaches each file to another module's
+Eloquent model, which §4.3 forbids. Media is Platform's own table (§5.5).
 
 ---
 
@@ -107,6 +127,9 @@ Key packages: `spatie/laravel-data`, `spatie/laravel-model-states`,
 One codebase, one database, one deployment, serving three country stores at
 `brand.com/sa|eg|ae`. Adding a fourth country is an INSERT plus configuration — never a
 deploy, never a code change.
+
+`brand.com/` with no store segment redirects to the store remembered in a cookie; with no
+valid cookie it shows a page to choose a country. There is no IP-based country detection.
 
 **Global (not store-scoped):** product identity, SKU, variants, attribute definitions,
 categories, brands, translations, media, staff users, roles, permissions, customer
@@ -278,6 +301,11 @@ Money = (int minorUnits, string currencyCode)
 ```
 
 Exponent from the `currencies` row (SAR 2, EGP 2, AED 2 — but read it, never assume).
+How a price shows its currency is also data on that row: an optional official **sign**
+(Saudi Riyal `U+20C1`, UAE Dirham `U+20C3`) and required **letters** in Arabic and English
+(`ر.س` / `SAR`). A price shows the sign when there is one; otherwise the letters. If a sign has
+no Unicode character or the site's font cannot draw it, the sign is cleared and that currency
+shows its letters — the same rule for every store.
 Must expose `format()`, `add()`, `multiply()` and **`allocate()`**. Allocation matters:
 splitting a 100.00 discount across three lines must not lose a halala. An architecture
 test asserts every money column is `bigint`.
@@ -307,7 +335,8 @@ Arabic is the default language. Both locales are first-class.
 | Public identifiers | Separate human-facing codes — `TW-10428`. Never expose the ULID. |
 | Timestamps | `timestamptz`, UTC in the database, converted at the presentation edge using the store timezone. |
 | Soft deletes | Only where genuinely needed. **Never** on ledgers or orders. |
-| Errors | Module-owned hierarchy under one base class. One RFC 7807-style envelope at the HTTP edge. |
+| Errors | One global standard, errors owned by modules. Every expected business error extends `DomainError` (Shared) and declares a stable `type` and an `ErrorCategory`. One exception handler maps category → HTTP status and renders one RFC 7807-style envelope. Each module defines its own error classes under its own base. |
+| Audit log | Append-only, written in the same transaction as the change, **kept forever**. Staff actions record the staff member's IP address; customer and system entries never do. |
 | Enums | PHP 8 backed enums, stored as **strings**. |
 | Validation | Two layers — form requests for shape and type, domain objects for invariants. |
 | Webhooks | Idempotency key on every one. |
@@ -340,11 +369,18 @@ prevent layout shift. Lazy load below the fold.
 
 ```
 media
-├── id, disk, object_key, mime, bytes
+├── id, visibility, disk, object_key, mime, bytes
 ├── width, height, checksum          ← dedupe identical uploads
 ├── alt_ar, alt_en
 └── uploaded_by, created_at
 ```
+
+**Private files** — company registration documents, bank-transfer receipts — live in the same
+table with `visibility = PRIVATE`. They are stored on a private disk and served only through
+short-lived signed URLs, never through the CDN.
+
+**Upload limits:** 10 MB. Public files: JPEG, PNG, WebP. Private files: PDF, JPEG, PNG. The type
+is detected from the file's contents.
 
 Permissions: `platform.media.upload`, `platform.media.delete`.
 
