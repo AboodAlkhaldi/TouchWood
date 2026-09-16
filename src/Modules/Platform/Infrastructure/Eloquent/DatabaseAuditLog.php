@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
@@ -7,6 +9,7 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Context;
+use LogicException;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\ActorContext;
@@ -23,6 +26,12 @@ final readonly class DatabaseAuditLog implements AuditLog
 
     public function record(AuditEntryDto $entry): void
     {
+        // Outside a transaction the change and its entry could be committed apart, which breaks
+        // "no audited change without its entry" (Platform spec §1.5).
+        if ($this->db->transactionLevel() === 0) {
+            throw new LogicException("Audit entry \"{$entry->action}\" must be recorded inside the transaction of the change it records.");
+        }
+
         $actor = $this->actors->current();
         $correlationId = Context::get(AssignCorrelationId::CONTEXT_KEY);
 

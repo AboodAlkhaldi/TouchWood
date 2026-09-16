@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shared\Infrastructure\Http;
 
 use Illuminate\Auth\AuthenticationException;
@@ -36,10 +38,11 @@ final class ProblemDetails
 
         $exceptions->render(fn (DomainError $error, Request $request): Response => self::renderDomainError($error, $request));
 
-        $exceptions->render(fn (ValidationException $error, Request $request): ?JsonResponse => $request->expectsJson()
+        // A ValidationException that already carries its own response keeps it.
+        $exceptions->render(fn (ValidationException $error, Request $request): ?JsonResponse => $request->expectsJson() && $error->response === null
             ? self::problem(
                 'validation_failed',
-                422,
+                $error->status,
                 self::translate('errors.validation_failed.title', [], 'The given data was invalid.'),
                 self::translate('errors.validation_failed.detail', [], $error->getMessage()),
                 ['errors' => $error->errors()],

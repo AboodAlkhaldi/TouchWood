@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Support\Facades\Route;
 
 use function Pest\Laravel\get;
@@ -31,10 +33,14 @@ it('replaces a malformed correlation id', function (string $incoming) {
     'too short' => ['abc'],
     'unsafe characters' => ['id with spaces; drop'],
     'too long' => [str_repeat('a', 65)],
+    'trailing newline' => [str_repeat('a', 64)."\n"],
 ]);
 
 it('puts the same correlation id in an error body and its header', function () {
     $response = getJson('/_test/fails');
+    $header = $response->headers->get('X-Correlation-Id');
 
-    expect($response->json('correlation_id'))->toBe($response->headers->get('X-Correlation-Id'));
+    // Both missing would also be "the same", so the header must really be there.
+    expect($header)->toMatch('/^[0-7][0-9a-hjkmnp-tv-z]{25}$/')
+        ->and($response->json('correlation_id'))->toBe($header);
 });

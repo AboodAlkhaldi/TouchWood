@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Application\Command\CreateCurrency;
 
 final readonly class CreateCurrency

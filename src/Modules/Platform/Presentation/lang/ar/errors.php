@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 return [
     'store_not_found' => [
         'title' => 'المتجر غير موجود',

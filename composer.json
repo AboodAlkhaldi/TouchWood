@@ -56,10 +56,11 @@
             "@php artisan test"
         ],
         "check": [
+            "@php artisan config:clear --ansi",
             "@php vendor/bin/pint --test",
             "@php vendor/bin/phpstan analyse --memory-limit=2G --no-progress",
             "@php vendor/bin/deptrac analyse --fail-on-uncovered --report-uncovered --no-progress",
-            "@php vendor/bin/pest"
+            "@php vendor/bin/pest --ci"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

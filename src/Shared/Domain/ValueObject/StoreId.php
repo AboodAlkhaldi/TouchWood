@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shared\Domain\ValueObject;
 
 use InvalidArgumentException;
@@ -15,7 +17,7 @@ final readonly class StoreId
 
     public static function fromString(string $value): self
     {
-        if (preg_match('/^[0-7][0-9a-hjkmnp-tv-z]{25}$/i', $value) !== 1) {
+        if (preg_match('/^[0-7][0-9a-hjkmnp-tv-z]{25}\z/i', $value) !== 1) {
             throw new InvalidArgumentException("Invalid store id \"{$value}\": expected a ULID.");
         }
 

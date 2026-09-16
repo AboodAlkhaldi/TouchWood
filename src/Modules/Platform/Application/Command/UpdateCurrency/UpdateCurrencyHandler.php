@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Application\Command\UpdateCurrency;
 
 use Carbon\CarbonImmutable;
@@ -73,10 +75,8 @@ final readonly class UpdateCurrencyHandler
 
             $this->currencies->update($currency);
             $this->auditLog->record(CurrencyAudit::updated($currency, $before, $changed));
+            $this->directory->invalidate();
             $this->events->dispatch(new CurrencyUpdated((string) Str::uuid(), $code->value, $changed, CarbonImmutable::now()));
         });
-
-        // After the commit, so no other request can re-cache the old data in between.
-        $this->directory->forget();
     }
 }

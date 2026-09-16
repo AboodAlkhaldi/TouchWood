@@ -26,6 +26,7 @@ touchwood/
 │   ├── architecture/adr/     Architecture Decision Records
 │   └── modules/              One specification per module
 ├── tests/
+│   ├── Shared/               Unit · Integration · Feature
 │   ├── Modules/{Name}/       Unit · Integration · Feature
 │   └── Architecture/         Pest architecture tests (see below)
 ├── compose.yaml              Local Postgres 17 (port 5433) + Redis
@@ -148,16 +149,23 @@ Consequences that are easy to get wrong:
 
 ## Shared kernel — and its ceiling
 
+What exists today:
+
 ```
 src/Shared/
 ├── Domain/
-│   ├── ValueObject/    Money · StoreId · Sku · Quantity · Locale ·
-│   │                   Percentage · Weight · Dimensions
-│   ├── Event/          DomainEvent · IntegrationEvent
-│   └── Model/          AggregateRoot · Clock
-├── Application/        CommandBus · EventBus interfaces
-└── Infrastructure/     Their implementations
+│   ├── Error/            DomainError · ErrorCategory
+│   └── ValueObject/      Money · MoneyException · StoreId
+├── Application/          StoreContext · MissingStoreContext · CrossStoreWrite
+│                         Authorizer · Unauthorized · ActorContext · Actor · ActorType
+└── Infrastructure/
+    ├── Http/             AssignCorrelationId · ProblemDetails
+    └── Persistence/      BelongsToStore · StoreScope
 ```
+
+Planned by the handoff, added only when a module needs them: `Sku`, `Quantity`, `Locale`,
+`Percentage`, `Weight`, `Dimensions`, `DomainEvent`, `IntegrationEvent`, `AggregateRoot`,
+`Clock`, `CommandBus`, `EventBus`.
 
 **Hard rule: if Shared grows past ~20 classes, something has leaked into it.**
 A type belongs here only if three or more modules genuinely need it and it will
@@ -199,6 +207,9 @@ Feedback  →  Platform, Access, Catalog, Sales ← Sales for verified-purchase
 Sync      →  Platform, Catalog, Pricing, Inventory
 
 Sales     →  everything above                 ← widest surface, by design
+             except Feedback and Sync:        Feedback depends on Sales (verified purchase),
+                                              so the reverse arrow would be a cycle; Sales
+                                              never needs the inventory provider directly
 Content   →  Platform, Catalog, Pricing
 Ops       →  every Public surface             ← listens everywhere, depended on by nothing
 ```
@@ -255,7 +266,7 @@ constraint); **transactional outbox for the ~8 critical events only**, not all o
 
 | Test | Catches | Status |
 |---|---|---|
-| `Domain/` imports nothing from `Illuminate\*` | Framework leaking into the domain | In place |
+| `Domain/` imports nothing from `Illuminate\*` and calls no Laravel helper function (`app()`, `now()`, `config()`…) | Framework leaking into the domain | In place |
 | No `Public/` class references Eloquent | Models crossing boundaries | In place |
 | `Domain/Repository` contains interfaces only | Persistence leaking into the domain | In place |
 | No `Domain/` or `Application/` file contains a country or currency literal | Hardcoded store assumptions | In place |
@@ -263,10 +274,10 @@ constraint); **transactional outbox for the ~8 critical events only**, not all o
 | `Domain/` and `Application/` never import HTTP classes | Business code deciding HTTP statuses | In place |
 | Reading across stores (`acrossStores()`, removing global scopes) only in `Application/Query` and Ops | Accidental cross-store reads | In place |
 | Every store-scoped Eloquent model declares the store global scope | A forgotten `where store_id` | With the first store-scoped model |
-| Every command handler asserts a permission | An unprotected use case | In place |
+| Every command handler asserts a permission (comments ignored) | An unprotected use case | In place |
 | No storefront endpoint exceeds N queries | The N+1 that made the old system take 5 seconds | Started: store resolution costs 0 queries once warm; a general per-endpoint budget comes with Catalog |
 | Every money column is `bigint` | A `DECIMAL` sneaking in | With the first money column |
-| Enums are stored as strings, never integers | Unreadable rows at 2am | With the first enum column |
+| Enums are stored as strings, never integers | Unreadable rows at 2am | In place for the `platform` schema (`PlatformSchemaTest`); each new module schema adds the same check |
 
 The query-count test is the single highest-value guard in the list. The whole project
 exists because the current system takes five seconds; that test is what stops it

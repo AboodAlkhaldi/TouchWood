@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Modules\Platform\Domain\Exception\CurrencyExponentLocked;
 use Modules\Platform\Domain\Exception\InvalidCurrencyAttribute;
 use Modules\Platform\Domain\Model\Currency;
@@ -23,7 +25,7 @@ function currencyForTest(?string $sign = "\u{20C1}", int $exponent = 2): Currenc
 describe('creating', function () {
     it('rejects a malformed currency code', function (string $code) {
         CurrencyCode::fromString($code);
-    })->throws(InvalidCurrencyAttribute::class)->with(['', 'xts', 'XT', 'XTSS', 'X1S']);
+    })->throws(InvalidCurrencyAttribute::class)->with(['', 'xts', 'XT', 'XTSS', 'X1S', "XTS\n"]);
 
     it('accepts an exponent from 0 to 6', function (int $exponent) {
         expect(currencyForTest(exponent: $exponent)->exponent())->toBe($exponent);

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Application\Audit;
 
 use Modules\Platform\Domain\Model\Currency;

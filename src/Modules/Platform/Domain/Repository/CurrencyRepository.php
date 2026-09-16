@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Domain\Repository;
 
 use Modules\Platform\Domain\Exception\CurrencyAlreadyExists;

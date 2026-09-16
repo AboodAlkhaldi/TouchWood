@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
 | Messages for errors owned by the Shared kernel and for generic HTTP failures.
 | Each module keeps its own errors under its own translation namespace.

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Application\Settings;
 
 final readonly class StoredSetting

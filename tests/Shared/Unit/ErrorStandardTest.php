@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\Error\ErrorCategory;

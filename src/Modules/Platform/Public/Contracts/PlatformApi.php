@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Public\Contracts;
 
 use Modules\Platform\Public\Dto\AuditEntryDto;

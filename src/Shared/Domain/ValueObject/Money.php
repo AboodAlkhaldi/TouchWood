@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shared\Domain\ValueObject;
 
 use Brick\Math\BigDecimal;
@@ -25,7 +27,7 @@ final readonly class Money
 
     public static function of(int $minorUnits, string $currencyCode): self
     {
-        if (preg_match('/^[A-Z]{3}$/', $currencyCode) !== 1) {
+        if (preg_match('/^[A-Z]{3}\z/', $currencyCode) !== 1) {
             throw MoneyException::invalidCurrencyCode($currencyCode);
         }
 
@@ -45,7 +47,7 @@ final readonly class Money
     {
         self::assertExponent($exponent);
 
-        if (preg_match('/^-?\d+(\.\d+)?$/', $amount) !== 1) {
+        if (preg_match('/^-?\d+(\.\d+)?\z/', $amount) !== 1) {
             throw MoneyException::invalidAmount($amount);
         }
 
@@ -84,7 +86,7 @@ final readonly class Money
      */
     public function multiply(int|string $factor, RoundingMode $rounding): self
     {
-        if (is_string($factor) && preg_match('/^-?\d+(\.\d+)?$/', $factor) !== 1) {
+        if (is_string($factor) && preg_match('/^-?\d+(\.\d+)?\z/', $factor) !== 1) {
             throw MoneyException::invalidFactor($factor);
         }
 

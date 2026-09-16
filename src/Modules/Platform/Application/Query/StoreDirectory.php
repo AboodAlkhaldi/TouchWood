@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\Platform\Application\Query;
 
 use Modules\Platform\Public\Dto\CurrencyDto;
@@ -23,7 +25,8 @@ interface StoreDirectory
     public function currency(string $code): ?CurrencyDto;
 
     /**
-     * Drops the cached copy after a store or currency changes.
+     * Call inside the transaction that changes a store or currency. Readers see the new data
+     * once it commits, before any event dispatched after commit reaches its listeners.
      */
-    public function forget(): void;
+    public function invalidate(): void;
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +17,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('platform.audit_entries', function (Blueprint $table) {
-            $table->id();
+            // bigint identity (spec §5), not bigserial.
+            $table->id()->generatedAs()->always();
             $table->timestampTz('occurred_at');
             $table->char('store_id', 26)->nullable();
             $table->string('actor_type', 16);
@@ -54,6 +57,11 @@ return new class extends Migration
             CREATE TRIGGER audit_entries_append_only
                 BEFORE UPDATE OR DELETE ON platform.audit_entries
                 FOR EACH ROW EXECUTE FUNCTION platform.audit_entries_are_append_only();
+
+            -- TRUNCATE skips row triggers, so it gets its own.
+            CREATE TRIGGER audit_entries_no_truncate
+                BEFORE TRUNCATE ON platform.audit_entries
+                FOR EACH STATEMENT EXECUTE FUNCTION platform.audit_entries_are_append_only();
             SQL);
     }
 

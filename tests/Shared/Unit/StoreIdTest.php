@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Shared\Domain\ValueObject\StoreId;
 
 it('accepts a ULID and keeps it in lowercase', function () {
@@ -16,6 +18,7 @@ it('rejects anything that is not a ULID', function (string $value) {
     'too short' => ['01J8Z3K4M5N6P7Q8R9S0T1V2W'],
     'too long' => ['01J8Z3K4M5N6P7Q8R9S0T1V2W34'],
     'beyond the largest timestamp' => ['81J8Z3K4M5N6P7Q8R9S0T1V2W3'],
+    'trailing newline' => ["01J8Z3K4M5N6P7Q8R9S0T1V2W3\n"],
 ]);
 
 it('compares by value regardless of the case it was given in', function () {

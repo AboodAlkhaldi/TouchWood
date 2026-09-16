@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
 | Platform spec §1.6. Reading across stores is an explicit opt-out, allowed only in
 | Application/Query read models and the Ops module.
@@ -26,12 +28,14 @@ it('allows reading across stores only in read models and Ops', function () {
     $root = (string) realpath(dirname(__DIR__, 2).'/src');
     $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
     $violations = [];
+    $scanned = 0;
 
     foreach ($files as $file) {
         if ($file->getExtension() !== 'php') {
             continue;
         }
 
+        $scanned++;
         $path = str_replace('\\', '/', substr($file->getPathname(), strlen($root) + 1));
 
         $allowed = $path === 'Shared/Infrastructure/Persistence/BelongsToStore.php'
@@ -43,5 +47,7 @@ it('allows reading across stores only in read models and Ops', function () {
         }
     }
 
-    expect($violations)->toBe([]);
+    // Guards against a moved directory making this test pass over nothing.
+    expect($scanned)->toBeGreaterThan(50)
+        ->and($violations)->toBe([]);
 });
