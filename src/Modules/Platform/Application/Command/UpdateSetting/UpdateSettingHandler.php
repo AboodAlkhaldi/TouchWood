@@ -22,6 +22,7 @@ use Modules\Platform\Public\Events\SettingChanged;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -50,7 +51,11 @@ final readonly class UpdateSettingHandler
 
         $store = $command->storeCode === null ? null : $this->storeId($command->storeCode);
 
-        $this->authorizer->authorize($definition->permission, $store);
+        // A global setting reaches every store, so changing it needs the permission everywhere.
+        $this->authorizer->authorize(
+            $definition->permission,
+            $store === null ? PermissionScope::allStores() : PermissionScope::store($store),
+        );
 
         $value = $command->value;
 

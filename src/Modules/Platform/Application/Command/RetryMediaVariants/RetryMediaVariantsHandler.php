@@ -12,6 +12,7 @@ use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Domain\Exception\MediaNotFound;
 use Modules\Platform\Domain\Repository\MediaRepository;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 
 /**
  * Staff queue variant generation again (Platform spec §4.1): for a FAILED image, or for one stuck
@@ -31,7 +32,7 @@ final readonly class RetryMediaVariantsHandler
 
     public function handle(RetryMediaVariants $command): void
     {
-        $this->authorizer->authorize(self::PERMISSION);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $this->db->transaction(function () use ($command) {
             $media = $this->media->lockById($command->mediaId) ?? throw new MediaNotFound($command->mediaId);

@@ -14,6 +14,7 @@ use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
 use Modules\Platform\Public\Events\MediaVariantsReady;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 
 /**
  * Generates every variant of a public image, once, in the background — never at request time
@@ -35,7 +36,7 @@ final readonly class GenerateMediaVariantsHandler
 
     public function handle(GenerateMediaVariants $command): void
     {
-        $this->authorizer->authorize(self::PERMISSION);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $media = $this->media->byId($command->mediaId);
 
@@ -80,7 +81,7 @@ final readonly class GenerateMediaVariantsHandler
      */
     public function fail(GenerateMediaVariants $command): void
     {
-        $this->authorizer->authorize(self::PERMISSION);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $this->db->transaction(function () use ($command) {
             $media = $this->media->lockById($command->mediaId);

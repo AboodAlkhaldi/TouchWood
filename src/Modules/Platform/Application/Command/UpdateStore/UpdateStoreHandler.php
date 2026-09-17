@@ -21,6 +21,7 @@ use Modules\Platform\Domain\ValueObject\Timezone;
 use Modules\Platform\Domain\ValueObject\TranslatedText;
 use Modules\Platform\Public\Events\StoreUpdated;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 
 final readonly class UpdateStoreHandler
 {
@@ -42,7 +43,7 @@ final readonly class UpdateStoreHandler
 
         // Checked against this store, before any row is locked: an admin of one store cannot
         // edit another. Store codes are public URL segments, so "not found" reveals nothing.
-        $this->authorizer->authorize(self::PERMISSION, $known->storeId());
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($known->storeId()));
 
         $this->db->transaction(function () use ($command, $code) {
             $store = $this->stores->byCode($code) ?? throw new StoreNotFound($code->value);

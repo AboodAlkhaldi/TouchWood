@@ -24,6 +24,7 @@ use Modules\Platform\Domain\ValueObject\Timezone;
 use Modules\Platform\Domain\ValueObject\TranslatedText;
 use Modules\Platform\Public\Events\StoreCreated;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
 
 final readonly class CreateStoreHandler
@@ -42,7 +43,7 @@ final readonly class CreateStoreHandler
 
     public function handle(CreateStore $command): StoreId
     {
-        $this->authorizer->authorize(self::PERMISSION);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $code = StoreCode::fromString($command->code);
         $currency = CurrencyCode::fromString($command->currencyCode);

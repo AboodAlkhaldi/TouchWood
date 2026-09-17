@@ -7,8 +7,8 @@ namespace Modules\Platform\Infrastructure;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Interim binding until Access exists (build stage 2): only the system may act, and only
@@ -27,10 +27,23 @@ final readonly class SystemOnlyAuthorizer implements Authorizer
         private bool $runningInConsole,
     ) {}
 
-    public function authorize(string $permission, ?StoreId $store = null): void
+    public function authorize(string $permission, PermissionScope $scope): void
     {
-        if (! $this->runningInConsole || $this->actors->current()->type !== ActorType::System) {
+        if (! $this->isSystem()) {
             throw new Unauthorized($permission);
         }
+    }
+
+    /**
+     * The system acts in every store, so it is never limited to a list.
+     */
+    public function storesWith(string $permission): ?array
+    {
+        return $this->isSystem() ? null : [];
+    }
+
+    private function isSystem(): bool
+    {
+        return $this->runningInConsole && $this->actors->current()->type === ActorType::System;
     }
 }

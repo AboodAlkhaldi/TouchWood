@@ -10,6 +10,7 @@ use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Domain\Exception\MediaNotFound;
 use Modules\Platform\Domain\Repository\MediaRepository;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 
 final readonly class UpdateMediaAltTextHandler
 {
@@ -24,7 +25,7 @@ final readonly class UpdateMediaAltTextHandler
 
     public function handle(UpdateMediaAltText $command): void
     {
-        $this->authorizer->authorize(self::PERMISSION);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $this->db->transaction(function () use ($command) {
             $media = $this->media->lockById($command->mediaId) ?? throw new MediaNotFound($command->mediaId);

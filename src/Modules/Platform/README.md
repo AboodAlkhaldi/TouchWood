@@ -78,8 +78,10 @@ ids only and are dispatched after the transaction commits.
 
 A handler always runs in this order:
 
-1. **Authorize** with the permission string on the handler (`platform.store.update`). An
-   architecture test fails the build if a handler forgets.
+1. **Authorize** with the permission string on the handler (`platform.store.update`) and the
+   scope it applies to: `PermissionScope::store($id)` for one store's data, `allStores()` when the
+   change reaches every store (a global setting), `global()` when no store is involved (media,
+   currencies). An architecture test fails the build if a handler forgets.
 2. **Open a transaction** and load the model, locking the row (`lockById`, `byCode`). Reads
    outside a change never lock (`byId`, the read models).
 3. **Let the model apply the change.** The model enforces the rules and records which
@@ -132,8 +134,9 @@ store runs in `sa` without passing anything by hand. Every log line is tagged wi
 ### Settings are declared in code, stored in the database
 
 A module declares each key with its scope (global or per store), type, validation rules, default
-and the permission needed to change it. `UpdateSettingHandler` checks the permission against the
-store for a per-store key, or with no store for a global one.
+and the permission needed to change it. `UpdateSettingHandler` checks the permission against that
+store for a per-store key, and against **every** store for a global one, because a global key
+reaches all of them.
 
 - **Types are checked strictly before any rule runs.** `"5"` is not an integer and `1` is not a
   boolean. Laravel's own rules would accept both.

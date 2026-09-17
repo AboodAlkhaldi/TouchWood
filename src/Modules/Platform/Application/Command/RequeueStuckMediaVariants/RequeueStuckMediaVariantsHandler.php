@@ -10,6 +10,7 @@ use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Domain\Model\Media;
 use Modules\Platform\Domain\Repository\MediaRepository;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 
 /**
  * The scheduled sweep (owner's decision, 2026-09-16): an image still PENDING
@@ -33,7 +34,7 @@ final readonly class RequeueStuckMediaVariantsHandler
      */
     public function handle(RequeueStuckMediaVariants $command): int
     {
-        $this->authorizer->authorize(self::PERMISSION);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $now = CarbonImmutable::now();
         $requeued = 0;
