@@ -13,7 +13,11 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Gives every request a correlation id (handoff §5.3). It is stored in Laravel's Context, so
- * it appears on every log line and travels into every job the request dispatches.
+ * it appears on every log line, in error responses and audit entries, and travels into every job
+ * the request dispatches.
+ *
+ * Always generated here, never taken from the caller (owner's decision, 2026-09-18): an id sent in
+ * the request would let anyone choose what is written into the audit log.
  */
 final class AssignCorrelationId
 {
@@ -21,11 +25,7 @@ final class AssignCorrelationId
 
     public function handle(Request $request, Closure $next): Response
     {
-        $incoming = $request->headers->get(self::HEADER);
-
-        $id = is_string($incoming) && preg_match('/^[A-Za-z0-9-]{8,64}\z/', $incoming) === 1
-            ? $incoming
-            : strtolower((string) Str::ulid());
+        $id = strtolower((string) Str::ulid());
 
         Context::add(CorrelationId::CONTEXT_KEY, $id);
 

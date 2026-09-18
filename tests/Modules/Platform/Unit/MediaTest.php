@@ -52,6 +52,14 @@ describe('uploading', function () {
             ->and(fn () => Media::upload('01j8z3k4m5n6p7q8r9s0t1v2w3', MediaVisibility::Public, 'local', 'big.jpg', 'image/jpeg', 10_485_761, 10_485_760, 100, 100, false, TEST_CHECKSUM, null, new DateTimeImmutable))->toThrow(MediaTooLarge::class);
     });
 
+    it('refuses a checksum that is not a lowercase SHA-256, before the database would', function (string $checksum) {
+        Media::upload('01j8z3k4m5n6p7q8r9s0t1v2w3', MediaVisibility::Public, 'local', 'hinge.jpg', 'image/jpeg', 1000, 10_485_760, 100, 100, false, $checksum, null, new DateTimeImmutable);
+    })->throws(InvalidMediaAttribute::class, 'SHA-256')->with([
+        'uppercase' => [strtoupper(TEST_CHECKSUM)],
+        'too short' => [substr(TEST_CHECKSUM, 0, 63)],
+        'not hex' => [str_repeat('g', 64)],
+    ]);
+
     it('refuses an empty file', function () {
         mediaForTest(bytes: 0);
     })->throws(InvalidMediaAttribute::class);
