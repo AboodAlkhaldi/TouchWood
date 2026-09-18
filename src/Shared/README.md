@@ -15,7 +15,7 @@ essentially never change. When in doubt, keep it in the module. The ceiling is ~
 | `DomainError`, `ErrorCategory` | Domain | The base of every expected business error. Each error declares a stable `type` (`platform.store_code_taken`) and a category (`NOT_FOUND`, `CONFLICT`…). Domain code never knows HTTP. |
 | `StoreContext`, `MissingStoreContext` | Application | Which store the current request, job or command runs in. Implemented by Platform. |
 | `Authorizer`, `PermissionScope`, `Unauthorized` | Application | `authorize($permission, $scope)`, where the scope is `global()`, `store($id)` or `allStores()` — an empty store used to mean both "no store" and "every store". `storesWith($permission)` answers "which stores may I do this in" for admin lists. Every command handler authorizes first. Implemented by Access (an interim system-only version lives in Platform until then). |
-| `ActorContext`, `Actor`, `ActorType` | Application | Who is acting: staff, customer or system. |
+| `ActorContext`, `Actor`, `ActorType` | Application | Who is acting: staff, customer, guest, integration or system. Every id is a ULID. Inside a queued job the actor is the system with `requestedBy` set to whoever queued it. |
 | `CrossStoreWrite` | Application | Thrown when code tries to write another store's row. |
 | `ProblemDetails` | Infrastructure | The only place a `DomainError` becomes an HTTP response. |
 | `AssignCorrelationId` | Infrastructure | Gives every request an id that follows it into logs and queued jobs. |

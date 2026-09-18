@@ -103,6 +103,7 @@ it('creates every index from the spec', function () {
         'audit_entries_subject_idx',
         'audit_entries_store_idx',
         'audit_entries_actor_idx',
+        'audit_entries_requested_by_idx',
         'audit_entries_action_idx',
         'settings_store_key_unique',
         'platform_media_disk_object_key_unique',
@@ -132,6 +133,7 @@ it('creates every check constraint and foreign key from the spec', function () {
         'platform_stores_currency_code_foreign',
         'audit_entries_actor_type',
         'audit_entries_actor_id',
+        'audit_entries_requested_by',
         'audit_entries_ip_staff_only',
         'platform_audit_entries_store_id_foreign',
         'platform_settings_store_id_foreign',
@@ -214,6 +216,9 @@ it('refuses rows that break the rules, even when they skip the domain', function
     'audit entry with an unknown actor type' => [fn () => insertAuditRow(['actor_type' => 'ROBOT', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_actor_type'],
     'system audit entry with an actor id' => [fn () => insertAuditRow(['actor_type' => 'SYSTEM', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_actor_id'],
     'staff audit entry without an actor id' => [fn () => insertAuditRow(['actor_type' => 'STAFF', 'actor_id' => null]), 'audit_entries_actor_id'],
+    'a requester on an entry the system did not make' => [fn () => insertAuditRow(['actor_type' => 'STAFF', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3', 'requested_by_type' => 'STAFF', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_requested_by'],
+    'a requester type without an id' => [fn () => insertAuditRow(['requested_by_type' => 'STAFF']), 'audit_entries_requested_by'],
+    'the system requested by the system' => [fn () => insertAuditRow(['requested_by_type' => 'SYSTEM', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_requested_by'],
     'media with an unknown visibility' => [fn () => insertMediaRow(['visibility' => 'SECRET']), 'media_visibility'],
     'media with an unknown variants status' => [fn () => insertMediaRow(['variants_status' => 'DONE']), 'media_variants_status'],
     'pending media never queued' => [fn () => insertMediaRow(['variants_queued_at' => null]), 'media_variants_queued'],
@@ -232,6 +237,16 @@ it('deduplicates public images by checksum, but never private files', function (
 
     expect(fn () => insertMediaRow(['checksum' => $checksum]))->toThrow(QueryException::class, 'media_public_checksum_unique');
 });
+
+it('accepts guests and integrations as actors, and the system acting for one of them', function (array $row) {
+    insertAuditRow($row);
+
+    expect(DB::table('platform.audit_entries')->count())->toBe(1);
+})->with([
+    'a guest' => [['actor_type' => 'GUEST', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']],
+    'an integration' => [['actor_type' => 'INTEGRATION', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']],
+    'the system for a staff member' => [['requested_by_type' => 'STAFF', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']],
+]);
 
 it('refuses a second store with the same code', function () {
     insertCurrencyRow();

@@ -8,8 +8,12 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Factory as Filesystems;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Queue\Events\JobExceptionOccurred;
+use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\Platform\Application\AuditLog;
@@ -37,7 +41,10 @@ use Modules\Platform\Infrastructure\Eloquent\EloquentStoreRepository;
 use Modules\Platform\Infrastructure\External\FinfoMediaInspector;
 use Modules\Platform\Infrastructure\External\InterventionImageVariantGenerator;
 use Modules\Platform\Infrastructure\External\LaravelMediaStorage;
+use Modules\Platform\Infrastructure\Queue\JobActorState;
+use Modules\Platform\Infrastructure\Queue\JobAwareActorContext;
 use Modules\Platform\Infrastructure\Queue\LaravelMediaVariantsQueue;
+use Modules\Platform\Infrastructure\Queue\QueuedActor;
 use Modules\Platform\Presentation\Console\CreateCurrencyCommand;
 use Modules\Platform\Presentation\Console\CreateStoreCommand;
 use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
@@ -68,6 +75,8 @@ final class PlatformServiceProvider extends ServiceProvider
         MediaInspector::class => FinfoMediaInspector::class,
         ImageVariantGenerator::class => InterventionImageVariantGenerator::class,
         MediaVariantsQueue::class => LaravelMediaVariantsQueue::class,
+        // Process-wide on purpose: the queue worker runs jobs one after another in one process.
+        JobActorState::class => JobActorState::class,
     ];
 
     public function register(): void
@@ -78,6 +87,11 @@ final class PlatformServiceProvider extends ServiceProvider
         // Anything that depends on who is acting lives for one request or one job, never the
         // whole process — a queue worker must not audit or authorize as an earlier job's actor.
         $this->app->scoped(ActorContext::class, SystemActorContext::class); // interim until Access
+        // Wraps this binding and Access's later one: a queued job acts as the system on behalf of
+        // whoever queued it (owner's decision, 2026-09-18).
+        $this->app->extend(ActorContext::class, fn (ActorContext $actors, Application $app): ActorContext => $actors instanceof JobAwareActorContext
+            ? $actors
+            : new JobAwareActorContext($actors, $app->make(JobActorState::class)));
         // Interim until Access. Web requests are refused: with no login, nobody there is the system.
         $this->app->scoped(Authorizer::class, fn (Application $app): Authorizer => new SystemOnlyAuthorizer(
             $app->make(ActorContext::class),
@@ -121,6 +135,8 @@ final class PlatformServiceProvider extends ServiceProvider
             $schedule->command(RequeueStuckMediaVariantsCommand::NAME)->everyTenMinutes()->withoutOverlapping()->onOneServer();
         });
 
+        $this->carryActorIntoQueuedJobs();
+
         // A fresh or rolled-back schema must not be served from a cache built on the old one.
         Event::listen(MigrationsEnded::class, function (): void {
             $this->app->make(StoreDirectory::class)->invalidate();
@@ -134,5 +150,25 @@ final class PlatformServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([CreateCurrencyCommand::class, CreateStoreCommand::class, RequeueStuckMediaVariantsCommand::class]);
         }
+    }
+
+    /**
+     * The actor who queues a job is written into its payload; while the job runs it acts as the
+     * system on that actor's behalf, and afterwards the previous actor is back (with the "sync"
+     * queue a job runs inside the request that queued it).
+     */
+    private function carryActorIntoQueuedJobs(): void
+    {
+        Queue::createPayloadUsing(fn (): array => QueuedActor::payloadFor($this->app->make(ActorContext::class)->current()));
+
+        $jobs = $this->app->make(JobActorState::class);
+
+        Event::listen(JobProcessing::class, function (JobProcessing $event) use ($jobs): void {
+            $jobs->enter(QueuedActor::actorFor($event->job->payload()));
+        });
+
+        Event::listen([JobProcessed::class, JobExceptionOccurred::class], function () use ($jobs): void {
+            $jobs->leave();
+        });
     }
 }

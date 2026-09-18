@@ -58,7 +58,14 @@
 ## Interim until Access
 
 - `ActorContext` and `Authorizer` are Platform bindings that allow only the system actor. Access
-  replaces them.
+  replaces them — with `bind()`/`scoped()`, never `instance()`: Platform wraps the `ActorContext`
+  binding so a queued job acts as the system on behalf of whoever queued it.
+
+## Actors
+
+- Actor types: staff, customer, guest, integration, system. Every actor id is a ULID.
+- Check a person's permission when they start an action; the queued job then acts as the system,
+  and the audit log records the requester (`requested_by_*`).
 
 ## Tests
 
