@@ -26,12 +26,12 @@ use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Application\PlatformApiImpl;
 use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Application\Query\StoreDirectory;
+use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Application\Settings\SettingValues;
 use Modules\Platform\Domain\Repository\CurrencyRepository;
 use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Domain\Repository\StoreRepository;
-use Modules\Platform\Domain\ValueObject\StoreCode;
 use Modules\Platform\Infrastructure\Eloquent\CachedStoreDirectory;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditLog;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseMediaReader;
@@ -52,6 +52,7 @@ use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
 use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Psr\Log\LoggerInterface;
 use Shared\Application\ActorContext;
@@ -86,6 +87,14 @@ final class PlatformServiceProvider extends ServiceProvider
     {
         $this->app->alias(LaravelStoreContext::class, StoreContext::class);
         $this->app->alias(InMemorySettingsRegistry::class, SettingsRegistry::class);
+        // Bound here, not in $singletons: Laravel applies that list only after register() returns, and
+        // Platform reserves its own paths just below. Other modules reserve in their register().
+        $this->app->singleton(InMemoryReservedPaths::class);
+        $this->app->alias(InMemoryReservedPaths::class, ReservedPaths::class);
+
+        // Paths the application keeps for itself until a module that owns them exists: the health
+        // check, built assets, public files and signed file links, the admin panel and the API.
+        $this->app->make(ReservedPaths::class)->reserve('platform', 'up', 'build', 'storage', 'admin', 'api');
 
         // Anything that depends on who is acting lives for one request or one job, never the
         // whole process — a queue worker must not audit or authorize as an earlier job's actor.
@@ -126,9 +135,12 @@ final class PlatformServiceProvider extends ServiceProvider
         $this->loadViewsFrom($presentation.'/views', 'platform');
         $this->loadTranslationsFrom($presentation.'/lang', 'platform');
 
-        // One pattern for {store} on every route, so other modules never import Platform's
-        // interior to register storefront routes.
-        Route::pattern('store', StoreCode::ROUTE_PATTERN);
+        // One pattern for {store} on every route, built from every module's reserved paths, so no
+        // module imports Platform's interior to register storefront routes. Frozen afterwards: a
+        // later reservation would be missing from the pattern.
+        $reservedPaths = $this->app->make(InMemoryReservedPaths::class);
+        Route::pattern('store', $reservedPaths->routePattern());
+        $reservedPaths->freeze();
         $router->aliasMiddleware(ResolveStore::ALIAS, ResolveStore::class);
 
         // On every request, so the audit log can tell a web change from a console or queued one.

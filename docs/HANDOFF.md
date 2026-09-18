@@ -46,6 +46,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §3 | No Redis for now: sessions, cache and queues run on PostgreSQL; the cache version is written inside the transaction so cached data is never stale. Redis + Horizon return only when traffic needs them | Owner decision |
 | 2026-09-18 | §7.5 | Actors: guest and integration added; every actor id is a ULID; a queued job acts as the system and the audit records who queued it | Platform audit, owner decision |
 | 2026-09-18 | §5.3 | Audit entries gain a source (web, integration, console, job, import) set by Platform, and recorded_at; nothing can be back-dated except imported history | Platform audit, owner decision |
+| 2026-09-18 | §4.1 | Reserved top-level paths (`/admin`, `/api`, webhooks…) are a registry every module adds to, not a list inside Platform | Platform audit, owner decision |
 
 ---
 

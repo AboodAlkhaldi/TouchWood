@@ -37,7 +37,7 @@ A country storefront: `sa`, `eg`, `ae`, and any added later.
 
 | Attribute | Invariant |
 |---|---|
-| `code` | 2–8 lowercase letters, never a reserved top-level path (`up`, `admin`, `api`, `build`, `storage` — such a store could never be reached). Unique. **Immutable** — it is the URL segment (`brand.com/sa`) and part of every slug history. |
+| `code` | 2–8 lowercase letters, never a reserved top-level path — such a store could never be reached. **[DECIDED 2026-09-18]** The reserved paths are a registry (`ReservedPaths`) every module adds to in its service provider's `register()`; Platform reserves `up`, `build`, `storage`, `admin`, `api`, builds the `{store}` route pattern from the registry at boot, then locks it. Creating a store with a reserved code is refused. Unique. **Immutable** — it is the URL segment (`brand.com/sa`) and part of every slug history. |
 | `name` | Arabic and English both required and non-empty. |
 | `country_code` | ISO 3166-1 alpha-2. **Immutable.** |
 | `currency_code` | Must reference an existing currency. **Immutable** — every price, order and point balance in the store is denominated in it. |

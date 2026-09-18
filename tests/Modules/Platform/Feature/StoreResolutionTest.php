@@ -6,7 +6,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use Modules\Platform\Domain\ValueObject\StoreCode;
+use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 
 use function Pest\Laravel\get;
 use function Pest\Laravel\getJson;
@@ -59,8 +59,10 @@ it('keeps reserved paths out of every storefront route, not only at the top leve
 
 it('keeps a store whose code starts like a reserved word reachable', function () {
     // "upx" is a valid code: only the exact reserved segments are excluded.
-    expect(preg_match('#^'.StoreCode::ROUTE_PATTERN.'$#', 'upx'))->toBe(1)
-        ->and(preg_match('#^'.StoreCode::ROUTE_PATTERN.'$#', 'up'))->toBe(0);
+    $pattern = app(InMemoryReservedPaths::class)->routePattern();
+
+    expect(preg_match('#^'.$pattern.'$#', 'upx'))->toBe(1)
+        ->and(preg_match('#^'.$pattern.'$#', 'up'))->toBe(0);
 });
 
 it('sends a visitor back to the store in their cookie', function () {
@@ -98,4 +100,13 @@ it('resolves the store from the cache alone once warm: two tiny cache reads, nev
         expect($query)->toContain('"cache"');
         expect($query)->not->toContain('platform');
     }
+});
+
+it('builds the {store} pattern at boot from every path the modules reserved, then locks the list', function () {
+    $paths = app(InMemoryReservedPaths::class);
+
+    // Platform reserves its own paths while registering; they must be in the live pattern.
+    expect($paths->all())->toContain('admin', 'api', 'build', 'storage', 'up')
+        ->and(app('router')->getPatterns()['store'] ?? null)->toBe($paths->routePattern())
+        ->and(fn () => $paths->reserve('access', 'login'))->toThrow(LogicException::class, 'register()');
 });
