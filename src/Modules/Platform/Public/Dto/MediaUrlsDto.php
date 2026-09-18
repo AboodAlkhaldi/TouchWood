@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Modules\Platform\Public\Dto;
 
 use Carbon\CarbonImmutable;
-use Spatie\LaravelData\Data;
 
-final class MediaUrlsDto extends Data
+final readonly class MediaUrlsDto
 {
     /**
      * @param  string|null  $original  an expiring link to a private file; null for public images, which are shown only through their variants
@@ -15,8 +14,8 @@ final class MediaUrlsDto extends Data
      * @param  CarbonImmutable|null  $expiresAt  when a private link stops working; null for public media
      */
     public function __construct(
-        public readonly ?string $original,
-        public readonly array $variants,
-        public readonly ?CarbonImmutable $expiresAt,
+        public ?string $original,
+        public array $variants,
+        public ?CarbonImmutable $expiresAt,
     ) {}
 }

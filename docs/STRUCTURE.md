@@ -90,7 +90,7 @@ src/Modules/{Name}/
 │
 ├── Public/                 ← THE ONLY NAMESPACE OTHER MODULES MAY IMPORT
 │   ├── Contracts/          {Name}Api.php — the module's interface
-│   ├── Dto/                spatie/laravel-data objects crossing the boundary
+│   ├── Dto/                Plain final readonly classes crossing the boundary
 │   ├── Events/             Integration events. Carry IDs, never payloads.
 │   └── Enums/              Backed enums other modules need to read
 │
@@ -165,11 +165,14 @@ src/Shared/
 │   ├── Error/            DomainError · ErrorCategory
 │   └── ValueObject/      Money · MoneyException · StoreId
 ├── Application/          StoreContext · MissingStoreContext · CrossStoreWrite
-│                         Authorizer · Unauthorized · ActorContext · Actor · ActorType
+│                         Authorizer · PermissionScope · Unauthorized
+│                         ActorContext · Actor · ActorType · CorrelationId
 └── Infrastructure/
-    ├── Http/             AssignCorrelationId · ProblemDetails
     └── Persistence/      BelongsToStore · StoreScope
 ```
+
+The error renderer (`ProblemDetails`) and the correlation-id middleware are framework glue and live
+in `app/Http` (owner, 2026-09-18); only the correlation id's Context key stays in the kernel.
 
 Planned by the handoff, added only when a module needs them: `Sku`, `Quantity`, `Locale`,
 `Percentage`, `Weight`, `Dimensions`, `DomainEvent`, `IntegrationEvent`, `AggregateRoot`,

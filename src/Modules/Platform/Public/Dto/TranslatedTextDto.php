@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Public\Dto;
 
-use Spatie\LaravelData\Data;
-
-final class TranslatedTextDto extends Data
+final readonly class TranslatedTextDto
 {
     public function __construct(
-        public readonly string $ar,
-        public readonly string $en,
+        public string $ar,
+        public string $en,
     ) {}
 
     /**

@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Shared\Infrastructure\Http;
+namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Str;
+use Shared\Application\CorrelationId;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -18,8 +19,6 @@ final class AssignCorrelationId
 {
     public const string HEADER = 'X-Correlation-Id';
 
-    public const string CONTEXT_KEY = 'correlation_id';
-
     public function handle(Request $request, Closure $next): Response
     {
         $incoming = $request->headers->get(self::HEADER);
@@ -28,7 +27,7 @@ final class AssignCorrelationId
             ? $incoming
             : strtolower((string) Str::ulid());
 
-        Context::add(self::CONTEXT_KEY, $id);
+        Context::add(CorrelationId::CONTEXT_KEY, $id);
 
         /** @var Response $response */
         $response = $next($request);
