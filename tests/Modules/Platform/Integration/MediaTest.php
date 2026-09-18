@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Console\Scheduling\Event as ScheduledEvent;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Factory as Filesystems;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,8 +41,12 @@ use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Infrastructure\External\InterventionImageVariantGenerator;
 use Modules\Platform\Infrastructure\External\LaravelMediaStorage;
 use Modules\Platform\Infrastructure\Queue\GenerateMediaVariantsJob;
+use Modules\Platform\Infrastructure\Queue\RequeueStuckMediaVariantsJob;
 use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
+use Modules\Platform\Public\Contracts\MediaUsage;
+use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\MediaUseDto;
 use Modules\Platform\Public\Enums\ImageFormat;
 use Modules\Platform\Public\Enums\MediaSize;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
@@ -49,6 +54,7 @@ use Modules\Platform\Public\Enums\MediaVisibility;
 use Modules\Platform\Public\Events\MediaDeleted;
 use Modules\Platform\Public\Events\MediaVariantsReady;
 use Psr\Log\NullLogger;
+use Shared\Application\Unauthorized;
 
 use function Pest\Laravel\assertDatabaseHas;
 use function Pest\Laravel\get;
@@ -136,6 +142,61 @@ function uploadMedia(string $path, MediaVisibility $visibility = MediaVisibility
 function runQueuedVariants(string $mediaId): void
 {
     (new GenerateMediaVariantsJob($mediaId))->handle(app(GenerateMediaVariantsHandler::class));
+}
+
+/**
+ * A module's table that stores media ids: a "photo" can be detached, a "document" blocks deleting.
+ */
+function createMediaReferencesTable(): void
+{
+    Schema::create('testing_media_refs', function (Blueprint $table) {
+        $table->id();
+        $table->char('media_id', 26);
+        $table->string('kind', 16)->default('photo');
+        $table->foreign('media_id')->references('id')->on('platform.media')->restrictOnDelete();
+    });
+}
+
+/**
+ * How a module reports and removes its references when media is deleted.
+ */
+final class TestingMediaUsage implements MediaUsage
+{
+    /** @var list<int> the transaction level seen by each detach() */
+    public static array $detachedInTransaction = [];
+
+    public function usesOf(string $mediaId): array
+    {
+        $uses = [];
+
+        foreach (DB::table('testing_media_refs')->where('media_id', $mediaId)->orderBy('id')->get() as $row) {
+            $uses[] = new MediaUseDto('testing.thing', (string) $row->id, $row->kind === 'document');
+        }
+
+        return $uses;
+    }
+
+    public function detach(string $mediaId): void
+    {
+        self::$detachedInTransaction[] = DB::transactionLevel();
+        DB::table('testing_media_refs')->where('media_id', $mediaId)->where('kind', 'photo')->delete();
+    }
+}
+
+/**
+ * A module whose own permission check refuses the acting person.
+ */
+final class RefusingMediaUsage implements MediaUsage
+{
+    public function usesOf(string $mediaId): array
+    {
+        return [new MediaUseDto('testing.banner', 'banner-1', false)];
+    }
+
+    public function detach(string $mediaId): void
+    {
+        throw new Unauthorized('testing.banner.update');
+    }
 }
 
 function mediaRow(string $id): stdClass
@@ -545,15 +606,21 @@ describe('the stuck-variants sweep', function () {
         expect(app(RequeueStuckMediaVariantsHandler::class)->handle(new RequeueStuckMediaVariants))->toBe(0);
     });
 
-    it('runs from the console every ten minutes, on one server at a time', function () {
+    it('is queued as a job every ten minutes, from one server', function () {
         $events = collect(app(Schedule::class)->events())
-            ->filter(fn (ScheduledEvent $event): bool => str_contains((string) $event->command, RequeueStuckMediaVariantsCommand::NAME));
+            ->filter(fn (ScheduledEvent $event): bool => $event->description === RequeueStuckMediaVariantsJob::class);
 
         expect($events)->toHaveCount(1)
             ->and($events->first()?->expression)->toBe('*/10 * * * *')
-            ->and($events->first()?->withoutOverlapping)->toBeTrue()
-            ->and($events->first()?->onOneServer)->toBeTrue();
+            ->and($events->first()?->onOneServer)->toBeTrue()
+            ->and(new RequeueStuckMediaVariantsJob)->toBeInstanceOf(ShouldBeUnique::class);
 
+        $events->first()?->run(app());
+
+        Queue::assertPushed(RequeueStuckMediaVariantsJob::class, 1);
+    });
+
+    it('can still be run by hand from the console', function () {
         expect(Artisan::call(RequeueStuckMediaVariantsCommand::NAME))->toBe(0)
             ->and(Artisan::output())->toContain('0 stuck image(s)');
     });
@@ -709,12 +776,9 @@ describe('deleting', function () {
             ->and($announced)->toBeFalse();
     });
 
-    it('refuses to delete media another module still references, and keeps its files', function () {
-        Schema::create('testing_media_refs', function (Blueprint $table) {
-            $table->id();
-            $table->char('media_id', 26);
-            $table->foreign('media_id')->references('id')->on('platform.media')->restrictOnDelete();
-        });
+    it('still refuses, through the database, a reference no module reported, and keeps its files', function () {
+        // The foreign key is the backstop behind "detach or block".
+        createMediaReferencesTable();
         $id = uploadMedia(imageFile(800, 600));
         DB::table('testing_media_refs')->insert(['media_id' => $id]);
 
@@ -726,6 +790,103 @@ describe('deleting', function () {
     it('reports deleting media that does not exist', function () {
         app(DeleteMediaHandler::class)->handle(new DeleteMedia('01j8z3k4m5n6p7q8r9s0t1v2w3'));
     })->throws(MediaNotFound::class);
+});
+
+describe('deleting media another module uses', function () {
+    beforeEach(function () {
+        TestingMediaUsage::$detachedInTransaction = [];
+        createMediaReferencesTable();
+        app(MediaUsages::class)->register('testing', TestingMediaUsage::class);
+    });
+
+    it('detaches it from the module, then deletes it, in one transaction, and audits where it was used', function () {
+        $id = uploadMedia(imageFile(800, 600));
+        DB::table('testing_media_refs')->insert([['media_id' => $id], ['media_id' => $id]]);
+        $refs = DB::table('testing_media_refs')->orderBy('id')->pluck('id')->all();
+
+        app(DeleteMediaHandler::class)->handle(new DeleteMedia($id));
+
+        $entry = DB::table('platform.audit_entries')->where('action', 'platform.media.deleted')->first();
+        $changes = json_decode((string) $entry?->changes, true);
+
+        expect(DB::table('testing_media_refs')->count())->toBe(0)
+            ->and(DB::table('platform.media')->where('id', $id)->exists())->toBeFalse()
+            ->and(Storage::disk('local')->allFiles())->toBe([])
+            // The test's own transaction is level 1; the delete's is level 2.
+            ->and(TestingMediaUsage::$detachedInTransaction)->toBe([2])
+            ->and(is_array($changes) ? $changes['detached_from'] : null)->toBe([["testing.thing {$refs[0]}", "testing.thing {$refs[1]}"], null]);
+    });
+
+    it('locks the media row before asking the modules, so no reference can be added meanwhile', function () {
+        $id = uploadMedia(imageFile(800, 600));
+        DB::enableQueryLog();
+
+        app(DeleteMediaHandler::class)->handle(new DeleteMedia($id));
+
+        $locked = collect(DB::getQueryLog())->contains(fn (array $query): bool => str_contains($query['query'], 'from "platform"."media"')
+            && str_contains($query['query'], 'for update'));
+
+        expect($locked)->toBeTrue();
+    });
+
+    it('names the table of a reference no module reported', function () {
+        $id = uploadMedia(imageFile(800, 600));
+        DB::table('testing_media_refs')->insert(['media_id' => $id]);
+
+        // Straight to the repository: the backstop, as if no module had reported this reference.
+        expect(fn () => app(MediaRepository::class)->delete(app(MediaRepository::class)->byId($id) ?? throw new LogicException('missing')))
+            ->toThrow(MediaInUse::class, 'testing_media_refs');
+    });
+
+    it('asks nothing of a module that does not use the media', function () {
+        $id = uploadMedia(imageFile(800, 600));
+
+        app(DeleteMediaHandler::class)->handle(new DeleteMedia($id));
+
+        expect(TestingMediaUsage::$detachedInTransaction)->toBe([])
+            ->and(DB::table('platform.media')->where('id', $id)->exists())->toBeFalse();
+    });
+
+    it('refuses, changing nothing, when any use blocks the delete, and says which', function () {
+        $id = uploadMedia(imageFile(800, 600));
+        DB::table('testing_media_refs')->insert([['media_id' => $id, 'kind' => 'photo'], ['media_id' => $id, 'kind' => 'document']]);
+        $document = DB::table('testing_media_refs')->where('kind', 'document')->value('id');
+
+        expect(fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($id)))
+            ->toThrow(MediaInUse::class, "testing.thing {$document}");
+
+        // The person is told which record uses it, in their language.
+        app()->setLocale('en');
+        $error = new MediaInUse($id, [new MediaUseDto('testing.thing', (string) $document, true)]);
+        expect(trans('platform::errors.media_in_use.detail', $error->context()))->toBe("The file is still used and cannot be deleted: testing.thing {$document}.");
+
+        expect(TestingMediaUsage::$detachedInTransaction)->toBe([])
+            ->and(DB::table('testing_media_refs')->count())->toBe(2)
+            ->and(DB::table('platform.media')->where('id', $id)->exists())->toBeTrue()
+            ->and(Storage::disk('local')->allFiles())->toHaveCount(1);
+    });
+
+    it('cancels the whole delete when a module refuses the person its own change', function () {
+        app(MediaUsages::class)->register('testing', RefusingMediaUsage::class);
+        $id = uploadMedia(imageFile(800, 600));
+        DB::table('testing_media_refs')->insert(['media_id' => $id]);
+
+        expect(fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($id)))->toThrow(Unauthorized::class);
+
+        // The first module had already detached; its change rolled back with the rest.
+        expect(TestingMediaUsage::$detachedInTransaction)->toBe([2])
+            ->and(DB::table('testing_media_refs')->count())->toBe(1)
+            ->and(DB::table('platform.media')->where('id', $id)->exists())->toBeTrue()
+            ->and(Storage::disk('local')->allFiles())->toHaveCount(1);
+    });
+
+    it('refuses a registration that is not a MediaUsage', function () {
+        app(MediaUsages::class)->register('testing', stdClass::class);
+    })->throws(LogicException::class, 'does not implement');
+
+    it('refuses the same registration twice', function () {
+        app(MediaUsages::class)->register('testing', TestingMediaUsage::class);
+    })->throws(LogicException::class, 'already registered');
 });
 
 describe('the environment', function () {

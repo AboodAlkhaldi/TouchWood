@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
@@ -16,12 +19,16 @@ use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrencyHandler;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStore;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditLog;
+use Modules\Platform\Infrastructure\HttpRequestState;
+use Modules\Platform\Infrastructure\Queue\JobActorState;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\Actor;
 use Shared\Application\ActorContext;
-use Shared\Infrastructure\Http\AssignCorrelationId;
+use Shared\Application\CorrelationId;
+
+use function Pest\Laravel\withServerVariables;
 
 uses(RefreshDatabase::class);
 
@@ -36,6 +43,34 @@ function actingAs(Actor $actor): void
             return $this->actor;
         }
     });
+}
+
+/**
+ * Sends a real HTTP request (from 203.0.113.7) whose handler records one audit entry.
+ */
+function auditThroughAWebRequest(): void
+{
+    Route::post('/_probe/audit', function () {
+        DB::transaction(fn () => auditSomething());
+
+        return response()->noContent();
+    });
+
+    withServerVariables(['REMOTE_ADDR' => '203.0.113.7'])->post('/_probe/audit')->assertNoContent();
+}
+
+/**
+ * A queued job that records one audit entry.
+ */
+final class AuditsFromAJob implements ShouldQueue
+{
+    use Dispatchable;
+    use Queueable;
+
+    public function handle(): void
+    {
+        DB::transaction(fn () => auditSomething('testing.job.changed'));
+    }
 }
 
 function auditSomething(string $action = 'testing.thing.changed'): void
@@ -100,7 +135,7 @@ describe('the table', function () {
         // the same database genuinely has no transaction open.
         config(['database.connections.outside_transaction' => config('database.connections.pgsql')]);
         $connection = DB::connection('outside_transaction');
-        $log = new DatabaseAuditLog($connection, app(ActorContext::class), app());
+        $log = new DatabaseAuditLog($connection, app(ActorContext::class), app(), app(JobActorState::class), app(HttpRequestState::class));
 
         expect($connection->transactionLevel())->toBe(0)
             ->and(fn () => $log->record(new AuditEntryDto('testing.thing.changed', 'testing.thing', 'thing-1', null, AuditChanges::none())))
@@ -109,7 +144,7 @@ describe('the table', function () {
 
     it('refuses an IP address on a customer or system entry', function (string $actorType, ?string $actorId) {
         expect(fn () => DB::table('platform.audit_entries')->insert([
-            'occurred_at' => now(),
+            'source' => 'WEB',
             'actor_type' => $actorType,
             'actor_id' => $actorId,
             'action' => 'testing.thing.changed',
@@ -141,7 +176,7 @@ describe('the table', function () {
 
 describe('recording', function () {
     it('records the system as the actor, with the correlation id and no IP', function () {
-        Context::add(AssignCorrelationId::CONTEXT_KEY, 'corr-12345678');
+        Context::add(CorrelationId::CONTEXT_KEY, 'corr-12345678');
 
         auditSomething();
         $entry = latestAuditEntry();
@@ -153,13 +188,13 @@ describe('recording', function () {
             ->and(decodedChanges($entry['changes']))->toEqual(['colour' => ['red', 'blue'], 'email' => 'changed']); // jsonb reorders keys
     });
 
-    it('records the IP address of a staff member', function () {
+    it('records the IP address of a staff member making a web request', function () {
         actingAs(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'));
-        app()->instance('request', Request::create('/admin', server: ['REMOTE_ADDR' => '203.0.113.7']));
 
-        auditSomething();
+        auditThroughAWebRequest();
 
         expect(latestAuditEntry())->toMatchArray([
+            'source' => 'WEB',
             'actor_type' => 'STAFF',
             'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3',
             'ip_address' => '203.0.113.7',
@@ -168,9 +203,8 @@ describe('recording', function () {
 
     it('never records the IP address of a customer', function () {
         actingAs(Actor::customer('01j8z3k4m5n6p7q8r9s0t1v2w3'));
-        app()->instance('request', Request::create('/sa', server: ['REMOTE_ADDR' => '203.0.113.7']));
 
-        auditSomething();
+        auditThroughAWebRequest();
 
         expect(latestAuditEntry()['ip_address'])->toBeNull();
     });
@@ -238,4 +272,166 @@ describe('store and currency changes', function () {
 
         expect(DB::table('platform.audit_entries')->count())->toBe($before);
     });
+});
+
+describe('source and date', function () {
+    it('marks a change made from an artisan command as CONSOLE, dated by the database', function () {
+        auditSomething();
+        $entry = latestAuditEntry();
+
+        expect($entry['source'])->toBe('CONSOLE')
+            ->and($entry['occurred_at'])->toBe($entry['recorded_at']);
+    });
+
+    it('marks a change made through a web request as WEB', function () {
+        auditThroughAWebRequest();
+
+        expect(latestAuditEntry()['source'])->toBe('WEB');
+    });
+
+    it('marks a web request made by an integration as INTEGRATION', function () {
+        actingAs(Actor::integration('01j8z3k4m5n6p7q8r9s0t1v2w3'));
+
+        auditThroughAWebRequest();
+
+        expect(latestAuditEntry())->toMatchArray(['source' => 'INTEGRATION', 'actor_type' => 'INTEGRATION', 'ip_address' => null]);
+    });
+
+    it('marks a change made by a queued job as JOB', function () {
+        AuditsFromAJob::dispatch();
+
+        expect(latestAuditEntry())->toMatchArray(['source' => 'JOB', 'actor_type' => 'SYSTEM', 'action' => 'testing.job.changed']);
+    });
+
+    it('keeps the real date and actor of imported history, and when it was really written', function () {
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'),
+            new DateTimeImmutable('2019-05-01 10:00:00+00:00'),
+        ));
+        $entry = latestAuditEntry();
+
+        expect($entry['source'])->toBe('IMPORT')
+            ->and($entry['actor_type'])->toBe('STAFF')
+            ->and((new DateTimeImmutable((string) $entry['occurred_at']))->format('Y-m-d H:i'))->toBe('2019-05-01 10:00')
+            ->and(new DateTimeImmutable((string) $entry['recorded_at']))->toBeGreaterThan(new DateTimeImmutable('2020-01-01'))
+            ->and($entry['ip_address'])->toBeNull();
+    });
+
+    it('lets only the system import history', function () {
+        actingAs(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'));
+
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::system(),
+            new DateTimeImmutable('2019-05-01'),
+        ));
+    })->throws(LogicException::class, 'Only the system imports history');
+
+    it('refuses imported history dated in the future', function () {
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::system(),
+            new DateTimeImmutable('+1 day'),
+        ));
+    })->throws(InvalidArgumentException::class, 'cannot happen in the future');
+
+    it('refuses imported history dated at the moment the transaction started, which the database would refuse', function () {
+        // recorded_at is the transaction's start time; taken from the database, so no clock drift matters.
+        DB::transaction(function () {
+            $startedAt = DB::selectOne("select to_char(now() at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as at")?->at;
+
+            app(PlatformApi::class)->recordImportedAudit(
+                new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+                Actor::system(),
+                new DateTimeImmutable((string) $startedAt),
+            );
+        });
+    })->throws(InvalidArgumentException::class, 'cannot happen in the future');
+
+    it('keeps the time zone of an imported date: 10:00 in Riyadh is 07:00 UTC', function () {
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'),
+            new DateTimeImmutable('2019-05-01 10:00:00+03:00'),
+        ));
+
+        $occurredAt = DB::selectOne("select to_char(occurred_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS') as utc from platform.audit_entries order by id desc limit 1");
+
+        expect($occurredAt?->utc)->toBe('2019-05-01 07:00:00');
+    });
+
+    it('refuses imported history whose actor carries a requester, before the database would', function () {
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::system(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3')),
+            new DateTimeImmutable('2019-05-01'),
+        ));
+    })->throws(InvalidArgumentException::class, 'it has no requester');
+
+    it('never records the IP address of a staff member working from the console', function () {
+        actingAs(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'));
+
+        auditSomething();
+
+        expect(latestAuditEntry())->toMatchArray(['source' => 'CONSOLE', 'actor_type' => 'STAFF', 'ip_address' => null]);
+    });
+
+    it('audits a queued job as the system even when the actor binding skips Platform\'s wrapper', function () {
+        // instance() bypasses the wrapper around ActorContext; the entry must still be JOB and SYSTEM.
+        actingAs(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'));
+
+        AuditsFromAJob::dispatch();
+
+        expect(latestAuditEntry())->toMatchArray([
+            'source' => 'JOB',
+            'actor_type' => 'SYSTEM',
+            'requested_by_type' => 'STAFF',
+            'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3',
+        ]);
+    });
+});
+
+describe('what the code refuses before the database would', function () {
+    it('refuses an actor that carries a requester outside a queued job', function () {
+        actingAs(Actor::system(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3')));
+
+        auditSomething();
+    })->throws(LogicException::class, 'only a queued job acts on someone\'s behalf');
+
+    it('refuses an entry for a store that does not exist', function () {
+        app(PlatformApi::class)->recordAudit(new AuditEntryDto('testing.thing.changed', 'testing.thing', 'thing-1', '01j8z3k4m5n6p7q8r9s0t1v2w3', AuditChanges::none()));
+    })->throws(InvalidArgumentException::class, 'names a store that does not exist');
+
+    it('refuses an action, subject type or subject id that is empty or too long for its column', function (string $action, string $subjectType, string $subjectId) {
+        app(PlatformApi::class)->recordAudit(new AuditEntryDto($action, $subjectType, $subjectId, null, AuditChanges::none()));
+    })->throws(InvalidArgumentException::class, 'must be 1 to')->with([
+        'action over 100' => ['testing.thing.'.str_repeat('a', 87), 'testing.thing', 'thing-1'],
+        'subject type over 100' => ['testing.thing.changed', 'testing.'.str_repeat('a', 93), 'thing-1'],
+        'subject id over 64' => ['testing.thing.changed', 'testing.thing', str_repeat('a', 65)],
+        'empty subject id' => ['testing.thing.changed', 'testing.thing', ''],
+    ]);
+
+    it('accepts values exactly at the column limits', function () {
+        app(PlatformApi::class)->recordAudit(new AuditEntryDto('testing.thing.'.str_repeat('a', 86), 'testing.'.str_repeat('b', 92), str_repeat('c', 64), null, AuditChanges::none()));
+
+        expect(latestAuditEntry()['subject_id'])->toBe(str_repeat('c', 64));
+    });
+
+    it('refuses an action or subject type not written as the module names them', function (string $action, string $subjectType) {
+        app(PlatformApi::class)->recordAudit(new AuditEntryDto($action, $subjectType, 'thing-1', null, AuditChanges::none()));
+    })->throws(InvalidArgumentException::class, 'must look like')->with([
+        'action with no resource' => ['testing.changed', 'testing.thing'],
+        'action with spaces' => ['Testing thing changed', 'testing.thing'],
+        'subject type with no resource' => ['testing.thing.changed', 'testing'],
+    ]);
+
+    it('refuses text PostgreSQL would refuse: a control character in an id, a NUL in a changed value', function (AuditEntryDto $entry) {
+        app(PlatformApi::class)->recordAudit($entry);
+    })->throws(InvalidArgumentException::class)->with([
+        'NUL in the subject id' => [new AuditEntryDto('testing.thing.changed', 'testing.thing', "thing\0one", null, AuditChanges::none())],
+        'line break in the subject id' => [new AuditEntryDto('testing.thing.changed', 'testing.thing', "thing\none", null, AuditChanges::none())],
+        'invalid UTF-8 in the subject id' => [new AuditEntryDto('testing.thing.changed', 'testing.thing', "thing\xC3\x28", null, AuditChanges::none())],
+        'NUL in a changed value' => [new AuditEntryDto('testing.thing.changed', 'testing.thing', 'thing-1', null, AuditChanges::none()->changed('colour', 'red', "blu\0e"))],
+    ]);
 });

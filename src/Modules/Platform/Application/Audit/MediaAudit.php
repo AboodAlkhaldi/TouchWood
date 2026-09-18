@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Modules\Platform\Domain\Model\Media;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
+use Modules\Platform\Public\Dto\MediaUseDto;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
 
 /**
@@ -57,9 +58,17 @@ final class MediaAudit
             ->changed('variants_queued_at', $queuedBefore?->format(DATE_ATOM), $media->variantsQueuedAt()?->format(DATE_ATOM)));
     }
 
-    public static function deleted(Media $media): AuditEntryDto
+    /**
+     * @param  list<MediaUseDto>  $detachedFrom  where the media was used until this delete
+     */
+    public static function deleted(Media $media, array $detachedFrom = []): AuditEntryDto
     {
-        return new AuditEntryDto('platform.media.deleted', self::SUBJECT, $media->id(), null, AuditChanges::none()
-            ->changed('checksum', $media->checksum(), null));
+        $changes = AuditChanges::none()->changed('checksum', $media->checksum(), null);
+
+        if ($detachedFrom !== []) {
+            $changes->changed('detached_from', array_map(fn (MediaUseDto $use): string => $use->describe(), $detachedFrom), null);
+        }
+
+        return new AuditEntryDto('platform.media.deleted', self::SUBJECT, $media->id(), null, $changes);
     }
 }

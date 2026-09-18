@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 use Modules\Platform\Domain\Exception\MediaInUse;
 use Modules\Platform\Domain\Model\Media;
 use Modules\Platform\Domain\Repository\MediaRepository;
+use Modules\Platform\Public\Dto\MediaUseDto;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
 use Modules\Platform\Public\Enums\MediaVisibility;
 use stdClass;
@@ -131,7 +132,10 @@ final readonly class DatabaseMediaRepository implements MediaRepository
             $this->db->transaction(fn () => $this->db->table(self::TABLE)->where('id', $media->id())->delete());
         } catch (QueryException $error) {
             if ($error->getCode() === self::FOREIGN_KEY_VIOLATION) {
-                throw new MediaInUse($media->id());
+                // The backstop: a reference no module reported. Name its table, from PostgreSQL's detail.
+                $table = preg_match('/referenced from table "([^"]+)"/', $error->getMessage(), $match) === 1 ? $match[1] : 'unknown';
+
+                throw new MediaInUse($media->id(), [new MediaUseDto($table, '', true)]);
             }
 
             throw $error;

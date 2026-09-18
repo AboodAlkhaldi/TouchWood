@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Application;
 
+use DateTimeImmutable;
 use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Settings\ReadSetting;
@@ -14,6 +15,7 @@ use Modules\Platform\Public\Dto\MediaDto;
 use Modules\Platform\Public\Dto\MediaUrlsDto;
 use Modules\Platform\Public\Dto\SettingValueDto;
 use Modules\Platform\Public\Dto\StoreDto;
+use Shared\Application\Actor;
 use Shared\Domain\ValueObject\StoreId;
 
 final readonly class PlatformApiImpl implements PlatformApi
@@ -63,5 +65,10 @@ final readonly class PlatformApiImpl implements PlatformApi
     public function recordAudit(AuditEntryDto $entry): void
     {
         $this->auditLog->record($entry);
+    }
+
+    public function recordImportedAudit(AuditEntryDto $entry, Actor $actor, DateTimeImmutable $occurredAt): void
+    {
+        $this->auditLog->recordImported($entry, $actor, $occurredAt);
     }
 }

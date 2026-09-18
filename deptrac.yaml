@@ -184,8 +184,9 @@ deptrac:
     InventoryPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]
     Inventory: [+InventoryPublic]
 
-    # Promotions → Platform, Access, Catalog, Pricing, Sales
-    PromotionsPublic: [Shared, Vendor, PlatformPublic, AccessPublic, CatalogPublic, PricingPublic, SalesPublic]
+    # Promotions → Platform, Access, Catalog, Pricing. Never Sales: Sales passes it the cart and
+    # the order facts it needs (owner, 2026-09-18).
+    PromotionsPublic: [Shared, Vendor, PlatformPublic, AccessPublic, CatalogPublic, PricingPublic]
     Promotions: [+PromotionsPublic]
 
     # Loyalty → Platform, Access

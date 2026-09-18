@@ -1,7 +1,7 @@
 # Module specifications
 
 One file per module, written and reviewed before the module's first line of code.
-Platform comes first in the build order (handoff §20); Access then sets the shape every
+Platform comes first in the build order (handoff §17), and its specification is the shape every
 later module follows (handoff §18).
 
 Each specification contains, in this order:
@@ -32,7 +32,7 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Platform | [approved](platform.md) — **Stage 1 delivery implemented** (spec §3); admin view use cases come with Access. See [its README](../../src/Modules/Platform/README.md) | — |
 | Access | not started | — |
 | B2B | not started | — |
-| Feedback | not started | — |
+| Feedback | not started | Catalog, Sales — built with Sales (stage 6) |
 | Catalog | not started | external provider schema + real product sample |
 | Pricing | not started | Catalog |
 | Inventory | not started | Catalog |

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Http\ProblemDetails;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\Error\ErrorCategory;
 use Shared\Domain\ValueObject\MoneyException;
-use Shared\Infrastructure\Http\ProblemDetails;
 
 it('maps every error category to its HTTP status', function (ErrorCategory $category, int $status) {
     expect(ProblemDetails::status($category))->toBe($status);

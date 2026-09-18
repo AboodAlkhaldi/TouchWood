@@ -51,6 +51,7 @@ function defineTestSettings(): void
         new SettingDefinitionDto('testing.otp.max_resends', SettingScope::Store, SettingType::Integer, ['min:1', 'max:10'], 3, 'testing.settings.update'),
         new SettingDefinitionDto('testing.maintenance.enabled', SettingScope::Global, SettingType::Boolean, [], false, 'testing.maintenance.update'),
         new SettingDefinitionDto('testing.sms.sender_name', SettingScope::Global, SettingType::Text, ['max:11'], 'TouchWood', 'testing.settings.update'),
+        new SettingDefinitionDto('testing.bank.iban', SettingScope::Store, SettingType::Text, [], 'SA00', 'testing.settings.update', sensitive: true),
     );
 }
 
@@ -73,6 +74,33 @@ describe('declaring', function () {
     it('refuses a key that does not follow module.area.name', function (string $key) {
         app(SettingsRegistry::class)->define('testing', new SettingDefinitionDto($key, SettingScope::Global, SettingType::Boolean, [], false, 'testing.settings.update'));
     })->throws(InvalidSettingDefinition::class)->with(['testing.enabled', 'Testing.Otp.Max', 'testing..max', 'testing.otp.max-resends', "testing.otp.max\n"]);
+
+    it('refuses a setting that looks like a secret: secrets live in server environment variables', function (string $key) {
+        app(SettingsRegistry::class)->define('testing', new SettingDefinitionDto($key, SettingScope::Global, SettingType::Text, [], 'x', 'testing.settings.update'));
+    })->throws(InvalidSettingDefinition::class, 'looks like a secret')->with([
+        'testing.sms.api_key', 'testing.gateway.apikey', 'testing.odoo.password', 'testing.bank.client_secret',
+        'testing.storage.access_key', 'testing.signing.private_key', 'testing.odoo.credentials',
+        'testing.odoo.access_token', 'testing.sms.api_token', 'testing.webhook.signing_key',
+        'testing.webhook.hmac_key', 'testing.mail.smtp_pass', 'testing.files.encryption_key',
+        // More words may follow the secret.
+        'testing.tap.secret_key_live', 'testing.tap.api_key_test', 'testing.mail.password_encrypted',
+        'testing.bank.client_secret_prod', 'testing.webhook.secret_v2', 'testing.odoo.password_hash',
+        'testing.gpg.passphrase', 'testing.tap.merchant_key', 'testing.maps.license_key',
+        // A secret in any segment, not only the last.
+        'testing.api_key.live',
+    ]);
+
+    it('does not mistake an ordinary name for a secret', function (string $key) {
+        app(SettingsRegistry::class)->define('testing', new SettingDefinitionDto($key, SettingScope::Global, SettingType::Integer, [], 6, 'testing.settings.update'));
+
+        expect(app(PlatformApi::class)->setting($key)->int())->toBe(6);
+    })->with([
+        'testing.otp.token_length', 'testing.keys.per_page', 'testing.secretary.count',
+        // A policy about a secret is not a secret.
+        'testing.accounts.password_min_length', 'testing.accounts.password_expiry_days',
+        'testing.password.min_length', 'testing.token.lifetime_minutes', 'testing.api_key.rotation_days',
+        'testing.exam.pass_mark',
+    ]);
 
     it('refuses a key that belongs to another module', function () {
         app(SettingsRegistry::class)->define('loyalty', new SettingDefinitionDto('testing.points.expiry_days', SettingScope::Store, SettingType::Integer, [], 365, 'loyalty.settings.update'));
@@ -201,6 +229,16 @@ describe('changing', function () {
         expect($entry['store_id'])->toBe(storeIdFor('eg')->value)
             ->and($changes)->toEqual(['key' => ['testing.otp.max_resends', 'testing.otp.max_resends'], 'value' => [3, 7]]);
         Event::assertDispatched(SettingChanged::class, fn (SettingChanged $event): bool => $event->key === 'testing.otp.max_resends' && $event->storeId === storeIdFor('eg')->value);
+    });
+
+    it('records only that a sensitive setting changed, never its values', function () {
+        setSetting('testing.bank.iban', 'sa', 'SA0380000000608010167519');
+
+        $entry = (array) DB::table('platform.audit_entries')->where('action', 'platform.setting.updated')->first();
+
+        expect(json_decode((string) $entry['changes'], true))->toBe(['key' => ['testing.bank.iban', 'testing.bank.iban'], 'value' => 'changed'])
+            ->and((string) $entry['changes'])->not->toContain('SA03')
+            ->and(app(PlatformApi::class)->setting('testing.bank.iban', storeIdFor('sa'))->string())->toBe('SA0380000000608010167519');
     });
 
     it('writes and audits nothing when the value is unchanged', function () {

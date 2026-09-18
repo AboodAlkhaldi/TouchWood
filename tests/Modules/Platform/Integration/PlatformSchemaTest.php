@@ -7,6 +7,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Modules\Platform\Public\Enums\AuditSource;
+use Modules\Platform\Public\Enums\MediaVariantsStatus;
+use Modules\Platform\Public\Enums\MediaVisibility;
+use Shared\Application\ActorType;
 
 uses(RefreshDatabase::class);
 
@@ -47,7 +51,8 @@ function insertStoreRow(array $overrides = []): void
 function insertAuditRow(array $overrides = []): void
 {
     DB::table('platform.audit_entries')->insert([
-        'occurred_at' => now(),
+        // Both dates come from the database clock by default.
+        'source' => 'CONSOLE',
         'actor_type' => 'SYSTEM',
         'actor_id' => null,
         'action' => 'testing.thing.changed',
@@ -103,6 +108,7 @@ it('creates every index from the spec', function () {
         'audit_entries_subject_idx',
         'audit_entries_store_idx',
         'audit_entries_actor_idx',
+        'audit_entries_requested_by_idx',
         'audit_entries_action_idx',
         'settings_store_key_unique',
         'platform_media_disk_object_key_unique',
@@ -132,6 +138,10 @@ it('creates every check constraint and foreign key from the spec', function () {
         'platform_stores_currency_code_foreign',
         'audit_entries_actor_type',
         'audit_entries_actor_id',
+        'audit_entries_requested_by',
+        'audit_entries_source',
+        'audit_entries_job_acts_as_system',
+        'audit_entries_backdated_import_only',
         'audit_entries_ip_staff_only',
         'platform_audit_entries_store_id_foreign',
         'platform_settings_store_id_foreign',
@@ -159,7 +169,7 @@ it('stores enum columns as strings, never integers', function () {
         ->where('table_schema', 'platform')
         ->where(fn ($query) => $query
             ->where('column_name', 'like', '%\_type')
-            ->orWhereIn('column_name', ['status', 'scope', 'visibility', 'variants_status']))
+            ->orWhereIn('column_name', ['status', 'scope', 'visibility', 'variants_status', 'source']))
         ->get(['table_name', 'column_name', 'data_type']);
 
     expect($enumColumns)->not->toBeEmpty();
@@ -168,6 +178,22 @@ it('stores enum columns as strings, never integers', function () {
         expect($column->data_type)->toBe('character varying', "{$column->table_name}.{$column->column_name} must be stored as a string");
     }
 });
+
+it('allows in each enum column exactly the values of its PHP enum', function (string $constraint, array $cases) {
+    // A new enum case the CHECK does not know would pass every unit test and fail on insert.
+    $definition = DB::selectOne('select pg_get_constraintdef(oid) as definition from pg_constraint where conname = ?', [$constraint])?->definition;
+    // The IN list: PostgreSQL shows it as ARRAY[...]. Other literals in the CHECK are not enum values.
+    preg_match('/ARRAY\[([^\]]*)\]/', (string) $definition, $list);
+    preg_match_all("/'([A-Z_]+)'::/", $list[1] ?? '', $allowed);
+
+    expect($allowed[1])->toEqualCanonicalizing(array_map(fn (BackedEnum $case): string|int => $case->value, $cases));
+})->with([
+    'actor types' => ['audit_entries_actor_type', ActorType::cases()],
+    'requester types: anyone but the system' => ['audit_entries_requested_by', array_filter(ActorType::cases(), fn (ActorType $type): bool => $type !== ActorType::System)],
+    'audit sources' => ['audit_entries_source', AuditSource::cases()],
+    'media visibility' => ['media_visibility', MediaVisibility::cases()],
+    'variant states' => ['media_variants_status', MediaVariantsStatus::cases()],
+]);
 
 it('uses the column types from the spec', function () {
     expect(platformColumnTypes('stores'))->toMatchArray([
@@ -214,6 +240,14 @@ it('refuses rows that break the rules, even when they skip the domain', function
     'audit entry with an unknown actor type' => [fn () => insertAuditRow(['actor_type' => 'ROBOT', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_actor_type'],
     'system audit entry with an actor id' => [fn () => insertAuditRow(['actor_type' => 'SYSTEM', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_actor_id'],
     'staff audit entry without an actor id' => [fn () => insertAuditRow(['actor_type' => 'STAFF', 'actor_id' => null]), 'audit_entries_actor_id'],
+    'a requester on an entry the system did not make' => [fn () => insertAuditRow(['actor_type' => 'STAFF', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3', 'requested_by_type' => 'STAFF', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_requested_by'],
+    'a requester type without an id' => [fn () => insertAuditRow(['requested_by_type' => 'STAFF']), 'audit_entries_requested_by'],
+    'the system requested by the system' => [fn () => insertAuditRow(['source' => 'JOB', 'requested_by_type' => 'SYSTEM', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_requested_by'],
+    'a requester outside a queued job' => [fn () => insertAuditRow(['requested_by_type' => 'STAFF', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_requested_by'],
+    'an unknown source' => [fn () => insertAuditRow(['source' => 'EMAIL']), 'audit_entries_source'],
+    'a job entry made by a person' => [fn () => insertAuditRow(['source' => 'JOB', 'actor_type' => 'STAFF', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_job_acts_as_system'],
+    'a back-dated entry that is not an import' => [fn () => insertAuditRow(['occurred_at' => '2019-05-01 10:00:00+00']), 'audit_entries_backdated_import_only'],
+    'an import dated in the future' => [fn () => insertAuditRow(['source' => 'IMPORT', 'occurred_at' => '2999-01-01 00:00:00+00']), 'audit_entries_backdated_import_only'],
     'media with an unknown visibility' => [fn () => insertMediaRow(['visibility' => 'SECRET']), 'media_visibility'],
     'media with an unknown variants status' => [fn () => insertMediaRow(['variants_status' => 'DONE']), 'media_variants_status'],
     'pending media never queued' => [fn () => insertMediaRow(['variants_queued_at' => null]), 'media_variants_queued'],
@@ -232,6 +266,17 @@ it('deduplicates public images by checksum, but never private files', function (
 
     expect(fn () => insertMediaRow(['checksum' => $checksum]))->toThrow(QueryException::class, 'media_public_checksum_unique');
 });
+
+it('accepts guests and integrations as actors, and the system acting for one of them', function (array $row) {
+    insertAuditRow($row);
+
+    expect(DB::table('platform.audit_entries')->count())->toBe(1);
+})->with([
+    'a guest' => [['actor_type' => 'GUEST', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']],
+    'an integration' => [['actor_type' => 'INTEGRATION', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']],
+    'the system for a staff member, in a job' => [['source' => 'JOB', 'requested_by_type' => 'STAFF', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']],
+    'an import with its real date' => [['source' => 'IMPORT', 'occurred_at' => '2019-05-01 10:00:00+00']],
+]);
 
 it('refuses a second store with the same code', function () {
     insertCurrencyRow();

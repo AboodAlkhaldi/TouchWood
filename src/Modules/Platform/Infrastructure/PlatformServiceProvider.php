@@ -7,13 +7,18 @@ namespace Modules\Platform\Infrastructure;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Factory as Filesystems;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Queue\Events\JobAttempted;
+use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Media\ImageVariantGenerator;
+use Modules\Platform\Application\Media\InMemoryMediaUsages;
 use Modules\Platform\Application\Media\MediaInspector;
 use Modules\Platform\Application\Media\MediaSettings;
 use Modules\Platform\Application\Media\MediaStorage;
@@ -21,12 +26,12 @@ use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Application\PlatformApiImpl;
 use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Application\Query\StoreDirectory;
+use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Application\Settings\SettingValues;
 use Modules\Platform\Domain\Repository\CurrencyRepository;
 use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Domain\Repository\StoreRepository;
-use Modules\Platform\Domain\ValueObject\StoreCode;
 use Modules\Platform\Infrastructure\Eloquent\CachedStoreDirectory;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditLog;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseMediaReader;
@@ -37,12 +42,20 @@ use Modules\Platform\Infrastructure\Eloquent\EloquentStoreRepository;
 use Modules\Platform\Infrastructure\External\FinfoMediaInspector;
 use Modules\Platform\Infrastructure\External\InterventionImageVariantGenerator;
 use Modules\Platform\Infrastructure\External\LaravelMediaStorage;
+use Modules\Platform\Infrastructure\Queue\JobActorState;
+use Modules\Platform\Infrastructure\Queue\JobAwareActorContext;
 use Modules\Platform\Infrastructure\Queue\LaravelMediaVariantsQueue;
+use Modules\Platform\Infrastructure\Queue\QueuedActor;
+use Modules\Platform\Infrastructure\Queue\RequeueStuckMediaVariantsJob;
 use Modules\Platform\Presentation\Console\CreateCurrencyCommand;
 use Modules\Platform\Presentation\Console\CreateStoreCommand;
 use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
+use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
+use Modules\Platform\Presentation\Http\StorefrontLanguage;
+use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Psr\Log\LoggerInterface;
 use Shared\Application\ActorContext;
@@ -68,16 +81,51 @@ final class PlatformServiceProvider extends ServiceProvider
         MediaInspector::class => FinfoMediaInspector::class,
         ImageVariantGenerator::class => InterventionImageVariantGenerator::class,
         MediaVariantsQueue::class => LaravelMediaVariantsQueue::class,
+        // Process-wide on purpose: the queue worker runs jobs one after another in one process.
+        JobActorState::class => JobActorState::class,
     ];
 
     public function register(): void
     {
         $this->app->alias(LaravelStoreContext::class, StoreContext::class);
         $this->app->alias(InMemorySettingsRegistry::class, SettingsRegistry::class);
+        // Bound here, not in $singletons: Laravel applies that list only after register() returns, and
+        // Platform reserves its own paths just below. Other modules reserve in their register().
+        $this->app->singleton(InMemoryReservedPaths::class);
+        $this->app->alias(InMemoryReservedPaths::class, ReservedPaths::class);
+
+        // Paths the application keeps for itself until a module that owns them exists: the health
+        // check, built assets, public files and signed file links, the admin panel and the API.
+        $this->app->make(ReservedPaths::class)->reserve('platform', 'up', 'build', 'storage', 'admin', 'api');
+
+        // Modules that store media ids register here, so deleting media detaches or refuses.
+        $this->app->singleton(InMemoryMediaUsages::class);
+        $this->app->alias(InMemoryMediaUsages::class, MediaUsages::class);
+
+        // One pattern for {store} on every route, built from every module's reserved paths, so no
+        // module imports Platform's interior to register storefront routes. Built after every
+        // provider's register() and before any boot(): Laravel copies a global pattern into a route
+        // only when the route is created, so a module whose provider boots before Platform's still
+        // gets it. Frozen afterwards: a later reservation would be missing from the pattern.
+        $this->app->booting(function (Application $app): void {
+            $reservedPaths = $app->make(InMemoryReservedPaths::class);
+            Route::pattern('store', $reservedPaths->routePattern());
+            Route::pattern('locale', $app->make(StorefrontLanguage::class)->routePattern());
+            $reservedPaths->freeze();
+        });
+
+        // Process-wide: a web server process serves requests only; in the console, TrackHttpRequest
+        // marks the requests tests send.
+        $this->app->singleton(HttpRequestState::class, fn (Application $app): HttpRequestState => new HttpRequestState(! $app->runningInConsole()));
 
         // Anything that depends on who is acting lives for one request or one job, never the
         // whole process — a queue worker must not audit or authorize as an earlier job's actor.
         $this->app->scoped(ActorContext::class, SystemActorContext::class); // interim until Access
+        // Wraps this binding and Access's later one: a queued job acts as the system on behalf of
+        // whoever queued it (owner's decision, 2026-09-18).
+        $this->app->extend(ActorContext::class, fn (ActorContext $actors, Application $app): ActorContext => $actors instanceof JobAwareActorContext
+            ? $actors
+            : new JobAwareActorContext($actors, $app->make(JobActorState::class)));
         // Interim until Access. Web requests are refused: with no login, nobody there is the system.
         $this->app->scoped(Authorizer::class, fn (Application $app): Authorizer => new SystemOnlyAuthorizer(
             $app->make(ActorContext::class),
@@ -94,6 +142,10 @@ final class PlatformServiceProvider extends ServiceProvider
                 'private_disk' => (string) config('platform.media.private_disk'),
             ],
         ));
+        $this->app->singleton(StorefrontLanguage::class, fn (): StorefrontLanguage => new StorefrontLanguage(
+            array_values(array_map(strval(...), (array) config('platform.locales'))),
+            (string) config('app.locale'),
+        ));
         $this->app->singleton(MediaReader::class, fn (Application $app): MediaReader => new DatabaseMediaReader(
             $app->make(MediaRepository::class),
             $app->make(MediaStorage::class),
@@ -109,17 +161,20 @@ final class PlatformServiceProvider extends ServiceProvider
         $this->loadViewsFrom($presentation.'/views', 'platform');
         $this->loadTranslationsFrom($presentation.'/lang', 'platform');
 
-        // One pattern for {store} on every route, so other modules never import Platform's
-        // interior to register storefront routes.
-        Route::pattern('store', StoreCode::ROUTE_PATTERN);
         $router->aliasMiddleware(ResolveStore::ALIAS, ResolveStore::class);
+
+        // On every request, so the audit log can tell a web change from a console or queued one.
+        $this->app->make(HttpKernel::class)->pushMiddleware(TrackHttpRequest::class);
 
         $this->app->make(SettingsRegistry::class)->define('platform', ...MediaSettings::definitions());
 
-        // Images whose variant job was lost are queued again (owner's decision, 2026-09-16).
+        // Images whose variant job was lost are queued again (owner's decision, 2026-09-16). Scheduled
+        // work runs as a queued job, so its audit source is JOB (owner's decision, 2026-09-18).
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
-            $schedule->command(RequeueStuckMediaVariantsCommand::NAME)->everyTenMinutes()->withoutOverlapping()->onOneServer();
+            $schedule->job(RequeueStuckMediaVariantsJob::class)->everyTenMinutes()->onOneServer();
         });
+
+        $this->carryActorIntoQueuedJobs();
 
         // A fresh or rolled-back schema must not be served from a cache built on the old one.
         Event::listen(MigrationsEnded::class, function (): void {
@@ -134,5 +189,27 @@ final class PlatformServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([CreateCurrencyCommand::class, CreateStoreCommand::class, RequeueStuckMediaVariantsCommand::class]);
         }
+    }
+
+    /**
+     * The actor who queues a job is written into its payload; while the job runs it acts as the
+     * system on that actor's behalf, and afterwards the previous actor is back (with the "sync"
+     * queue a job runs inside the request that queued it).
+     */
+    private function carryActorIntoQueuedJobs(): void
+    {
+        Queue::createPayloadUsing(fn (): array => QueuedActor::payloadFor($this->app->make(ActorContext::class)->current()));
+
+        $jobs = $this->app->make(JobActorState::class);
+
+        Event::listen(JobProcessing::class, function (JobProcessing $event) use ($jobs): void {
+            $jobs->enter(spl_object_id($event->job), QueuedActor::actorFor($event->job->payload()));
+        });
+
+        // JobAttempted fires in a finally block, after a failed job's failed() method has run, on
+        // the worker and on the sync queue alike — so failed() still acts as the system.
+        Event::listen(JobAttempted::class, function (JobAttempted $event) use ($jobs): void {
+            $jobs->leave(spl_object_id($event->job));
+        });
     }
 }

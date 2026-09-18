@@ -11,7 +11,9 @@ use Illuminate\Support\Str;
 use Modules\Platform\Application\Audit\StoreAudit;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Query\StoreDirectory;
+use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Domain\Exception\CurrencyNotFound;
+use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
 use Modules\Platform\Domain\Exception\StoreCodeTaken;
 use Modules\Platform\Domain\Model\Store;
 use Modules\Platform\Domain\Repository\CurrencyRepository;
@@ -39,6 +41,7 @@ final readonly class CreateStoreHandler
         private Dispatcher $events,
         private StoreDirectory $directory,
         private AuditLog $auditLog,
+        private InMemoryReservedPaths $reservedPaths,
     ) {}
 
     public function handle(CreateStore $command): StoreId
@@ -46,6 +49,11 @@ final readonly class CreateStoreHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $code = StoreCode::fromString($command->code);
+
+        // A store named after a top-level path of the application could never be reached.
+        if ($this->reservedPaths->isReserved($code->value)) {
+            throw new InvalidStoreAttribute('code', "\"{$code->value}\" is reserved for the application");
+        }
         $currency = CurrencyCode::fromString($command->currencyCode);
 
         $store = Store::create(

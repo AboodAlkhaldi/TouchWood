@@ -90,7 +90,7 @@ src/Modules/{Name}/
 │
 ├── Public/                 ← THE ONLY NAMESPACE OTHER MODULES MAY IMPORT
 │   ├── Contracts/          {Name}Api.php — the module's interface
-│   ├── Dto/                spatie/laravel-data objects crossing the boundary
+│   ├── Dto/                Plain final readonly classes crossing the boundary
 │   ├── Events/             Integration events. Carry IDs, never payloads.
 │   └── Enums/              Backed enums other modules need to read
 │
@@ -165,15 +165,19 @@ src/Shared/
 │   ├── Error/            DomainError · ErrorCategory
 │   └── ValueObject/      Money · MoneyException · StoreId
 ├── Application/          StoreContext · MissingStoreContext · CrossStoreWrite
-│                         Authorizer · Unauthorized · ActorContext · Actor · ActorType
+│                         Authorizer · PermissionScope · Unauthorized
+│                         ActorContext · Actor · ActorType · CorrelationId
 └── Infrastructure/
-    ├── Http/             AssignCorrelationId · ProblemDetails
     └── Persistence/      BelongsToStore · StoreScope
 ```
 
-Planned by the handoff, added only when a module needs them: `Sku`, `Quantity`, `Locale`,
-`Percentage`, `Weight`, `Dimensions`, `DomainEvent`, `IntegrationEvent`, `AggregateRoot`,
-`Clock`, `CommandBus`, `EventBus`.
+The error renderer (`ProblemDetails`) and the correlation-id middleware are framework glue and live
+in `app/Http` (owner, 2026-09-18); only the correlation id's Context key stays in the kernel.
+
+Candidates from the handoff, each added only when three or more modules need it — otherwise it
+stays in its module: `Sku`, `Quantity`, `Locale`, `Percentage`, `Weight`, `Dimensions`,
+`DomainEvent`, `IntegrationEvent`, `AggregateRoot`, `Clock`. No `CommandBus` or `EventBus`:
+Laravel's own dispatcher does that job (owner, 2026-09-18).
 
 **Hard rule: if Shared grows past ~20 classes, something has leaked into it.**
 A type belongs here only if three or more modules genuinely need it and it will
@@ -207,7 +211,7 @@ Catalog   →  Platform
 Pricing   →  Platform, Catalog, B2B          ← B2B for company approval status
 Inventory →  Platform, Catalog
 
-Promotions→  Platform, Access, Catalog, Pricing, Sales
+Promotions→  Platform, Access, Catalog, Pricing   ← Sales passes it the cart and the order facts
 Loyalty   →  Platform, Access
 Shipping  →  Platform, Catalog
 Payments  →  Platform                         ← takes an order id + amount, nothing more
@@ -316,18 +320,18 @@ happening again.
 STAGE 1   Platform      stores, currencies, tax, settings, media, audit
 STAGE 2   Access        identity, auth, verification, RBAC, staff, addresses, 2FA
 STAGE 3   B2B           company lifecycle
-STAGE 4   Feedback      reviews + product Q&A  (touches the Catalog schema)
 ──────────── everything above depends on nothing external ────────────
-STAGE 5   Catalog       BLOCKED on the external provider schema
-STAGE 6   Pricing · Inventory · Sync
-STAGE 7   Sales · Promotions · Loyalty
-STAGE 8   Payments · Shipping        (blocked on vendor data)
-STAGE 9   Content · Ops
-STAGE 10  Migration, hardening, launch
+STAGE 4   Catalog       BLOCKED on the external provider schema
+STAGE 5   Pricing · Inventory · Sync
+STAGE 6   Sales · Promotions · Loyalty · Feedback
+STAGE 7   Payments · Shipping        (blocked on vendor data)
+STAGE 8   Content · Ops
+STAGE 9   Migration, hardening, launch
 ```
 
 Platform comes before Access because store context is a parameter of nearly everything
 in Access — staff store scoping, per-store settings, per-store verification config.
+Feedback is built with Sales, because reviews need a verified purchase (owner, 2026-09-18).
 
 ---
 
@@ -345,5 +349,5 @@ Every module specification, without exception, contains:
 8. The test scenario list
 9. A register of open questions that module raised
 
-`docs/modules/{name}.md`. Access is written first and every later module follows its
-shape.
+`docs/modules/{name}.md`. Platform was written first (`docs/modules/platform.md`) and every
+later module follows its shape.

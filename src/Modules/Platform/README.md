@@ -44,8 +44,18 @@ $this->app->make(SettingsRegistry::class)->define('loyalty',
 ```
 
 ```php
-// Storefront routes: the "store" middleware resolves /{store}/... and sets store context.
-Route::prefix('{store}')->middleware('store')->group(...);
+// Storefront routes: the "store" middleware resolves /{store}/{locale}/..., sets the store context
+// and the app locale, and fills both into every link it generates.
+Route::prefix('{store}/{locale}')->middleware('store')->group(...);
+
+// A top-level URL your module owns: reserve it in register(), so no store can take it.
+$this->app->make(ReservedPaths::class)->reserve('payments', 'webhooks');
+```
+
+```php
+// If your module stores media ids: in a column with a RESTRICT foreign key to platform.media, and
+// registered so that deleting the media detaches it from your records, or is refused.
+$this->app->make(MediaUsages::class)->register('catalog', ProductImageUsage::class);
 ```
 
 Listen to `Public/Events/*` (`StoreUpdated`, `SettingChanged`, `MediaVariantsReady`…). They carry
@@ -57,7 +67,7 @@ ids only and are dispatched after the transaction commits.
 
 | Folder | Contents |
 |---|---|
-| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, DTOs, enums, events. |
+| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, DTOs, enums, events. |
 | `Domain/Model` | `Store`, `Currency`, `Media`: plain PHP classes holding the rules, with no Laravel inside. |
 | `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. |
 | `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |
@@ -149,6 +159,8 @@ reaches all of them.
 - **Types are checked strictly before any rule runs.** `"5"` is not an integer and `1` is not a
   boolean. Laravel's own rules would accept both.
 - **Reading a declared key never fails:** it returns the stored value or the default.
+- **No secrets.** API keys and passwords live in server environment variables; a key named like one
+  is refused at boot. A **sensitive** setting is audited only as "changed".
 - **Values are cached** with the same `VersionedCache`, because modules read settings on hot
   paths such as OTP limits.
 
@@ -158,10 +170,29 @@ reaches all of them.
 - `AuditLog::record()` throws when called outside a transaction, so a change and its entry
   always commit or roll back together.
 - Personal fields (names, emails, phones, addresses, uploaded file names) are recorded only as
-  `"changed"`. `AuditChanges::personal()` accepts no value at all, so personal data can never
-  reach the log, and anonymizing an account never has to rewrite history.
+  `"changed"`: the caller records them with `AuditChanges::personal()`, which accepts no value at
+  all, so anonymizing an account never has to rewrite history. `changed()` refuses an attribute
+  named like personal data (`email`, `contact_phone`, `billing_address`, `first_name`,
+  `national_id`, `iban`…). It goes by the name only: a person's plain `name`, or a name the list
+  does not know, must still be marked personal by its module.
 - The actor, time and correlation id are filled in automatically. The IP address is filled in
-  only for staff, and a CHECK constraint refuses it on any other entry.
+  only for a staff member's web request, and a CHECK constraint refuses it on any entry not by staff.
+- **Every entry has a source** Platform works out itself: `WEB`, `INTEGRATION` (a request made by an
+  integration), `CONSOLE`, `JOB` or `IMPORT`. Inside a queued job — the job's own actor is used,
+  whatever `ActorContext` binding is in place — it is `JOB`. Otherwise it is a request when PHP runs
+  under a web server (which includes work after the response is sent), or, in the console, while the
+  global `TrackHttpRequest` middleware handles a request (tests send requests from the console).
+- **Checked before the database.** The audit writer refuses an unknown store, a value too long for
+  its column, a malformed action or subject type, control characters in an id, a NUL in a changed
+  value, and a requester outside a job, with a clear message.
+- **Nothing can be back-dated.** `occurred_at` and `recorded_at` come from PostgreSQL's clock and a
+  CHECK keeps them equal. Only `recordImportedAudit` — system only, past dates only — gives old history
+  its real date, and `recorded_at` still shows when it was written.
+- A queued job acts as the **system**, and its entries also record **who queued it**
+  (`requested_by_type`/`requested_by_id`). The payload of every queued job carries the requester
+  (`QueuedActor`); while the job runs, `JobAwareActorContext` — which wraps whatever `ActorContext` is
+  bound, Access's included — answers "the system, on behalf of X". With the `sync` queue a job runs
+  inside the request, so the request's own actor comes back when the job ends.
 
 ### Media
 
@@ -217,12 +248,18 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
   the whole image, limits only its longest side (200 / 600 / 1200 / 2400 px) and never enlarges.
   Photos are turned upright, metadata is stripped, and transparency becomes white in JPEG.
 - **Lost jobs are recovered.** `variants_queued_at` records when generation was last queued. An
-  image still PENDING 15 minutes later is queued again by `platform:media:requeue-stuck`, which
-  the scheduler runs every 10 minutes, or by staff pressing Retry.
+  image still PENDING 15 minutes later is queued again by the sweep, which the scheduler queues as
+  a job every 10 minutes (`RequeueStuckMediaVariantsJob`, so its audit source is JOB), or by staff
+  pressing Retry. `platform:media:requeue-stuck` runs the same sweep by hand.
 - **Reads never lock.** `PlatformApi::media()` and `mediaUrls()` read without `FOR UPDATE`, so a
   storefront page never waits on, or blocks, a change.
-- **Media in use cannot be deleted.** Other modules reference `platform.media(id)` with
-  `ON DELETE RESTRICT`. The database refuses the delete and Platform reports `MediaInUse`.
+- **Media another module uses is detached or blocked.** A module that stores media ids registers a
+  `MediaUsage` with `MediaUsages`. Before deleting, `DeleteMediaHandler` locks the media row and asks
+  every module where it uses it: a blocking use (a legal document) refuses the delete with
+  `MediaInUse` naming it; otherwise each module detaches its references — checking the person's
+  permission for its own change and auditing it — and the media is deleted, all in one transaction.
+  The deletion's audit entry lists where the media was used. Other modules' `ON DELETE RESTRICT`
+  foreign keys stay as the backstop: a reference nobody reported still becomes `MediaInUse`.
 - **Private files** are served only through signed links that expire after 30 minutes. On
   S3-compatible storage they download under their original name; Laravel's local disk ignores that
   and serves them under their object key. They never get variants and never go through the CDN.
@@ -257,7 +294,7 @@ The server needs:
 - **A queue worker** for variant generation. The job stops after 80 seconds, below the queue's
   90-second `retry_after`.
 - **The scheduler** (`php artisan schedule:work`, or cron running `schedule:run`) for the
-  stuck-image sweep.
+  stuck-image sweep, which it queues as a job — so the queue worker runs the sweep too.
 
 ---
 

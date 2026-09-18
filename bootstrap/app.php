@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\AssignCorrelationId;
+use App\Http\ProblemDetails;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Shared\Infrastructure\Http\AssignCorrelationId;
-use Shared\Infrastructure\Http\ProblemDetails;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(

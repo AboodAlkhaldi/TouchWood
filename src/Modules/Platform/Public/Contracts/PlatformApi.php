@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Public\Contracts;
 
+use DateTimeImmutable;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Dto\CurrencyDto;
 use Modules\Platform\Public\Dto\MediaDto;
 use Modules\Platform\Public\Dto\MediaUrlsDto;
 use Modules\Platform\Public\Dto\SettingValueDto;
 use Modules\Platform\Public\Dto\StoreDto;
+use Shared\Application\Actor;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -55,7 +57,14 @@ interface PlatformApi
     public function mediaUrls(string $mediaId): ?MediaUrlsDto;
 
     /**
-     * Call inside the transaction of the change being audited, after checking permission.
+     * Call inside the transaction of the change being audited, after checking permission. Platform
+     * records the actor, the source (web, integration, console or job) and the date itself.
      */
     public function recordAudit(AuditEntryDto $entry): void;
+
+    /**
+     * For the data migration only: history from the old system keeps its real date and actor, and
+     * is marked as imported. Runs as the system, inside a transaction; the date must be past.
+     */
+    public function recordImportedAudit(AuditEntryDto $entry, Actor $actor, DateTimeImmutable $occurredAt): void;
 }

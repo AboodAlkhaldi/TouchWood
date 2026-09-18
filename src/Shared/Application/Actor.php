@@ -6,34 +6,79 @@ namespace Shared\Application;
 
 use InvalidArgumentException;
 
+/**
+ * Who is acting. Every id is a ULID (owner's decision, 2026-09-18). An id is an identifier, never
+ * a secret: a guest's id is safe to store in the audit log forever, and whatever proves that a cart
+ * is theirs (an encrypted cookie, an app's token) is kept apart from it. An integration's id is its
+ * settings record, so replacing a provider changes that record and never the audit format.
+ *
+ * Queued jobs act as the system. When a person's (or an integration's) action started the job,
+ * the system actor carries that requester, so the audit log still shows who asked for the work.
+ */
 final readonly class Actor
 {
+    /** Crockford base32; the first character is at most 7, or the value would not fit in 128 bits. */
+    private const string ULID = '/\A[0-7][0-9A-HJKMNP-TV-Z]{25}\z/i';
+
     private function __construct(
         public ActorType $type,
         public ?string $id,
+        public ?Actor $requestedBy,
     ) {}
 
-    public static function system(): self
+    /**
+     * @param  Actor|null  $requestedBy  whose action started this system work, if anyone's
+     */
+    public static function system(?self $requestedBy = null): self
     {
-        return new self(ActorType::System, null);
+        // Work started by other system work keeps the original requester.
+        if ($requestedBy?->type === ActorType::System) {
+            $requestedBy = $requestedBy->requestedBy;
+        }
+
+        return new self(ActorType::System, null, $requestedBy);
     }
 
     public static function staff(string $id): self
     {
-        return new self(ActorType::Staff, self::requireId($id));
+        return new self(ActorType::Staff, self::requireUlid($id), null);
     }
 
     public static function customer(string $id): self
     {
-        return new self(ActorType::Customer, self::requireId($id));
+        return new self(ActorType::Customer, self::requireUlid($id), null);
     }
 
-    private static function requireId(string $id): string
+    public static function guest(string $id): self
     {
-        if ($id === '') {
-            throw new InvalidArgumentException('A staff or customer actor needs an id.');
+        return new self(ActorType::Guest, self::requireUlid($id), null);
+    }
+
+    public static function integration(string $id): self
+    {
+        return new self(ActorType::Integration, self::requireUlid($id), null);
+    }
+
+    /**
+     * Rebuilds an actor that was stored as its type and id, e.g. in a queued job's payload.
+     */
+    public static function of(ActorType $type, ?string $id): self
+    {
+        return match ($type) {
+            ActorType::System => self::system(),
+            ActorType::Staff => self::staff((string) $id),
+            ActorType::Customer => self::customer((string) $id),
+            ActorType::Guest => self::guest((string) $id),
+            ActorType::Integration => self::integration((string) $id),
+        };
+    }
+
+    private static function requireUlid(string $id): string
+    {
+        if (preg_match(self::ULID, $id) !== 1) {
+            throw new InvalidArgumentException("An actor's id must be a ULID, \"{$id}\" is not.");
         }
 
-        return $id;
+        return strtolower($id);
     }
 }
