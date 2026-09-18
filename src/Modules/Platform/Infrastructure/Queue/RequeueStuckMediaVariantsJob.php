@@ -14,8 +14,9 @@ use Modules\Platform\Application\Command\RequeueStuckMediaVariants\RequeueStuckM
 
 /**
  * The sweep, queued by the scheduler every ten minutes (PlatformServiceProvider). Scheduled work
- * runs as a queued job so its audit source is JOB (owner's decision, 2026-09-18). Unique: a sweep
- * still waiting or running is never queued a second time.
+ * runs as a queued job, so anything it audits says JOB (owner's decision, 2026-09-18); the sweep
+ * itself is system maintenance and audits nothing. Unique: while a sweep waits or runs, no second
+ * one is queued — for at most ten minutes, so a worker that died cannot stop the sweep for good.
  */
 final class RequeueStuckMediaVariantsJob implements ShouldBeUnique, ShouldQueue
 {
@@ -23,7 +24,6 @@ final class RequeueStuckMediaVariantsJob implements ShouldBeUnique, ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    /** Released after ten minutes even if a worker died mid-sweep, so the next run is not lost. */
     public int $uniqueFor = 600;
 
     public function handle(RequeueStuckMediaVariantsHandler $handler): void

@@ -20,10 +20,16 @@ final class InMemorySettingsRegistry implements SettingsRegistry
     private const int MAX_KEY_LENGTH = 150;
 
     /**
-     * A key segment that names a secret: those belong in server environment variables. The word
-     * ends the segment, so a policy about a secret (password_min_length, token_length) is allowed.
+     * A key segment that names a secret: those belong in server environment variables. More words
+     * may follow (secret_key_live, api_key_test, password_hash).
      */
-    private const string SECRET_NAME = '/(^|_)(password|passwd|pass|secret|token|api_?key|private_?key|access_?key|secret_?key|signing_?key|encryption_?key|hmac_?key|credentials?)\z/';
+    private const string SECRET_NAME = '/(^|_)(password|passwd|passphrase|secret|token|api_?key|private_?key|access_?key|secret_?key|signing_?key|encryption_?key|hmac_?key|merchant_?key|license_?key|credentials?)(_|\z)|(^|_)pass\z/';
+
+    /**
+     * A key whose last segment ends like this is a policy about a secret, not a secret: its length,
+     * lifetime or number of attempts (password_min_length, token.lifetime_minutes).
+     */
+    private const string POLICY_NAME = '/(^|_)(length|ttl|lifetime|seconds|minutes|hours|days|attempts|count|limit|enabled|required)\z/';
 
     /** @var array<string, SettingDefinitionDto> */
     private array $definitions = [];
@@ -31,6 +37,20 @@ final class InMemorySettingsRegistry implements SettingsRegistry
     public function __construct(
         private readonly ValidatorFactory $validator,
     ) {}
+
+    /**
+     * Any segment counts: "payments.api_key.live" names a secret as much as "payments.live.api_key".
+     */
+    private function looksLikeSecret(string $key): bool
+    {
+        $segments = explode('.', $key);
+
+        if (preg_match(self::POLICY_NAME, $segments[array_key_last($segments)]) === 1) {
+            return false;
+        }
+
+        return array_filter($segments, fn (string $segment): bool => preg_match(self::SECRET_NAME, $segment) === 1) !== [];
+    }
 
     public function define(string $module, SettingDefinitionDto ...$definitions): void
     {
@@ -45,8 +65,7 @@ final class InMemorySettingsRegistry implements SettingsRegistry
                 throw new InvalidSettingDefinition("The {$module} module cannot declare \"{$key}\": its keys must start with \"{$module}.\".");
             }
 
-            // Every segment: "payments.api_key.live" names a secret as much as "payments.live.api_key".
-            if (array_filter(explode('.', $key), fn (string $segment): bool => preg_match(self::SECRET_NAME, $segment) === 1) !== []) {
+            if ($this->looksLikeSecret($key)) {
                 throw new InvalidSettingDefinition("\"{$key}\" looks like a secret. Secrets live in server environment variables, never in settings.");
             }
 

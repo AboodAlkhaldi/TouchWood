@@ -13,7 +13,12 @@ use Modules\Platform\Public\Dto\MediaUseDto;
  * media is deleted — all in one transaction.
  *
  * Register the class with MediaUsages. Both methods run inside the delete's transaction, with the
- * media row locked, so no new reference can appear meanwhile.
+ * media row locked first.
+ *
+ * Every media id a module stores sits in its own column, or a small link table, with an
+ * ON DELETE RESTRICT foreign key to platform.media — never inside JSON (owner's decision,
+ * 2026-09-18). Only then does the lock stop a new reference from appearing during the delete, and
+ * only then does the foreign key catch a reference the module failed to report.
  */
 interface MediaUsage
 {

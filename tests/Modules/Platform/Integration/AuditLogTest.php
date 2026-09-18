@@ -336,13 +336,17 @@ describe('source and date', function () {
         ));
     })->throws(InvalidArgumentException::class, 'cannot happen in the future');
 
-    it('refuses imported history dated after the transaction started, which the database would refuse', function () {
-        // PHP's clock is ahead of the transaction's start time, which is what recorded_at holds.
-        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
-            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
-            Actor::system(),
-            new DateTimeImmutable,
-        ));
+    it('refuses imported history dated at the moment the transaction started, which the database would refuse', function () {
+        // recorded_at is the transaction's start time; taken from the database, so no clock drift matters.
+        DB::transaction(function () {
+            $startedAt = DB::selectOne("select to_char(now() at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as at")?->at;
+
+            app(PlatformApi::class)->recordImportedAudit(
+                new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+                Actor::system(),
+                new DateTimeImmutable((string) $startedAt),
+            );
+        });
     })->throws(InvalidArgumentException::class, 'cannot happen in the future');
 
     it('keeps the time zone of an imported date: 10:00 in Riyadh is 07:00 UTC', function () {
@@ -402,15 +406,32 @@ describe('what the code refuses before the database would', function () {
     it('refuses an action, subject type or subject id that is empty or too long for its column', function (string $action, string $subjectType, string $subjectId) {
         app(PlatformApi::class)->recordAudit(new AuditEntryDto($action, $subjectType, $subjectId, null, AuditChanges::none()));
     })->throws(InvalidArgumentException::class, 'must be 1 to')->with([
-        'action over 100' => [str_repeat('a', 101), 'testing.thing', 'thing-1'],
-        'subject type over 100' => ['testing.thing.changed', str_repeat('a', 101), 'thing-1'],
+        'action over 100' => ['testing.thing.'.str_repeat('a', 87), 'testing.thing', 'thing-1'],
+        'subject type over 100' => ['testing.thing.changed', 'testing.'.str_repeat('a', 93), 'thing-1'],
         'subject id over 64' => ['testing.thing.changed', 'testing.thing', str_repeat('a', 65)],
         'empty subject id' => ['testing.thing.changed', 'testing.thing', ''],
     ]);
 
     it('accepts values exactly at the column limits', function () {
-        app(PlatformApi::class)->recordAudit(new AuditEntryDto(str_repeat('a', 100), str_repeat('b', 100), str_repeat('c', 64), null, AuditChanges::none()));
+        app(PlatformApi::class)->recordAudit(new AuditEntryDto('testing.thing.'.str_repeat('a', 86), 'testing.'.str_repeat('b', 92), str_repeat('c', 64), null, AuditChanges::none()));
 
         expect(latestAuditEntry()['subject_id'])->toBe(str_repeat('c', 64));
     });
+
+    it('refuses an action or subject type not written as the module names them', function (string $action, string $subjectType) {
+        app(PlatformApi::class)->recordAudit(new AuditEntryDto($action, $subjectType, 'thing-1', null, AuditChanges::none()));
+    })->throws(InvalidArgumentException::class, 'must look like')->with([
+        'action with no resource' => ['testing.changed', 'testing.thing'],
+        'action with spaces' => ['Testing thing changed', 'testing.thing'],
+        'subject type with no resource' => ['testing.thing.changed', 'testing'],
+    ]);
+
+    it('refuses text PostgreSQL would refuse: a control character in an id, a NUL in a changed value', function (AuditEntryDto $entry) {
+        app(PlatformApi::class)->recordAudit($entry);
+    })->throws(InvalidArgumentException::class)->with([
+        'NUL in the subject id' => [new AuditEntryDto('testing.thing.changed', 'testing.thing', "thing\0one", null, AuditChanges::none())],
+        'line break in the subject id' => [new AuditEntryDto('testing.thing.changed', 'testing.thing', "thing\none", null, AuditChanges::none())],
+        'invalid UTF-8 in the subject id' => [new AuditEntryDto('testing.thing.changed', 'testing.thing', "thing\xC3\x28", null, AuditChanges::none())],
+        'NUL in a changed value' => [new AuditEntryDto('testing.thing.changed', 'testing.thing', 'thing-1', null, AuditChanges::none()->changed('colour', 'red', "blu\0e"))],
+    ]);
 });

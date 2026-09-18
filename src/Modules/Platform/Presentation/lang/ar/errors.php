@@ -69,7 +69,7 @@ return [
     ],
     'media_in_use' => [
         'title' => 'الملف مستخدم',
-        'detail' => 'لا يمكن حذف الملف لأنه ما زال مستخدمًا.',
+        'detail' => 'لا يمكن حذف الملف لأنه ما زال مستخدمًا: :uses.',
     ],
     'invalid_media_variants_transition' => [
         'title' => 'لا يمكن إعادة المحاولة',

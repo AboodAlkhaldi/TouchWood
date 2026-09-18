@@ -606,7 +606,7 @@ describe('the stuck-variants sweep', function () {
         expect(app(RequeueStuckMediaVariantsHandler::class)->handle(new RequeueStuckMediaVariants))->toBe(0);
     });
 
-    it('is queued as a job every ten minutes, from one server, so its audit source is JOB', function () {
+    it('is queued as a job every ten minutes, from one server', function () {
         $events = collect(app(Schedule::class)->events())
             ->filter(fn (ScheduledEvent $event): bool => $event->description === RequeueStuckMediaVariantsJob::class);
 
@@ -817,6 +817,27 @@ describe('deleting media another module uses', function () {
             ->and(is_array($changes) ? $changes['detached_from'] : null)->toBe([["testing.thing {$refs[0]}", "testing.thing {$refs[1]}"], null]);
     });
 
+    it('locks the media row before asking the modules, so no reference can be added meanwhile', function () {
+        $id = uploadMedia(imageFile(800, 600));
+        DB::enableQueryLog();
+
+        app(DeleteMediaHandler::class)->handle(new DeleteMedia($id));
+
+        $locked = collect(DB::getQueryLog())->contains(fn (array $query): bool => str_contains($query['query'], 'from "platform"."media"')
+            && str_contains($query['query'], 'for update'));
+
+        expect($locked)->toBeTrue();
+    });
+
+    it('names the table of a reference no module reported', function () {
+        $id = uploadMedia(imageFile(800, 600));
+        DB::table('testing_media_refs')->insert(['media_id' => $id]);
+
+        // Straight to the repository: the backstop, as if no module had reported this reference.
+        expect(fn () => app(MediaRepository::class)->delete(app(MediaRepository::class)->byId($id) ?? throw new LogicException('missing')))
+            ->toThrow(MediaInUse::class, 'testing_media_refs');
+    });
+
     it('asks nothing of a module that does not use the media', function () {
         $id = uploadMedia(imageFile(800, 600));
 
@@ -833,6 +854,11 @@ describe('deleting media another module uses', function () {
 
         expect(fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($id)))
             ->toThrow(MediaInUse::class, "testing.thing {$document}");
+
+        // The person is told which record uses it, in their language.
+        app()->setLocale('en');
+        $error = new MediaInUse($id, [new MediaUseDto('testing.thing', (string) $document, true)]);
+        expect(trans('platform::errors.media_in_use.detail', $error->context()))->toBe("The file is still used and cannot be deleted: testing.thing {$document}.");
 
         expect(TestingMediaUsage::$detachedInTransaction)->toBe([])
             ->and(DB::table('testing_media_refs')->count())->toBe(2)

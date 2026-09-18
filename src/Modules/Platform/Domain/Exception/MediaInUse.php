@@ -9,18 +9,19 @@ use Shared\Domain\Error\ErrorCategory;
 
 /**
  * Media that must not be deleted: a module blocks it (a legal document), or — the database's
- * backstop — a reference still exists after every module detached it.
+ * backstop — a reference still exists after every module detached it. The message tells the
+ * person which records use it.
  */
 final class MediaInUse extends PlatformError
 {
     /**
-     * @param  list<MediaUseDto>  $blockedBy  the uses that block the delete; empty when the database refused it
+     * @param  list<MediaUseDto>  $blockedBy  the uses that block the delete
      */
     public function __construct(
         public readonly string $mediaId,
         public readonly array $blockedBy = [],
     ) {
-        parent::__construct("Media \"{$mediaId}\" is still used and cannot be deleted".($blockedBy === [] ? '.' : ': '.$this->uses().'.'));
+        parent::__construct("Media \"{$mediaId}\" is still used and cannot be deleted: {$this->uses()}.");
     }
 
     public function type(): string

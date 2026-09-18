@@ -39,6 +39,12 @@ final readonly class DatabaseAuditLog implements AuditLog
 
     private const int MAX_SUBJECT_ID = 64;
 
+    /** "{module}.{resource}.{what happened}", as AuditEntryDto describes it. */
+    private const string ACTION = '/\A[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){2,}\z/';
+
+    /** "{module}.{resource}". */
+    private const string SUBJECT_TYPE = '/\A[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+\z/';
+
     public function __construct(
         private ConnectionInterface $db,
         private ActorContext $actors,
@@ -115,7 +121,7 @@ final readonly class DatabaseAuditLog implements AuditLog
             'action' => $entry->action,
             'subject_type' => $entry->subjectType,
             'subject_id' => $entry->subjectId,
-            'changes' => json_encode((object) $entry->changes->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'changes' => $this->changesJson($entry),
             'correlation_id' => is_string($correlationId) ? $correlationId : null,
         ];
     }
@@ -142,9 +148,18 @@ final readonly class DatabaseAuditLog implements AuditLog
         ];
 
         foreach ($lengths as $name => [$value, $max]) {
-            if ($value === '' || mb_strlen($value) > $max) {
-                throw new InvalidArgumentException("An audit entry's {$name} must be 1 to {$max} characters, \"{$value}\" is not.");
+            if ($value === '' || ! mb_check_encoding($value, 'UTF-8') || mb_strlen($value) > $max) {
+                throw new InvalidArgumentException("An audit entry's {$name} must be 1 to {$max} characters of UTF-8 text, \"{$value}\" is not.");
             }
+        }
+
+        if (preg_match(self::ACTION, $entry->action) !== 1 || preg_match(self::SUBJECT_TYPE, $entry->subjectType) !== 1) {
+            throw new InvalidArgumentException("An audit entry's action must look like \"module.resource.updated\" and its subject type like \"module.resource\"; got \"{$entry->action}\" and \"{$entry->subjectType}\".");
+        }
+
+        // PostgreSQL refuses a NUL character in text, and a line break has no place in an id.
+        if (preg_match('/\p{Cc}/u', $entry->subjectId) === 1) {
+            throw new InvalidArgumentException("An audit entry's subject id must not contain control characters.");
         }
 
         // Read inside the transaction, not from the store cache: a store created in this same
@@ -152,6 +167,18 @@ final readonly class DatabaseAuditLog implements AuditLog
         if ($entry->storeId !== null && ! $this->db->table('platform.stores')->where('id', $entry->storeId)->exists()) {
             throw new InvalidArgumentException("Audit entry \"{$entry->action}\" names a store that does not exist: \"{$entry->storeId}\".");
         }
+    }
+
+    private function changesJson(AuditEntryDto $entry): string
+    {
+        $json = json_encode((object) $entry->changes->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+
+        // jsonb refuses the NUL character, even escaped.
+        if (str_contains($json, '\u0000')) {
+            throw new InvalidArgumentException("Audit entry \"{$entry->action}\": a changed value contains a NUL character.");
+        }
+
+        return $json;
     }
 
     private function requireTransaction(AuditEntryDto $entry): void

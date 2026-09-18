@@ -82,6 +82,10 @@ describe('declaring', function () {
         'testing.storage.access_key', 'testing.signing.private_key', 'testing.odoo.credentials',
         'testing.odoo.access_token', 'testing.sms.api_token', 'testing.webhook.signing_key',
         'testing.webhook.hmac_key', 'testing.mail.smtp_pass', 'testing.files.encryption_key',
+        // More words may follow the secret.
+        'testing.tap.secret_key_live', 'testing.tap.api_key_test', 'testing.mail.password_encrypted',
+        'testing.bank.client_secret_prod', 'testing.webhook.secret_v2', 'testing.odoo.password_hash',
+        'testing.gpg.passphrase', 'testing.tap.merchant_key', 'testing.maps.license_key',
         // A secret in any segment, not only the last.
         'testing.api_key.live',
     ]);
@@ -94,6 +98,8 @@ describe('declaring', function () {
         'testing.otp.token_length', 'testing.keys.per_page', 'testing.secretary.count',
         // A policy about a secret is not a secret.
         'testing.accounts.password_min_length', 'testing.accounts.password_expiry_days',
+        'testing.password.min_length', 'testing.token.lifetime_minutes', 'testing.api_key.rotation_days',
+        'testing.exam.pass_mark',
     ]);
 
     it('refuses a key that belongs to another module', function () {
