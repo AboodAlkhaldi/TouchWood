@@ -243,9 +243,13 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
   pressing Retry. `platform:media:requeue-stuck` runs the same sweep by hand.
 - **Reads never lock.** `PlatformApi::media()` and `mediaUrls()` read without `FOR UPDATE`, so a
   storefront page never waits on, or blocks, a change.
-- **Media in use cannot be deleted today.** Other modules reference `platform.media(id)` with
-  `ON DELETE RESTRICT`; the database refuses the delete and Platform reports `MediaInUse`. Decided
-  next (owner, 2026-09-18): each module detaches or blocks its own references before the delete.
+- **Media another module uses is detached or blocked.** A module that stores media ids registers a
+  `MediaUsage` with `MediaUsages`. Before deleting, `DeleteMediaHandler` locks the media row and asks
+  every module where it uses it: a blocking use (a legal document) refuses the delete with
+  `MediaInUse` naming it; otherwise each module detaches its references — checking the person's
+  permission for its own change and auditing it — and the media is deleted, all in one transaction.
+  The deletion's audit entry lists where the media was used. Other modules' `ON DELETE RESTRICT`
+  foreign keys stay as the backstop: a reference nobody reported still becomes `MediaInUse`.
 - **Private files** are served only through signed links that expire after 30 minutes. On
   S3-compatible storage they download under their original name; Laravel's local disk ignores that
   and serves them under their object key. They never get variants and never go through the CDN.

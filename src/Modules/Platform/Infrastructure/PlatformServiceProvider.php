@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Media\ImageVariantGenerator;
+use Modules\Platform\Application\Media\InMemoryMediaUsages;
 use Modules\Platform\Application\Media\MediaInspector;
 use Modules\Platform\Application\Media\MediaSettings;
 use Modules\Platform\Application\Media\MediaStorage;
@@ -52,6 +53,7 @@ use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
 use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
 use Modules\Platform\Presentation\Http\StorefrontLanguage;
+use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
@@ -95,6 +97,10 @@ final class PlatformServiceProvider extends ServiceProvider
         // Paths the application keeps for itself until a module that owns them exists: the health
         // check, built assets, public files and signed file links, the admin panel and the API.
         $this->app->make(ReservedPaths::class)->reserve('platform', 'up', 'build', 'storage', 'admin', 'api');
+
+        // Modules that store media ids register here, so deleting media detaches or refuses.
+        $this->app->singleton(InMemoryMediaUsages::class);
+        $this->app->alias(InMemoryMediaUsages::class, MediaUsages::class);
 
         // One pattern for {store} on every route, built from every module's reserved paths, so no
         // module imports Platform's interior to register storefront routes. Built after every

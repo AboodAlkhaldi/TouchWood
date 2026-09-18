@@ -61,6 +61,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §4.5 | Shared kernel keeps its ~20-class ceiling: the planned types are candidates that enter only when three modules need them; no `CommandBus`/`EventBus` (Laravel's dispatcher) | Owner decision |
 | 2026-09-18 | §5.3 | The audit log refuses a value for an attribute named like personal data (email, phone, address…); such fields are recorded only as "changed" | Owner decision |
 | 2026-09-18 | §5.5 | Deleting media another module uses: each module detaches or blocks its own references, in one transaction; the foreign key stays as the backstop | Repairs review, owner decision |
+| 2026-09-18 | §5.5 | Detaching media checks each module's own permission for the change, in its stores | Owner decision |
 | 2026-09-18 | §5.3 | Scheduled work is queued as a job, so its audit source is JOB | Repairs review, owner decision |
 | 2026-09-18 | §7.5 | An actor id is never a secret: a guest's id is kept apart from whatever proves the cart is theirs | Repairs review, owner decision |
 
@@ -433,7 +434,8 @@ always two separate files.
 
 **Media another module uses** is never deleted behind its back: each module declares whether its
 references detach (a product photo) or block the delete (a legal document), and the whole delete
-happens in one transaction.
+happens in one transaction. Detaching is a change to the module's own data, so the module checks
+the person's permission for it in the stores concerned; a refusal cancels the delete.
 
 **Upload limits:** 10 MB. Public files: JPEG, PNG, WebP. Private files: PDF, JPEG, PNG. The type
 is detected from the file's contents.

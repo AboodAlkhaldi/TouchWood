@@ -44,6 +44,10 @@
   and `upsert()` skip the store stamping and cross-store guards.
 - Handlers invalidate cached data *inside* their transaction (it takes effect on commit, before
   after-commit events reach listeners).
+- A module that stores media ids registers a `MediaUsage` with `MediaUsages` in its provider: it reports
+  each use as detachable (a product photo) or blocking (a legal document), and its `detach()` checks
+  the person's own permission for that change and audits it. Its table keeps a `RESTRICT` foreign key
+  to `platform.media` as the backstop.
 
 ## Code catches mistakes before the database (owner, 2026-09-18)
 
