@@ -214,8 +214,8 @@ final readonly class Money
 
     /**
      * Display form with Latin digits and thousands separators: "1,234.50".
-     * The currency symbol and its position come from the currencies row and
-     * are applied by the presentation layer.
+     * The presentation layer adds the currency: its sign, or its letters in the
+     * page's language when it has no sign (the currencies row, CurrencyDto).
      */
     public function format(int $exponent): string
     {
