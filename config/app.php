@@ -80,7 +80,8 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    // Arabic unless APP_LOCALE says otherwise: the storefront's default language (owner, 2026-09-18).
+    'locale' => env('APP_LOCALE', 'ar'),
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 

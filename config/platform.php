@@ -7,6 +7,10 @@ declare(strict_types=1);
 */
 
 return [
+    // The storefront's languages, the second URL segment: brand.com/sa/ar/... (owner, 2026-09-18).
+    // The default for a visitor with no remembered language is APP_LOCALE (Arabic).
+    'locales' => ['ar', 'en'],
+
     'media' => [
         // Two different disks from config/filesystems.php, never the same one:
         // - public: only the resized variants of public images. Point it at S3-compatible storage

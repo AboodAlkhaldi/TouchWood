@@ -47,6 +47,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §7.5 | Actors: guest and integration added; every actor id is a ULID; a queued job acts as the system and the audit records who queued it | Platform audit, owner decision |
 | 2026-09-18 | §5.3 | Audit entries gain a source (web, integration, console, job, import) set by Platform, and recorded_at; nothing can be back-dated except imported history | Platform audit, owner decision |
 | 2026-09-18 | §4.1 | Reserved top-level paths (`/admin`, `/api`, webhooks…) are a registry every module adds to, not a list inside Platform | Platform audit, owner decision |
+| 2026-09-18 | §4.1 | Language in storefront URLs: `/sa/ar/...`; no language → remembered, else Arabic; emails/SMS in the customer's language, admin in the staff member's | Platform audit, owner decision |
 
 ---
 
@@ -134,7 +135,8 @@ Eloquent model, which §4.3 forbids. Media is Platform's own table (§5.5).
 ### 4.1 Shape
 
 One codebase, one database, one deployment, serving three country stores at
-`brand.com/sa|eg|ae`. Adding a fourth country is an INSERT plus configuration — never a
+`brand.com/sa|eg|ae`, each in Arabic and English as the next segment: `brand.com/sa/ar/...`,
+`brand.com/sa/en/...` (owner, 2026-09-18). Adding a fourth country is an INSERT plus configuration — never a
 deploy, never a code change.
 
 `brand.com/` with no store segment redirects to the store remembered in a cookie; with no

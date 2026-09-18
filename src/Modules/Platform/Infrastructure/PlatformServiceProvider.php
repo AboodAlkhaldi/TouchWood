@@ -51,6 +51,7 @@ use Modules\Platform\Presentation\Console\CreateStoreCommand;
 use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
 use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
+use Modules\Platform\Presentation\Http\StorefrontLanguage;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
@@ -120,6 +121,10 @@ final class PlatformServiceProvider extends ServiceProvider
                 'private_disk' => (string) config('platform.media.private_disk'),
             ],
         ));
+        $this->app->singleton(StorefrontLanguage::class, fn (): StorefrontLanguage => new StorefrontLanguage(
+            array_values(array_map(strval(...), (array) config('platform.locales'))),
+            (string) config('app.locale'),
+        ));
         $this->app->singleton(MediaReader::class, fn (Application $app): MediaReader => new DatabaseMediaReader(
             $app->make(MediaRepository::class),
             $app->make(MediaStorage::class),
@@ -140,6 +145,7 @@ final class PlatformServiceProvider extends ServiceProvider
         // later reservation would be missing from the pattern.
         $reservedPaths = $this->app->make(InMemoryReservedPaths::class);
         Route::pattern('store', $reservedPaths->routePattern());
+        Route::pattern('locale', $this->app->make(StorefrontLanguage::class)->routePattern());
         $reservedPaths->freeze();
         $router->aliasMiddleware(ResolveStore::ALIAS, ResolveStore::class);
 
