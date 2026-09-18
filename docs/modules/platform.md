@@ -137,8 +137,11 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
   product photo or a banner: the module removes its reference) or is **blocked** (a company's
   registration document, a bank-transfer receipt: legal records). Platform asks every module
   first; if any blocks, the delete is refused with the reason (`MediaInUse`); otherwise every
-  module detaches, and the media is deleted, all in one transaction. The referencing tables keep a
-  foreign key with `ON DELETE RESTRICT` (cross-schema foreign keys are allowed, handoff §4.3) as
+  module detaches, and the media is deleted, all in one transaction. **[DECIDED 2026-09-18]**
+  Detaching changes the module's own data, so the module checks the acting person's permission for
+  that change itself, in the stores concerned: deleting needs `platform.media.delete` *and* the
+  right to every change it causes. A refusal cancels the whole delete. The referencing tables keep
+  a foreign key with `ON DELETE RESTRICT` (cross-schema foreign keys are allowed, handoff §4.3) as
   the backstop.
 - Deleting removes the original and all variants from object storage **after** the database
   commit.
@@ -287,6 +290,30 @@ that a key's prefix is the declaring module. A malformed, foreign or duplicate k
 that fails its own rules, throws `InvalidSettingDefinition` (a `LogicException`, not a
 `DomainError`) at boot.
 
+**`MediaUsages` and `MediaUsage`** — how a module that stores media ids takes part in deleting
+media (§1.4, owner's decision 2026-09-18). It registers its class once, in its service provider;
+Platform resolves it only when media is deleted.
+
+```php
+interface MediaUsages
+{
+    public function register(string $module, string $usage): void;   // a MediaUsage class name
+}
+
+interface MediaUsage
+{
+    /** @return list<MediaUseDto> every place this module uses the media; empty when none */
+    public function usesOf(string $mediaId): array;
+
+    /** Removes this module's references; checks its own permission and audits its own change. */
+    public function detach(string $mediaId): void;
+}
+```
+
+`MediaUseDto`: `subjectType` (`catalog.product`), `subjectId`, `blocksDelete`. Both methods run
+inside the delete's transaction, with the media row locked, so no new reference can appear
+meanwhile. A class that is not a `MediaUsage`, or one registered twice, throws a `LogicException`.
+
 ### 2.3 DTOs (`Public/Dto`)
 
 **[DECIDED 2026-09-18] One style:** every DTO crossing a module boundary is a plain `final readonly`
@@ -302,6 +329,7 @@ builder. spatie/laravel-data stays available for the presentation layer (forms, 
 | `SettingValueDto` | `key`, `storeId`, `isDefault`; typed readers `int()`, `bool()`, `string()`, `list()` that throw if the stored type does not match |
 | `MediaDto` | `id`, `visibility`, `mime`, `bytes`, `width`, `height`, `originalFilename`¹, `altAr`, `altEn`¹, `variantsStatus` |
 | `MediaUrlsDto` | `original` (PRIVATE only: the expiring link; null for a public image, whose original is never served), `variants` (size slug → format extension → CDN URL, empty until ready), `expiresAt` (PRIVATE only) |
+| `MediaUseDto` | `subjectType`, `subjectId`, `blocksDelete` — one place a module uses media (§2.2) |
 | `AuditEntryDto` | `action`, `subjectType`, `subjectId`, `storeId`, `changes`. The actor, requester, source, dates, correlation id and staff IP are filled in by Platform. |
 
 `StoreDto` carries the currency exponent, sign and abbreviation so a price can be formatted with one call.
@@ -353,7 +381,7 @@ stay reserved: each reaches every store at once.
 | `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update`. Platform's own settings (the media upload limits) use `platform.settings.update` **[DECIDED 2026-09-18]** | That store; `GLOBAL` keys need all-stores access |
 | `UploadMedia` | Staff | `platform.media.upload` | Global (media belongs to no store) |
 | `UpdateMediaAltText` | Staff | `platform.media.update` **[DECIDED 2026-09-18]** — handoff lists only upload and delete | Global |
-| `DeleteMedia` | Staff | `platform.media.delete` | Global |
+| `DeleteMedia` — detaches it from every module that uses it, or refuses if any use blocks (§1.4) | Staff | `platform.media.delete`, plus each module's own permission for the change it makes | Global; each module checks its stores |
 | `RetryMediaVariants` — a `FAILED` image, or one `PENDING` for 15 minutes | Staff | `platform.media.upload` | Global |
 | `GenerateMediaVariants` | Queued job | System — `platform.media.variants.generate` (reserved) | Global |
 | `RequeueStuckMediaVariants` — every 10 minutes | Scheduler | System — `platform.media.variants.generate` (reserved) | Global |
@@ -733,7 +761,10 @@ stack traces, SQL, or another customer's data.
 - Audit triggers reject `UPDATE`, `DELETE` and `TRUNCATE` on `audit_entries`.
 - Settings uniqueness holds for both store rows and global (NULL store) rows.
 - A currency used by a store cannot be deleted.
-- Media referenced through a `RESTRICT` foreign key cannot be deleted → `MediaInUse`.
+- Deleting media another module uses: the module detaches it in the same transaction and the
+  audit entry lists where it was used; a use that blocks refuses the delete with `MediaInUse`
+  naming it, and nothing changes; a module refusing its own change cancels the whole delete; a
+  reference no module reported is still refused by its `RESTRICT` foreign key → `MediaInUse`.
 - `StoreScope`: throws with no store context; filters to the current store with one.
 - Store context travels into a queued job dispatched inside it.
 - `PlatformApi` returns DTOs, never Eloquent models.
@@ -846,6 +877,7 @@ After the independent review of the repairs (2026-09-18):
 | 37 | Source of scheduled work in the audit log | **JOB**: the scheduler queues its work as a job (§1.5). |
 | 38 | A guest's id in the audit log | **An id is never a secret**; proof of cart ownership is kept apart (§1.5). |
 | 39 | `variants_generated_at` | **Keep** (§5.4). |
+| 40 | Whose permission covers detaching media from another module's data | **Each module checks its own**, in the stores concerned; a refusal cancels the delete (§1.4). |
 
 ### 9.3 Still open
 
