@@ -174,7 +174,10 @@ A permanent record of who changed what.
   integration's is its settings record.
 - **[DECIDED 2026-09-18]** `changes` never stores the *values* of personal fields (name, email,
   phone, address, uploaded file names) — only that the field changed. Account anonymization
-  (handoff §7.9) then never has to rewrite audit history.
+  (handoff §7.9) then never has to rewrite audit history. **[DECIDED 2026-09-18]** The code
+  refuses the values of an attribute named like personal data (`email`, `contact_phone`,
+  `billing_address`, `first_name`, `national_id`, `iban`…). A plain `name` is allowed — stores
+  and currencies have names — so a person's name must be marked personal by its module.
 - **[DECIDED 2026-09-18] Not audited:** uploading a public image identical to one already stored
   (nothing is created; the existing image is returned), and the system's own maintenance (the
   variants job and the stuck-image sweep). Every change a person makes is audited.
@@ -508,7 +511,8 @@ Indexes:
 - `(actor_type, actor_id, occurred_at DESC)` — everything one person did
 - `(action, occurred_at DESC)`
 
-Trigger: `BEFORE UPDATE OR DELETE` raises an exception.
+Triggers: `BEFORE UPDATE OR DELETE` (per row) and `BEFORE TRUNCATE` (per statement — `TRUNCATE`
+skips row triggers) raise an exception.
 
 ### 5.6 Shared infrastructure tables — **[DECIDED 2026-09-18]** in the `public` schema, not `platform`
 
@@ -613,8 +617,9 @@ module, so this section fixes the pattern every later module follows.
   | `UNSUPPORTED` | 415 |
   | `TOO_LARGE` | 413 |
 
-- **One exception handler** (`bootstrap/app.php`) turns every `DomainError` into the same
-  RFC 7807 response. The category-to-status table above exists only there. Anything that is not
+- **One exception handler** (`App\Http\ProblemDetails`, registered in `bootstrap/app.php`) turns
+  every `DomainError` into the same RFC 7807 response. The category-to-status table above exists
+  only there. Anything that is not
   a `DomainError` is a bug: it is logged with the correlation id and answered with a generic 500
   that reveals nothing internal.
 - **Global errors** — only the ones that genuinely belong to no module:
@@ -698,13 +703,14 @@ stack traces, SQL, or another customer's data.
 - Media upload rules: public accepts JPEG, PNG, WebP; private accepts PDF, JPEG, PNG; the type
   comes from the file's contents, so a PDF renamed `.jpg` is rejected as public. A checksum that
   is not a lowercase SHA-256 is refused before the database would refuse it (§5.8).
-- Audit changes: personal fields are recorded as `"changed"`, never their values.
+- Audit changes: personal fields are recorded as `"changed"`, never their values; an attribute
+  named like personal data is refused with its values.
 - Every Platform error has a unique `type` and a category.
 
 ### Integration (PostgreSQL `touchwood_test`)
 
 - Migrations create the `platform` schema, every table, check constraint and index above.
-- Audit trigger rejects `UPDATE` and `DELETE` on `audit_entries`.
+- Audit triggers reject `UPDATE`, `DELETE` and `TRUNCATE` on `audit_entries`.
 - Settings uniqueness holds for both store rows and global (NULL store) rows.
 - A currency used by a store cannot be deleted.
 - Media referenced through a `RESTRICT` foreign key cannot be deleted → `MediaInUse`.
