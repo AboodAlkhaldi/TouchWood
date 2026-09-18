@@ -319,6 +319,8 @@ happening again.
 ```
 STAGE 1   Platform      stores, currencies, tax, settings, media, audit
 STAGE 2   Access        identity, auth, verification, RBAC, staff, addresses, 2FA
+STAGE 2b  Frontend      Inertia + React + shadcn with SSR; auth pages, admin sign-in,
+          foundation    Platform's admin screens
 STAGE 3   B2B           company lifecycle
 ──────────── everything above depends on nothing external ────────────
 STAGE 4   Catalog       BLOCKED on the external provider schema

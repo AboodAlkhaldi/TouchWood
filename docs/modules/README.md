@@ -30,7 +30,7 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Module | Spec | Blocked by |
 |---|---|---|
 | Platform | [approved](platform.md) — **Stage 1 delivery implemented** (spec §3); admin view use cases come with Access. See [its README](../../src/Modules/Platform/README.md) | — |
-| Access | not started | — |
+| Access | [draft](access.md) — awaiting the owner's review | — |
 | B2B | not started | — |
 | Feedback | not started | Catalog, Sales — built with Sales (stage 6) |
 | Catalog | not started | external provider schema + real product sample |
