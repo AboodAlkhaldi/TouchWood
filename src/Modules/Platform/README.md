@@ -46,6 +46,9 @@ $this->app->make(SettingsRegistry::class)->define('loyalty',
 ```php
 // Storefront routes: the "store" middleware resolves /{store}/... and sets store context.
 Route::prefix('{store}')->middleware('store')->group(...);
+
+// A top-level URL your module owns: reserve it in register(), so no store can take it.
+$this->app->make(ReservedPaths::class)->reserve('payments', 'webhooks');
 ```
 
 Listen to `Public/Events/*` (`StoreUpdated`, `SettingChanged`, `MediaVariantsReady`…). They carry
@@ -57,7 +60,7 @@ ids only and are dispatched after the transaction commits.
 
 | Folder | Contents |
 |---|---|
-| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, DTOs, enums, events. |
+| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, DTOs, enums, events. |
 | `Domain/Model` | `Store`, `Currency`, `Media`: plain PHP classes holding the rules, with no Laravel inside. |
 | `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. |
 | `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |

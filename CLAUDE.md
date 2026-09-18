@@ -34,6 +34,9 @@
 - Storefront routes: `Route::prefix('{store}')->middleware('store')`. The `{store}` pattern is
   registered globally by Platform and already excludes reserved paths such as `/admin/...`, so
   modules never import Platform's interior to do this.
+- A module that owns a top-level URL (`/webhooks`, `/feeds`…) reserves it with
+  `ReservedPaths::reserve('module', 'segment')` in its provider's **`register()`**, never `boot()`:
+  Platform builds the `{store}` pattern at boot and refuses later reservations.
 - The current store: `StoreContext::current()` (Shared), then `PlatformApi::store($id)` for its
   details. Both are cached: a warm request reads only the cache table, never the store tables.
 - Store-scoped models use `BelongsToStore`. Create their rows through the model — raw `insert()`

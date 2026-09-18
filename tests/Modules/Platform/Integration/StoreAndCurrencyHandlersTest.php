@@ -17,6 +17,7 @@ use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
 use Modules\Platform\Domain\Exception\CurrencyAlreadyExists;
 use Modules\Platform\Domain\Exception\CurrencyExponentLocked;
 use Modules\Platform\Domain\Exception\CurrencyNotFound;
+use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
 use Modules\Platform\Domain\Exception\StoreAttributeImmutable;
 use Modules\Platform\Domain\Exception\StoreCodeTaken;
 use Modules\Platform\Domain\Exception\StoreNotFound;
@@ -94,6 +95,13 @@ describe('creating', function () {
         givenStore();
         givenStore();
     })->throws(StoreCodeTaken::class);
+
+    it('refuses a store code the application reserved, which could never be reached', function (string $code) {
+        givenCurrency();
+
+        expect(fn () => givenStore($code))->toThrow(InvalidStoreAttribute::class, 'reserved')
+            ->and(DB::table('platform.stores')->where('code', $code)->exists())->toBeFalse();
+    })->with(['up', 'build', 'storage', 'admin', 'api']);
 
     it('writes nothing when the actor is not allowed', function () {
         app()->instance(ActorContext::class, new class implements ActorContext

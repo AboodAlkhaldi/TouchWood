@@ -52,10 +52,6 @@ describe('creating', function () {
         StoreCode::fromString($code);
     })->throws(InvalidStoreAttribute::class)->with(['', 'x', 'XA', 'abcdefghi', 'x1', 'x-a', "xa\n"]);
 
-    it('rejects a code reserved for the application, which could never be reached', function (string $code) {
-        StoreCode::fromString($code);
-    })->throws(InvalidStoreAttribute::class, 'reserved')->with(StoreCode::RESERVED);
-
     it('rejects a malformed country code', function (string $code) {
         CountryCode::fromString($code);
     })->throws(InvalidStoreAttribute::class)->with(['', 'xa', 'XAB', 'X1', "XA\n"]);
