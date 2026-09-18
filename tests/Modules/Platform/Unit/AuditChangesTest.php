@@ -18,6 +18,21 @@ it('records only that a personal field changed, never its value', function () {
     expect($changes->toArray())->toBe(['email' => 'changed', 'phone' => 'changed']);
 });
 
+it('refuses the values of an attribute named like personal data', function (string $attribute) {
+    AuditChanges::none()->changed($attribute, 'old', 'new');
+})->throws(InvalidArgumentException::class, 'personal()')->with([
+    'email', 'customer_email', 'contact_phone', 'mobile', 'billing_address', 'ip_address',
+    'first_name', 'last_name', 'full_name', 'national_id', 'passport_number', 'birth_date',
+    'date_of_birth', 'iban', 'Email',
+]);
+
+it('still records the values of attributes that are not personal', function (string $attribute) {
+    expect(AuditChanges::none()->changed($attribute, 'old', 'new')->toArray())->toBe([$attribute => ['old', 'new']]);
+})->with([
+    // A store's or currency's name is not a person's; neither is a verification time.
+    'name', 'email_verified_at', 'phone_verified', 'status', 'code',
+]);
+
 it('offers no way to pass a value for a personal field', function () {
     expect((new ReflectionMethod(AuditChanges::class, 'personal'))->getNumberOfParameters())->toBe(1);
 });

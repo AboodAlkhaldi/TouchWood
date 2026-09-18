@@ -164,8 +164,11 @@ reaches all of them.
 - `AuditLog::record()` throws when called outside a transaction, so a change and its entry
   always commit or roll back together.
 - Personal fields (names, emails, phones, addresses, uploaded file names) are recorded only as
-  `"changed"`. `AuditChanges::personal()` accepts no value at all, so personal data can never
-  reach the log, and anonymizing an account never has to rewrite history.
+  `"changed"`: the caller records them with `AuditChanges::personal()`, which accepts no value at
+  all, so anonymizing an account never has to rewrite history. `changed()` refuses an attribute
+  named like personal data (`email`, `contact_phone`, `billing_address`, `first_name`,
+  `national_id`, `iban`…). It goes by the name only: a person's plain `name`, or a name the list
+  does not know, must still be marked personal by its module.
 - The actor, time and correlation id are filled in automatically. The IP address is filled in
   only for staff, and a CHECK constraint refuses it on any other entry.
 - **Every entry has a source** Platform works out itself: `WEB`, `INTEGRATION` (a request made by an
