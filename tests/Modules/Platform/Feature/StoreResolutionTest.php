@@ -44,6 +44,13 @@ describe('a store and its language', function () {
         get('/ae/en')->assertCookie('tw_store', 'ae')->assertCookie('tw_locale', 'en');
     });
 
+    it('keeps both cookies for one year (owner\'s decision)', function (string $name) {
+        $expiresIn = (get('/ae/en')->getCookie($name, false)?->getExpiresTime() ?? 0) - time();
+
+        expect($expiresIn)->toBeGreaterThan(365 * 24 * 3600 - 60)
+            ->and($expiresIn)->toBeLessThanOrEqual(365 * 24 * 3600);
+    })->with(['tw_store', 'tw_locale']);
+
     it('answers 404 for an unknown store or an unsupported language', function (string $path) {
         get($path)->assertNotFound();
     })->with(['/xx/ar', '/SA/ar', '/toolongcode/ar', '/sa/fr', '/sa/AR', '/sa/arabic']);
@@ -84,6 +91,10 @@ describe('a store without a language', function () {
         withCookie('tw_locale', 'fr')->get('/sa')->assertRedirect('/sa/ar');
     });
 
+    it('keeps the query string, so ad and campaign parameters survive the redirect', function () {
+        get('/sa?utm_source=google&gclid=abc123')->assertRedirect('/sa/ar?utm_source=google&gclid=abc123');
+    });
+
     it('answers 404 for a store that does not exist', function () {
         get('/xx')->assertNotFound();
     });
@@ -96,6 +107,10 @@ describe('the country page at brand.com/', function () {
 
     it('uses Arabic for a remembered store when no language is remembered', function () {
         withCookie('tw_store', 'eg')->get('/')->assertRedirect('/eg/ar');
+    });
+
+    it('keeps the query string when sending a visitor back to their store', function () {
+        withCookie('tw_store', 'eg')->get('/?utm_campaign=eid')->assertRedirect('/eg/ar?utm_campaign=eid');
     });
 
     it('shows the country page in Arabic to a new visitor, linking to the Arabic stores', function () {

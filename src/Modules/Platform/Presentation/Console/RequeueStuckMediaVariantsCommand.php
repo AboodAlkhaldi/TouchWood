@@ -9,7 +9,8 @@ use Modules\Platform\Application\Command\RequeueStuckMediaVariants\RequeueStuckM
 use Modules\Platform\Application\Command\RequeueStuckMediaVariants\RequeueStuckMediaVariantsHandler;
 
 /**
- * Scheduled every ten minutes by PlatformServiceProvider; safe to run by hand.
+ * The sweep, run by hand. The scheduler runs it as a queued job instead
+ * (RequeueStuckMediaVariantsJob), so that its audit source is JOB.
  */
 final class RequeueStuckMediaVariantsCommand extends Command
 {

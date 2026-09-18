@@ -29,7 +29,8 @@ final readonly class ChooseStoreController
         $store = is_string($remembered) ? $this->platform->storeByCode($remembered) : null;
 
         if ($store !== null) {
-            return redirect()->route('storefront.home', ['store' => $store->code, 'locale' => $locale]);
+            // The query string travels on: ad and campaign parameters (utm_source, gclid) must survive.
+            return redirect()->route('storefront.home', [...$request->query(), 'store' => $store->code, 'locale' => $locale]);
         }
 
         app()->setLocale($locale);

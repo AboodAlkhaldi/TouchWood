@@ -238,12 +238,14 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
   the whole image, limits only its longest side (200 / 600 / 1200 / 2400 px) and never enlarges.
   Photos are turned upright, metadata is stripped, and transparency becomes white in JPEG.
 - **Lost jobs are recovered.** `variants_queued_at` records when generation was last queued. An
-  image still PENDING 15 minutes later is queued again by `platform:media:requeue-stuck`, which
-  the scheduler runs every 10 minutes, or by staff pressing Retry.
+  image still PENDING 15 minutes later is queued again by the sweep, which the scheduler queues as
+  a job every 10 minutes (`RequeueStuckMediaVariantsJob`, so its audit source is JOB), or by staff
+  pressing Retry. `platform:media:requeue-stuck` runs the same sweep by hand.
 - **Reads never lock.** `PlatformApi::media()` and `mediaUrls()` read without `FOR UPDATE`, so a
   storefront page never waits on, or blocks, a change.
-- **Media in use cannot be deleted.** Other modules reference `platform.media(id)` with
-  `ON DELETE RESTRICT`. The database refuses the delete and Platform reports `MediaInUse`.
+- **Media in use cannot be deleted today.** Other modules reference `platform.media(id)` with
+  `ON DELETE RESTRICT`; the database refuses the delete and Platform reports `MediaInUse`. Decided
+  next (owner, 2026-09-18): each module detaches or blocks its own references before the delete.
 - **Private files** are served only through signed links that expire after 30 minutes. On
   S3-compatible storage they download under their original name; Laravel's local disk ignores that
   and serves them under their object key. They never get variants and never go through the CDN.

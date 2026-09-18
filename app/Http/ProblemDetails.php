@@ -85,19 +85,21 @@ final class ProblemDetails
     private static function renderDomainError(DomainError $error, Request $request): Response
     {
         $status = self::status($error->category());
-
-        if (! $request->expectsJson()) {
-            return app(ExceptionHandler::class)->render($request, new HttpException($status, $error->getMessage(), $error));
-        }
-
         $key = self::translationKey($error->type());
         $replace = array_map(fn (string|int|float|bool|null $value): string => (string) $value, $error->context());
         $categoryKey = 'errors.category.'.strtolower($error->category()->value);
+        $title = self::translate("{$key}.title", $replace, self::translate($categoryKey, [], (string) (Response::$statusTexts[$status] ?? 'Error')));
+
+        // A page shows the translated title: Laravel's error pages print the exception's message,
+        // and a DomainError's message is written for developers.
+        if (! $request->expectsJson()) {
+            return app(ExceptionHandler::class)->render($request, new HttpException($status, $title, $error));
+        }
 
         return self::problem(
             $error->type(),
             $status,
-            self::translate("{$key}.title", $replace, self::translate($categoryKey, [], (string) (Response::$statusTexts[$status] ?? 'Error'))),
+            $title,
             self::translate("{$key}.detail", $replace, $error->getMessage()),
         );
     }

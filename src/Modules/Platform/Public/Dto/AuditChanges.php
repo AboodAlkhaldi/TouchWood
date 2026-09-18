@@ -16,11 +16,13 @@ use InvalidArgumentException;
 final class AuditChanges
 {
     /**
-     * An attribute named like personal data (owner's decision, 2026-09-18). A bare "name" is not on
-     * the list, because store and currency names are audited with their values: a person's name must
-     * be recorded with personal() by its module.
+     * An attribute named like personal data (owner's decision, 2026-09-18): the word ends the name,
+     * optionally followed by a number or line suffix (phone_number, address_line_1). A bare "name" is
+     * not on the list, because store and currency names are audited with their values: a person's
+     * name must be recorded with personal() by its module. A time such as email_verified_at is not
+     * personal data and is allowed.
      */
-    private const string PERSONAL_NAME = '/(^|_)(e_?mail|phone|mobile|address|(first|middle|last|family|given|full)_name|national_id|passport(_number)?|birth_?date|date_of_birth|iban)\z/i';
+    private const string PERSONAL_NAME = '/(^|_)(e_?mails?|phones?|mobiles?|address(es)?|iqama|national_id|passport|iban|birth_?date|date_of_birth|(first|middle|last|family|given|full)_name)(_(number|no|line_?\d+|\d+))?\z/i';
 
     /**
      * @var array<string, array{0: mixed, 1: mixed}|'changed'>

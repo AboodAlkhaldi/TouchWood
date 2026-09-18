@@ -32,7 +32,12 @@ it('refuses an actor whose id is not a ULID', function (string $factory, string 
     'a name instead of an id' => ['integration', 'odoo'],
     'too short' => ['guest', '01j8z3k4m5n6'],
     'letters a ULID never uses' => ['customer', '01j8z3k4m5n6p7q8r9s0t1v2wu'],
+    'too large for 128 bits' => ['staff', '8ZZZZZZZZZZZZZZZZZZZZZZZZZ'],
 ]);
+
+it('accepts the largest ULID', function () {
+    expect(Actor::staff('7ZZZZZZZZZZZZZZZZZZZZZZZZZ')->id)->toBe('7zzzzzzzzzzzzzzzzzzzzzzzzz');
+});
 
 it('records whose action started the system work', function () {
     $system = Actor::system(Actor::staff(STAFF_ID));
@@ -52,5 +57,6 @@ it('keeps the original requester when system work starts more system work', func
 it('rebuilds an actor stored as its type and id', function (ActorType $type) {
     $actor = Actor::of($type, $type === ActorType::System ? null : STAFF_ID);
 
-    expect($actor->type)->toBe($type);
+    expect($actor->type)->toBe($type)
+        ->and($actor->id)->toBe($type === ActorType::System ? null : STAFF_ID);
 })->with(ActorType::cases());

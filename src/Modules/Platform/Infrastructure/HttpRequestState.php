@@ -5,14 +5,20 @@ declare(strict_types=1);
 namespace Modules\Platform\Infrastructure;
 
 /**
- * Whether an HTTP request is being handled right now, set by TrackHttpRequest around it.
+ * Whether the code running now serves an HTTP request.
  *
- * Laravel's runningInConsole() cannot answer this: tests run in the console even while they send
- * HTTP requests, and a queued job can run inside a request. Only the middleware knows.
+ * In a web server process the answer is always yes — including work done after the response is
+ * sent (defer(), afterResponse() jobs), which runs once TrackHttpRequest has already finished. In
+ * the console it is yes only inside TrackHttpRequest: tests send HTTP requests from the console,
+ * and Laravel's runningInConsole() cannot tell those apart from an artisan command.
  */
 final class HttpRequestState
 {
     private int $depth = 0;
+
+    public function __construct(
+        private readonly bool $webServer,
+    ) {}
 
     public function enter(): void
     {
@@ -26,6 +32,6 @@ final class HttpRequestState
 
     public function isHandling(): bool
     {
-        return $this->depth > 0;
+        return $this->webServer || $this->depth > 0;
     }
 }

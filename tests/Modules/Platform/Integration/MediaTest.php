@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Console\Scheduling\Event as ScheduledEvent;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Factory as Filesystems;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,6 +41,7 @@ use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Infrastructure\External\InterventionImageVariantGenerator;
 use Modules\Platform\Infrastructure\External\LaravelMediaStorage;
 use Modules\Platform\Infrastructure\Queue\GenerateMediaVariantsJob;
+use Modules\Platform\Infrastructure\Queue\RequeueStuckMediaVariantsJob;
 use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Enums\ImageFormat;
@@ -545,15 +547,21 @@ describe('the stuck-variants sweep', function () {
         expect(app(RequeueStuckMediaVariantsHandler::class)->handle(new RequeueStuckMediaVariants))->toBe(0);
     });
 
-    it('runs from the console every ten minutes, on one server at a time', function () {
+    it('is queued as a job every ten minutes, from one server, so its audit source is JOB', function () {
         $events = collect(app(Schedule::class)->events())
-            ->filter(fn (ScheduledEvent $event): bool => str_contains((string) $event->command, RequeueStuckMediaVariantsCommand::NAME));
+            ->filter(fn (ScheduledEvent $event): bool => $event->description === RequeueStuckMediaVariantsJob::class);
 
         expect($events)->toHaveCount(1)
             ->and($events->first()?->expression)->toBe('*/10 * * * *')
-            ->and($events->first()?->withoutOverlapping)->toBeTrue()
-            ->and($events->first()?->onOneServer)->toBeTrue();
+            ->and($events->first()?->onOneServer)->toBeTrue()
+            ->and(new RequeueStuckMediaVariantsJob)->toBeInstanceOf(ShouldBeUnique::class);
 
+        $events->first()?->run(app());
+
+        Queue::assertPushed(RequeueStuckMediaVariantsJob::class, 1);
+    });
+
+    it('can still be run by hand from the console', function () {
         expect(Artisan::call(RequeueStuckMediaVariantsCommand::NAME))->toBe(0)
             ->and(Artisan::output())->toContain('0 stuck image(s)');
     });

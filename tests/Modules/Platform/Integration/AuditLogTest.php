@@ -334,5 +334,83 @@ describe('source and date', function () {
             Actor::system(),
             new DateTimeImmutable('+1 day'),
         ));
-    })->throws(InvalidArgumentException::class);
+    })->throws(InvalidArgumentException::class, 'cannot happen in the future');
+
+    it('refuses imported history dated after the transaction started, which the database would refuse', function () {
+        // PHP's clock is ahead of the transaction's start time, which is what recorded_at holds.
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::system(),
+            new DateTimeImmutable,
+        ));
+    })->throws(InvalidArgumentException::class, 'cannot happen in the future');
+
+    it('keeps the time zone of an imported date: 10:00 in Riyadh is 07:00 UTC', function () {
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'),
+            new DateTimeImmutable('2019-05-01 10:00:00+03:00'),
+        ));
+
+        $occurredAt = DB::selectOne("select to_char(occurred_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS') as utc from platform.audit_entries order by id desc limit 1");
+
+        expect($occurredAt?->utc)->toBe('2019-05-01 07:00:00');
+    });
+
+    it('refuses imported history whose actor carries a requester, before the database would', function () {
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::system(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3')),
+            new DateTimeImmutable('2019-05-01'),
+        ));
+    })->throws(InvalidArgumentException::class, 'it has no requester');
+
+    it('never records the IP address of a staff member working from the console', function () {
+        actingAs(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'));
+
+        auditSomething();
+
+        expect(latestAuditEntry())->toMatchArray(['source' => 'CONSOLE', 'actor_type' => 'STAFF', 'ip_address' => null]);
+    });
+
+    it('audits a queued job as the system even when the actor binding skips Platform\'s wrapper', function () {
+        // instance() bypasses the wrapper around ActorContext; the entry must still be JOB and SYSTEM.
+        actingAs(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'));
+
+        AuditsFromAJob::dispatch();
+
+        expect(latestAuditEntry())->toMatchArray([
+            'source' => 'JOB',
+            'actor_type' => 'SYSTEM',
+            'requested_by_type' => 'STAFF',
+            'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3',
+        ]);
+    });
+});
+
+describe('what the code refuses before the database would', function () {
+    it('refuses an actor that carries a requester outside a queued job', function () {
+        actingAs(Actor::system(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3')));
+
+        auditSomething();
+    })->throws(LogicException::class, 'only a queued job acts on someone\'s behalf');
+
+    it('refuses an entry for a store that does not exist', function () {
+        app(PlatformApi::class)->recordAudit(new AuditEntryDto('testing.thing.changed', 'testing.thing', 'thing-1', '01j8z3k4m5n6p7q8r9s0t1v2w3', AuditChanges::none()));
+    })->throws(InvalidArgumentException::class, 'names a store that does not exist');
+
+    it('refuses an action, subject type or subject id that is empty or too long for its column', function (string $action, string $subjectType, string $subjectId) {
+        app(PlatformApi::class)->recordAudit(new AuditEntryDto($action, $subjectType, $subjectId, null, AuditChanges::none()));
+    })->throws(InvalidArgumentException::class, 'must be 1 to')->with([
+        'action over 100' => [str_repeat('a', 101), 'testing.thing', 'thing-1'],
+        'subject type over 100' => ['testing.thing.changed', str_repeat('a', 101), 'thing-1'],
+        'subject id over 64' => ['testing.thing.changed', 'testing.thing', str_repeat('a', 65)],
+        'empty subject id' => ['testing.thing.changed', 'testing.thing', ''],
+    ]);
+
+    it('accepts values exactly at the column limits', function () {
+        app(PlatformApi::class)->recordAudit(new AuditEntryDto(str_repeat('a', 100), str_repeat('b', 100), str_repeat('c', 64), null, AuditChanges::none()));
+
+        expect(latestAuditEntry()['subject_id'])->toBe(str_repeat('c', 64));
+    });
 });

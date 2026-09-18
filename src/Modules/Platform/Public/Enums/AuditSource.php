@@ -14,9 +14,9 @@ enum AuditSource: string
     case Web = 'WEB';
     /** A web request made by an integration, e.g. a payment provider's webhook. */
     case Integration = 'INTEGRATION';
-    /** An artisan command, e.g. creating a store. */
+    /** An artisan command run by hand, e.g. creating a store. */
     case Console = 'CONSOLE';
-    /** A queued job or scheduled task. Whose action queued it is recorded separately. */
+    /** A queued job; scheduled work is always queued as one. Whose action queued it is recorded separately. */
     case Job = 'JOB';
     /** History brought over from the old system, with its real date. Only through the import method. */
     case Import = 'IMPORT';

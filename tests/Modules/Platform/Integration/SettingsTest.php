@@ -80,13 +80,21 @@ describe('declaring', function () {
     })->throws(InvalidSettingDefinition::class, 'looks like a secret')->with([
         'testing.sms.api_key', 'testing.gateway.apikey', 'testing.odoo.password', 'testing.bank.client_secret',
         'testing.storage.access_key', 'testing.signing.private_key', 'testing.odoo.credentials',
+        'testing.odoo.access_token', 'testing.sms.api_token', 'testing.webhook.signing_key',
+        'testing.webhook.hmac_key', 'testing.mail.smtp_pass', 'testing.files.encryption_key',
+        // A secret in any segment, not only the last.
+        'testing.api_key.live',
     ]);
 
     it('does not mistake an ordinary name for a secret', function (string $key) {
         app(SettingsRegistry::class)->define('testing', new SettingDefinitionDto($key, SettingScope::Global, SettingType::Integer, [], 6, 'testing.settings.update'));
 
         expect(app(PlatformApi::class)->setting($key)->int())->toBe(6);
-    })->with(['testing.otp.token_length', 'testing.keys.per_page', 'testing.secretary.count']);
+    })->with([
+        'testing.otp.token_length', 'testing.keys.per_page', 'testing.secretary.count',
+        // A policy about a secret is not a secret.
+        'testing.accounts.password_min_length', 'testing.accounts.password_expiry_days',
+    ]);
 
     it('refuses a key that belongs to another module', function () {
         app(SettingsRegistry::class)->define('loyalty', new SettingDefinitionDto('testing.points.expiry_days', SettingScope::Store, SettingType::Integer, [], 365, 'loyalty.settings.update'));

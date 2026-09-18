@@ -7,6 +7,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Modules\Platform\Public\Enums\AuditSource;
+use Modules\Platform\Public\Enums\MediaVariantsStatus;
+use Modules\Platform\Public\Enums\MediaVisibility;
+use Shared\Application\ActorType;
 
 uses(RefreshDatabase::class);
 
@@ -174,6 +178,19 @@ it('stores enum columns as strings, never integers', function () {
         expect($column->data_type)->toBe('character varying', "{$column->table_name}.{$column->column_name} must be stored as a string");
     }
 });
+
+it('allows in each enum column exactly the values of its PHP enum', function (string $constraint, array $cases) {
+    // A new enum case the CHECK does not know would pass every unit test and fail on insert.
+    $definition = DB::selectOne('select pg_get_constraintdef(oid) as definition from pg_constraint where conname = ?', [$constraint])?->definition;
+    preg_match_all("/'([A-Z_]+)'::/", (string) $definition, $allowed);
+
+    expect($allowed[1])->toEqualCanonicalizing(array_map(fn (BackedEnum $case): string|int => $case->value, $cases));
+})->with([
+    'actor types' => ['audit_entries_actor_type', ActorType::cases()],
+    'audit sources' => ['audit_entries_source', AuditSource::cases()],
+    'media visibility' => ['media_visibility', MediaVisibility::cases()],
+    'variant states' => ['media_variants_status', MediaVariantsStatus::cases()],
+]);
 
 it('uses the column types from the spec', function () {
     expect(platformColumnTypes('stores'))->toMatchArray([

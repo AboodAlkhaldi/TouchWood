@@ -11,24 +11,27 @@ use Shared\Application\Actor;
  * runs jobs one after another — and with the "sync" queue a job runs inside a web request, so the
  * request's own actor must come back when the job ends. A stack, because a sync job can dispatch
  * another sync job.
+ *
+ * Each entry is keyed by its job, so leaving removes exactly that job's entry: a job whose entry
+ * was never added (a listener failed before it) or is left twice cannot pop another job's actor.
  */
 final class JobActorState
 {
-    /** @var list<Actor> */
+    /** @var list<array{job: int, actor: Actor}> */
     private array $stack = [];
 
-    public function enter(Actor $actor): void
+    public function enter(int $job, Actor $actor): void
     {
-        $this->stack[] = $actor;
+        $this->stack[] = ['job' => $job, 'actor' => $actor];
     }
 
-    public function leave(): void
+    public function leave(int $job): void
     {
-        array_pop($this->stack);
+        $this->stack = array_values(array_filter($this->stack, fn (array $entry): bool => $entry['job'] !== $job));
     }
 
     public function current(): ?Actor
     {
-        return $this->stack === [] ? null : $this->stack[array_key_last($this->stack)];
+        return $this->stack === [] ? null : $this->stack[array_key_last($this->stack)]['actor'];
     }
 }

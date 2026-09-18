@@ -136,6 +136,15 @@ it('gives a page request the error page for the matching status, not a 500', fun
     get('/_test/thing-taken')->assertStatus(409);
 });
 
+it('shows a page request the translated title, never the message written for developers', function () {
+    app()->setLocale('en');
+
+    get('/_test/unauthorized')
+        ->assertForbidden()
+        ->assertSee('Not allowed')
+        ->assertDontSee('platform.store.update');
+});
+
 it('renders validation failures in the same shape with the field errors', function () {
     app()->setLocale('en');
 

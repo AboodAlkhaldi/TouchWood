@@ -7,7 +7,9 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Modules\Platform\Infrastructure\Queue\JobAwareActorContext;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
@@ -15,6 +17,8 @@ use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\Actor;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
+
+use function Pest\Laravel\withHeader;
 
 /*
 | Owner's decision (2026-09-18): a queued job acts as the system, and records whose action queued it.
@@ -52,6 +56,27 @@ final class RecordsItsActorJob implements ShouldQueue
 }
 
 /**
+ * A queued job that fails, remembering who its failed() method ran as.
+ */
+final class FailsJob implements ShouldQueue
+{
+    use Dispatchable;
+    use Queueable;
+
+    public static ?Actor $failedAs = null;
+
+    public function handle(): void
+    {
+        throw new RuntimeException('The job broke.');
+    }
+
+    public function failed(?Throwable $error): void
+    {
+        self::$failedAs = app(ActorContext::class)->current();
+    }
+}
+
+/**
  * Registers the actor the way Access will: as a binding, which Platform wraps.
  */
 function actingThroughBinding(Actor $actor): void
@@ -70,6 +95,7 @@ function actingThroughBinding(Actor $actor): void
 
 beforeEach(function () {
     RecordsItsActorJob::$seen = [];
+    FailsJob::$failedAs = null;
 });
 
 it('wraps an actor context registered after Platform, as Access will register its own', function () {
@@ -103,6 +129,44 @@ it('gives the request its own actor back once a job has run inside it', function
     RecordsItsActorJob::dispatch();
 
     expect(app(ActorContext::class)->current()->type)->toBe(ActorType::Staff);
+});
+
+it('runs a failed job\'s failed() method as the system too, and gives the actor back afterwards', function () {
+    actingThroughBinding(Actor::staff(REQUESTER_ID));
+
+    expect(fn () => Bus::dispatch(new FailsJob))->toThrow(RuntimeException::class, 'The job broke.');
+
+    expect(FailsJob::$failedAs?->type)->toBe(ActorType::System)
+        ->and(FailsJob::$failedAs?->requestedBy?->id)->toBe(REQUESTER_ID)
+        ->and(app(ActorContext::class)->current()->type)->toBe(ActorType::Staff);
+});
+
+it('audits a sync job inside a web request as JOB, then the request itself as WEB, under one correlation id of ours', function () {
+    actingThroughBinding(Actor::staff(REQUESTER_ID));
+
+    Route::post('/_probe/queue-in-request', function (PlatformApi $platform) {
+        RecordsItsActorJob::dispatch();
+        DB::transaction(fn () => $platform->recordAudit(new AuditEntryDto('testing.request.ran', 'testing.request', 'request-1', null, AuditChanges::none())));
+
+        return response()->noContent();
+    });
+
+    $response = withHeader('X-Correlation-Id', 'chosen-by-the-caller')->post('/_probe/queue-in-request')->assertNoContent();
+
+    $job = DB::table('platform.audit_entries')->where('action', 'testing.job.ran')->first();
+    $request = DB::table('platform.audit_entries')->where('action', 'testing.request.ran')->first();
+    $correlationId = $response->headers->get('X-Correlation-Id');
+
+    expect($job?->source)->toBe('JOB')
+        ->and($job?->actor_type)->toBe('SYSTEM')
+        ->and($job?->requested_by_type)->toBe('STAFF')
+        ->and($job?->ip_address)->toBeNull()
+        ->and($request?->source)->toBe('WEB')
+        ->and($request?->actor_type)->toBe('STAFF')
+        ->and($request?->ip_address)->toBe('127.0.0.1')
+        ->and($correlationId)->not->toBe('chosen-by-the-caller')
+        ->and($request?->correlation_id)->toBe($correlationId)
+        ->and($job?->correlation_id)->toBe($correlationId);
 });
 
 it('keeps the original requester when a job queues another job', function () {

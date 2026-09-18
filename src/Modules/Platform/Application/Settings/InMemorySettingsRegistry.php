@@ -19,8 +19,11 @@ final class InMemorySettingsRegistry implements SettingsRegistry
 
     private const int MAX_KEY_LENGTH = 150;
 
-    /** A setting name that looks like a secret: those belong in server environment variables. */
-    private const string SECRET_NAME = '/(^|_)(password|passwd|secret|api_?key|private_?key|access_?key|credentials?)(_|\z)/';
+    /**
+     * A key segment that names a secret: those belong in server environment variables. The word
+     * ends the segment, so a policy about a secret (password_min_length, token_length) is allowed.
+     */
+    private const string SECRET_NAME = '/(^|_)(password|passwd|pass|secret|token|api_?key|private_?key|access_?key|secret_?key|signing_?key|encryption_?key|hmac_?key|credentials?)\z/';
 
     /** @var array<string, SettingDefinitionDto> */
     private array $definitions = [];
@@ -42,9 +45,8 @@ final class InMemorySettingsRegistry implements SettingsRegistry
                 throw new InvalidSettingDefinition("The {$module} module cannot declare \"{$key}\": its keys must start with \"{$module}.\".");
             }
 
-            $name = substr($key, (int) strrpos($key, '.') + 1);
-
-            if (preg_match(self::SECRET_NAME, $name) === 1) {
+            // Every segment: "payments.api_key.live" names a secret as much as "payments.live.api_key".
+            if (array_filter(explode('.', $key), fn (string $segment): bool => preg_match(self::SECRET_NAME, $segment) === 1) !== []) {
                 throw new InvalidSettingDefinition("\"{$key}\" looks like a secret. Secrets live in server environment variables, never in settings.");
             }
 
