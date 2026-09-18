@@ -45,6 +45,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §7.1 | Laravel's default users table and User model removed (Access owns customer and staff tables); sessions/cache/jobs tables kept as the fallback when Redis is not configured | Platform audit, owner decision |
 | 2026-09-18 | §3 | No Redis for now: sessions, cache and queues run on PostgreSQL; the cache version is written inside the transaction so cached data is never stale. Redis + Horizon return only when traffic needs them | Owner decision |
 | 2026-09-18 | §7.5 | Actors: guest and integration added; every actor id is a ULID; a queued job acts as the system and the audit records who queued it | Platform audit, owner decision |
+| 2026-09-18 | §5.3 | Audit entries gain a source (web, integration, console, job, import) set by Platform, and recorded_at; nothing can be back-dated except imported history | Platform audit, owner decision |
 
 ---
 

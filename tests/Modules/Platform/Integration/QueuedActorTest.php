@@ -87,6 +87,7 @@ it('runs a job queued by a staff member as the system, and the audit records who
 
     expect(RecordsItsActorJob::$seen[0]->type)->toBe(ActorType::System)
         ->and(RecordsItsActorJob::$seen[0]->requestedBy?->id)->toBe(REQUESTER_ID)
+        ->and($entry?->source)->toBe('JOB')
         ->and($entry?->actor_type)->toBe('SYSTEM')
         ->and($entry?->actor_id)->toBeNull()
         ->and($entry?->requested_by_type)->toBe('STAFF')

@@ -162,6 +162,13 @@ reaches all of them.
   reach the log, and anonymizing an account never has to rewrite history.
 - The actor, time and correlation id are filled in automatically. The IP address is filled in
   only for staff, and a CHECK constraint refuses it on any other entry.
+- **Every entry has a source** Platform works out itself: `WEB`, `INTEGRATION` (a request made by an
+  integration), `CONSOLE`, `JOB` or `IMPORT`. A global middleware (`TrackHttpRequest`) marks the time a
+  request is being handled — Laravel's `runningInConsole()` cannot tell, because tests and
+  `sync` jobs run in the console.
+- **Nothing can be back-dated.** `occurred_at` and `recorded_at` come from PostgreSQL's clock and a
+  CHECK keeps them equal. Only `recordImportedAudit` — system only, past dates only — gives old history
+  its real date, and `recorded_at` still shows when it was written.
 - A queued job acts as the **system**, and its entries also record **who queued it**
   (`requested_by_type`/`requested_by_id`). The payload of every queued job carries the requester
   (`QueuedActor`); while the job runs, `JobAwareActorContext` — which wraps whatever `ActorContext` is

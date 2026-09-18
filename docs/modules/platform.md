@@ -166,6 +166,14 @@ A permanent record of who changed what.
   address) — only that the field changed. Account anonymization (handoff §7.9) then never has
   to rewrite audit history.
 - **[DECIDED]** Entries are **kept forever**. Nothing deletes or archives them.
+- **[DECIDED 2026-09-18] Every entry has a source**, worked out by Platform and never passed in:
+  `WEB` (a browser or admin request), `INTEGRATION` (a request made by an integration, e.g. a
+  payment webhook), `CONSOLE` (an artisan command), `JOB` (a queued job or scheduled task) or
+  `IMPORT` (history from the old system).
+- **[DECIDED 2026-09-18] Nothing can be back-dated.** `occurred_at` and `recorded_at` both come from
+  PostgreSQL's clock and must be equal, except for an import: only `recordImportedAudit` may give a
+  past date (with the original actor), only the system may call it, and `recorded_at` still shows
+  when the row was really written.
 - **[DECIDED]** When the actor is a staff member, the entry records their **IP address**.
   Customer and system entries never record an IP.
 
@@ -217,6 +225,9 @@ interface PlatformApi
 
     // Audit — called by other modules inside their own command-handler transaction.
     public function recordAudit(AuditEntryDto $entry): void;
+
+    // Data migration only: old history with its real date and actor, marked IMPORT. System only.
+    public function recordImportedAudit(AuditEntryDto $entry, Actor $actor, DateTimeImmutable $occurredAt): void;
 }
 ```
 
@@ -443,7 +454,9 @@ a file path is not one.
 | Column | Type | Rules |
 |---|---|---|
 | `id` | `bigint` identity PK | High-volume, append-only — `bigint` like the other ledgers (handoff §5.3) |
-| `occurred_at` | `timestamptz` NOT NULL | |
+| `occurred_at` | `timestamptz` NOT NULL DEFAULT `now()` | When the change happened. Equal to `recorded_at` except for an import |
+| `recorded_at` | `timestamptz` NOT NULL DEFAULT `now()` | **[DECIDED 2026-09-18]** When the row was written, always from the database clock |
+| `source` | `varchar(16)` NOT NULL | **[DECIDED 2026-09-18]** `WEB`, `INTEGRATION`, `CONSOLE`, `JOB`, `IMPORT`. CHECKs: `audit_entries_source`; `audit_entries_job_acts_as_system` (a `JOB` entry's actor is `SYSTEM`); `audit_entries_backdated_import_only` (`occurred_at = recorded_at`, or an import dated in the past); `requested_by_*` only on `JOB` entries |
 | `store_id` | `char(26)` NULL | FK → `platform.stores(id)` |
 | `actor_type` | `varchar(16)` NOT NULL | `STAFF`, `CUSTOMER`, `GUEST`, `INTEGRATION`, `SYSTEM` |
 | `actor_id` | `char(26)` NULL | A ULID; NULL only for `SYSTEM` |

@@ -7,6 +7,7 @@ namespace Modules\Platform\Infrastructure;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Factory as Filesystems;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Queue\Events\JobExceptionOccurred;
 use Illuminate\Queue\Events\JobProcessed;
@@ -49,6 +50,7 @@ use Modules\Platform\Presentation\Console\CreateCurrencyCommand;
 use Modules\Platform\Presentation\Console\CreateStoreCommand;
 use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
+use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Psr\Log\LoggerInterface;
@@ -77,6 +79,7 @@ final class PlatformServiceProvider extends ServiceProvider
         MediaVariantsQueue::class => LaravelMediaVariantsQueue::class,
         // Process-wide on purpose: the queue worker runs jobs one after another in one process.
         JobActorState::class => JobActorState::class,
+        HttpRequestState::class => HttpRequestState::class,
     ];
 
     public function register(): void
@@ -127,6 +130,9 @@ final class PlatformServiceProvider extends ServiceProvider
         // interior to register storefront routes.
         Route::pattern('store', StoreCode::ROUTE_PATTERN);
         $router->aliasMiddleware(ResolveStore::ALIAS, ResolveStore::class);
+
+        // On every request, so the audit log can tell a web change from a console or queued one.
+        $this->app->make(HttpKernel::class)->pushMiddleware(TrackHttpRequest::class);
 
         $this->app->make(SettingsRegistry::class)->define('platform', ...MediaSettings::definitions());
 
