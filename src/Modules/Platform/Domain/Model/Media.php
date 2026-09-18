@@ -55,6 +55,9 @@ final class Media
 
     private const int MAX_TEXT_LENGTH = 255;
 
+    /** SHA-256 in lowercase hex, as the database's media_checksum_format check also requires. */
+    private const string CHECKSUM = '/\A[0-9a-f]{64}\z/';
+
     /** @var list<string> */
     private array $changed = [];
 
@@ -104,6 +107,10 @@ final class Media
 
         if ($bytes < 1) {
             throw new InvalidMediaAttribute('bytes', 'the file is empty');
+        }
+
+        if (preg_match(self::CHECKSUM, $checksum) !== 1) {
+            throw new InvalidMediaAttribute('checksum', 'expected a SHA-256 in lowercase hex');
         }
 
         if ($bytes > $maxBytes) {

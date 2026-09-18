@@ -41,7 +41,7 @@ A country storefront: `sa`, `eg`, `ae`, and any added later.
 | `name` | Arabic and English both required and non-empty. |
 | `country_code` | ISO 3166-1 alpha-2. **Immutable.** |
 | `currency_code` | Must reference an existing currency. **Immutable** — every price, order and point balance in the store is denominated in it. |
-| `tax_rate_basis_points` | 0–10000 (15% = `1500`). **[PROPOSED]** stored as basis points, an integer, so no DECIMAL and no float ever holds it. Changing it affects only quotes computed afterwards; orders keep their own snapshot (Sales). |
+| `tax_rate_basis_points` | 0–10000 (15% = `1500`). **[DECIDED 2026-09-18]** stored as basis points, an integer, so no DECIMAL and no float ever holds it. Changing it affects only quotes computed afterwards; orders keep their own snapshot (Sales). |
 | `timezone` | A valid IANA identifier (`Asia/Riyadh`). Used at the presentation edge to show local times. |
 | `position` | Display order in store switchers. |
 
@@ -88,9 +88,9 @@ hours to verify a bank transfer, and so on.
   `private_key`, `access_key`, `credentials`) is refused at boot. A definition may be marked
   **sensitive**: the audit log then records only that it changed, never its values, because the
   log is kept forever. Admin screens must not display a sensitive value in full.
-- **[PROPOSED] Rule of thumb for what is a setting:** a single tunable value is a setting.
-  Anything with rows, relationships or its own lifecycle (carriers, gateways, address formats)
-  is a table in its owning module.
+- **[DECIDED 2026-09-18] The rule for what is a setting:** a single tunable value is a setting.
+  Anything with rows, relationships or its own lifecycle (carriers, gateways, address formats,
+  free-shipping rules per store) is a table in its owning module.
 
 ### 1.4 Media
 
@@ -111,18 +111,23 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
   - **[DECIDED 2026-09-16]** Each size keeps the whole image and its shape (no cropping) and
     limits only the longest side: thumb 200px, card 600px, detail 1200px, zoom 2400px. A smaller
     original is never enlarged. Photos are turned upright and their metadata is stripped.
-  - **[PROPOSED — added in implementation]** Only **public** images get variants. Private files
+  - **[DECIDED 2026-09-18]** Quality: AVIF 60, WebP 80, JPEG 82 (progressive). Transparent areas
+    become white in the JPEG copy.
+  - **[DECIDED 2026-09-18]** Only **public** images get variants. Private files
     (documents, receipts), including private JPEG and PNG, are served as uploaded: variants exist
     for CDN display, and private files never go through the CDN.
   - The job tries three times; then the image is `FAILED` and staff can retry it.
+    **[DECIDED 2026-09-18]** It waits 10 seconds before the second try and 60 before the third,
+    and each try is stopped after 80 seconds.
   - **[DECIDED 2026-09-16] A lost job is recovered.** If the job never runs — the queue was down
     at upload, or a worker died — the image would stay `PENDING` forever. So an image still
     `PENDING` **15 minutes** after it was queued is queued again, both by a scheduled sweep every
     10 minutes and by staff pressing Retry. Queuing twice is harmless: a finished job does nothing.
-- **[PROPOSED — added in implementation]** An image over 12,000px on a side or 50 million pixels
+    **[DECIDED 2026-09-18]** One sweep queues at most 100 images.
+- **[DECIDED 2026-09-18]** An image over 12,000px on a side or 50 million pixels
   is refused as too large, whatever its file size — a small file can decode into a bitmap that
   exhausts memory. An animated WebP is refused: it cannot be resized.
-- **[PROPOSED — added in implementation]** Only the base name of the uploaded file is kept (no
+- **[DECIDED 2026-09-18]** Only the base name of the uploaded file is kept (no
   directories, no control or invisible formatting characters such as a right-to-left override),
   at most 255 characters. On S3-compatible storage a private file downloads under this name.
 - A Media row referenced by another module cannot be deleted. The referencing tables hold a
@@ -147,8 +152,8 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
   The type is detected from the file's contents, not its name or the browser's claim. The size
   limits are global settings (`platform.media.max_public_bytes`, `platform.media.max_private_bytes`)
   so they can change without a deploy; the accepted types are fixed in code for safety.
-  **[PROPOSED — added in implementation]** Each limit can be set between 1 byte and 100 MB, and
-  changing one needs `platform.settings.update`.
+  **[DECIDED 2026-09-18]** "10 MB" is 10 MiB (10,485,760 bytes). Each limit can be set between
+  1 byte and 100 MB, and changing one needs `platform.settings.update`.
 - **[DECIDED]** No third-party media package: `spatie/laravel-medialibrary` links each file to
   another module's database model, which the boundary rule forbids (handoff §4.3). Resizing uses
   Intervention Image.
@@ -167,9 +172,15 @@ A permanent record of who changed what.
   action queued it, the entry also records that **requester**. Their permission is checked when they
   start the action. Every actor id is a ULID: a guest's is the token their cart carries, an
   integration's is its settings record.
-- **[PROPOSED]** `changes` never stores the *values* of personal fields (name, email, phone,
-  address) — only that the field changed. Account anonymization (handoff §7.9) then never has
-  to rewrite audit history.
+- **[DECIDED 2026-09-18]** `changes` never stores the *values* of personal fields (name, email,
+  phone, address, uploaded file names) — only that the field changed. Account anonymization
+  (handoff §7.9) then never has to rewrite audit history.
+- **[DECIDED 2026-09-18] Not audited:** uploading a public image identical to one already stored
+  (nothing is created; the existing image is returned), and the system's own maintenance (the
+  variants job and the stuck-image sweep). Every change a person makes is audited.
+- **[DECIDED 2026-09-18] The correlation id is always ours.** Every request gets a new ULID;
+  an `X-Correlation-Id` sent by the caller is ignored, so nobody can write an id of their choice
+  into the audit log.
 - **[DECIDED]** Entries are **kept forever**. Nothing deletes or archives them.
 - **[DECIDED 2026-09-18] Every entry has a source**, worked out by Platform and never passed in:
   `WEB` (a browser or admin request), `INTEGRATION` (a request made by an integration, e.g. a
@@ -192,7 +203,8 @@ Not an aggregate — a rule that holds for every request, job and command.
   `brand.com/sa/en/...`, so search engines see one address per language. The supported languages
   are `ar` and `en` (every name in the system has both); anything else is a 404. The page, its
   links and its error messages follow that language.
-- Visiting a store remembers the store and the language in cookies.
+- Visiting a store remembers the store and the language in cookies. **[DECIDED 2026-09-18]**
+  They last one year.
 - **[DECIDED 2026-09-18]** `brand.com/sa` with no language redirects to the visitor's remembered
   language, otherwise Arabic — one default for every store.
 - **[DECIDED]** `brand.com/` with no store segment: if the cookie names a store that still
@@ -314,6 +326,8 @@ tests bind fakes for `Authorizer` and `ActorContext`.
 
 Permissions follow `{module}.{resource}.{action}`. **Reserved** means Super Admin only: the
 permission exists so every handler asserts one, but it is never offered in the role editor.
+**[DECIDED 2026-09-18]** Creating a store, creating or changing a currency, and the variants job
+stay reserved: each reaches every store at once.
 
 | Use case | Who | Permission | Store-checked |
 |---|---|---|---|
@@ -323,9 +337,9 @@ permission exists so every handler asserts one, but it is never offered in the r
 | `CreateCurrency` | Super Admin | `platform.currency.create` (reserved) | Global |
 | `UpdateCurrency` — name, abbreviation, sign (including clearing it); exponent only while no store uses it | Super Admin | `platform.currency.update` (reserved) | Global |
 | `ViewSettings` | Staff | `platform.settings.view` | That store; ``GLOBAL` keys need all-stores access |
-| `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update`. Platform's own settings (the media upload limits) use `platform.settings.update` **[PROPOSED]** | That store; `GLOBAL` keys need all-stores access |
+| `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update`. Platform's own settings (the media upload limits) use `platform.settings.update` **[DECIDED 2026-09-18]** | That store; `GLOBAL` keys need all-stores access |
 | `UploadMedia` | Staff | `platform.media.upload` | Global (media belongs to no store) |
-| `UpdateMediaAltText` | Staff | `platform.media.update` **[PROPOSED]** — handoff lists only upload and delete | Global |
+| `UpdateMediaAltText` | Staff | `platform.media.update` **[DECIDED 2026-09-18]** — handoff lists only upload and delete | Global |
 | `DeleteMedia` | Staff | `platform.media.delete` | Global |
 | `RetryMediaVariants` — a `FAILED` image, or one `PENDING` for 15 minutes | Staff | `platform.media.upload` | Global |
 | `GenerateMediaVariants` | Queued job | System — `platform.media.variants.generate` (reserved) | Global |
@@ -335,10 +349,11 @@ permission exists so every handler asserts one, but it is never offered in the r
 | `ResolveStoreContext` | Every storefront request | None | — |
 | `ChooseStore` — the country page at `brand.com/`, and the cookie redirect | Any visitor | None | — |
 
-**Delivery [PROPOSED].** Stage 1 builds the domain, persistence, store resolution, the public
-contract, and console commands to create stores and currencies (seeding `sa`, `eg`, `ae`).
+**Delivery [DECIDED 2026-09-18].** Stage 1 builds the domain, persistence, store resolution, the
+public contract, and console commands to create stores and currencies (seeding `sa`, `eg`, `ae`).
 Admin screens for these use cases arrive once Access (login, permissions) and the frontend
-exist, because a screen with no login cannot be protected.
+exist, because a screen with no login cannot be protected. Until the Content module builds the
+real homepage, `brand.com/sa/ar` shows a placeholder page with the store's name.
 
 ---
 
@@ -387,7 +402,7 @@ strings. IDs are ULIDs (`char(26)`) except where noted.
 
 | Column | Type | Rules |
 |---|---|---|
-| `code` | `char(3)` PK | `CHECK (code ~ '^[A-Z]{3}$')` — **[PROPOSED]** the natural ISO code is the key rather than a ULID, because `Money` carries the code and it never changes |
+| `code` | `char(3)` PK | `CHECK (code ~ '^[A-Z]{3}$')` — **[DECIDED 2026-09-18]** the natural ISO code is the key rather than a ULID, because `Money` carries the code and it never changes |
 | `exponent` | `smallint` NOT NULL | `CHECK (exponent BETWEEN 0 AND 6)` |
 | `name` | `jsonb` NOT NULL | `{"ar": "...", "en": "..."}` |
 | `abbreviation` | `jsonb` NOT NULL | `{"ar": "...", "en": "..."}` |
@@ -425,7 +440,8 @@ Indexes: `UNIQUE NULLS NOT DISTINCT (store_id, key)` — one row per key per sto
 
 ### 5.4 `platform.media`
 
-Columns from handoff §5.5, plus the ones marked **[PROPOSED]**.
+Columns from handoff §5.5, plus `original_filename`, `variants_status`, `variants_queued_at` and
+`variants_generated_at`, added by this spec.
 
 | Column | Type | Rules |
 |---|---|---|
@@ -433,13 +449,13 @@ Columns from handoff §5.5, plus the ones marked **[PROPOSED]**.
 | `visibility` | `varchar(16)` NOT NULL | `PUBLIC` or `PRIVATE` |
 | `disk` | `varchar(32)` NOT NULL | The private disk that keeps the original. Variants of public images are on the configured public disk |
 | `object_key` | `varchar(255)` NOT NULL | The original's key |
-| `original_filename` | `varchar(255)` NOT NULL | **[PROPOSED]** download name for private documents |
+| `original_filename` | `varchar(255)` NOT NULL | **[DECIDED 2026-09-18]** download name for private documents |
 | `mime` | `varchar(100)` NOT NULL | |
 | `bytes` | `bigint` NOT NULL | |
 | `width`, `height` | `integer` NULL | Required for images, NULL for PDF |
 | `checksum` | `char(64)` NOT NULL | SHA-256, hex |
 | `alt_ar`, `alt_en` | `varchar(255)` NULL | |
-| `variants_status` | `varchar(16)` NULL | `PENDING`, `READY`, `FAILED`; NULL for files without variants (PDFs and private files) **[PROPOSED]** |
+| `variants_status` | `varchar(16)` NULL | `PENDING`, `READY`, `FAILED`; NULL for files without variants (PDFs and private files) **[DECIDED 2026-09-18]** |
 | `variants_queued_at` | `timestamptz` NULL | When generation was last queued; set exactly when `variants_status` is. Finds images whose job was lost (§4.1) |
 | `variants_generated_at` | `timestamptz` NULL | **[PROPOSED]** |
 | `uploaded_by` | `char(26)` NULL | Staff user id |
@@ -455,10 +471,11 @@ Indexes:
 
 Variant object keys are derived, not stored: `{object_key without extension}/{size}.{format}`.
 
-CHECK constraints (added in implementation): `media_visibility`, `media_variants_status`,
-`media_variants_queued` (a queue time exactly when there is a status), `media_bytes_positive`,
-`media_dimensions` (width and height both set and positive, or both NULL),
-`media_checksum_format` (64 lowercase hex characters).
+CHECK constraints (added in implementation, **[DECIDED 2026-09-18]** kept): `media_visibility`,
+`media_variants_status`, `media_variants_queued` (a queue time exactly when there is a status),
+`media_bytes_positive`, `media_dimensions` (width and height both set and positive, or both NULL),
+`media_checksum_format` (64 lowercase hex characters). Each one is also a rule in `Media`, so the
+code refuses a bad value with a clear error before the database would (§5.8).
 
 **[DECIDED 2026-09-16]** Object keys contain the media's ULID (`media/01j8z3….jpg`). Handoff
 §5.3's "never expose the ULID" is about identifiers people read and type, such as order numbers;
@@ -493,7 +510,7 @@ Indexes:
 
 Trigger: `BEFORE UPDATE OR DELETE` raises an exception.
 
-### 5.6 Shared infrastructure tables — **[PROPOSED]** in the `public` schema, not `platform`
+### 5.6 Shared infrastructure tables — **[DECIDED 2026-09-18]** in the `public` schema, not `platform`
 
 Laravel's own tables and the event plumbing every module uses. They belong to
 `Shared/Infrastructure`, not to Platform.
@@ -535,6 +552,14 @@ currency shows its letters until a font update supports it.
 | `ae` | AE | AED | 500 (5%) | Asia/Dubai | 3 |
 
 These values live only in the seeder, never in `Domain/` or `Application/` (handoff §2.2).
+
+### 5.8 Code first, the database last — **[DECIDED 2026-09-18]**
+
+The database checks stay, but they are the last line of defence. Every rule a CHECK, a unique
+index or a foreign key enforces is first checked in code, which refuses a bad value with a clear,
+translated error, so the database should never receive a row it would refuse. A new CHECK comes
+with its code rule and a test that the code refuses the value first. In this review every Platform
+CHECK had its code rule except `media_checksum_format`; `Media::upload` now checks the checksum too.
 
 ---
 
@@ -596,6 +621,10 @@ module, so this section fixes the pattern every later module follows.
   `Unauthorized` (`FORBIDDEN`), `MoneyException` (`INVALID`), and Laravel's own validation
   errors, which use the same envelope. `MissingStoreContext` is a programming error, not a
   `DomainError`, so it always becomes a 500.
+- **[DECIDED 2026-09-18] Errors from outside the modules:** invalid form input answers with type
+  `validation_failed` and the field errors; any other HTTP error answers with type `http.{status}`
+  (`http.404`, `http.403`) — the same JSON shape, in Arabic or English. A page request (not JSON)
+  gets the error page for its status instead.
 
 ### 7.2 Why module errors instead of one global list of errors
 
@@ -628,12 +657,12 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── MediaTooLarge                         TOO_LARGE
 ├── MediaInUse                            CONFLICT
 ├── InvalidMediaVariantsTransition        CONFLICT    e.g. retrying an image that did not fail  ¹
-└── InvalidMediaAttribute                 INVALID     file name or alt text too long / empty  ¹
+└── InvalidMediaAttribute                 INVALID     file name or alt text too long / empty, bad checksum  ¹
 ```
 
-¹ Added during implementation. The approved list had no error for some rules in §1 and §8 (a
-malformed code, a missing translation, a duplicate currency, an invalid variant transition, an
-over-long file name or alt text); these name them.
+¹ Added during implementation, **[DECIDED 2026-09-18]** kept. The approved list had no error for
+some rules in §1 and §8 (a malformed code, a missing translation, a duplicate currency, an invalid
+variant transition, an over-long file name or alt text, a malformed checksum); these name them.
 
 ### 7.4 The response
 
@@ -667,7 +696,8 @@ stack traces, SQL, or another customer's data.
 - Setting read: returns the default when nothing is stored; typed reader throws on type mismatch.
 - Media variants: `PENDING → READY`, `PENDING → FAILED`, `FAILED → PENDING`; `READY` cannot change.
 - Media upload rules: public accepts JPEG, PNG, WebP; private accepts PDF, JPEG, PNG; the type
-  comes from the file's contents, so a PDF renamed `.jpg` is rejected as public.
+  comes from the file's contents, so a PDF renamed `.jpg` is rejected as public. A checksum that
+  is not a lowercase SHA-256 is refused before the database would refuse it (§5.8).
 - Audit changes: personal fields are recorded as `"changed"`, never their values.
 - Every Platform error has a unique `type` and a category.
 
@@ -704,6 +734,7 @@ stack traces, SQL, or another customer's data.
   stops working after it expires; no original and no private file is ever on the public disk.
 - Reading media never locks its row.
 - A staff action's audit entry records the staff member's IP address.
+- Every request gets a new correlation id; one sent in `X-Correlation-Id` is never used.
 - Error responses match the RFC 7807 shape in both Arabic and English; each category gets its
   HTTP status; an unexpected exception returns a generic 500 with no internal detail.
 - Admin-permission scenarios (403 for a staff member scoped to `sa` editing `ae`) are written in
@@ -743,6 +774,33 @@ stack traces, SQL, or another customer's data.
 | 14 | Public originals carry photo metadata (GPS) | **Keep every original private;** public images are shown only through their variants (§1.4). |
 | 15 | ULIDs in image file paths vs handoff "never expose the ULID" | **Keep them:** the rule is about human-facing identifiers (§5.4). |
 
-### 9.2 Still open
+### 9.2 Decisions review — 2026-09-18
+
+Every choice made during implementation without the owner's word was put to the owner.
+
+| # | Question | Decision |
+|---|---|---|
+| 16 | Tax rate as basis points (15% = 1500) | **Keep** (§1.1). |
+| 17 | ISO code as the currency's primary key | **Keep** (§5.1). |
+| 18 | How long the store and language cookies last | **One year** (§1.6). |
+| 19 | Admin screens and the "view" use cases | **After Access** (§3). |
+| 20 | Variants for private images | **No — public images only** (§1.4). |
+| 21 | Image limits: 12,000 px a side, 50 million pixels, no animated WebP | **Keep** (§1.4). |
+| 22 | Variant quality: AVIF 60, WebP 80, JPEG 82; transparency white in JPEG | **Keep** (§1.4). |
+| 23 | Upload limit 10 MiB, settable 1 byte–100 MB with `platform.settings.update` | **Keep** (§1.4). |
+| 24 | Base file name only, 255 characters, invisible characters removed; storage paths | **Keep** (§1.4, §5.4). |
+| 25 | Variants job: 3 tries, 10 s then 60 s apart, 80 s each; sweep of 100 images | **Keep** (§1.4). |
+| 26 | Personal fields in the audit log | **Only "changed", never the values** (§1.5). |
+| 27 | Not audited: a duplicate public upload, the system's own maintenance | **Keep** (§1.5). |
+| 28 | Take the caller's `X-Correlation-Id`? | **Changed: always make our own** (§1.5). |
+| 29 | `platform.settings.update`, `platform.media.update`, `platform.media.variants.generate` | **Keep these names** (§3). |
+| 30 | Reserved permissions: create store, create/update currency, variants job | **Keep reserved** (§3). |
+| 31 | `validation_failed` and `http.{status}` errors; error pages for page requests | **Keep** (§7.1). |
+| 32 | What is a setting and what is a table | **Make it the rule** (§1.3). |
+| 33 | Laravel's shared tables in the `public` schema | **Keep** (§5.6). |
+| 34 | The CHECKs and errors added during implementation | **Keep all — and the code must catch every one before the database** (§5.8, §7.3). |
+| 35 | Placeholder store home page | **Keep until the Content module** (§3). |
+
+### 9.3 Still open
 
 None.
