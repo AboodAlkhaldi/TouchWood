@@ -12,7 +12,7 @@
         <p>{{ __('platform::stores.choose_intro') }}</p>
         <ul>
             @foreach ($stores as $store)
-                <li><a href="{{ route('storefront.home', ['store' => $store->code]) }}">{{ $store->name->in($locale) }}</a></li>
+                <li><a href="{{ route('storefront.home', ['store' => $store->code, 'locale' => $locale]) }}">{{ $store->name->in($locale) }}</a></li>
             @endforeach
         </ul>
     </main>

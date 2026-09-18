@@ -183,9 +183,19 @@ Not an aggregate — a rule that holds for every request, job and command.
 
 - A storefront request resolves exactly one store from the first path segment:
   `brand.com/sa/...` → the `sa` store. An unknown code returns 404.
-- Visiting a store remembers it in a cookie.
+- **[DECIDED 2026-09-18] The language is the second segment:** `brand.com/sa/ar/...` and
+  `brand.com/sa/en/...`, so search engines see one address per language. The supported languages
+  are `ar` and `en` (every name in the system has both); anything else is a 404. The page, its
+  links and its error messages follow that language.
+- Visiting a store remembers the store and the language in cookies.
+- **[DECIDED 2026-09-18]** `brand.com/sa` with no language redirects to the visitor's remembered
+  language, otherwise Arabic — one default for every store.
 - **[DECIDED]** `brand.com/` with no store segment: if the cookie names a store that still
-  exists, redirect there; otherwise show a page to choose a country. No IP-based detection.
+  exists, redirect there (in the remembered language, otherwise Arabic); otherwise show a page to
+  choose a country, in that same language. No IP-based detection.
+- **[DECIDED 2026-09-18] Outside the storefront:** emails and SMS use the customer's stored
+  language (Access/Ops); the admin panel uses the staff member's own language (Access); webhooks
+  and other machine endpoints have no language.
 - A queued job runs in the store it was dispatched from. The store travels with the job
   automatically; the job does not have to pass it by hand.
 - A console command that touches store-scoped data takes an explicit `--store=` option or

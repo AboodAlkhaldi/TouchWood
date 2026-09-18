@@ -31,7 +31,8 @@
 
 ## Stores
 
-- Storefront routes: `Route::prefix('{store}')->middleware('store')`. The `{store}` pattern is
+- Storefront routes: `Route::prefix('{store}/{locale}')->middleware('store')` — the store, then the
+  language (`ar`/`en`); the middleware sets both, and generated links keep both. The `{store}` pattern is
   registered globally by Platform and already excludes reserved paths such as `/admin/...`, so
   modules never import Platform's interior to do this.
 - A module that owns a top-level URL (`/webhooks`, `/feeds`…) reserves it with

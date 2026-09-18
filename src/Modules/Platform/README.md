@@ -44,8 +44,9 @@ $this->app->make(SettingsRegistry::class)->define('loyalty',
 ```
 
 ```php
-// Storefront routes: the "store" middleware resolves /{store}/... and sets store context.
-Route::prefix('{store}')->middleware('store')->group(...);
+// Storefront routes: the "store" middleware resolves /{store}/{locale}/..., sets the store context
+// and the app locale, and fills both into every link it generates.
+Route::prefix('{store}/{locale}')->middleware('store')->group(...);
 
 // A top-level URL your module owns: reserve it in register(), so no store can take it.
 $this->app->make(ReservedPaths::class)->reserve('payments', 'webhooks');
