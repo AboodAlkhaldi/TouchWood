@@ -153,6 +153,8 @@ reaches all of them.
 - **Types are checked strictly before any rule runs.** `"5"` is not an integer and `1` is not a
   boolean. Laravel's own rules would accept both.
 - **Reading a declared key never fails:** it returns the stored value or the default.
+- **No secrets.** API keys and passwords live in server environment variables; a key named like one
+  is refused at boot. A **sensitive** setting is audited only as "changed".
 - **Values are cached** with the same `VersionedCache`, because modules read settings on hot
   paths such as OTP limits.
 

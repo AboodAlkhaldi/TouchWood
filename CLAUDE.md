@@ -70,6 +70,9 @@
 - Actor types: staff, customer, guest, integration, system. Every actor id is a ULID.
 - Check a person's permission when they start an action; the queued job then acts as the system,
   and the audit log records the requester (`requested_by_*`).
+- Secrets (API keys, passwords, credentials) live only in server environment variables — never in a
+  setting, a table or code. A setting whose value must not reach the audit log is declared with
+  `sensitive: true`.
 - Never pass an audit entry's source or date: Platform sets both. Old history goes only through
   `PlatformApi::recordImportedAudit`.
 

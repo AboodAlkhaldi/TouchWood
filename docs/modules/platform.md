@@ -83,6 +83,11 @@ hours to verify a bank transfer, and so on.
 - Reading a declared key that has no stored row returns the definition's default. Reading a
   declared key never fails.
 - A `STORE` key is never stored without a store, and a `GLOBAL` key never with one.
+- **[DECIDED 2026-09-18] Never a secret.** API keys, passwords and credentials live only in server
+  environment variables; a key whose name looks like one (`password`, `secret`, `api_key`,
+  `private_key`, `access_key`, `credentials`) is refused at boot. A definition may be marked
+  **sensitive**: the audit log then records only that it changed, never its values, because the
+  log is kept forever. Admin screens must not display a sensitive value in full.
 - **[PROPOSED] Rule of thumb for what is a setting:** a single tunable value is a setting.
   Anything with rows, relationships or its own lifecycle (carriers, gateways, address formats)
   is a table in its owning module.

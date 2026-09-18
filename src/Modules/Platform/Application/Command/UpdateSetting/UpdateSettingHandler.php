@@ -27,8 +27,8 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Changes one setting. The permission comes from the setting's own definition, and is checked
- * against the store for a per-store setting or with no store — all-stores access — for a
- * global one (Platform spec §3).
+ * against that store for a per-store setting, and against every store for a global one
+ * (Platform spec §3).
  */
 final readonly class UpdateSettingHandler
 {
@@ -86,10 +86,13 @@ final readonly class UpdateSettingHandler
                 'platform.setting',
                 (string) $id,
                 $store?->value,
-                // The subject is the row id; the key is repeated so the entry reads on its own.
-                AuditChanges::none()
-                    ->changed('key', $command->key, $command->key)
-                    ->changed('value', $this->isJsonValue($previous) ? $previous : null, $value),
+                // The subject is the row id; the key is repeated so the entry reads on its own. A
+                // sensitive setting is recorded only as changed: the audit log is kept forever.
+                $definition->sensitive
+                    ? AuditChanges::none()->changed('key', $command->key, $command->key)->personal('value')
+                    : AuditChanges::none()
+                        ->changed('key', $command->key, $command->key)
+                        ->changed('value', $this->isJsonValue($previous) ? $previous : null, $value),
             ));
 
             $this->events->dispatch(new SettingChanged((string) Str::uuid(), $command->key, $store?->value, CarbonImmutable::now()));

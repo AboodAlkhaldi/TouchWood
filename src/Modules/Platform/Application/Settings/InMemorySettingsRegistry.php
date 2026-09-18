@@ -19,6 +19,9 @@ final class InMemorySettingsRegistry implements SettingsRegistry
 
     private const int MAX_KEY_LENGTH = 150;
 
+    /** A setting name that looks like a secret: those belong in server environment variables. */
+    private const string SECRET_NAME = '/(^|_)(password|passwd|secret|api_?key|private_?key|access_?key|credentials?)(_|\z)/';
+
     /** @var array<string, SettingDefinitionDto> */
     private array $definitions = [];
 
@@ -37,6 +40,12 @@ final class InMemorySettingsRegistry implements SettingsRegistry
 
             if (! str_starts_with($key, $module.'.')) {
                 throw new InvalidSettingDefinition("The {$module} module cannot declare \"{$key}\": its keys must start with \"{$module}.\".");
+            }
+
+            $name = substr($key, (int) strrpos($key, '.') + 1);
+
+            if (preg_match(self::SECRET_NAME, $name) === 1) {
+                throw new InvalidSettingDefinition("\"{$key}\" looks like a secret. Secrets live in server environment variables, never in settings.");
             }
 
             if (isset($this->definitions[$key])) {
