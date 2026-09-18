@@ -6,7 +6,7 @@ namespace Modules\Platform\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Cache\Repository as Cache;
-use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Connection;
 use Modules\Platform\Application\Settings\SettingValues;
 use Modules\Platform\Application\Settings\StoredSetting;
 
@@ -19,13 +19,16 @@ use Modules\Platform\Application\Settings\StoredSetting;
  */
 final readonly class DatabaseSettings implements SettingValues
 {
+    /** Safety net only: every change replaces the version at once. Lifetime set because settings change more often than stores (owner, 2026-09-18). */
+    private const int SNAPSHOT_SECONDS = 3600;
+
     private VersionedCache $cache;
 
     public function __construct(
         Cache $cache,
-        private ConnectionInterface $db,
+        private Connection $db,
     ) {
-        $this->cache = new VersionedCache($cache, 'platform:settings');
+        $this->cache = new VersionedCache($cache, $db, 'platform:settings', self::SNAPSHOT_SECONDS);
     }
 
     public function find(string $key, ?string $storeId): ?StoredSetting

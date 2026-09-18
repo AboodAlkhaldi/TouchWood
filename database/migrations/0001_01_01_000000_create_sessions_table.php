@@ -7,8 +7,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /*
-| Sessions live in Redis (handoff §3). This table is the fallback while Redis is not configured
-| (owner's decision, 2026-09-18). Laravel's default users and password-reset tables are gone:
+| Sessions, cache and queues run on PostgreSQL for now (owner's decision, 2026-09-18); Redis comes
+| back only when traffic needs it. Laravel's default users and password-reset tables are gone:
 | Access creates its own customer and staff tables (handoff §7.1).
 */
 

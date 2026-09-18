@@ -83,11 +83,19 @@ it('shows the country page in English', function () {
     get('/')->assertOk()->assertSeeInOrder(['Saudi Arabia', 'Egypt', 'United Arab Emirates']);
 });
 
-it('resolves the store without touching the database once the cache is warm', function () {
+it('resolves the store from the cache alone once warm: two tiny cache reads, never the store tables', function () {
+    // The cache lives in PostgreSQL (owner, 2026-09-18), so a warm request reads the version and
+    // the snapshot from the cache table. It must never fall back to loading stores and currencies.
     get('/sa')->assertOk();
 
     DB::enableQueryLog();
     get('/sa')->assertOk();
+    $queries = array_column(DB::getQueryLog(), 'query');
 
-    expect(DB::getQueryLog())->toBe([]);
+    expect($queries)->toHaveCount(2);
+
+    foreach ($queries as $query) {
+        expect($query)->toContain('"cache"');
+        expect($query)->not->toContain('platform');
+    }
 });

@@ -40,7 +40,8 @@
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null" force="true"/>
-        <env name="CACHE_STORE" value="array" force="true"/>
+        <!-- The real cache store: PostgreSQL, as in production (owner, 2026-09-18). -->
+        <env name="CACHE_STORE" value="database" force="true"/>
         <env name="DB_CONNECTION" value="pgsql" force="true"/>
         <env name="DB_DATABASE" value="touchwood_test" force="true"/>
         <env name="DB_URL" value="" force="true"/>

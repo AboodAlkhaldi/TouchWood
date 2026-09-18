@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Platform\Infrastructure\Eloquent;
 
 use Illuminate\Contracts\Cache\Repository as Cache;
-use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Connection;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Public\Dto\CurrencyDto;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -23,13 +23,16 @@ use Modules\Platform\Public\Dto\TranslatedTextDto;
  */
 final readonly class CachedStoreDirectory implements StoreDirectory
 {
+    /** Safety net only: every change replaces the version at once. Lifetime set because stores and currencies change rarely (owner, 2026-09-18). */
+    private const int SNAPSHOT_SECONDS = 21600;
+
     private VersionedCache $cache;
 
     public function __construct(
         Cache $cache,
-        private ConnectionInterface $db,
+        private Connection $db,
     ) {
-        $this->cache = new VersionedCache($cache, 'platform:store-directory');
+        $this->cache = new VersionedCache($cache, $db, 'platform:store-directory', self::SNAPSHOT_SECONDS);
     }
 
     public function stores(): array

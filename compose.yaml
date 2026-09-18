@@ -3,6 +3,8 @@
 #
 # Postgres is published on 5433 so it does not collide with a locally
 # installed PostgreSQL on 5432.
+#
+# No Redis for now (owner, 2026-09-18): sessions, cache and queues run on PostgreSQL.
 
 services:
     postgres:
@@ -22,18 +24,5 @@ services:
             timeout: 5s
             retries: 10
 
-    redis:
-        image: redis:7-alpine
-        ports:
-            - "${FORWARD_REDIS_PORT:-6379}:6379"
-        volumes:
-            - redis-data:/data
-        healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
-            interval: 5s
-            timeout: 5s
-            retries: 10
-
 volumes:
     postgres-data:
-    redis-data:

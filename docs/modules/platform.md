@@ -193,7 +193,7 @@ Not an aggregate — a rule that holds for every request, job and command.
 ```php
 interface PlatformApi
 {
-    // Stores and currencies — served from cache; zero queries once warm.
+    // Stores and currencies — served from the cache; a warm request reads only the cache table.
     public function store(StoreId $id): ?StoreDto;
     public function storeByCode(string $code): ?StoreDto;
 
@@ -474,8 +474,8 @@ and from this plumbing, so the need is visible before its code starts.
 |---|---|
 | `processed_events` | `(event_id uuid, listener varchar)` PK, `processed_at` — the idempotent-consumer rule (handoff §4.5) |
 | `outbox_messages` | The transactional outbox for the ~8 critical events |
-| `failed_jobs`, `job_batches` | Laravel queue bookkeeping (queues, cache and sessions run on Redis) |
-| `sessions`, `cache`, `cache_locks`, `jobs` | **[DECIDED 2026-09-18]** Kept as the fallback while Redis is not configured: the drivers are chosen by `SESSION_DRIVER`, `CACHE_STORE` and `QUEUE_CONNECTION`. `sessions.user_id` is a ULID, like every account id. |
+| `failed_jobs`, `job_batches` | Laravel queue bookkeeping |
+| `sessions`, `cache`, `cache_locks`, `jobs` | **[DECIDED 2026-09-18]** Sessions, cache and queues run on PostgreSQL — no Redis until traffic needs it. The cache version is written inside the transaction of each change, so cached data is never stale. `sessions.user_id` is a ULID, like every account id. |
 
 **[DECIDED 2026-09-18]** Laravel's starter `users` and `password_reset_tokens` tables, the
 `App\Models\User` model and its factory are removed: Access creates its own customer and staff
@@ -657,7 +657,7 @@ stack traces, SQL, or another customer's data.
 - `/sa/...` resolves the KSA store and sets the store cookie; `/xx/...` returns 404.
 - `/` with a valid store cookie redirects to that store; with no cookie, or a cookie naming a
   store that does not exist, it shows the country page.
-- **Resolving the store costs zero database queries with a warm cache** (the query-count guard).
+- **A warm request resolves the store from the cache table alone** — two tiny reads, never the store tables — measured against the real database cache (the query-count guard).
 - `platform:store:create` refuses an incomplete store and creates a complete one with its audit entry.
 - Seeding creates `sa`, `eg`, `ae` with the values in §5.7.
 - Upload: an identical public image returns the existing media; identical private files stay

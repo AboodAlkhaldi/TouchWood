@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Contracts\Cache\Repository as Cache;
+use Illuminate\Database\Connection;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +35,7 @@ it('lets a listener of an after-commit event read the new data', function () {
 });
 
 it('never serves an old snapshot a slow reader wrote after the data changed', function () {
-    $cache = new VersionedCache(app(Cache::class), 'testing:race');
+    $cache = new VersionedCache(app(Cache::class), app(Connection::class), 'testing:race', 60);
     $readerLoaded = $cache->remember(fn (): string => 'old rows');
 
     // A reader missed the cache under the current version and is still building its snapshot...
@@ -50,8 +51,34 @@ it('never serves an old snapshot a slow reader wrote after the data changed', fu
         ->and($cache->remember(fn (): string => 'new rows'))->toBe('new rows');
 });
 
-it('invalidates only once the transaction commits', function () {
-    $cache = new VersionedCache(app(Cache::class), 'testing:commit');
+it('writes the new version inside the transaction when the cache is in PostgreSQL', function () {
+    // The setup for now (owner, 2026-09-18): cache and data share the connection, so the version
+    // commits or rolls back together with the change — they can never disagree.
+    $cache = new VersionedCache(app('cache')->store('database'), app(Connection::class), 'testing:tx', 60);
+    $cache->remember(fn (): string => 'before');
+    $version = app('cache')->store('database')->get('testing:tx:version');
+
+    try {
+        DB::transaction(function () use ($cache) {
+            $cache->invalidate();
+
+            throw new RuntimeException('The change failed.');
+        });
+    } catch (RuntimeException) {
+    }
+
+    expect(app('cache')->store('database')->get('testing:tx:version'))->toBe($version)
+        ->and($cache->remember(fn (): string => 'not reloaded'))->toBe('before');
+
+    DB::transaction(fn () => $cache->invalidate());
+
+    expect(app('cache')->store('database')->get('testing:tx:version'))->not->toBe($version)
+        ->and($cache->remember(fn (): string => 'after'))->toBe('after');
+});
+
+it('invalidates only once the transaction commits when the cache is not in PostgreSQL', function () {
+    // For a cache outside the database (Redis, if it comes back): its writes are not transactional.
+    $cache = new VersionedCache(app('cache')->store('array'), app(Connection::class), 'testing:commit', 60);
     $cache->remember(fn (): string => 'before');
 
     DB::transaction(function () use ($cache) {
