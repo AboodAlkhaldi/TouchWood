@@ -436,7 +436,7 @@ describe('variants', function () {
         $job = new GenerateMediaVariantsJob($id);
 
         expect($job->tries)->toBe(3)
-            ->and($job->timeout)->toBeLessThan((int) config('queue.connections.redis.retry_after'));
+            ->and($job->timeout)->toBeLessThan((int) config('queue.connections.database.retry_after'));
 
         $job->failed(new RuntimeException('encoder crashed'));
 

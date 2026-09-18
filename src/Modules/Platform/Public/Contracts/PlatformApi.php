@@ -19,7 +19,8 @@ use Shared\Domain\ValueObject\StoreId;
 interface PlatformApi
 {
     /**
-     * Served from cache: resolving a store costs no queries once warm.
+     * Served from the cache: once warm, it reads only the cache table (two tiny queries), never the
+     * store tables.
      */
     public function store(StoreId $id): ?StoreDto;
 

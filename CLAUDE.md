@@ -35,11 +35,25 @@
   registered globally by Platform and already excludes reserved paths such as `/admin/...`, so
   modules never import Platform's interior to do this.
 - The current store: `StoreContext::current()` (Shared), then `PlatformApi::store($id)` for its
-  details. Both are cached; resolving a store costs no queries.
+  details. Both are cached: a warm request reads only the cache table, never the store tables.
 - Store-scoped models use `BelongsToStore`. Create their rows through the model — raw `insert()`
   and `upsert()` skip the store stamping and cross-store guards.
 - Handlers invalidate cached data *inside* their transaction (it takes effect on commit, before
   after-commit events reach listeners).
+
+## Cache, sessions and queues: PostgreSQL only (owner, 2026-09-18)
+
+- **No Redis for now.** Sessions, cache and queues use the `database` drivers; Redis comes back only
+  when real traffic needs it. Do not add Redis, Horizon or `predis` without the owner.
+- Cached data must never be served stale. `VersionedCache` writes the new version *inside* the
+  transaction of the change, because the cache table shares the connection — so cache and data
+  commit or roll back together. Any new cache follows the same rule.
+- Cache reads are database queries: never promise "zero queries". State what a warm request reads
+  and test it against the real `database` cache store (tests use it, see `phpunit.xml`).
+- Background jobs run from the `jobs` table: a worker must run (`php artisan queue:work`), and the
+  scheduler (`php artisan schedule:work`) for scheduled tasks.
+- If Redis is ever reintroduced, `VersionedCache` falls back to replacing the version after commit;
+  first decide with the owner how a version write lost during a Redis outage is recovered.
 
 ## Interim until Access
 
@@ -55,5 +69,4 @@
 
 ## Local environment (Windows)
 
-- `docker compose up -d --wait` starts Postgres 17 on port 5433 and Redis on 6379.
-- Redis client is `predis` (no phpredis on Windows).
+- `docker compose up -d --wait` starts Postgres 17 on port 5433 (the only service; no Redis).

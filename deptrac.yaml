@@ -32,7 +32,7 @@ deptrac:
     - name: Vendor
       collectors:
         - type: classNameRegex
-          value: '#^(Illuminate|Laravel|Symfony|Psr|Carbon|Brick|Spatie|Inertia|Predis|Intervention)\\#'
+          value: '#^(Illuminate|Laravel|Symfony|Psr|Carbon|Brick|Spatie|Inertia|Intervention)\\#'
 
     # ---- Tier 3 — foundation ------------------------------------------------
     - name: PlatformPublic

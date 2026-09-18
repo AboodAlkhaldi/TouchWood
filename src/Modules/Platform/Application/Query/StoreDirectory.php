@@ -9,7 +9,7 @@ use Modules\Platform\Public\Dto\StoreDto;
 
 /**
  * The read side for stores and currencies. Every storefront request resolves its store here,
- * so the implementation must answer from cache without touching the database.
+ * so the implementation must answer from the cache and never load stores and currencies again.
  */
 interface StoreDirectory
 {

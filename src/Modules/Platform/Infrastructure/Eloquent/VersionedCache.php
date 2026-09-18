@@ -5,29 +5,44 @@ declare(strict_types=1);
 namespace Modules\Platform\Infrastructure\Eloquent;
 
 use Closure;
+use Illuminate\Cache\DatabaseStore;
 use Illuminate\Contracts\Cache\Repository as Cache;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Connection;
 use Illuminate\Support\Str;
 
 /**
- * A cached snapshot that cannot be overwritten with stale data.
+ * A cached snapshot that can never be served stale.
  *
- * Snapshots are stored under the current version. Invalidating replaces the version after the
- * transaction commits, so a reader that loaded old rows just before the commit can only write
- * them under a version nobody reads any more. Deleting a key instead would let that reader put
- * the old snapshot back for good.
+ * Snapshots are stored under the current version; invalidating replaces the version.
+ *
+ * - **Cache in PostgreSQL** (the setup for now, owner's decision 2026-09-18): the cache table is on
+ *   the same connection, so the new version is written inside the transaction of the change. It
+ *   commits with the change or rolls back with it — the cache and the data cannot disagree.
+ * - **Cache elsewhere** (Redis, if it is added later): a write there is not part of the transaction,
+ *   so the version is replaced only after the commit. A reader that loaded old rows just before the
+ *   commit can then only store them under a version nobody reads any more. If Redis comes back,
+ *   revisit what happens when a version write is lost during an outage.
  */
 final readonly class VersionedCache
 {
-    /**
-     * Old snapshots are orphaned by each invalidation; the TTL only lets them expire.
-     */
-    private const int SNAPSHOT_SECONDS = 86400;
+    private bool $transactional;
 
+    /**
+     * @param  int  $snapshotSeconds  how long a snapshot is kept. Only a safety net: a change
+     *                                replaces the version immediately.
+     */
     public function __construct(
         private Cache $cache,
+        private Connection $db,
         private string $name,
-    ) {}
+        private int $snapshotSeconds,
+    ) {
+        $store = $cache->getStore();
+        $storeConnection = $store instanceof DatabaseStore ? $store->getConnection() : null;
+
+        $this->transactional = $storeConnection instanceof Connection
+            && $storeConnection->getName() === $db->getName();
+    }
 
     /**
      * @template TSnapshot
@@ -37,16 +52,27 @@ final readonly class VersionedCache
      */
     public function remember(Closure $load): mixed
     {
-        return $this->cache->remember("{$this->name}:{$this->version()}", self::SNAPSHOT_SECONDS, $load);
+        return $this->cache->remember("{$this->name}:{$this->version()}", $this->snapshotSeconds, $load);
     }
 
     /**
-     * Takes effect once the current transaction commits, or immediately outside one — before
-     * any event dispatched after commit, so listeners already see the new data.
+     * Call inside the transaction of the change. The new version becomes visible exactly when
+     * the change does, and before any event dispatched after commit reaches its listeners.
      */
     public function invalidate(): void
     {
-        DB::afterCommit(fn () => $this->cache->forever($this->versionKey(), (string) Str::ulid()));
+        if ($this->transactional) {
+            $this->replaceVersion();
+
+            return;
+        }
+
+        $this->db->afterCommit(fn () => $this->replaceVersion());
+    }
+
+    private function replaceVersion(): void
+    {
+        $this->cache->forever($this->versionKey(), (string) Str::ulid());
     }
 
     private function version(): string

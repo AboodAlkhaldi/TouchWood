@@ -1,6 +1,6 @@
 # TouchWood Platform — Repository Structure
 
-Laravel 13 / PHP 8.4 · Inertia + React + shadcn (SSR) · PostgreSQL · Redis + Horizon
+Laravel 13 / PHP 8.4 · Inertia + React + shadcn (SSR) · PostgreSQL (also sessions, cache, queues — no Redis for now)
 Modular monolith, 15 modules, boundaries enforced by Deptrac in CI from commit one.
 
 ---
@@ -29,7 +29,7 @@ touchwood/
 │   ├── Shared/               Unit · Integration · Feature
 │   ├── Modules/{Name}/       Unit · Integration · Feature
 │   └── Architecture/         Pest architecture tests (see below)
-├── compose.yaml              Local Postgres 17 (port 5433) + Redis
+├── compose.yaml              Local Postgres 17 (port 5433)
 ├── docker/postgres/init/     Creates touchwood_test on first start
 ├── .github/workflows/ci.yml  pint → phpstan → deptrac → pest
 ├── deptrac.yaml              Boundary rules. BLOCKING.
@@ -283,7 +283,7 @@ constraint); **transactional outbox for the ~8 critical events only**, not all o
 | Reading across stores (`acrossStores()`, removing global scopes) only in `Application/Query` and Ops | Accidental cross-store reads | In place |
 | Every store-scoped Eloquent model declares the store global scope | A forgotten `where store_id` | With the first store-scoped model |
 | Every command handler asserts a permission (comments ignored) | An unprotected use case | In place |
-| No storefront endpoint exceeds N queries | The N+1 that made the old system take 5 seconds | Started: store resolution costs 0 queries once warm; a general per-endpoint budget comes with Catalog |
+| No storefront endpoint exceeds N queries | The N+1 that made the old system take 5 seconds | Started: a warm request resolves the store from the cache table alone (2 tiny reads); a general per-endpoint budget comes with Catalog |
 | Every money column is `bigint` | A `DECIMAL` sneaking in | With the first money column |
 | Enums are stored as strings, never integers | Unreadable rows at 2am | In place for the `platform` schema (`PlatformSchemaTest`); each new module schema adds the same check |
 

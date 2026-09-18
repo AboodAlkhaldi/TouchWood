@@ -110,17 +110,25 @@ A currency's `exponent` is locked once any store uses it: changing it would sile
 reinterpret every stored amount. A price shows the currency's sign, or its letters when the sign
 is empty. Clearing a sign that a font cannot draw is a data change, not a deploy.
 
-### Resolving a store costs zero queries
+### Resolving a store reads only the cache
 
 `StoreDirectory` loads every store and currency in two queries and caches the snapshot.
-`ResolveStore` reads from it on every storefront request. A test counts the queries with a warm
-cache and expects zero.
+`ResolveStore` reads from it on every storefront request. **The cache lives in PostgreSQL** for now
+(owner's decision, 2026-09-18 — no Redis until traffic needs it), so a warm request makes two tiny
+reads of the cache table (the version, then the snapshot) and never loads the store tables again.
+A test counts the queries of a warm request against the real database cache.
 
-**Cache invalidation** uses `VersionedCache`. The snapshot is stored under a version key, and
-invalidating writes a new version **after the transaction commits**. If a request reads the old
-rows just before a commit, it can only cache them under a version nobody reads any more. Simply
-deleting the key would let that request put stale data back permanently. Running migrations also
-invalidates the caches.
+**Cache invalidation** uses `VersionedCache`. The snapshot is stored under a version key, and a
+change replaces the version:
+- **Cache in PostgreSQL (now):** the new version is written **inside the transaction** of the change,
+  so it commits or rolls back with it. The cache and the data can never disagree.
+- **Cache outside the database (if Redis comes back):** writes there are not transactional, so the
+  version is replaced **after the commit**; a request that read the old rows just before the commit
+  can only cache them under a version nobody reads any more. Revisit how a version write lost during
+  a Redis outage is recovered before switching.
+
+Snapshots are also given a lifetime as a safety net: 6 hours for stores and currencies, 1 hour for
+settings. Running migrations invalidates the caches.
 
 Nothing is memoised inside the PHP process. Queue workers run for hours, and an in-memory copy
 would go stale when another process edits a store.
@@ -281,7 +289,7 @@ are fixed in the same pull request.
 |---|---|
 | `tests/Modules/Platform/Unit` | Domain rules with no framework and no database: stores, currencies, media, settings values, audit changes, error types. |
 | `tests/Modules/Platform/Integration` | Against the real PostgreSQL test database: schema and constraints, handlers, permissions, audit triggers, cache consistency, store context in jobs, settings, media with real image processing. |
-| `tests/Modules/Platform/Feature` | HTTP and console: store resolution (including the zero-query check), the country page, commands, seeding. |
+| `tests/Modules/Platform/Feature` | HTTP and console: store resolution (including the check that a warm request reads only the cache), the country page, commands, seeding. |
 | `tests/Architecture` | Layering, the error standard, every handler authorizes, no store codes in domain code, where the store-scope opt-out may appear, and the forbidden packages. |
 
 Run everything with `composer check`. The test database is `touchwood_test`.

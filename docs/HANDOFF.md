@@ -43,6 +43,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-16 | §4.5 | `processed_events` / `outbox_messages` built with the first module that needs them, not in Stage 1 | Owner, Platform stage close |
 | 2026-09-18 | §7.5 | Permission checks carry an explicit scope (global / one store / all stores) and can list an actor's stores | Platform audit, owner decision |
 | 2026-09-18 | §7.1 | Laravel's default users table and User model removed (Access owns customer and staff tables); sessions/cache/jobs tables kept as the fallback when Redis is not configured | Platform audit, owner decision |
+| 2026-09-18 | §3 | No Redis for now: sessions, cache and queues run on PostgreSQL; the cache version is written inside the transaction so cached data is never stale. Redis + Horizon return only when traffic needs them | Owner decision |
 
 ---
 
@@ -104,7 +105,7 @@ Memorize these. Most defects in a system like this are one of these being violat
 | Backend | Laravel 13, PHP 8.4 |
 | Frontend | Inertia + React + shadcn/ui, SSR enabled |
 | Database | PostgreSQL 17 |
-| Cache / queue | Redis + Laravel Horizon |
+| Cache / queue / sessions | PostgreSQL (Laravel `database` drivers) for now. Redis + Laravel Horizon only when real traffic needs it (owner, 2026-09-18). |
 | Search | PostgreSQL FTS + `pg_trgm`. **No Elasticsearch.** |
 | Auth | Laravel session authentication. **No JWT.** |
 | Boundaries | Deptrac, CI-blocking |
@@ -1313,7 +1314,7 @@ In `tests/Architecture/`, failing the build:
 1. Extract the repository skeleton. It has all 15 modules with the internal structure
    already laid out, plus `deptrac.yaml`, `phpstan.neon`, `composer.json` and the CI
    workflow.
-2. `composer install`, bring up Postgres and Redis, confirm `composer check` runs — pint,
+2. `composer install`, bring up Postgres, confirm `composer check` runs — pint,
    phpstan, **deptrac**, pest. Deptrac must be green and blocking before any domain code
    is written.
 3. Write the Shared kernel: `Money` first, with `allocate()` and full unit tests.
