@@ -70,7 +70,9 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §7.5 | One role per staff member; nobody grants more than they hold; Super Admins only by console command | Access questions, owner decision |
 | 2026-09-19 | §7.5 | Saved roles are shared (editing changes all holders); editing from a staff member's page makes a personal role; a guest's cart merges on sign-in | Access questions, owner decision |
 | 2026-09-18 | §7.6, §7.7 | Staff 2FA by SMS code with a 30-day trusted browser; staff disabled, never deleted; the default security numbers | Access questions, owner decision |
-| 2026-09-19 | §7.2, §7.8, §7.9 | Company registration continues in B2B as one wizard; EG/AE address formats later as data; deletion with a 14-day grace period | Access questions, owner decision |
+| 2026-09-19 | §7.2, §7.9 | Company registration continues in B2B as one wizard; deletion with a 14-day grace period | Access questions, owner decision |
+| 2026-09-19 | §7.8 | One address scheme for all three stores now (16 fields, six required), picked by country; each store keeps its own copy; an order needs an address | Access spec review, owner decision |
+| 2026-09-19 | §7.5 | Customers belong to their registration store; staff see only their stores' customers and staff; Super Admins created and revoked only by console, never the last one | Access spec review, owner decision |
 | 2026-09-18 | §13.3, §17 | Access sends its own security messages until Ops; a frontend foundation stage follows Access | Access questions, owner decision |
 | 2026-09-18 | §5.3 | Scheduled work is queued as a job, so its audit source is JOB | Repairs review, owner decision |
 | 2026-09-18 | §7.5 | An actor id is never a secret: a guest's id is kept apart from whatever proves the cart is theirs | Repairs review, owner decision |
@@ -566,6 +568,11 @@ in the **application layer**, not in controllers. Deny by default.
 **seeded**. It is the only actor that sees every store and the only one that can create
 admins and set their store scope.
 
+**A customer belongs to the store they registered in** (their home store, fixed); they shop in
+every store and land in the last one they used after signing in. A store's staff see that store's
+customers and staff; a multi-store admin sees their stores'; only a Super Admin sees everyone
+(owner, 2026-09-19).
+
 **Store access lives on the role assignment, not the user:**
 
 ```
@@ -641,10 +648,13 @@ store_address_formats
 └── display_template               ← rendering on the order and the shipping label
 ```
 
-**The per-store formats are still owed by the owner.** Build the configuration mechanism;
-seed KSA with the Saudi National Address format (building number, street, district,
-city, postal code, additional number) and flag the other two. Egypt and UAE arrive later as data;
-until then, addresses cannot be saved in those two stores (owner, 2026-09-19).
+**Address scheme (owner, 2026-09-19).** The customer first picks the country, from the stores'
+countries only; that country's store scheme appears. For now all three stores share one scheme:
+country, administrative area (region, governorate or emirate), city, district, street, building,
+unit, floor, postal code, additional number, PO box, short address, landmark, additional
+information, and a map pin (latitude, longitude). Required: country, administrative area, city,
+district, street, building. Each store keeps its own copy, so a country's scheme can change later
+as data. An address is not asked at registration, but an order needs one.
 
 ### 7.9 Account deletion
 
@@ -1291,7 +1301,6 @@ Example roles: Owner · Catalog manager · Order fulfilment · Company accounts 
 | Carrier list and rate tables | Shipping |
 | SMS provider | Access (OTP), Ops |
 | Email provider and sending domain | Access, Ops |
-| Per-store address formats | Access, Shipping |
 | Old database dump | Migration |
 
 ### 15.2 Deferred to their build stage

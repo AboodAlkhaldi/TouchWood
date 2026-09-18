@@ -1,6 +1,7 @@
 # Access — Module Specification
 
-**Status:** **DRAFT** for the owner's review. No code is written until it is approved.
+**Status:** **DRAFT** — every question is answered (§9); awaiting the owner's approval. No code is
+written until it is approved.
 **Tier:** 2 (identity). **Depends on:** Platform. **Needs from shared plumbing:** nothing — it
 publishes events but consumes none, so `processed_events` and `outbox_messages` (handoff §4.5)
 are still not needed. **Build stage:** 2.
@@ -12,9 +13,8 @@ Access owns **who someone is and what they may do**: customer accounts and their
 staff accounts, roles and permissions, sign-in and sessions, addresses, and account deletion. It
 replaces Platform's interim `ActorContext` and `Authorizer` with the real ones.
 
-Items marked **[DECIDED date]** are the owner's answers (§9.1). Items marked **[QUESTION n]**
-still need an answer (§9.2) — the text shows the recommendation, which stands only if the owner
-agrees. Everything else follows directly from the handoff or from Platform's approved rules.
+Items marked **[DECIDED date]** are the owner's answers (§9). Everything else follows directly
+from the handoff or from Platform's approved rules.
 
 **Delivery [DECIDED 2026-09-18]:** backend only — domain, tables, use cases, HTTP endpoints and
 tests, like Platform's Stage 1. The screens (registration, sign-in, verification, the admin
@@ -56,7 +56,9 @@ is global).
 | `phone` | E.164 (`+9665…`), **any country, unique across customers** **[DECIDED 2026-09-18]**. Null until the first phone is verified; **never null again** once set (handoff §7.3). |
 | `phone_verified_at` | Set with `phone`. |
 | `locale` | `ar` or `en`: the page's language at registration, editable. Emails and SMS use it (handoff §5.2). |
-| `registered_store_id` | The store the account was created in: links in security emails lead back to it. **[QUESTION 1]** |
+| `home_store_id` | **The store the account was registered in, fixed [DECIDED 2026-09-19].** It decides which store's staff see the customer (§3.3). The customer can shop in every store. |
+| `last_store_id` | The last store the customer used. After signing in — on any device — they land there **[DECIDED 2026-09-19]**; emails sent later (not during a request) link to it. |
+| `terms_version`, `terms_accepted_at` | The terms and privacy policy accepted at registration, and when **[DECIDED 2026-09-19]**. |
 | `deletion_scheduled_for` | Set while a deletion is pending (§1.10). |
 | `anonymized_at` | Set once the account is anonymized. |
 
@@ -78,12 +80,15 @@ Handoff §7.2: register (email + password) → email verification link → add p
 ordering unlocked.
 
 - Registering needs: email, password, first and last name, account type, and acceptance of the
-  terms **[QUESTION 2]**. The account starts `ACTIVE`, unverified.
+  terms and privacy policy **[DECIDED 2026-09-19]**; the accepted version is recorded (the current
+  version is a setting staff change when the terms change). No address is asked (§1.9). The account
+  starts `ACTIVE`, unverified.
 - The verification link is signed, single-purpose, and expires after **24 hours**
   **[DECIDED 2026-09-18]**. It can be resent; resending is rate-limited.
 - An unverified customer can sign in, browse and build a cart; only ordering needs both
   verifications.
-- Whether registration reveals that an email is already taken: **[QUESTION 3]**.
+- **An email already registered** is told plainly: "You already have an account — please sign in"
+  **[DECIDED 2026-09-19]**.
 
 ### 1.3 Phone
 
@@ -112,7 +117,7 @@ Handoff §7.6.
 | `password` | Set by the staff member when accepting the invitation; the admin never knows it. Rules in §1.8. |
 | `first_name`, `last_name`, `job_title`, `date_of_birth`, `country`, `address` | The profile (handoff §7.6). Personal data. `country` is ISO 3166-1 alpha-2. |
 | `phone` | E.164, **verified by SMS before first sign-in**: it receives the 2FA codes **[DECIDED 2026-09-18]**. |
-| `avatar_media_id` | Optional Platform media — a column with a `RESTRICT` foreign key, registered as a detachable `MediaUsage` (Platform rule, 2026-09-18). **[QUESTION 4]** |
+| `avatar_media_id` | Optional **public** Platform media **[DECIDED 2026-09-19]** — a column with a `RESTRICT` foreign key, registered as a detachable `MediaUsage` (Platform rule, 2026-09-18). |
 | `locale` | The admin panel's language for this person. |
 | `status` | `INVITED`, `ACTIVE` or `DISABLED` (§4.3). **Never deleted** **[DECIDED 2026-09-18]**: the audit log names them forever. |
 | `is_super_admin` | Only set by the console command (§1.6). |
@@ -120,8 +125,8 @@ Handoff §7.6.
 **Phone.** It receives the 2FA codes, so it is verified by an SMS code when the invitation is
 accepted. A staff member changing their own phone confirms the new number with a code before it
 takes effect. An admin with `access.staff.update` may change it (a lost phone); the staff member
-then verifies the new number at their next sign-in. A Super Admin's phone changes only by console
-command ([QUESTION 8]).
+then verifies the new number at their next sign-in. A Super Admin's phone is changed only by the
+Super Admin themselves (confirmed by a code) or by console command (§1.6).
 
 **Password reset** works as for customers: an email link valid 60 minutes. It never skips the SMS
 code at sign-in.
@@ -148,11 +153,15 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
 - **Nobody grants more than they hold** **[DECIDED 2026-09-18]**: a role can contain only
   permissions its author holds, and an assignment can cover only stores its author covers, for
   those permissions. Only a Super Admin is unlimited. Checked in code on every change.
-- **Editing a saved role that others hold** reaches their stores too, so it needs the author to
-  cover every store of every holder. **[QUESTION 5]**
+- **Editing a saved role** reaches every store where it is held, so only a **Super Admin** or an
+  admin who **covers every store of every holder** (and holds every permission in it) may edit it
+  **[DECIDED 2026-09-19]**. A KSA + Egypt admin can edit a role held only in KSA and Egypt, never
+  one held in UAE; a single-store admin has no authority over another store.
 - **Reserved permissions** (e.g. `platform.store.create`) exist so handlers can assert them but
   are never offered in the role editor and can never be put in a role: only a Super Admin holds them.
-- **Deleting a saved role** that anyone holds is refused, listing who holds it. **[QUESTION 6]**
+- **Deleting a saved role** that anyone holds needs a **replacement** **[DECIDED 2026-09-19]**: the
+  admin picks another saved role and every holder moves to it (the no-escalation rule applies to
+  the move). Without a replacement the delete is refused, listing the holders.
 
 **The permission catalog.** Every permission is declared in code by the module that checks it,
 with its labels in Arabic and English and whether it is reserved. Platform publishes its list in
@@ -172,20 +181,27 @@ member changing their own password. Each permission has an **audience**:
 | `EVERY_GUEST` | Every visitor not signed in, automatically | `access.account.register`, `access.session.sign_in` |
 
 Only `ROLE` permissions appear in the role editor. An automatic permission lets a person act on
-**their own** data only: the handler takes their id from the session, never from the request.
-**[QUESTION 7]**
+**their own** data only: the handler takes their id from the session, never from the request
+**[DECIDED 2026-09-19]**.
 
 ### 1.6 Super Admin
 
 Handoff §7.5: bypasses every check, non-deletable, non-editable, sees every store, the only one who
 creates admins and sets their store scope.
 
-- **Created only by a console command on the server** (`php artisan access:super-admin
-  {email} {first_name} {last_name}`), which sends an invitation **[DECIDED 2026-09-18]**. Never from
-  the admin panel, so a hijacked admin session cannot create one. More than one may exist.
+**[DECIDED 2026-09-18, flow 2026-09-19]:**
+
+- **Created only by a console command on the server:** `php artisan access:super-admin:create
+  {email} {first_name} {last_name}` creates the account and emails an invitation (72 hours). They
+  open the link, set a password and verify their phone by SMS code, then sign in at `/admin` like
+  any staff member: password, then an SMS code, with a trusted browser for 30 days.
+- **Removed only by a console command:** `php artisan access:super-admin:revoke {email}` takes the
+  power away; the person keeps an account with no role until an admin gives them one. **The last
+  Super Admin cannot be revoked**, so the business is never locked out.
+- Never from the admin panel: nobody — not even another Super Admin — can create, edit, disable or
+  remove a Super Admin there, so a hijacked admin session cannot mint or remove one. A Super Admin
+  edits only their own profile, password and phone. More than one may exist.
 - A Super Admin holds every permission in every store, including reserved ones. They have no role.
-- A Super Admin cannot be disabled or edited from the panel; only another console command changes
-  one. **[QUESTION 8]**
 
 ### 1.7 Guest
 
@@ -214,8 +230,8 @@ they change without a deploy; customer settings are per store (handoff §7.7), s
   `uncompromised()` rule: only the first 5 characters of the password's SHA-1 hash leave the
   server).
 - **Lockout [DECIDED 2026-09-18]:** 5 wrong passwords for one account → that account is locked for
-  **15 minutes**; a separate limit per IP address stops one machine trying many accounts. The
-  error never says whether the email exists. **[QUESTION 3]**
+  **15 minutes**; a separate limit per IP address stops one machine trying many accounts. A wrong
+  email or password is answered "wrong email or password", without saying which.
 - **Customer sessions:** "remember me" keeps a customer signed in **30 days**; without it, **2 hours**
   idle ends the session.
 - **Staff sessions:** **30 minutes** idle ends the session; **12 hours** at most after sign-in.
@@ -229,22 +245,32 @@ they change without a deploy; customer settings are per store (handoff §7.7), s
 - Signing in regenerates the session id; changing or resetting a password ends every other session
   of that account.
 - A `BLOCKED` customer or a `DISABLED` staff member cannot sign in, and their open sessions end at
-  once.
+  once. A blocked customer is told so, after the right password: "Your account is blocked — please
+  contact us" **[DECIDED 2026-09-19]**.
 
 ### 1.9 Addresses
 
 Handoff §7.8: each store owns its address shape, so a change to one country's format cannot affect
-another.
+another. **[DECIDED 2026-09-19]:**
 
-- An address belongs to one customer **and one store**: `label`, `recipient_name`, `phone`,
-  `is_default`, and `fields` (the country-specific part) validated against that store's format.
-- **One default** per customer per store.
+- **The customer first picks the country**, from our stores' countries only (KSA, UAE, Egypt). The
+  address belongs to that country's store, and **that store's scheme** appears.
+- **One scheme for all three today**, but each store keeps its own copy, so one country's scheme
+  can change later — as data, with no deploy — without touching the others.
+- The scheme's fields: `country_code` (from the chosen store), `administrative_area` (region,
+  governorate or emirate), `city`, `district`, `street`, `building`, `unit`, `floor`,
+  `postal_code`, `additional_number`, `po_box`, `short_address`, `landmark`,
+  `additional_information`, and a map pin (`latitude`, `longitude`).
+- **Required:** country, administrative area, city, district, street, building. The rest are
+  optional; the map pin is both coordinates or neither, within valid ranges. For now only lengths
+  are checked; country-specific rules come later, per country.
+- Every address also has a `label` ("Home"), the `recipient_name`, the recipient's `phone` (E.164,
+  any country, not verified) and `is_default` — **one default** per customer per store.
+- **Not asked at registration**, but **required before an order**: checkout asks for an address in
+  the store being ordered from when there is none (Sales, stage 6, through `AccessApi`).
 - **Store address formats** are data: the fields (key, labels in both languages, required,
-  validation, order) and a display template for orders and shipping labels.
-- **KSA is seeded now** **[DECIDED 2026-09-19]** with the Saudi National Address: building number,
-  street, district, city, postal code, additional number. Exact validation of each field:
-  **[QUESTION 9]**. **Egypt and UAE come later as data**; until their format exists, saving an
-  address in those stores is refused with a clear error.
+  validation, order) and a display template for orders and shipping labels. A store with no format
+  (a new country, before its scheme is entered) refuses addresses with a clear error.
 - Every address field is personal data: audited only as "changed". The owner's rule: `city` and
   `postal_code` are not refused by name in the audit log, so Access marks them personal itself.
 
@@ -284,6 +310,9 @@ interface AccessApi
     public function staffNotificationPreferences(string $staffId): array;
 
     public function address(string $addressId): ?AddressDto;
+
+    /** @return list<AddressDto> the customer's addresses in one store, default first — checkout needs one */
+    public function addresses(string $customerId, string $storeId): array;
 }
 ```
 
@@ -388,21 +417,28 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `ChangeStaffRole` — pick a saved role, or edit it into a personal role; set the scope | role | `access.staff.assign_role` | Old and new stores; no escalation |
 | `DisableStaff` / `EnableStaff` | role | `access.staff.disable` | The staff member's stores |
 | `ListStaff` / `ViewStaff` | role | `access.staff.view` | Staff whose stores are within the viewer's |
-| `CreateRole` / `CloneRole` / `UpdateRole` / `DeleteRole` (saved roles) | role | `access.role.manage` | See [QUESTION 5] |
+| `CreateRole` / `CloneRole` (saved roles) | role | `access.role.manage` | Only permissions the author holds |
+| `UpdateRole` / `DeleteRole` (saved roles; deleting needs a replacement for its holders) | role | `access.role.manage` | Every store of every holder |
 | `UpdateOwnStaffProfile` / `ChangeOwnStaffPassword` / `ChangeOwnStaffPhone` / notification preferences | every staff | `access.own_account.update` | Global |
 | `SignOutStaff` | every staff | `access.own_account.update` | Global |
-| `CreateSuperAdmin` | system (console) | `access.super_admin.create` (reserved) | Global |
+| `CreateSuperAdmin` / `RevokeSuperAdmin` — never the last one | system (console) | `access.super_admin.manage` (reserved) | Global |
 
 ### 3.3 Customers, seen by staff
 
 | Use case | Audience | Permission | Scope |
 |---|---|---|---|
-| `ListCustomers` / `ViewCustomer` | role | `access.customer.view` | [QUESTION 10] |
-| `BlockCustomer` / `UnblockCustomer` — with a reason | role | `access.customer.block` | [QUESTION 10] |
-| `DeleteCustomerOnRequest` — the same 14-day deletion | role | `access.customer.delete` | [QUESTION 10] |
+| `ListCustomers` / `ViewCustomer` | role | `access.customer.view` | The customer's home store |
+| `BlockCustomer` / `UnblockCustomer` — with a reason | role | `access.customer.block` | The customer's home store |
+| `DeleteCustomerOnRequest` — the same 14-day deletion | role | `access.customer.delete` | The customer's home store |
 | `UpdateStoreAddressFormat` | role | `access.address_format.update` | That store |
 | `UpdateAccessSettings` — lockout, OTP and session numbers | role | `access.settings.update` | That store (customer settings); all stores (staff settings) |
 | `AnonymizeDueAccounts` — daily | system (scheduled job) | `access.account.anonymize` (reserved) | Global |
+
+**Who sees whom [DECIDED 2026-09-19].** A KSA-only admin sees only KSA customers — those whose home
+store is KSA — and only KSA staff; an Egypt-only admin only Egypt's; a multi-store admin the
+customers and staff of their stores; a Super Admin everyone. A customer who also orders in another
+store appears there through the order, with the order's customer details, not in that store's
+customer list. A staff member is visible to an admin whose stores include all of theirs.
 
 Every change is audited. Personal fields — names, email, phone, addresses, date of birth, the
 staff address — are recorded only as "changed".
@@ -484,7 +520,10 @@ All in the `access` PostgreSQL schema (added to `search_path`). ULIDs are `char(
 | `email_verified_at`, `phone_verified_at` | `timestamptz` NULL | |
 | `phone` | `varchar(16)` NULL | E.164; unique where not null; `phone_verified_at` set exactly when `phone` is |
 | `locale` | `char(2)` NOT NULL | `ar`, `en` |
-| `registered_store_id` | `char(26)` NOT NULL | FK → `platform.stores(id)` — only if [QUESTION 1] is answered yes |
+| `home_store_id` | `char(26)` NOT NULL | FK → `platform.stores(id)`; immutable |
+| `last_store_id` | `char(26)` NOT NULL | FK → `platform.stores(id)` |
+| `terms_version` | `varchar(32)` NOT NULL | |
+| `terms_accepted_at` | `timestamptz` NOT NULL | |
 | `deletion_scheduled_for`, `anonymized_at` | `timestamptz` NULL | |
 | `remember_token` | `varchar(100)` NULL | Laravel's "remember me" |
 | `created_at`, `updated_at` | `timestamptz` | |
@@ -528,7 +567,7 @@ transaction — Platform's rule); a warm authorization check reads the cache tab
 
 | Table | Columns |
 |---|---|
-| `access.addresses` | `id`, `customer_id` FK, `store_id` FK, `label`, `recipient_name`, `phone`, `fields` jsonb, `is_default`, timestamps — one default per (`customer_id`, `store_id`) (partial unique index) |
+| `access.addresses` | `id`, `customer_id` FK, `store_id` FK (its country), `label`, `recipient_name`, `phone`, `fields` jsonb (the scheme's values), `latitude`, `longitude` `numeric(9,6)` NULL (both or neither), `is_default`, timestamps — one default per (`customer_id`, `store_id`) (partial unique index) |
 | `access.store_address_formats` | `store_id` PK/FK, `fields` jsonb (definitions), `display_template`, `updated_at` |
 
 ### 5.6 Shared tables
@@ -570,11 +609,11 @@ The security messages of §2.3, sent by Access until Ops exists. No other notifi
 
 ```
 AccessError
-├── EmailAlreadyRegistered        CONFLICT     (see [QUESTION 3])
+├── EmailAlreadyRegistered        CONFLICT     "You already have an account — please sign in"
 ├── PhoneAlreadyInUse             CONFLICT
 ├── InvalidCredentials            FORBIDDEN    never says which part was wrong
 ├── AccountLocked                 FORBIDDEN    too many wrong passwords; says when to retry
-├── SignInRefused                 FORBIDDEN    blocked, disabled or anonymized (see [QUESTION 3])
+├── SignInRefused                 FORBIDDEN    blocked ("please contact us"), disabled or anonymized
 ├── InvalidOrExpiredLink          INVALID
 ├── InvalidCode                   INVALID      wrong or expired SMS code
 ├── CodeRequestTooSoon            CONFLICT     resend limits
@@ -583,7 +622,8 @@ AccessError
 ├── PermissionEscalation          FORBIDDEN    granting more than you hold
 ├── UnknownPermission             INVALID
 ├── ReservedPermission            INVALID
-├── RoleInUse                     CONFLICT     deleting a saved role someone holds
+├── RoleInUse                     CONFLICT     deleting a saved role someone holds, with no replacement
+├── LastSuperAdmin                CONFLICT     revoking the only Super Admin
 ├── StaffNotEditable              CONFLICT     a Super Admin, from the panel
 ├── AddressFormatMissing          CONFLICT     the store has no address format yet
 ├── InvalidAddress                INVALID      a field fails the store's format
@@ -603,7 +643,8 @@ AccessError
 - Phone numbers: E.164 normalisation; any country accepted.
 - Roles: no escalation (permissions and stores); reserved permissions refused; a personal role
   belongs to one staff member; editing a saved role vs editing a staff member's role.
-- Address validation against a format; KSA's format.
+- Address validation against a scheme: required fields, the map pin both-or-neither and in range;
+  the country's store decides the scheme.
 - Every Access error has a unique `type` and a category.
 
 ### Integration (PostgreSQL)
@@ -618,10 +659,16 @@ AccessError
   never in events or job payloads.
 - Deletion: scheduled, cancelled by signing in, anonymized after 14 days by the scheduled job,
   events published; anonymized fields.
+- Visibility: a single-store admin sees and manages only that store's customers and staff; a
+  multi-store admin theirs; a Super Admin everyone; editing a saved role held in a store the admin
+  does not cover is refused; deleting a held role needs a replacement.
+- Super Admin commands: create sends an invitation; revoke refuses the last one.
 - Audit: every change audited; personal fields only "changed".
 
 ### Feature (HTTP)
-- Register → verify email → add phone → verify → the person may order; each step's errors.
+- Register (terms version recorded, home store set) → verify email → add phone → verify → the person
+  may order; each step's errors, including the plain "already registered" and "blocked" messages.
+- After signing in, the customer lands in their last store, on any device.
 - Sign in, lockout after 5 wrong passwords, per-IP limit, remember me, session idle limits,
   session id regenerated, other sessions ended on password change.
 - Staff: invitation → accept → phone → sign in with an SMS code → trusted browser for 30 days;
@@ -640,7 +687,7 @@ AccessError
 
 ## 9 · Questions
 
-### 9.1 Answered by the owner before this spec — 2026-09-18 and 2026-09-19
+### 9.1 Answered by the owner — 2026-09-18 and 2026-09-19
 
 | # | Question | Decision |
 |---|---|---|
@@ -663,37 +710,25 @@ AccessError
 | 17 | Saved roles | **Shared; editing a saved role changes all holders** (§1.5). |
 | 18 | Editing a staff member's role from their page | **A personal role for that member only** (§1.5). |
 | 19 | Individual or company | **Chosen at registration; the flow differs; B2B owns the company step** (§1.1). |
-| 20 | EG / AE address formats | **KSA now; Egypt and UAE later, as data** (§1.9). |
+| 20 | EG / AE address formats | **KSA now; Egypt and UAE later, as data** — superseded by #31 (§1.9). |
 | 21 | Guest signs in with a cart | **Merge the carts** (§1.7). |
 | 22 | Account deletion | **Self-service with password; 14-day grace; staff can do it on request** (§1.10). |
 
-### 9.2 Open
+### 9.2 Answered on the draft — 2026-09-19
 
-1. **Registration store.** Record the store an account was created in (`registered_store_id`), so
-   security emails link back to that store and its language? *Recommendation: yes.*
-2. **Terms at registration.** Must the customer accept terms and a privacy policy to register, and
-   is acceptance recorded (which version, when)? *Recommendation: yes, with the version and time.*
-3. **What errors reveal.** (a) Registering with an email that already exists: say "already
-   registered", or always answer "check your email" and send the owner of that email a notice?
-   (b) Signing in to a blocked account: say "blocked", or the generic "wrong email or password"?
-   *Recommendation: (a) say it — it is the customer's own email and the flow is clearer; (b) say
-   "blocked, contact us" — only after the right password, so it reveals nothing to an attacker.*
-4. **Staff avatars.** Store them as private media (served by 30-minute links, only in the admin
-   panel)? *Recommendation: yes.*
-5. **Editing a saved role that others hold.** It changes staff in other stores too. May only a
-   Super Admin edit saved roles (others create their own or edit a staff member's personal role),
-   or may anyone with `access.role.manage` who covers every holder's stores?
-   *Recommendation: anyone who covers every holder's stores and holds every permission in it.*
-6. **Deleting a saved role someone holds.** Refuse and list the holders, or let the admin pick a
-   replacement role for them? *Recommendation: refuse and list them.*
-7. **Automatic permissions.** Actions no role grants (registering, signing in, a customer's own
-   profile and addresses, a staff member's own password) use permissions held automatically by
-   their audience and never shown in the role editor (§1.5)? *Recommendation: yes.*
-8. **Changing a Super Admin.** Only by console command (disable, reset phone), never from the
-   panel? *Recommendation: yes.*
-9. **KSA address validation.** Building number 4 digits, postal code 5 digits, additional number 4
-   digits, the other fields free text? The owner confirms the exact rules.
-10. **Customers are global, staff are store-scoped.** Which customers does a KSA-only admin see,
-    and may they block a customer who also shops in UAE? *Recommendation: they see customers who
-    registered in, or have an address or order in, their stores; blocking — which stops sign-in in
-    every store — needs `access.customer.block` in every store.*
+| # | Question | Decision |
+|---|---|---|
+| 23 | The store an account belongs to | **Its registration store, fixed** (home store); the customer shops anywhere and lands in their last store after signing in (§1.1). |
+| 24 | Terms at registration | **Accepted and recorded, with the version** (§1.2). |
+| 25 | What errors tell a person | **Plainly**: "You already have an account — please sign in"; "Your account is blocked — please contact us" (§1.2, §1.8). |
+| 26 | Staff avatars | **Public media** (§1.4). |
+| 27 | Editing a saved role held in other stores | **Only a Super Admin, or an admin covering every holder's stores** (§1.5). |
+| 28 | Deleting a saved role someone holds | **Refused unless a replacement is picked; holders move to it** (§1.5). |
+| 29 | Actions no role grants | **Automatic permissions, own data only** (§1.5). |
+| 30 | Super Admin flow | **Created and revoked only by console; invitation, password, phone, SMS code; never the last one** (§1.6). |
+| 31 | Addresses | **Country first (our stores' countries); one scheme of 16 fields for all three now, per store; six required; not at registration but before an order** (§1.9). |
+| 32 | Who sees which customers and staff | **By home store and store scope; Super Admin everyone** (§3.3). |
+
+### 9.3 Still open
+
+None.
