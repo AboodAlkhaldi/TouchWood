@@ -162,6 +162,11 @@ reaches all of them.
   reach the log, and anonymizing an account never has to rewrite history.
 - The actor, time and correlation id are filled in automatically. The IP address is filled in
   only for staff, and a CHECK constraint refuses it on any other entry.
+- A queued job acts as the **system**, and its entries also record **who queued it**
+  (`requested_by_type`/`requested_by_id`). The payload of every queued job carries the requester
+  (`QueuedActor`); while the job runs, `JobAwareActorContext` — which wraps whatever `ActorContext` is
+  bound, Access's included — answers "the system, on behalf of X". With the `sync` queue a job runs
+  inside the request, so the request's own actor comes back when the job ends.
 
 ### Media
 

@@ -23,6 +23,9 @@ return new class extends Migration
             $table->char('store_id', 26)->nullable();
             $table->string('actor_type', 16);
             $table->char('actor_id', 26)->nullable();
+            // When the system acts in a queued job: whose action queued it (owner, 2026-09-18).
+            $table->string('requested_by_type', 16)->nullable();
+            $table->char('requested_by_id', 26)->nullable();
             $table->string('action', 100);
             $table->string('subject_type', 100);
             $table->string('subject_id', 64);
@@ -35,14 +38,20 @@ return new class extends Migration
 
         DB::statement(<<<'SQL'
             ALTER TABLE platform.audit_entries
-                ADD CONSTRAINT audit_entries_actor_type CHECK (actor_type IN ('STAFF', 'CUSTOMER', 'SYSTEM')),
+                ADD CONSTRAINT audit_entries_actor_type CHECK (actor_type IN ('STAFF', 'CUSTOMER', 'GUEST', 'INTEGRATION', 'SYSTEM')),
                 ADD CONSTRAINT audit_entries_actor_id CHECK ((actor_type = 'SYSTEM') = (actor_id IS NULL)),
+                ADD CONSTRAINT audit_entries_requested_by CHECK (
+                    (requested_by_type IS NULL) = (requested_by_id IS NULL)
+                    AND (requested_by_type IS NULL OR (actor_type = 'SYSTEM' AND requested_by_type IN ('STAFF', 'CUSTOMER', 'GUEST', 'INTEGRATION')))
+                ),
                 ADD CONSTRAINT audit_entries_ip_staff_only CHECK (ip_address IS NULL OR actor_type = 'STAFF')
             SQL);
 
         DB::statement('CREATE INDEX audit_entries_subject_idx ON platform.audit_entries (subject_type, subject_id, occurred_at DESC)');
         DB::statement('CREATE INDEX audit_entries_store_idx ON platform.audit_entries (store_id, occurred_at DESC)');
         DB::statement('CREATE INDEX audit_entries_actor_idx ON platform.audit_entries (actor_type, actor_id, occurred_at DESC)');
+        // Everything one person asked the system to do, through queued jobs.
+        DB::statement('CREATE INDEX audit_entries_requested_by_idx ON platform.audit_entries (requested_by_type, requested_by_id, occurred_at DESC) WHERE requested_by_id IS NOT NULL');
         DB::statement('CREATE INDEX audit_entries_action_idx ON platform.audit_entries (action, occurred_at DESC)');
 
         // OR REPLACE: migrate:fresh drops tables but not functions.

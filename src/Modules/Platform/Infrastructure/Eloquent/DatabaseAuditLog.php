@@ -40,6 +40,9 @@ final readonly class DatabaseAuditLog implements AuditLog
             'store_id' => $entry->storeId,
             'actor_type' => $actor->type->value,
             'actor_id' => $actor->id,
+            // A queued job acts as the system; this is whose action queued it.
+            'requested_by_type' => $actor->requestedBy?->type->value,
+            'requested_by_id' => $actor->requestedBy?->id,
             'action' => $entry->action,
             'subject_type' => $entry->subjectType,
             'subject_id' => $entry->subjectId,

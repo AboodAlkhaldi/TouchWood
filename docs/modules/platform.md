@@ -156,8 +156,12 @@ A permanent record of who changed what.
 - Recording an entry outside a transaction throws: the change and its entry must commit together.
 - Written **in the same transaction** as the change it records. If the change rolls back, so
   does the entry. There is no audited change without its entry.
-- Every entry has: when, action, actor (staff, customer or system), subject, and the store when
-  the change is store-scoped.
+- Every entry has: when, action, actor (staff, customer, guest, integration or system), subject,
+  and the store when the change is store-scoped.
+- **[DECIDED 2026-09-18]** A queued job acts as the **system**; when a person's or an integration's
+  action queued it, the entry also records that **requester**. Their permission is checked when they
+  start the action. Every actor id is a ULID: a guest's is the token their cart carries, an
+  integration's is its settings record.
 - **[PROPOSED]** `changes` never stores the *values* of personal fields (name, email, phone,
   address) — only that the field changed. Account anonymization (handoff §7.9) then never has
   to rewrite audit history.
@@ -271,7 +275,7 @@ cannot import Platform's interior. They count toward the ~20-class ceiling.
 | `StoreId` | `Shared/Domain/ValueObject` | Already listed in handoff §4.5. |
 | `StoreContext` (interface) | `Shared/Application` | `current(): StoreId` (throws `MissingStoreContext`), `has()`, `runIn(StoreId, callable)`. Implemented by Platform. |
 | `Authorizer` (interface) + `PermissionScope` | `Shared/Application` | `authorize(string $permission, PermissionScope $scope): void`, throws `Unauthorized`; `storesWith(string $permission): ?array` returns the stores the actor may use it in (`null` = every store) for admin listings. `PermissionScope` is `global()` (nothing store-related), `store($id)` (one store) or `allStores()` (the change reaches every store). **[DECIDED 2026-09-18]** — the earlier `?StoreId` meant both "no store" and "all stores", which Access could not tell apart. Implemented by Access. |
-| `ActorContext` (interface) + `Actor` | `Shared/Application` | Who is acting: staff, customer or system, and their id. Implemented by Access. |
+| `ActorContext` (interface) + `Actor` | `Shared/Application` | Who is acting: staff, customer, guest, integration or system, and their ULID. Inside a queued job the actor is the system with `requestedBy` — whoever queued it (**[DECIDED 2026-09-18]**); Platform wraps every `ActorContext` binding to do this, so it must be registered with `bind()`/`scoped()`. Implemented by Access. |
 | `BelongsToStore` trait + `StoreScope` | `Shared/Infrastructure/Persistence` | The Eloquent global scope every store-scoped model uses. It also refuses to create, move, save or delete a row of another store (`CrossStoreWrite`). |
 | `DomainError` + `ErrorCategory` | `Shared/Domain` | The base of every expected business error, and the short list of error kinds. See §7. |
 
@@ -441,8 +445,9 @@ a file path is not one.
 | `id` | `bigint` identity PK | High-volume, append-only — `bigint` like the other ledgers (handoff §5.3) |
 | `occurred_at` | `timestamptz` NOT NULL | |
 | `store_id` | `char(26)` NULL | FK → `platform.stores(id)` |
-| `actor_type` | `varchar(16)` NOT NULL | `STAFF`, `CUSTOMER`, `SYSTEM` |
-| `actor_id` | `char(26)` NULL | NULL only for `SYSTEM` |
+| `actor_type` | `varchar(16)` NOT NULL | `STAFF`, `CUSTOMER`, `GUEST`, `INTEGRATION`, `SYSTEM` |
+| `actor_id` | `char(26)` NULL | A ULID; NULL only for `SYSTEM` |
+| `requested_by_type`, `requested_by_id` | `varchar(16)`, `char(26)` NULL | **[DECIDED 2026-09-18]** Only on `SYSTEM` entries written by a queued job: whose action queued it. Both set or both NULL (CHECK `audit_entries_requested_by`); indexed for "everything one person asked for". |
 | `action` | `varchar(100)` NOT NULL | e.g. `platform.store.updated`, `b2b.company.approved` |
 | `subject_type` | `varchar(100)` NOT NULL | e.g. `platform.store`, `b2b.company` |
 | `subject_id` | `varchar(64)` NOT NULL | |
