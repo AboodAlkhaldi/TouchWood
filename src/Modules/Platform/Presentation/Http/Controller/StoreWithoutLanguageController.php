@@ -28,6 +28,15 @@ final readonly class StoreWithoutLanguageController
         }
 
         // The query string travels on: ad and campaign parameters (utm_source, gclid) must survive.
-        return redirect()->route('storefront.home', [...$request->query(), 'store' => $store, 'locale' => $this->languages->for($request)]);
+        // Named parameters only: Laravel treats a numeric key as a route parameter.
+        return redirect()->route('storefront.home', [...self::namedQuery($request), 'store' => $store, 'locale' => $this->languages->for($request)]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function namedQuery(Request $request): array
+    {
+        return array_filter($request->query(), is_string(...), ARRAY_FILTER_USE_KEY);
     }
 }

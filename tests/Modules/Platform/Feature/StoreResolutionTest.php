@@ -95,6 +95,10 @@ describe('a store without a language', function () {
         get('/sa?utm_source=google&gclid=abc123')->assertRedirect('/sa/ar?utm_source=google&gclid=abc123');
     });
 
+    it('drops unnamed query parameters instead of failing', function (string $query) {
+        get("/sa?{$query}")->assertRedirect('/sa/ar?utm_source=google');
+    })->with(['0=x&utm_source=google', '0[]=x&utm_source=google']);
+
     it('answers 404 for a store that does not exist', function () {
         get('/xx')->assertNotFound();
     });

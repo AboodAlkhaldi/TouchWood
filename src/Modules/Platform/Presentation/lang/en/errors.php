@@ -69,7 +69,7 @@ return [
     ],
     'media_in_use' => [
         'title' => 'File in use',
-        'detail' => 'The file is still used and cannot be deleted.',
+        'detail' => 'The file is still used and cannot be deleted: :uses.',
     ],
     'invalid_media_variants_transition' => [
         'title' => 'Cannot retry',

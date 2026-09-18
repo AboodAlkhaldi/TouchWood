@@ -45,6 +45,9 @@ final readonly class DeleteMediaHandler
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
+        // Up to three attempts: a module attaching this media while it is deleted can deadlock with
+        // the delete, and PostgreSQL then cancels one of them. Nothing outside the database happens
+        // before commit, so running again is safe.
         $this->db->transaction(function () use ($command) {
             // Locked first: a module adding a reference to this media now waits for the delete.
             $media = $this->media->lockById($command->mediaId) ?? throw new MediaNotFound($command->mediaId);
@@ -75,6 +78,6 @@ final readonly class DeleteMediaHandler
             $this->auditLog->record(MediaAudit::deleted($media, $all));
             $this->storage->deleteAfterCommit($media);
             $this->events->dispatch(new MediaDeleted((string) Str::uuid(), $media->id(), CarbonImmutable::now()));
-        });
+        }, 3);
     }
 }

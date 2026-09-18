@@ -62,6 +62,9 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §5.3 | The audit log refuses a value for an attribute named like personal data (email, phone, address…); such fields are recorded only as "changed" | Owner decision |
 | 2026-09-18 | §5.5 | Deleting media another module uses: each module detaches or blocks its own references, in one transaction; the foreign key stays as the backstop | Repairs review, owner decision |
 | 2026-09-18 | §5.5 | Detaching media checks each module's own permission for the change, in its stores | Owner decision |
+| 2026-09-18 | §4.1 | Store and language cookies last one year | Platform decisions review |
+| 2026-09-18 | §5.5 | Every stored media id has a `RESTRICT` foreign key to `media`, never an id inside JSON | Final repairs review, owner decision |
+| 2026-09-18 | §15 | Items to decide when hosting is chosen: database users for the audit log, trusted proxies, CDN purge | Repairs review, owner decision |
 | 2026-09-18 | §5.3 | Scheduled work is queued as a job, so its audit source is JOB | Repairs review, owner decision |
 | 2026-09-18 | §7.5 | An actor id is never a secret: a guest's id is kept apart from whatever proves the cart is theirs | Repairs review, owner decision |
 
@@ -383,7 +386,7 @@ Arabic is the default language. Both locales are first-class.
 | Timestamps | `timestamptz`, UTC in the database, converted at the presentation edge using the store timezone. |
 | Soft deletes | Only where genuinely needed. **Never** on ledgers or orders. |
 | Errors | One global standard, errors owned by modules. Every expected business error extends `DomainError` (Shared) and declares a stable `type` and an `ErrorCategory`. One exception handler maps category → HTTP status and renders one RFC 7807-style envelope. Each module defines its own error classes under its own base. |
-| Audit log | Append-only, written in the same transaction as the change, **kept forever**. Staff actions record the staff member's IP address; no other entry does. Every entry has a source Platform works out itself (web, integration, console, job, import) and both its dates come from the database clock: nothing is back-dated except imported history, which keeps its real date and shows when it was written. Personal fields and sensitive settings are recorded only as "changed", never their values; the code refuses values for attributes named like personal data. |
+| Audit log | Append-only, written in the same transaction as the change, **kept forever**. A staff member's web request records their IP address; no other entry does. Every entry has a source Platform works out itself (web, integration, console, job, import) and both its dates come from the database clock: nothing is back-dated except imported history, which keeps its real date and shows when it was written. Scheduled work is queued as a job, so its entries say job. Personal fields and sensitive settings are recorded only as "changed", never their values; the code refuses values for attributes named like personal data. |
 | Enums | PHP 8 backed enums, stored as **strings**. |
 | Validation | Two layers — form requests for shape and type, domain objects for invariants. Database CHECKs, unique indexes and foreign keys are the last line of defence: every rule they enforce is checked in code first, with a clear error, and tested, so the database should never receive a row it would refuse. |
 | Webhooks | Idempotency key on every one. |
@@ -435,7 +438,9 @@ always two separate files.
 **Media another module uses** is never deleted behind its back: each module declares whether its
 references detach (a product photo) or block the delete (a legal document), and the whole delete
 happens in one transaction. Detaching is a change to the module's own data, so the module checks
-the person's permission for it in the stores concerned; a refusal cancels the delete.
+the person's permission for it in the stores concerned; a refusal cancels the delete. Every stored
+media id sits in a column or link table with a `RESTRICT` foreign key to `media`, never inside
+JSON; the foreign key is the backstop.
 
 **Upload limits:** 10 MB. Public files: JPEG, PNG, WebP. Private files: PDF, JPEG, PNG. The type
 is detected from the file's contents.
@@ -1264,6 +1269,14 @@ Decide these when the owning module is reached; do not design them now.
 
 - OTP length, expiry and resend throttle — defaults stand until the SMS provider is chosen.
 - Session lifetime and lockout thresholds — same.
+
+### 15.4 Decided when hosting is chosen
+
+- **Database users for the audit log.** A restricted user for the app, allowed only to insert and
+  read audit entries, and a separate owner for migrations, so nobody using the app's credentials can
+  alter history. Today one user owns everything.
+- **Trusted proxies**, so a staff member's recorded IP is theirs, not the CDN's.
+- **CDN purge** of a deleted public image's sizes.
 
 ---
 

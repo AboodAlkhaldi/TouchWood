@@ -21,6 +21,6 @@ final readonly class MediaUseDto
 
     public function describe(): string
     {
-        return "{$this->subjectType} {$this->subjectId}";
+        return trim("{$this->subjectType} {$this->subjectId}");
     }
 }

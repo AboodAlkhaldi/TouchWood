@@ -164,6 +164,7 @@ it('audits a sync job inside a web request as JOB, then the request itself as WE
         ->and($request?->source)->toBe('WEB')
         ->and($request?->actor_type)->toBe('STAFF')
         ->and($request?->ip_address)->toBe('127.0.0.1')
+        ->and($correlationId)->toBeString()
         ->and($correlationId)->not->toBe('chosen-by-the-caller')
         ->and($request?->correlation_id)->toBe($correlationId)
         ->and($job?->correlation_id)->toBe($correlationId);

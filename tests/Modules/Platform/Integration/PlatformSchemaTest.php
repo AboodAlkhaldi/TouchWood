@@ -182,11 +182,14 @@ it('stores enum columns as strings, never integers', function () {
 it('allows in each enum column exactly the values of its PHP enum', function (string $constraint, array $cases) {
     // A new enum case the CHECK does not know would pass every unit test and fail on insert.
     $definition = DB::selectOne('select pg_get_constraintdef(oid) as definition from pg_constraint where conname = ?', [$constraint])?->definition;
-    preg_match_all("/'([A-Z_]+)'::/", (string) $definition, $allowed);
+    // The IN list: PostgreSQL shows it as ARRAY[...]. Other literals in the CHECK are not enum values.
+    preg_match('/ARRAY\[([^\]]*)\]/', (string) $definition, $list);
+    preg_match_all("/'([A-Z_]+)'::/", $list[1] ?? '', $allowed);
 
     expect($allowed[1])->toEqualCanonicalizing(array_map(fn (BackedEnum $case): string|int => $case->value, $cases));
 })->with([
     'actor types' => ['audit_entries_actor_type', ActorType::cases()],
+    'requester types: anyone but the system' => ['audit_entries_requested_by', array_filter(ActorType::cases(), fn (ActorType $type): bool => $type !== ActorType::System)],
     'audit sources' => ['audit_entries_source', AuditSource::cases()],
     'media visibility' => ['media_visibility', MediaVisibility::cases()],
     'variant states' => ['media_variants_status', MediaVariantsStatus::cases()],

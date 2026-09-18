@@ -52,6 +52,12 @@ Route::prefix('{store}/{locale}')->middleware('store')->group(...);
 $this->app->make(ReservedPaths::class)->reserve('payments', 'webhooks');
 ```
 
+```php
+// If your module stores media ids: in a column with a RESTRICT foreign key to platform.media, and
+// registered so that deleting the media detaches it from your records, or is refused.
+$this->app->make(MediaUsages::class)->register('catalog', ProductImageUsage::class);
+```
+
 Listen to `Public/Events/*` (`StoreUpdated`, `SettingChanged`, `MediaVariantsReady`…). They carry
 ids only and are dispatched after the transaction commits.
 
@@ -61,7 +67,7 @@ ids only and are dispatched after the transaction commits.
 
 | Folder | Contents |
 |---|---|
-| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, DTOs, enums, events. |
+| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, DTOs, enums, events. |
 | `Domain/Model` | `Store`, `Currency`, `Media`: plain PHP classes holding the rules, with no Laravel inside. |
 | `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. |
 | `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |
@@ -170,11 +176,15 @@ reaches all of them.
   `national_id`, `iban`…). It goes by the name only: a person's plain `name`, or a name the list
   does not know, must still be marked personal by its module.
 - The actor, time and correlation id are filled in automatically. The IP address is filled in
-  only for staff, and a CHECK constraint refuses it on any other entry.
+  only for a staff member's web request, and a CHECK constraint refuses it on any entry not by staff.
 - **Every entry has a source** Platform works out itself: `WEB`, `INTEGRATION` (a request made by an
-  integration), `CONSOLE`, `JOB` or `IMPORT`. A global middleware (`TrackHttpRequest`) marks the time a
-  request is being handled — Laravel's `runningInConsole()` cannot tell, because tests and
-  `sync` jobs run in the console.
+  integration), `CONSOLE`, `JOB` or `IMPORT`. Inside a queued job — the job's own actor is used,
+  whatever `ActorContext` binding is in place — it is `JOB`. Otherwise it is a request when PHP runs
+  under a web server (which includes work after the response is sent), or, in the console, while the
+  global `TrackHttpRequest` middleware handles a request (tests send requests from the console).
+- **Checked before the database.** The audit writer refuses an unknown store, a value too long for
+  its column, a malformed action or subject type, control characters in an id, a NUL in a changed
+  value, and a requester outside a job, with a clear message.
 - **Nothing can be back-dated.** `occurred_at` and `recorded_at` come from PostgreSQL's clock and a
   CHECK keeps them equal. Only `recordImportedAudit` — system only, past dates only — gives old history
   its real date, and `recorded_at` still shows when it was written.
@@ -284,7 +294,7 @@ The server needs:
 - **A queue worker** for variant generation. The job stops after 80 seconds, below the queue's
   90-second `retry_after`.
 - **The scheduler** (`php artisan schedule:work`, or cron running `schedule:run`) for the
-  stuck-image sweep.
+  stuck-image sweep, which it queues as a job — so the queue worker runs the sweep too.
 
 ---
 

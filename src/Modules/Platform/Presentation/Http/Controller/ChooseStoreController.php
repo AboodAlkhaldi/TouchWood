@@ -30,7 +30,7 @@ final readonly class ChooseStoreController
 
         if ($store !== null) {
             // The query string travels on: ad and campaign parameters (utm_source, gclid) must survive.
-            return redirect()->route('storefront.home', [...$request->query(), 'store' => $store->code, 'locale' => $locale]);
+            return redirect()->route('storefront.home', [...StoreWithoutLanguageController::namedQuery($request), 'store' => $store->code, 'locale' => $locale]);
         }
 
         app()->setLocale($locale);

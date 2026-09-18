@@ -16,13 +16,18 @@ use InvalidArgumentException;
 final class AuditChanges
 {
     /**
-     * An attribute named like personal data (owner's decision, 2026-09-18): the word ends the name,
-     * optionally followed by a number or line suffix (phone_number, address_line_1). A bare "name" is
-     * not on the list, because store and currency names are audited with their values: a person's
-     * name must be recorded with personal() by its module. A time such as email_verified_at is not
-     * personal data and is allowed.
+     * An attribute named like personal data (owner's decision, 2026-09-18), anywhere in the name:
+     * phone_number, billing_address_street, customer_name. Checked in snake_case, so firstName counts.
+     *
+     * A bare "name" is not on the list, because store and currency names are audited with their
+     * values: a person's name must be recorded with personal() by its module. Nor are "city" and
+     * "postal_code" (owner's decision): a shipping zone's city is not personal, so a customer address
+     * must mark them personal itself.
      */
-    private const string PERSONAL_NAME = '/(^|_)(e_?mails?|phones?|mobiles?|address(es)?|iqama|national_id|passport|iban|birth_?date|date_of_birth|(first|middle|last|family|given|full)_name)(_(number|no|line_?\d+|\d+))?\z/i';
+    private const string PERSONAL_NAME = '/(^|_)(e_?mails?|phones?|telephones?|mobiles?|whatsapp|address(es)?|street|iqama|national_id|id_number|passport|iban|birth_?date|date_of_birth|dob|surname|firstname|lastname|(first|middle|last|family|given|full|recipient|customer|contact|holder|cardholder|guest)_name)(_|\z)/';
+
+    /** A time or flag about personal data is not personal data: email_verified_at, phone_confirmed. */
+    private const string ABOUT_PERSONAL = '/_(verified|verified_at|confirmed|confirmed_at|changed_at|updated_at|enabled|required|visible|count|type|status)\z/';
 
     /**
      * @var array<string, array{0: mixed, 1: mixed}|'changed'>
@@ -40,7 +45,9 @@ final class AuditChanges
      */
     public function changed(string $attribute, bool|int|float|string|array|null $from, bool|int|float|string|array|null $to): self
     {
-        if (preg_match(self::PERSONAL_NAME, $attribute) === 1) {
+        $name = strtolower((string) preg_replace('/(?<=[a-z0-9])[A-Z]/', '_$0', $attribute));
+
+        if (preg_match(self::PERSONAL_NAME, $name) === 1 && preg_match(self::ABOUT_PERSONAL, $name) !== 1) {
             throw new InvalidArgumentException("\"{$attribute}\" looks like personal data. The audit log is kept forever, so record it with personal(), which keeps only that it changed.");
         }
 

@@ -86,8 +86,10 @@ hours to verify a bank transfer, and so on.
 - **[DECIDED 2026-09-18] Never a secret.** API keys, passwords and credentials live only in server
   environment variables; a key with a segment that names one (`password`, `pass`, `secret`,
   `token`, `api_key`, `private_key`, `access_key`, `signing_key`, `encryption_key`, `hmac_key`,
-  `credentials`) is refused at boot. A policy about a secret (`password_min_length`,
-  `token_length`) is not a secret and is allowed. A definition may be marked
+  `passphrase`, `merchant_key`, `license_key`, `credentials`, even with more words after it, as in
+  `secret_key_live`) is refused at boot. A key whose last segment is a policy about a secret — its
+  length, lifetime, attempts or days (`password_min_length`, `token.lifetime_minutes`) — is not a
+  secret and is allowed. A definition may be marked
   **sensitive**: the audit log then records only that it changed, never its values, because the
   log is kept forever. Admin screens must not display a sensitive value in full.
 - **[DECIDED 2026-09-18] The rule for what is a setting:** a single tunable value is a setting.
@@ -136,13 +138,15 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
   media ids declares, for its own references, whether deleting the media **detaches** it (a
   product photo or a banner: the module removes its reference) or is **blocked** (a company's
   registration document, a bank-transfer receipt: legal records). Platform asks every module
-  first; if any blocks, the delete is refused with the reason (`MediaInUse`); otherwise every
+  first; if any blocks, the delete is refused naming the records that use it (`MediaInUse`); otherwise every
   module detaches, and the media is deleted, all in one transaction. **[DECIDED 2026-09-18]**
   Detaching changes the module's own data, so the module checks the acting person's permission for
   that change itself, in the stores concerned: deleting needs `platform.media.delete` *and* the
-  right to every change it causes. A refusal cancels the whole delete. The referencing tables keep
-  a foreign key with `ON DELETE RESTRICT` (cross-schema foreign keys are allowed, handoff §4.3) as
-  the backstop.
+  right to every change it causes. A refusal cancels the whole delete. **[DECIDED 2026-09-18]**
+  Every stored media id sits in its own column or a link table with an `ON DELETE RESTRICT` foreign
+  key (cross-schema foreign keys are allowed, handoff §4.3) — never inside JSON — so the locked media
+  row stops new references during the delete, and the foreign key is the backstop. The delete is
+  retried up to three times if it deadlocks with a module attaching the same media.
 - Deleting removes the original and all variants from object storage **after** the database
   commit.
 - **[DECIDED]** Every file lives in this one table, with a visibility:
@@ -188,8 +192,10 @@ A permanent record of who changed what.
   phone, address, uploaded file names) — only that the field changed. Account anonymization
   (handoff §7.9) then never has to rewrite audit history. **[DECIDED 2026-09-18]** The code
   refuses the values of an attribute named like personal data (`email`, `contact_phone`,
-  `billing_address`, `first_name`, `national_id`, `iban`…). A plain `name` is allowed — stores
-  and currencies have names — so a person's name must be marked personal by its module.
+  `billing_address`, `first_name`, `national_id`, `iban`, `whatsapp`, camelCase included). A plain
+  `name` is allowed — stores and currencies have names — and so are `city` and `postal_code`
+  (a shipping zone's are not personal); a customer's name and address must be marked personal by
+  their module.
 - **[DECIDED 2026-09-18] Not audited:** uploading a public image identical to one already stored
   (nothing is created; the existing image is returned), and the system's own maintenance (the
   variants job and the stuck-image sweep). Every change a person makes is audited.
@@ -206,8 +212,9 @@ A permanent record of who changed what.
   PostgreSQL's clock and must be equal, except for an import: only `recordImportedAudit` may give a
   past date (with the original actor), only the system may call it, and `recorded_at` still shows
   when the row was really written.
-- **[DECIDED]** When the actor is a staff member, the entry records their **IP address**.
-  Customer and system entries never record an IP.
+- **[DECIDED]** When a staff member changes something through a web request, the entry records
+  their **IP address**. No other entry records an IP: not customers, not the system, and not a
+  staff member working from the console.
 
 ### 1.6 Store context
 
@@ -221,6 +228,8 @@ Not an aggregate — a rule that holds for every request, job and command.
   links and its error messages follow that language.
 - Visiting a store remembers the store and the language in cookies. **[DECIDED 2026-09-18]**
   They last one year.
+- Redirects to a store keep the query string (`utm_source`, `gclid`), so ad and campaign
+  parameters survive; only named parameters are kept.
 - **[DECIDED 2026-09-18]** `brand.com/sa` with no language redirects to the visitor's remembered
   language, otherwise Arabic — one default for every store.
 - **[DECIDED]** `brand.com/` with no store segment: if the cookie names a store that still
@@ -674,7 +683,8 @@ module, so this section fixes the pattern every later module follows.
 - **[DECIDED 2026-09-18] Errors from outside the modules:** invalid form input answers with type
   `validation_failed` and the field errors; any other HTTP error answers with type `http.{status}`
   (`http.404`, `http.403`) — the same JSON shape, in Arabic or English. A page request (not JSON)
-  gets the error page for its status instead.
+  gets the error page for its status instead, showing the translated title, never the message
+  written for developers.
 
 ### 7.2 Why module errors instead of one global list of errors
 
@@ -778,6 +788,12 @@ stack traces, SQL, or another customer's data.
 - A job queued by a person runs as the system and its audit entry records who asked — through the
   real database queue and worker too; a job queued by a job keeps the original requester.
 - A setting named like a secret is refused at boot; a sensitive setting is audited only as changed.
+- The audit writer refuses, before the database would: an unknown store, a value too long for its
+  column, an action or subject type not written as `module.resource(.event)`, control characters in
+  an id, a NUL in a changed value, a requester outside a job or on an import, an import dated at or
+  after the transaction's start; an imported date keeps its time zone.
+- Every enum stored in a column allows exactly its PHP cases in the column's CHECK.
+- Scheduled work is only ever queued jobs.
 
 ### Feature (HTTP and console)
 
@@ -878,6 +894,8 @@ After the independent review of the repairs (2026-09-18):
 | 38 | A guest's id in the audit log | **An id is never a secret**; proof of cart ownership is kept apart (§1.5). |
 | 39 | `variants_generated_at` | **Keep** (§5.4). |
 | 40 | Whose permission covers detaching media from another module's data | **Each module checks its own**, in the stores concerned; a refusal cancels the delete (§1.4). |
+| 41 | May a module store media ids inside JSON? | **No: always a column or link table with a `RESTRICT` foreign key**, so the delete's lock and the backstop cover every reference (§1.4). |
+| 42 | Are `city` and `postal_code` refused by name in the audit log? | **No**: a shipping zone's city is not personal; a customer address marks them personal itself (§1.5). |
 
 ### 9.3 Still open
 
@@ -887,3 +905,8 @@ To decide when hosting is chosen:
   alter history. Today one user owns everything.
 - **Trusted proxies:** which proxy's forwarded IP to trust, so staff IPs are real behind a CDN.
 - **CDN purge:** removing a deleted public image's sizes from the CDN's cache.
+
+With the frontend milestone:
+- **Error pages** for 409, 413, 415 and 422. Laravel has no page for these statuses, so a page
+  request shows only the status text (for example "Conflict"); JSON requests already get the
+  translated title and detail.
