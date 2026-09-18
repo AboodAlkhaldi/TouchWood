@@ -22,8 +22,10 @@ it('refuses the values of an attribute named like personal data', function (stri
     AuditChanges::none()->changed($attribute, 'old', 'new');
 })->throws(InvalidArgumentException::class, 'personal()')->with([
     'email', 'customer_email', 'contact_phone', 'mobile', 'billing_address', 'ip_address',
-    'first_name', 'last_name', 'full_name', 'national_id', 'passport_number', 'birth_date',
-    'date_of_birth', 'iban', 'Email',
+    'first_name', 'middle_name', 'last_name', 'family_name', 'given_name', 'full_name',
+    'national_id', 'national_id_number', 'iqama', 'iqama_number', 'passport', 'passport_number',
+    'birth_date', 'birthdate', 'date_of_birth', 'iban', 'Email', 'e_mail', 'emails',
+    'phone_number', 'mobile_number', 'shipping_addresses', 'address_line_1', 'address_line1',
 ]);
 
 it('still records the values of attributes that are not personal', function (string $attribute) {

@@ -27,6 +27,7 @@ final readonly class StoreWithoutLanguageController
             abort(404);
         }
 
-        return redirect()->route('storefront.home', ['store' => $store, 'locale' => $this->languages->for($request)]);
+        // The query string travels on: ad and campaign parameters (utm_source, gclid) must survive.
+        return redirect()->route('storefront.home', [...$request->query(), 'store' => $store, 'locale' => $this->languages->for($request)]);
     }
 }

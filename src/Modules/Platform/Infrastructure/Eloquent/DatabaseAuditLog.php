@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Platform\Infrastructure\Eloquent;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Http\Request;
@@ -25,9 +26,19 @@ use Shared\Application\CorrelationId;
  * Both dates of a normal entry come from PostgreSQL's clock (the column defaults), and a CHECK
  * requires them to be equal unless the entry is an import — so nothing can back-date an entry,
  * and an imported one still shows when it was really written (owner's decision, 2026-09-18).
+ *
+ * Every rule the table's constraints enforce is checked here first, so a mistake is refused with
+ * a clear message instead of a database error (owner's rule, 2026-09-18).
  */
 final readonly class DatabaseAuditLog implements AuditLog
 {
+    /** The lengths of platform.audit_entries' columns. */
+    private const int MAX_ACTION = 100;
+
+    private const int MAX_SUBJECT_TYPE = 100;
+
+    private const int MAX_SUBJECT_ID = 64;
+
     public function __construct(
         private ConnectionInterface $db,
         private ActorContext $actors,
@@ -39,9 +50,17 @@ final readonly class DatabaseAuditLog implements AuditLog
     public function record(AuditEntryDto $entry): void
     {
         $this->requireTransaction($entry);
+        $this->requireValid($entry);
 
-        $actor = $this->actors->current();
-        $source = $this->source($actor);
+        // Inside a queued job, the job's own actor — the system on behalf of whoever queued it —
+        // whatever ActorContext binding is in place.
+        $jobActor = $this->jobs->current();
+        $actor = $jobActor ?? $this->actors->current();
+        $source = $jobActor !== null ? AuditSource::Job : $this->requestSource($actor);
+
+        if ($jobActor === null && $actor->requestedBy !== null) {
+            throw new LogicException("Audit entry \"{$entry->action}\": only a queued job acts on someone's behalf, but this actor carries a requester outside a job.");
+        }
 
         $this->db->table('platform.audit_entries')->insert([
             ...$this->row($entry, $actor, $source),
@@ -53,18 +72,28 @@ final readonly class DatabaseAuditLog implements AuditLog
     public function recordImported(AuditEntryDto $entry, Actor $actor, DateTimeImmutable $occurredAt): void
     {
         $this->requireTransaction($entry);
+        $this->requireValid($entry);
 
         if ($this->actors->current()->type !== ActorType::System) {
             throw new LogicException('Only the system imports history.');
         }
 
-        if ($occurredAt > new DateTimeImmutable) {
-            throw new InvalidArgumentException('An imported audit entry cannot happen in the future.');
+        if ($actor->requestedBy !== null) {
+            throw new InvalidArgumentException('Imported history names the actor who acted at the time; it has no requester.');
+        }
+
+        // Written in UTC with its offset: the database would read a date written without one as
+        // UTC, moving an entry dated 10:00+03:00 three hours later. (The column keeps whole seconds.)
+        $occurredAt = $occurredAt->setTimezone(new DateTimeZone('UTC'));
+
+        // recorded_at is the transaction's start time, earlier than PHP's clock: compare with it.
+        if ($occurredAt >= $this->transactionStartedAt()) {
+            throw new InvalidArgumentException('An imported audit entry must be dated before it is recorded: it cannot happen in the future.');
         }
 
         $this->db->table('platform.audit_entries')->insert([
             ...$this->row($entry, $actor, AuditSource::Import),
-            'occurred_at' => $occurredAt,
+            'occurred_at' => $occurredAt->format('Y-m-d H:i:s.uP'),
         ]);
     }
 
@@ -92,16 +121,37 @@ final readonly class DatabaseAuditLog implements AuditLog
     }
 
     /**
-     * A queued job first (it may run inside a request with the "sync" queue), then a request —
-     * made by an integration or by a person — and otherwise an artisan command.
+     * Outside a queued job: a request — made by an integration or by a person — and otherwise an
+     * artisan command.
      */
-    private function source(Actor $actor): AuditSource
+    private function requestSource(Actor $actor): AuditSource
     {
-        return match (true) {
-            $this->jobs->current() !== null => AuditSource::Job,
-            $this->http->isHandling() => $actor->type === ActorType::Integration ? AuditSource::Integration : AuditSource::Web,
-            default => AuditSource::Console,
-        };
+        if (! $this->http->isHandling()) {
+            return AuditSource::Console;
+        }
+
+        return $actor->type === ActorType::Integration ? AuditSource::Integration : AuditSource::Web;
+    }
+
+    private function requireValid(AuditEntryDto $entry): void
+    {
+        $lengths = [
+            'action' => [$entry->action, self::MAX_ACTION],
+            'subject type' => [$entry->subjectType, self::MAX_SUBJECT_TYPE],
+            'subject id' => [$entry->subjectId, self::MAX_SUBJECT_ID],
+        ];
+
+        foreach ($lengths as $name => [$value, $max]) {
+            if ($value === '' || mb_strlen($value) > $max) {
+                throw new InvalidArgumentException("An audit entry's {$name} must be 1 to {$max} characters, \"{$value}\" is not.");
+            }
+        }
+
+        // Read inside the transaction, not from the store cache: a store created in this same
+        // transaction is audited before the cache knows it.
+        if ($entry->storeId !== null && ! $this->db->table('platform.stores')->where('id', $entry->storeId)->exists()) {
+            throw new InvalidArgumentException("Audit entry \"{$entry->action}\" names a store that does not exist: \"{$entry->storeId}\".");
+        }
     }
 
     private function requireTransaction(AuditEntryDto $entry): void
@@ -111,6 +161,17 @@ final readonly class DatabaseAuditLog implements AuditLog
         if ($this->db->transactionLevel() === 0) {
             throw new LogicException("Audit entry \"{$entry->action}\" must be recorded inside the transaction of the change it records.");
         }
+    }
+
+    private function transactionStartedAt(): DateTimeImmutable
+    {
+        $row = $this->db->selectOne("select to_char(now() at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as started_at");
+
+        if (! is_object($row) || ! is_string($row->started_at ?? null)) {
+            throw new LogicException('PostgreSQL did not return the transaction time.');
+        }
+
+        return new DateTimeImmutable($row->started_at);
     }
 
     private function requestIp(): ?string

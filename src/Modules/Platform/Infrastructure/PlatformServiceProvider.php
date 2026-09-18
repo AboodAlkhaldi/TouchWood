@@ -9,8 +9,7 @@ use Illuminate\Contracts\Filesystem\Factory as Filesystems;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Events\MigrationsEnded;
-use Illuminate\Queue\Events\JobExceptionOccurred;
-use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Event;
@@ -46,6 +45,7 @@ use Modules\Platform\Infrastructure\Queue\JobActorState;
 use Modules\Platform\Infrastructure\Queue\JobAwareActorContext;
 use Modules\Platform\Infrastructure\Queue\LaravelMediaVariantsQueue;
 use Modules\Platform\Infrastructure\Queue\QueuedActor;
+use Modules\Platform\Infrastructure\Queue\RequeueStuckMediaVariantsJob;
 use Modules\Platform\Presentation\Console\CreateCurrencyCommand;
 use Modules\Platform\Presentation\Console\CreateStoreCommand;
 use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
@@ -81,7 +81,6 @@ final class PlatformServiceProvider extends ServiceProvider
         MediaVariantsQueue::class => LaravelMediaVariantsQueue::class,
         // Process-wide on purpose: the queue worker runs jobs one after another in one process.
         JobActorState::class => JobActorState::class,
-        HttpRequestState::class => HttpRequestState::class,
     ];
 
     public function register(): void
@@ -96,6 +95,22 @@ final class PlatformServiceProvider extends ServiceProvider
         // Paths the application keeps for itself until a module that owns them exists: the health
         // check, built assets, public files and signed file links, the admin panel and the API.
         $this->app->make(ReservedPaths::class)->reserve('platform', 'up', 'build', 'storage', 'admin', 'api');
+
+        // One pattern for {store} on every route, built from every module's reserved paths, so no
+        // module imports Platform's interior to register storefront routes. Built after every
+        // provider's register() and before any boot(): Laravel copies a global pattern into a route
+        // only when the route is created, so a module whose provider boots before Platform's still
+        // gets it. Frozen afterwards: a later reservation would be missing from the pattern.
+        $this->app->booting(function (Application $app): void {
+            $reservedPaths = $app->make(InMemoryReservedPaths::class);
+            Route::pattern('store', $reservedPaths->routePattern());
+            Route::pattern('locale', $app->make(StorefrontLanguage::class)->routePattern());
+            $reservedPaths->freeze();
+        });
+
+        // Process-wide: a web server process serves requests only; in the console, TrackHttpRequest
+        // marks the requests tests send.
+        $this->app->singleton(HttpRequestState::class, fn (Application $app): HttpRequestState => new HttpRequestState(! $app->runningInConsole()));
 
         // Anything that depends on who is acting lives for one request or one job, never the
         // whole process — a queue worker must not audit or authorize as an earlier job's actor.
@@ -140,13 +155,6 @@ final class PlatformServiceProvider extends ServiceProvider
         $this->loadViewsFrom($presentation.'/views', 'platform');
         $this->loadTranslationsFrom($presentation.'/lang', 'platform');
 
-        // One pattern for {store} on every route, built from every module's reserved paths, so no
-        // module imports Platform's interior to register storefront routes. Frozen afterwards: a
-        // later reservation would be missing from the pattern.
-        $reservedPaths = $this->app->make(InMemoryReservedPaths::class);
-        Route::pattern('store', $reservedPaths->routePattern());
-        Route::pattern('locale', $this->app->make(StorefrontLanguage::class)->routePattern());
-        $reservedPaths->freeze();
         $router->aliasMiddleware(ResolveStore::ALIAS, ResolveStore::class);
 
         // On every request, so the audit log can tell a web change from a console or queued one.
@@ -154,9 +162,10 @@ final class PlatformServiceProvider extends ServiceProvider
 
         $this->app->make(SettingsRegistry::class)->define('platform', ...MediaSettings::definitions());
 
-        // Images whose variant job was lost are queued again (owner's decision, 2026-09-16).
+        // Images whose variant job was lost are queued again (owner's decision, 2026-09-16). Scheduled
+        // work runs as a queued job, so its audit source is JOB (owner's decision, 2026-09-18).
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
-            $schedule->command(RequeueStuckMediaVariantsCommand::NAME)->everyTenMinutes()->withoutOverlapping()->onOneServer();
+            $schedule->job(RequeueStuckMediaVariantsJob::class)->everyTenMinutes()->onOneServer();
         });
 
         $this->carryActorIntoQueuedJobs();
@@ -188,11 +197,13 @@ final class PlatformServiceProvider extends ServiceProvider
         $jobs = $this->app->make(JobActorState::class);
 
         Event::listen(JobProcessing::class, function (JobProcessing $event) use ($jobs): void {
-            $jobs->enter(QueuedActor::actorFor($event->job->payload()));
+            $jobs->enter(spl_object_id($event->job), QueuedActor::actorFor($event->job->payload()));
         });
 
-        Event::listen([JobProcessed::class, JobExceptionOccurred::class], function () use ($jobs): void {
-            $jobs->leave();
+        // JobAttempted fires in a finally block, after a failed job's failed() method has run, on
+        // the worker and on the sync queue alike — so failed() still acts as the system.
+        Event::listen(JobAttempted::class, function (JobAttempted $event) use ($jobs): void {
+            $jobs->leave(spl_object_id($event->job));
         });
     }
 }

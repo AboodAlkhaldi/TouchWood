@@ -7,16 +7,18 @@ namespace Shared\Application;
 use InvalidArgumentException;
 
 /**
- * Who is acting. Every id is a ULID (owner's decision, 2026-09-18): a guest's id is the random
- * token their cart carries, an integration's id is its settings record, so replacing a provider
- * changes that record and never the audit format.
+ * Who is acting. Every id is a ULID (owner's decision, 2026-09-18). An id is an identifier, never
+ * a secret: a guest's id is safe to store in the audit log forever, and whatever proves that a cart
+ * is theirs (an encrypted cookie, an app's token) is kept apart from it. An integration's id is its
+ * settings record, so replacing a provider changes that record and never the audit format.
  *
  * Queued jobs act as the system. When a person's (or an integration's) action started the job,
  * the system actor carries that requester, so the audit log still shows who asked for the work.
  */
 final readonly class Actor
 {
-    private const string ULID = '/\A[0-9A-HJKMNP-TV-Z]{26}\z/i';
+    /** Crockford base32; the first character is at most 7, or the value would not fit in 128 bits. */
+    private const string ULID = '/\A[0-7][0-9A-HJKMNP-TV-Z]{25}\z/i';
 
     private function __construct(
         public ActorType $type,

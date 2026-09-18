@@ -19,7 +19,7 @@ Three rules for working from this document:
    standard answer; §16 lists them with reasons so you can see they were considered.
 2. **Anything in §15 is open.** Those need the owner's input. Flag them when you reach
    them; do not invent an answer and proceed.
-3. **Specify before you code, per module.** §14 defines the deliverable. The owner's
+3. **Specify before you code, per module.** §18 defines the deliverable. The owner's
    standing instruction is that a module is specified in full before its first line of
    code, and the specification is reviewed before implementation starts.
 
@@ -60,6 +60,9 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §17 | Feedback moves from stage 4 to stage 6, with Sales (it needs Catalog and Sales); later stages renumbered | Owner decision |
 | 2026-09-18 | §4.5 | Shared kernel keeps its ~20-class ceiling: the planned types are candidates that enter only when three modules need them; no `CommandBus`/`EventBus` (Laravel's dispatcher) | Owner decision |
 | 2026-09-18 | §5.3 | The audit log refuses a value for an attribute named like personal data (email, phone, address…); such fields are recorded only as "changed" | Owner decision |
+| 2026-09-18 | §5.5 | Deleting media another module uses: each module detaches or blocks its own references, in one transaction; the foreign key stays as the backstop | Repairs review, owner decision |
+| 2026-09-18 | §5.3 | Scheduled work is queued as a job, so its audit source is JOB | Repairs review, owner decision |
+| 2026-09-18 | §7.5 | An actor id is never a secret: a guest's id is kept apart from whatever proves the cart is theirs | Repairs review, owner decision |
 
 ---
 
@@ -129,7 +132,8 @@ Memorize these. Most defects in a system like this are one of these being violat
 | Tests | Pest |
 | Media | S3-compatible object storage + CDN |
 
-Key packages: `spatie/laravel-data`, `spatie/laravel-model-states`,
+Key packages: `spatie/laravel-data` (presentation layer only — DTOs crossing a module boundary
+are plain readonly classes, §4.3), `spatie/laravel-model-states`,
 `spatie/laravel-permission`, `spatie/laravel-query-builder`,
 `spatie/laravel-translatable`, `brick/math`, `intervention/image`.
 
@@ -153,6 +157,13 @@ deploy, never a code change.
 
 `brand.com/` with no store segment redirects to the store remembered in a cookie; with no
 valid cookie it shows a page to choose a country. There is no IP-based country detection.
+`brand.com/sa` with no language redirects to the visitor's remembered language, otherwise Arabic.
+Store and language cookies last one year. Emails and SMS use the customer's stored language, the
+admin panel the staff member's own; webhooks have none.
+
+A store code can never be a reserved top-level path (`/admin`, `/api`, webhooks…). The reserved
+paths are a registry: each module adds its own in its service provider, and Platform builds the
+store route pattern from it at boot.
 
 **Global (not store-scoped):** product identity, SKU, variants, attribute definitions,
 categories, brands, translations, media, staff users, roles, permissions, customer
@@ -371,7 +382,7 @@ Arabic is the default language. Both locales are first-class.
 | Timestamps | `timestamptz`, UTC in the database, converted at the presentation edge using the store timezone. |
 | Soft deletes | Only where genuinely needed. **Never** on ledgers or orders. |
 | Errors | One global standard, errors owned by modules. Every expected business error extends `DomainError` (Shared) and declares a stable `type` and an `ErrorCategory`. One exception handler maps category → HTTP status and renders one RFC 7807-style envelope. Each module defines its own error classes under its own base. |
-| Audit log | Append-only, written in the same transaction as the change, **kept forever**. Staff actions record the staff member's IP address; customer and system entries never do. |
+| Audit log | Append-only, written in the same transaction as the change, **kept forever**. Staff actions record the staff member's IP address; no other entry does. Every entry has a source Platform works out itself (web, integration, console, job, import) and both its dates come from the database clock: nothing is back-dated except imported history, which keeps its real date and shows when it was written. Personal fields and sensitive settings are recorded only as "changed", never their values; the code refuses values for attributes named like personal data. |
 | Enums | PHP 8 backed enums, stored as **strings**. |
 | Validation | Two layers — form requests for shape and type, domain objects for invariants. Database CHECKs, unique indexes and foreign keys are the last line of defence: every rule they enforce is checked in code first, with a clear error, and tested, so the database should never receive a row it would refuse. |
 | Webhooks | Idempotency key on every one. |
@@ -420,6 +431,10 @@ table with `visibility = PRIVATE`. They are stored on a private disk and served 
 short-lived signed URLs (30 minutes), never through the CDN. Two identical private uploads are
 always two separate files.
 
+**Media another module uses** is never deleted behind its back: each module declares whether its
+references detach (a product photo) or block the delete (a legal document), and the whole delete
+happens in one transaction.
+
 **Upload limits:** 10 MB. Public files: JPEG, PNG, WebP. Private files: PDF, JPEG, PNG. The type
 is detected from the file's contents.
 
@@ -458,7 +473,8 @@ minimum order quantity. Wholesale is a quantity concept, not a permission.
 ### 7.1 Two actor types
 
 `Customer` and `StaffUser` are separate tables with separate guards. They never share a
-table with a boolean discriminator.
+table with a boolean discriminator. These are the two kinds of account; §7.5 lists every kind of
+actor the system records.
 
 ### 7.2 Registration and verification
 
@@ -539,6 +555,17 @@ staff inherit the same boundary.
 
 **Admin navigation is derived from the permission set**, never hardcoded. A staff member
 with catalog permissions only sees catalog tabs.
+
+**Every permission check names its scope** (owner, 2026-09-18): the whole system with no store
+involved, one store, or every store at once (a change that reaches all stores, such as a global
+setting). Access can also answer "which stores may this actor do this in", for admin lists.
+
+**Actors** (owner, 2026-09-18): staff, customer, guest (browses and keeps a cart, with no
+favourites; the cart moves to the account when they register), integration (a machine, such as a
+payment webhook) and the system. Every actor id is a ULID, and an id is never a secret: a guest's
+id is safe to keep in the audit log forever, while whatever proves the cart is theirs (an encrypted
+cookie, or an app's token stored only as a hash) is kept apart from it. A person's permission is checked when they start an action; a queued job then acts as the
+system on behalf of that person, and the audit log records who asked.
 
 ### 7.6 Staff onboarding
 
@@ -1348,6 +1375,6 @@ In `tests/Architecture/`, failing the build:
 3. Write the Shared kernel: `Money` first, with `allocate()` and full unit tests.
 4. Write `docs/modules/platform.md` using the §18 format. Have it reviewed.
 5. Implement Platform.
-6. Write `docs/modules/access.md`. It sets the template for everything after it.
+6. Write `docs/modules/access.md`, following the shape of `docs/modules/platform.md`.
 
 Flag anything in §15 the moment you reach it. Do not invent an answer and proceed.

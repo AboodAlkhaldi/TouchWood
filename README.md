@@ -3,7 +3,7 @@
 Multi-store retail and wholesale commerce platform for kitchen and wardrobe hardware.
 Saudi Arabia, Egypt and the UAE from one codebase and one database.
 
-Laravel 13 · PHP 8.4 · PostgreSQL 17 · Redis · modular monolith, 15 modules.
+Laravel 13 · PHP 8.4 · PostgreSQL 17 (no Redis for now) · modular monolith, 15 modules.
 
 - **Source of truth:** [`docs/HANDOFF.md`](docs/HANDOFF.md)
 - Architecture and boundaries: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)

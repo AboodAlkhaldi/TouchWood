@@ -63,6 +63,8 @@
   and test it against the real `database` cache store (tests use it, see `phpunit.xml`).
 - Background jobs run from the `jobs` table: a worker must run (`php artisan queue:work`), and the
   scheduler (`php artisan schedule:work`) for scheduled tasks.
+- Schedule work with `$schedule->job(...)`, never `command()` or `call()`: scheduled work is queued as
+  a job, so its audit source is JOB (owner, 2026-09-18).
 - If Redis is ever reintroduced, `VersionedCache` falls back to replacing the version after commit;
   first decide with the owner how a version write lost during a Redis outage is recovered.
 
@@ -74,7 +76,8 @@
 
 ## Actors
 
-- Actor types: staff, customer, guest, integration, system. Every actor id is a ULID.
+- Actor types: staff, customer, guest, integration, system. Every actor id is a ULID, and an id is
+  never a secret: whatever proves a guest's cart is theirs is kept apart from the guest id.
 - Check a person's permission when they start an action; the queued job then acts as the system,
   and the audit log records the requester (`requested_by_*`).
 - Secrets (API keys, passwords, credentials) live only in server environment variables — never in a

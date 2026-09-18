@@ -84,8 +84,10 @@ hours to verify a bank transfer, and so on.
   declared key never fails.
 - A `STORE` key is never stored without a store, and a `GLOBAL` key never with one.
 - **[DECIDED 2026-09-18] Never a secret.** API keys, passwords and credentials live only in server
-  environment variables; a key whose name looks like one (`password`, `secret`, `api_key`,
-  `private_key`, `access_key`, `credentials`) is refused at boot. A definition may be marked
+  environment variables; a key with a segment that names one (`password`, `pass`, `secret`,
+  `token`, `api_key`, `private_key`, `access_key`, `signing_key`, `encryption_key`, `hmac_key`,
+  `credentials`) is refused at boot. A policy about a secret (`password_min_length`,
+  `token_length`) is not a secret and is allowed. A definition may be marked
   **sensitive**: the audit log then records only that it changed, never its values, because the
   log is kept forever. Admin screens must not display a sensitive value in full.
 - **[DECIDED 2026-09-18] The rule for what is a setting:** a single tunable value is a setting.
@@ -130,9 +132,14 @@ An uploaded file in object storage (handoff §5.5). Global, not store-scoped.
 - **[DECIDED 2026-09-18]** Only the base name of the uploaded file is kept (no
   directories, no control or invisible formatting characters such as a right-to-left override),
   at most 255 characters. On S3-compatible storage a private file downloads under this name.
-- A Media row referenced by another module cannot be deleted. The referencing tables hold a
-  foreign key with `ON DELETE RESTRICT` (cross-schema foreign keys are allowed, handoff §4.3),
-  so the database refuses and Platform reports `MediaInUse`.
+- **[DECIDED 2026-09-18] Media another module uses: detach or block.** Each module that stores
+  media ids declares, for its own references, whether deleting the media **detaches** it (a
+  product photo or a banner: the module removes its reference) or is **blocked** (a company's
+  registration document, a bank-transfer receipt: legal records). Platform asks every module
+  first; if any blocks, the delete is refused with the reason (`MediaInUse`); otherwise every
+  module detaches, and the media is deleted, all in one transaction. The referencing tables keep a
+  foreign key with `ON DELETE RESTRICT` (cross-schema foreign keys are allowed, handoff §4.3) as
+  the backstop.
 - Deleting removes the original and all variants from object storage **after** the database
   commit.
 - **[DECIDED]** Every file lives in this one table, with a visibility:
@@ -170,8 +177,10 @@ A permanent record of who changed what.
   and the store when the change is store-scoped.
 - **[DECIDED 2026-09-18]** A queued job acts as the **system**; when a person's or an integration's
   action queued it, the entry also records that **requester**. Their permission is checked when they
-  start the action. Every actor id is a ULID: a guest's is the token their cart carries, an
-  integration's is its settings record.
+  start the action. Every actor id is a ULID; an integration's is its settings record.
+  **[DECIDED 2026-09-18] An id is never a secret:** a guest's id is safe to keep in the audit log
+  forever, and whatever proves a cart is theirs (an encrypted cookie, an app's token, stored only
+  as a hash and never logged) is kept apart from it.
 - **[DECIDED 2026-09-18]** `changes` never stores the *values* of personal fields (name, email,
   phone, address, uploaded file names) — only that the field changed. Account anonymization
   (handoff §7.9) then never has to rewrite audit history. **[DECIDED 2026-09-18]** The code
@@ -187,7 +196,8 @@ A permanent record of who changed what.
 - **[DECIDED]** Entries are **kept forever**. Nothing deletes or archives them.
 - **[DECIDED 2026-09-18] Every entry has a source**, worked out by Platform and never passed in:
   `WEB` (a browser or admin request), `INTEGRATION` (a request made by an integration, e.g. a
-  payment webhook), `CONSOLE` (an artisan command), `JOB` (a queued job or scheduled task) or
+  payment webhook), `CONSOLE` (an artisan command run by hand), `JOB` (a queued job — scheduled
+  work is always queued as a job, **[DECIDED 2026-09-18]**) or
   `IMPORT` (history from the old system).
 - **[DECIDED 2026-09-18] Nothing can be back-dated.** `occurred_at` and `recorded_at` both come from
   PostgreSQL's clock and must be equal, except for an import: only `recordImportedAudit` may give a
@@ -288,11 +298,11 @@ builder. spatie/laravel-data stays available for the presentation layer (forms, 
 |---|---|
 | `StoreDto` | `id`, `code`, `name` (ar, en), `countryCode`, `currencyCode`, `currencyExponent`, `currencySign`, `currencyAbbreviation` (ar, en), `taxRateBasisPoints`, `timezone`, `position` |
 | `CurrencyDto` | `code`, `exponent`, `name` (ar, en), `abbreviation` (ar, en), `sign`; `displaySymbol(locale)` returns the sign, or the abbreviation when there is no sign |
-| `SettingDefinitionDto` | `key`, `scope`, `type` (checked strictly before any rule), `rules` (further Laravel validation rules), `default`, `permission` |
+| `SettingDefinitionDto` | `key`, `scope`, `type` (checked strictly before any rule), `rules` (further Laravel validation rules), `default`, `permission`, `sensitive` (audited only as "changed") |
 | `SettingValueDto` | `key`, `storeId`, `isDefault`; typed readers `int()`, `bool()`, `string()`, `list()` that throw if the stored type does not match |
 | `MediaDto` | `id`, `visibility`, `mime`, `bytes`, `width`, `height`, `originalFilename`¹, `altAr`, `altEn`¹, `variantsStatus` |
 | `MediaUrlsDto` | `original` (PRIVATE only: the expiring link; null for a public image, whose original is never served), `variants` (size slug → format extension → CDN URL, empty until ready), `expiresAt` (PRIVATE only) |
-| `AuditEntryDto` | `action`, `subjectType`, `subjectId`, `storeId`, `changes`. The actor and correlation id are filled in by Platform from the current context. |
+| `AuditEntryDto` | `action`, `subjectType`, `subjectId`, `storeId`, `changes`. The actor, requester, source, dates, correlation id and staff IP are filled in by Platform. |
 
 `StoreDto` carries the currency exponent, sign and abbreviation so a price can be formatted with one call.
 
@@ -460,7 +470,7 @@ Columns from handoff §5.5, plus `original_filename`, `variants_status`, `varian
 | `alt_ar`, `alt_en` | `varchar(255)` NULL | |
 | `variants_status` | `varchar(16)` NULL | `PENDING`, `READY`, `FAILED`; NULL for files without variants (PDFs and private files) **[DECIDED 2026-09-18]** |
 | `variants_queued_at` | `timestamptz` NULL | When generation was last queued; set exactly when `variants_status` is. Finds images whose job was lost (§4.1) |
-| `variants_generated_at` | `timestamptz` NULL | **[PROPOSED]** |
+| `variants_generated_at` | `timestamptz` NULL | **[DECIDED 2026-09-18]** When the sizes were finished |
 | `uploaded_by` | `char(26)` NULL | Staff user id |
 | `created_at`, `updated_at` | `timestamptz` | |
 
@@ -562,8 +572,15 @@ These values live only in the seeder, never in `Domain/` or `Application/` (hand
 The database checks stay, but they are the last line of defence. Every rule a CHECK, a unique
 index or a foreign key enforces is first checked in code, which refuses a bad value with a clear,
 translated error, so the database should never receive a row it would refuse. A new CHECK comes
-with its code rule and a test that the code refuses the value first. In this review every Platform
-CHECK had its code rule except `media_checksum_format`; `Media::upload` now checks the checksum too.
+with its code rule and a test that the code refuses the value first.
+
+How Platform's own constraints are covered: every CHECK has its code rule (the last one missing,
+`media_checksum_format`, is now checked in `Media::upload`); the audit log checks its store, the
+lengths of its columns, and the rules on requesters and imported dates before inserting; a PHP
+enum stored in a column is tested against its CHECK's list. Two constraints are caught only by
+the database, by design: a media foreign key held by another module is the backstop behind
+"detach or block" (§1.4), and `UNIQUE (disk, object_key)` cannot be broken because every key
+contains a new ULID.
 
 ---
 
@@ -705,6 +722,9 @@ stack traces, SQL, or another customer's data.
   is not a lowercase SHA-256 is refused before the database would refuse it (§5.8).
 - Audit changes: personal fields are recorded as `"changed"`, never their values; an attribute
   named like personal data is refused with its values.
+- Reserved paths: collected from every module, kept out of the `{store}` pattern, and refused
+  once the pattern is built.
+- Actors: every id is a ULID, kept lowercase; the system actor may carry a requester.
 - Every Platform error has a unique `type` and a category.
 
 ### Integration (PostgreSQL `touchwood_test`)
@@ -720,12 +740,23 @@ stack traces, SQL, or another customer's data.
 - Store and currency caches are invalidated on update.
 - An audit entry recorded inside a transaction that rolls back does not exist afterwards.
 - The database refuses an IP address on a customer or system audit entry.
+- Audit source: a console command is `CONSOLE`, a queued job `JOB`, an integration's request
+  `INTEGRATION`, a person's request `WEB`; both dates come from the database clock.
+- Imported history keeps its real date and actor and shows when it was written; only the system
+  may import, and never with a future date.
+- A job queued by a person runs as the system and its audit entry records who asked — through the
+  real database queue and worker too; a job queued by a job keeps the original requester.
+- A setting named like a secret is refused at boot; a sensitive setting is audited only as changed.
 
 ### Feature (HTTP and console)
 
-- `/sa/...` resolves the KSA store and sets the store cookie; `/xx/...` returns 404.
+- `/sa/ar/...` resolves the KSA store and the language, and remembers both in cookies; an unknown
+  store or language returns 404; generated links keep both.
+- `/sa` sends a returning visitor to their remembered language, anyone else to Arabic.
 - `/` with a valid store cookie redirects to that store; with no cookie, or a cookie naming a
-  store that does not exist, it shows the country page.
+  store that does not exist, it shows the country page in the remembered language or Arabic.
+- Reserved paths are never treated as store codes, at any depth; a store code that only starts
+  like a reserved word stays reachable; creating a store with a reserved code is refused.
 - **A warm request resolves the store from the cache table alone** — two tiny reads, never the store tables — measured against the real database cache (the query-count guard).
 - `platform:store:create` refuses an incomplete store and creates a complete one with its audit entry.
 - Seeding creates `sa`, `eg`, `ae` with the values in §5.7.
@@ -807,6 +838,20 @@ Every choice made during implementation without the owner's word was put to the 
 | 34 | The CHECKs and errors added during implementation | **Keep all — and the code must catch every one before the database** (§5.8, §7.3). |
 | 35 | Placeholder store home page | **Keep until the Content module** (§3). |
 
+After the independent review of the repairs (2026-09-18):
+
+| # | Question | Decision |
+|---|---|---|
+| 36 | Deleting media another module uses | **Each module detaches or blocks** its own references; all in one transaction; the foreign key stays as the backstop (§1.4). |
+| 37 | Source of scheduled work in the audit log | **JOB**: the scheduler queues its work as a job (§1.5). |
+| 38 | A guest's id in the audit log | **An id is never a secret**; proof of cart ownership is kept apart (§1.5). |
+| 39 | `variants_generated_at` | **Keep** (§5.4). |
+
 ### 9.3 Still open
 
-None.
+To decide when hosting is chosen:
+- **Database users for the audit log:** a restricted user for the app (insert and read audit
+  entries only) and a separate owner for migrations, so nobody using the app's credentials can
+  alter history. Today one user owns everything.
+- **Trusted proxies:** which proxy's forwarded IP to trust, so staff IPs are real behind a CDN.
+- **CDN purge:** removing a deleted public image's sizes from the CDN's cache.
