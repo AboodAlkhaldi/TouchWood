@@ -19,7 +19,10 @@ return new class extends Migration
         Schema::create('platform.audit_entries', function (Blueprint $table) {
             // bigint identity (spec §5), not bigserial.
             $table->id()->generatedAs()->always();
-            $table->timestampTz('occurred_at');
+            // Both dates come from PostgreSQL's clock; only an import may set occurred_at in the past.
+            $table->timestampTz('occurred_at')->useCurrent();
+            $table->timestampTz('recorded_at')->useCurrent();
+            $table->string('source', 16);
             $table->char('store_id', 26)->nullable();
             $table->string('actor_type', 16);
             $table->char('actor_id', 26)->nullable();
@@ -42,9 +45,12 @@ return new class extends Migration
                 ADD CONSTRAINT audit_entries_actor_id CHECK ((actor_type = 'SYSTEM') = (actor_id IS NULL)),
                 ADD CONSTRAINT audit_entries_requested_by CHECK (
                     (requested_by_type IS NULL) = (requested_by_id IS NULL)
-                    AND (requested_by_type IS NULL OR (actor_type = 'SYSTEM' AND requested_by_type IN ('STAFF', 'CUSTOMER', 'GUEST', 'INTEGRATION')))
+                    AND (requested_by_type IS NULL OR (source = 'JOB' AND actor_type = 'SYSTEM' AND requested_by_type IN ('STAFF', 'CUSTOMER', 'GUEST', 'INTEGRATION')))
                 ),
-                ADD CONSTRAINT audit_entries_ip_staff_only CHECK (ip_address IS NULL OR actor_type = 'STAFF')
+                ADD CONSTRAINT audit_entries_ip_staff_only CHECK (ip_address IS NULL OR actor_type = 'STAFF'),
+                ADD CONSTRAINT audit_entries_source CHECK (source IN ('WEB', 'INTEGRATION', 'CONSOLE', 'JOB', 'IMPORT')),
+                ADD CONSTRAINT audit_entries_job_acts_as_system CHECK (source <> 'JOB' OR actor_type = 'SYSTEM'),
+                ADD CONSTRAINT audit_entries_backdated_import_only CHECK (occurred_at = recorded_at OR (source = 'IMPORT' AND occurred_at < recorded_at))
             SQL);
 
         DB::statement('CREATE INDEX audit_entries_subject_idx ON platform.audit_entries (subject_type, subject_id, occurred_at DESC)');

@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
@@ -16,12 +19,16 @@ use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrencyHandler;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStore;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditLog;
+use Modules\Platform\Infrastructure\HttpRequestState;
+use Modules\Platform\Infrastructure\Queue\JobActorState;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\Actor;
 use Shared\Application\ActorContext;
 use Shared\Infrastructure\Http\AssignCorrelationId;
+
+use function Pest\Laravel\withServerVariables;
 
 uses(RefreshDatabase::class);
 
@@ -36,6 +43,34 @@ function actingAs(Actor $actor): void
             return $this->actor;
         }
     });
+}
+
+/**
+ * Sends a real HTTP request (from 203.0.113.7) whose handler records one audit entry.
+ */
+function auditThroughAWebRequest(): void
+{
+    Route::post('/_probe/audit', function () {
+        DB::transaction(fn () => auditSomething());
+
+        return response()->noContent();
+    });
+
+    withServerVariables(['REMOTE_ADDR' => '203.0.113.7'])->post('/_probe/audit')->assertNoContent();
+}
+
+/**
+ * A queued job that records one audit entry.
+ */
+final class AuditsFromAJob implements ShouldQueue
+{
+    use Dispatchable;
+    use Queueable;
+
+    public function handle(): void
+    {
+        DB::transaction(fn () => auditSomething('testing.job.changed'));
+    }
 }
 
 function auditSomething(string $action = 'testing.thing.changed'): void
@@ -100,7 +135,7 @@ describe('the table', function () {
         // the same database genuinely has no transaction open.
         config(['database.connections.outside_transaction' => config('database.connections.pgsql')]);
         $connection = DB::connection('outside_transaction');
-        $log = new DatabaseAuditLog($connection, app(ActorContext::class), app());
+        $log = new DatabaseAuditLog($connection, app(ActorContext::class), app(), app(JobActorState::class), app(HttpRequestState::class));
 
         expect($connection->transactionLevel())->toBe(0)
             ->and(fn () => $log->record(new AuditEntryDto('testing.thing.changed', 'testing.thing', 'thing-1', null, AuditChanges::none())))
@@ -109,7 +144,7 @@ describe('the table', function () {
 
     it('refuses an IP address on a customer or system entry', function (string $actorType, ?string $actorId) {
         expect(fn () => DB::table('platform.audit_entries')->insert([
-            'occurred_at' => now(),
+            'source' => 'WEB',
             'actor_type' => $actorType,
             'actor_id' => $actorId,
             'action' => 'testing.thing.changed',
@@ -153,13 +188,13 @@ describe('recording', function () {
             ->and(decodedChanges($entry['changes']))->toEqual(['colour' => ['red', 'blue'], 'email' => 'changed']); // jsonb reorders keys
     });
 
-    it('records the IP address of a staff member', function () {
+    it('records the IP address of a staff member making a web request', function () {
         actingAs(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'));
-        app()->instance('request', Request::create('/admin', server: ['REMOTE_ADDR' => '203.0.113.7']));
 
-        auditSomething();
+        auditThroughAWebRequest();
 
         expect(latestAuditEntry())->toMatchArray([
+            'source' => 'WEB',
             'actor_type' => 'STAFF',
             'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3',
             'ip_address' => '203.0.113.7',
@@ -168,9 +203,8 @@ describe('recording', function () {
 
     it('never records the IP address of a customer', function () {
         actingAs(Actor::customer('01j8z3k4m5n6p7q8r9s0t1v2w3'));
-        app()->instance('request', Request::create('/sa', server: ['REMOTE_ADDR' => '203.0.113.7']));
 
-        auditSomething();
+        auditThroughAWebRequest();
 
         expect(latestAuditEntry()['ip_address'])->toBeNull();
     });
@@ -238,4 +272,67 @@ describe('store and currency changes', function () {
 
         expect(DB::table('platform.audit_entries')->count())->toBe($before);
     });
+});
+
+describe('source and date', function () {
+    it('marks a change made from an artisan command as CONSOLE, dated by the database', function () {
+        auditSomething();
+        $entry = latestAuditEntry();
+
+        expect($entry['source'])->toBe('CONSOLE')
+            ->and($entry['occurred_at'])->toBe($entry['recorded_at']);
+    });
+
+    it('marks a change made through a web request as WEB', function () {
+        auditThroughAWebRequest();
+
+        expect(latestAuditEntry()['source'])->toBe('WEB');
+    });
+
+    it('marks a web request made by an integration as INTEGRATION', function () {
+        actingAs(Actor::integration('01j8z3k4m5n6p7q8r9s0t1v2w3'));
+
+        auditThroughAWebRequest();
+
+        expect(latestAuditEntry())->toMatchArray(['source' => 'INTEGRATION', 'actor_type' => 'INTEGRATION', 'ip_address' => null]);
+    });
+
+    it('marks a change made by a queued job as JOB', function () {
+        AuditsFromAJob::dispatch();
+
+        expect(latestAuditEntry())->toMatchArray(['source' => 'JOB', 'actor_type' => 'SYSTEM', 'action' => 'testing.job.changed']);
+    });
+
+    it('keeps the real date and actor of imported history, and when it was really written', function () {
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'),
+            new DateTimeImmutable('2019-05-01 10:00:00+00:00'),
+        ));
+        $entry = latestAuditEntry();
+
+        expect($entry['source'])->toBe('IMPORT')
+            ->and($entry['actor_type'])->toBe('STAFF')
+            ->and((new DateTimeImmutable((string) $entry['occurred_at']))->format('Y-m-d H:i'))->toBe('2019-05-01 10:00')
+            ->and(new DateTimeImmutable((string) $entry['recorded_at']))->toBeGreaterThan(new DateTimeImmutable('2020-01-01'))
+            ->and($entry['ip_address'])->toBeNull();
+    });
+
+    it('lets only the system import history', function () {
+        actingAs(Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3'));
+
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::system(),
+            new DateTimeImmutable('2019-05-01'),
+        ));
+    })->throws(LogicException::class, 'Only the system imports history');
+
+    it('refuses imported history dated in the future', function () {
+        DB::transaction(fn () => app(PlatformApi::class)->recordImportedAudit(
+            new AuditEntryDto('legacy.order.cancelled', 'legacy.order', 'TW-10428', null, AuditChanges::none()),
+            Actor::system(),
+            new DateTimeImmutable('+1 day'),
+        ));
+    })->throws(InvalidArgumentException::class);
 });

@@ -47,7 +47,8 @@ function insertStoreRow(array $overrides = []): void
 function insertAuditRow(array $overrides = []): void
 {
     DB::table('platform.audit_entries')->insert([
-        'occurred_at' => now(),
+        // Both dates come from the database clock by default.
+        'source' => 'CONSOLE',
         'actor_type' => 'SYSTEM',
         'actor_id' => null,
         'action' => 'testing.thing.changed',
@@ -134,6 +135,9 @@ it('creates every check constraint and foreign key from the spec', function () {
         'audit_entries_actor_type',
         'audit_entries_actor_id',
         'audit_entries_requested_by',
+        'audit_entries_source',
+        'audit_entries_job_acts_as_system',
+        'audit_entries_backdated_import_only',
         'audit_entries_ip_staff_only',
         'platform_audit_entries_store_id_foreign',
         'platform_settings_store_id_foreign',
@@ -161,7 +165,7 @@ it('stores enum columns as strings, never integers', function () {
         ->where('table_schema', 'platform')
         ->where(fn ($query) => $query
             ->where('column_name', 'like', '%\_type')
-            ->orWhereIn('column_name', ['status', 'scope', 'visibility', 'variants_status']))
+            ->orWhereIn('column_name', ['status', 'scope', 'visibility', 'variants_status', 'source']))
         ->get(['table_name', 'column_name', 'data_type']);
 
     expect($enumColumns)->not->toBeEmpty();
@@ -218,7 +222,12 @@ it('refuses rows that break the rules, even when they skip the domain', function
     'staff audit entry without an actor id' => [fn () => insertAuditRow(['actor_type' => 'STAFF', 'actor_id' => null]), 'audit_entries_actor_id'],
     'a requester on an entry the system did not make' => [fn () => insertAuditRow(['actor_type' => 'STAFF', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3', 'requested_by_type' => 'STAFF', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_requested_by'],
     'a requester type without an id' => [fn () => insertAuditRow(['requested_by_type' => 'STAFF']), 'audit_entries_requested_by'],
-    'the system requested by the system' => [fn () => insertAuditRow(['requested_by_type' => 'SYSTEM', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_requested_by'],
+    'the system requested by the system' => [fn () => insertAuditRow(['source' => 'JOB', 'requested_by_type' => 'SYSTEM', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_requested_by'],
+    'a requester outside a queued job' => [fn () => insertAuditRow(['requested_by_type' => 'STAFF', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_requested_by'],
+    'an unknown source' => [fn () => insertAuditRow(['source' => 'EMAIL']), 'audit_entries_source'],
+    'a job entry made by a person' => [fn () => insertAuditRow(['source' => 'JOB', 'actor_type' => 'STAFF', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'audit_entries_job_acts_as_system'],
+    'a back-dated entry that is not an import' => [fn () => insertAuditRow(['occurred_at' => '2019-05-01 10:00:00+00']), 'audit_entries_backdated_import_only'],
+    'an import dated in the future' => [fn () => insertAuditRow(['source' => 'IMPORT', 'occurred_at' => '2999-01-01 00:00:00+00']), 'audit_entries_backdated_import_only'],
     'media with an unknown visibility' => [fn () => insertMediaRow(['visibility' => 'SECRET']), 'media_visibility'],
     'media with an unknown variants status' => [fn () => insertMediaRow(['variants_status' => 'DONE']), 'media_variants_status'],
     'pending media never queued' => [fn () => insertMediaRow(['variants_queued_at' => null]), 'media_variants_queued'],
@@ -245,7 +254,8 @@ it('accepts guests and integrations as actors, and the system acting for one of 
 })->with([
     'a guest' => [['actor_type' => 'GUEST', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']],
     'an integration' => [['actor_type' => 'INTEGRATION', 'actor_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']],
-    'the system for a staff member' => [['requested_by_type' => 'STAFF', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']],
+    'the system for a staff member, in a job' => [['source' => 'JOB', 'requested_by_type' => 'STAFF', 'requested_by_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']],
+    'an import with its real date' => [['source' => 'IMPORT', 'occurred_at' => '2019-05-01 10:00:00+00']],
 ]);
 
 it('refuses a second store with the same code', function () {
