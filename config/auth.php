@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\User;
-
 return [
 
     /*
@@ -64,15 +62,14 @@ return [
     */
 
     'providers' => [
+        // Laravel's default User model and users table are removed: Access (build stage 2) adds
+        // its own customer and staff providers and guards here. Laravel merges its built-in
+        // "users" provider back into this list, so it is overridden with no model instead of
+        // being deleted — until Access exists, any attempt to log in fails.
         'users' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', User::class),
+            'model' => env('AUTH_MODEL'),
         ],
-
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
     ],
 
     /*

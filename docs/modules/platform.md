@@ -475,6 +475,12 @@ and from this plumbing, so the need is visible before its code starts.
 | `processed_events` | `(event_id uuid, listener varchar)` PK, `processed_at` — the idempotent-consumer rule (handoff §4.5) |
 | `outbox_messages` | The transactional outbox for the ~8 critical events |
 | `failed_jobs`, `job_batches` | Laravel queue bookkeeping (queues, cache and sessions run on Redis) |
+| `sessions`, `cache`, `cache_locks`, `jobs` | **[DECIDED 2026-09-18]** Kept as the fallback while Redis is not configured: the drivers are chosen by `SESSION_DRIVER`, `CACHE_STORE` and `QUEUE_CONNECTION`. `sessions.user_id` is a ULID, like every account id. |
+
+**[DECIDED 2026-09-18]** Laravel's starter `users` and `password_reset_tokens` tables, the
+`App\Models\User` model and its factory are removed: Access creates its own customer and staff
+tables (handoff §7.1). Laravel merges a default `users` auth provider back into the configuration,
+so `config/auth.php` overrides it with no model; until Access exists, nobody can log in.
 
 ### 5.7 Seed data
 

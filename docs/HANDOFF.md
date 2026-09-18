@@ -42,6 +42,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-16 | §5.5 | Dedupe public images only; every original kept private; lost resize jobs recovered after 15 minutes | Platform media review, Q12–Q14 |
 | 2026-09-16 | §4.5 | `processed_events` / `outbox_messages` built with the first module that needs them, not in Stage 1 | Owner, Platform stage close |
 | 2026-09-18 | §7.5 | Permission checks carry an explicit scope (global / one store / all stores) and can list an actor's stores | Platform audit, owner decision |
+| 2026-09-18 | §7.1 | Laravel's default users table and User model removed (Access owns customer and staff tables); sessions/cache/jobs tables kept as the fallback when Redis is not configured | Platform audit, owner decision |
 
 ---
 
