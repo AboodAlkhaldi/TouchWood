@@ -14,6 +14,7 @@ use Modules\Platform\Domain\Repository\CurrencyRepository;
 use Modules\Platform\Domain\ValueObject\CurrencyCode;
 use Modules\Platform\Domain\ValueObject\TranslatedText;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 
 final readonly class CreateCurrencyHandler
 {
@@ -29,7 +30,7 @@ final readonly class CreateCurrencyHandler
 
     public function handle(CreateCurrency $command): void
     {
-        $this->authorizer->authorize(self::PERMISSION);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $currency = Currency::create(
             CurrencyCode::fromString($command->code),

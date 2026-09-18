@@ -270,7 +270,7 @@ cannot import Platform's interior. They count toward the ~20-class ceiling.
 |---|---|---|
 | `StoreId` | `Shared/Domain/ValueObject` | Already listed in handoff §4.5. |
 | `StoreContext` (interface) | `Shared/Application` | `current(): StoreId` (throws `MissingStoreContext`), `has()`, `runIn(StoreId, callable)`. Implemented by Platform. |
-| `Authorizer` (interface) | `Shared/Application` | `authorize(string $permission, ?StoreId $store): void`, throws `Unauthorized`. Implemented by Access. |
+| `Authorizer` (interface) + `PermissionScope` | `Shared/Application` | `authorize(string $permission, PermissionScope $scope): void`, throws `Unauthorized`; `storesWith(string $permission): ?array` returns the stores the actor may use it in (`null` = every store) for admin listings. `PermissionScope` is `global()` (nothing store-related), `store($id)` (one store) or `allStores()` (the change reaches every store). **[DECIDED 2026-09-18]** — the earlier `?StoreId` meant both "no store" and "all stores", which Access could not tell apart. Implemented by Access. |
 | `ActorContext` (interface) + `Actor` | `Shared/Application` | Who is acting: staff, customer or system, and their id. Implemented by Access. |
 | `BelongsToStore` trait + `StoreScope` | `Shared/Infrastructure/Persistence` | The Eloquent global scope every store-scoped model uses. It also refuses to create, move, save or delete a row of another store (`CrossStoreWrite`). |
 | `DomainError` + `ErrorCategory` | `Shared/Domain` | The base of every expected business error, and the short list of error kinds. See §7. |
@@ -287,21 +287,21 @@ permission exists so every handler asserts one, but it is never offered in the r
 
 | Use case | Who | Permission | Store-checked |
 |---|---|---|---|
-| `CreateStore` — all attributes at once | Super Admin | `platform.store.create` (reserved) | — |
+| `CreateStore` — all attributes at once | Super Admin | `platform.store.create` (reserved) | Global |
 | `UpdateStore` — name, tax rate, timezone, position | Staff | `platform.store.update` | That store |
 | `ListStores` / `ViewStore` (admin) | Staff | `platform.store.view` | Only stores in the actor's scope |
-| `CreateCurrency` | Super Admin | `platform.currency.create` (reserved) | — |
-| `UpdateCurrency` — name, abbreviation, sign (including clearing it); exponent only while no store uses it | Super Admin | `platform.currency.update` (reserved) | — |
-| `ViewSettings` | Staff | `platform.settings.view` | That store; `GLOBAL` keys need all-stores access |
+| `CreateCurrency` | Super Admin | `platform.currency.create` (reserved) | Global |
+| `UpdateCurrency` — name, abbreviation, sign (including clearing it); exponent only while no store uses it | Super Admin | `platform.currency.update` (reserved) | Global |
+| `ViewSettings` | Staff | `platform.settings.view` | That store; ``GLOBAL` keys need all-stores access |
 | `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update`. Platform's own settings (the media upload limits) use `platform.settings.update` **[PROPOSED]** | That store; `GLOBAL` keys need all-stores access |
-| `UploadMedia` | Staff | `platform.media.upload` | — (media is global) |
-| `UpdateMediaAltText` | Staff | `platform.media.update` **[PROPOSED]** — handoff lists only upload and delete | — |
-| `DeleteMedia` | Staff | `platform.media.delete` | — |
-| `RetryMediaVariants` — a `FAILED` image, or one `PENDING` for 15 minutes | Staff | `platform.media.upload` | — |
-| `GenerateMediaVariants` | Queued job | System — `platform.media.variants.generate` (reserved) | — |
-| `RequeueStuckMediaVariants` — every 10 minutes | Scheduler | System — `platform.media.variants.generate` (reserved) | — |
+| `UploadMedia` | Staff | `platform.media.upload` | Global (media belongs to no store) |
+| `UpdateMediaAltText` | Staff | `platform.media.update` **[PROPOSED]** — handoff lists only upload and delete | Global |
+| `DeleteMedia` | Staff | `platform.media.delete` | Global |
+| `RetryMediaVariants` — a `FAILED` image, or one `PENDING` for 15 minutes | Staff | `platform.media.upload` | Global |
+| `GenerateMediaVariants` | Queued job | System — `platform.media.variants.generate` (reserved) | Global |
+| `RequeueStuckMediaVariants` — every 10 minutes | Scheduler | System — `platform.media.variants.generate` (reserved) | Global |
 | `ViewAuditLog` | Staff | `platform.audit.view` | Entries for stores in scope; entries with no store need all-stores access |
-| `RecordAuditEntry` | Other modules | System — called inside an already-authorized handler | — |
+| `RecordAuditEntry` | Other modules | System — called inside an already-authorized handler | Global |
 | `ResolveStoreContext` | Every storefront request | None | — |
 | `ChooseStore` — the country page at `brand.com/`, and the cookie redirect | Any visitor | None | — |
 

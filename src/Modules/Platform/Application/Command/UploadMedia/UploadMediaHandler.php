@@ -20,6 +20,7 @@ use RuntimeException;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 use Throwable;
 
 /**
@@ -51,7 +52,7 @@ final readonly class UploadMediaHandler
      */
     public function handle(UploadMedia $command): string
     {
-        $this->authorizer->authorize(self::PERMISSION);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $file = $this->inspector->inspect($command->path);
         $isPublic = $command->visibility === MediaVisibility::Public;

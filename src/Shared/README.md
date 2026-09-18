@@ -14,7 +14,7 @@ essentially never change. When in doubt, keep it in the module. The ceiling is ~
 | `StoreId` | Domain | A store's ULID, kept lowercase. |
 | `DomainError`, `ErrorCategory` | Domain | The base of every expected business error. Each error declares a stable `type` (`platform.store_code_taken`) and a category (`NOT_FOUND`, `CONFLICT`…). Domain code never knows HTTP. |
 | `StoreContext`, `MissingStoreContext` | Application | Which store the current request, job or command runs in. Implemented by Platform. |
-| `Authorizer`, `Unauthorized` | Application | `authorize($permission, $store)`. Every command handler calls it first. Implemented by Access (an interim system-only version lives in Platform until then). |
+| `Authorizer`, `PermissionScope`, `Unauthorized` | Application | `authorize($permission, $scope)`, where the scope is `global()`, `store($id)` or `allStores()` — an empty store used to mean both "no store" and "every store". `storesWith($permission)` answers "which stores may I do this in" for admin lists. Every command handler authorizes first. Implemented by Access (an interim system-only version lives in Platform until then). |
 | `ActorContext`, `Actor`, `ActorType` | Application | Who is acting: staff, customer or system. |
 | `CrossStoreWrite` | Application | Thrown when code tries to write another store's row. |
 | `ProblemDetails` | Infrastructure | The only place a `DomainError` becomes an HTTP response. |

@@ -17,6 +17,7 @@ use Modules\Platform\Domain\ValueObject\CurrencyCode;
 use Modules\Platform\Domain\ValueObject\TranslatedText;
 use Modules\Platform\Public\Events\CurrencyUpdated;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 
 final readonly class UpdateCurrencyHandler
 {
@@ -33,7 +34,7 @@ final readonly class UpdateCurrencyHandler
 
     public function handle(UpdateCurrency $command): void
     {
-        $this->authorizer->authorize(self::PERMISSION);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $code = CurrencyCode::fromString($command->code);
 

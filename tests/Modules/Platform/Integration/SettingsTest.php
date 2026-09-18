@@ -21,6 +21,7 @@ use Modules\Platform\Public\Enums\SettingScope;
 use Modules\Platform\Public\Enums\SettingType;
 use Modules\Platform\Public\Events\SettingChanged;
 use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
 
 use function Pest\Laravel\seed;
@@ -29,12 +30,17 @@ uses(RefreshDatabase::class);
 
 final class RecordingAuthorizer implements Authorizer
 {
-    /** @var list<array{string, string|null}> */
+    /** @var list<array{string, string}> */
     public array $checks = [];
 
-    public function authorize(string $permission, ?StoreId $store = null): void
+    public function authorize(string $permission, PermissionScope $scope): void
     {
-        $this->checks[] = [$permission, $store?->value];
+        $this->checks[] = [$permission, $scope->describe()];
+    }
+
+    public function storesWith(string $permission): ?array
+    {
+        return null;
     }
 }
 
@@ -127,8 +133,8 @@ describe('changing', function () {
 
         expect($authorizer->checks)->toBe([
             ['testing.settings.update', storeIdFor('ae')->value],
-            // A global setting is checked with no store: it needs access to every store.
-            ['testing.maintenance.update', null],
+            // A global setting reaches every store, so it needs the permission in all of them.
+            ['testing.maintenance.update', 'all stores'],
         ]);
     });
 
