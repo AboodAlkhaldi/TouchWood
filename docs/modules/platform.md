@@ -259,10 +259,10 @@ that fails its own rules, throws `InvalidSettingDefinition` (a `LogicException`,
 
 ### 2.3 DTOs (`Public/Dto`)
 
-DTOs that carry Platform's data out (`StoreDto`, `CurrencyDto`, `TranslatedTextDto`) are
-spatie/laravel-data objects. The ones other modules build and pass in (`AuditEntryDto`,
-`AuditChanges`, `SettingDefinitionDto`) and `SettingValueDto` are plain readonly classes: they
-hold a builder, Laravel validation rules, or a `mixed` value that laravel-data would try to cast.
+**[DECIDED 2026-09-18] One style:** every DTO crossing a module boundary is a plain `final readonly`
+PHP class — no package at the boundary, nothing converted behind the caller's back, one pattern for
+every module to copy (an architecture test enforces it). `AuditChanges` is the one mutable class: a
+builder. spatie/laravel-data stays available for the presentation layer (forms, page props).
 
 | DTO | Fields |
 |---|---|

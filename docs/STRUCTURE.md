@@ -90,7 +90,7 @@ src/Modules/{Name}/
 │
 ├── Public/                 ← THE ONLY NAMESPACE OTHER MODULES MAY IMPORT
 │   ├── Contracts/          {Name}Api.php — the module's interface
-│   ├── Dto/                spatie/laravel-data objects crossing the boundary
+│   ├── Dto/                Plain final readonly classes crossing the boundary
 │   ├── Events/             Integration events. Carry IDs, never payloads.
 │   └── Enums/              Backed enums other modules need to read
 │

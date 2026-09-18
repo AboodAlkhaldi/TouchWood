@@ -48,6 +48,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §5.3 | Audit entries gain a source (web, integration, console, job, import) set by Platform, and recorded_at; nothing can be back-dated except imported history | Platform audit, owner decision |
 | 2026-09-18 | §4.1 | Reserved top-level paths (`/admin`, `/api`, webhooks…) are a registry every module adds to, not a list inside Platform | Platform audit, owner decision |
 | 2026-09-18 | §4.1 | Language in storefront URLs: `/sa/ar/...`; no language → remembered, else Arabic; emails/SMS in the customer's language, admin in the staff member's | Platform audit, owner decision |
+| 2026-09-18 | §4.3 | DTOs at module boundaries are plain readonly classes; spatie/laravel-data is for the presentation layer only | Platform audit, owner decision |
 
 ---
 
@@ -194,7 +195,7 @@ it's found." Catalog is already the largest module on the critical path.
 src/Modules/{Name}/
 ├── Public/              ← the ONLY namespace other modules may import
 │   ├── Contracts/       {Name}Api.php
-│   ├── Dto/             spatie/laravel-data objects crossing the boundary
+│   ├── Dto/             Plain final readonly classes crossing the boundary
 │   ├── Events/          integration events — carry IDs, never payloads
 │   └── Enums/
 ├── Domain/              framework-free: no Eloquent, no facades, no container

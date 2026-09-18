@@ -5,25 +5,24 @@ declare(strict_types=1);
 namespace Modules\Platform\Public\Dto;
 
 use Shared\Domain\ValueObject\StoreId;
-use Spatie\LaravelData\Data;
 
 /**
  * Carries the store's currency details too, so a price can be formatted with one call.
  */
-final class StoreDto extends Data
+final readonly class StoreDto
 {
     public function __construct(
-        public readonly string $id,
-        public readonly string $code,
-        public readonly TranslatedTextDto $name,
-        public readonly string $countryCode,
-        public readonly string $currencyCode,
-        public readonly int $currencyExponent,
-        public readonly ?string $currencySign,
-        public readonly TranslatedTextDto $currencyAbbreviation,
-        public readonly int $taxRateBasisPoints,
-        public readonly string $timezone,
-        public readonly int $position,
+        public string $id,
+        public string $code,
+        public TranslatedTextDto $name,
+        public string $countryCode,
+        public string $currencyCode,
+        public int $currencyExponent,
+        public ?string $currencySign,
+        public TranslatedTextDto $currencyAbbreviation,
+        public int $taxRateBasisPoints,
+        public string $timezone,
+        public int $position,
     ) {}
 
     public function storeId(): StoreId
