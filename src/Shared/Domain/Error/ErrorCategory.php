@@ -6,7 +6,7 @@ namespace Shared\Domain\Error;
 
 /**
  * The fixed list of kinds of business error. The mapping to HTTP statuses lives only in
- * Shared\Infrastructure\Http\ProblemDetails.
+ * App\Http\ProblemDetails.
  */
 enum ErrorCategory: string
 {

@@ -17,11 +17,14 @@ essentially never change. When in doubt, keep it in the module. The ceiling is ~
 | `Authorizer`, `PermissionScope`, `Unauthorized` | Application | `authorize($permission, $scope)`, where the scope is `global()`, `store($id)` or `allStores()` — an empty store used to mean both "no store" and "every store". `storesWith($permission)` answers "which stores may I do this in" for admin lists. Every command handler authorizes first. Implemented by Access (an interim system-only version lives in Platform until then). |
 | `ActorContext`, `Actor`, `ActorType` | Application | Who is acting: staff, customer, guest, integration or system. Every id is a ULID. Inside a queued job the actor is the system with `requestedBy` set to whoever queued it. |
 | `CrossStoreWrite` | Application | Thrown when code tries to write another store's row. |
-| `ProblemDetails` | Infrastructure | The only place a `DomainError` becomes an HTTP response. |
-| `AssignCorrelationId` | Infrastructure | Gives every request an id that follows it into logs and queued jobs. |
+| `CorrelationId` | Application | The key under which the request's correlation id is kept in Laravel's `Context`. |
 | `BelongsToStore`, `StoreScope` | Infrastructure | The Eloquent trait for store-scoped models. |
 
 ## How the pieces work
+
+**Moved out on 2026-09-18 (owner):** the error renderer `App\Http\ProblemDetails` and the middleware
+`App\Http\Middleware\AssignCorrelationId` are framework glue, so they live in Laravel's `app/Http`,
+not in the kernel. They are described below because every module relies on them.
 
 ### Errors
 
@@ -54,8 +57,8 @@ models and the Ops module (an architecture test checks where it appears). Raw `i
 
 ### Correlation id
 
-Set by `AssignCorrelationId` (an incoming well-formed `X-Correlation-Id` is kept), stored in
-Laravel's `Context`, returned as a response header, included in error bodies and audit entries,
+Set by `App\Http\Middleware\AssignCorrelationId` (an incoming well-formed `X-Correlation-Id` is kept), stored in
+Laravel's `Context` under `CorrelationId::CONTEXT_KEY`, returned as a response header, included in error bodies and audit entries,
 and carried into every queued job.
 
 ## Tests

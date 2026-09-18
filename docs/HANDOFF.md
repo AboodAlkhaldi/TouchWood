@@ -49,6 +49,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §4.1 | Reserved top-level paths (`/admin`, `/api`, webhooks…) are a registry every module adds to, not a list inside Platform | Platform audit, owner decision |
 | 2026-09-18 | §4.1 | Language in storefront URLs: `/sa/ar/...`; no language → remembered, else Arabic; emails/SMS in the customer's language, admin in the staff member's | Platform audit, owner decision |
 | 2026-09-18 | §4.3 | DTOs at module boundaries are plain readonly classes; spatie/laravel-data is for the presentation layer only | Platform audit, owner decision |
+| 2026-09-18 | §4.5 | The error renderer and correlation-id middleware moved from the Shared kernel to `app/Http` (framework glue); the kernel keeps only the Context key | Platform audit, owner decision |
 
 ---
 

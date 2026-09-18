@@ -19,7 +19,7 @@ use Modules\Platform\Public\Enums\AuditSource;
 use Shared\Application\Actor;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
-use Shared\Infrastructure\Http\AssignCorrelationId;
+use Shared\Application\CorrelationId;
 
 /**
  * Both dates of a normal entry come from PostgreSQL's clock (the column defaults), and a CHECK
@@ -73,7 +73,7 @@ final readonly class DatabaseAuditLog implements AuditLog
      */
     private function row(AuditEntryDto $entry, Actor $actor, AuditSource $source): array
     {
-        $correlationId = Context::get(AssignCorrelationId::CONTEXT_KEY);
+        $correlationId = Context::get(CorrelationId::CONTEXT_KEY);
 
         return [
             'source' => $source->value,

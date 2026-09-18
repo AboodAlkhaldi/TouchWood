@@ -26,7 +26,7 @@ use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\Actor;
 use Shared\Application\ActorContext;
-use Shared\Infrastructure\Http\AssignCorrelationId;
+use Shared\Application\CorrelationId;
 
 use function Pest\Laravel\withServerVariables;
 
@@ -176,7 +176,7 @@ describe('the table', function () {
 
 describe('recording', function () {
     it('records the system as the actor, with the correlation id and no IP', function () {
-        Context::add(AssignCorrelationId::CONTEXT_KEY, 'corr-12345678');
+        Context::add(CorrelationId::CONTEXT_KEY, 'corr-12345678');
 
         auditSomething();
         $entry = latestAuditEntry();

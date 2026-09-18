@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Shared\Infrastructure\Http;
+namespace App\Http;
 
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Debug\ExceptionHandler;
@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Validation\ValidationException;
+use Shared\Application\CorrelationId;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\Error\ErrorCategory;
 use Symfony\Component\HttpFoundation\Response;
@@ -145,7 +146,7 @@ final class ProblemDetails
                 'title' => $title,
                 'status' => $status,
                 'detail' => $detail,
-                'correlation_id' => Context::get(AssignCorrelationId::CONTEXT_KEY),
+                'correlation_id' => Context::get(CorrelationId::CONTEXT_KEY),
                 ...$extensions,
             ],
             $status,

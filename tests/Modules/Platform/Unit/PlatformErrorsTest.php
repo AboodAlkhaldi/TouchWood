@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\ProblemDetails;
 use Modules\Platform\Domain\Exception\InvalidMediaAttribute;
 use Modules\Platform\Domain\Exception\InvalidMediaVariantsTransition;
 use Modules\Platform\Domain\Exception\MediaInUse;
@@ -10,7 +11,6 @@ use Modules\Platform\Domain\Exception\MediaTooLarge;
 use Modules\Platform\Domain\Exception\PlatformError;
 use Modules\Platform\Domain\Exception\UnsupportedMediaType;
 use Shared\Domain\Error\ErrorCategory;
-use Shared\Infrastructure\Http\ProblemDetails;
 
 /**
  * @return list<ReflectionClass<PlatformError>>
