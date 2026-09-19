@@ -129,6 +129,22 @@ describe('a staff member\'s life', function () {
         expect($staff->status())->toBe(StaffStatus::Active);
     });
 
+    it('refuses an account that invites itself, before the database does', function () {
+        expect(fn () => StaffUser::invite('s1', EmailAddress::of('sara@example.test'), staffProfile(), PhoneNumber::of('+966501234567'), Language::Arabic, 's1'))
+            ->toThrow(InvalidAccessAttribute::class);
+    });
+
+    it('ends every session for good when disabled: the session version moves on', function () {
+        $staff = invitedStaff();
+        $staff->accept('hash', PhoneNumber::of('+966509999999'), new DateTimeImmutable);
+        $version = $staff->sessionVersion();
+
+        $staff->disable();
+        $staff->enable();
+
+        expect($staff->sessionVersion())->toBe($version + 1);
+    });
+
     it('never enables a disabled record that has no password, whatever the database holds', function () {
         $staff = StaffUser::reconstitute(
             's1', EmailAddress::of('sara@example.test'), null, staffProfile(), PhoneNumber::of('+966501234567'), null, null,

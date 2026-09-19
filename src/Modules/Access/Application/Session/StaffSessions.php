@@ -18,9 +18,9 @@ interface StaffSessions
     public function signedIn(): ?string;
 
     /**
-     * After the right password: who is signing in, until the code step.
+     * After the right password: who is signing in, under which session version, until the code step.
      */
-    public function beginSignIn(string $staffId, bool $needsPhone): void;
+    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone): void;
 
     /**
      * The sign-in this browser started with the right password, while still fresh.

@@ -24,8 +24,8 @@ use Shared\Application\PermissionScope;
 
 /**
  * The right code signs them in. It also verifies the number it went to: a number an admin entered
- * and never verified (spec §1.4), or a Super Admin's new one after a reset (amendment 14) — a new
- * number ends every trusted browser.
+ * and never verified (spec §1.4), or a Super Admin's new one after a reset (amendment 14), which
+ * ends every trusted browser.
  */
 final readonly class VerifyStaffSignInCodeHandler
 {
@@ -61,6 +61,11 @@ final readonly class VerifyStaffSignInCodeHandler
                 throw new SignInRefused;
             }
 
+            // A password changed or a phone given since: the sign-in starts again.
+            if (! $pending->stillFor($staff)) {
+                throw new InvalidCode(requestNewCode: true);
+            }
+
             $now = CarbonImmutable::now();
             $phone = $this->verification->check($staff->id(), PhoneCodePurpose::SignIn, $command->code, $now);
 
@@ -70,7 +75,14 @@ final readonly class VerifyStaffSignInCodeHandler
 
             $current = $staff->phone();
 
-            if ($current === null || ! $current->equals($phone) || $staff->phoneVerifiedAt() === null) {
+            // A code counts only for the number the account has now, or for the number a Super Admin
+            // with none entered: a code sent before an admin changed the number cannot bring the old
+            // one back (review of step 3b). Returned, so the used code stays used.
+            if ($current === null ? ! $pending->needsPhone : ! $current->equals($phone)) {
+                return new InvalidCode(requestNewCode: true);
+            }
+
+            if ($current === null || $staff->phoneVerifiedAt() === null) {
                 if ($this->staff->phoneInUse($phone, $staff->id())) {
                     throw new PhoneAlreadyInUse;
                 }
@@ -80,7 +92,7 @@ final readonly class VerifyStaffSignInCodeHandler
                 $this->staff->update($staff);
                 $this->platform->recordAudit(StaffAudit::updated('access.staff_user.phone_verified', $before, $staff, $staff->pullChanges()));
 
-                if ($current === null || ! $current->equals($phone)) {
+                if ($current === null) {
                     $this->tokens->forgetTrustedBrowsers($staff->id());
                 }
             }

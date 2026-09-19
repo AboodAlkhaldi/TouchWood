@@ -16,6 +16,7 @@ use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
+use Modules\Access\Domain\ValueObject\PhoneCodePurpose;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Domain\ValueObject\StaffProfile;
 use Modules\Access\Public\Enums\StaffStatus;
@@ -84,9 +85,11 @@ final readonly class UpdateStaffProfileHandler
 
             $this->staff->update($target);
 
-            // A new phone ends every trusted browser (spec §1.8).
+            // A new phone ends every trusted browser (spec §1.8), and a sign-in code on its way to
+            // the old number (review of step 3b).
             if (in_array('phone', $changed, true)) {
                 $this->tokens->forgetTrustedBrowsers($target->id());
+                $this->tokens->deletePhoneCode($target->id(), PhoneCodePurpose::SignIn);
             }
 
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.profile_updated', $before, $target, $changed));

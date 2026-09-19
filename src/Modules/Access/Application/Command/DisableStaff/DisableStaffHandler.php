@@ -56,6 +56,7 @@ final readonly class DisableStaffHandler
             $this->tokens->deleteInvitation($target->id());
             $this->tokens->deletePhoneCode($target->id());
             $this->tokens->deleteEmailChange($target->id());
+            $this->tokens->deletePasswordReset($target->id());
             $this->tokens->forgetTrustedBrowsers($target->id());
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.disabled', $before, $target, $target->pullChanges()));
             $this->grants->refresh($target->id());

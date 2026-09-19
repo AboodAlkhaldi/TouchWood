@@ -121,7 +121,7 @@ Handoff §7.6.
 | `phone` | E.164, **verified by SMS before first sign-in**: it receives the 2FA codes **[DECIDED 2026-09-18]**. Entered by the admin at invitation, verified — or first corrected — by the invitee when accepting (amendment 15). **Unique among staff** (amendment 13). |
 | `avatar_media_id` | Optional **public** Platform media **[DECIDED 2026-09-19]** — a column with a `RESTRICT` foreign key, registered as a detachable `MediaUsage` (Platform rule, 2026-09-18). |
 | `locale` | The **communication language**: every email and SMS code to this person uses it. Chosen at invitation (default: the inviting admin's), changed in the person's own settings. The panel's EN/AR switch changes only what is displayed, at once, and does not change it (amendment 16). |
-| `status` | `INVITED`, `ACTIVE` or `DISABLED` (§4.3). **Never deleted** **[DECIDED 2026-09-18]**: the audit log names them forever. |
+| `status` | `INVITED`, `ACTIVE`, `DISABLED` or `CANCELLED` (§4.3, amendment 29). **Never deleted** **[DECIDED 2026-09-18]**: the audit log names them forever. |
 | `is_super_admin` | Only set by the console command (§1.6). |
 
 **Phone.** It receives the 2FA codes, so it is verified by an SMS code when the invitation is
@@ -130,8 +130,8 @@ takes effect. An admin with `access.staff.update` may change it (a lost phone); 
 then verifies the new number at their next sign-in. A Super Admin's phone is changed only by the
 Super Admin themselves (confirmed by a code) or by console command (§1.6).
 
-**Password reset** works as for customers: an email link valid 60 minutes. It never skips the SMS
-code at sign-in.
+**Password reset** works as for customers, by an email link, valid **30 minutes** for staff
+(amendment 31). It never skips the SMS code at sign-in.
 
 **Notification preferences** (handoff §7.6): for each topic — new orders, company applications,
 low stock, campaign expiry — an email toggle and an in-panel toggle. Access stores them; Ops reads
@@ -934,3 +934,4 @@ a Super Admin; and such an account is disabled until enabled together with a rol
 | 32 | §3.2 | Audited: each staff sign-in, sign-out, lockout, and browser marked trusted. Wrong passwords are counted for the lockout, not logged one by one. | A record of who got in, and of attacks, without flooding the log. | Owner, 2026-09-19 |
 | 33 | (handoff §5.3) | A failed database query is logged without its values (`mask_bindings_in_exception_messages`), so no password hash or personal data reaches the log file. | Personal data stays out of the logs, as it stays out of the audit log. | Owner, 2026-09-19 |
 | 34 | §1.8, §2.3, §4.4 | **Choices made while building step 3b:** (a) the new sign-in settings take only these ranges: account lockout 3–20 wrong passwords over 1–1,440 minutes; address limit 3–100 over 1–1,440 minutes; idle 5–720 minutes; longest session 1–72 hours; trusted browser 1–90 days; staff reset link 5–1,440 minutes; (b) a reset email goes to one account at most **3 times an hour** (a setting, 1–20), and the page answers the same every time; (c) after the right password, the code step must be finished within **15 minutes** (fixed); (d) a sign-in code is sent through `SecurityMessages::phoneCode()`: there is no separate `staffSignInCode()`, because a Super Admin's code after a phone reset goes to a number not yet on the account; (e) until customer accounts (step 4), a guest gets a new id on every request. | The spec named no numbers for these; (d) and (e) follow from how the code works. | **Proposed — awaiting the owner** |
+| 35 | §1.4, §1.8 | **From the independent review of step 3b:** (a) a wrong current password, when changing one's own password, counts towards the account lockout like a wrong password at sign-in; (b) a password reset link dies when the account is disabled or revoked, or its email changes; (c) a staff member with no phone who is not a Super Admin cannot sign in until an admin gives them one — only a Super Admin whose phone was reset chooses a number at sign-in (amendment 14); (d) a sign-in code counts only for the number the account has now, and changing the number drops a code already sent; a half-finished sign-in ends if the password changes. Also fixed, with no visible change: attempts sent at the same moment are counted before the password is checked; disabling ends every session for good, even once enabled again; staff links are built on `APP_URL`, never on the request's host; the reset email goes out after the answer, so its timing tells nothing; failed queries lose the values PostgreSQL puts in its error line and CONTEXT line too. | Security findings: a stolen session could guess the current password without limit; an old mailbox could keep a live reset link; the password alone could pick a phone; a code on its way could bring back a replaced number. | **Proposed — awaiting the owner** |

@@ -10,6 +10,7 @@ use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PasswordPolicy;
+use Modules\Access\Application\Security\SignInLimits;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
@@ -30,6 +31,7 @@ final readonly class ChangeOwnStaffPasswordHandler
         private StaffUserRepository $staff,
         private StaffTokenRepository $tokens,
         private PasswordPolicy $passwords,
+        private SignInLimits $limits,
         private StaffSecuritySettings $settings,
         private StaffSessions $sessions,
         private GrantsReader $grants,
@@ -42,10 +44,21 @@ final readonly class ChangeOwnStaffPasswordHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $staffId = $this->rules->currentStaffId();
         $staff = $this->staff->find($staffId) ?? throw new StaffNotFound($staffId);
+        $email = $staff->email()->value;
+
+        // Counted like a wrong password at sign-in: a stolen session cannot guess the current
+        // password without limit (review of step 3b).
+        $this->limits->begin($email, $command->ip);
 
         if (! $this->passwords->matches($command->currentPassword, $staff->passwordHash())) {
+            if ($this->limits->failed($email, $command->ip)) {
+                $this->db->transaction(fn () => $this->platform->recordAudit(StaffAudit::event('access.staff_user.locked_out', $staff)));
+            }
+
             throw new InvalidAccessAttribute('current_password', 'not the current password');
         }
+
+        $this->limits->succeeded($email, $command->ip);
 
         $passwordHash = $this->passwords->hashNew($command->newPassword, $this->settings->passwordMinLength());
 

@@ -20,6 +20,8 @@ use Modules\Access\Public\Enums\StaffStatus;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
+use function Illuminate\Support\defer;
+
 /**
  * Only an active account gets a link (30 minutes, amendment 31); a new one replaces the last. At most
  * a few an hour to one account, so nobody can flood an inbox. Every other case ends quietly, the same
@@ -68,8 +70,10 @@ final readonly class RequestStaffPasswordResetHandler
             $link = SecretTokens::issue();
             $this->tokens->putPasswordReset($staff->id(), $link['hash'], CarbonImmutable::now()->addMinutes($this->settings->passwordResetMinutes()));
 
-            // Sent once the transaction commits, never queued: a job would keep the link in the jobs table.
-            $this->db->afterCommit(fn () => $this->messages->passwordReset($staff->email()->value, $staff->language()->value, $this->links->passwordReset($link['token'])));
+            // Sent once the transaction commits, never queued: a job would keep the link in the jobs
+            // table. And only after the response, so the answer comes as fast whether or not a mail
+            // went out: its timing tells nobody which emails belong to staff (review of step 3b).
+            $this->db->afterCommit(fn () => defer(fn () => $this->messages->passwordReset($staff->email()->value, $staff->language()->value, $this->links->passwordReset($link['token']))));
         });
     }
 }

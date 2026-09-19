@@ -53,7 +53,7 @@ final readonly class SignInStaffHandler
     public function handle(SignInStaff $command): SignInResult
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $this->limits->requireOpen($command->email, $command->ip);
+        $this->limits->begin($command->email, $command->ip);
 
         $staff = $this->account($command->email);
 
@@ -65,12 +65,12 @@ final readonly class SignInStaffHandler
             throw new InvalidCredentials;
         }
 
+        $this->limits->succeeded($command->email, $command->ip);
+
         // A password is stored only once an invitation is accepted, so $staff is set here.
         if ($staff === null || $staff->status() !== StaffStatus::Active) {
             throw new SignInRefused;
         }
-
-        $this->limits->succeeded($command->email);
 
         $trustedBrowser = $this->db->transaction(function () use ($staff, $command): bool {
             if (! $this->trusted->trusts($staff->id(), $command->trustToken)) {
@@ -91,13 +91,19 @@ final readonly class SignInStaffHandler
         $phone = $staff->phone();
 
         if ($phone === null) {
-            $this->sessions->beginSignIn($staff->id(), true);
+            // Only a Super Admin whose phone was reset chooses a new number here (amendment 14);
+            // anyone else would pass the code step with the password alone. An admin gives them one.
+            if (! $staff->isSuperAdmin()) {
+                throw new SignInRefused;
+            }
+
+            $this->sessions->beginSignIn($staff->id(), $staff->sessionVersion(), true);
 
             return SignInResult::PhoneNeeded;
         }
 
         $this->db->transaction(fn () => $this->verification->send($staff->id(), $phone, PhoneCodePurpose::SignIn, $staff->language(), CarbonImmutable::now()));
-        $this->sessions->beginSignIn($staff->id(), false);
+        $this->sessions->beginSignIn($staff->id(), $staff->sessionVersion(), false);
 
         return SignInResult::CodeSent;
     }

@@ -60,6 +60,7 @@ final readonly class VerifyOwnPhoneChangeHandler
             $staff->verifyPhone($phone, $now);
             $this->staff->update($staff);
             $this->tokens->forgetTrustedBrowsers($staff->id());
+            $this->tokens->deletePhoneCode($staff->id(), PhoneCodePurpose::SignIn);
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.phone_changed', $before, $staff, $staff->pullChanges()));
 
             return null;
