@@ -20,7 +20,7 @@ final class RecordingSecurityMessages implements SecurityMessages
     /** @var list<array{staff: string, to: string, link: string}> */
     public array $emailChanges = [];
 
-    /** @var list<array{phone: string, locale: string, code: string}> */
+    /** @var list<array{phone: string, locale: string, code: string, kind: 'verify'|'sign_in'}> */
     public array $codes = [];
 
     /** @var list<array{to: string, locale: string, link: string}> */
@@ -78,7 +78,12 @@ final class RecordingSecurityMessages implements SecurityMessages
 
     public function phoneCode(string $phone, string $locale, string $code): void
     {
-        $this->codes[] = ['phone' => $phone, 'locale' => $locale, 'code' => $code];
+        $this->codes[] = ['phone' => $phone, 'locale' => $locale, 'code' => $code, 'kind' => 'verify'];
+    }
+
+    public function staffSignInCode(string $phone, string $locale, string $code): void
+    {
+        $this->codes[] = ['phone' => $phone, 'locale' => $locale, 'code' => $code, 'kind' => 'sign_in'];
     }
 
     /**

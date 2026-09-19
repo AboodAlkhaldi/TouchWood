@@ -94,6 +94,8 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-19 | §7.5 | A Super Admin invitation works 24 hours (a setting), then the system cancels and frees it; the console resends or cancels one; revoking an invited Super Admin cancels it | Access step 3b, owner decision |
 | 2026-09-19 | §7.7 | Staff: 10 wrong passwords from one IP address in 15 minutes make it wait 15 minutes; a staff password reset link works 30 minutes; signing out keeps the browser trusted; an email link opened while signed in to the admin panel signs that session out first; sign-ins, sign-outs, lockouts and trusted browsers are audited | Access step 3b, owner decision |
 | 2026-09-19 | §5.3 | A failed database query is logged without its values, so no password hash or personal data reaches the log file | Access step 3b, owner decision |
+| 2026-09-19 | §7.5, §7.7 | Accepting an invitation signs in only a Super Admin at once; staff then sign in as always. A staff sign-in SMS has its own text warning that the password was just used. An IP address made to wait is audited, named by a keyed fingerprint (IP addresses are kept only for staff actions). The staff sign-in settings have fixed ranges; 3 reset emails an hour; 15 minutes for the code step | Access step 3b review, owner decision |
+| 2026-09-19 | §5.3 | In production the application refuses to start without a real mailer (`MAIL_MAILER` not `log`, `array` or unset), so no invitation or reset link is ever written to the log | Access step 3b review, owner decision |
 
 ---
 
@@ -1397,7 +1399,12 @@ Decide these when the owning module is reached; do not design them now.
 - **Database users for the audit log.** A restricted user for the app, allowed only to insert and
   read audit entries, and a separate owner for migrations, so nobody using the app's credentials can
   alter history. Today one user owns everything.
-- **Trusted proxies**, so a staff member's recorded IP is theirs, not the CDN's.
+- **Trusted proxies**, so a staff member's recorded IP is theirs, not the CDN's — and so the staff
+  sign-in limit per IP address sees each visitor: behind an untrusted proxy every request shares one
+  address, and 10 wrong passwords from anyone would make every staff member wait 15 minutes (owner,
+  2026-09-19: settled with the hosting).
+- **HTTPS-only cookies** (`SESSION_SECURE_COOKIE=true`) for the admin session and trusted-browser
+  cookies (owner, 2026-09-19: settled with the hosting).
 - **CDN purge** of a deleted public image's sizes.
 
 ---

@@ -174,7 +174,9 @@ both **invite staff** and **assign roles** in every store the person gets). The 
 `INVITED`, with no password. The invitee opens the link, chooses a password and confirms the phone
 — correcting it first if the admin mistyped it — then enters the SMS code; only then does the
 account become `ACTIVE`. The chosen password waits, hashed, on the invitation row until the code is
-right, so an `INVITED` account never has a password (a CHECK guards that).
+right, so an `INVITED` account never has a password (a CHECK guards that). A Super Admin, whom the
+console named, is signed in at once; a staff member goes to the sign-in page and signs in as always,
+password and SMS code (amendment 36).
 
 An invited person gave nothing yet, so they are never disabled: the admin cancels the invitation
 (the link dies, a new one can be resent) or cancels the account (`StaffCancellation`): final, the
@@ -259,7 +261,9 @@ php artisan access:super-admin:reset-phone owner@example.com  # a lost phone
 ```
 
 The invitation is emailed through `MAIL_MAILER` — `log` in `.env.example`, which writes the email,
-link included, to `storage/logs/laravel.log`. The endpoints the invitation form posts to exist
+link included, to `storage/logs/laravel.log`. In production the application refuses to start while
+`MAIL_MAILER` is `log`, `array` or unset (amendment 36), as the `log` SMS driver refuses to send
+there: links must never sit in a log file. The endpoints the invitation form posts to exist
 (`POST /admin/invitation/{token}`, then `/code`), but the link itself opens no page yet: the form
 comes with the screens, in the frontend foundation stage (amendment 12).
 
@@ -288,9 +292,11 @@ password ─┬─ trusted browser ───────────────
   counted too and answered the same, so the answer tells a stranger nothing. A wrong current
   password when changing one's own counts the same way. Keys hold a hash of the email or address.
 - **The code step** lasts 15 minutes after the password and ends if the password changes meanwhile.
-  A code counts only for the number the account has now; changing the number drops a code already
-  sent. Only a Super Admin whose phone was reset chooses a number here; anyone else with no phone is
-  refused until an admin gives them one.
+  The sign-in SMS has its own text, which warns that the password was just used, so someone who did
+  not try to sign in learns that another person has it (`SecurityMessages::staffSignInCode`,
+  amendment 34). A code counts only for the number the account has now; changing the number drops a
+  code already sent. Only a Super Admin whose phone was reset chooses a number here; anyone else
+  with no phone is refused until an admin gives them one.
 - **A trusted browser** holds a random token in `touchwood_admin_trust` (only its hash is stored),
   for one staff member, 30 days. Signing out keeps it. It is forgotten when the account is disabled
   or revoked, the password is changed or reset, or the phone changes (by the person, an admin, or a
@@ -302,8 +308,10 @@ password ─┬─ trusted browser ───────────────
   link is built on `APP_URL`, never on the host a request names.
 - **An email link opened while signed in** (an invitation, an email change) signs that admin session
   out first, then continues (amendment 31).
-- **Audited:** each sign-in, sign-out, lockout and browser trusted. Wrong passwords are counted,
-  not logged one by one.
+- **Audited:** each sign-in, sign-out, lockout and browser trusted, and each address made to wait.
+  Wrong passwords are counted, not logged one by one. An address made to wait belongs to no staff
+  member, and Platform keeps IP addresses only for staff actions, so its entry names it by a keyed
+  fingerprint (`Codes::hash`): repeats from one address show, but the address cannot be read back.
 - **A failed database query is logged without its values** (amendment 33): the connection masks
   its bindings, and `App\Exceptions\QueryErrorLog` removes what PostgreSQL repeats in its own words:
   the `DETAIL` and `CONTEXT` lines, and a value it could not read at the end of the error line.

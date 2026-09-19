@@ -53,12 +53,14 @@ final readonly class StaffLinkController
         $this->signOutFirst();
 
         try {
-            $handler->handle(new ConfirmStaffInvitation($token, $request->text('code')));
+            $signedIn = $handler->handle(new ConfirmStaffInvitation($token, $request->text('code')));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }
 
-        return redirect('/admin');
+        return $signedIn
+            ? redirect('/admin')
+            : redirect('/admin/sign-in')->with('status', __('access::auth.invitation_accepted'));
     }
 
     public function confirmEmailChange(Request $request, string $token, ConfirmStaffEmailChangeHandler $handler): RedirectResponse

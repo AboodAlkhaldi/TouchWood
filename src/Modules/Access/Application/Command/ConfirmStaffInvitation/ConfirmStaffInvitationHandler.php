@@ -42,12 +42,15 @@ final readonly class ConfirmStaffInvitationHandler
         private Connection $db,
     ) {}
 
-    public function handle(ConfirmStaffInvitation $command): void
+    /**
+     * @return bool whether they were signed in: only a Super Admin goes straight in
+     */
+    public function handle(ConfirmStaffInvitation $command): bool
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         // A wrong code is counted and committed before the error is thrown (PhoneVerification).
-        $failure = $this->db->transaction(function () use ($command): ?InvalidCode {
+        $result = $this->db->transaction(function () use ($command): bool|InvalidCode {
             $now = CarbonImmutable::now();
             $invitation = $this->tokens->invitationByToken(SecretTokens::hash($command->token));
 
@@ -80,15 +83,22 @@ final readonly class ConfirmStaffInvitationHandler
 
             $this->events->dispatch(new StaffActivated((string) Str::uuid(), $staff->id(), $now));
 
-            // Password and phone code, both just given: they go straight in (owner, 2026-09-19).
+            // A Super Admin, whom the console invited, goes straight in with the password and code
+            // just given; staff then sign in as always, password and code (owner, 2026-09-19).
+            if (! $staff->isSuperAdmin()) {
+                return false;
+            }
+
             $this->sessions->start($staff->id(), $staff->sessionVersion());
             $this->platform->recordAudit(StaffAudit::event('access.staff_user.signed_in', $staff, ['trusted_browser' => false]));
 
-            return null;
+            return true;
         });
 
-        if ($failure !== null) {
-            throw $failure;
+        if ($result instanceof InvalidCode) {
+            throw $result;
         }
+
+        return $result;
     }
 }
