@@ -103,11 +103,12 @@ A change that alters nothing writes no audit entry and sends no event. Not every
 four parts: only a person's action is audited, so the system's variants job and stuck-image sweep
 write no audit entry, and only handlers whose data is cached invalidate a cache.
 
-**Until Access exists,** `SystemOnlyAuthorizer` lets only the system act, and only outside web
-requests: console commands, seeders, scheduled tasks and queued jobs. With no login yet,
-`SystemActorContext` reports the system for a web request too, so the authorizer refuses every
-web request itself. Nothing is accidentally open to staff or customers. Access replaces both
-bindings in stage 2.
+**Permission checks are Access's** (`RoleAuthorizer`, since Access step 2). Platform's interim
+`SystemActorContext` still reports the system for every request until staff sign-in (Access step 3),
+so the authorizer lets the system act only outside web requests: console commands, seeders,
+scheduled tasks and queued jobs. Nothing is accidentally open to staff or customers. Platform's own
+permissions are listed in `PlatformPermissions`, each with its reserved flag and whether it is
+store-free (media) or per store.
 
 ### Stores have no lifecycle
 
@@ -128,7 +129,8 @@ is empty. Clearing a sign that a font cannot draw is a data change, not a deploy
 reads of the cache table (the version, then the snapshot) and never loads the store tables again.
 A test counts the queries of a warm request against the real database cache.
 
-**Cache invalidation** uses `VersionedCache`. The snapshot is stored under a version key, and a
+**Cache invalidation** uses `VersionedCache` (in the Shared kernel since 2026-09-19, so other modules
+use the same rule). The snapshot is stored under a version key, and a
 change replaces the version:
 - **Cache in PostgreSQL (now):** the new version is written **inside the transaction** of the change,
   so it commits or rolls back with it. The cache and the data can never disagree.

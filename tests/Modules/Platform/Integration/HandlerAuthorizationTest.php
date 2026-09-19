@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
+use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
@@ -29,8 +31,6 @@ use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
 use Modules\Platform\Application\Command\UploadMedia\UploadMedia;
 use Modules\Platform\Application\Command\UploadMedia\UploadMediaHandler;
 use Modules\Platform\Infrastructure\Queue\GenerateMediaVariantsJob;
-use Modules\Platform\Infrastructure\SystemActorContext;
-use Modules\Platform\Infrastructure\SystemOnlyAuthorizer;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Enums\MediaVisibility;
 use Shared\Application\Authorizer;
@@ -113,6 +113,10 @@ it('checks the right permission, against the right scope, in every handler', fun
     // 'global' = nothing store-related; 'all stores' = must hold it everywhere; otherwise one store.
     $expected = in_array($scope, ['global', 'all stores'], true) ? $scope : (string) app(PlatformApi::class)->storeByCode($scope)?->id;
     expect($log->checks)->toBe([[$permission, $expected]]);
+
+    // A store-free permission is checked globally, a per-store one against stores (owner, 2026-09-19).
+    $storeFree = app(InMemoryPermissionCatalog::class)->definition($permission)?->kind === PermissionKind::Global;
+    expect($scope === 'global')->toBe($storeFree, "{$permission} is checked against \"{$scope}\"");
 })->with([
     'create a currency' => [fn () => app(CreateCurrencyHandler::class)->handle(new CreateCurrency('XTS', 2, 'عملة', 'Currency', 'ع', 'XTS', null)), 'platform.currency.create', 'global'],
     'update a currency' => [fn () => app(UpdateCurrencyHandler::class)->handle(new UpdateCurrency('SAR', nameEn: 'Riyal')), 'platform.currency.update', 'global'],
@@ -177,18 +181,7 @@ it('changes no media, stores no file and queues nothing when the permission is d
     'retry variants' => [fn () => app(RetryMediaVariantsHandler::class)->handle(new RetryMediaVariants((string) DB::table('platform.media')->value('id')))],
 ]);
 
-it('refuses every web request until Access exists, even though nobody has logged in', function () {
-    expect(fn () => (new SystemOnlyAuthorizer(new SystemActorContext, runningInConsole: false))->authorize('platform.media.upload', PermissionScope::global()))
-        ->toThrow(Unauthorized::class);
-
-    (new SystemOnlyAuthorizer(new SystemActorContext, runningInConsole: true))->authorize('platform.media.upload', PermissionScope::global());
-
-    // The system acts everywhere, so it is never limited to a list of stores.
-    expect((new SystemOnlyAuthorizer(new SystemActorContext, runningInConsole: true))->storesWith('platform.store.update'))->toBeNull()
-        ->and((new SystemOnlyAuthorizer(new SystemActorContext, runningInConsole: false))->storesWith('platform.store.update'))->toBe([]);
-});
-
-it('binds the interim authorizer so that a real handler refuses a web request', function () {
+it('binds an authorizer under which a real handler still refuses a web request until staff sign-in', function () {
     // Tests run in the console; pretend this one serves a web request, as PHP-FPM would.
     $console = new ReflectionProperty(app(), 'isRunningInConsole');
     $console->setValue(app(), false);

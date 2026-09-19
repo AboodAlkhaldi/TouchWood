@@ -12,9 +12,9 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStore;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
-use Modules\Platform\Infrastructure\Eloquent\VersionedCache;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Events\StoreUpdated;
+use Shared\Infrastructure\Cache\VersionedCache;
 
 use function Pest\Laravel\seed;
 

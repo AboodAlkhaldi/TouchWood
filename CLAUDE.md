@@ -61,7 +61,7 @@
 
 - **No Redis for now.** Sessions, cache and queues use the `database` drivers; Redis comes back only
   when real traffic needs it. Do not add Redis, Horizon or `predis` without the owner.
-- Cached data must never be served stale. `VersionedCache` writes the new version *inside* the
+- Cached data must never be served stale. `VersionedCache` (Shared kernel, `Shared\Infrastructure\Cache`) writes the new version *inside* the
   transaction of the change, because the cache table shares the connection — so cache and data
   commit or roll back together. Any new cache follows the same rule.
 - Cache reads are database queries: never promise "zero queries". State what a warm request reads
@@ -80,12 +80,22 @@
   and named in Arabic and English in the module's translations at `{module}::permissions`. A test
   fails if a handler checks an undeclared permission or a permission has no name in either language.
   Platform, below Access, publishes its list in `PlatformPermissions` instead.
+- Each permission is **per store** or **store-free** (`PermissionKind::Global`: media, roles — nothing
+  that belongs to one store) (owner, 2026-09-19). Check a store-free one with `PermissionScope::global()`
+  and a per-store one with `store()` or `allStores()`; any other check throws. "Every store"
+  (`allStores()`) passes only with the All stores choice. A setting's permission is a per-store one.
+- A permission renamed or removed in a later version is declared with `renamed()` / `removed()`; every
+  `php artisan migrate` carries it into the roles (owner, 2026-09-19). Never just delete a declaration.
+- Management actions (inviting, editing and disabling staff, assigning roles, managing roles) go only
+  into admin roles; only a Super Admin manages admins; an admin manages a staff member only when
+  covering all of their stores (owner, 2026-09-19).
 
-## Interim until Access
+## Interim until Access step 3
 
-- `ActorContext` and `Authorizer` are Platform bindings that allow only the system actor. Access
-  replaces them — with `bind()`/`scoped()`, never `instance()`: Platform wraps the `ActorContext`
-  binding so a queued job acts as the system on behalf of whoever queued it.
+- The `Authorizer` is Access's `RoleAuthorizer`. `ActorContext` is still Platform's interim binding,
+  which reports the system everywhere, so the system may act only outside web requests until staff
+  sign-in. Access replaces it — with `bind()`/`scoped()`, never `instance()`: Platform wraps the
+  `ActorContext` binding so a queued job acts as the system on behalf of whoever queued it.
 
 ## Actors
 
