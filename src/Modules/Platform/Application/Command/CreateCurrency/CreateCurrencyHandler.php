@@ -13,12 +13,13 @@ use Modules\Platform\Domain\Model\Currency;
 use Modules\Platform\Domain\Repository\CurrencyRepository;
 use Modules\Platform\Domain\ValueObject\CurrencyCode;
 use Modules\Platform\Domain\ValueObject\TranslatedText;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
 final readonly class CreateCurrencyHandler
 {
-    public const string PERMISSION = 'platform.currency.create';
+    public const string PERMISSION = PlatformPermissions::CURRENCY_CREATE;
 
     public function __construct(
         private Authorizer $authorizer,
