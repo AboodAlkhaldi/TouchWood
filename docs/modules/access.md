@@ -17,7 +17,8 @@ Items marked **[DECIDED date]** are the owner's answers (§9). Everything else f
 from the handoff or from Platform's approved rules.
 
 **Delivery [DECIDED 2026-09-18]:** backend only — domain, tables, use cases, HTTP endpoints and
-tests, like Platform's Stage 1. The screens (registration, sign-in, verification, the admin
+tests, like Platform's Stage 1. The HTTP endpoints are those of the sign-in flows; staff and role
+management endpoints come with their screens (amendment 12). The screens (registration, sign-in, verification, the admin
 sign-in and 2FA, staff and role management) are built in the **frontend foundation stage** that
 follows Access, together with Platform's admin screens.
 
@@ -102,7 +103,8 @@ Handoff §7.3. One phone per account; adding and changing both go through an SMS
   remove a phone.
 - A number already used by another customer is refused when it is **entered**, not after the code.
 - **SMS codes [DECIDED 2026-09-18]** (provisional until the SMS provider is chosen, handoff §15.3):
-  6 digits, valid **5 minutes**, resend after **60 seconds**, at most **5 per hour** per number,
+  6 digits, valid **5 minutes**, resend after **60 seconds**, at most **3 per hour** per number
+  (amendment 28),
   **5 wrong tries** and the code is dead — a new one must be requested. Codes are stored only as a
   hash.
 
@@ -113,12 +115,12 @@ Handoff §7.6.
 | Attribute | Invariant |
 |---|---|
 | `id` | ULID. |
-| `email` | Required, unique regardless of case. The invitation goes there. |
+| `email` | Required, unique regardless of case. The invitation goes there. An email belongs to a staff account **or** a customer account, never both (amendment 13). Changed only through a link sent to the new address (amendment 17); someone invited who has not accepted gets a new invitation there instead (amendment 25). |
 | `password` | Set by the staff member when accepting the invitation; the admin never knows it. Rules in §1.8. |
-| `first_name`, `last_name`, `job_title`, `date_of_birth`, `country`, `address` | The profile (handoff §7.6). Personal data. `country` is ISO 3166-1 alpha-2. |
-| `phone` | E.164, **verified by SMS before first sign-in**: it receives the 2FA codes **[DECIDED 2026-09-18]**. |
+| `first_name`, `last_name`, `job_title`, `date_of_birth`, `country`, `address` | The profile (handoff §7.6). Personal data. **Required at invitation** except the address (amendment 15): names and job title up to 100 characters, the date of birth in the past and after 1900, `country` any ISO 3166-1 alpha-2 code, the address free text up to 500. |
+| `phone` | E.164, **verified by SMS before first sign-in**: it receives the 2FA codes **[DECIDED 2026-09-18]**. Entered by the admin at invitation, verified — or first corrected — by the invitee when accepting (amendment 15). **Unique among staff** (amendment 13). |
 | `avatar_media_id` | Optional **public** Platform media **[DECIDED 2026-09-19]** — a column with a `RESTRICT` foreign key, registered as a detachable `MediaUsage` (Platform rule, 2026-09-18). |
-| `locale` | The admin panel's language for this person. |
+| `locale` | The **communication language**: every email and SMS code to this person uses it. Chosen at invitation (default: the inviting admin's), changed in the person's own settings. The panel's EN/AR switch changes only what is displayed, at once, and does not change it (amendment 16). |
 | `status` | `INVITED`, `ACTIVE` or `DISABLED` (§4.3). **Never deleted** **[DECIDED 2026-09-18]**: the audit log names them forever. |
 | `is_super_admin` | Only set by the console command (§1.6). |
 
@@ -133,7 +135,8 @@ code at sign-in.
 
 **Notification preferences** (handoff §7.6): for each topic — new orders, company applications,
 low stock, campaign expiry — an email toggle and an in-panel toggle. Access stores them; Ops reads
-them later through `AccessApi`.
+them later through `AccessApi`. A new staff member starts with every in-panel toggle on and every
+email toggle off (amendment 19).
 
 ### 1.5 Roles, permissions and assignments
 
@@ -196,6 +199,12 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
   their role and for every action on the whole account: disabling them, their profile and phone,
   their invitation. A KSA-only admin manages KSA-only staff. A KSA+UAE
   staff member is managed by a KSA+UAE admin, an admin with more stores, or a Super Admin.
+- **Redirecting an account** — a new email or phone, a resent invitation — also needs every action
+  of the person's role, in the stores it reaches for them (amendment 26): otherwise an admin could
+  take over an account holding more than they do.
+- **Nobody works without a role** (amendment 27). An account left with no role (a revoked Super
+  Admin) is disabled; any admin holding the action somewhere, or a Super Admin, enables it only
+  together with a role.
 - **A staff member's stores** are the store row chosen for them, plus any store an exception adds.
   Store-free actions add nothing. A staff member with one store is listed under that store; one
   with two or more is listed as **centralized**, and only an admin with the same stores or more
@@ -254,12 +263,21 @@ creates admins and sets their store scope.
 **[DECIDED 2026-09-18, flow 2026-09-19]:**
 
 - **Created only by a console command on the server:** `php artisan access:super-admin:create
-  {email} {first_name} {last_name}` creates the account and emails an invitation (72 hours). They
-  open the link, set a password and verify their phone by SMS code, then sign in at `/admin` like
-  any staff member: password, then an SMS code, with a trusted browser for 30 days.
+  {email} {first_name} {last_name}` with the full profile as required options — `--job-title`,
+  `--date-of-birth`, `--country`, `--phone`, `--locale` (amendment 18) — creates the account and
+  emails an invitation (72 hours). They open the link, set a password and verify their phone by
+  SMS code, then sign in at `/admin` like any staff member: password, then an SMS code, with a
+  trusted browser for 30 days. Run with the email of an existing staff member, the command
+  **promotes** them: their role is removed (a Super Admin has none); an active person keeps their
+  password and phone, and someone who never accepted gets a fresh invitation (amendment 18).
 - **Removed only by a console command:** `php artisan access:super-admin:revoke {email}` takes the
-  power away; the person keeps an account with no role until an admin gives them one. **The last
-  Super Admin cannot be revoked**, so the business is never locked out.
+  power away; with no role, the account is disabled (with every link and code it had) until an
+  admin enables it together with a role (amendment 27). **The last
+  active Super Admin cannot be revoked** — one who has accepted their invitation must remain — so
+  the business is never locked out (amendment 18).
+- **A lost phone:** `php artisan access:super-admin:reset-phone {email}` removes the phone and
+  ends every trusted browser; at the next sign-in, after the password, they enter a new number and
+  verify it by SMS code (amendment 14).
 - Never from the admin panel: nobody — not even another Super Admin — can create, edit, disable or
   remove a Super Admin there, so a hijacked admin session cannot mint or remove one. A Super Admin
   edits only their own profile, password and phone. More than one may exist.
@@ -290,7 +308,8 @@ they change without a deploy; customer settings are per store (handoff §7.7), s
 - **Passwords [DECIDED 2026-09-18]:** customers at least **8** characters, staff at least **12**; no
   composition rules; every new password is checked against known leaked passwords (Laravel's
   `uncompromised()` rule: only the first 5 characters of the password's SHA-1 hash leave the
-  server).
+  server). When the leak service cannot be reached, the password is accepted and the outage logged
+  (amendment 20).
 - **Lockout [DECIDED 2026-09-18]:** 5 wrong passwords for one account → that account is locked for
   **15 minutes**; a separate limit per IP address stops one machine trying many accounts. A wrong
   email or password is answered "wrong email or password", without saying which.
@@ -414,6 +433,7 @@ interface SecurityMessages
     public function passwordReset(string $email, string $locale, string $link): void;
     public function phoneCode(string $phone, string $locale, string $code): void;
     public function staffInvitation(StaffDto $staff, string $link): void;
+    public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void; // amendment 17
     public function staffSignInCode(StaffDto $staff, string $code): void;
     public function deletionScheduled(CustomerDto $customer, DateTimeImmutable $on): void;
 }
@@ -490,10 +510,10 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `RequestStaffPasswordReset` / `ResetStaffPassword` | every guest | `access.session.reset_password` | Global |
 | `AcceptStaffInvitation` — set password, verify phone | every guest (with the link) | `access.staff.accept_invitation` | Global |
 | `InviteStaff` — profile, role, store scope | role | `access.staff.invite` | The stores in the scope; no escalation; an admin invites staff only (amendment 9) |
-| `ResendStaffInvitation` / `CancelStaffInvitation` | role | `access.staff.invite` | Every store of the staff member |
-| `UpdateStaffProfile` — including their phone | role | `access.staff.update` | Every store of the staff member |
+| `ResendStaffInvitation` / `CancelStaffInvitation` | role | `access.staff.invite` | Every store of the staff member; resending also needs every action of their role (amendment 26) |
+| `UpdateStaffProfile` — including their phone | role | `access.staff.update` | Every store of the staff member; a new phone also needs every action of their role (amendment 26) |
 | `ChangeStaffRole` — pick a saved role, or edit it into a personal role; set the scope | role | `access.staff.assign_role` | Every old and new store; no escalation; admins change staff only, never themselves (amendment 9) |
-| `DisableStaff` / `EnableStaff` | role | `access.staff.disable` | Every store of the staff member |
+| `DisableStaff` / `EnableStaff` — someone with no role is enabled only together with one (amendment 27) | role | `access.staff.disable` (+ `access.staff.assign_role` for the role) | Every store of the staff member; anywhere, when they have no role |
 | `ListStaff` / `ViewStaff` | role | `access.staff.view` | Staff whose stores all lie within the viewer's |
 | `CreateRole` / `CloneRole` (saved roles) | role | `access.role.manage` (store-free) | Only permissions the author holds; admin roles by a Super Admin only |
 | `UpdateRole` / `DeleteRole` (saved roles; deleting needs a replacement for its holders) | role | `access.role.manage` (store-free) | Every store of every holder; admin roles by a Super Admin only |
@@ -503,7 +523,8 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `MyPermissions` — what I may do, and where; the admin menu is built from it (amendment 8) | every staff | none: it shows only the reader's own permissions | Own data |
 | `UpdateOwnStaffProfile` / `ChangeOwnStaffPassword` / `ChangeOwnStaffPhone` / notification preferences | every staff | `access.own_account.update` | Global |
 | `SignOutStaff` | every staff | `access.own_account.update` | Global |
-| `CreateSuperAdmin` / `RevokeSuperAdmin` — never the last one | system (console) | `access.super_admin.manage` (reserved) | Global |
+| `CreateSuperAdmin` / `RevokeSuperAdmin` — never the last active one; create promotes an existing staff member / `ResetSuperAdminPhone` (amendments 14, 18) | system (console) | `access.super_admin.manage` (reserved) | Global |
+| `ChangeStaffEmail` → `ConfirmStaffEmailChange` (the link sent to the new address, 72 hours; amendment 17). Someone invited gets a new invitation instead (amendment 25) | role (`access.staff.update`) / every guest with the link (`access.staff.accept_invitation`) | as named | Every store of the staff member and every action of their role (amendment 26) / Global — the requester must still be allowed when the link is used |
 
 ### 3.3 Customers, seen by staff
 
@@ -525,7 +546,7 @@ staff member's stores (their store row plus exception stores, amendment 9), and 
 who holds the management action in all of them (amendment 11).
 
 Every change is audited. Personal fields — names, email, phone, addresses, date of birth, the
-staff address — are recorded only as "changed".
+staff profile's job title, country and address — are recorded only as "changed".
 
 ---
 
@@ -627,9 +648,10 @@ The verification link is a signed URL, so it needs no table. `pending_phone_chan
 | Table | Columns |
 |---|---|
 | `access.staff_users` | `id`, `email` (unique on lower), `password` NULL until accepted, `first_name`, `last_name`, `job_title`, `date_of_birth`, `phone`, `phone_verified_at`, `country`, `address`, `avatar_media_id` FK → `platform.media` RESTRICT, `locale`, `status`, `is_super_admin`, timestamps |
-| `access.staff_invitations` | `staff_user_id` PK/FK, `token_hash`, `expires_at`, `invited_by` |
+| `access.staff_invitations` | `staff_user_id` PK/FK, `token_hash` unique, `pending_password` (the chosen password, hashed, waiting for the phone code), `expires_at`, `invited_by`, `created_at` |
+| `access.staff_email_changes` | `staff_user_id` PK/FK, `new_email`, `token_hash` unique, `expires_at`, `requested_by`, `created_at` (amendment 17) |
 | `access.staff_password_resets` | `staff_user_id` PK/FK, `token_hash`, `expires_at` |
-| `access.staff_phone_codes` | `staff_user_id` PK/FK, `phone`, `code_hash`, `attempts`, `expires_at` — verifying a new phone |
+| `access.staff_phone_codes` | `staff_user_id` PK/FK, `purpose` (`ACCEPT`/`CHANGE`), `phone`, `code_hash`, `attempts`, `expires_at`, `sent_at` — verifying a phone when accepting or changing it |
 | `access.staff_sign_in_codes` | `staff_user_id` PK/FK, `code_hash`, `attempts`, `expires_at` |
 | `access.staff_trusted_browsers` | `id`, `staff_user_id` FK, `token_hash` unique, `expires_at`, `created_at`, `last_used_at` |
 | `access.staff_notification_preferences` | (`staff_user_id`, `topic`) PK, `email` bool, `panel` bool |
@@ -699,7 +721,9 @@ The security messages of §2.3, sent by Access until Ops exists. No other notifi
 ```
 AccessError
 ├── EmailAlreadyRegistered        CONFLICT     "You already have an account — please sign in"
+├── StaffEmailInUse               CONFLICT     another staff account has this email (amendment 21)
 ├── PhoneAlreadyInUse             CONFLICT
+├── InvalidStaffStatus            CONFLICT     a change the account's status does not allow (amendment 21)
 ├── InvalidCredentials            FORBIDDEN    never says which part was wrong
 ├── AccountLocked                 FORBIDDEN    too many wrong passwords; says when to retry
 ├── SignInRefused                 FORBIDDEN    blocked ("please contact us"), disabled or anonymized
@@ -839,7 +863,13 @@ AccessError
 
 ### 9.3 Still open
 
-None.
+| # | Question | Found | Ask by |
+|---|---|---|---|
+| 36 | May staff with `access.staff.view` see admins? | Step 2 | Step 6 |
+
+Answered: #35, who manages a staff member with no role — any admin holding the action somewhere, or
+a Super Admin; and such an account is disabled until enabled together with a role (owner,
+2026-09-19; amendment 27).
 
 ### 9.4 Amendments during the build — each needs the owner's agreement
 
@@ -856,3 +886,20 @@ None.
 | 9 | §1.5, §3.2, §5.4, §7 | Three levels: Super Admin → admins → staff. Roles have a level; management actions only in admin roles (`AdminOnlyPermission`); only a Super Admin manages admins and admin roles; nobody changes their own role; an admin manages a staff member only when covering all of their stores, for their role and their whole account; a staff member's stores are the store row plus exception stores; one store = listed under it, two or more = centralized; `access.staff.view` is an ordinary action. New errors `AdminOnlyPermission` and `SuperAdminOnly`. | The owner's model of who manages whom. | Owner, 2026-09-19 |
 | 10 | §3.2, §5.4 | Cached permissions live at most **1 hour** (a safety net: every change replaces them at once), and an admin editing a staff member or a role can rebuild their cached permissions by hand (`RefreshStaffPermissions`, `RefreshRolePermissions`). | A second guard behind the automatic one. | Owner, 2026-09-19 |
 | 11 | §1.5, §3.2 | An admin's reach over a staff member is the stores of the management action: anything that changes a staff member's access — changing their role, editing, deleting or refreshing a saved role they hold, moving them when a role is deleted — needs `access.staff.assign_role` in **all** of their stores (and `access.role.manage` to edit roles). A role page lists only the holders the admin could reassign. | Two parts of the code read "covers their stores" differently when an admin's own actions have exceptions. | Owner, 2026-09-19 |
+| 12 | Header, §3 | HTTP endpoints in this stage cover the flows that need cookies and sessions — accepting an invitation, confirming an email change, signing in with the SMS code and a trusted browser, password reset, signing out — answering with redirects. Staff and role management endpoints come with their screens in the frontend foundation stage. Step 3 is split into 3a (staff accounts) and 3b (signing in): eight build steps. | The screens are built in stage 2b; endpoints with no screen to call them would be built twice. | Owner, 2026-09-19 |
+| 13 | §1.4 | A staff phone is unique among staff. An email belongs to a staff account or a customer account, never both; the same person may use one phone for both, verifying it once for each (the cross-check with customers arrives with customer accounts). | A code must reach exactly one staff member; one email, one account. | Owner, 2026-09-19 |
+| 14 | §1.6, §3.2 | `access:super-admin:reset-phone {email}` removes a Super Admin's phone and ends every trusted browser; a new number is verified at the next sign-in, after the password. | Nobody can change a Super Admin in the panel, so a lost phone needs a server-side way back. | Owner, 2026-09-19 |
+| 15 | §1.4 | The full profile is required at invitation (email, names, job title, date of birth, country, phone, communication language; the address and avatar optional); limits as in §1.4. The invitee verifies the phone by SMS when accepting, and may first correct a mistyped number. | The owner wants every staff account complete from the start. | Owner, 2026-09-19 |
+| 16 | §1.4 | `locale` is the communication language (emails, codes), set at invitation and changed in the person's settings; the panel's EN/AR switch changes only the display, at once. | A person reads the panel in either language but gets messages in one. | Owner, 2026-09-19 |
+| 17 | §1.4, §2.3, §3.2 | A staff email can change: an admin who manages the person (or a Super Admin for themselves) enters the new address, which takes effect when its link (72 hours) is used; `SecurityMessages::staffEmailChange()`. | Company email addresses change; the history stays on one account. | Owner, 2026-09-19 |
+| 18 | §1.6, §3.2 | `access:super-admin:create` takes the full profile as options, promotes an existing staff member (role removed; a never-accepted one gets a fresh invitation); revoking must leave at least one active Super Admin. | Consistent with amendment 15; an invited Super Admin may never accept. | Owner, 2026-09-19 |
+| 19 | §1.4 | New staff start with in-panel notifications on and email notifications off for every topic. | Nobody's inbox fills with every order by default. | Owner, 2026-09-19 |
+| 20 | §1.8 | When the leaked-password service cannot be reached, the new password is accepted and the outage logged (Laravel's `uncompromised()` default). | Nobody is stuck because an outside service is down; the length rule still applies. | Owner, 2026-09-19 |
+| 21 | §7 | New errors: `StaffEmailInUse` (CONFLICT) when another staff account has the email an admin enters, and `InvalidStaffStatus` (CONFLICT) for a change the account's status does not allow — disabling twice, resending to someone active. | The spec named none; `EmailAlreadyRegistered` speaks to a customer signing up. | Owner, 2026-09-19 |
+| 22 | §1.8 | The staff security settings take only these ranges: password 8–128 characters; invitation and email-change links 1–720 hours; codes 4–8 digits, valid 1–60 minutes, resent after 0–3,600 seconds, 1–100 an hour, 1–20 wrong tries. | A mistyped setting (a code valid 0 minutes, a 2-character password) would lock everyone out or weaken sign-in. | Owner, 2026-09-19 |
+| 23 | §3.2 | `InviteStaff` needs `access.staff.invite` **and** `access.staff.assign_role` in every store the new member gets. | Inviting gives a role, which amendment 11 puts under `assign_role`. | Owner, 2026-09-19 |
+| 24 | §1.6 | Promoting a `DISABLED` staff member to Super Admin enables them, with their old password and phone. | A disabled Super Admin could never act, and nothing in the panel can enable one. | Owner, 2026-09-19 |
+| 25 | §1.4, §3.2 | Changing the email of someone invited who has not accepted changes it at once and sends a new invitation there; the link sent to the old address dies. A disabled account's email is not changed. | A mistyped address must not keep a live link; accepting the invitation proves the new address. | Owner, 2026-09-19 |
+| 26 | §1.5, §3.2 | Redirecting an account — a staff member's new email or new phone, or a resent invitation — needs every action of their role in the stores it reaches for them (`PermissionEscalation` otherwise), the same as giving them that role. An email change takes effect only if whoever asked may still make it when the link is used. | An admin managing someone by stores could otherwise take over an account holding more than they do. | Owner, 2026-09-19 |
+| 27 | §1.5, §1.6, §3.2 | Nobody works without a role. A revoked Super Admin is disabled, with every link and code. Someone with no role is enabled only together with one (`EnableStaff` takes the role); any admin holding the action somewhere, or a Super Admin, may do it. Deleting a role its holders still hold needs a replacement, as before. | A staff account must always have a role; keep the no-role case as small as possible. | Owner, 2026-09-19 |
+| 28 | §1.3, §1.8 | SMS codes: at most **3 an hour** per number (was 5). | Fewer paid messages per number. | Owner, 2026-09-19 |

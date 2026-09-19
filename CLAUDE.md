@@ -90,12 +90,12 @@
   into admin roles; only a Super Admin manages admins; an admin manages a staff member only when
   covering all of their stores (owner, 2026-09-19).
 
-## Interim until Access step 3
+## Interim until Access step 3b
 
 - The `Authorizer` is Access's `RoleAuthorizer`. `ActorContext` is still Platform's interim binding,
   which reports the system everywhere, so the system may act only outside web requests until staff
-  sign-in. Access replaces it — with `bind()`/`scoped()`, never `instance()`: Platform wraps the
-  `ActorContext` binding so a queued job acts as the system on behalf of whoever queued it.
+  sign-in (step 3b). Access replaces it — with `bind()`/`scoped()`, never `instance()`: Platform wraps
+  the `ActorContext` binding so a queued job acts as the system on behalf of whoever queued it.
 
 ## Actors
 
@@ -106,6 +106,9 @@
 - Secrets (API keys, passwords, credentials) live only in server environment variables — never in a
   setting, a table or code. A setting whose value must not reach the audit log is declared with
   `sensitive: true`.
+- A link or code that proves who someone is is stored only as a hash, and the message carrying it
+  is sent after the commit, never through the queue (a queued job keeps its payload in the `jobs`
+  table). Access's `SecurityMessages` sends them until Ops binds its own.
 - Never pass an audit entry's source or date: Platform sets both. Old history goes only through
   `PlatformApi::recordImportedAudit`.
 - Personal fields go into the audit log with `AuditChanges::personal()` (only "changed"). `changed()`
@@ -121,6 +124,11 @@
   PHPStan can check the tests.
 - A guard over files or modules must also assert it found something, so a moved directory cannot
   make it pass over nothing.
+- To prove the code refuses a value before a unique index does, drop the index inside the test (its
+  transaction rolls the drop back): a repository that maps the index's error to the same domain
+  error would otherwise pass the test with the code check deleted.
+- Functions and constants declared in a Pest file are global to the whole suite: name them after
+  the file's subject, or two files declaring the same name stop every test run.
 
 ## Local environment (Windows)
 
