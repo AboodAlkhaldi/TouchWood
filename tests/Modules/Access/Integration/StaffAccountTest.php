@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmail;
 use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmailHandler;
 use Modules\Access\Application\Command\ConfirmStaffEmailChange\ConfirmStaffEmailChange;
@@ -17,6 +18,8 @@ use Modules\Access\Application\Command\DisableStaff\DisableStaff;
 use Modules\Access\Application\Command\DisableStaff\DisableStaffHandler;
 use Modules\Access\Application\Command\EnableStaff\EnableStaff;
 use Modules\Access\Application\Command\EnableStaff\EnableStaffHandler;
+use Modules\Access\Application\Command\InviteStaff\InviteStaff;
+use Modules\Access\Application\Command\InviteStaff\InviteStaffHandler;
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChange;
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChangeHandler;
 use Modules\Access\Application\Command\UpdateOwnNotificationPreferences\UpdateOwnNotificationPreferences;
@@ -31,11 +34,13 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
+use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Exception\StaffNotEditable;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Enums\AccessLevel;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Access\Public\Events\StaffActivated;
@@ -120,7 +125,6 @@ describe('disabling and enabling', function () {
         expect(column($staffId, 'status'))->toBe('INVITED')
             ->and(received()->invitations)->toHaveCount(1);
     });
-
 });
 
 it('never lets an admin change a Super Admin, another admin or themselves, nor staff outside their stores', function (Closure $target, string $error, Closure $change) {
@@ -374,4 +378,253 @@ describe('avatars as Platform media', function () {
 
         expect(column($staffId, 'avatar_media_id'))->toBeNull();
     });
+});
+
+describe('nobody works without a role (owner, 2026-09-19)', function () {
+    it('enables someone with no role only together with one, given by the same admin', function () {
+        $staffId = Fx::staff(StaffStatus::Disabled);
+        Fx::actAsAdmin(['sa'], [...ACCOUNT_ADMIN, AccessPermissions::STAFF_ASSIGN_ROLE]);
+
+        expect(fn () => app(EnableStaffHandler::class)->handle(new EnableStaff($staffId)))->toThrow(InvalidAccessAttribute::class)
+            ->and(column($staffId, 'status'))->toBe('DISABLED');
+
+        app(EnableStaffHandler::class)->handle(new EnableStaff($staffId, Fx::change($staffId, ['sa'], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE]))));
+        Fx::actAsStaff($staffId);
+
+        expect(column($staffId, 'status'))->toBe('ACTIVE')
+            ->and(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeTrue();
+    });
+
+    it('undoes the role when the enabling itself is refused', function () {
+        $staffId = Fx::staff(StaffStatus::Disabled);
+        // Gives roles in KSA and the UAE, but disables and enables staff only in KSA.
+        Fx::actAsAdmin(['sa', 'ae'], [AccessPermissions::STAFF_ASSIGN_ROLE, AccessPermissions::STAFF_DISABLE, PlatformPermissions::STORE_UPDATE], [AccessPermissions::STAFF_DISABLE => ['sa']]);
+
+        expect(fn () => app(EnableStaffHandler::class)->handle(new EnableStaff($staffId, Fx::change($staffId, ['sa', 'ae'], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE])))))->toThrow(Unauthorized::class)
+            ->and(column($staffId, 'status'))->toBe('DISABLED')
+            ->and(Fx::roleOf($staffId))->toBe('');
+    });
+
+    it('refuses a role given for someone else', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        DB::table('access.staff_users')->where('id', $staffId)->update(['status' => 'DISABLED']);
+        $other = Fx::staff();
+        Fx::actAsAdmin(['sa'], [...ACCOUNT_ADMIN, AccessPermissions::STAFF_ASSIGN_ROLE]);
+
+        expect(fn () => app(EnableStaffHandler::class)->handle(new EnableStaff($staffId, Fx::change($other, ['sa'], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE])))))->toThrow(InvalidAccessAttribute::class)
+            ->and(column($staffId, 'status'))->toBe('DISABLED')
+            ->and(Fx::roleOf($other))->toBe('');
+    });
+});
+
+describe('what each change leaves behind (review of step 3a)', function () {
+    it('takes every permission away at once when disabling, and gives them back when enabling', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        $adminId = Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
+        Fx::warmCache($staffId);
+
+        app(DisableStaffHandler::class)->handle(new DisableStaff($staffId));
+        Fx::actAsStaff($staffId);
+        expect(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeFalse();
+
+        Fx::warmCache($staffId);
+        Fx::actAsStaff($adminId);
+        app(EnableStaffHandler::class)->handle(new EnableStaff($staffId));
+        Fx::actAsStaff($staffId);
+        expect(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeTrue();
+    });
+
+    it('dispatches its events only once the change commits, and none for a new invitation', function () {
+        Event::fake([StaffDisabled::class, StaffActivated::class]);
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
+
+        expect(fn () => DB::transaction(function () use ($staffId): void {
+            app(DisableStaffHandler::class)->handle(new DisableStaff($staffId));
+
+            throw new RuntimeException('rolled back');
+        }))->toThrow(RuntimeException::class)
+            ->and(column($staffId, 'status'))->toBe('ACTIVE');
+        Event::assertNotDispatched(StaffDisabled::class);
+
+        $invited = Fx::staff(StaffStatus::Invited);
+        Fx::assign($invited, Fx::role([PlatformPermissions::STORE_UPDATE]), ['sa']);
+        DB::table('access.staff_users')->where('id', $invited)->update(['status' => 'DISABLED']);
+        app(EnableStaffHandler::class)->handle(new EnableStaff($invited));
+
+        Event::assertNotDispatched(StaffActivated::class);
+    });
+
+    it('refuses a new email for a disabled account, and a disabled account\'s pending link dies', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
+        app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($staffId, 'new.address@example.test'));
+        $token = received()->lastEmailChangeToken();
+
+        app(DisableStaffHandler::class)->handle(new DisableStaff($staffId));
+
+        expect(fn () => app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($staffId, 'other@example.test')))->toThrow(InvalidStaffStatus::class);
+
+        Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+        expect(fn () => app(ConfirmStaffEmailChangeHandler::class)->handle(new ConfirmStaffEmailChange($token)))->toThrow(InvalidOrExpiredLink::class);
+    });
+
+    it('lets the link change the email only while its requester could still make the change', function (Closure $meanwhile) {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        $old = column($staffId, 'email');
+        $adminId = Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
+        app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($staffId, 'new.address@example.test'));
+
+        $meanwhile($adminId, $staffId);
+        Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+
+        expect(fn () => app(ConfirmStaffEmailChangeHandler::class)->handle(new ConfirmStaffEmailChange(received()->lastEmailChangeToken())))->toThrow(InvalidOrExpiredLink::class)
+            ->and(column($staffId, 'email'))->toBe($old);
+    })->with([
+        'the requester was disabled' => function (string $adminId): void {
+            DB::table('access.staff_users')->where('id', $adminId)->update(['status' => 'DISABLED']);
+            app(GrantsReader::class)->refresh($adminId);
+        },
+        'the requester lost "edit staff"' => function (string $adminId): void {
+            Fx::assign($adminId, Fx::role([AccessPermissions::STAFF_DISABLE, PlatformPermissions::STORE_UPDATE], RoleLevel::Admin), ['sa']);
+        },
+        'the requester no longer holds the person\'s actions' => function (string $adminId, string $staffId): void {
+            Fx::assign($staffId, Fx::role([PlatformPermissions::STORE_UPDATE, PlatformPermissions::SETTINGS_UPDATE]), ['sa']);
+        },
+        'the person became an admin' => function (string $adminId, string $staffId): void {
+            Fx::assign($staffId, Fx::role([PlatformPermissions::STORE_UPDATE], RoleLevel::Admin), ['sa']);
+        },
+    ]);
+
+    it('never changes the email of an account that is not active, even through a link left over', function (string $status) {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        $old = column($staffId, 'email');
+        DB::table('access.staff_users')->where('id', $staffId)->update(['status' => $status, 'password' => $status === 'INVITED' ? null : 'hash', 'phone_verified_at' => null]);
+        DB::table('access.staff_email_changes')->insert([
+            'staff_user_id' => $staffId, 'new_email' => 'new.address@example.test', 'token_hash' => hash('sha256', 'left-over'),
+            'expires_at' => now()->addDay(), 'requested_by' => null, 'created_at' => now(),
+        ]);
+        Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+
+        expect(fn () => app(ConfirmStaffEmailChangeHandler::class)->handle(new ConfirmStaffEmailChange('left-over')))->toThrow(InvalidOrExpiredLink::class)
+            ->and(column($staffId, 'email'))->toBe($old);
+    })->with(['DISABLED', 'INVITED']);
+
+    it('keeps the link alive for 72 hours, and a second request replaces the first', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
+        app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($staffId, 'first@example.test'));
+        $first = received()->lastEmailChangeToken();
+        app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($staffId, 'second@example.test'));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(72)->subMinute());
+        Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+
+        expect(fn () => app(ConfirmStaffEmailChangeHandler::class)->handle(new ConfirmStaffEmailChange($first)))->toThrow(InvalidOrExpiredLink::class);
+
+        app(ConfirmStaffEmailChangeHandler::class)->handle(new ConfirmStaffEmailChange(received()->lastEmailChangeToken()));
+
+        expect(column($staffId, 'email'))->toBe('second@example.test')
+            ->and(Fx::audits('access.staff_user.email_change_requested', $staffId))->toBe(2)
+            ->and(Fx::audits('access.staff_user.email_changed', $staffId))->toBe(1);
+    });
+
+    it('refuses the same email, but takes the same one in other letters', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        $email = (string) column($staffId, 'email');
+        Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
+
+        expect(fn () => app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($staffId, $email)))->toThrow(InvalidAccessAttribute::class);
+
+        app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($staffId, strtoupper($email)));
+
+        expect(received()->emailChanges[0]['to'])->toBe(strtoupper($email));
+    });
+
+    it('keeps a phone verified when a profile is saved with the same number', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        $verifiedAt = column($staffId, 'phone_verified_at');
+        Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
+
+        app(UpdateStaffProfileHandler::class)->handle(profileUpdate($staffId, (string) column($staffId, 'phone'), lastName: 'Harbi'));
+
+        $audit = (string) DB::table('platform.audit_entries')->where('subject_id', $staffId)->where('action', 'access.staff_user.profile_updated')->value('changes');
+
+        expect(column($staffId, 'phone_verified_at'))->toBe($verifiedAt)
+            ->and(json_decode($audit, true))->toBe(['address' => 'changed', 'last_name' => 'changed']);
+    });
+
+    it('refuses your own verified number as a new one, but sends a code to confirm a number an admin entered', function () {
+        $staffId = Fx::staff();
+        $phone = (string) column($staffId, 'phone');
+        Fx::actAsStaff($staffId);
+
+        expect(fn () => app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange($phone)))->toThrow(InvalidAccessAttribute::class);
+
+        DB::table('access.staff_users')->where('id', $staffId)->update(['phone_verified_at' => null]);
+        app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange($phone));
+        app(VerifyOwnPhoneChangeHandler::class)->handle(new VerifyOwnPhoneChange(received()->lastCode()));
+
+        expect(column($staffId, 'phone_verified_at'))->not->toBeNull()
+            ->and(Fx::audits('access.staff_user.phone_changed', $staffId))->toBe(1);
+    });
+
+    it('records the job title and country, like the rest of the profile, only as changed', function () {
+        $staffId = Fx::staff();
+        Fx::actAsStaff($staffId);
+
+        app(UpdateOwnStaffProfileHandler::class)->handle(new UpdateOwnStaffProfile('Staff', 'Member', 'Lead tester', '1990-01-01', 'EG', null, 'ar', null));
+        app(UpdateOwnNotificationPreferencesHandler::class)->handle(new UpdateOwnNotificationPreferences(['NEW_ORDERS' => ['email' => true, 'panel' => true]]));
+
+        $audit = (string) DB::table('platform.audit_entries')->where('subject_id', $staffId)->where('action', 'access.staff_user.own_profile_updated')->value('changes');
+
+        expect(json_decode($audit, true))->toMatchArray(['job_title' => 'changed', 'country' => 'changed'])
+            ->and(Fx::audits('access.staff_user.notification_preferences_updated', $staffId))->toBe(1);
+        expect($audit)->not->toContain('Lead tester');
+        expect($audit)->not->toContain('EG');
+    });
+
+    it('takes only an uploaded public image as an avatar, from an admin or the person', function (Closure $update) {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
+
+        expect(fn () => $update($staffId))->toThrow(InvalidAccessAttribute::class)
+            ->and(column($staffId, 'avatar_media_id'))->toBeNull();
+    })->with([
+        'a PDF, by an admin' => fn (string $id) => app(UpdateStaffProfileHandler::class)->handle(profileUpdate($id, (string) column($id, 'phone'), publicImage(mime: 'application/pdf'))),
+        'a PDF, by the person' => function (string $id): void {
+            Fx::actAsStaff($id);
+            app(UpdateOwnStaffProfileHandler::class)->handle(new UpdateOwnStaffProfile('Staff', 'Member', 'Tester', '1990-01-01', 'SA', null, 'en', publicImage(mime: 'application/pdf')));
+        },
+        'a private file, by the person' => function (string $id): void {
+            Fx::actAsStaff($id);
+            app(UpdateOwnStaffProfileHandler::class)->handle(new UpdateOwnStaffProfile('Staff', 'Member', 'Tester', '1990-01-01', 'SA', null, 'en', publicImage('PRIVATE')));
+        },
+    ]);
+
+    it('takes an optional avatar at invitation, only an uploaded public image', function () {
+        Fx::actAsAdmin(['sa'], [AccessPermissions::STAFF_INVITE, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE]);
+        $invite = fn (?string $avatar, string $email): string => app(InviteStaffHandler::class)->handle(new InviteStaff(
+            $email, 'Noura', 'Saleh', 'Store keeper', '1995-03-10', 'SA', null, Fx::phone(), 'en',
+            AccessLevel::SelectedStores, [Fx::storeId('sa')], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE]), avatarMediaId: $avatar,
+        ));
+        $image = publicImage();
+
+        expect(column($invite($image, 'with.photo@example.test'), 'avatar_media_id'))->toBe($image)
+            ->and(fn () => $invite(publicImage(mime: 'application/pdf'), 'with.pdf@example.test'))->toThrow(InvalidAccessAttribute::class)
+            ->and(DB::table('access.staff_users')->where('email', 'with.pdf@example.test')->exists())->toBeFalse();
+    });
+
+    it('never lets deleting a photo edit someone the deleter may not edit', function (Closure $owner, Closure $deleter, string $error) {
+        Storage::fake('local');
+        $staffId = $owner();
+        $image = publicImage();
+        DB::table('access.staff_users')->where('id', $staffId)->update(['avatar_media_id' => $image]);
+        $deleter();
+
+        expect(fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($image)))->toThrow($error)
+            ->and(column($staffId, 'avatar_media_id'))->toBe($image);
+    })->with([
+        'another Super Admin\'s, by a Super Admin' => [fn () => Fx::staff(superAdmin: true), fn () => Fx::actAsStaff(Fx::staff(superAdmin: true)), StaffNotEditable::class],
+        'someone with no role, by an admin without "edit staff"' => [fn () => Fx::staff(), fn () => Fx::actAsAdmin(['sa'], [PlatformPermissions::MEDIA_DELETE, PlatformPermissions::STORE_UPDATE]), Unauthorized::class],
+    ]);
 });

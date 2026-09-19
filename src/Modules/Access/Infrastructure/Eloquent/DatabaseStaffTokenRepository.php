@@ -81,6 +81,7 @@ final readonly class DatabaseStaffTokenRepository implements StaffTokenRepositor
             (string) $row->staff_user_id,
             EmailAddress::of((string) $row->new_email),
             CarbonImmutable::parse((string) $row->expires_at),
+            $row->requested_by === null ? null : (string) $row->requested_by,
         ) : null;
     }
 

@@ -10,9 +10,9 @@ use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 
 /**
- * Audit entries for staff accounts. Names, email, phone, date of birth and address are personal:
- * recorded only as "changed" (spec §3.3). A staff account belongs to no single store, so the
- * entries are global.
+ * Audit entries for staff accounts. The whole profile — names, job title, date of birth, country,
+ * address — the email and the phone are personal: recorded only as "changed" (spec §1.4, §3.3). A
+ * staff account belongs to no single store, so the entries are global.
  */
 final class StaffAudit
 {
@@ -23,11 +23,13 @@ final class StaffAudit
         $changes = self::personalProfile(AuditChanges::none())
             ->personal('email')
             ->personal('phone')
-            ->changed('job_title', null, $staff->profile()->jobTitle)
-            ->changed('country', null, $staff->profile()->country->value)
             ->changed('locale', null, $staff->language()->value)
             ->changed('status', null, $staff->status()->value)
             ->changed('is_super_admin', null, $staff->isSuperAdmin());
+
+        if ($staff->avatarMediaId() !== null) {
+            $changes->changed('avatar_media_id', null, $staff->avatarMediaId());
+        }
 
         return self::entry('access.staff_user.invited', $staff, $changes);
     }
@@ -89,11 +91,11 @@ final class StaffAudit
         }
 
         if ($before->jobTitle !== $after->jobTitle) {
-            $changes->changed('job_title', $before->jobTitle, $after->jobTitle);
+            $changes->personal('job_title');
         }
 
         if ($before->country->value !== $after->country->value) {
-            $changes->changed('country', $before->country->value, $after->country->value);
+            $changes->personal('country');
         }
 
         return $changes;
@@ -101,7 +103,8 @@ final class StaffAudit
 
     private static function personalProfile(AuditChanges $changes): AuditChanges
     {
-        return $changes->personal('first_name')->personal('last_name')->personal('date_of_birth')->personal('address');
+        return $changes->personal('first_name')->personal('last_name')->personal('job_title')
+            ->personal('date_of_birth')->personal('country')->personal('address');
     }
 
     private static function entry(string $action, StaffUser $staff, AuditChanges $changes): AuditEntryDto

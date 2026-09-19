@@ -14,6 +14,7 @@ use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\SecretTokens;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
+use Modules\Access\Application\Staff\Avatars;
 use Modules\Access\Application\Staff\StaffLinks;
 use Modules\Access\Application\Staff\StaffMapper;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
@@ -53,6 +54,7 @@ final readonly class InviteStaffHandler
         private NotificationPreferenceRepository $preferences,
         private ChangeStaffRoleHandler $roles,
         private StaffSecuritySettings $settings,
+        private Avatars $avatars,
         private SecurityMessages $messages,
         private StaffLinks $links,
         private PlatformApi $platform,
@@ -76,6 +78,7 @@ final readonly class InviteStaffHandler
         $profile = StaffProfile::of($command->firstName, $command->lastName, $command->jobTitle, $command->dateOfBirth, $command->country, $command->address);
         $phone = PhoneNumber::of($command->phone);
         $language = Language::of($command->locale);
+        $this->avatars->requireUsable($command->avatarMediaId);
 
         return $this->db->transaction(function () use ($command, $author, $email, $profile, $phone, $language): string {
             if ($this->staff->emailInUse($email)) {
@@ -87,6 +90,8 @@ final readonly class InviteStaffHandler
             }
 
             $staff = StaffUser::invite($this->staff->nextId(), $email, $profile, $phone, $language);
+            $staff->changeAvatar($command->avatarMediaId);
+            $staff->pullChanges();
             $this->staff->add($staff);
             $this->preferences->createDefaults($staff->id());
             $this->platform->recordAudit(StaffAudit::invited($staff));

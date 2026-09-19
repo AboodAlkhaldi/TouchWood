@@ -11,11 +11,13 @@ use Illuminate\Support\Str;
 use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
+use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\SecretTokens;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Application\Staff\StaffLinks;
 use Modules\Access\Application\Staff\StaffMapper;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
@@ -36,6 +38,7 @@ final readonly class EnableStaffHandler
         private StaffUserRepository $staff,
         private RoleAssignmentRepository $assignments,
         private GrantsReader $grants,
+        private ChangeStaffRoleHandler $roles,
         private StaffTokenRepository $tokens,
         private StaffSecuritySettings $settings,
         private SecurityMessages $messages,
@@ -50,9 +53,24 @@ final readonly class EnableStaffHandler
         $this->rules->requireSomewhere(self::PERMISSION);
 
         $this->db->transaction(function () use ($command): void {
-            $target = $this->staff->byId($command->staffId) ?? throw new StaffNotFound($command->staffId);
+            // The role first, under every rule of giving one — it locks roles before staff — so the
+            // checks below see the stores it gives. A refusal below undoes it.
+            if ($command->role !== null) {
+                if ($command->role->staffId !== $command->staffId) {
+                    throw new InvalidAccessAttribute('role', 'given for another staff member');
+                }
 
-            foreach ($this->rules->scopesFor($this->assignments->byStaff($target->id())?->staffStores()) as $scope) {
+                $this->roles->handle($command->role);
+            }
+
+            $target = $this->staff->byId($command->staffId) ?? throw new StaffNotFound($command->staffId);
+            $assignment = $this->assignments->byStaff($target->id());
+
+            if ($assignment === null && ! $target->isSuperAdmin()) {
+                throw new InvalidAccessAttribute('role', 'someone with no role is enabled only together with one');
+            }
+
+            foreach ($this->rules->scopesFor($assignment?->staffStores()) as $scope) {
                 $this->authorizer->authorize(self::PERMISSION, $scope);
             }
 
@@ -75,6 +93,6 @@ final readonly class EnableStaffHandler
             $invitation = SecretTokens::issue();
             $this->tokens->putInvitation($target->id(), $invitation['hash'], CarbonImmutable::now()->addHours($this->settings->invitationHours()), $author->staffId);
             $this->db->afterCommit(fn () => $this->messages->staffInvitation(StaffMapper::toDto($target), $this->links->invitation($invitation['token'])));
-        });
+        }, 3);
     }
 }

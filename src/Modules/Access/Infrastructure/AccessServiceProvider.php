@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Modules\Access\Infrastructure;
 
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Database\Events\NoPendingMigrations;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
@@ -40,6 +42,7 @@ use Modules\Access\Infrastructure\Messages\UrlStaffLinks;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
 use Modules\Access\Infrastructure\Security\HmacCodes;
 use Modules\Access\Infrastructure\Security\LaravelPasswordPolicy;
+use Modules\Access\Infrastructure\Security\LoggedBreachList;
 use Modules\Access\Presentation\Console\CreateSuperAdminCommand;
 use Modules\Access\Presentation\Console\ResetSuperAdminPhoneCommand;
 use Modules\Access\Presentation\Console\RevokeSuperAdminCommand;
@@ -51,6 +54,7 @@ use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\PlatformPermissions;
+use Psr\Log\LoggerInterface;
 use Shared\Application\ActorContext;
 use Shared\Application\Authorizer;
 
@@ -73,6 +77,12 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->bind(AccessApi::class, AccessApiImpl::class);
 
         $this->app->bind(PasswordPolicy::class, LaravelPasswordPolicy::class);
+        // Laravel's verifier comes from a deferred provider, which would replace a plain binding
+        // when it loads; extend() wraps whatever it registers.
+        $this->app->extend(UncompromisedVerifier::class, fn (UncompromisedVerifier $verifier, Application $app): UncompromisedVerifier => new LoggedBreachList(
+            $app->make(HttpFactory::class),
+            $app->make(LoggerInterface::class),
+        ));
         $this->app->bind(StaffLinks::class, UrlStaffLinks::class);
         // SMS codes are stored as an HMAC keyed with the application key (Codes).
         $this->app->singleton(Codes::class, fn (Application $app): Codes => new HmacCodes((string) $app->make('config')->get('app.key')));
@@ -81,7 +91,10 @@ final class AccessServiceProvider extends ServiceProvider
         // (owner's decision, 2026-09-18).
         $this->app->bind(SecurityMessages::class, TemporarySecurityMessages::class);
         $this->app->bind(SmsGateway::class, fn (Application $app): SmsGateway => match ($app->make('config')->get('access.sms.driver')) {
-            'log' => $app->make(LogSmsGateway::class),
+            // It writes every code to the log: never on a live system.
+            'log' => $app->environment('production')
+                ? throw new InvalidArgumentException('The "log" SMS driver writes codes to the log and never runs in production: set ACCESS_SMS_DRIVER to a real provider.')
+                : $app->make(LogSmsGateway::class),
             default => throw new InvalidArgumentException('ACCESS_SMS_DRIVER names no SMS driver Access has; only "log" exists until the provider is chosen.'),
         });
 

@@ -40,6 +40,15 @@ final readonly class AcceptStaffInvitationHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $phone = PhoneNumber::of($command->phone);
+
+        // A dead link is refused before the slow part, so a made-up one never reaches the breach
+        // service or the hasher. Outside a transaction this read holds no lock past itself.
+        $early = $this->tokens->invitationByToken(SecretTokens::hash($command->token));
+
+        if ($early === null || $early->isExpired(CarbonImmutable::now())) {
+            throw new InvalidOrExpiredLink;
+        }
+
         // Before any lock: the breach check asks an outside service.
         $passwordHash = $this->passwords->hashNew($command->password, $this->settings->passwordMinLength());
 

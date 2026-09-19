@@ -10,9 +10,9 @@ use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Domain\Exception\PasswordTooWeak;
 
 /**
- * Laravel's own pieces: the verifier behind `Password::uncompromised()` (it reports a failed request
- * and treats the password as not found, so an outage never blocks anyone), and the configured
- * hasher.
+ * Laravel's own pieces: the verifier behind `Password::uncompromised()` — `LoggedBreachList`, which
+ * logs an outage and treats the password as not found, so an outage never blocks anyone — and the
+ * configured hasher.
  */
 final readonly class LaravelPasswordPolicy implements PasswordPolicy
 {

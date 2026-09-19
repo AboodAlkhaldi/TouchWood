@@ -57,6 +57,12 @@ it('refuses an SMS driver it does not have, rather than sending nothing', functi
     expect(fn () => app(SmsGateway::class))->toThrow(InvalidArgumentException::class, 'ACCESS_SMS_DRIVER');
 });
 
+it('never runs the log driver, which writes codes to the log, in production', function () {
+    app()->detectEnvironment(fn (): string => 'production');
+
+    expect(fn () => app(SmsGateway::class))->toThrow(InvalidArgumentException::class, 'never runs in production');
+});
+
 it('has every message in both languages', function () {
     $ar = require dirname(__DIR__, 4).'/src/Modules/Access/Presentation/lang/ar/messages.php';
     $en = require dirname(__DIR__, 4).'/src/Modules/Access/Presentation/lang/en/messages.php';

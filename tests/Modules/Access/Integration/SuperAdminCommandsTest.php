@@ -6,22 +6,32 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
 use Illuminate\Testing\PendingCommand;
+use Modules\Access\Application\Command\AcceptStaffInvitation\AcceptStaffInvitation;
+use Modules\Access\Application\Command\AcceptStaffInvitation\AcceptStaffInvitationHandler;
+use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitation;
+use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitationHandler;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdmin;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdminHandler;
+use Modules\Access\Application\Command\EnableStaff\EnableStaff;
+use Modules\Access\Application\Command\EnableStaff\EnableStaffHandler;
 use Modules\Access\Application\Command\ResetSuperAdminPhone\ResetSuperAdminPhone;
 use Modules\Access\Application\Command\ResetSuperAdminPhone\ResetSuperAdminPhoneHandler;
 use Modules\Access\Application\Command\RevokeSuperAdmin\RevokeSuperAdmin;
 use Modules\Access\Application\Command\RevokeSuperAdmin\RevokeSuperAdminHandler;
+use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\LastSuperAdmin;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Access\Public\Events\StaffActivated;
+use Modules\Access\Public\Events\StaffDisabled;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Actor;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 
 use function Pest\Laravel\artisan;
@@ -147,15 +157,44 @@ it('runs only from the console: never for a Super Admin in the panel, nor a job 
 ]);
 
 describe('revoking a Super Admin', function () {
-    it('leaves the account with no role, holding nothing', function () {
+    it('disables the account, which has no role, and it holds nothing from that moment', function () {
+        Event::fake([StaffDisabled::class]);
         Fx::staff(superAdmin: true);
         $revoked = Fx::staff(superAdmin: true);
+        Fx::warmCache($revoked);
 
         app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin(emailOf($revoked)));
 
         Fx::actAsStaff($revoked);
         expect(staffByEmail(emailOf($revoked))['is_super_admin'])->toBeFalse()
-            ->and(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeFalse();
+            ->and(staffByEmail(emailOf($revoked))['status'])->toBe('DISABLED')
+            ->and(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeFalse()
+            ->and(Fx::audits('access.staff_user.super_admin_revoked', $revoked))->toBe(1);
+        Event::assertDispatched(StaffDisabled::class);
+    });
+
+    it('kills the invitation of a Super Admin who never accepted', function () {
+        Fx::staff(superAdmin: true);
+        app(CreateSuperAdminHandler::class)->handle(newSuperAdmin());
+        $invited = (string) staffByEmail('owner@example.test')['id'];
+
+        app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin('owner@example.test'));
+
+        expect(staffByEmail('owner@example.test')['status'])->toBe('DISABLED')
+            ->and(DB::table('access.staff_invitations')->where('staff_user_id', $invited)->exists())->toBeFalse();
+    });
+
+    it('lets any admin bring a former Super Admin back, together with a role', function () {
+        Fx::staff(superAdmin: true);
+        $revoked = Fx::staff(superAdmin: true);
+        app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin(emailOf($revoked)));
+        Fx::actAsAdmin(['sa'], [AccessPermissions::STAFF_DISABLE, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE]);
+
+        expect(fn () => app(EnableStaffHandler::class)->handle(new EnableStaff($revoked)))->toThrow(InvalidAccessAttribute::class);
+
+        app(EnableStaffHandler::class)->handle(new EnableStaff($revoked, Fx::change($revoked, ['sa'], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE]))));
+
+        expect(staffByEmail(emailOf($revoked))['status'])->toBe('ACTIVE');
     });
 
     it('never revokes the last active Super Admin; an invited or disabled one does not count', function () {
@@ -227,6 +266,46 @@ describe('the console commands', function () {
         Fx::staff(superAdmin: true);
         $revoked = Fx::staff(superAdmin: true);
 
-        superAdminConsole('access:super-admin:revoke', ['email' => emailOf($revoked)])->expectsOutputToContain('No longer a Super Admin')->assertSuccessful();
+        superAdminConsole('access:super-admin:revoke', ['email' => emailOf($revoked)])->expectsOutputToContain('disabled until an admin enables it together with a role')->assertSuccessful();
+    });
+
+    it('needs the communication language for a new account', function () {
+        superAdminConsole('access:super-admin:create', [
+            'email' => 'owner@example.test', 'first_name' => 'Abood', 'last_name' => 'Owner', '--job-title' => 'Founder',
+            '--date-of-birth' => '1995-01-01', '--country' => 'SA', '--phone' => '+966501112233',
+        ])->expectsOutputToContain('Invalid')->assertFailed();
+
+        expect(staffByEmail('owner@example.test'))->toBe([]);
+    });
+});
+
+describe('what a promotion leaves behind (review of step 3a)', function () {
+    it('gives every permission at once, and ends an email change someone else asked for', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        Fx::warmCache($staffId);
+        DB::table('access.staff_email_changes')->insert([
+            'staff_user_id' => $staffId, 'new_email' => 'admin.own@example.test', 'token_hash' => hash('sha256', 'token'),
+            'expires_at' => now()->addDay(), 'requested_by' => null, 'created_at' => now(),
+        ]);
+
+        app(CreateSuperAdminHandler::class)->handle(new CreateSuperAdmin(emailOf($staffId)));
+
+        Fx::actAsStaff($staffId);
+        expect(Fx::allows(PlatformPermissions::SETTINGS_UPDATE, Fx::inStore('eg')))->toBeTrue()
+            ->and(DB::table('access.staff_email_changes')->where('staff_user_id', $staffId)->exists())->toBeFalse()
+            ->and(Fx::audits('access.staff_user.super_admin_granted', $staffId))->toBe(1);
+    });
+
+    it('sends a new Super Admin a link that works end to end', function () {
+        FakeBreachList::install();
+        app(CreateSuperAdminHandler::class)->handle(newSuperAdmin());
+        $token = superAdminMessages()->lastInvitationToken();
+        Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+
+        app(AcceptStaffInvitationHandler::class)->handle(new AcceptStaffInvitation($token, 'a long enough password', '+966501112233'));
+        app(ConfirmStaffInvitationHandler::class)->handle(new ConfirmStaffInvitation($token, superAdminMessages()->lastCode()));
+
+        expect(staffByEmail('owner@example.test')['status'])->toBe('ACTIVE')
+            ->and(staffByEmail('owner@example.test')['is_super_admin'])->toBeTrue();
     });
 });

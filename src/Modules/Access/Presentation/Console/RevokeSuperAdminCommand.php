@@ -25,7 +25,7 @@ final class RevokeSuperAdminCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info('No longer a Super Admin. The account has no role until an admin gives it one.');
+        $this->info('No longer a Super Admin. The account is disabled until an admin enables it together with a role.');
 
         return self::SUCCESS;
     }

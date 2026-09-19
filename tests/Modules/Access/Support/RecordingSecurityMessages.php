@@ -38,7 +38,14 @@ final class RecordingSecurityMessages implements SecurityMessages
      */
     public static function installed(): self
     {
-        return self::$installed ?? throw new LogicException('RecordingSecurityMessages is not installed in this test');
+        $current = spl_object_id(app(SecurityMessages::class));
+
+        // A recorder left over from an earlier test would pass every "nothing was sent" check.
+        if (self::$installed === null || spl_object_id(self::$installed) !== $current) {
+            throw new LogicException('RecordingSecurityMessages is not installed in this test');
+        }
+
+        return self::$installed;
     }
 
     public function staffInvitation(StaffDto $staff, string $link): void

@@ -55,9 +55,15 @@ final readonly class StaffAvatarUsage implements MediaUsage
                 continue;
             }
 
-            if (! $author->isUnlimited() && $author->staffId !== $staff->id()) {
-                foreach ($this->rules->scopesFor($this->assignments->byStaff($staff->id())?->staffStores()) as $scope) {
-                    $this->authorizer->authorize(AccessPermissions::STAFF_UPDATE, $scope);
+            // The console and the avatar's owner may always; anyone else — a Super Admin too, who
+            // never edits another Super Admin — needs the right to edit that staff member.
+            if ($author->staffId !== null && $author->staffId !== $staff->id()) {
+                if (! $author->isUnlimited()) {
+                    $this->rules->requireSomewhere(AccessPermissions::STAFF_UPDATE);
+
+                    foreach ($this->rules->scopesFor($this->assignments->byStaff($staff->id())?->staffStores()) as $scope) {
+                        $this->authorizer->authorize(AccessPermissions::STAFF_UPDATE, $scope);
+                    }
                 }
 
                 $this->rules->requireManageable($author, $staff, $this->grants->forStaff($staff->id()));
