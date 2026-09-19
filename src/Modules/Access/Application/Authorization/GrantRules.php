@@ -74,6 +74,33 @@ final readonly class GrantRules
     }
 
     /**
+     * The staff member acting on their own account. The system, even in a job, has no own account.
+     */
+    public function currentStaffId(): string
+    {
+        $actor = $this->actors->current();
+
+        if ($actor->type !== ActorType::Staff || $actor->id === null) {
+            throw new Unauthorized(AccessPermissions::OWN_ACCOUNT_UPDATE);
+        }
+
+        return $actor->id;
+    }
+
+    /**
+     * Only the server's console: never a person, not even a Super Admin, and never a job queued on
+     * someone's behalf — so a hijacked panel session cannot make or remove a Super Admin (spec §1.6).
+     */
+    public function requireConsole(string $permission): void
+    {
+        $actor = $this->actors->current();
+
+        if ($actor->type !== ActorType::System || $actor->requestedBy !== null) {
+            throw new Unauthorized($permission);
+        }
+    }
+
+    /**
      * Each action may go into a role of this level, and the author holds it.
      *
      * @param  list<string>  $permissions
@@ -239,6 +266,67 @@ final readonly class GrantRules
                 throw new Unauthorized(AccessPermissions::STAFF_ASSIGN_ROLE);
             }
         }
+    }
+
+    /**
+     * Redirecting someone's account — their email, their phone, a new invitation link — would let
+     * the author use that person's role. So it needs every action of the role, in the stores it
+     * reaches for them: the same as giving them that role (owner's decision, 2026-09-19).
+     */
+    public function requireCoversActionsOf(Author $author, ?StaffGrants $target): void
+    {
+        $missing = $this->firstActionNotCovered($author, $target);
+
+        if ($missing !== null) {
+            throw new PermissionEscalation($missing);
+        }
+    }
+
+    private function firstActionNotCovered(Author $author, ?StaffGrants $target): ?string
+    {
+        if ($author->isUnlimited() || $target === null) {
+            return null;
+        }
+
+        foreach ($target->grants as $permission => $stores) {
+            if ($author->storesFor($permission)?->includes($stores) !== true) {
+                return $permission;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A change asked for earlier (an email change, whose link is used later) takes effect only if
+     * the person who asked may still make it: still active, still holding the action in all of the
+     * target's stores (somewhere, when they have none), still managing them and covering their
+     * actions — as a queued job runs under its requester's grants.
+     */
+    public function mayStillManage(string $requesterId, string $permission, StaffUser $target, ?StoreChoice $stores): bool
+    {
+        $grants = $this->grants->forStaff($requesterId);
+
+        if ($grants === null || ! $grants->isActive()) {
+            return false;
+        }
+
+        $author = $grants->superAdmin ? Author::unlimited($grants->staffId) : Author::staff($grants);
+        $reach = $author->storesFor($permission);
+
+        if ($reach === null || ($stores !== null && ! $reach->includes($stores))) {
+            return false;
+        }
+
+        $targetGrants = $this->grants->forStaff($target->id());
+
+        try {
+            $this->requireManageable($author, $target, $targetGrants);
+        } catch (StaffNotEditable) {
+            return false;
+        }
+
+        return $this->firstActionNotCovered($author, $targetGrants) === null;
     }
 
     /**

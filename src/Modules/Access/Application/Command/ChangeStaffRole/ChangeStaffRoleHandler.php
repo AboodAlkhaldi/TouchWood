@@ -58,7 +58,7 @@ final readonly class ChangeStaffRoleHandler
         }
 
         $row = StoreChoice::of($command->accessLevel, $command->storeIds);
-        $exceptions = $this->exceptions($command->exceptions);
+        $exceptions = ActionStores::toChoices($command->exceptions);
 
         // Before anything is looked up, so someone without the action learns nothing about ids.
         $this->rules->requireSomewhere(self::PERMISSION);
@@ -194,24 +194,5 @@ final readonly class ChangeStaffRoleHandler
             $this->roles->update($role);
             $this->platform->recordAudit(RoleAudit::updated($role, $personalBefore->name(), $personalBefore->level(), $personalBefore->permissions(), $changed));
         }
-    }
-
-    /**
-     * @param  list<ActionStores>  $exceptions
-     * @return array<string, StoreChoice>
-     */
-    private function exceptions(array $exceptions): array
-    {
-        $byPermission = [];
-
-        foreach ($exceptions as $exception) {
-            if (isset($byPermission[$exception->permission])) {
-                throw new InvalidAccessAttribute('exceptions', "\"{$exception->permission}\" is given its own stores twice");
-            }
-
-            $byPermission[$exception->permission] = StoreChoice::of($exception->accessLevel, $exception->storeIds);
-        }
-
-        return $byPermission;
     }
 }

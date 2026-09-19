@@ -5,12 +5,20 @@ declare(strict_types=1);
 use App\Http\ProblemDetails;
 use Modules\Access\Domain\Exception\AccessError;
 use Modules\Access\Domain\Exception\AdminOnlyPermission;
+use Modules\Access\Domain\Exception\CodeRequestTooSoon;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Domain\Exception\InvalidCode;
+use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
+use Modules\Access\Domain\Exception\InvalidStaffStatus;
+use Modules\Access\Domain\Exception\LastSuperAdmin;
+use Modules\Access\Domain\Exception\PasswordTooWeak;
 use Modules\Access\Domain\Exception\PermissionEscalation;
+use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\ReservedPermission;
 use Modules\Access\Domain\Exception\RoleInUse;
 use Modules\Access\Domain\Exception\RoleNameTaken;
 use Modules\Access\Domain\Exception\RoleNotFound;
+use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Exception\StaffNotEditable;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Exception\SuperAdminOnly;
@@ -38,7 +46,7 @@ function accessErrorClasses(): array
 }
 
 it('finds the Access errors', function () {
-    expect(count(accessErrorClasses()))->toBeGreaterThanOrEqual(11);
+    expect(count(accessErrorClasses()))->toBeGreaterThanOrEqual(19);
 });
 
 it('gives every Access error a unique access type and a category', function () {
@@ -86,4 +94,12 @@ it('answers with the HTTP status the spec names', function (string $class, int $
     'an undeclared or automatic action → 422' => [UnknownPermission::class, 422],
     'a Super Admin action in a role → 422' => [ReservedPermission::class, 422],
     'a malformed value → 422' => [InvalidAccessAttribute::class, 422],
+    'another staff member\'s email → 409' => [StaffEmailInUse::class, 409],
+    'another account\'s phone → 409' => [PhoneAlreadyInUse::class, 409],
+    'a used or expired link → 422' => [InvalidOrExpiredLink::class, 422],
+    'a wrong or expired code → 422' => [InvalidCode::class, 422],
+    'a code asked for too soon → 409' => [CodeRequestTooSoon::class, 409],
+    'a short or leaked password → 422' => [PasswordTooWeak::class, 422],
+    'the last active Super Admin → 409' => [LastSuperAdmin::class, 409],
+    'a change the account\'s state does not allow → 409' => [InvalidStaffStatus::class, 409],
 ]);

@@ -132,7 +132,8 @@ it('gives every active staff member the automatic staff permissions, and no role
 
 it('gives a staff member who is not active nothing at all', function (StaffStatus $status) {
     $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['*']);
-    DB::table('access.staff_users')->where('id', $staffId)->update(['status' => $status->value]);
+    // Someone invited has no password yet.
+    DB::table('access.staff_users')->where('id', $staffId)->update(['status' => $status->value, 'password' => $status === StaffStatus::Invited ? null : 'hash']);
     app(GrantsReader::class)->refresh($staffId);
     Fx::actAsStaff($staffId);
 

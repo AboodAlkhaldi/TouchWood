@@ -81,6 +81,15 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-19 | §7.5 | Three levels (Super Admin → admins → staff): management actions only in admin roles; only a Super Admin manages admins; an admin manages staff only when covering all of their stores. Super Admin created by console, not seeded; Access's authorizer, not `Gate::before` | Access step 2, owner decision |
 | 2026-09-19 | §7.5 | Permissions are per store or store-free; "every store" means the All stores choice; renamed or removed permissions are carried into roles by every `migrate` | Access step 2, owner decision |
 | 2026-09-19 | §4.5 | `VersionedCache` moves to the Shared kernel so every module caches by the same never-stale rule | Access step 2, owner decision |
+| 2026-09-19 | §17 | Access builds in eight steps: step 3 splits into staff accounts (3a) and signing in (3b). Its HTTP endpoints are those of the sign-in flows; staff and role management endpoints come with their screens (stage 2b) | Access step 3, owner decision |
+| 2026-09-19 | §7.3, §7.6 | A staff phone is unique among staff; an email belongs to a staff account or a customer account, never both; one person may use one phone for both | Access step 3, owner decision |
+| 2026-09-19 | §7.6 | Staff are invited with the whole profile and verify their phone by SMS code when accepting; the communication language is set at invitation and changed in the person's own settings; a staff email can change, taking effect when the link sent to the new address is used; new staff get in-panel notifications, no email ones | Access step 3, owner decision |
+| 2026-09-19 | §7.5 | Super Admin console commands: create takes the whole profile or promotes an existing staff member; revoke never removes the last active one; a lost phone is reset by console | Access step 3, owner decision |
+| 2026-09-19 | §7.7 | When the leaked-password service cannot be reached, the password is accepted and the outage logged | Access step 3, owner decision |
+| 2026-09-19 | §7.5 | Nobody works without a role: an account left with none (a revoked Super Admin) is disabled until any admin, or a Super Admin, enables it together with a role; deleting a held role still needs a replacement | Access step 3a review, owner decision |
+| 2026-09-19 | §7.5 | Redirecting a staff account — a new email or phone, a resent invitation — needs every action of the person's role, like giving them that role | Access step 3a review, owner decision |
+| 2026-09-19 | §7.6 | Changing an invited person's email sends a new invitation there; the old link dies | Access step 3a review, owner decision |
+| 2026-09-19 | §7.7 | SMS codes: at most 3 an hour per number (was 5) | Access step 3a review, owner decision |
 
 ---
 
@@ -537,6 +546,11 @@ pending_phone_changes(customer_id, new_phone, otp_hash, expires_at)
 The old number stays live and usable until the new one verifies. On success, swap and
 delete the pending row. There is no way to remove a phone and leave the field empty.
 
+A **staff** phone is unique among staff, so a code reaches exactly one staff member. An email
+belongs to a staff account or a customer account, never both; one person may use the same phone
+as a customer and as staff, verifying it once for each. A Super Admin who lost their phone has it
+removed by console command and verifies a new one at their next sign-in (owner, 2026-09-19).
+
 ### 7.4 Account status vs company status
 
 Separate concerns, separate columns, different owning modules. Never conflate them.
@@ -612,7 +626,15 @@ staff member who holds them: editing a saved role changes it for all of them. Ed
 staff member's own page gives that person a **personal role**, and nobody else changes. **Nobody
 grants more than they hold**: a role can contain only the author's permissions, an assignment only
 the author's stores. Super Admins are created only by a console command on the server; more than
-one may exist.
+one may exist. The command takes the whole profile, or promotes an existing staff member (whose
+role ends); revoking by console never removes the last active Super Admin; nothing in the panel —
+not even another Super Admin — creates, changes or removes one (owner, 2026-09-19).
+
+**Nobody works without a role** (owner, 2026-09-19): an account left with none — a revoked Super
+Admin — is disabled until any admin, or a Super Admin, enables it together with a role; deleting a
+role its holders still hold needs a replacement. **Redirecting an account** — a new email or phone,
+a resent invitation — needs every action of the person's role, like giving them that role, so no
+admin can take over an account holding more than they do.
 
 **Admin navigation is derived from the permission set**, never hardcoded. A staff member
 with catalog permissions only sees catalog tabs.
@@ -643,15 +665,24 @@ Staff profile carries: first name, last name, job title, date of birth, email, p
 country, address, avatar. Plus **per-staff notification preferences** — new orders,
 company applications, low stock, campaign expiry — each toggleable for email and in-panel.
 
+The admin enters the **whole profile at invitation** (only the address and avatar are optional);
+the invitee sets a password and verifies the phone by SMS code when accepting. The
+**communication language** (every email and code) is chosen at invitation and changed in the
+person's own settings; the panel's EN/AR switch changes only the display. A staff **email can
+change**: the new address takes effect when the link sent to it is used — for someone invited who
+has not accepted, a new invitation goes there and the old link dies. New staff start with
+in-panel notifications on and email ones off (owner, 2026-09-19).
+
 ### 7.7 Sessions
 
 Session authentication. Session policy, lockout thresholds and OTP parameters are
 configurable per store; defaults are provisional until the SMS provider is chosen and may
 be tuned then. The defaults (owner, 2026-09-18): passwords at least 8 characters for customers and
-12 for staff, checked against known leaked passwords; 5 wrong passwords lock an account for 15
+12 for staff, checked against known leaked passwords (when that service cannot be reached, the
+password is accepted and the outage logged — owner, 2026-09-19); 5 wrong passwords lock an account for 15
 minutes; customers stay signed in 30 days with "remember me", otherwise 2 hours idle; staff 30
 minutes idle and 12 hours at most; SMS codes of 6 digits valid 5 minutes, resent after 60 seconds,
-at most 5 an hour, dead after 5 wrong tries; the email verification link lasts 24 hours, a password
+at most 3 an hour per number (owner, 2026-09-19; was 5), dead after 5 wrong tries; the email verification link lasts 24 hours, a password
 reset link 60 minutes, a staff invitation 72 hours.
 
 ### 7.8 Addresses
@@ -1407,6 +1438,11 @@ STAGE 9   Migration, hardening, launch
 
 Platform precedes Access because store context is a parameter of nearly everything in
 Access — staff store scoping, per-store settings, per-store verification configuration.
+
+Access is built in **eight steps** (owner, 2026-09-19): the permission catalog; roles and the real
+permission check; staff accounts (3a); signing in (3b); customers; addresses; deletion, blocking
+and staff views; its README and review. Its HTTP endpoints are those of the sign-in flows; staff
+and role management endpoints come with their screens in stage 2b.
 
 Stages 1–3 depend on nothing external, which is why they run first while the provider
 schema is being chased.

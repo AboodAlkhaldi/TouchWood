@@ -24,4 +24,10 @@ interface RoleAssignmentRepository
      * Writes the assignment with its stores and exceptions, replacing what was stored.
      */
     public function save(RoleAssignment $assignment): void;
+
+    /**
+     * The staff member holds no role any more (a Super Admin has none). Its stores and exceptions
+     * go with it.
+     */
+    public function delete(string $staffId): void;
 }

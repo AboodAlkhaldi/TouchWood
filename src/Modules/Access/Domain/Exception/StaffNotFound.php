@@ -8,9 +8,12 @@ use Shared\Domain\Error\ErrorCategory;
 
 final class StaffNotFound extends AccessError
 {
-    public function __construct(public readonly string $staffId)
+    /**
+     * @param  string  $reference  the id or email that matched nobody
+     */
+    public function __construct(public readonly string $reference)
     {
-        parent::__construct("No staff member has the id \"{$staffId}\".");
+        parent::__construct("No staff member matches \"{$reference}\".");
     }
 
     public function type(): string
