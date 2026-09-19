@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\QueryErrorLog;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
@@ -11,14 +12,20 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmail;
+use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmailHandler;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdmin;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdminHandler;
 use Modules\Access\Application\Command\DisableStaff\DisableStaff;
 use Modules\Access\Application\Command\DisableStaff\DisableStaffHandler;
+use Modules\Access\Application\Command\EnableStaff\EnableStaff;
+use Modules\Access\Application\Command\EnableStaff\EnableStaffHandler;
 use Modules\Access\Application\Command\InviteStaff\InviteStaff;
 use Modules\Access\Application\Command\InviteStaff\InviteStaffHandler;
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChange;
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChangeHandler;
+use Modules\Access\Application\Command\RequestStaffPasswordReset\RequestStaffPasswordReset;
+use Modules\Access\Application\Command\RequestStaffPasswordReset\RequestStaffPasswordResetHandler;
 use Modules\Access\Application\Command\ResetSuperAdminPhone\ResetSuperAdminPhone;
 use Modules\Access\Application\Command\ResetSuperAdminPhone\ResetSuperAdminPhoneHandler;
 use Modules\Access\Application\Command\RevokeSuperAdmin\RevokeSuperAdmin;
@@ -39,12 +46,12 @@ use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 
-use function Pest\Laravel\get;
+use function Illuminate\Support\defer;
 use function Pest\Laravel\seed;
 
 uses(RefreshDatabase::class);
 
-const ADMIN_PASSWORD = 'a long enough password';
+const SIGN_IN_PASSWORD = 'a long enough password';
 
 beforeEach(function () {
     // Sessions live in the database, as in production: the admin session is read again on every
@@ -59,14 +66,28 @@ beforeEach(function () {
         ->get('/admin/_who', fn (ActorContext $actors) => response()->json(['type' => $actors->current()->type->value, 'id' => $actors->current()->id]));
 });
 
-function adminWho(AdminBrowser $browser): ?string
+/**
+ * Who this browser acts as: a staff member's id, or null for a guest. Anything else fails the test —
+ * a web request never acts as the system, so "not signed in" must mean a guest.
+ */
+function signInWho(AdminBrowser $browser): ?string
 {
     $who = $browser->get('/admin/_who')->json();
+    $who = is_array($who) ? $who : [];
+    $type = $who['type'] ?? null;
 
-    return is_array($who) && ($who['type'] ?? null) === 'STAFF' && is_string($who['id'] ?? null) ? $who['id'] : null;
+    if ($type === 'GUEST') {
+        return null;
+    }
+
+    if ($type !== 'STAFF' || ! is_string($who['id'] ?? null)) {
+        throw new LogicException('A web request acted as '.var_export($type, true).', not a staff member or a guest.');
+    }
+
+    return $who['id'];
 }
 
-function adminEmail(string $staffId): string
+function signInEmail(string $staffId): string
 {
     return (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
 }
@@ -74,18 +95,18 @@ function adminEmail(string $staffId): string
 /**
  * @return TestResponse<Response>
  */
-function adminPassword(AdminBrowser $browser, string $staffId, string $password = ADMIN_PASSWORD): TestResponse
+function signInPassword(AdminBrowser $browser, string $staffId, string $password = SIGN_IN_PASSWORD): TestResponse
 {
-    return $browser->post('/admin/sign-in', ['email' => adminEmail($staffId), 'password' => $password]);
+    return $browser->post('/admin/sign-in', ['email' => signInEmail($staffId), 'password' => $password]);
 }
 
-function adminSignIn(AdminBrowser $browser, string $staffId, bool $trust = false): void
+function signInFully(AdminBrowser $browser, string $staffId, bool $trust = false): void
 {
-    adminPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+    signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
     $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode(), 'trust_browser' => $trust])->assertRedirect('/admin');
 }
 
-function adminCodes(): int
+function signInCodes(): int
 {
     return count(RecordingSecurityMessages::installed()->codes);
 }
@@ -93,17 +114,17 @@ function adminCodes(): int
 describe('signing in (spec §1.8, §4.4)', function () {
     it('asks the password, then an SMS code, then signs in with a new session id', function () {
         $staffId = Fx::staff();
-        $browser = new AdminBrowser;
+        $browser = new AdminBrowser('10.1.2.3');
 
-        adminPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
         $before = $browser->cookie('touchwood_admin_session');
 
-        expect(adminWho($browser))->toBeNull()
+        expect(signInWho($browser))->toBeNull()
             ->and(RecordingSecurityMessages::installed()->codes[0]['phone'])->toBe(DB::table('access.staff_users')->where('id', $staffId)->value('phone'));
 
         $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
 
-        expect(adminWho($browser))->toBe($staffId)
+        expect(signInWho($browser))->toBe($staffId)
             ->and($browser->cookie('touchwood_admin_session'))->not->toBeNull()
             ->and($browser->cookie('touchwood_admin_trust'))->toBeNull()
             ->and(DB::table('access.staff_trusted_browsers')->where('staff_user_id', $staffId)->exists())->toBeFalse();
@@ -113,19 +134,21 @@ describe('signing in (spec §1.8, §4.4)', function () {
 
         expect($entry?->actor_type)->toBe('STAFF')
             ->and($entry?->actor_id)->toBe($staffId)
-            ->and($entry?->ip_address)->toBe('127.0.0.1');
+            ->and($entry?->ip_address)->toBe('10.1.2.3');
     });
 
-    it('keeps the admin session in its own cookie, sent only to /admin', function () {
+    it('keeps the admin session in its own cookie, sent only to /admin, and gives the rest of the site its own back', function () {
+        Route::middleware('web')->get('/_storefront_probe', fn () => 'ok');
         $browser = new AdminBrowser;
-        $storefront = get('/');
-        $admin = adminPassword($browser, Fx::staff());
+        $admin = signInPassword($browser, Fx::staff());
+        $storefront = $browser->get('/_storefront_probe');
 
         $adminCookie = collect($admin->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === 'touchwood_admin_session');
         $storeCookies = collect($storefront->headers->getCookies())->map(fn ($cookie) => $cookie->getName());
 
         expect($adminCookie?->getPath())->toBe('/admin')
             ->and($adminCookie?->isHttpOnly())->toBeTrue()
+            ->and($storeCookies)->toContain(config('session.cookie'))
             ->and($storeCookies)->not->toContain('touchwood_admin_session');
     });
 
@@ -133,12 +156,12 @@ describe('signing in (spec §1.8, §4.4)', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
 
-        $wrongPassword = adminPassword($browser, $staffId, 'not the password at all');
-        $unknownEmail = $browser->post('/admin/sign-in', ['email' => 'nobody@example.test', 'password' => ADMIN_PASSWORD]);
+        $wrongPassword = signInPassword($browser, $staffId, 'not the password at all');
+        $unknownEmail = $browser->post('/admin/sign-in', ['email' => 'nobody@example.test', 'password' => SIGN_IN_PASSWORD]);
 
         expect(AdminBrowser::formError($wrongPassword))->toBe((string) __('access::errors.invalid_credentials.detail'))
             ->and(AdminBrowser::formError($unknownEmail))->toBe((string) __('access::errors.invalid_credentials.detail'))
-            ->and(adminCodes())->toBe(0);
+            ->and(signInCodes())->toBe(0);
     });
 
     it('locks an account for 15 minutes after 5 wrong passwords, even for the right one', function () {
@@ -146,16 +169,16 @@ describe('signing in (spec §1.8, §4.4)', function () {
         $browser = new AdminBrowser;
 
         foreach (range(1, 5) as $try) {
-            adminPassword($browser, $staffId, 'wrong password '.$try);
+            signInPassword($browser, $staffId, 'wrong password '.$try);
         }
 
-        expect(AdminBrowser::formError(adminPassword($browser, $staffId)))->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]))
-            ->and(adminCodes())->toBe(0)
+        expect(AdminBrowser::formError(signInPassword($browser, $staffId)))->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]))
+            ->and(signInCodes())->toBe(0)
             ->and(Fx::audits('access.staff_user.locked_out', $staffId))->toBe(1);
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(16));
 
-        adminPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
     });
 
     it('starts the count again after the right password', function () {
@@ -163,17 +186,17 @@ describe('signing in (spec §1.8, §4.4)', function () {
         $browser = new AdminBrowser;
 
         foreach (range(1, 4) as $try) {
-            adminPassword($browser, $staffId, 'wrong password '.$try);
+            signInPassword($browser, $staffId, 'wrong password '.$try);
         }
 
-        adminPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
 
         foreach (range(1, 4) as $try) {
-            adminPassword($browser, $staffId, 'wrong again '.$try);
+            signInPassword($browser, $staffId, 'wrong again '.$try);
         }
 
-        adminPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
     });
 
     it('makes an address that tries 10 wrong passwords wait, whatever the accounts', function () {
@@ -184,31 +207,135 @@ describe('signing in (spec §1.8, §4.4)', function () {
             $attacker->post('/admin/sign-in', ['email' => "someone{$try}@example.test", 'password' => 'guess']);
         }
 
-        expect(AdminBrowser::formError(adminPassword($attacker, $staffId)))->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]));
+        expect(AdminBrowser::formError(signInPassword($attacker, $staffId)))->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]));
 
-        adminPassword(new AdminBrowser('10.0.0.10'), $staffId)->assertRedirect('/admin/sign-in/code');
+        signInPassword(new AdminBrowser('10.0.0.10'), $staffId)->assertRedirect('/admin/sign-in/code');
     });
+
+    it('makes an address wait 15 minutes from its last wrong password, not its first', function () {
+        $staffId = Fx::staff();
+        $attacker = new AdminBrowser('10.0.0.50');
+        $attacker->post('/admin/sign-in', ['email' => 'someone0@example.test', 'password' => 'guess']);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(10));
+
+        foreach (range(1, 9) as $try) {
+            $attacker->post('/admin/sign-in', ['email' => "someone{$try}@example.test", 'password' => 'guess']);
+        }
+
+        // 16 minutes after the first wrong password, 6 after the last.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(6));
+
+        expect(AdminBrowser::formError(signInPassword($attacker, $staffId)))->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 9]));
+    });
+
+    it('counts an email typed in any case as the same account', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser;
+        $email = signInEmail($staffId);
+
+        foreach ([strtoupper($email), ucfirst($email), $email, strtoupper($email), $email] as $typed) {
+            $browser->post('/admin/sign-in', ['email' => $typed, 'password' => 'a wrong password']);
+        }
+
+        expect(AdminBrowser::formError(signInPassword($browser, $staffId)))->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]));
+    });
+
+    it('counts wrong passwords for an email with no account, so a lock tells a stranger nothing', function () {
+        $browser = new AdminBrowser;
+
+        foreach (range(1, 5) as $try) {
+            $browser->post('/admin/sign-in', ['email' => 'nobody@example.test', 'password' => 'guess '.$try]);
+        }
+
+        expect(AdminBrowser::formError($browser->post('/admin/sign-in', ['email' => 'nobody@example.test', 'password' => 'guess'])))
+            ->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]));
+    });
+
+    it('keeps counting an address after a right password: it gets back only that attempt', function () {
+        $staffId = Fx::staff();
+        $office = new AdminBrowser('10.0.0.30');
+
+        foreach (range(1, 9) as $try) {
+            $office->post('/admin/sign-in', ['email' => "someone{$try}@example.test", 'password' => 'guess']);
+        }
+
+        signInPassword($office, $staffId)->assertRedirect('/admin/sign-in/code');
+        $office->post('/admin/sign-in', ['email' => 'someone10@example.test', 'password' => 'guess']);
+
+        expect(AdminBrowser::formError(signInPassword($office, $staffId)))->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]));
+    });
+
+    it('refuses a staff member with no phone who is not a Super Admin: the password alone never picks a number', function () {
+        $staffId = Fx::staff();
+        DB::table('access.staff_users')->where('id', $staffId)->update(['phone' => null, 'phone_verified_at' => null]);
+
+        expect(AdminBrowser::formError(signInPassword(new AdminBrowser, $staffId)))->toBe((string) __('access::errors.sign_in_refused.detail'))
+            ->and(signInCodes())->toBe(0);
+    });
+
+    it('refuses the new-number step to someone whose code went to their own phone', function () {
+        $staffId = Fx::staff();
+        $phone = DB::table('access.staff_users')->where('id', $staffId)->value('phone');
+        $browser = new AdminBrowser;
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+
+        expect(AdminBrowser::formError($browser->post('/admin/sign-in/phone', ['phone' => '+966505551234'])))->toBe((string) __('access::errors.invalid_code.detail'))
+            ->and(signInCodes())->toBe(1)
+            ->and(DB::table('access.staff_users')->where('id', $staffId)->value('phone'))->toBe($phone);
+    });
+
+    it('counts wrong codes: after 5, even the right one is refused', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser;
+        signInPassword($browser, $staffId);
+        $code = RecordingSecurityMessages::installed()->lastCode();
+
+        foreach (range(1, 5) as $try) {
+            $browser->post('/admin/sign-in/code', ['code' => $code === '000000' ? '111111' : '000000']);
+        }
+
+        expect(AdminBrowser::formError($browser->post('/admin/sign-in/code', ['code' => $code])))->not->toBeNull()
+            ->and(signInWho($browser))->toBeNull();
+    });
+
+    it('gives the code step 15 minutes after the password', function (int $minutes, bool $signedIn) {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser;
+        signInPassword($browser, $staffId);
+
+        // A fresh code, so only the 15 minutes can refuse it.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(14));
+        $browser->post('/admin/sign-in/code/resend')->assertRedirect();
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes($minutes - 14));
+        $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()]);
+
+        expect(signInWho($browser))->toBe($signedIn ? $staffId : null);
+    })->with([
+        'at 14 minutes' => [14, true],
+        'at 16 minutes' => [16, false],
+    ]);
 
     it('refuses a disabled account after the right password, and ends its open session at once', function () {
         $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
         $browser = new AdminBrowser;
-        adminSignIn($browser, $staffId);
+        signInFully($browser, $staffId);
 
         app(DisableStaffHandler::class)->handle(new DisableStaff($staffId));
 
-        expect(adminWho($browser))->toBeNull()
-            ->and(AdminBrowser::formError(adminPassword($browser, $staffId)))->toBe((string) __('access::errors.sign_in_refused.detail'));
+        expect(signInWho($browser))->toBeNull()
+            ->and(AdminBrowser::formError(signInPassword($browser, $staffId)))->toBe((string) __('access::errors.sign_in_refused.detail'));
     });
 
     it('reads only the session and cache tables on a warm request', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
-        adminSignIn($browser, $staffId);
-        adminWho($browser);
+        signInFully($browser, $staffId);
+        signInWho($browser);
 
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $who = adminWho($browser);
+        $who = signInWho($browser);
         $queries = array_column(DB::getQueryLog(), 'query');
         DB::disableQueryLog();
 
@@ -231,42 +358,61 @@ describe('trusted browsers', function () {
     it('asks no code on a trusted browser for 30 days, and signing out keeps the trust', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
-        adminSignIn($browser, $staffId, trust: true);
+        signInFully($browser, $staffId, trust: true);
 
         expect($browser->cookie('touchwood_admin_trust'))->not->toBeNull()
             ->and(Fx::audits('access.staff_user.browser_trusted', $staffId))->toBe(1);
 
         $browser->post('/admin/sign-out')->assertRedirect('/admin/sign-in');
-        expect(adminWho($browser))->toBeNull()
+        expect(signInWho($browser))->toBeNull()
             ->and(Fx::audits('access.staff_user.signed_out', $staffId))->toBe(1);
 
-        $codes = adminCodes();
-        adminPassword($browser, $staffId)->assertRedirect('/admin');
+        $codes = signInCodes();
+        signInPassword($browser, $staffId)->assertRedirect('/admin');
 
-        expect(adminWho($browser))->toBe($staffId)
-            ->and(adminCodes())->toBe($codes);
+        $trustedEntry = DB::table('platform.audit_entries')->where('action', 'access.staff_user.signed_in')->orderByDesc('occurred_at')->orderByDesc('id')->value('changes');
+
+        expect(signInWho($browser))->toBe($staffId)
+            ->and(signInCodes())->toBe($codes)
+            ->and(Fx::audits('access.staff_user.signed_in', $staffId))->toBe(2)
+            ->and(json_decode((string) $trustedEntry, true))->toBe(['trusted_browser' => [null, true]]);
 
         $browser->post('/admin/sign-out');
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addDays(31));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addDays(29));
+        signInPassword($browser, $staffId)->assertRedirect('/admin');
 
-        adminPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        $browser->post('/admin/sign-out');
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addDays(2));
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+    });
+
+    it('keeps the trust in a cookie sent only to /admin, out of scripts\' reach, for 30 days', function () {
+        $browser = new AdminBrowser;
+        signInPassword($browser, Fx::staff());
+        $response = $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode(), 'trust_browser' => true]);
+
+        $cookie = collect($response->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === 'touchwood_admin_trust');
+
+        expect($cookie?->getPath())->toBe('/admin')
+            ->and($cookie?->isHttpOnly())->toBeTrue()
+            ->and($cookie?->getMaxAge())->toBeGreaterThan(29 * 86400)->toBeLessThanOrEqual(30 * 86400);
     });
 
     it('trusts only the browser the cookie came from, for its own staff member', function () {
         $first = Fx::staff();
         $browser = new AdminBrowser;
-        adminSignIn($browser, $first, trust: true);
+        signInFully($browser, $first, trust: true);
         $browser->post('/admin/sign-out');
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(2));
 
-        adminPassword($browser, Fx::staff())->assertRedirect('/admin/sign-in/code');
+        signInPassword($browser, Fx::staff())->assertRedirect('/admin/sign-in/code');
     });
 
     it('forgets every trusted browser when the account changes this way (spec §1.8)', function (bool $superAdmin, Closure $change) {
         $staffId = Fx::staff(superAdmin: $superAdmin);
-        adminSignIn(new AdminBrowser, $staffId, trust: true);
+        signInFully(new AdminBrowser, $staffId, trust: true);
         $other = new AdminBrowser('10.0.0.20');
-        adminSignIn($other, $staffId, trust: true);
+        signInFully($other, $staffId, trust: true);
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
 
         expect(DB::table('access.staff_trusted_browsers')->where('staff_user_id', $staffId)->count())->toBe(2);
@@ -286,9 +432,9 @@ describe('trusted browsers', function () {
         }],
         'a Super Admin revoked' => [true, function (string $id): void {
             Fx::staff(superAdmin: true);
-            app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin(adminEmail($id)));
+            app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin(signInEmail($id)));
         }],
-        'a Super Admin whose phone was reset' => [true, fn (string $id) => app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(adminEmail($id)))],
+        'a Super Admin whose phone was reset' => [true, fn (string $id) => app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(signInEmail($id)))],
     ]);
 });
 
@@ -296,60 +442,94 @@ describe('sessions end (spec §1.8)', function () {
     it('after 30 minutes idle', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
-        adminSignIn($browser, $staffId);
+        signInFully($browser, $staffId);
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(29));
-        expect(adminWho($browser))->toBe($staffId);
+        expect(signInWho($browser))->toBe($staffId);
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(31));
-        expect(adminWho($browser))->toBeNull();
+        expect(signInWho($browser))->toBeNull();
     });
 
     it('12 hours after signing in, however busy', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
-        adminSignIn($browser, $staffId);
+        signInFully($browser, $staffId);
 
         foreach (range(1, 35) as $step) {
             CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(20));
-            expect(adminWho($browser))->toBe($staffId);
+            expect(signInWho($browser))->toBe($staffId);
         }
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(21));
-        expect(adminWho($browser))->toBeNull();
+        expect(signInWho($browser))->toBeNull();
     });
 
     it('everywhere else when the password changes; this one stays', function () {
         $staffId = Fx::staff();
         $here = new AdminBrowser;
         $there = new AdminBrowser;
-        adminSignIn($here, $staffId, trust: true);
+        signInFully($here, $staffId, trust: true);
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
-        adminSignIn($there, $staffId);
+        signInFully($there, $staffId);
 
-        $here->post('/admin/account/password', ['current_password' => ADMIN_PASSWORD, 'password' => 'a brand new long password'])->assertRedirect();
+        $here->post('/admin/account/password', ['current_password' => SIGN_IN_PASSWORD, 'password' => 'a brand new long password'])->assertRedirect();
 
-        expect(adminWho($here))->toBe($staffId)
-            ->and(adminWho($there))->toBeNull()
-            ->and(DB::table('access.staff_trusted_browsers')->where('staff_user_id', $staffId)->exists())->toBeFalse();
+        expect(signInWho($here))->toBe($staffId)
+            ->and(signInWho($there))->toBeNull()
+            ->and(DB::table('access.staff_trusted_browsers')->where('staff_user_id', $staffId)->exists())->toBeFalse()
+            ->and(Fx::audits('access.staff_user.password_changed', $staffId))->toBe(1);
+    });
+
+    it('for good when the account is disabled, even once it is enabled again', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        $browser = new AdminBrowser;
+        signInFully($browser, $staffId);
+
+        // Disabled and enabled while this browser sends nothing.
+        app(DisableStaffHandler::class)->handle(new DisableStaff($staffId));
+        app(EnableStaffHandler::class)->handle(new EnableStaff($staffId));
+
+        expect(DB::table('access.staff_users')->where('id', $staffId)->value('status'))->toBe('ACTIVE')
+            ->and(signInWho($browser))->toBeNull();
+    });
+
+    it('half-way too: a sign-in waiting for its code ends when the password is reset', function () {
+        $staffId = Fx::staff();
+        $waiting = new AdminBrowser;
+        signInPassword($waiting, $staffId)->assertRedirect('/admin/sign-in/code');
+        $code = RecordingSecurityMessages::installed()->lastCode();
+
+        $other = new AdminBrowser;
+        $other->post('/admin/password/forgot', ['email' => signInEmail($staffId)]);
+        $other->post('/admin/password/reset/'.RecordingSecurityMessages::installed()->lastPasswordResetToken(), ['password' => 'a brand new long password'])->assertRedirect('/admin/sign-in');
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+        $codes = signInCodes();
+
+        expect(AdminBrowser::formError($waiting->post('/admin/sign-in/code/resend')))->toBe((string) __('access::errors.invalid_code.detail'))
+            ->and(signInCodes())->toBe($codes)
+            ->and(AdminBrowser::formError($waiting->post('/admin/sign-in/code', ['code' => $code])))->toBe((string) __('access::errors.invalid_code.detail'))
+            ->and(signInWho($waiting))->toBeNull();
     });
 
     it('everywhere after a reset by email link, which also forgets every trusted browser', function () {
         $staffId = Fx::staff();
         $trusted = new AdminBrowser;
-        adminSignIn($trusted, $staffId, trust: true);
+        signInFully($trusted, $staffId, trust: true);
         // Read once, so the session version is in the cache: the reset must replace it there.
-        expect(adminWho($trusted))->toBe($staffId);
+        expect(signInWho($trusted))->toBe($staffId);
 
         $other = new AdminBrowser;
-        $other->post('/admin/password/forgot', ['email' => adminEmail($staffId)])->assertRedirect();
+        $other->post('/admin/password/forgot', ['email' => signInEmail($staffId)])->assertRedirect();
         $token = RecordingSecurityMessages::installed()->lastPasswordResetToken();
         $other->post("/admin/password/reset/{$token}", ['password' => 'a brand new long password'])->assertRedirect('/admin/sign-in');
 
-        expect(adminWho($trusted))->toBeNull();
+        expect(signInWho($trusted))->toBeNull()
+            ->and(Fx::audits('access.staff_user.password_reset', $staffId))->toBe(1);
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
-        $trusted->post('/admin/sign-in', ['email' => adminEmail($staffId), 'password' => 'a brand new long password'])->assertRedirect('/admin/sign-in/code');
+        $trusted->post('/admin/sign-in', ['email' => signInEmail($staffId), 'password' => 'a brand new long password'])->assertRedirect('/admin/sign-in/code');
     });
 });
 
@@ -359,13 +539,13 @@ describe('limits on the way in', function () {
         $browser = new AdminBrowser;
 
         foreach (range(1, 4) as $request) {
-            $browser->post('/admin/password/forgot', ['email' => adminEmail($staffId)])->assertRedirect();
+            $browser->post('/admin/password/forgot', ['email' => signInEmail($staffId)])->assertRedirect();
         }
 
         expect(RecordingSecurityMessages::installed()->passwordResets)->toHaveCount(3);
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(61));
-        $browser->post('/admin/password/forgot', ['email' => adminEmail($staffId)]);
+        $browser->post('/admin/password/forgot', ['email' => signInEmail($staffId)]);
 
         expect(RecordingSecurityMessages::installed()->passwordResets)->toHaveCount(4);
     });
@@ -373,66 +553,145 @@ describe('limits on the way in', function () {
     it('resends a sign-in code no sooner than a minute later', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
-        adminPassword($browser, $staffId);
+        signInPassword($browser, $staffId);
 
         expect(AdminBrowser::formError($browser->post('/admin/sign-in/code/resend')))->not->toBeNull()
-            ->and(adminCodes())->toBe(1);
+            ->and(signInCodes())->toBe(1);
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
         $browser->post('/admin/sign-in/code/resend')->assertRedirect();
 
-        expect(adminCodes())->toBe(2);
+        expect(signInCodes())->toBe(2);
         $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
     });
 
     it('changes the password only with the current one, keeping sessions as they are otherwise', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
-        adminSignIn($browser, $staffId);
+        signInFully($browser, $staffId);
 
         $refused = $browser->post('/admin/account/password', ['current_password' => 'not my password', 'password' => 'a brand new long password']);
 
         expect(AdminBrowser::formError($refused))->not->toBeNull()
-            ->and(adminWho($browser))->toBe($staffId)
+            ->and(signInWho($browser))->toBe($staffId)
+            ->and(DB::table('access.staff_users')->where('id', $staffId)->value('session_version'))->toBe(0);
+    });
+
+    it('counts a wrong current password like a wrong password at sign-in', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser;
+        signInFully($browser, $staffId);
+
+        foreach (range(1, 5) as $try) {
+            $browser->post('/admin/account/password', ['current_password' => 'a guess '.$try, 'password' => 'a brand new long password']);
+        }
+
+        $right = $browser->post('/admin/account/password', ['current_password' => SIGN_IN_PASSWORD, 'password' => 'a brand new long password']);
+
+        expect(AdminBrowser::formError($right))->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]))
+            ->and(Fx::audits('access.staff_user.locked_out', $staffId))->toBe(1)
             ->and(DB::table('access.staff_users')->where('id', $staffId)->value('session_version'))->toBe(0);
     });
 
     it('asks a new password to follow the rules: 12 characters, not leaked', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
-        adminSignIn($browser, $staffId);
+        signInFully($browser, $staffId);
 
-        $short = $browser->post('/admin/account/password', ['current_password' => ADMIN_PASSWORD, 'password' => 'too short']);
-        $leaked = $browser->post('/admin/account/password', ['current_password' => ADMIN_PASSWORD, 'password' => FakeBreachList::LEAKED]);
+        $short = $browser->post('/admin/account/password', ['current_password' => SIGN_IN_PASSWORD, 'password' => 'too short']);
+        $leaked = $browser->post('/admin/account/password', ['current_password' => SIGN_IN_PASSWORD, 'password' => FakeBreachList::LEAKED]);
 
         expect(AdminBrowser::formError($short))->not->toBeNull()
             ->and(AdminBrowser::formError($leaked))->not->toBeNull()
-            ->and(adminWho($browser))->toBe($staffId);
+            ->and(signInWho($browser))->toBe($staffId);
     });
 });
 
 describe('password reset', function () {
     it('answers the same whether or not the email has an account, and sends only to an active one', function () {
         $browser = new AdminBrowser;
-        $known = $browser->post('/admin/password/forgot', ['email' => adminEmail(Fx::staff())]);
+        $known = $browser->post('/admin/password/forgot', ['email' => signInEmail(Fx::staff())]);
         $unknown = $browser->post('/admin/password/forgot', ['email' => 'nobody@example.test']);
-        $disabled = $browser->post('/admin/password/forgot', ['email' => adminEmail(Fx::staff(StaffStatus::Disabled))]);
+        $disabled = $browser->post('/admin/password/forgot', ['email' => signInEmail(Fx::staff(StaffStatus::Disabled))]);
 
         expect(AdminBrowser::flashed($known, 'status'))->toBe(AdminBrowser::flashed($unknown, 'status'))
             ->and(AdminBrowser::flashed($disabled, 'status'))->toBe(AdminBrowser::flashed($known, 'status'))
             ->and(RecordingSecurityMessages::installed()->passwordResets)->toHaveCount(1);
     });
 
-    it('works 30 minutes, once', function () {
+    it('works 30 minutes', function (int $minutes, bool $works) {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
-        $browser->post('/admin/password/forgot', ['email' => adminEmail($staffId)]);
+        $browser->post('/admin/password/forgot', ['email' => signInEmail($staffId)]);
         $token = RecordingSecurityMessages::installed()->lastPasswordResetToken();
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(31));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes($minutes));
+        $response = $browser->post("/admin/password/reset/{$token}", ['password' => 'a brand new long password']);
+
+        expect(AdminBrowser::formError($response))->toBe($works ? null : (string) __('access::errors.invalid_or_expired_link.detail'));
+    })->with([
+        'at 29 minutes' => [29, true],
+        'at 31 minutes' => [31, false],
+    ]);
+
+    it('works once', function () {
+        $browser = new AdminBrowser;
+        $browser->post('/admin/password/forgot', ['email' => signInEmail(Fx::staff())]);
+        $token = RecordingSecurityMessages::installed()->lastPasswordResetToken();
+
+        $browser->post("/admin/password/reset/{$token}", ['password' => 'a brand new long password'])->assertRedirect('/admin/sign-in');
+
+        expect(AdminBrowser::formError($browser->post("/admin/password/reset/{$token}", ['password' => 'another new long password'])))
+            ->toBe((string) __('access::errors.invalid_or_expired_link.detail'));
+    });
+
+    it('dies when the account is disabled or its email changes (review of step 3b)', function (bool $superAdmin, Closure $change) {
+        $staffId = $superAdmin ? Fx::staff(superAdmin: true) : Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        $browser = new AdminBrowser;
+        $browser->post('/admin/password/forgot', ['email' => signInEmail($staffId)]);
+        $token = RecordingSecurityMessages::installed()->lastPasswordResetToken();
+
+        $change($staffId);
 
         expect(AdminBrowser::formError($browser->post("/admin/password/reset/{$token}", ['password' => 'a brand new long password'])))
             ->toBe((string) __('access::errors.invalid_or_expired_link.detail'));
+    })->with([
+        'disabled, then enabled again' => [false, function (string $id): void {
+            app(DisableStaffHandler::class)->handle(new DisableStaff($id));
+            app(EnableStaffHandler::class)->handle(new EnableStaff($id));
+        }],
+        'a Super Admin revoked, then enabled again with a role' => [true, function (string $id): void {
+            Fx::staff(superAdmin: true);
+            app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin(signInEmail($id)));
+            app(EnableStaffHandler::class)->handle(new EnableStaff($id, Fx::change($id, ['sa'], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE]))));
+        }],
+        'a new email' => [false, function (string $id): void {
+            app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($id, 'moved@example.test'));
+            (new AdminBrowser)->post('/admin/email-change/'.RecordingSecurityMessages::installed()->lastEmailChangeToken())->assertRedirect('/admin/sign-in');
+
+            expect(signInEmail($id))->toBe('moved@example.test');
+        }],
+    ]);
+
+    it('sends the email only after the answer, so its timing tells nothing (review of step 3b)', function () {
+        $staffId = Fx::staff();
+
+        app(RequestStaffPasswordResetHandler::class)->handle(new RequestStaffPasswordReset(signInEmail($staffId)));
+
+        expect(RecordingSecurityMessages::installed()->passwordResets)->toBe([]);
+
+        defer()->invoke();
+
+        expect(RecordingSecurityMessages::installed()->passwordResets)->toHaveCount(1);
+    });
+
+    it('links to APP_URL, whatever host the request names', function () {
+        config(['app.url' => 'https://panel.touchwood.test']);
+        $browser = new AdminBrowser('127.0.0.1', ['HTTP_HOST' => 'attacker.example']);
+
+        $browser->post('/admin/password/forgot', ['email' => signInEmail(Fx::staff())]);
+
+        expect(RecordingSecurityMessages::installed()->passwordResets[0]['link'] ?? null)->toStartWith('https://panel.touchwood.test/admin/password/reset/');
     });
 });
 
@@ -440,7 +699,7 @@ describe('email links while signed in (amendment 31)', function () {
     it('signs the admin session out first, then accepts the invitation and signs the invitee in', function () {
         $adminId = Fx::staff();
         $browser = new AdminBrowser;
-        adminSignIn($browser, $adminId);
+        signInFully($browser, $adminId);
 
         app(InviteStaffHandler::class)->handle(new InviteStaff(
             'noura@example.test', 'Noura', 'Saleh', 'Store keeper', '1995-03-10', 'SA', null, '+966501111111', 'en',
@@ -449,20 +708,42 @@ describe('email links while signed in (amendment 31)', function () {
         $token = RecordingSecurityMessages::installed()->lastInvitationToken();
         $invitee = (string) DB::table('access.staff_users')->where('email', 'noura@example.test')->value('id');
 
-        $browser->post("/admin/invitation/{$token}", ['password' => ADMIN_PASSWORD, 'phone' => '+966501111111'])->assertRedirect("/admin/invitation/{$token}/code");
+        $browser->post("/admin/invitation/{$token}", ['password' => SIGN_IN_PASSWORD, 'phone' => '+966501111111'])->assertRedirect("/admin/invitation/{$token}/code");
 
-        expect(adminWho($browser))->toBeNull()
+        expect(signInWho($browser))->toBeNull()
             ->and(Fx::audits('access.staff_user.signed_out', $adminId))->toBe(1);
 
         $browser->post("/admin/invitation/{$token}/code", ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
 
-        expect(adminWho($browser))->toBe($invitee);
+        expect(signInWho($browser))->toBe($invitee)
+            ->and(Fx::audits('access.staff_user.signed_in', $invitee))->toBe(1);
+    });
+
+    it('signs the admin out at the code step too, when they signed in again in between', function () {
+        app(InviteStaffHandler::class)->handle(new InviteStaff(
+            'noura@example.test', 'Noura', 'Saleh', 'Store keeper', '1995-03-10', 'SA', null, '+966501111111', 'en',
+            AccessLevel::SelectedStores, [Fx::storeId('sa')], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE]),
+        ));
+        $token = RecordingSecurityMessages::installed()->lastInvitationToken();
+        $invitee = (string) DB::table('access.staff_users')->where('email', 'noura@example.test')->value('id');
+        $browser = new AdminBrowser;
+        $browser->post("/admin/invitation/{$token}", ['password' => SIGN_IN_PASSWORD, 'phone' => '+966501111111']);
+        $code = RecordingSecurityMessages::installed()->lastCode();
+
+        $adminId = Fx::staff();
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+        signInFully($browser, $adminId);
+
+        $browser->post("/admin/invitation/{$token}/code", ['code' => $code])->assertRedirect('/admin');
+
+        expect(signInWho($browser))->toBe($invitee)
+            ->and(Fx::audits('access.staff_user.signed_out', $adminId))->toBe(1);
     });
 
     it('signs the session out first, then confirms an email change', function () {
         $superAdmin = Fx::staff(superAdmin: true);
         $browser = new AdminBrowser;
-        adminSignIn($browser, $superAdmin);
+        signInFully($browser, $superAdmin);
         DB::table('access.staff_email_changes')->insert([
             'staff_user_id' => $superAdmin, 'new_email' => 'owner.new@example.test', 'token_hash' => hash('sha256', 'the-link'),
             'expires_at' => now()->addDay(), 'requested_by' => $superAdmin, 'created_at' => now(),
@@ -470,26 +751,111 @@ describe('email links while signed in (amendment 31)', function () {
 
         $browser->post('/admin/email-change/the-link')->assertRedirect('/admin/sign-in');
 
-        expect(adminEmail($superAdmin))->toBe('owner.new@example.test')
-            ->and(adminWho($browser))->toBeNull();
+        expect(signInEmail($superAdmin))->toBe('owner.new@example.test')
+            ->and(signInWho($browser))->toBeNull();
     });
 });
 
 describe('phones at sign-in', function () {
     it('asks a Super Admin whose phone was reset for a new number, and verifies it with the code (amendment 14)', function () {
         $superAdmin = Fx::staff(superAdmin: true);
-        app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(adminEmail($superAdmin)));
+        app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(signInEmail($superAdmin)));
         $browser = new AdminBrowser;
 
-        adminPassword($browser, $superAdmin)->assertRedirect('/admin/sign-in/phone');
+        signInPassword($browser, $superAdmin)->assertRedirect('/admin/sign-in/phone');
         $browser->post('/admin/sign-in/phone', ['phone' => '+966 50 777 7777'])->assertRedirect('/admin/sign-in/code');
         $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
 
         $row = DB::table('access.staff_users')->where('id', $superAdmin)->first();
 
-        expect(adminWho($browser))->toBe($superAdmin)
+        expect(signInWho($browser))->toBe($superAdmin)
             ->and($row?->phone)->toBe('+966507777777')
-            ->and($row?->phone_verified_at)->not->toBeNull();
+            ->and($row?->phone_verified_at)->not->toBeNull()
+            ->and(Fx::audits('access.staff_user.phone_verified', $superAdmin))->toBe(1);
+    });
+
+    it('lets only one browser give the Super Admin a new number', function () {
+        $superAdmin = Fx::staff(superAdmin: true);
+        app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(signInEmail($superAdmin)));
+        $first = new AdminBrowser;
+        $second = new AdminBrowser('10.0.0.40');
+        signInPassword($first, $superAdmin)->assertRedirect('/admin/sign-in/phone');
+        signInPassword($second, $superAdmin)->assertRedirect('/admin/sign-in/phone');
+
+        $second->post('/admin/sign-in/phone', ['phone' => '+966507777777']);
+        $second->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
+
+        expect(AdminBrowser::formError($first->post('/admin/sign-in/phone', ['phone' => '+966506666666'])))->toBe((string) __('access::errors.invalid_code.detail'))
+            ->and(DB::table('access.staff_users')->where('id', $superAdmin)->value('phone'))->toBe('+966507777777');
+    });
+
+    it('forgets a code on its way to a number that has since changed (review of step 3b)', function (Closure $change) {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser;
+        signInPassword($browser, $staffId);
+        $oldCode = RecordingSecurityMessages::installed()->lastCode();
+
+        $change($staffId);
+
+        expect(DB::table('access.staff_sign_in_codes')->where('staff_user_id', $staffId)->exists())->toBeFalse()
+            ->and(AdminBrowser::formError($browser->post('/admin/sign-in/code', ['code' => $oldCode])))->toBe((string) __('access::errors.invalid_code.detail'))
+            ->and(DB::table('access.staff_users')->where('id', $staffId)->value('phone'))->toBe('+966505550009');
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+        $browser->post('/admin/sign-in/code/resend')->assertRedirect();
+
+        expect(RecordingSecurityMessages::installed()->lastCode())->not->toBe($oldCode)
+            ->and(collect(RecordingSecurityMessages::installed()->codes)->last()['phone'] ?? null)->toBe('+966505550009');
+    })->with([
+        'by an admin' => fn (string $id) => app(UpdateStaffProfileHandler::class)->handle(
+            new UpdateStaffProfile($id, 'Staff', 'Tester', 'Tester', '1990-01-01', 'SA', null, '+966505550009', null),
+        ),
+        'by themselves, elsewhere' => function (string $id): void {
+            Fx::asSystem(function () use ($id): void {
+                Fx::actAsStaff($id);
+                app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550009'));
+                app(VerifyOwnPhoneChangeHandler::class)->handle(new VerifyOwnPhoneChange(RecordingSecurityMessages::installed()->lastCode()));
+            });
+        },
+    ]);
+
+    it('never lets a code bring back a number the account no longer has', function (?string $now) {
+        $staffId = Fx::staff();
+        $old = DB::table('access.staff_users')->where('id', $staffId)->value('phone');
+        $browser = new AdminBrowser;
+        signInPassword($browser, $staffId);
+
+        // Changed behind the handlers' back, so only the code step's own checks stand in the way.
+        DB::table('access.staff_users')->where('id', $staffId)->update(['phone' => $now, 'phone_verified_at' => null]);
+        $code = RecordingSecurityMessages::installed()->lastCode();
+
+        // A resend goes to the number the account has now, never to the one the first code went to.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+        $resend = $browser->post('/admin/sign-in/code/resend');
+        $lastPhone = collect(RecordingSecurityMessages::installed()->codes)->last()['phone'] ?? null;
+
+        expect($now === null ? AdminBrowser::formError($resend) : $lastPhone)->toBe($now ?? (string) __('access::errors.invalid_code.detail'))
+            ->and(AdminBrowser::formError($browser->post('/admin/sign-in/code', ['code' => $code])))->toBe((string) __('access::errors.invalid_code.detail'))
+            ->and(DB::table('access.staff_users')->where('id', $staffId)->value('phone'))->toBe($now)
+            ->and($now)->not->toBe($old);
+    })->with([
+        'another number' => ['+966505550010'],
+        'no number' => [null],
+    ]);
+
+    it('refuses in code a number taken while its code was on the way, before the unique index does', function () {
+        $superAdmin = Fx::staff(superAdmin: true);
+        app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(signInEmail($superAdmin)));
+        $browser = new AdminBrowser;
+        signInPassword($browser, $superAdmin);
+        $browser->post('/admin/sign-in/phone', ['phone' => '+966507777777'])->assertRedirect('/admin/sign-in/code');
+
+        DB::table('access.staff_users')->where('id', Fx::staff())->update(['phone' => '+966507777777']);
+        Fx::withoutStaffUniqueIndexes();
+
+        expect(AdminBrowser::formError($browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])))
+            ->toBe((string) __('access::errors.phone_already_in_use.detail'))
+            ->and(DB::table('access.staff_users')->where('id', $superAdmin)->value('phone'))->toBeNull();
     });
 
     it('sends the code to a number an admin entered, and the right code verifies it', function () {
@@ -497,7 +863,7 @@ describe('phones at sign-in', function () {
         DB::table('access.staff_users')->where('id', $staffId)->update(['phone' => '+966508888888', 'phone_verified_at' => null]);
         $browser = new AdminBrowser;
 
-        adminSignIn($browser, $staffId);
+        signInFully($browser, $staffId);
 
         expect(RecordingSecurityMessages::installed()->codes[0]['phone'])->toBe('+966508888888')
             ->and(DB::table('access.staff_users')->where('id', $staffId)->value('phone_verified_at'))->not->toBeNull();
@@ -505,10 +871,10 @@ describe('phones at sign-in', function () {
 
     it('refuses a new number another staff member uses', function () {
         $superAdmin = Fx::staff(superAdmin: true);
-        app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(adminEmail($superAdmin)));
+        app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(signInEmail($superAdmin)));
         $taken = (string) DB::table('access.staff_users')->where('id', Fx::staff())->value('phone');
         $browser = new AdminBrowser;
-        adminPassword($browser, $superAdmin);
+        signInPassword($browser, $superAdmin);
 
         expect(AdminBrowser::formError($browser->post('/admin/sign-in/phone', ['phone' => $taken])))
             ->toBe((string) __('access::errors.phone_already_in_use.detail'));
@@ -529,11 +895,24 @@ describe('what needs a session', function () {
         $token = RecordingSecurityMessages::installed()->lastInvitationToken();
         $browser = new AdminBrowser;
 
-        $browser->post("/admin/invitation/{$token}", ['password' => ADMIN_PASSWORD, 'phone' => '+966501112233']);
+        $browser->post("/admin/invitation/{$token}", ['password' => SIGN_IN_PASSWORD, 'phone' => '+966501112233']);
         $browser->post("/admin/invitation/{$token}/code", ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
 
-        expect(adminWho($browser))->toBe((string) DB::table('access.staff_users')->where('email', 'owner@example.test')->value('id'));
+        expect(signInWho($browser))->toBe((string) DB::table('access.staff_users')->where('email', 'owner@example.test')->value('id'));
     });
+});
+
+it('takes out every line where PostgreSQL repeats a value, keeping what went wrong', function () {
+    $message = "SQLSTATE[22P02]: Invalid text representation: 7 ERROR:  invalid input syntax for type integer: \"secret one\"\n"
+        ."DETAIL:  Failing row contains (secret two).\nHINT:  Check the value.\n"
+        ."CONTEXT:  unnamed portal parameter \$1 = 'secret three' (Connection: pgsql, SQL: update \"t\" set \"n\" = ?)";
+
+    $logged = QueryErrorLog::withoutValues($message);
+
+    expect($logged)->not->toContain('secret')
+        ->and($logged)->toContain('invalid input syntax for type integer')
+        ->and($logged)->toContain('HINT:  Check the value.')
+        ->and($logged)->toContain('(Connection: pgsql');
 });
 
 it('logs a failed query without its values (amendment 33)', function (Closure $fail) {
@@ -543,8 +922,10 @@ it('logs a failed query without its values (amendment 33)', function (Closure $f
         $fail();
     } catch (QueryException $e) {
         report($e);
-        $log->shouldHaveReceived('error')->once()->withArgs(fn (string $message): bool => ! str_contains($message, 'secret.person@example.test')
-            && ! str_contains($message, '+966509990000') && str_contains($message, 'SQLSTATE'));
+        // The message keeps what went wrong, never the values; the context holds only the class and code.
+        $log->shouldHaveReceived('error')->once()->withArgs(fn (string $message, array $context): bool => ! str_contains($message, 'secret.person@example.test')
+            && ! str_contains($message, '+966509990000') && str_contains($message, 'SQLSTATE') && str_contains($message, 'staff_users')
+            && array_keys($context) === ['exception', 'code']);
 
         return;
     }
@@ -556,4 +937,6 @@ it('logs a failed query without its values (amendment 33)', function (Closure $f
         DB::table('access.staff_users')->where('id', Fx::staff())->update(['email' => 'secret.person@example.test']);
         DB::table('access.staff_users')->where('id', Fx::staff())->update(['email' => 'secret.person@example.test', 'phone' => '+966509990000']);
     },
+    'a value of the wrong type' => fn () => DB::table('access.staff_users')->where('id', Fx::staff())->update(['date_of_birth' => 'secret.person@example.test +966509990000']),
+    'a number that is not one' => fn () => DB::table('access.staff_users')->where('id', Fx::staff())->update(['session_version' => 'secret.person@example.test +966509990000']),
 ]);

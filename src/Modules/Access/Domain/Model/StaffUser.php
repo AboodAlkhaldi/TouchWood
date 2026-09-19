@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Domain\Model;
 
 use DateTimeImmutable;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\Language;
@@ -52,6 +53,10 @@ final class StaffUser
      */
     public static function invite(string $id, EmailAddress $email, StaffProfile $profile, PhoneNumber $phone, Language $language, ?string $invitedBy, bool $superAdmin = false): self
     {
+        if ($invitedBy === $id) {
+            throw new InvalidAccessAttribute('invited_by', 'nobody invites themselves');
+        }
+
         return new self($id, $email, null, $profile, $phone, null, null, $language, StaffStatus::Invited, $superAdmin, $invitedBy);
     }
 
@@ -103,12 +108,15 @@ final class StaffUser
     }
 
     /**
-     * Only someone who accepted: an invited person's invitation is cancelled instead.
+     * Only someone who accepted: an invited person's invitation is cancelled instead. Every session
+     * ends for good: the session version moves on, so enabling them again brings none back (review
+     * of step 3b).
      */
     public function disable(): void
     {
         $this->requireStatus(StaffStatus::Active);
         $this->status = StaffStatus::Disabled;
+        $this->sessionVersion++;
         $this->markChanged('status');
     }
 

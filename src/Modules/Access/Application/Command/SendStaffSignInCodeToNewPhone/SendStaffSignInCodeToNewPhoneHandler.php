@@ -50,6 +50,11 @@ final readonly class SendStaffSignInCodeToNewPhoneHandler
                 throw new SignInRefused;
             }
 
+            // Still a Super Admin with no phone, under the same password (review of step 3b).
+            if (! $pending->stillFor($staff)) {
+                throw new InvalidCode(requestNewCode: true);
+            }
+
             // Refused when the number is entered, and again when the code comes back.
             if ($this->staff->phoneInUse($phone, $staff->id())) {
                 throw new PhoneAlreadyInUse;

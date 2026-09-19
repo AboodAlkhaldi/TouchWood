@@ -22,8 +22,12 @@ final class AdminBrowser
     /** @var array<string, string> name => decrypted value */
     private array $cookies = [];
 
+    /**
+     * @param  array<string, string>  $server  more of what the browser sends, such as HTTP_HOST
+     */
     public function __construct(
         private readonly string $ip = '127.0.0.1',
+        private readonly array $server = [],
     ) {}
 
     /**
@@ -97,7 +101,7 @@ final class AdminBrowser
             $cookies[$name] = encrypt(CookieValuePrefix::create($name, $key).$value, false);
         }
 
-        $response = call($method, $uri, $data, $cookies, [], ['REMOTE_ADDR' => $this->ip]);
+        $response = call($method, $uri, $data, $cookies, [], [...$this->server, 'REMOTE_ADDR' => $this->ip]);
 
         foreach ($response->headers->getCookies() as $cookie) {
             if ($cookie->isCleared()) {

@@ -275,29 +275,38 @@ password ─┬─ trusted browser ───────────────
   (`UseAdminSession`, before the `web` group starts the session): its limits and sign-out never
   touch a storefront session in the same browser. It lives in the `sessions` table like every
   session (PostgreSQL only). Signing in gives a new session id.
-- **The session ends** after 30 minutes idle, 12 hours after signing in however busy, when the
-  account is disabled, and when the password changes (`staff_users.session_version` is raised; the
+- **The session ends** after 30 minutes idle, 12 hours after signing in however busy, for good when
+  the account is disabled (enabling it again brings no session back), and when the password changes
+  (`staff_users.session_version` is raised; the
   cached permissions carry it, so a warm request reads only the `sessions` and `cache` tables — a
   test checks it). Changing one's
   own password keeps the session it was changed from.
 - **Wrong passwords** (`SignInLimits`): 5 for one account lock it for 15 minutes; 10 from one
-  address, across accounts, make it wait 15 minutes. The right password clears the account's count.
-  An unknown email is counted too and answered the same, so the answer tells a stranger nothing.
-  Keys hold a hash of the email or address.
+  address, across accounts, make it wait 15 minutes. Each attempt is counted *before* its password
+  is checked, so attempts sent at the same moment cannot all slip through; the right password
+  clears the account's count and gives the address that one attempt back. An unknown email is
+  counted too and answered the same, so the answer tells a stranger nothing. A wrong current
+  password when changing one's own counts the same way. Keys hold a hash of the email or address.
+- **The code step** lasts 15 minutes after the password and ends if the password changes meanwhile.
+  A code counts only for the number the account has now; changing the number drops a code already
+  sent. Only a Super Admin whose phone was reset chooses a number here; anyone else with no phone is
+  refused until an admin gives them one.
 - **A trusted browser** holds a random token in `touchwood_admin_trust` (only its hash is stored),
   for one staff member, 30 days. Signing out keeps it. It is forgotten when the account is disabled
   or revoked, the password is changed or reset, or the phone changes (by the person, an admin, or a
   Super Admin phone reset).
 - **Password reset** by an email link valid 30 minutes, at most 3 emails an hour per account; the
-  page says the same whether or not the email has an account. Using the link ends every session
-  and trusted browser.
+  page says the same whether or not the email has an account, and the email goes out after the
+  answer, so its timing tells nothing either. Using the link ends every session and trusted
+  browser; disabling or revoking the account, or changing its email, kills the link. Every staff
+  link is built on `APP_URL`, never on the host a request names.
 - **An email link opened while signed in** (an invitation, an email change) signs that admin session
   out first, then continues (amendment 31).
 - **Audited:** each sign-in, sign-out, lockout and browser trusted. Wrong passwords are counted,
   not logged one by one.
 - **A failed database query is logged without its values** (amendment 33): the connection masks
-  its bindings, and `App\Exceptions\QueryErrorLog` removes PostgreSQL's `DETAIL` line, which repeats
-  the row.
+  its bindings, and `App\Exceptions\QueryErrorLog` removes what PostgreSQL repeats in its own words:
+  the `DETAIL` and `CONTEXT` lines, and a value it could not read at the end of the error line.
 
 Every number here is a setting (`StaffSecuritySettings`), except the 15 minutes to enter the code.
 

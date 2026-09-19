@@ -63,10 +63,11 @@ final readonly class LaravelStaffSessions implements StaffSessions
         return $data['id'];
     }
 
-    public function beginSignIn(string $staffId, bool $needsPhone): void
+    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone): void
     {
         $this->session()->put(self::PENDING, [
             'id' => $staffId,
+            'version' => $sessionVersion,
             'needs_phone' => $needsPhone,
             'at' => CarbonImmutable::now()->getTimestamp(),
         ]);
@@ -76,7 +77,8 @@ final readonly class LaravelStaffSessions implements StaffSessions
     {
         $data = $this->session()->get(self::PENDING);
 
-        if (! is_array($data) || ! is_string($data['id'] ?? null) || ! is_int($data['at'] ?? null)) {
+        if (! is_array($data) || ! is_string($data['id'] ?? null) || ! is_int($data['version'] ?? null)
+            || ! is_int($data['at'] ?? null)) {
             return null;
         }
 
@@ -86,7 +88,7 @@ final readonly class LaravelStaffSessions implements StaffSessions
             return null;
         }
 
-        return new PendingSignIn($data['id'], ($data['needs_phone'] ?? false) === true);
+        return new PendingSignIn($data['id'], $data['version'], ($data['needs_phone'] ?? false) === true);
     }
 
     public function start(string $staffId, int $sessionVersion): void

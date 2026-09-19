@@ -46,8 +46,19 @@ final readonly class ResendStaffSignInCodeHandler
                 throw new SignInRefused;
             }
 
-            $phone = $this->tokens->phoneCode($staff->id(), PhoneCodePurpose::SignIn)->phone ?? $staff->phone()
-                ?? throw new InvalidCode(requestNewCode: true);
+            if (! $pending->stillFor($staff)) {
+                throw new InvalidCode(requestNewCode: true);
+            }
+
+            // The account's number as it is now; only a Super Admin choosing one gets the number
+            // they entered (review of step 3b: never a number an admin has since replaced).
+            $phone = $pending->needsPhone
+                ? $this->tokens->phoneCode($staff->id(), PhoneCodePurpose::SignIn)?->phone
+                : $staff->phone();
+
+            if ($phone === null) {
+                throw new InvalidCode(requestNewCode: true);
+            }
 
             $this->verification->send($staff->id(), $phone, PhoneCodePurpose::SignIn, $staff->language(), CarbonImmutable::now());
         });

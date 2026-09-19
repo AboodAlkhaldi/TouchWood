@@ -56,7 +56,7 @@ final readonly class StaffAccountController
     public function changePassword(OwnPasswordRequest $request, ChangeOwnStaffPasswordHandler $handler): RedirectResponse
     {
         try {
-            $handler->handle(new ChangeOwnStaffPassword($request->text('current_password'), $request->text('password')));
+            $handler->handle(new ChangeOwnStaffPassword($request->text('current_password'), $request->text('password'), (string) $request->ip()));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }

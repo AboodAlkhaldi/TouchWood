@@ -86,6 +86,7 @@ final readonly class RevokeSuperAdminHandler
             $this->tokens->deleteInvitation($staff->id());
             $this->tokens->deletePhoneCode($staff->id());
             $this->tokens->deleteEmailChange($staff->id());
+            $this->tokens->deletePasswordReset($staff->id());
             $this->tokens->forgetTrustedBrowsers($staff->id());
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.super_admin_revoked', $before, $staff, $staff->pullChanges()));
             $this->grants->refresh($staff->id());
