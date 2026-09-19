@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Infrastructure\Security;
+
+use Illuminate\Contracts\Hashing\Hasher;
+use Illuminate\Contracts\Validation\UncompromisedVerifier;
+use Modules\Access\Application\Security\PasswordPolicy;
+use Modules\Access\Domain\Exception\PasswordTooWeak;
+
+/**
+ * Laravel's own pieces: the verifier behind `Password::uncompromised()` (it reports a failed request
+ * and treats the password as not found, so an outage never blocks anyone), and the configured
+ * hasher.
+ */
+final readonly class LaravelPasswordPolicy implements PasswordPolicy
+{
+    public function __construct(
+        private UncompromisedVerifier $breaches,
+        private Hasher $hasher,
+    ) {}
+
+    public function hashNew(string $password, int $minLength): string
+    {
+        if (mb_strlen($password) < $minLength) {
+            throw new PasswordTooWeak(PasswordTooWeak::TOO_SHORT, $minLength);
+        }
+
+        if (! $this->breaches->verify(['value' => $password, 'threshold' => 0])) {
+            throw new PasswordTooWeak(PasswordTooWeak::LEAKED, $minLength);
+        }
+
+        return $this->hasher->make($password);
+    }
+}

@@ -79,6 +79,12 @@ final readonly class DatabaseRoleAssignmentRepository implements RoleAssignmentR
         }
     }
 
+    public function delete(string $staffId): void
+    {
+        // Stores, exceptions and their stores cascade.
+        $this->db->table(self::ASSIGNMENTS)->where('staff_user_id', $staffId)->delete();
+    }
+
     /**
      * @param  list<stdClass>  $rows
      * @return list<RoleAssignment>

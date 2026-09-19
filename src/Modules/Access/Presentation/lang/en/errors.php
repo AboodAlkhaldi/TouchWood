@@ -48,4 +48,36 @@ return [
         'title' => 'Super Admins only',
         'detail' => 'Only a Super Admin can create, change or assign an admin role.',
     ],
+    'staff_email_in_use' => [
+        'title' => 'Email already used',
+        'detail' => 'Another account already uses this email.',
+    ],
+    'phone_already_in_use' => [
+        'title' => 'Phone number already used',
+        'detail' => 'Another account already uses this phone number.',
+    ],
+    'invalid_or_expired_link' => [
+        'title' => 'Link not valid',
+        'detail' => 'This link is not valid or has expired. Ask for a new one.',
+    ],
+    'invalid_code' => [
+        'title' => 'Wrong code',
+        'detail' => 'The code is wrong or has expired.',
+    ],
+    'code_request_too_soon' => [
+        'title' => 'Please wait',
+        'detail' => 'A new code can be sent in :seconds seconds.',
+    ],
+    'password_too_weak' => [
+        'title' => 'Choose another password',
+        'detail' => 'Use at least :min characters, and a password that has not appeared in a data breach.',
+    ],
+    'last_super_admin' => [
+        'title' => 'The last Super Admin',
+        'detail' => 'At least one active Super Admin must remain.',
+    ],
+    'invalid_staff_status' => [
+        'title' => 'Not possible now',
+        'detail' => 'This cannot be done while the staff member is in this state.',
+    ],
 ];

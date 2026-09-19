@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Modules\Access\Support;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use LogicException;
 use Modules\Access\Application\Authorization\GrantsReader;
@@ -34,15 +35,26 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final class AccessFixtures
 {
+    /**
+     * A staff row written directly, complete as an invitation leaves it (and, unless invited, as
+     * accepting it leaves it: a password and a verified phone).
+     */
     public static function staff(StaffStatus $status = StaffStatus::Active, bool $superAdmin = false, string $firstName = 'Staff'): string
     {
         $id = strtolower((string) Str::ulid());
+        $accepted = $status !== StaffStatus::Invited;
 
         DB::table('access.staff_users')->insert([
             'id' => $id,
             'email' => "{$id}@example.test",
+            'password' => $accepted ? Hash::make('a long enough password') : null,
             'first_name' => $firstName,
             'last_name' => 'Member',
+            'job_title' => 'Tester',
+            'date_of_birth' => '1990-01-01',
+            'country' => 'SA',
+            'phone' => self::phone(),
+            'phone_verified_at' => $accepted ? now() : null,
             'locale' => 'en',
             'status' => $status->value,
             'is_super_admin' => $superAdmin,
@@ -51,6 +63,24 @@ final class AccessFixtures
         ]);
 
         return $id;
+    }
+
+    /**
+     * A phone number no other staff member in this test has.
+     */
+    public static function phone(): string
+    {
+        return '+9665'.str_pad((string) random_int(0, 99_999_999), 8, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Drops the staff email and phone unique indexes for the rest of this test (its transaction
+     * rolls the drop back), so a test proves the code refuses a taken value, not the database.
+     */
+    public static function withoutStaffUniqueIndexes(): void
+    {
+        DB::statement('DROP INDEX access.staff_users_email_unique');
+        DB::statement('DROP INDEX access.staff_users_phone_unique');
     }
 
     /**
