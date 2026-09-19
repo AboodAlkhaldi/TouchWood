@@ -1,7 +1,7 @@
 # Access — Module Specification
 
-**Status:** **DRAFT** — every question is answered (§9); awaiting the owner's approval. No code is
-written until it is approved.
+**Status:** **APPROVED** by the owner, 2026-09-19 (PR #24). Changes from here on are amendments and
+need the owner's agreement (§9.4).
 **Tier:** 2 (identity). **Depends on:** Platform. **Needs from shared plumbing:** nothing — it
 publishes events but consumes none, so `processed_events` and `outbox_messages` (handoff §4.5)
 are still not needed. **Build stage:** 2.
@@ -375,7 +375,7 @@ which are stored in the database.
 | `CustomerDto` | `id`, `accountType`, `status`, `firstName`, `lastName`, `email`, `phone`, `emailVerified`, `phoneVerified`, `locale`, `deletionScheduledFor` |
 | `StaffDto` | `id`, `firstName`, `lastName`, `email`, `phone`, `locale`, `status`, `isSuperAdmin` |
 | `AddressDto` | `id`, `customerId`, `storeId`, `label`, `recipientName`, `phone`, `fields`, `isDefault`, `formatted` (the store's display template applied) |
-| `PermissionDefinitionDto` | `name`, `labelAr`, `labelEn`, `reserved`, `audience` (`ROLE`, `EVERY_STAFF`, `EVERY_CUSTOMER`, `EVERY_GUEST`) |
+| `PermissionDefinitionDto` | `name`, `audience` (`ROLE`, `EVERY_STAFF`, `EVERY_CUSTOMER`, `EVERY_GUEST`), `reserved`; its names in Arabic and English are the module's translations at `labelKey()` — `{module}::permissions.{resource}.{action}` (amendment 1, §9.4) |
 | `StaffNotificationPreferenceDto` | `topic`, `email`, `panel` |
 
 Enums: `AccountType`, `CustomerStatus`, `StaffStatus`, `AccessLevel`, `PermissionAudience`,
@@ -391,7 +391,8 @@ Enums: `AccountType`, `CustomerStatus`, `StaffStatus`, `AccessLevel`, `Permissio
   `SettingsRegistry` (its settings, §1.8), `MediaUsages` (staff avatars), `ReservedPaths` (Platform
   already reserves `admin` and `api`).
 - **Platform additions in this stage:** Platform publishes its permission list in its public
-  contract (names, labels, reserved flag), and its interim `SystemActorContext` and
+  contract (`PlatformPermissions`: names and reserved flags, with the names in Arabic and English in
+  `platform::permissions` — amendment 1), and its interim `SystemActorContext` and
   `SystemOnlyAuthorizer` are removed.
 
 ---
@@ -410,7 +411,8 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `SendEmailVerification` / `VerifyEmail` | every customer | `access.account.verify` | Global |
 | `RequestPhoneCode` — first phone or a change | every customer | `access.account.verify` | Global |
 | `VerifyPhone` — completes adding or changing | every customer | `access.account.verify` | Global |
-| `SignIn` / `SignOut` — signing in cancels a pending deletion | every guest / every customer | `access.session.sign_in` | Global |
+| `SignIn` — cancels a pending deletion | every guest | `access.session.sign_in` | Global |
+| `SignOut` | every customer | `access.session.sign_out` (amendment 2, §9.4) | Global |
 | `RequestPasswordReset` / `ResetPassword` | every guest | `access.session.reset_password` | Global |
 | `ChangePassword` | every customer | `access.account.update` | Global |
 | `UpdateProfile` — names, language | every customer | `access.account.update` | Global |
@@ -755,3 +757,10 @@ AccessError
 ### 9.3 Still open
 
 None.
+
+### 9.4 Amendments during the build — each needs the owner's agreement
+
+| # | Where | Change | Why | Status |
+|---|---|---|---|---|
+| 1 | §2.4 `PermissionDefinitionDto` | The DTO carries no `labelAr`/`labelEn`; a permission's names are the declaring module's translations at `{module}::permissions.{resource}.{action}`, read only when a screen shows them. A test fails if any permission lacks either language. | Passing both labels at declaration would load every module's permission names on every request. | Proposed in the step 1 PR |
+| 2 | §3.1 `SignOut` | A customer signs out under its own permission, `access.session.sign_out` (every customer), not `access.session.sign_in`. | Each permission has exactly one audience; signing in belongs to guests, signing out to customers. | Proposed in the step 1 PR |

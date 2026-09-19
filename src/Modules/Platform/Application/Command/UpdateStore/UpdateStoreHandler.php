@@ -20,12 +20,13 @@ use Modules\Platform\Domain\ValueObject\TaxRate;
 use Modules\Platform\Domain\ValueObject\Timezone;
 use Modules\Platform\Domain\ValueObject\TranslatedText;
 use Modules\Platform\Public\Events\StoreUpdated;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
 final readonly class UpdateStoreHandler
 {
-    public const string PERMISSION = 'platform.store.update';
+    public const string PERMISSION = PlatformPermissions::STORE_UPDATE;
 
     public function __construct(
         private Authorizer $authorizer,
