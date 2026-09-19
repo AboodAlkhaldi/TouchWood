@@ -65,6 +65,17 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §4.1 | Store and language cookies last one year | Platform decisions review |
 | 2026-09-18 | §5.5 | Every stored media id has a `RESTRICT` foreign key to `media`, never an id inside JSON | Final repairs review, owner decision |
 | 2026-09-18 | §15 | Items to decide when hosting is chosen: database users for the audit log, trusted proxies, CDN purge | Repairs review, owner decision |
+| 2026-09-18 | §3 | `spatie/laravel-permission` not used: roles, permissions and store-scoped assignments are Access's own tables | Access questions, owner decision |
+| 2026-09-18 | §7.2, §7.3 | Registration asks first and last name; sign-in by email and password only; the email never changes; phones from any country, unique | Access questions, owner decision |
+| 2026-09-18 | §7.5 | One role per staff member; nobody grants more than they hold; Super Admins only by console command | Access questions, owner decision |
+| 2026-09-19 | §7.5 | Saved roles are shared (editing changes all holders); editing from a staff member's page makes a personal role; a guest's cart merges on sign-in | Access questions, owner decision |
+| 2026-09-18 | §7.6, §7.7 | Staff 2FA by SMS code with a 30-day trusted browser; staff disabled, never deleted; the default security numbers | Access questions, owner decision |
+| 2026-09-19 | §7.2, §7.9 | Company registration continues in B2B as one wizard; deletion with a 14-day grace period | Access questions, owner decision |
+| 2026-09-19 | §7.8 | One address scheme for all three stores now (16 fields, six required), picked by country; each store keeps its own copy; an order needs an address | Access spec review, owner decision |
+| 2026-09-19 | §7.5 | Customers belong to their registration store; staff see only their stores' customers and staff; Super Admins created and revoked only by console, never the last one | Access spec review, owner decision |
+| 2026-09-19 | §7.5 | A staff member's stores apply to every action in their role, with per-action exceptions | Access spec review, owner decision |
+| 2026-09-19 | §7.8 | A customer orders from any store but needs an address in that store first; several addresses per store | Access spec review, owner decision |
+| 2026-09-18 | §13.3, §17 | Access sends its own security messages until Ops; a frontend foundation stage follows Access | Access questions, owner decision |
 | 2026-09-18 | §5.3 | Scheduled work is queued as a job, so its audit source is JOB | Repairs review, owner decision |
 | 2026-09-18 | §7.5 | An actor id is never a secret: a guest's id is kept apart from whatever proves the cart is theirs | Repairs review, owner decision |
 
@@ -137,13 +148,16 @@ Memorize these. Most defects in a system like this are one of these being violat
 | Media | S3-compatible object storage + CDN |
 
 Key packages: `spatie/laravel-data` (presentation layer only — DTOs crossing a module boundary
-are plain readonly classes, §4.3), `spatie/laravel-model-states`,
-`spatie/laravel-permission`, `spatie/laravel-query-builder`,
+are plain readonly classes, §4.3), `spatie/laravel-model-states`, `spatie/laravel-query-builder`,
 `spatie/laravel-translatable`, `brick/math`, `intervention/image`.
 
 `brick/money` is **not** used: it carries its own currency list with built-in exponents, while
 §5.1 requires the exponent to come from our `currencies` row. `Money` is our own value object;
 `brick/math` gives it exact arithmetic.
+
+`spatie/laravel-permission` is **not** used (owner, 2026-09-18): the store scope lives on each role
+assignment (§7.5), which that package cannot express. Access keeps roles, permissions and
+assignments in its own tables.
 
 `spatie/laravel-medialibrary` is **not** used: it attaches each file to another module's
 Eloquent model, which §4.3 forbids. Media is Platform's own table (§5.5).
@@ -495,12 +509,20 @@ register (email + password) → email verification link
 
 Ordering requires **both** email and phone verified.
 
+Registration also asks the first and last name. Customers sign in with **email and password
+only**; a forgotten password is reset by an email link. **The email never changes**: a customer
+who needs another one registers again (owner, 2026-09-18).
+
 Account type (`INDIVIDUAL` | `COMPANY`) is chosen at registration and **never changes**.
 No upgrade, no downgrade, from any state, in either direction. Do not build a transition.
+The registration flow differs by type: a company goes on to enter its company data and documents,
+which B2B owns (§8.1) — Access creates the account, B2B the application, shown as one wizard
+(owner, 2026-09-19).
 
 ### 7.3 Phone
 
-One phone per account. Never null once set. Changing it:
+One phone per account. Never null once set. Any country's number, stored in international
+format, and **unique across customers** (owner, 2026-09-18). Changing it:
 
 ```
 customers.phone, customers.phone_verified_at
@@ -548,7 +570,14 @@ in the **application layer**, not in controllers. Deny by default.
 **seeded**. It is the only actor that sees every store and the only one that can create
 admins and set their store scope.
 
-**Store access lives on the role assignment, not the user:**
+**A customer belongs to the store they registered in** (their home store, fixed); they shop in
+every store and land in the last one they used after signing in. A store's staff see that store's
+customers and staff; a multi-store admin sees their stores'; only a Super Admin sees everyone
+(owner, 2026-09-19).
+
+**Store access lives on the role assignment, not the user** — chosen once for all of a staff
+member's actions, and any single action can have its own stores for that person (owner,
+2026-09-19):
 
 ```
 role_assignments
@@ -560,6 +589,13 @@ role_assignments
 This is how an admin can own KSA and Egypt and have no authority over UAE, and how their
 staff inherit the same boundary.
 
+**One role per staff member** (owner, 2026-09-18/19). Roles are **saved roles**, shared by every
+staff member who holds them: editing a saved role changes it for all of them. Editing a role from a
+staff member's own page gives that person a **personal role**, and nobody else changes. **Nobody
+grants more than they hold**: a role can contain only the author's permissions, an assignment only
+the author's stores. Super Admins are created only by a console command on the server; more than
+one may exist.
+
 **Admin navigation is derived from the permission set**, never hardcoded. A staff member
 with catalog permissions only sees catalog tabs.
 
@@ -569,7 +605,8 @@ setting). Access can also answer "which stores may this actor do this in", for a
 
 **Actors** (owner, 2026-09-18): staff, customer, guest (browses and keeps a cart, with no
 favourites; the cart moves to the account when they register), integration (a machine, such as a
-payment webhook) and the system. Every actor id is a ULID, and an id is never a secret: a guest's
+payment webhook) and the system. A guest's cart moves to the account when they register and merges
+into it when they sign in (owner, 2026-09-19). Every actor id is a ULID, and an id is never a secret: a guest's
 id is safe to keep in the audit log forever, while whatever proves the cart is theirs (an encrypted
 cookie, or an app's token stored only as a hash) is kept apart from it. A person's permission is checked when they start an action; a queued job then acts as the
 system on behalf of that person, and the audit log records who asked.
@@ -580,7 +617,9 @@ Admin creates the record → the system emails an expiring invitation link → t
 member sets their own password. The admin never knows it. Invitations can be cancelled and
 resent.
 
-**Two-factor authentication for staff is in v1.**
+**Two-factor authentication for staff is in v1**: an SMS code after the password, and a browser
+can be trusted for 30 days (owner, 2026-09-18). A staff member who leaves is **disabled, never
+deleted** — the audit log names them forever.
 
 Staff profile carries: first name, last name, job title, date of birth, email, phone,
 country, address, avatar. Plus **per-staff notification preferences** — new orders,
@@ -590,7 +629,12 @@ company applications, low stock, campaign expiry — each toggleable for email a
 
 Session authentication. Session policy, lockout thresholds and OTP parameters are
 configurable per store; defaults are provisional until the SMS provider is chosen and may
-be tuned then.
+be tuned then. The defaults (owner, 2026-09-18): passwords at least 8 characters for customers and
+12 for staff, checked against known leaked passwords; 5 wrong passwords lock an account for 15
+minutes; customers stay signed in 30 days with "remember me", otherwise 2 hours idle; staff 30
+minutes idle and 12 hours at most; SMS codes of 6 digits valid 5 minutes, resent after 60 seconds,
+at most 5 an hour, dead after 5 wrong tries; the email verification link lasts 24 hours, a password
+reset link 60 minutes, a staff invitation 72 hours.
 
 ### 7.8 Addresses
 
@@ -608,13 +652,21 @@ store_address_formats
 └── display_template               ← rendering on the order and the shipping label
 ```
 
-**The per-store formats are still owed by the owner.** Build the configuration mechanism;
-seed KSA with the Saudi National Address format (building number, street, district,
-city, postal code, additional number) and flag the other two.
+**Address scheme (owner, 2026-09-19).** The customer first picks the country, from the stores'
+countries only; that country's store scheme appears. For now all three stores share one scheme:
+country, administrative area (region, governorate or emirate), city, district, street, building,
+unit, floor, postal code, additional number, PO box, short address, landmark, additional
+information, and a map pin (latitude, longitude). Required: country, administrative area, city,
+district, street, building. Each store keeps its own copy, so a country's scheme can change later
+as data. An address is not asked at registration, but an order needs one **in the store being
+ordered from**: a KSA customer ordering from UAE adds a UAE address first. A customer keeps several
+addresses per store.
 
 ### 7.9 Account deletion
 
-**Anonymize, never hard delete.**
+**Anonymize, never hard delete.** The customer asks from their account, confirming with their
+password (staff may do it on request). The account is locked at once and anonymized 14 days later;
+signing in during those 14 days cancels it (owner, 2026-09-19).
 
 - The account can no longer log in.
 - Customer personal fields are overwritten: name → "Deleted customer", email → an
@@ -1171,6 +1223,10 @@ offers, Jeddah branch opening.
 
 Notifications, newsletters, subscribers, reports, exports.
 
+**Security messages** — email verification, SMS codes, staff invitations, password resets — are
+sent by Access until Ops exists, behind an interface Ops then implements, so the switch is one
+binding (owner, 2026-09-18).
+
 **Notifications are event-driven.** Every notification is a queued listener on an event a
 module already publishes, resolved against the recipient's stored locale. There is no
 central notification matrix document — each module's specification lists its events, and the
@@ -1251,7 +1307,6 @@ Example roles: Owner · Catalog manager · Order fulfilment · Company accounts 
 | Carrier list and rate tables | Shipping |
 | SMS provider | Access (OTP), Ops |
 | Email provider and sending domain | Access, Ops |
-| Per-store address formats | Access, Shipping |
 | Old database dump | Migration |
 
 ### 15.2 Deferred to their build stage
@@ -1320,6 +1375,8 @@ that is the signal to stop.
 ```
 STAGE 1   Platform      stores, currencies, tax, settings, media, audit
 STAGE 2   Access        identity, auth, verification, RBAC, staff, addresses, 2FA
+STAGE 2b  Frontend      Inertia + React + shadcn with SSR; auth pages, admin sign-in,
+          foundation    Platform's admin screens
 STAGE 3   B2B           company lifecycle
 ──────── everything above depends on nothing external ────────
 STAGE 4   Catalog       BLOCKED on the external provider schema
