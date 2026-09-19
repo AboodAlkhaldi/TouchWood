@@ -62,14 +62,13 @@ final readonly class SignInLimits
     /**
      * The password was wrong: the attempt stays counted, and a count at its limit locks.
      *
-     * @return bool whether it locked the account
+     * @return array{account: bool, address: bool} what it locked just now, each to be audited
      */
-    public function failed(string $email, string $ip): bool
+    public function failed(string $email, string $ip): array
     {
         [$address, $account] = $this->limits($email, $ip);
-        $this->lockAtLimit(...$address);
 
-        return $this->lockAtLimit(...$account);
+        return ['address' => $this->lockAtLimit(...$address), 'account' => $this->lockAtLimit(...$account)];
     }
 
     /**

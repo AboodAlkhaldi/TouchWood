@@ -31,4 +31,5 @@ return [
         'action' => 'Choose a new password',
     ],
     'phone_code' => 'Your verification code is :code. Do not share it with anyone.',
+    'sign_in_code' => 'Your admin panel sign-in code is :code. If you did not try to sign in, change your password now.',
 ];

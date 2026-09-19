@@ -6,7 +6,8 @@ namespace Modules\Access\Application\Security;
 
 /**
  * SMS codes. A code has only a million values, so it is stored as a keyed hash (HMAC with the
- * application key): a copy of the database alone cannot be searched for it.
+ * application key): a copy of the database alone cannot be searched for it. The same keyed hash
+ * names an IP address in the audit log (StaffAudit::addressLocked), which has too few values too.
  */
 interface Codes
 {

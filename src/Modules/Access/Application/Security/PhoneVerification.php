@@ -66,8 +66,11 @@ final readonly class PhoneVerification
             $now,
         ));
 
-        // The code never enters an event or a queued job (spec §2.3).
-        $this->db->afterCommit(fn () => $this->messages->phoneCode($phone->value, $language->value, $code));
+        // The code never enters an event or a queued job (spec §2.3). A sign-in code comes with its
+        // own warning that the password was used (amendment 34).
+        $this->db->afterCommit(fn () => $purpose === PhoneCodePurpose::SignIn
+            ? $this->messages->staffSignInCode($phone->value, $language->value, $code)
+            : $this->messages->phoneCode($phone->value, $language->value, $code));
     }
 
     /**

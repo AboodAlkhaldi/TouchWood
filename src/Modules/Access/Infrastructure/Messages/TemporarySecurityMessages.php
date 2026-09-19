@@ -41,4 +41,9 @@ final readonly class TemporarySecurityMessages implements SecurityMessages
     {
         $this->sms->send($phone, (string) $this->translator->get('access::messages.phone_code', ['code' => $code], $locale));
     }
+
+    public function staffSignInCode(string $phone, string $locale, string $code): void
+    {
+        $this->sms->send($phone, (string) $this->translator->get('access::messages.sign_in_code', ['code' => $code], $locale));
+    }
 }

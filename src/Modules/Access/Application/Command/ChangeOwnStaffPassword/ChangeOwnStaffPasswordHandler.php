@@ -9,6 +9,7 @@ use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\Codes;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Security\SignInLimits;
 use Modules\Access\Application\Session\StaffSessions;
@@ -32,6 +33,7 @@ final readonly class ChangeOwnStaffPasswordHandler
         private StaffTokenRepository $tokens,
         private PasswordPolicy $passwords,
         private SignInLimits $limits,
+        private Codes $codes,
         private StaffSecuritySettings $settings,
         private StaffSessions $sessions,
         private GrantsReader $grants,
@@ -51,8 +53,18 @@ final readonly class ChangeOwnStaffPasswordHandler
         $this->limits->begin($email, $command->ip);
 
         if (! $this->passwords->matches($command->currentPassword, $staff->passwordHash())) {
-            if ($this->limits->failed($email, $command->ip)) {
-                $this->db->transaction(fn () => $this->platform->recordAudit(StaffAudit::event('access.staff_user.locked_out', $staff)));
+            $locked = $this->limits->failed($email, $command->ip);
+
+            if ($locked['account'] || $locked['address']) {
+                $this->db->transaction(function () use ($locked, $staff, $command): void {
+                    if ($locked['account']) {
+                        $this->platform->recordAudit(StaffAudit::event('access.staff_user.locked_out', $staff));
+                    }
+
+                    if ($locked['address']) {
+                        $this->platform->recordAudit(StaffAudit::addressLocked($this->codes->hash('sign-in-address', $command->ip)));
+                    }
+                });
             }
 
             throw new InvalidAccessAttribute('current_password', 'not the current password');

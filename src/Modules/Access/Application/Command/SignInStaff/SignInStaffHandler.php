@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\Codes;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Application\Security\SignInLimits;
@@ -40,6 +41,7 @@ final readonly class SignInStaffHandler
         private StaffUserRepository $staff,
         private PasswordPolicy $passwords,
         private SignInLimits $limits,
+        private Codes $codes,
         private TrustedBrowsers $trusted,
         private PhoneVerification $verification,
         private StaffSessions $sessions,
@@ -58,8 +60,19 @@ final readonly class SignInStaffHandler
         $staff = $this->account($command->email);
 
         if (! $this->passwords->matches($command->password, $staff?->passwordHash())) {
-            if ($this->limits->failed($command->email, $command->ip) && $staff !== null) {
-                $this->db->transaction(fn () => $this->platform->recordAudit(StaffAudit::event('access.staff_user.locked_out', $staff)));
+            $locked = $this->limits->failed($command->email, $command->ip);
+
+            // Lockouts are audited, the wrong passwords before them only counted (amendment 32).
+            if ($locked['account'] || $locked['address']) {
+                $this->db->transaction(function () use ($locked, $staff, $command): void {
+                    if ($locked['account'] && $staff !== null) {
+                        $this->platform->recordAudit(StaffAudit::event('access.staff_user.locked_out', $staff));
+                    }
+
+                    if ($locked['address']) {
+                        $this->platform->recordAudit(StaffAudit::addressLocked($this->codes->hash('sign-in-address', $command->ip)));
+                    }
+                });
             }
 
             throw new InvalidCredentials;

@@ -132,6 +132,8 @@ final class AccessServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        self::requireRealMailer($this->app);
+
         $presentation = dirname(__DIR__).'/Presentation';
 
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
@@ -190,6 +192,23 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->booted(fn () => $catalog->verify());
 
         $this->carryPermissionChangesOnMigrate();
+    }
+
+    /**
+     * Invitation and password reset links go by email. A production server with no real mailer —
+     * Laravel's default is `log` — would write them to the log file and send nothing, so it refuses
+     * to start, as the `log` SMS driver refuses to send (owner's decision, 2026-09-19).
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function requireRealMailer(Application $app): void
+    {
+        $mailer = $app->make('config')->get('mail.default');
+        $name = is_string($mailer) ? $mailer : '';
+
+        if ($app->environment('production') && in_array($name, ['', 'log', 'array'], true)) {
+            throw new InvalidArgumentException('MAIL_MAILER is "'.$name.'": invitation and password reset links would be written to the log, not sent. Production never starts without a real mailer.');
+        }
     }
 
     /**
