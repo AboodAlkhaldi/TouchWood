@@ -74,6 +74,33 @@ final readonly class GrantRules
     }
 
     /**
+     * The staff member acting on their own account. The system, even in a job, has no own account.
+     */
+    public function currentStaffId(): string
+    {
+        $actor = $this->actors->current();
+
+        if ($actor->type !== ActorType::Staff || $actor->id === null) {
+            throw new Unauthorized(AccessPermissions::OWN_ACCOUNT_UPDATE);
+        }
+
+        return $actor->id;
+    }
+
+    /**
+     * Only the server's console: never a person, not even a Super Admin, and never a job queued on
+     * someone's behalf — so a hijacked panel session cannot make or remove a Super Admin (spec §1.6).
+     */
+    public function requireConsole(string $permission): void
+    {
+        $actor = $this->actors->current();
+
+        if ($actor->type !== ActorType::System || $actor->requestedBy !== null) {
+            throw new Unauthorized($permission);
+        }
+    }
+
+    /**
      * Each action may go into a role of this level, and the author holds it.
      *
      * @param  list<string>  $permissions
