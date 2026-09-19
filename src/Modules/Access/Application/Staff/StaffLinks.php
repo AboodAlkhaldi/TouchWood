@@ -13,4 +13,6 @@ interface StaffLinks
     public function invitation(string $token): string;
 
     public function emailChange(string $token): string;
+
+    public function passwordReset(string $token): string;
 }

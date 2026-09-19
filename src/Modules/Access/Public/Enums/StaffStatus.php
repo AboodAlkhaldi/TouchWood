@@ -10,11 +10,14 @@ namespace Modules\Access\Public\Enums;
  */
 enum StaffStatus: string
 {
-    /** Invited, has not set a password yet. Holds no permission. */
+    /** Not registered yet: invited, has not accepted. Holds no permission. */
     case Invited = 'INVITED';
 
     case Active = 'ACTIVE';
 
-    /** Left, or stopped. Holds no permission; can be enabled again. */
+    /** Accepted once, now stopped (left, or suspended). Holds no permission; can be enabled again. */
     case Disabled = 'DISABLED';
+
+    /** An invitation withdrawn for good: final; the email and phone are free for someone else. */
+    case Cancelled = 'CANCELLED';
 }

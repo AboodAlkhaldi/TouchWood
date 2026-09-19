@@ -13,6 +13,7 @@ use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffNotFound;
+use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\PhoneCodePurpose;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -20,7 +21,7 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
 /**
- * A changed phone ends every trusted browser — that part arrives with staff sign-in (step 3b).
+ * A changed phone ends every trusted browser (spec §1.8).
  */
 final readonly class VerifyOwnPhoneChangeHandler
 {
@@ -30,6 +31,7 @@ final readonly class VerifyOwnPhoneChangeHandler
         private Authorizer $authorizer,
         private GrantRules $rules,
         private StaffUserRepository $staff,
+        private StaffTokenRepository $tokens,
         private PhoneVerification $verification,
         private PlatformApi $platform,
         private Connection $db,
@@ -57,6 +59,7 @@ final readonly class VerifyOwnPhoneChangeHandler
             $before = clone $staff;
             $staff->verifyPhone($phone, $now);
             $this->staff->update($staff);
+            $this->tokens->forgetTrustedBrowsers($staff->id());
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.phone_changed', $before, $staff, $staff->pullChanges()));
 
             return null;

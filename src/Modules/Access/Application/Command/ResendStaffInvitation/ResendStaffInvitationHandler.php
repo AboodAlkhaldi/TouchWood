@@ -4,22 +4,16 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Command\ResendStaffInvitation;
 
-use Carbon\CarbonImmutable;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
-use Modules\Access\Application\Security\SecretTokens;
-use Modules\Access\Application\Settings\StaffSecuritySettings;
-use Modules\Access\Application\Staff\StaffLinks;
-use Modules\Access\Application\Staff\StaffMapper;
+use Modules\Access\Application\Staff\Invitations;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
-use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
-use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
@@ -34,10 +28,7 @@ final readonly class ResendStaffInvitationHandler
         private StaffUserRepository $staff,
         private RoleAssignmentRepository $assignments,
         private GrantsReader $grants,
-        private StaffTokenRepository $tokens,
-        private StaffSecuritySettings $settings,
-        private SecurityMessages $messages,
-        private StaffLinks $links,
+        private Invitations $invitations,
         private PlatformApi $platform,
         private Connection $db,
     ) {}
@@ -64,12 +55,8 @@ final readonly class ResendStaffInvitationHandler
                 throw new InvalidStaffStatus($target->status());
             }
 
-            $invitation = SecretTokens::issue();
-            $this->tokens->putInvitation($target->id(), $invitation['hash'], CarbonImmutable::now()->addHours($this->settings->invitationHours()), $author->staffId);
-            $this->tokens->deletePhoneCode($target->id());
+            $this->invitations->send($target, $author->staffId);
             $this->platform->recordAudit(StaffAudit::event('access.staff_user.invitation_resent', $target));
-
-            $this->db->afterCommit(fn () => $this->messages->staffInvitation(StaffMapper::toDto($target), $this->links->invitation($invitation['token'])));
         });
     }
 }

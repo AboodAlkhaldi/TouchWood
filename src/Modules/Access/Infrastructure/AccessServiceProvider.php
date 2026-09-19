@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Access\Infrastructure;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Database\Events\NoPendingMigrations;
 use Illuminate\Http\Client\Factory as HttpFactory;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
@@ -21,6 +24,7 @@ use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Application\Query\RoleReader;
 use Modules\Access\Application\Security\Codes;
 use Modules\Access\Application\Security\PasswordPolicy;
+use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Application\Staff\StaffLinks;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
@@ -35,17 +39,27 @@ use Modules\Access\Infrastructure\Eloquent\DatabaseRoleReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffUserRepository;
+use Modules\Access\Infrastructure\Http\LaravelStaffSessions;
+use Modules\Access\Infrastructure\Http\RequestActor;
+use Modules\Access\Infrastructure\Http\RequestActorContext;
 use Modules\Access\Infrastructure\Media\StaffAvatarUsage;
 use Modules\Access\Infrastructure\Messages\LogSmsGateway;
 use Modules\Access\Infrastructure\Messages\TemporarySecurityMessages;
 use Modules\Access\Infrastructure\Messages\UrlStaffLinks;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
+use Modules\Access\Infrastructure\Queue\CancelExpiredSuperAdminInvitationsJob;
 use Modules\Access\Infrastructure\Security\HmacCodes;
 use Modules\Access\Infrastructure\Security\LaravelPasswordPolicy;
 use Modules\Access\Infrastructure\Security\LoggedBreachList;
+use Modules\Access\Presentation\Console\CancelSuperAdminInvitationCommand;
 use Modules\Access\Presentation\Console\CreateSuperAdminCommand;
+use Modules\Access\Presentation\Console\ResendSuperAdminInvitationCommand;
 use Modules\Access\Presentation\Console\ResetSuperAdminPhoneCommand;
 use Modules\Access\Presentation\Console\RevokeSuperAdminCommand;
+use Modules\Access\Presentation\Http\Middleware\IdentifyRequestActor;
+use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
+use Modules\Access\Presentation\Http\Middleware\RequireStaff;
+use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Contracts\SecurityMessages;
@@ -98,14 +112,21 @@ final class AccessServiceProvider extends ServiceProvider
             default => throw new InvalidArgumentException('ACCESS_SMS_DRIVER names no SMS driver Access has; only "log" exists until the provider is chosen.'),
         });
 
-        // Replaces Platform's interim authorizer (spec §2.5). Scoped: it depends on who is acting.
-        // Until staff sign-in (step 3) the interim ActorContext still reports the system for a web
-        // request, so the system may act only outside web requests, as before.
+        // Who is acting (spec §2.5): a web request's session names them, else a guest; outside a web
+        // request the system. Scoped, never instance(): Platform wraps this binding so a queued job
+        // acts as the system for whoever queued it.
+        $this->app->scoped(RequestActor::class);
+        $this->app->scoped(ActorContext::class, fn (Application $app): ActorContext => new RequestActorContext(
+            $app->make(RequestActor::class),
+            ! $app->runningInConsole(),
+        ));
+        $this->app->scoped(StaffSessions::class, LaravelStaffSessions::class);
+
+        // The real permission check (spec §2.5). Scoped: it depends on who is acting.
         $this->app->scoped(Authorizer::class, fn (Application $app): Authorizer => new RoleAuthorizer(
             $app->make(ActorContext::class),
             $app->make(InMemoryPermissionCatalog::class),
             $app->make(GrantsReader::class),
-            $app->runningInConsole(),
         ));
     }
 
@@ -117,13 +138,37 @@ final class AccessServiceProvider extends ServiceProvider
         $this->loadTranslationsFrom($presentation.'/lang', 'access');
         $this->loadViewsFrom($presentation.'/views', 'access');
 
+        // Every web request starts as a guest, so no route ever runs as the system.
+        $this->app->make(HttpKernel::class)->pushMiddleware(IdentifyRequestActor::class);
+
+        $router = $this->app->make(Router::class);
+        $router->aliasMiddleware(UseAdminSession::ALIAS, UseAdminSession::class);
+        $router->aliasMiddleware(IdentifyStaff::ALIAS, IdentifyStaff::class);
+        $router->aliasMiddleware(RequireStaff::ALIAS, RequireStaff::class);
+
+        if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom($presentation.'/routes.php');
+        }
+
         $this->app->make(SettingsRegistry::class)->define('access', ...StaffSecuritySettings::definitions());
         // Staff avatars are Platform media: deleting one leaves its staff member without it.
         $this->app->make(MediaUsages::class)->register('access', StaffAvatarUsage::class);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([CreateSuperAdminCommand::class, RevokeSuperAdminCommand::class, ResetSuperAdminPhoneCommand::class]);
+            $this->commands([
+                CreateSuperAdminCommand::class,
+                RevokeSuperAdminCommand::class,
+                ResetSuperAdminPhoneCommand::class,
+                ResendSuperAdminInvitationCommand::class,
+                CancelSuperAdminInvitationCommand::class,
+            ]);
         }
+
+        // A Super Admin invitation left unaccepted is cancelled and freed (amendment 30). Scheduled
+        // work is queued as a job, never command() or call() (owner's decision, 2026-09-18).
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $schedule->job(CancelExpiredSuperAdminInvitationsJob::class)->everyTenMinutes()->onOneServer();
+        });
 
         $catalog = $this->app->make(InMemoryPermissionCatalog::class);
         $catalog->declare('access', ...AccessPermissions::definitions());

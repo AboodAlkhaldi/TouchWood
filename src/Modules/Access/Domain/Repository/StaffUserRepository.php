@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Domain\Repository;
 
+use DateTimeImmutable;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Model\StaffUser;
@@ -25,19 +26,29 @@ interface StaffUserRepository
     public function find(string $id): ?StaffUser;
 
     /**
-     * The staff member with this email, ignoring case. Locks the row.
+     * The staff member with this email, ignoring case — a cancelled account no longer has it
+     * (amendment 29). Locks the row.
      */
     public function byEmail(EmailAddress $email): ?StaffUser;
 
     /**
-     * Whether another staff member uses this email, ignoring case.
+     * Whether another staff member uses this email, ignoring case; a cancelled account does not.
      */
     public function emailInUse(EmailAddress $email, ?string $exceptStaffId = null): bool;
 
     /**
-     * Whether another staff member uses this phone (owner's decision, 2026-09-19).
+     * Whether another staff member uses this phone (owner's decision, 2026-09-19); a cancelled
+     * account does not.
      */
     public function phoneInUse(PhoneNumber $phone, ?string $exceptStaffId = null): bool;
+
+    /**
+     * Invited Super Admins whose last invitation was sent before the cutoff, or who have none
+     * (amendment 30). No lock: each is locked again when cancelled.
+     *
+     * @return list<string>
+     */
+    public function superAdminInvitationsSentBefore(DateTimeImmutable $cutoff): array;
 
     /**
      * The Super Admins who have accepted their invitation, locked, so two revokes queue up.

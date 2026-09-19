@@ -103,10 +103,9 @@ A change that alters nothing writes no audit entry and sends no event. Not every
 four parts: only a person's action is audited, so the system's variants job and stuck-image sweep
 write no audit entry, and only handlers whose data is cached invalidate a cache.
 
-**Permission checks are Access's** (`RoleAuthorizer`, since Access step 2). Platform's interim
-`SystemActorContext` still reports the system for every request until staff sign-in (Access step 3),
-so the authorizer lets the system act only outside web requests: console commands, seeders,
-scheduled tasks and queued jobs. Nothing is accidentally open to staff or customers. Platform's own
+**Permission checks and "who is acting" are Access's** (`RoleAuthorizer` since Access step 2, its
+`ActorContext` since step 3b). A web request acts as whoever its session names, else as a guest;
+only console commands, seeders and queued jobs act as the system. Platform's own
 permissions are listed in `PlatformPermissions`, each with its reserved flag and whether it is
 store-free (media) or per store.
 

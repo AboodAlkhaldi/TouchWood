@@ -13,6 +13,7 @@ use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Application\Security\SecretTokens;
+use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
@@ -35,6 +36,7 @@ final readonly class ConfirmStaffInvitationHandler
         private StaffTokenRepository $tokens,
         private PhoneVerification $verification,
         private GrantsReader $grants,
+        private StaffSessions $sessions,
         private PlatformApi $platform,
         private Dispatcher $events,
         private Connection $db,
@@ -77,6 +79,10 @@ final readonly class ConfirmStaffInvitationHandler
             $this->grants->refresh($staff->id());
 
             $this->events->dispatch(new StaffActivated((string) Str::uuid(), $staff->id(), $now));
+
+            // Password and phone code, both just given: they go straight in (owner, 2026-09-19).
+            $this->sessions->start($staff->id(), $staff->sessionVersion());
+            $this->platform->recordAudit(StaffAudit::event('access.staff_user.signed_in', $staff, ['trusted_browser' => false]));
 
             return null;
         });

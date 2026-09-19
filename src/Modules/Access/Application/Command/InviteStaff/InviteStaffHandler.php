@@ -12,24 +12,19 @@ use Modules\Access\Application\Command\ChangeStaffRole\ActionStores;
 use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRole;
 use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
-use Modules\Access\Application\Security\SecretTokens;
-use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Application\Staff\Avatars;
-use Modules\Access\Application\Staff\StaffLinks;
-use Modules\Access\Application\Staff\StaffMapper;
+use Modules\Access\Application\Staff\Invitations;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Model\RoleAssignment;
 use Modules\Access\Domain\Model\StaffUser;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
-use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Domain\ValueObject\StaffProfile;
 use Modules\Access\Domain\ValueObject\StoreChoice;
-use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 
@@ -50,13 +45,10 @@ final readonly class InviteStaffHandler
         private Authorizer $authorizer,
         private GrantRules $rules,
         private StaffUserRepository $staff,
-        private StaffTokenRepository $tokens,
         private NotificationPreferenceRepository $preferences,
         private ChangeStaffRoleHandler $roles,
-        private StaffSecuritySettings $settings,
         private Avatars $avatars,
-        private SecurityMessages $messages,
-        private StaffLinks $links,
+        private Invitations $invitations,
         private PlatformApi $platform,
         private Connection $db,
     ) {}
@@ -89,7 +81,7 @@ final readonly class InviteStaffHandler
                 throw new PhoneAlreadyInUse;
             }
 
-            $staff = StaffUser::invite($this->staff->nextId(), $email, $profile, $phone, $language);
+            $staff = StaffUser::invite($this->staff->nextId(), $email, $profile, $phone, $language, $author->staffId);
             $staff->changeAvatar($command->avatarMediaId);
             $staff->pullChanges();
             $this->staff->add($staff);
@@ -105,11 +97,7 @@ final readonly class InviteStaffHandler
                 $command->personalRole,
             ));
 
-            $invitation = SecretTokens::issue();
-            $this->tokens->putInvitation($staff->id(), $invitation['hash'], CarbonImmutable::now()->addHours($this->settings->invitationHours()), $author->staffId);
-
-            // The link never enters an event or a queued job (spec §2.3).
-            $this->db->afterCommit(fn () => $this->messages->staffInvitation(StaffMapper::toDto($staff), $this->links->invitation($invitation['token'])));
+            $this->invitations->send($staff, $author->staffId);
 
             return $staff->id();
         });
