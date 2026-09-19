@@ -10,6 +10,7 @@ use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Public\Dto\CurrencyDto;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Platform\Public\Dto\TranslatedTextDto;
+use Shared\Infrastructure\Cache\VersionedCache;
 
 /**
  * Every store and currency, loaded in two queries and kept in the shared cache until a

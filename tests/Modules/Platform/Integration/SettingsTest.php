@@ -7,6 +7,8 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Application\Settings\InvalidSettingDefinition;
@@ -67,6 +69,13 @@ function setSetting(string $key, ?string $storeCode, mixed $value): void
 
 beforeEach(function () {
     seed(PlatformSeeder::class);
+    // A module that defines settings declares the permissions that change them, as every real
+    // module does in its provider (Access spec §2.2).
+    app(PermissionCatalog::class)->declare(
+        'testing',
+        new PermissionDefinitionDto('testing.settings.update'),
+        new PermissionDefinitionDto('testing.maintenance.update'),
+    );
     defineTestSettings();
 });
 
