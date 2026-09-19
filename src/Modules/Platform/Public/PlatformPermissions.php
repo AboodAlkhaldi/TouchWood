@@ -37,23 +37,28 @@ final class PlatformPermissions
     public const string AUDIT_VIEW = 'platform.audit.view';
 
     /**
-     * @return array<string, bool> each permission, and whether it is reserved for Super Admins
+     * Each permission, whether it is reserved for Super Admins, and whether it is store-free: it
+     * concerns nothing that belongs to one store, so its handler checks it with
+     * PermissionScope::global() (owner's decision, 2026-09-19). The others are per store.
+     *
+     * @return array<string, array{reserved: bool, storeFree: bool}>
      */
     public static function all(): array
     {
         return [
-            self::STORE_CREATE => true,
-            self::STORE_UPDATE => false,
-            self::STORE_VIEW => false,
-            self::CURRENCY_CREATE => true,
-            self::CURRENCY_UPDATE => true,
-            self::SETTINGS_VIEW => false,
-            self::SETTINGS_UPDATE => false,
-            self::MEDIA_UPLOAD => false,
-            self::MEDIA_UPDATE => false,
-            self::MEDIA_DELETE => false,
-            self::MEDIA_VARIANTS_GENERATE => true,
-            self::AUDIT_VIEW => false,
+            self::STORE_CREATE => ['reserved' => true, 'storeFree' => true],
+            self::STORE_UPDATE => ['reserved' => false, 'storeFree' => false],
+            self::STORE_VIEW => ['reserved' => false, 'storeFree' => false],
+            self::CURRENCY_CREATE => ['reserved' => true, 'storeFree' => true],
+            self::CURRENCY_UPDATE => ['reserved' => true, 'storeFree' => true],
+            self::SETTINGS_VIEW => ['reserved' => false, 'storeFree' => false],
+            // A global setting is checked with PermissionScope::allStores().
+            self::SETTINGS_UPDATE => ['reserved' => false, 'storeFree' => false],
+            self::MEDIA_UPLOAD => ['reserved' => false, 'storeFree' => true],
+            self::MEDIA_UPDATE => ['reserved' => false, 'storeFree' => true],
+            self::MEDIA_DELETE => ['reserved' => false, 'storeFree' => true],
+            self::MEDIA_VARIANTS_GENERATE => ['reserved' => true, 'storeFree' => true],
+            self::AUDIT_VIEW => ['reserved' => false, 'storeFree' => false],
         ];
     }
 }

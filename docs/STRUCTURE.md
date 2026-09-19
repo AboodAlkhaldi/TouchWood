@@ -168,8 +168,12 @@ src/Shared/
 │                         Authorizer · PermissionScope · Unauthorized
 │                         ActorContext · Actor · ActorType · CorrelationId
 └── Infrastructure/
-    └── Persistence/      BelongsToStore · StoreScope
+    ├── Persistence/      BelongsToStore · StoreScope
+    └── Cache/            VersionedCache
 ```
+
+`VersionedCache` moved here from Platform when Access needed it for staff permissions (owner,
+2026-09-19): every module that caches follows the same never-stale rule. 18 classes.
 
 The error renderer (`ProblemDetails`) and the correlation-id middleware are framework glue and live
 in `app/Http` (owner, 2026-09-18); only the correlation id's Context key stays in the kernel.

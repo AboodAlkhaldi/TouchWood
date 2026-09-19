@@ -6,6 +6,7 @@ namespace Modules\Access\Application\Permission;
 
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionAudience;
+use Modules\Access\Public\Enums\PermissionKind;
 
 /**
  * Every permission Access checks (Access spec §3). Their names in Arabic and English are in
@@ -72,35 +73,50 @@ final class AccessPermissions
         $guest = PermissionAudience::EveryGuest;
         $customer = PermissionAudience::EveryCustomer;
         $staff = PermissionAudience::EveryStaff;
+        // A person's own account belongs to no store (spec §3: "Global").
+        $storeFree = PermissionKind::Global;
 
         return [
-            new PermissionDefinitionDto(self::ACCOUNT_REGISTER, $guest),
-            new PermissionDefinitionDto(self::SESSION_SIGN_IN, $guest),
-            new PermissionDefinitionDto(self::SESSION_RESET_PASSWORD, $guest),
-            new PermissionDefinitionDto(self::STAFF_ACCEPT_INVITATION, $guest),
+            new PermissionDefinitionDto(self::ACCOUNT_REGISTER, $guest, kind: $storeFree),
+            new PermissionDefinitionDto(self::SESSION_SIGN_IN, $guest, kind: $storeFree),
+            new PermissionDefinitionDto(self::SESSION_RESET_PASSWORD, $guest, kind: $storeFree),
+            new PermissionDefinitionDto(self::STAFF_ACCEPT_INVITATION, $guest, kind: $storeFree),
 
-            new PermissionDefinitionDto(self::ACCOUNT_VERIFY, $customer),
-            new PermissionDefinitionDto(self::ACCOUNT_UPDATE, $customer),
-            new PermissionDefinitionDto(self::ACCOUNT_DELETE, $customer),
+            new PermissionDefinitionDto(self::ACCOUNT_VERIFY, $customer, kind: $storeFree),
+            new PermissionDefinitionDto(self::ACCOUNT_UPDATE, $customer, kind: $storeFree),
+            new PermissionDefinitionDto(self::ACCOUNT_DELETE, $customer, kind: $storeFree),
+            // An address belongs to one store's country (spec §1.9).
             new PermissionDefinitionDto(self::ADDRESS_MANAGE, $customer),
-            new PermissionDefinitionDto(self::SESSION_SIGN_OUT, $customer),
+            new PermissionDefinitionDto(self::SESSION_SIGN_OUT, $customer, kind: $storeFree),
 
-            new PermissionDefinitionDto(self::OWN_ACCOUNT_UPDATE, $staff),
+            new PermissionDefinitionDto(self::OWN_ACCOUNT_UPDATE, $staff, kind: $storeFree),
 
             new PermissionDefinitionDto(self::STAFF_INVITE),
             new PermissionDefinitionDto(self::STAFF_UPDATE),
             new PermissionDefinitionDto(self::STAFF_ASSIGN_ROLE),
             new PermissionDefinitionDto(self::STAFF_DISABLE),
             new PermissionDefinitionDto(self::STAFF_VIEW),
-            new PermissionDefinitionDto(self::ROLE_MANAGE),
+            // Roles are store-neutral; editing a held role still needs every holder's stores (§1.5).
+            new PermissionDefinitionDto(self::ROLE_MANAGE, kind: $storeFree),
             new PermissionDefinitionDto(self::CUSTOMER_VIEW),
             new PermissionDefinitionDto(self::CUSTOMER_BLOCK),
             new PermissionDefinitionDto(self::CUSTOMER_DELETE),
             new PermissionDefinitionDto(self::ADDRESS_FORMAT_UPDATE),
             new PermissionDefinitionDto(self::SETTINGS_UPDATE),
 
-            new PermissionDefinitionDto(self::SUPER_ADMIN_MANAGE, reserved: true),
-            new PermissionDefinitionDto(self::ACCOUNT_ANONYMIZE, reserved: true),
+            new PermissionDefinitionDto(self::SUPER_ADMIN_MANAGE, reserved: true, kind: $storeFree),
+            new PermissionDefinitionDto(self::ACCOUNT_ANONYMIZE, reserved: true, kind: $storeFree),
         ];
+    }
+
+    /**
+     * The management actions: only an admin role may hold them, so staff manage no roles and no
+     * people (owner's decision, 2026-09-19). Viewing staff is not one of them.
+     *
+     * @return list<string>
+     */
+    public static function adminOnly(): array
+    {
+        return [self::STAFF_INVITE, self::STAFF_UPDATE, self::STAFF_ASSIGN_ROLE, self::STAFF_DISABLE, self::ROLE_MANAGE];
     }
 }

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\Platform\Infrastructure\Eloquent;
+namespace Shared\Infrastructure\Cache;
 
 use Closure;
 use Illuminate\Cache\DatabaseStore;
@@ -11,7 +11,8 @@ use Illuminate\Database\Connection;
 use Illuminate\Support\Str;
 
 /**
- * A cached snapshot that can never be served stale.
+ * A cached snapshot that can never be served stale. In the kernel because every module that caches
+ * follows this rule (owner, 2026-09-19): Platform's stores and settings, Access's permissions.
  *
  * Snapshots are stored under the current version; invalidating replaces the version.
  *
