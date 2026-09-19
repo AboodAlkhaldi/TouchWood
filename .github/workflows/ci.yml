@@ -15,8 +15,11 @@ jobs:
           POSTGRES_USER: touchwood
           POSTGRES_PASSWORD: secret
           POSTGRES_DB: touchwood_test
+        # pg_isready without a user asks as "root", which this server does not have: the log then
+        # fills with "role root does not exist".
         options: >-
-          --health-cmd pg_isready --health-interval 10s
+          --health-cmd "pg_isready -U touchwood -d touchwood_test"
+          --health-interval 10s
           --health-timeout 5s --health-retries 5
         ports: ['5432:5432']
 
@@ -36,11 +39,16 @@ jobs:
           extensions: pdo_pgsql, pgsql, intl, bcmath, mbstring, gd, exif, fileinfo
           coverage: none
 
+      # --no-scripts: composer's post-autoload-dump boots Laravel (package:discover), and there is
+      # no .env yet. The environment comes first, then the packages are discovered.
       - name: Install dependencies
-        run: composer install --prefer-dist --no-interaction --no-progress
+        run: composer install --prefer-dist --no-interaction --no-progress --no-scripts
 
       - name: Prepare environment
-        run: cp .env.example .env && php artisan key:generate
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan package:discover --ansi
 
       # Order matters: style, then types, then BOUNDARIES, then tests.
       # Deptrac is blocking. A boundary violation fails the build even if

@@ -93,6 +93,13 @@ it('never starts in production without a real mailer, which would log every link
     'a developer\'s machine, log' => ['local', 'log', false],
 ]);
 
+it('lets a checkout with no .env yet run: composer install discovers packages before one exists', function () {
+    app()->detectEnvironment(fn (): string => 'production');
+    config(['mail.default' => 'log', 'app.key' => '']);
+
+    expect(fn () => AccessServiceProvider::requireRealMailer(app()))->not->toThrow(InvalidArgumentException::class);
+});
+
 it('stops a production application at boot while the mailer is log', function () {
     // A real boot, in its own process: the check must run when the application starts.
     $boot = fn (string $mailer) => Process::path(base_path())
@@ -104,6 +111,14 @@ it('stops a production application at boot while the mailer is log', function ()
     expect($refused->failed())->toBeTrue()
         ->and($refused->output().$refused->errorOutput())->toContain('MAIL_MAILER is "log"')
         ->and($boot('smtp')->successful())->toBeTrue();
+
+    // A checkout with no .env yet: Laravel calls that "production" too, and `composer install`
+    // discovers packages there. It must still boot (CI, and every fresh clone).
+    $fresh = Process::path(base_path())
+        ->env(['APP_ENV' => 'production', 'MAIL_MAILER' => 'log', 'APP_KEY' => ''])
+        ->run([PHP_BINARY, 'artisan', 'package:discover', '--ansi']);
+
+    expect($fresh->successful())->toBeTrue();
 });
 
 it('has every message in both languages', function () {
