@@ -73,6 +73,14 @@
 - If Redis is ever reintroduced, `VersionedCache` falls back to replacing the version after commit;
   first decide with the owner how a version write lost during a Redis outage is recovered.
 
+## Permissions
+
+- Every permission a module checks is declared once, in its provider's `boot()`, through Access's
+  `PermissionCatalog` — `{module}.{resource}.{action}`, with its audience and whether it is reserved —
+  and named in Arabic and English in the module's translations at `{module}::permissions`. A test
+  fails if a handler checks an undeclared permission or a permission has no name in either language.
+  Platform, below Access, publishes its list in `PlatformPermissions` instead.
+
 ## Interim until Access
 
 - `ActorContext` and `Authorizer` are Platform bindings that allow only the system actor. Access

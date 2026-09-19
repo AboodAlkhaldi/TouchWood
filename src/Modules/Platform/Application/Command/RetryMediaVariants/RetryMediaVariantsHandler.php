@@ -11,6 +11,7 @@ use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Domain\Exception\MediaNotFound;
 use Modules\Platform\Domain\Repository\MediaRepository;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
@@ -20,7 +21,7 @@ use Shared\Application\PermissionScope;
  */
 final readonly class RetryMediaVariantsHandler
 {
-    public const string PERMISSION = 'platform.media.upload';
+    public const string PERMISSION = PlatformPermissions::MEDIA_UPLOAD;
 
     public function __construct(
         private Authorizer $authorizer,
