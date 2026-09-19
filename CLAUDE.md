@@ -10,7 +10,8 @@
 
 1. A module is specified in `docs/modules/{name}.md` (the nine sections in handoff §18)
    and reviewed by the owner **before** its first line of code.
-2. Build order is handoff §17. Platform, then Access, then B2B; Feedback comes with Sales.
+2. Build order is handoff §17. Platform, then Access, then the frontend foundation, then B2B; Feedback
+   comes with Sales.
 3. `composer check` must pass before a commit: config:clear → pint → phpstan → deptrac → pest.
 
 ## Layout
