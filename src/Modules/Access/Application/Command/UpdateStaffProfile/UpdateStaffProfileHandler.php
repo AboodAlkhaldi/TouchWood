@@ -10,12 +10,14 @@ use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Staff\Avatars;
+use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Domain\ValueObject\StaffProfile;
+use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 
@@ -53,6 +55,11 @@ final readonly class UpdateStaffProfileHandler
             $author = $this->rules->author();
             $targetGrants = $this->grants->forStaff($target->id());
             $this->rules->requireManageable($author, $target, $targetGrants);
+
+            // A cancelled account is final (amendment 29).
+            if ($target->status() === StaffStatus::Cancelled) {
+                throw new InvalidStaffStatus($target->status());
+            }
 
             // A new phone receives the sign-in codes: it needs every action of their role.
             if ($target->phone() === null || ! $target->phone()->equals($phone)) {

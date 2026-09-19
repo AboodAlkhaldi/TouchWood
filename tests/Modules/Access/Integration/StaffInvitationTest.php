@@ -17,8 +17,6 @@ use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmail;
 use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmailHandler;
 use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitation;
 use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitationHandler;
-use Modules\Access\Application\Command\EnableStaff\EnableStaff;
-use Modules\Access\Application\Command\EnableStaff\EnableStaffHandler;
 use Modules\Access\Application\Command\InviteStaff\InviteStaff;
 use Modules\Access\Application\Command\InviteStaff\InviteStaffHandler;
 use Modules\Access\Application\Command\ResendStaffInvitation\ResendStaffInvitation;
@@ -419,7 +417,7 @@ describe('resending and cancelling', function () {
         expect(fn () => app(ResendStaffInvitationHandler::class)->handle(new ResendStaffInvitation($active)))->toThrow(InvalidStaffStatus::class);
     });
 
-    it('cancels an invitation: the link dies and the account is disabled', function () {
+    it('cancels an invitation: the link dies and the person stays invited, for a new link later', function () {
         Event::fake([StaffDisabled::class]);
         Fx::actAsAdmin(['sa'], INVITING_ADMIN);
         $staffId = invite();
@@ -428,10 +426,11 @@ describe('resending and cancelling', function () {
         app(CancelStaffInvitationHandler::class)->handle(new CancelStaffInvitation($staffId));
         asGuest();
 
-        expect(staffRow($staffId)['status'])->toBe('DISABLED')
+        expect(staffRow($staffId)['status'])->toBe('INVITED')
             ->and(DB::table('access.staff_invitations')->where('staff_user_id', $staffId)->exists())->toBeFalse()
-            ->and(fn () => accept($token))->toThrow(InvalidOrExpiredLink::class);
-        Event::assertDispatched(StaffDisabled::class);
+            ->and(fn () => accept($token))->toThrow(InvalidOrExpiredLink::class)
+            ->and(Fx::audits('access.staff_user.invitation_cancelled', $staffId))->toBe(1);
+        Event::assertNotDispatched(StaffDisabled::class);
     });
 
     it('refuses to resend or cancel for someone outside the admin\'s stores', function () {
@@ -467,9 +466,9 @@ describe('every new link (review of step 3a)', function () {
             ->and(sent()->invitations)->toHaveCount(2);
     })->with([
         'resent' => fn (string $id) => app(ResendStaffInvitationHandler::class)->handle(new ResendStaffInvitation($id)),
-        'cancelled, then enabled' => function (string $id): void {
+        'cancelled, then resent' => function (string $id): void {
             app(CancelStaffInvitationHandler::class)->handle(new CancelStaffInvitation($id));
-            app(EnableStaffHandler::class)->handle(new EnableStaff($id));
+            app(ResendStaffInvitationHandler::class)->handle(new ResendStaffInvitation($id));
         },
     ]);
 

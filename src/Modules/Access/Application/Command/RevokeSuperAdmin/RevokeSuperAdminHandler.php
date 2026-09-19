@@ -12,6 +12,7 @@ use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Staff\StaffCancellation;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\LastSuperAdmin;
 use Modules\Access\Domain\Exception\StaffNotFound;
@@ -26,7 +27,8 @@ use Shared\Application\PermissionScope;
 
 /**
  * A former Super Admin has no role, and nobody works without one: the account is disabled, with
- * every link and code it had, until an admin enables it together with a role (owner, 2026-09-19).
+ * every link and code it had, until an admin enables it together with a role. One who never
+ * accepted is cancelled instead, and freed (owner's decisions, 2026-09-19).
  */
 final readonly class RevokeSuperAdminHandler
 {
@@ -38,6 +40,7 @@ final readonly class RevokeSuperAdminHandler
         private StaffUserRepository $staff,
         private StaffTokenRepository $tokens,
         private GrantsReader $grants,
+        private StaffCancellation $cancellation,
         private PlatformApi $platform,
         private Dispatcher $events,
         private Connection $db,
@@ -65,7 +68,16 @@ final readonly class RevokeSuperAdminHandler
             $before = clone $staff;
             $staff->revokeSuperAdmin();
 
-            if ($staff->status() !== StaffStatus::Disabled) {
+            // Never accepted: cancelled and freed, like any invitation withdrawn (amendment 30).
+            if ($staff->status() === StaffStatus::Invited) {
+                $this->staff->update($staff);
+                $this->platform->recordAudit(StaffAudit::updated('access.staff_user.super_admin_revoked', $before, $staff, $staff->pullChanges()));
+                $this->cancellation->cancel($staff);
+
+                return;
+            }
+
+            if ($staff->status() === StaffStatus::Active) {
                 $staff->disable();
                 $this->events->dispatch(new StaffDisabled((string) Str::uuid(), $staff->id(), CarbonImmutable::now()));
             }

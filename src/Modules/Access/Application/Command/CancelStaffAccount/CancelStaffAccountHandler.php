@@ -2,23 +2,27 @@
 
 declare(strict_types=1);
 
-namespace Modules\Access\Application\Command\CancelStaffInvitation;
+namespace Modules\Access\Application\Command\CancelStaffAccount;
 
 use Illuminate\Database\Connection;
-use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Staff\StaffCancellation;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
-use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Public\Enums\StaffStatus;
-use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
+use Shared\Application\Unauthorized;
 
-final readonly class CancelStaffInvitationHandler
+/**
+ * Only the admin who invited them — while they may still invite staff in all of the person's
+ * stores — or a Super Admin (owner's decision, 2026-09-19). A Super Admin's invitation is
+ * cancelled only from the console.
+ */
+final readonly class CancelStaffAccountHandler
 {
     public const string PERMISSION = AccessPermissions::STAFF_INVITE;
 
@@ -28,12 +32,11 @@ final readonly class CancelStaffInvitationHandler
         private StaffUserRepository $staff,
         private RoleAssignmentRepository $assignments,
         private GrantsReader $grants,
-        private StaffTokenRepository $tokens,
-        private PlatformApi $platform,
+        private StaffCancellation $cancellation,
         private Connection $db,
     ) {}
 
-    public function handle(CancelStaffInvitation $command): void
+    public function handle(CancelStaffAccount $command): void
     {
         $this->rules->requireSomewhere(self::PERMISSION);
 
@@ -44,15 +47,18 @@ final readonly class CancelStaffInvitationHandler
                 $this->authorizer->authorize(self::PERMISSION, $scope);
             }
 
-            $this->rules->requireManageable($this->rules->author(), $target, $this->grants->forStaff($target->id()));
+            $author = $this->rules->author();
+            $this->rules->requireManageable($author, $target, $this->grants->forStaff($target->id()));
+
+            if (! $author->isUnlimited() && $author->staffId !== $target->invitedBy()) {
+                throw new Unauthorized(self::PERMISSION);
+            }
 
             if ($target->status() !== StaffStatus::Invited) {
                 throw new InvalidStaffStatus($target->status());
             }
 
-            $this->tokens->deleteInvitation($target->id());
-            $this->tokens->deletePhoneCode($target->id());
-            $this->platform->recordAudit(StaffAudit::event('access.staff_user.invitation_cancelled', $target));
-        });
+            $this->cancellation->cancel($target);
+        }, 3);
     }
 }

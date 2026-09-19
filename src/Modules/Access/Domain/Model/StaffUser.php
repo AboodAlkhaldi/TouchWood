@@ -13,15 +13,16 @@ use Modules\Access\Domain\ValueObject\StaffProfile;
 use Modules\Access\Public\Enums\StaffStatus;
 
 /**
- * A staff account (Access spec §1.4, §4.3).
+ * A staff account (Access spec §1.4, §4.3, amendment 29).
  *
  *    invite ──▶ INVITED ── accept (password + phone code) ──▶ ACTIVE
- *                 │ cancel                          disable │  ▲ enable
- *                 ▼                                         ▼  │
- *              DISABLED ◀─────────────────────────────── DISABLED
+ *                 │                                  disable │  ▲ enable
+ *                 │ cancel the account                       ▼  │
+ *                 ▼                                        DISABLED
+ *             CANCELLED — final; the email and phone are free again
  *
- * Enabling someone who never accepted takes them back to INVITED: they have no password yet.
- * Never deleted: the audit log names them forever.
+ * Only someone who accepted is ever disabled and enabled. Never deleted: the audit log names them
+ * forever.
  */
 final class StaffUser
 {
@@ -39,15 +40,18 @@ final class StaffUser
         private Language $language,
         private StaffStatus $status,
         private bool $superAdmin,
+        private readonly ?string $invitedBy,
     ) {}
 
     /**
      * The whole profile is required at invitation; the phone is verified when the invitation is
      * accepted (owner's decision, 2026-09-19).
+     *
+     * @param  string|null  $invitedBy  the inviting staff member; null for the console
      */
-    public static function invite(string $id, EmailAddress $email, StaffProfile $profile, PhoneNumber $phone, Language $language, bool $superAdmin = false): self
+    public static function invite(string $id, EmailAddress $email, StaffProfile $profile, PhoneNumber $phone, Language $language, ?string $invitedBy, bool $superAdmin = false): self
     {
-        return new self($id, $email, null, $profile, $phone, null, null, $language, StaffStatus::Invited, $superAdmin);
+        return new self($id, $email, null, $profile, $phone, null, null, $language, StaffStatus::Invited, $superAdmin, $invitedBy);
     }
 
     public static function reconstitute(
@@ -61,8 +65,9 @@ final class StaffUser
         Language $language,
         StaffStatus $status,
         bool $superAdmin,
+        ?string $invitedBy,
     ): self {
-        return new self($id, $email, $passwordHash, $profile, $phone, $phoneVerifiedAt, $avatarMediaId, $language, $status, $superAdmin);
+        return new self($id, $email, $passwordHash, $profile, $phone, $phoneVerifiedAt, $avatarMediaId, $language, $status, $superAdmin, $invitedBy);
     }
 
     /**
@@ -84,14 +89,11 @@ final class StaffUser
     }
 
     /**
-     * Also cancels an invitation (spec §4.3).
+     * Only someone who accepted: an invited person's invitation is cancelled instead.
      */
     public function disable(): void
     {
-        if ($this->status === StaffStatus::Disabled) {
-            throw new InvalidStaffStatus($this->status);
-        }
-
+        $this->requireStatus(StaffStatus::Active);
         $this->status = StaffStatus::Disabled;
         $this->markChanged('status');
     }
@@ -99,7 +101,23 @@ final class StaffUser
     public function enable(): void
     {
         $this->requireStatus(StaffStatus::Disabled);
-        $this->status = $this->hasAccepted() ? StaffStatus::Active : StaffStatus::Invited;
+
+        if (! $this->hasAccepted()) {
+            throw new InvalidStaffStatus($this->status);
+        }
+
+        $this->status = StaffStatus::Active;
+        $this->markChanged('status');
+    }
+
+    /**
+     * The invitation withdrawn for good (amendment 29): final, and the email and phone are free
+     * for another account. Only someone who has not accepted.
+     */
+    public function cancel(): void
+    {
+        $this->requireStatus(StaffStatus::Invited);
+        $this->status = StaffStatus::Cancelled;
         $this->markChanged('status');
     }
 
@@ -268,6 +286,14 @@ final class StaffUser
     public function isSuperAdmin(): bool
     {
         return $this->superAdmin;
+    }
+
+    /**
+     * Who invited them, never changed by a resend; null when the console did.
+     */
+    public function invitedBy(): ?string
+    {
+        return $this->invitedBy;
     }
 
     private function requireStatus(StaffStatus $status): void

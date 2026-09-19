@@ -11,6 +11,7 @@ use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\RoleNotFound;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Exception\SuperAdminOnly;
@@ -23,6 +24,7 @@ use Modules\Access\Domain\ValueObject\RoleKind;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Domain\ValueObject\RoleName;
 use Modules\Access\Domain\ValueObject\StoreChoice;
+use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 
@@ -85,6 +87,11 @@ final readonly class ChangeStaffRoleHandler
 
             $author = $this->rules->author();
             $this->rules->requireManageable($author, $target, $this->grants->forStaff($target->id()));
+
+            // A cancelled account is final (amendment 29).
+            if ($target->status() === StaffStatus::Cancelled) {
+                throw new InvalidStaffStatus($target->status());
+            }
 
             if ($role->level() === RoleLevel::Admin && ! $author->isUnlimited()) {
                 throw new SuperAdminOnly($role->kind() === RoleKind::Saved ? $role->id() : null);

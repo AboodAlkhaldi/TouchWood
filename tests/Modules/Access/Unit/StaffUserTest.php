@@ -19,7 +19,7 @@ function staffProfile(): StaffProfile
 
 function invitedStaff(): StaffUser
 {
-    return StaffUser::invite('s1', EmailAddress::of('sara@example.test'), staffProfile(), PhoneNumber::of('+966501234567'), Language::Arabic);
+    return StaffUser::invite('s1', EmailAddress::of('sara@example.test'), staffProfile(), PhoneNumber::of('+966501234567'), Language::Arabic, 'inviter');
 }
 
 describe('email addresses', function () {
@@ -117,19 +117,27 @@ describe('a staff member\'s life', function () {
             ->and($staff->hasAccepted())->toBeTrue();
     });
 
-    it('goes back to invited when enabled without ever accepting, to active otherwise', function () {
-        $never = invitedStaff();
-        $never->disable();
-        $never->enable();
+    it('is disabled and enabled only after accepting', function () {
+        $staff = invitedStaff();
+        $staff->accept('hash', PhoneNumber::of('+966509999999'), new DateTimeImmutable);
+        $staff->disable();
 
-        $accepted = invitedStaff();
-        $accepted->accept('hash', PhoneNumber::of('+966509999999'), new DateTimeImmutable);
-        $accepted->replacePhone(PhoneNumber::of('+966508888888'));
-        $accepted->disable();
-        $accepted->enable();
+        expect($staff->status())->toBe(StaffStatus::Disabled);
 
-        expect($never->status())->toBe(StaffStatus::Invited)
-            ->and($accepted->status())->toBe(StaffStatus::Active);
+        $staff->enable();
+
+        expect($staff->status())->toBe(StaffStatus::Active);
+    });
+
+    it('is cancelled only while invited, for good', function () {
+        $staff = invitedStaff();
+        $staff->cancel();
+
+        expect($staff->status())->toBe(StaffStatus::Cancelled)
+            ->and($staff->invitedBy())->toBe('inviter')
+            ->and(fn () => $staff->accept('hash', PhoneNumber::of('+966509999999'), new DateTimeImmutable))->toThrow(InvalidStaffStatus::class)
+            ->and(fn () => $staff->enable())->toThrow(InvalidStaffStatus::class)
+            ->and(fn () => $staff->disable())->toThrow(InvalidStaffStatus::class);
     });
 
     it('refuses what its state does not allow', function (Closure $act) {
@@ -140,8 +148,10 @@ describe('a staff member\'s life', function () {
             $staff->accept('hash', PhoneNumber::of('+966509999999'), new DateTimeImmutable);
             $staff->accept('hash', PhoneNumber::of('+966509999999'), new DateTimeImmutable);
         }],
+        'disable someone invited' => [fn () => invitedStaff()->disable()],
         'disable twice' => [function () {
             $staff = invitedStaff();
+            $staff->accept('hash', PhoneNumber::of('+966509999999'), new DateTimeImmutable);
             $staff->disable();
             $staff->disable();
         }],
@@ -149,6 +159,12 @@ describe('a staff member\'s life', function () {
             $staff = invitedStaff();
             $staff->accept('hash', PhoneNumber::of('+966509999999'), new DateTimeImmutable);
             $staff->enable();
+        }],
+        'enable someone invited' => [fn () => invitedStaff()->enable()],
+        'cancel someone who accepted' => [function () {
+            $staff = invitedStaff();
+            $staff->accept('hash', PhoneNumber::of('+966509999999'), new DateTimeImmutable);
+            $staff->cancel();
         }],
     ]);
 
