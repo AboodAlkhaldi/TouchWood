@@ -73,6 +73,8 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-19 | §7.2, §7.9 | Company registration continues in B2B as one wizard; deletion with a 14-day grace period | Access questions, owner decision |
 | 2026-09-19 | §7.8 | One address scheme for all three stores now (16 fields, six required), picked by country; each store keeps its own copy; an order needs an address | Access spec review, owner decision |
 | 2026-09-19 | §7.5 | Customers belong to their registration store; staff see only their stores' customers and staff; Super Admins created and revoked only by console, never the last one | Access spec review, owner decision |
+| 2026-09-19 | §7.5 | A staff member's stores apply to every action in their role, with per-action exceptions | Access spec review, owner decision |
+| 2026-09-19 | §7.8 | A customer orders from any store but needs an address in that store first; several addresses per store | Access spec review, owner decision |
 | 2026-09-18 | §13.3, §17 | Access sends its own security messages until Ops; a frontend foundation stage follows Access | Access questions, owner decision |
 | 2026-09-18 | §5.3 | Scheduled work is queued as a job, so its audit source is JOB | Repairs review, owner decision |
 | 2026-09-18 | §7.5 | An actor id is never a secret: a guest's id is kept apart from whatever proves the cart is theirs | Repairs review, owner decision |
@@ -573,7 +575,9 @@ every store and land in the last one they used after signing in. A store's staff
 customers and staff; a multi-store admin sees their stores'; only a Super Admin sees everyone
 (owner, 2026-09-19).
 
-**Store access lives on the role assignment, not the user:**
+**Store access lives on the role assignment, not the user** — chosen once for all of a staff
+member's actions, and any single action can have its own stores for that person (owner,
+2026-09-19):
 
 ```
 role_assignments
@@ -654,7 +658,9 @@ country, administrative area (region, governorate or emirate), city, district, s
 unit, floor, postal code, additional number, PO box, short address, landmark, additional
 information, and a map pin (latitude, longitude). Required: country, administrative area, city,
 district, street, building. Each store keeps its own copy, so a country's scheme can change later
-as data. An address is not asked at registration, but an order needs one.
+as data. An address is not asked at registration, but an order needs one **in the store being
+ordered from**: a KSA customer ordering from UAE adds a UAE address first. A customer keeps several
+addresses per store.
 
 ### 7.9 Account deletion
 
