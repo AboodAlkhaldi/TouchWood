@@ -7,10 +7,11 @@ permissions, sign-in and sessions, addresses, and account deletion. The rules ar
 specification, [docs/modules/access.md](../../../docs/modules/access.md). This file explains how the
 code is organised and why, and grows with each build step.
 
-**Built so far: steps 1–3a of 8 — the permission catalog, roles, the real permission check, and
-staff accounts.** Nobody signs in yet: until step 3b Platform's interim `ActorContext` still reports
-the system, so in the running application only console commands and jobs act, and the invitation
-and email-change links have no page to open until 3b adds their endpoints.
+**Built so far: steps 1–3b of 8 — the permission catalog, roles, the real permission check, staff
+accounts and staff sign-in.** Staff sign in to the admin panel through form endpoints that answer
+with redirects; the pages that show those forms come with the screens, in the frontend foundation
+stage (amendment 12). A web request acts as the staff member signed in, else as a guest — never as
+the system. Customers arrive in step 4.
 
 ---
 
@@ -59,22 +60,25 @@ $preferences = $this->access->staffNotificationPreferences($staffId);   // list<
 | Folder | Contents |
 |---|---|
 | `Public/` | Contracts `PermissionCatalog`, `AccessApi`, `SecurityMessages`; DTOs `PermissionDefinitionDto`, `StaffDto`, `StaffNotificationPreferenceDto`; enums `PermissionAudience`, `PermissionKind`, `AccessLevel`, `StaffStatus`, `StaffNotificationTopic`; events `StaffActivated`, `StaffDisabled`. |
-| `Domain/Model` | `Role` (saved or personal, admin or staff level, at least one action), `RoleAssignment` (a staff member's one role, their store row, and each action's own stores), `StaffUser` (invited → active ⇄ disabled; profile, phone, email, language, Super Admin), `StaffInvitation`, `StaffEmailChange`, `PhoneCode`. |
+| `Domain/Model` | `Role` (saved or personal, admin or staff level, at least one action), `RoleAssignment` (a staff member's one role, their store row, and each action's own stores), `StaffUser` (invited → active ⇄ disabled, or invited → cancelled; profile, phone, email, language, Super Admin, who invited them, session version), `StaffInvitation`, `StaffEmailChange`, `PhoneCode`, `StaffPasswordReset`, `TrustedBrowser`. |
 | `Domain/ValueObject` | `RoleName`, `StoreChoice` (all stores, or at least one chosen store), `RoleKind`, `RoleLevel`, `EmailAddress`, `PhoneNumber` (E.164, any country), `CountryCode` (the 249 ISO countries), `Language` (ar/en), `StaffProfile`, `PhoneCodePurpose`. |
 | `Domain/Exception` | `AccessError` and its subclasses, with messages in `Presentation/lang/{ar,en}/errors.php`. |
 | `Application/Permission` | `InMemoryPermissionCatalog` (declarations, renames, removals, checked at boot), `AccessPermissions` (Access's list, and which actions are admin-only). |
 | `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`. |
-| `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole`, `RefreshStaffPermissions`, `RefreshRolePermissions`. Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Own account: `UpdateOwnStaffProfile`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`. |
+| `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole`, `RefreshStaffPermissions`, `RefreshRolePermissions`. Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. |
 | `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, and the `RoleReader` they use. |
-| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `PhoneVerification` (sending and checking a code, with its limits). |
+| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `PhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address). |
+| `Application/Session` | The `StaffSessions` port (the admin session: pending sign-in, signed in, kept, ended), `PendingSignIn`, `TrustedBrowsers`. |
 | `Application/Settings` | `StaffSecuritySettings`: the staff security numbers, as Platform settings. |
-| `Application/Staff`, `Messages`, `Audit` | `StaffMapper`, `StaffLinks`, `Avatars`; the `SmsGateway` port; `RoleAudit` and `StaffAudit` (every audit entry). `AccessApiImpl` sits beside them. |
+| `Application/Staff`, `Messages`, `Audit` | `StaffMapper`, `StaffLinks`, `Avatars`, `Invitations` (every invitation link), `StaffCancellation`; the `SmsGateway` port; `RoleAudit` and `StaffAudit` (every audit entry). `AccessApiImpl` sits beside them. |
 | `Infrastructure/Eloquent` | Query-builder repositories, `CachedGrantsReader`, `DatabaseRoleReader`. |
+| `Infrastructure/Http` | `RequestActor` (who this request acts as), `RequestActorContext` (the real `ActorContext`), `LaravelStaffSessions`. |
+| `Infrastructure/Queue` | `CancelExpiredSuperAdminInvitationsJob`, scheduled every ten minutes. |
 | `Infrastructure/Messages` | `TemporarySecurityMessages`, `SecurityMail`, `LogSmsGateway`, `UrlStaffLinks`. |
 | `Infrastructure/Security`, `Media` | `HmacCodes`, `LaravelPasswordPolicy`; `StaffAvatarUsage` (the avatar as Platform media). |
 | `Infrastructure/Permission` | `PermissionSync`: carries renames and removals into the roles on every migrate. |
-| `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences). |
-| `Presentation/` | The three Super Admin console commands, the security email view, translations. |
+| `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers). |
+| `Presentation/` | `routes.php` (the `/admin` form endpoints), controllers, form requests, the middleware (`IdentifyRequestActor`, `UseAdminSession`, `IdentifyStaff`, `RequireStaff`), `FormErrors`; the five Super Admin console commands, the security email view, translations. |
 
 ---
 
@@ -140,9 +144,11 @@ migration or rollback replaces every staff member's cached copy, as Platform doe
 As a second guard, the check itself never lets a staff-level role use a management action, even if
 one reached such a role another way.
 
-**Until step 3b** the interim `ActorContext` reports the system for a web request too, so
-`RoleAuthorizer` lets the system act only outside web requests — exactly what Platform's interim
-authorizer did. Customers act from step 4; integrations hold nothing yet.
+Who acts is Access's `RequestActorContext`: in a web request, the staff member signed in, else a
+guest; outside one (the console, a queue worker), the system. `IdentifyRequestActor` runs on every
+web request, so no route can act as the system, and `RoleAuthorizer` lets the system do anything.
+Platform's wrapper still makes a queued job the system acting for whoever queued it. Customers act
+from step 4; integrations hold nothing yet.
 
 ### Renamed and removed permissions
 
@@ -225,11 +231,17 @@ production. Every message is in the person's communication language.
 
 ### Super Admins: the console only
 
-`CreateSuperAdmin`, `RevokeSuperAdmin` and `ResetSuperAdminPhone` refuse every actor except the
+`CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`,
+`CancelSuperAdminInvitation` and the sweep of expired invitations refuse every actor except the
 console's own system actor — a Super Admin in the panel, or a job queued on their behalf, is
 refused — so a hijacked admin session can never make or remove one. Revoking never removes the
 last **active** Super Admin (an invited one who never accepted does not count), and disables the
-account until an admin enables it together with a role.
+account until an admin enables it together with a role; an invited one is cancelled instead.
+
+A Super Admin invitation works 24 hours. A queued job, scheduled every ten minutes on one server,
+cancels and frees each invited Super Admin whose last link is older than that (or who has no link
+left). It checks each one again under its lock, so a link resent in the meantime is kept. The
+scheduler and a queue worker must run (`schedule:work`, `queue:work`).
 
 ```bash
 # A new Super Admin: the whole profile, --locale (ar or en) included; only --address is optional.
@@ -247,8 +259,47 @@ php artisan access:super-admin:reset-phone owner@example.com  # a lost phone
 ```
 
 The invitation is emailed through `MAIL_MAILER` — `log` in `.env.example`, which writes the email,
-link included, to `storage/logs/laravel.log`. Step 3b adds the endpoints the invitation form posts
-to; the page the link opens comes with the screens, in the frontend foundation stage (amendment 12).
+link included, to `storage/logs/laravel.log`. The endpoints the invitation form posts to exist
+(`POST /admin/invitation/{token}`, then `/code`), but the link itself opens no page yet: the form
+comes with the screens, in the frontend foundation stage (amendment 12).
+
+### Signing in and sessions
+
+```
+password ─┬─ trusted browser ──────────────────────────────▶ signed in
+          ├─ SMS code (within 15 minutes) ── right code ───▶ signed in (+ trust this browser, 30 days)
+          └─ a Super Admin with no phone: new number ── its code verifies it ──▶ signed in
+```
+
+- **The admin panel has its own session**, `touchwood_admin_session`, sent only to `/admin`
+  (`UseAdminSession`, before the `web` group starts the session): its limits and sign-out never
+  touch a storefront session in the same browser. It lives in the `sessions` table like every
+  session (PostgreSQL only). Signing in gives a new session id.
+- **The session ends** after 30 minutes idle, 12 hours after signing in however busy, when the
+  account is disabled, and when the password changes (`staff_users.session_version` is raised; the
+  cached permissions carry it, so a warm request reads only the `sessions` and `cache` tables — a
+  test checks it). Changing one's
+  own password keeps the session it was changed from.
+- **Wrong passwords** (`SignInLimits`): 5 for one account lock it for 15 minutes; 10 from one
+  address, across accounts, make it wait 15 minutes. The right password clears the account's count.
+  An unknown email is counted too and answered the same, so the answer tells a stranger nothing.
+  Keys hold a hash of the email or address.
+- **A trusted browser** holds a random token in `touchwood_admin_trust` (only its hash is stored),
+  for one staff member, 30 days. Signing out keeps it. It is forgotten when the account is disabled
+  or revoked, the password is changed or reset, or the phone changes (by the person, an admin, or a
+  Super Admin phone reset).
+- **Password reset** by an email link valid 30 minutes, at most 3 emails an hour per account; the
+  page says the same whether or not the email has an account. Using the link ends every session
+  and trusted browser.
+- **An email link opened while signed in** (an invitation, an email change) signs that admin session
+  out first, then continues (amendment 31).
+- **Audited:** each sign-in, sign-out, lockout and browser trusted. Wrong passwords are counted,
+  not logged one by one.
+- **A failed database query is logged without its values** (amendment 33): the connection masks
+  its bindings, and `App\Exceptions\QueryErrorLog` removes PostgreSQL's `DETAIL` line, which repeats
+  the row.
+
+Every number here is a setting (`StaffSecuritySettings`), except the 15 minutes to enter the code.
 
 ### The database is the last line of defence
 
@@ -265,3 +316,4 @@ passes, so the role-name rule is wrapped in `COALESCE(…, false)` — the schem
 | 1 | Foundation: the `access` schema, the service provider, the permission catalog with Access's and Platform's permissions |
 | 2 | Roles, assignments and exceptions; the real authorizer and its cache; the three levels; renamed and removed permissions; the role reads. `VersionedCache` moved to Shared; Platform's interim authorizer removed. Then an independent review (spec, security, tests): lock order and retries, one-statement cache loads, the admin-reach rule (amendment 11), stricter handling of undeclared names, and the missing tests, with a mutation run proving them |
 | 3a | Staff accounts: the full profile, invitations accepted with a password and an SMS code, disable/enable, profile edits by an admin and by the person, email change by link, notification toggles, avatars as Platform media, the three Super Admin console commands, `AccessApi`, and the temporary security messages (Laravel mail, `log` SMS driver). No HTTP endpoints yet: they need the real `ActorContext` of step 3b. A mutation run (30 deliberate mistakes, each caught) proved the tests. Then an independent review (spec, security, tests) and the owner's answers: redirecting an account needs the person's actions; nobody works without a role; an invited person's new email gets a new invitation; an email change re-checks its requester; 3 SMS an hour; outages of the leaked-password service logged; the `log` SMS driver refused in production; many missing tests |
+| 3b | The staff lifecycle the owner decided (amendments 29, 30): `CANCELLED` frees an invited person's email and phone; only the inviter or a Super Admin cancels; Super Admin invitations work 24 hours and are swept by a scheduled job; two new console commands. Then signing in: the real `ActorContext`, the admin session cookie, password → SMS code or trusted browser, lockouts per account and per address, idle and 12-hour limits, session versions, password reset and change, sign-out, email links that sign the session out first, sign-in audits, failed queries logged without values. Platform's interim `SystemActorContext` removed. A mutation run (58 deliberate mistakes; 56 caught, the other 2 refused by the domain with the same error) proved the tests |

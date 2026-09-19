@@ -129,6 +129,16 @@ describe('a staff member\'s life', function () {
         expect($staff->status())->toBe(StaffStatus::Active);
     });
 
+    it('never enables a disabled record that has no password, whatever the database holds', function () {
+        $staff = StaffUser::reconstitute(
+            's1', EmailAddress::of('sara@example.test'), null, staffProfile(), PhoneNumber::of('+966501234567'), null, null,
+            Language::Arabic, StaffStatus::Disabled, false, 'inviter',
+        );
+
+        expect(fn () => $staff->enable())->toThrow(InvalidStaffStatus::class)
+            ->and($staff->status())->toBe(StaffStatus::Disabled);
+    });
+
     it('is cancelled only while invited, for good', function () {
         $staff = invitedStaff();
         $staff->cancel();

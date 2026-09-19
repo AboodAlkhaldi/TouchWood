@@ -41,6 +41,7 @@ final class StaffUser
         private StaffStatus $status,
         private bool $superAdmin,
         private readonly ?string $invitedBy,
+        private int $sessionVersion = 0,
     ) {}
 
     /**
@@ -66,8 +67,21 @@ final class StaffUser
         StaffStatus $status,
         bool $superAdmin,
         ?string $invitedBy,
+        int $sessionVersion = 0,
     ): self {
-        return new self($id, $email, $passwordHash, $profile, $phone, $phoneVerifiedAt, $avatarMediaId, $language, $status, $superAdmin, $invitedBy);
+        return new self($id, $email, $passwordHash, $profile, $phone, $phoneVerifiedAt, $avatarMediaId, $language, $status, $superAdmin, $invitedBy, $sessionVersion);
+    }
+
+    /**
+     * A new password — changed by its owner or reset by email link. Every session signed in before
+     * it ends (spec §1.8): the session version moves on.
+     */
+    public function changePassword(string $passwordHash): void
+    {
+        $this->requireStatus(StaffStatus::Active);
+        $this->passwordHash = $passwordHash;
+        $this->sessionVersion++;
+        $this->markChanged('password');
     }
 
     /**
@@ -294,6 +308,14 @@ final class StaffUser
     public function invitedBy(): ?string
     {
         return $this->invitedBy;
+    }
+
+    /**
+     * A session signed in under an older version has ended.
+     */
+    public function sessionVersion(): int
+    {
+        return $this->sessionVersion;
     }
 
     private function requireStatus(StaffStatus $status): void

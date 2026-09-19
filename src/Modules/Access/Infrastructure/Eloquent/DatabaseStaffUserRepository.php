@@ -190,6 +190,7 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             'status' => $staff->status()->value,
             'is_super_admin' => $staff->isSuperAdmin(),
             'invited_by' => $staff->invitedBy(),
+            'session_version' => $staff->sessionVersion(),
         ];
     }
 
@@ -214,6 +215,7 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             StaffStatus::from((string) $row->status),
             (bool) $row->is_super_admin,
             $row->invited_by === null ? null : (string) $row->invited_by,
+            (int) $row->session_version,
         );
     }
 }

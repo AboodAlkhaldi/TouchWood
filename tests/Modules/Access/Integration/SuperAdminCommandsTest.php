@@ -10,12 +10,18 @@ use Illuminate\Support\Str;
 use Illuminate\Testing\PendingCommand;
 use Modules\Access\Application\Command\AcceptStaffInvitation\AcceptStaffInvitation;
 use Modules\Access\Application\Command\AcceptStaffInvitation\AcceptStaffInvitationHandler;
+use Modules\Access\Application\Command\CancelExpiredSuperAdminInvitations\CancelExpiredSuperAdminInvitations;
+use Modules\Access\Application\Command\CancelExpiredSuperAdminInvitations\CancelExpiredSuperAdminInvitationsHandler;
+use Modules\Access\Application\Command\CancelSuperAdminInvitation\CancelSuperAdminInvitation;
+use Modules\Access\Application\Command\CancelSuperAdminInvitation\CancelSuperAdminInvitationHandler;
 use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitation;
 use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitationHandler;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdmin;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdminHandler;
 use Modules\Access\Application\Command\EnableStaff\EnableStaff;
 use Modules\Access\Application\Command\EnableStaff\EnableStaffHandler;
+use Modules\Access\Application\Command\ResendSuperAdminInvitation\ResendSuperAdminInvitation;
+use Modules\Access\Application\Command\ResendSuperAdminInvitation\ResendSuperAdminInvitationHandler;
 use Modules\Access\Application\Command\ResetSuperAdminPhone\ResetSuperAdminPhone;
 use Modules\Access\Application\Command\ResetSuperAdminPhone\ResetSuperAdminPhoneHandler;
 use Modules\Access\Application\Command\RevokeSuperAdmin\RevokeSuperAdmin;
@@ -154,6 +160,9 @@ it('runs only from the console: never for a Super Admin in the panel, nor a job 
     'create' => fn (string $email) => app(CreateSuperAdminHandler::class)->handle(newSuperAdmin('someone@example.test')),
     'revoke' => fn (string $email) => app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin($email)),
     'reset the phone' => fn (string $email) => app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone($email)),
+    'resend an invitation' => fn (string $email) => app(ResendSuperAdminInvitationHandler::class)->handle(new ResendSuperAdminInvitation($email)),
+    'cancel an invitation' => fn (string $email) => app(CancelSuperAdminInvitationHandler::class)->handle(new CancelSuperAdminInvitation($email)),
+    'sweep expired invitations' => fn (string $email) => app(CancelExpiredSuperAdminInvitationsHandler::class)->handle(new CancelExpiredSuperAdminInvitations),
 ]);
 
 describe('revoking a Super Admin', function () {

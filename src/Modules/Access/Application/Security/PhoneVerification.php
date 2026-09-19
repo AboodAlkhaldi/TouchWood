@@ -40,7 +40,7 @@ final readonly class PhoneVerification
      */
     public function send(string $staffId, PhoneNumber $phone, PhoneCodePurpose $purpose, Language $language, DateTimeImmutable $now): void
     {
-        $previous = $this->tokens->phoneCode($staffId);
+        $previous = $this->tokens->phoneCode($staffId, $purpose);
         $wait = $previous === null ? 0 : $previous->sentAt->getTimestamp() + $this->settings->codeResendSeconds() - $now->getTimestamp();
 
         if ($wait > 0) {
@@ -77,19 +77,19 @@ final readonly class PhoneVerification
      */
     public function check(string $staffId, PhoneCodePurpose $purpose, string $code, DateTimeImmutable $now): PhoneNumber|InvalidCode
     {
-        $stored = $this->tokens->phoneCode($staffId);
+        $stored = $this->tokens->phoneCode($staffId, $purpose);
 
         if ($stored === null || $stored->purpose !== $purpose || $stored->isExpired($now) || $stored->attempts >= $this->settings->codeAttempts()) {
             return new InvalidCode(requestNewCode: true);
         }
 
         if (! $this->codes->matches($staffId, $code, $stored->codeHash)) {
-            $this->tokens->countFailedAttempt($staffId);
+            $this->tokens->countFailedAttempt($staffId, $purpose);
 
             return new InvalidCode(requestNewCode: $stored->attempts + 1 >= $this->settings->codeAttempts());
         }
 
-        $this->tokens->deletePhoneCode($staffId);
+        $this->tokens->deletePhoneCode($staffId, $purpose);
 
         return $stored->phone;
     }

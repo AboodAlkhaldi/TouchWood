@@ -25,4 +25,9 @@ final readonly class UrlStaffLinks implements StaffLinks
     {
         return $this->urls->to('/admin/email-change/'.$token);
     }
+
+    public function passwordReset(string $token): string
+    {
+        return $this->urls->to('/admin/password/reset/'.$token);
+    }
 }

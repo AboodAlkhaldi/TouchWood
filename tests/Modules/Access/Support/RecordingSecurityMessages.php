@@ -23,6 +23,9 @@ final class RecordingSecurityMessages implements SecurityMessages
     /** @var list<array{phone: string, locale: string, code: string}> */
     public array $codes = [];
 
+    /** @var list<array{to: string, locale: string, link: string}> */
+    public array $passwordResets = [];
+
     private static ?self $installed = null;
 
     public static function install(): self
@@ -51,6 +54,21 @@ final class RecordingSecurityMessages implements SecurityMessages
     public function staffInvitation(StaffDto $staff, string $link): void
     {
         $this->invitations[] = ['to' => $staff->email, 'link' => $link, 'locale' => $staff->locale];
+    }
+
+    public function passwordReset(string $email, string $locale, string $link): void
+    {
+        $this->passwordResets[] = ['to' => $email, 'locale' => $locale, 'link' => $link];
+    }
+
+    /**
+     * The token at the end of the last password reset link.
+     */
+    public function lastPasswordResetToken(): string
+    {
+        $last = end($this->passwordResets);
+
+        return $last === false ? '' : basename($last['link']);
     }
 
     public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void

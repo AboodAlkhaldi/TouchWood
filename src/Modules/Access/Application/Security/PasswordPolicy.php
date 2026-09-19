@@ -19,4 +19,10 @@ interface PasswordPolicy
      * @throws PasswordTooWeak
      */
     public function hashNew(string $password, int $minLength): string;
+
+    /**
+     * Whether the password is the one stored. With no stored hash (an unknown email, an account
+     * that never accepted) it is false, after as much work as a real check.
+     */
+    public function matches(string $password, ?string $hash): bool;
 }

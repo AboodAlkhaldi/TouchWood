@@ -21,6 +21,7 @@ use Modules\Access\Application\Command\CancelStaffAccount\CancelStaffAccountHand
 use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmail;
 use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmailHandler;
 use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
+use Modules\Access\Application\Command\ChangeStaffRole\PersonalRole;
 use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitation;
 use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitationHandler;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdmin;
@@ -37,6 +38,7 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\StaffNotEditable;
+use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Infrastructure\Queue\CancelExpiredSuperAdminInvitationsJob;
 use Modules\Access\Public\Enums\AccessLevel;
@@ -111,6 +113,21 @@ describe('cancelling an account (amendment 29)', function () {
         Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
         expect(fn () => app(AcceptStaffInvitationHandler::class)->handle(new AcceptStaffInvitation($token, 'a long enough password', '+966501111111')))
             ->toThrow(InvalidOrExpiredLink::class);
+    });
+
+    it('removes a personal role made for the invitation', function () {
+        Fx::actAsAdmin(['sa'], LIFECYCLE_ADMIN);
+        $staffId = app(InviteStaffHandler::class)->handle(new InviteStaff(
+            'noura@example.test', 'Noura', 'Saleh', 'Store keeper', '1995-03-10', 'SA', null, '+966501111111', 'en',
+            AccessLevel::SelectedStores, [Fx::storeId('sa')], personalRole: new PersonalRole('دور نورة', 'Noura\'s role', [PlatformPermissions::STORE_UPDATE]),
+        ));
+
+        expect(DB::table('access.roles')->where('kind', 'PERSONAL')->count())->toBe(1);
+
+        app(CancelStaffAccountHandler::class)->handle(new CancelStaffAccount($staffId));
+
+        expect(DB::table('access.roles')->where('kind', 'PERSONAL')->exists())->toBeFalse()
+            ->and(Fx::roleOf($staffId))->toBe('');
     });
 
     it('is only for the admin who invited them, while they may still invite, or a Super Admin', function (Closure $canceller, ?string $error) {
@@ -237,6 +254,40 @@ describe('Super Admin invitations (amendment 30)', function () {
             ->and(lifecycleStatus($resent))->toBe('INVITED')
             ->and(lifecycleStatus($accepted))->toBe('ACTIVE')
             ->and(lifecycleStatus($staff))->toBe('INVITED');
+    });
+
+    it('counts an invited Super Admin with no invitation left as expired: nothing can be accepted', function () {
+        $noLink = lifecycleSuperAdmin();
+        DB::table('access.staff_invitations')->where('staff_user_id', $noLink)->delete();
+
+        expect(app(CancelExpiredSuperAdminInvitationsHandler::class)->handle(new CancelExpiredSuperAdminInvitations))->toBe(1)
+            ->and(lifecycleStatus($noLink))->toBe('CANCELLED');
+    });
+
+    it('checks again under the lock, so an invitation resent meanwhile is kept', function () {
+        $invited = lifecycleSuperAdmin();
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(25));
+
+        // The list is read; then the console resends before the sweep takes the lock.
+        $real = app(StaffUserRepository::class);
+        $lists = 0;
+        $staff = Mockery::mock(StaffUserRepository::class);
+        $staff->shouldReceive('byId')->andReturnUsing(fn (string $id) => $real->byId($id));
+        $staff->shouldReceive('superAdminInvitationsSentBefore')->andReturnUsing(function (DateTimeImmutable $cutoff) use ($real, &$lists): array {
+            $expired = $real->superAdminInvitationsSentBefore($cutoff);
+
+            if ($lists++ === 0) {
+                lifecycleConsole('access:super-admin:resend-invitation', ['email' => 'owner@example.test'])->assertSuccessful();
+            }
+
+            return $expired;
+        });
+
+        $cancelled = app()->make(CancelExpiredSuperAdminInvitationsHandler::class, ['staff' => $staff])->handle(new CancelExpiredSuperAdminInvitations);
+
+        expect($cancelled)->toBe(0)
+            ->and($lists)->toBe(2)
+            ->and(lifecycleStatus($invited))->toBe('INVITED');
     });
 
     it('is swept by a queued job every ten minutes, from one server', function () {

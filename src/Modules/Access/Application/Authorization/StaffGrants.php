@@ -15,13 +15,14 @@ use Modules\Access\Public\Enums\StaffStatus;
  * holds only plain arrays (config/cache.php refuses to rebuild objects).
  *
  * @phpstan-type Stores array{all: bool, ids: list<string>}
- * @phpstan-type Snapshot array{status: string, super_admin: bool, level: string|null, role_id: string|null, stores: Stores|null, grants: array<string, Stores>}
+ * @phpstan-type Snapshot array{status: string, super_admin: bool, level: string|null, role_id: string|null, stores: Stores|null, grants: array<string, Stores>, session_version: int}
  */
 final readonly class StaffGrants
 {
     /**
      * @param  array<string, StoreChoice>  $grants  each action of their role => its stores
      * @param  StoreChoice|null  $stores  the staff member's stores; null when they have no role
+     * @param  int  $sessionVersion  raised when their password changes: an older session has ended
      */
     public function __construct(
         public string $staffId,
@@ -31,6 +32,7 @@ final readonly class StaffGrants
         public ?string $roleId,
         public array $grants,
         public ?StoreChoice $stores,
+        public int $sessionVersion = 0,
     ) {}
 
     public function isActive(): bool
@@ -66,6 +68,7 @@ final readonly class StaffGrants
             'role_id' => $this->roleId,
             'stores' => $this->stores === null ? null : self::storesToArray($this->stores),
             'grants' => array_map(self::storesToArray(...), $this->grants),
+            'session_version' => $this->sessionVersion,
         ];
     }
 
@@ -82,6 +85,7 @@ final readonly class StaffGrants
             $snapshot['role_id'],
             array_map(self::storesFromArray(...), $snapshot['grants']),
             $snapshot['stores'] === null ? null : self::storesFromArray($snapshot['stores']),
+            $snapshot['session_version'],
         );
     }
 

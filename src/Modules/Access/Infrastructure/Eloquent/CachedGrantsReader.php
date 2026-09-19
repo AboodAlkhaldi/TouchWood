@@ -62,7 +62,7 @@ final readonly class CachedGrantsReader implements GrantsReader
     private function load(string $staffId): ?StaffGrants
     {
         $row = $this->db->selectOne(<<<'SQL'
-            SELECT s.status, s.is_super_admin, a.role_id, a.access_level, r.level,
+            SELECT s.status, s.is_super_admin, s.session_version, a.role_id, a.access_level, r.level,
                 (SELECT coalesce(json_agg(st.store_id ORDER BY st.store_id), '[]')
                     FROM access.role_assignment_stores st WHERE st.staff_user_id = s.id) AS stores,
                 (SELECT coalesce(json_agg(p.permission ORDER BY p.permission), '[]')
@@ -87,9 +87,10 @@ final readonly class CachedGrantsReader implements GrantsReader
 
         $status = StaffStatus::from((string) $row->status);
         $superAdmin = (bool) $row->is_super_admin;
+        $sessionVersion = (int) $row->session_version;
 
         if ($row->role_id === null) {
-            return new StaffGrants($staffId, $status, $superAdmin, null, null, [], null);
+            return new StaffGrants($staffId, $status, $superAdmin, null, null, [], null, $sessionVersion);
         }
 
         $storeRow = $this->choice((string) $row->access_level, self::strings(self::json((string) $row->stores)));
@@ -113,7 +114,7 @@ final readonly class CachedGrantsReader implements GrantsReader
             $stores = $stores->union($exception);
         }
 
-        return new StaffGrants($staffId, $status, $superAdmin, RoleLevel::from((string) $row->level), (string) $row->role_id, $grants, $stores);
+        return new StaffGrants($staffId, $status, $superAdmin, RoleLevel::from((string) $row->level), (string) $row->role_id, $grants, $stores, $sessionVersion);
     }
 
     /**
