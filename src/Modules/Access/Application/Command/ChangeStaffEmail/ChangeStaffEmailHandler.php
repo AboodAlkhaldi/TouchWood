@@ -12,6 +12,7 @@ use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\SecretTokens;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
+use Modules\Access\Application\Staff\Invitations;
 use Modules\Access\Application\Staff\StaffLinks;
 use Modules\Access\Application\Staff\StaffMapper;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
@@ -44,6 +45,7 @@ final readonly class ChangeStaffEmailHandler
         private StaffSecuritySettings $settings,
         private SecurityMessages $messages,
         private StaffLinks $links,
+        private Invitations $invitations,
         private PlatformApi $platform,
         private Connection $db,
     ) {}
@@ -78,7 +80,8 @@ final readonly class ChangeStaffEmailHandler
                 throw new StaffEmailInUse;
             }
 
-            if ($target->status() === StaffStatus::Disabled) {
+            // Only a working account, or one still invited: never a disabled or cancelled one.
+            if ($target->status() !== StaffStatus::Active && $target->status() !== StaffStatus::Invited) {
                 throw new InvalidStaffStatus($target->status());
             }
 
@@ -107,12 +110,7 @@ final readonly class ChangeStaffEmailHandler
         $before = clone $target;
         $target->changeEmail($email);
         $this->staff->update($target);
-        $this->tokens->deletePhoneCode($target->id());
-
-        $invitation = SecretTokens::issue();
-        $this->tokens->putInvitation($target->id(), $invitation['hash'], CarbonImmutable::now()->addHours($this->settings->invitationHours()), $authorId);
+        $this->invitations->send($target, $authorId);
         $this->platform->recordAudit(StaffAudit::updated('access.staff_user.email_changed', $before, $target, $target->pullChanges()));
-
-        $this->db->afterCommit(fn () => $this->messages->staffInvitation(StaffMapper::toDto($target), $this->links->invitation($invitation['token'])));
     }
 }

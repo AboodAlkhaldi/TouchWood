@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
@@ -57,7 +58,11 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
 
     public function byEmail(EmailAddress $email): ?StaffUser
     {
-        $row = $this->db->table(self::TABLE)->whereRaw('lower(email) = lower(?)', [$email->value])->lockForUpdate()->first();
+        $row = $this->db->table(self::TABLE)
+            ->whereRaw('lower(email) = lower(?)', [$email->value])
+            ->where('status', '<>', StaffStatus::Cancelled->value)
+            ->lockForUpdate()
+            ->first();
 
         return $row instanceof stdClass ? $this->toStaff($row) : null;
     }
@@ -66,6 +71,7 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
     {
         return $this->db->table(self::TABLE)
             ->whereRaw('lower(email) = lower(?)', [$email->value])
+            ->where('status', '<>', StaffStatus::Cancelled->value)
             ->when($exceptStaffId !== null, fn ($query) => $query->where('id', '<>', $exceptStaffId))
             ->exists();
     }
@@ -74,8 +80,23 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
     {
         return $this->db->table(self::TABLE)
             ->where('phone', $phone->value)
+            ->where('status', '<>', StaffStatus::Cancelled->value)
             ->when($exceptStaffId !== null, fn ($query) => $query->where('id', '<>', $exceptStaffId))
             ->exists();
+    }
+
+    public function superAdminInvitationsSentBefore(DateTimeImmutable $cutoff): array
+    {
+        /** @var list<string> */
+        return $this->db->table(self::TABLE.' as staff')
+            ->leftJoin('access.staff_invitations as invitation', 'invitation.staff_user_id', '=', 'staff.id')
+            ->where('staff.is_super_admin', true)
+            ->where('staff.status', StaffStatus::Invited->value)
+            // No invitation at all counts as expired: nothing can be accepted any more.
+            ->where(fn ($query) => $query->whereNull('invitation.staff_user_id')->orWhere('invitation.created_at', '<', $cutoff))
+            ->orderBy('staff.id')
+            ->pluck('staff.id')
+            ->all();
     }
 
     public function activeSuperAdminIds(): array
@@ -168,6 +189,7 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             'locale' => $staff->language()->value,
             'status' => $staff->status()->value,
             'is_super_admin' => $staff->isSuperAdmin(),
+            'invited_by' => $staff->invitedBy(),
         ];
     }
 
@@ -191,6 +213,7 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             Language::from((string) $row->locale),
             StaffStatus::from((string) $row->status),
             (bool) $row->is_super_admin,
+            $row->invited_by === null ? null : (string) $row->invited_by,
         );
     }
 }

@@ -20,6 +20,9 @@ final readonly class StaffSecuritySettings
 
     public const string INVITATION_HOURS = 'access.staff.invitation_hours';
 
+    /** A Super Admin's invitation; unaccepted by then, the account is cancelled (amendment 30). */
+    public const string SUPER_ADMIN_INVITATION_HOURS = 'access.staff.super_admin_invitation_hours';
+
     public const string EMAIL_CHANGE_HOURS = 'access.staff.email_change_hours';
 
     public const string CODE_LENGTH = 'access.staff.sms_code_length';
@@ -48,6 +51,7 @@ final readonly class StaffSecuritySettings
         return [
             $setting(self::PASSWORD_MIN_LENGTH, 12, 8, 128),
             $setting(self::INVITATION_HOURS, 72, 1, 720),
+            $setting(self::SUPER_ADMIN_INVITATION_HOURS, 24, 1, 720),
             $setting(self::EMAIL_CHANGE_HOURS, 72, 1, 720),
             $setting(self::CODE_LENGTH, 6, 4, 8),
             $setting(self::CODE_MINUTES, 5, 1, 60),
@@ -65,6 +69,11 @@ final readonly class StaffSecuritySettings
     public function invitationHours(): int
     {
         return $this->int(self::INVITATION_HOURS);
+    }
+
+    public function superAdminInvitationHours(): int
+    {
+        return $this->int(self::SUPER_ADMIN_INVITATION_HOURS);
     }
 
     public function emailChangeHours(): int

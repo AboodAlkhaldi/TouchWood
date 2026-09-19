@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Infrastructure;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Events\MigrationsEnded;
@@ -40,10 +41,13 @@ use Modules\Access\Infrastructure\Messages\LogSmsGateway;
 use Modules\Access\Infrastructure\Messages\TemporarySecurityMessages;
 use Modules\Access\Infrastructure\Messages\UrlStaffLinks;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
+use Modules\Access\Infrastructure\Queue\CancelExpiredSuperAdminInvitationsJob;
 use Modules\Access\Infrastructure\Security\HmacCodes;
 use Modules\Access\Infrastructure\Security\LaravelPasswordPolicy;
 use Modules\Access\Infrastructure\Security\LoggedBreachList;
+use Modules\Access\Presentation\Console\CancelSuperAdminInvitationCommand;
 use Modules\Access\Presentation\Console\CreateSuperAdminCommand;
+use Modules\Access\Presentation\Console\ResendSuperAdminInvitationCommand;
 use Modules\Access\Presentation\Console\ResetSuperAdminPhoneCommand;
 use Modules\Access\Presentation\Console\RevokeSuperAdminCommand;
 use Modules\Access\Public\Contracts\AccessApi;
@@ -122,8 +126,20 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->make(MediaUsages::class)->register('access', StaffAvatarUsage::class);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([CreateSuperAdminCommand::class, RevokeSuperAdminCommand::class, ResetSuperAdminPhoneCommand::class]);
+            $this->commands([
+                CreateSuperAdminCommand::class,
+                RevokeSuperAdminCommand::class,
+                ResetSuperAdminPhoneCommand::class,
+                ResendSuperAdminInvitationCommand::class,
+                CancelSuperAdminInvitationCommand::class,
+            ]);
         }
+
+        // A Super Admin invitation left unaccepted is cancelled and freed (amendment 30). Scheduled
+        // work is queued as a job, never command() or call() (owner's decision, 2026-09-18).
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $schedule->job(CancelExpiredSuperAdminInvitationsJob::class)->everyTenMinutes()->onOneServer();
+        });
 
         $catalog = $this->app->make(InMemoryPermissionCatalog::class);
         $catalog->declare('access', ...AccessPermissions::definitions());

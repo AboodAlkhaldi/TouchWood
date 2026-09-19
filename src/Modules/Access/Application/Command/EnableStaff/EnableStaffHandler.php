@@ -13,21 +13,18 @@ use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
-use Modules\Access\Application\Security\SecretTokens;
-use Modules\Access\Application\Settings\StaffSecuritySettings;
-use Modules\Access\Application\Staff\StaffLinks;
-use Modules\Access\Application\Staff\StaffMapper;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
-use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
-use Modules\Access\Public\Contracts\SecurityMessages;
-use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Access\Public\Events\StaffActivated;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 
+/**
+ * Only someone who accepted is ever disabled, so enabling brings them straight back to work
+ * (amendment 29).
+ */
 final readonly class EnableStaffHandler
 {
     public const string PERMISSION = AccessPermissions::STAFF_DISABLE;
@@ -39,10 +36,6 @@ final readonly class EnableStaffHandler
         private RoleAssignmentRepository $assignments,
         private GrantsReader $grants,
         private ChangeStaffRoleHandler $roles,
-        private StaffTokenRepository $tokens,
-        private StaffSecuritySettings $settings,
-        private SecurityMessages $messages,
-        private StaffLinks $links,
         private PlatformApi $platform,
         private Dispatcher $events,
         private Connection $db,
@@ -74,8 +67,7 @@ final readonly class EnableStaffHandler
                 $this->authorizer->authorize(self::PERMISSION, $scope);
             }
 
-            $author = $this->rules->author();
-            $this->rules->requireManageable($author, $target, $this->grants->forStaff($target->id()));
+            $this->rules->requireManageable($this->rules->author(), $target, $this->grants->forStaff($target->id()));
 
             $before = clone $target;
             $target->enable();
@@ -83,16 +75,7 @@ final readonly class EnableStaffHandler
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.enabled', $before, $target, $target->pullChanges()));
             $this->grants->refresh($target->id());
 
-            if ($target->status() === StaffStatus::Active) {
-                $this->events->dispatch(new StaffActivated((string) Str::uuid(), $target->id(), CarbonImmutable::now()));
-
-                return;
-            }
-
-            // Never accepted: a new invitation, as the first one was cancelled.
-            $invitation = SecretTokens::issue();
-            $this->tokens->putInvitation($target->id(), $invitation['hash'], CarbonImmutable::now()->addHours($this->settings->invitationHours()), $author->staffId);
-            $this->db->afterCommit(fn () => $this->messages->staffInvitation(StaffMapper::toDto($target), $this->links->invitation($invitation['token'])));
+            $this->events->dispatch(new StaffActivated((string) Str::uuid(), $target->id(), CarbonImmutable::now()));
         }, 3);
     }
 }

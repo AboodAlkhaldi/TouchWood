@@ -171,6 +171,13 @@ it('refuses rows that break the rules, even when they skip the domain', function
     'a verified phone that is not there' => [fn () => updateStaffRow(['phone' => null]), 'staff_users_phone_verified_has_phone'],
     'an active account without a password' => [fn () => updateStaffRow(['password' => null]), 'staff_users_active_has_password'],
     'an invitation with a password' => [fn () => updateStaffRow(['status' => 'INVITED']), 'staff_users_invited_has_no_password'],
+    'a disabled account that never accepted' => [fn () => updateStaffRow(['status' => 'DISABLED', 'password' => null]), 'staff_users_disabled_has_password'],
+    'a cancelled account with a password' => [fn () => updateStaffRow(['status' => 'CANCELLED']), 'staff_users_cancelled_has_no_password'],
+    'invited by themselves' => [function () {
+        $staffId = Fx::staff();
+        DB::table('access.staff_users')->where('id', $staffId)->update(['invited_by' => $staffId]);
+    }, 'staff_users_not_invited_by_self'],
+    'invited by someone unknown' => [fn () => updateStaffRow(['invited_by' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'staff_users_invited_by_foreign'],
     'born on 1 January 1900' => [fn () => updateStaffRow(['date_of_birth' => '1900-01-01']), 'staff_users_date_of_birth_range'],
     'one email twice, in another case' => [fn () => updateStaffRow(['email' => strtoupper(emailOfRow(Fx::staff()))]), 'staff_users_email_unique'],
     'one phone twice' => [fn () => updateStaffRow(['phone' => DB::table('access.staff_users')->where('id', Fx::staff())->value('phone')]), 'staff_users_phone_unique'],
@@ -201,9 +208,20 @@ it('refuses rows that break the rules, even when they skip the domain', function
     }, 'staff_email_changes_token_hash_unique'],
 ]);
 
+it('lets a new account use the email and phone of a cancelled one', function () {
+    $cancelled = Fx::staff(StaffStatus::Invited);
+    DB::table('access.staff_users')->where('id', $cancelled)->update(['status' => 'CANCELLED']);
+    $row = (array) DB::table('access.staff_users')->where('id', $cancelled)->first();
+    $again = Fx::staff(StaffStatus::Invited);
+
+    DB::table('access.staff_users')->where('id', $again)->update(['email' => strtoupper((string) $row['email']), 'phone' => $row['phone']]);
+
+    expect(DB::table('access.staff_users')->where('phone', $row['phone'])->count())->toBe(2);
+});
+
 it('turns an email or phone taken at the same moment into a clear error, not a database error', function (Closure $taken, string $error) {
     // As if another admin saved the same email or phone between our check and our insert.
-    $staff = StaffUser::invite(strtolower((string) Str::ulid()), EmailAddress::of('new@example.test'), StaffProfile::of('A', 'B', 'C', '1990-01-01', 'SA', null), PhoneNumber::of('+966501112233'), Language::English);
+    $staff = StaffUser::invite(strtolower((string) Str::ulid()), EmailAddress::of('new@example.test'), StaffProfile::of('A', 'B', 'C', '1990-01-01', 'SA', null), PhoneNumber::of('+966501112233'), Language::English, null);
     $taken();
 
     expect(fn () => DB::transaction(fn () => app(StaffUserRepository::class)->add($staff)))->toThrow($error);

@@ -154,7 +154,14 @@ safely: rename one, remove the other), and a rename never puts a management acti
 role. A name that is neither declared nor removed is left alone and logged: it grants nothing,
 and a module switched off by mistake cannot wipe anyone's roles.
 
-### Staff accounts: invited, then active or disabled
+### Staff accounts: invited, then active or disabled — or cancelled
+
+```
+invite ──▶ INVITED (not registered yet) ── accepts ──▶ ACTIVE ⇄ DISABLED (disable / enable)
+             │  resend: a new link · cancel invitation: the link dies, still INVITED
+             ▼  cancel the account (the inviter, or a Super Admin)
+         CANCELLED — final; the email and phone are free for a new account
+```
 
 An admin invites with the whole profile, the communication language and a role (so inviting needs
 both **invite staff** and **assign roles** in every store the person gets). The account starts
@@ -163,9 +170,15 @@ both **invite staff** and **assign roles** in every store the person gets). The 
 account become `ACTIVE`. The chosen password waits, hashed, on the invitation row until the code is
 right, so an `INVITED` account never has a password (a CHECK guards that).
 
+An invited person gave nothing yet, so they are never disabled: the admin cancels the invitation
+(the link dies, a new one can be resent) or cancels the account (`StaffCancellation`): final, the
+role goes, and the unique email and phone indexes ignore cancelled rows, so both are free for a new
+invitation. Only the admin who invited them (`staff_users.invited_by`, kept through resends) while
+they may still invite staff, or a Super Admin, cancels an account. Every link, whoever sends it, goes
+through `Invitations`: 72 hours for staff, 24 for a Super Admin (amendments 29, 30).
+
 Disabling ends everything the person holds at once (their cached permissions are replaced in the
-same transaction). Enabling someone who never accepted sends a new invitation, because
-cancelling killed the first one. Disabling, enabling, editing a profile and changing an email each
+same transaction); only someone who accepted is disabled and enabled. Disabling, enabling, editing a profile and changing an email each
 need their action (**disable staff**, **edit staff**) in **all** of the person's stores, and never
 reach a Super Admin, another admin (except for a Super Admin) or oneself. A phone the admin changes
 is unverified until the person verifies it. Each person edits their own profile, communication language, avatar,
@@ -227,12 +240,15 @@ php artisan access:super-admin:create owner@example.com "First" "Last" \
 # An existing staff member: the email alone promotes them (their role ends; their profile stays).
 php artisan access:super-admin:create staff.member@example.com
 
-php artisan access:super-admin:revoke owner@example.com       # never the last active one; disables the account
+php artisan access:super-admin:resend-invitation owner@example.com   # a new 24-hour link
+php artisan access:super-admin:cancel owner@example.com              # cancelled and freed
+php artisan access:super-admin:revoke owner@example.com       # never the last active one; disables (or cancels an invited one)
 php artisan access:super-admin:reset-phone owner@example.com  # a lost phone
 ```
 
 The invitation is emailed through `MAIL_MAILER` — `log` in `.env.example`, which writes the email,
-link included, to `storage/logs/laravel.log`. The link opens a page from step 3b.
+link included, to `storage/logs/laravel.log`. Step 3b adds the endpoints the invitation form posts
+to; the page the link opens comes with the screens, in the frontend foundation stage (amendment 12).
 
 ### The database is the last line of defence
 

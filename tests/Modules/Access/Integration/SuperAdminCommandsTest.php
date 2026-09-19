@@ -173,15 +173,17 @@ describe('revoking a Super Admin', function () {
         Event::assertDispatched(StaffDisabled::class);
     });
 
-    it('kills the invitation of a Super Admin who never accepted', function () {
+    it('cancels and frees a Super Admin who never accepted (amendment 30)', function () {
         Fx::staff(superAdmin: true);
         app(CreateSuperAdminHandler::class)->handle(newSuperAdmin());
         $invited = (string) staffByEmail('owner@example.test')['id'];
 
         app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin('owner@example.test'));
 
-        expect(staffByEmail('owner@example.test')['status'])->toBe('DISABLED')
-            ->and(DB::table('access.staff_invitations')->where('staff_user_id', $invited)->exists())->toBeFalse();
+        expect(staffByEmail('owner@example.test')['status'])->toBe('CANCELLED')
+            ->and(staffByEmail('owner@example.test')['is_super_admin'])->toBeFalse()
+            ->and(DB::table('access.staff_invitations')->where('staff_user_id', $invited)->exists())->toBeFalse()
+            ->and(Fx::audits('access.staff_user.cancelled', $invited))->toBe(1);
     });
 
     it('lets any admin bring a former Super Admin back, together with a role', function () {
