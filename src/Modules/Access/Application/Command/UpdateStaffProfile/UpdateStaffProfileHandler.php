@@ -50,7 +50,14 @@ final readonly class UpdateStaffProfileHandler
             }
 
             // Never a Super Admin (they edit their own), an admin (unless by a Super Admin) or yourself.
-            $this->rules->requireManageable($this->rules->author(), $target, $this->grants->forStaff($target->id()));
+            $author = $this->rules->author();
+            $targetGrants = $this->grants->forStaff($target->id());
+            $this->rules->requireManageable($author, $target, $targetGrants);
+
+            // A new phone receives the sign-in codes: it needs every action of their role.
+            if ($target->phone() === null || ! $target->phone()->equals($phone)) {
+                $this->rules->requireCoversActionsOf($author, $targetGrants);
+            }
 
             if ($this->staff->phoneInUse($phone, $target->id())) {
                 throw new PhoneAlreadyInUse;

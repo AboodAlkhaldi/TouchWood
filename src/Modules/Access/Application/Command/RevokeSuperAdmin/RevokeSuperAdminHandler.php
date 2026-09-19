@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Command\RevokeSuperAdmin;
 
+use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Connection;
+use Illuminate\Support\Str;
 use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
@@ -12,13 +15,19 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\LastSuperAdmin;
 use Modules\Access\Domain\Exception\StaffNotFound;
+use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Public\Enums\StaffStatus;
+use Modules\Access\Public\Events\StaffDisabled;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
+/**
+ * A former Super Admin has no role, and nobody works without one: the account is disabled, with
+ * every link and code it had, until an admin enables it together with a role (owner, 2026-09-19).
+ */
 final readonly class RevokeSuperAdminHandler
 {
     public const string PERMISSION = AccessPermissions::SUPER_ADMIN_MANAGE;
@@ -27,8 +36,10 @@ final readonly class RevokeSuperAdminHandler
         private Authorizer $authorizer,
         private GrantRules $rules,
         private StaffUserRepository $staff,
+        private StaffTokenRepository $tokens,
         private GrantsReader $grants,
         private PlatformApi $platform,
+        private Dispatcher $events,
         private Connection $db,
     ) {}
 
@@ -53,7 +64,16 @@ final readonly class RevokeSuperAdminHandler
 
             $before = clone $staff;
             $staff->revokeSuperAdmin();
+
+            if ($staff->status() !== StaffStatus::Disabled) {
+                $staff->disable();
+                $this->events->dispatch(new StaffDisabled((string) Str::uuid(), $staff->id(), CarbonImmutable::now()));
+            }
+
             $this->staff->update($staff);
+            $this->tokens->deleteInvitation($staff->id());
+            $this->tokens->deletePhoneCode($staff->id());
+            $this->tokens->deleteEmailChange($staff->id());
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.super_admin_revoked', $before, $staff, $staff->pullChanges()));
             $this->grants->refresh($staff->id());
         });

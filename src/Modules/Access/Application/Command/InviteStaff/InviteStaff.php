@@ -19,6 +19,7 @@ final readonly class InviteStaff
      * @param  string  $locale  the communication language; the screen defaults it to the inviting admin's
      * @param  list<string>  $storeIds  empty for all stores
      * @param  list<ActionStores>  $exceptions
+     * @param  string|null  $avatarMediaId  optional: an uploaded public image
      */
     public function __construct(
         public string $email,
@@ -35,5 +36,6 @@ final readonly class InviteStaff
         public array $exceptions = [],
         public ?string $savedRoleId = null,
         public ?PersonalRole $personalRole = null,
+        public ?string $avatarMediaId = null,
     ) {}
 }

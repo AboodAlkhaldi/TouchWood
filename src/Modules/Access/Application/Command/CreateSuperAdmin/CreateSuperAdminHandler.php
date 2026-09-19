@@ -98,7 +98,7 @@ final readonly class CreateSuperAdminHandler
             throw new PhoneAlreadyInUse;
         }
 
-        $staff = StaffUser::invite($this->staff->nextId(), $email, $profile, $phone, Language::of($command->locale), superAdmin: true);
+        $staff = StaffUser::invite($this->staff->nextId(), $email, $profile, $phone, Language::of((string) $command->locale), superAdmin: true);
         $this->staff->add($staff);
         $this->preferences->createDefaults($staff->id());
         $this->platform->recordAudit(StaffAudit::invited($staff));
@@ -123,6 +123,9 @@ final readonly class CreateSuperAdminHandler
         }
 
         $staff->promoteToSuperAdmin();
+
+        // Nobody else changes a Super Admin's email: a change an admin asked for earlier dies.
+        $this->tokens->deleteEmailChange($staff->id());
 
         if ($staff->status() === StaffStatus::Disabled) {
             $staff->enable();

@@ -52,7 +52,7 @@ final readonly class StaffSecuritySettings
             $setting(self::CODE_LENGTH, 6, 4, 8),
             $setting(self::CODE_MINUTES, 5, 1, 60),
             $setting(self::CODE_RESEND_SECONDS, 60, 0, 3600),
-            $setting(self::CODES_PER_HOUR, 5, 1, 100),
+            $setting(self::CODES_PER_HOUR, 3, 1, 100),
             $setting(self::CODE_ATTEMPTS, 5, 1, 20),
         ];
     }

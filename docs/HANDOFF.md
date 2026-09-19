@@ -86,6 +86,10 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-19 | §7.6 | Staff are invited with the whole profile and verify their phone by SMS code when accepting; the communication language is set at invitation and changed in the person's own settings; a staff email can change, taking effect when the link sent to the new address is used; new staff get in-panel notifications, no email ones | Access step 3, owner decision |
 | 2026-09-19 | §7.5 | Super Admin console commands: create takes the whole profile or promotes an existing staff member; revoke never removes the last active one; a lost phone is reset by console | Access step 3, owner decision |
 | 2026-09-19 | §7.7 | When the leaked-password service cannot be reached, the password is accepted and the outage logged | Access step 3, owner decision |
+| 2026-09-19 | §7.5 | Nobody works without a role: an account left with none (a revoked Super Admin) is disabled until any admin, or a Super Admin, enables it together with a role; deleting a held role still needs a replacement | Access step 3a review, owner decision |
+| 2026-09-19 | §7.5 | Redirecting a staff account — a new email or phone, a resent invitation — needs every action of the person's role, like giving them that role | Access step 3a review, owner decision |
+| 2026-09-19 | §7.6 | Changing an invited person's email sends a new invitation there; the old link dies | Access step 3a review, owner decision |
+| 2026-09-19 | §7.7 | SMS codes: at most 3 an hour per number (was 5) | Access step 3a review, owner decision |
 
 ---
 
@@ -626,6 +630,12 @@ one may exist. The command takes the whole profile, or promotes an existing staf
 role ends); revoking by console never removes the last active Super Admin; nothing in the panel —
 not even another Super Admin — creates, changes or removes one (owner, 2026-09-19).
 
+**Nobody works without a role** (owner, 2026-09-19): an account left with none — a revoked Super
+Admin — is disabled until any admin, or a Super Admin, enables it together with a role; deleting a
+role its holders still hold needs a replacement. **Redirecting an account** — a new email or phone,
+a resent invitation — needs every action of the person's role, like giving them that role, so no
+admin can take over an account holding more than they do.
+
 **Admin navigation is derived from the permission set**, never hardcoded. A staff member
 with catalog permissions only sees catalog tabs.
 
@@ -659,7 +669,8 @@ The admin enters the **whole profile at invitation** (only the address and avata
 the invitee sets a password and verifies the phone by SMS code when accepting. The
 **communication language** (every email and code) is chosen at invitation and changed in the
 person's own settings; the panel's EN/AR switch changes only the display. A staff **email can
-change**: the new address takes effect when the link sent to it is used. New staff start with
+change**: the new address takes effect when the link sent to it is used — for someone invited who
+has not accepted, a new invitation goes there and the old link dies. New staff start with
 in-panel notifications on and email ones off (owner, 2026-09-19).
 
 ### 7.7 Sessions
@@ -671,7 +682,7 @@ be tuned then. The defaults (owner, 2026-09-18): passwords at least 8 characters
 password is accepted and the outage logged — owner, 2026-09-19); 5 wrong passwords lock an account for 15
 minutes; customers stay signed in 30 days with "remember me", otherwise 2 hours idle; staff 30
 minutes idle and 12 hours at most; SMS codes of 6 digits valid 5 minutes, resent after 60 seconds,
-at most 5 an hour, dead after 5 wrong tries; the email verification link lasts 24 hours, a password
+at most 3 an hour per number (owner, 2026-09-19; was 5), dead after 5 wrong tries; the email verification link lasts 24 hours, a password
 reset link 60 minutes, a staff invitation 72 hours.
 
 ### 7.8 Addresses

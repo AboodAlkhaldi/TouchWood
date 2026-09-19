@@ -21,7 +21,7 @@ final readonly class CreateSuperAdmin
         public ?string $dateOfBirth = null,
         public ?string $country = null,
         public ?string $phone = null,
-        public string $locale = 'ar',
+        public ?string $locale = null,
         public ?string $address = null,
     ) {}
 }

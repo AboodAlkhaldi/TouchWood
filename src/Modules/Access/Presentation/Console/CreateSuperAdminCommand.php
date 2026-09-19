@@ -14,7 +14,7 @@ use Shared\Domain\Error\DomainError;
  */
 final class CreateSuperAdminCommand extends Command
 {
-    private const array PROFILE_OPTIONS = ['job-title', 'date-of-birth', 'country', 'phone', 'address'];
+    private const array PROFILE_OPTIONS = ['job-title', 'date-of-birth', 'country', 'phone', 'locale', 'address'];
 
     protected $signature = 'access:super-admin:create
         {email : The Super Admin\'s email; an existing staff member with it is promoted and keeps their profile}
@@ -24,7 +24,7 @@ final class CreateSuperAdminCommand extends Command
         {--date-of-birth= : YYYY-MM-DD (new accounts)}
         {--country= : ISO 3166-1 alpha-2 country code, e.g. SA (new accounts)}
         {--phone= : International phone number, e.g. +966501234567 (new accounts)}
-        {--locale=ar : Communication language, ar or en (new accounts)}
+        {--locale= : Communication language, ar or en (new accounts)}
         {--address= : Address (optional, new accounts)}';
 
     protected $description = 'Create a Super Admin and email their invitation, or promote an existing staff member';
@@ -40,7 +40,7 @@ final class CreateSuperAdminCommand extends Command
                 $this->optionText('date-of-birth'),
                 $this->optionText('country'),
                 $this->optionText('phone'),
-                $this->optionText('locale') ?? 'ar',
+                $this->optionText('locale'),
                 $this->optionText('address'),
             ));
         } catch (DomainError $error) {

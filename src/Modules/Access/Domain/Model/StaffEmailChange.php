@@ -8,7 +8,8 @@ use DateTimeImmutable;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 
 /**
- * A new email waiting for its link to be used (amendment 17).
+ * A new email waiting for its link to be used (amendment 17), and who asked for it (null: the
+ * console).
  */
 final readonly class StaffEmailChange
 {
@@ -16,6 +17,7 @@ final readonly class StaffEmailChange
         public string $staffId,
         public EmailAddress $newEmail,
         public DateTimeImmutable $expiresAt,
+        public ?string $requestedBy,
     ) {}
 
     public function isExpired(DateTimeImmutable $now): bool

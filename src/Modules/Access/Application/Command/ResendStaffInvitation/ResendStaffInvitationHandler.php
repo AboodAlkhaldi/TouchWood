@@ -55,7 +55,10 @@ final readonly class ResendStaffInvitationHandler
             }
 
             $author = $this->rules->author();
-            $this->rules->requireManageable($author, $target, $this->grants->forStaff($target->id()));
+            $targetGrants = $this->grants->forStaff($target->id());
+            $this->rules->requireManageable($author, $target, $targetGrants);
+            // A new link to the account: it needs every action of their role (owner, 2026-09-19).
+            $this->rules->requireCoversActionsOf($author, $targetGrants);
 
             if ($target->status() !== StaffStatus::Invited) {
                 throw new InvalidStaffStatus($target->status());

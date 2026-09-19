@@ -269,6 +269,67 @@ final readonly class GrantRules
     }
 
     /**
+     * Redirecting someone's account — their email, their phone, a new invitation link — would let
+     * the author use that person's role. So it needs every action of the role, in the stores it
+     * reaches for them: the same as giving them that role (owner's decision, 2026-09-19).
+     */
+    public function requireCoversActionsOf(Author $author, ?StaffGrants $target): void
+    {
+        $missing = $this->firstActionNotCovered($author, $target);
+
+        if ($missing !== null) {
+            throw new PermissionEscalation($missing);
+        }
+    }
+
+    private function firstActionNotCovered(Author $author, ?StaffGrants $target): ?string
+    {
+        if ($author->isUnlimited() || $target === null) {
+            return null;
+        }
+
+        foreach ($target->grants as $permission => $stores) {
+            if ($author->storesFor($permission)?->includes($stores) !== true) {
+                return $permission;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A change asked for earlier (an email change, whose link is used later) takes effect only if
+     * the person who asked may still make it: still active, still holding the action in all of the
+     * target's stores (somewhere, when they have none), still managing them and covering their
+     * actions — as a queued job runs under its requester's grants.
+     */
+    public function mayStillManage(string $requesterId, string $permission, StaffUser $target, ?StoreChoice $stores): bool
+    {
+        $grants = $this->grants->forStaff($requesterId);
+
+        if ($grants === null || ! $grants->isActive()) {
+            return false;
+        }
+
+        $author = $grants->superAdmin ? Author::unlimited($grants->staffId) : Author::staff($grants);
+        $reach = $author->storesFor($permission);
+
+        if ($reach === null || ($stores !== null && ! $reach->includes($stores))) {
+            return false;
+        }
+
+        $targetGrants = $this->grants->forStaff($target->id());
+
+        try {
+            $this->requireManageable($author, $target, $targetGrants);
+        } catch (StaffNotEditable) {
+            return false;
+        }
+
+        return $this->firstActionNotCovered($author, $targetGrants) === null;
+    }
+
+    /**
      * An admin's reach over a staff member: the author holds the management action that changes
      * people's access — assigning roles — in all of their stores (owner's decision, 2026-09-19).
      */

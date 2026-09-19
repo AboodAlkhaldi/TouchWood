@@ -33,6 +33,17 @@ describe('email addresses', function () {
     it('refuses what is not an email address', function (string $value) {
         EmailAddress::of($value);
     })->throws(InvalidAccessAttribute::class)->with(['', 'sara', 'sara@', '@example.test']);
+
+    it('takes 254 characters, the column\'s size, and refuses 255', function () {
+        $domain = implode('.', [str_repeat('b', 63), str_repeat('c', 63), str_repeat('d', 52)]).'.test';
+        $fits = str_repeat('a', 64).'@eee.'.$domain;
+        $tooLong = str_repeat('a', 64).'@eeee.'.$domain;
+
+        expect(strlen($fits))->toBe(254)
+            ->and(EmailAddress::of($fits)->value)->toBe($fits)
+            ->and(strlen($tooLong))->toBe(255)
+            ->and(fn () => EmailAddress::of($tooLong))->toThrow(InvalidAccessAttribute::class);
+    });
 });
 
 describe('phone numbers', function () {

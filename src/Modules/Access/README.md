@@ -171,8 +171,20 @@ reach a Super Admin, another admin (except for a Super Admin) or oneself. A phon
 is unverified until the person verifies it. Each person edits their own profile, communication language, avatar,
 phone (the new number counts only after its code) and notification toggles.
 
+**Redirecting an account** — a new email, a new phone, a resent invitation — would let the admin
+use the person's role, so it also needs every action of that role in the stores it reaches for
+them (`GrantRules::requireCoversActionsOf`), the same as giving them the role.
+
+**Nobody works without a role.** A revoked Super Admin is disabled, with every link and code. An
+account with no role is enabled only together with one: `EnableStaff` takes the role and gives it
+first, under every rule of `ChangeStaffRole`, in the same transaction — a refusal undoes both. Any
+admin holding the action somewhere, or a Super Admin, may do it, because the person has no stores.
+
 A staff **email changes only through a link sent to the new address** (72 hours); until it is used
-the old one stays. A Super Admin changes their own this way; nobody else can change it.
+the old one stays, and it takes effect only if whoever asked may still make the change then. A
+Super Admin changes their own this way; nobody else can change it. Someone invited who has not
+accepted has no proven address yet: their email changes at once and a new invitation goes there,
+so the link sent to a mistyped address dies.
 
 ### Links and codes are never stored in plain text
 
@@ -180,7 +192,10 @@ A link carries 32 random bytes; only their SHA-256 hash is stored, so a copy of 
 nothing. An SMS code is stored as an HMAC keyed with the application key. A new link or code
 replaces the previous one. Codes live 5 minutes, die after 5 wrong tries — each wrong try is
 committed even though the request fails — and are resent no sooner than a minute later and at
-most 5 times an hour per number. Every number is a setting (`StaffSecuritySettings`).
+most 3 times an hour per number. Every number is a setting (`StaffSecuritySettings`). A dead link
+is refused before the password is checked, so a made-up link never reaches the leaked-password
+service; that service's outages — an error reply as much as no reply — are logged
+(`LoggedBreachList`) and the password accepted.
 
 Both the email check and the phone check run in code before the database's unique indexes, and
 again when the link or code is used, since someone may have taken the value in between. The
@@ -192,17 +207,19 @@ Access sends its own security messages until Ops exists, through `SecurityMessag
 to replace later. Emails go out **after the commit and never through the queue**, because a
 queued job would store the link in the `jobs` table. SMS goes through `SmsGateway`, chosen by
 `ACCESS_SMS_DRIVER`; only `log` exists until the SMS provider is chosen, and an unknown driver
-fails loudly rather than sending nothing. Every message is in the person's communication language.
+fails loudly rather than sending nothing. `log` writes codes to the log, so it refuses to run in
+production. Every message is in the person's communication language.
 
 ### Super Admins: the console only
 
 `CreateSuperAdmin`, `RevokeSuperAdmin` and `ResetSuperAdminPhone` refuse every actor except the
 console's own system actor — a Super Admin in the panel, or a job queued on their behalf, is
 refused — so a hijacked admin session can never make or remove one. Revoking never removes the
-last **active** Super Admin (an invited one who never accepted does not count).
+last **active** Super Admin (an invited one who never accepted does not count), and disables the
+account until an admin enables it together with a role.
 
 ```bash
-# A new Super Admin: the whole profile. --address is optional; --locale defaults to ar.
+# A new Super Admin: the whole profile, --locale (ar or en) included; only --address is optional.
 php artisan access:super-admin:create owner@example.com "First" "Last" \
     --job-title="Founder" --date-of-birth=1990-01-31 --country=SA \
     --phone=+966500000000 --locale=ar --address="Riyadh"
@@ -210,7 +227,7 @@ php artisan access:super-admin:create owner@example.com "First" "Last" \
 # An existing staff member: the email alone promotes them (their role ends; their profile stays).
 php artisan access:super-admin:create staff.member@example.com
 
-php artisan access:super-admin:revoke owner@example.com       # never the last active one
+php artisan access:super-admin:revoke owner@example.com       # never the last active one; disables the account
 php artisan access:super-admin:reset-phone owner@example.com  # a lost phone
 ```
 
@@ -231,4 +248,4 @@ passes, so the role-name rule is wrapped in `COALESCE(…, false)` — the schem
 |---|---|
 | 1 | Foundation: the `access` schema, the service provider, the permission catalog with Access's and Platform's permissions |
 | 2 | Roles, assignments and exceptions; the real authorizer and its cache; the three levels; renamed and removed permissions; the role reads. `VersionedCache` moved to Shared; Platform's interim authorizer removed. Then an independent review (spec, security, tests): lock order and retries, one-statement cache loads, the admin-reach rule (amendment 11), stricter handling of undeclared names, and the missing tests, with a mutation run proving them |
-| 3a | Staff accounts: the full profile, invitations accepted with a password and an SMS code, disable/enable, profile edits by an admin and by the person, email change by link, notification toggles, avatars as Platform media, the three Super Admin console commands, `AccessApi`, and the temporary security messages (Laravel mail, `log` SMS driver). No HTTP endpoints yet: they need the real `ActorContext` of step 3b. A mutation run (30 deliberate mistakes, each caught) proved the tests |
+| 3a | Staff accounts: the full profile, invitations accepted with a password and an SMS code, disable/enable, profile edits by an admin and by the person, email change by link, notification toggles, avatars as Platform media, the three Super Admin console commands, `AccessApi`, and the temporary security messages (Laravel mail, `log` SMS driver). No HTTP endpoints yet: they need the real `ActorContext` of step 3b. A mutation run (30 deliberate mistakes, each caught) proved the tests. Then an independent review (spec, security, tests) and the owner's answers: redirecting an account needs the person's actions; nobody works without a role; an invited person's new email gets a new invitation; an email change re-checks its requester; 3 SMS an hour; outages of the leaked-password service logged; the `log` SMS driver refused in production; many missing tests |
