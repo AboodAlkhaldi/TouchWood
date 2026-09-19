@@ -141,13 +141,21 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
 
 - **Our own tables**, not `spatie/laravel-permission`: the store scope lives on each role
   assignment, which that package cannot express (handoff §3 amended).
-- **One role per staff member.** The role has a name in Arabic and English and a set of permissions.
+- **One role per staff member.** The role has a name in Arabic and English and a set of permissions
+  — **at least one** **[DECIDED 2026-09-19, amendment 7]**.
+- **Assigning a role [DECIDED 2026-09-19]:** the admin picks a saved role, then either keeps it as
+  it is — the staff member holds that saved role — or edits it: every action is shown, ticked or
+  not, the admin changes them within their own permissions, and the result is saved as that staff
+  member's personal role.
 - **Saved roles** are shared: many staff can hold the same one, and **editing a saved role changes
   it for everyone who holds it**. Admins can create new saved roles and clone one into a new
-  saved role (a copy at creation time, never live inheritance).
+  saved role (a copy at creation time, never live inheritance). **Saved role names are unique in
+  each language, ignoring case** **[DECIDED 2026-09-19, amendment 7]**.
 - **Editing a staff member's role from that staff member's page** gives them a **personal role**:
   a copy of the saved role with the change, belonging to that one person. Nobody else changes. A
   personal role never appears in the list of saved roles; editing it again changes only that person.
+  It starts with the saved role's names, which the admin may change, or is built from scratch; it
+  is **deleted when its holder is moved to a saved role** **[DECIDED 2026-09-19, amendment 7]**.
 - **Stores are chosen per staff member, with exceptions [DECIDED 2026-09-19].** The role holds only
   the actions, so a saved role such as "Order fulfilment" works in any store. For each staff
   member the admin ticks the actions' stores once — KSA, UAE, Egypt, or all stores, now and
@@ -171,11 +179,54 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
   admin picks another saved role and every holder moves to it (the no-escalation rule applies to
   the move). Without a replacement the delete is refused, listing the holders.
 
+**Three levels: Super Admin → admins → staff [DECIDED 2026-09-19, amendment 9].**
+
+- Every role has a **level**, `ADMIN` or `STAFF`. Whoever holds an admin role is an **admin**;
+  whoever holds a staff role is **staff**.
+- **Management actions** — `access.staff.invite`, `access.staff.update`,
+  `access.staff.assign_role`, `access.staff.disable` and `access.role.manage` — can be put only
+  into admin roles. Staff manage no roles and no people.
+- **Only a Super Admin** creates, clones, edits or deletes admin roles, gives anyone an admin role,
+  and manages admins. No admin manages another admin, or themselves.
+- **Admins** create and edit saved staff roles, and manage staff.
+- **An admin manages a staff member only if the admin covers all of that person's stores.** This
+  holds for changing their role and for every action on the whole account: disabling them,
+  their profile and phone, their invitation. A KSA-only admin manages KSA-only staff. A KSA+UAE
+  staff member is managed by a KSA+UAE admin, an admin with more stores, or a Super Admin.
+- **A staff member's stores** are the store row chosen for them, plus any store an exception adds.
+  Store-free actions add nothing. A staff member with one store is listed under that store; one
+  with two or more is listed as **centralized**, and only an admin with the same stores or more
+  manages them.
+- `access.staff.view` is an ordinary action that a staff role may hold. Its holder sees the staff
+  whose stores all lie within their own stores for that action: a KSA-only holder never sees
+  KSA+UAE staff, and a KSA+UAE holder sees KSA, UAE and KSA+UAE staff.
+
+**Store-free permissions [DECIDED 2026-09-19, amendment 4].** Each permission is declared either
+**per store** or **store-free**. A store-free permission concerns nothing that belongs to one
+store, such as uploading or deleting media, or managing roles. Holding it is enough, whatever the
+person's stores. The role editor shows its store boxes ticked and disabled: it has no store
+choice and no exception. A handler checks a store-free permission only with
+`PermissionScope::global()`, and a per-store one only with `store()` or `allStores()`. Any other
+check is a programming error and fails at once.
+
+**"Every store" [DECIDED 2026-09-19, amendment 5].** A change that reaches every store
+(`PermissionScope::allStores()`, e.g. a global setting) needs the permission with **All stores**.
+Ticking every current store one by one is not enough, because the change also reaches stores
+opened later.
+
 **The permission catalog.** Every permission is declared in code by the module that checks it,
-with its labels in Arabic and English and whether it is reserved. Platform publishes its list in
-its public contract (a small Platform addition, §2.5); modules above Access declare theirs through
-`PermissionCatalog` (§2.2). A role can only hold declared permissions. Permission names follow
-`{module}.{resource}.{action}`.
+with its labels in Arabic and English, whether it is reserved, and whether it is per store or
+store-free. Platform publishes its list in its public contract (a small Platform addition, §2.5);
+modules above Access declare theirs through `PermissionCatalog` (§2.2). A role can only hold
+declared permissions. Permission names follow `{module}.{resource}.{action}`.
+
+**Renamed and removed permissions [DECIDED 2026-09-19, amendment 3].** A module that renames or
+removes a permission declares it (`renamed()`, `removed()`, §2.2). At the end of every
+`php artisan migrate` — also when there is nothing to migrate — Access moves every role and every
+exception from the old name to the new one, and takes removed permissions out of every role,
+auditing each change. A name in a role that is neither declared nor declared removed is left
+alone and reported: it grants nothing, and a module switched off by mistake cannot wipe anyone's
+roles.
 
 **Automatic permissions.** Every command handler asserts a permission (handoff §19), including
 actions no role grants: signing in, registering, a customer editing their own profile, a staff
@@ -338,10 +389,18 @@ own contract, §2.5).
 interface PermissionCatalog
 {
     public function declare(string $module, PermissionDefinitionDto ...$permissions): void;
+
+    /** The roles holding $from get $to instead, at the next migrate (amendment 3). */
+    public function renamed(string $module, string $from, string $to): void;
+
+    /** Taken out of every role at the next migrate (amendment 3). */
+    public function removed(string $module, string ...$names): void;
 }
 ```
 
-A permission outside the module's prefix, declared twice, or malformed is refused at boot.
+A permission outside the module's prefix, declared twice, or malformed is refused at boot. So is a
+rename whose old name is still declared or whose new name is not, a name renamed twice, and a
+removed name that is still declared.
 
 ### 2.3 `SecurityMessages` — sent by Access now, by Ops later **[DECIDED 2026-09-18]**
 
@@ -375,11 +434,11 @@ which are stored in the database.
 | `CustomerDto` | `id`, `accountType`, `status`, `firstName`, `lastName`, `email`, `phone`, `emailVerified`, `phoneVerified`, `locale`, `deletionScheduledFor` |
 | `StaffDto` | `id`, `firstName`, `lastName`, `email`, `phone`, `locale`, `status`, `isSuperAdmin` |
 | `AddressDto` | `id`, `customerId`, `storeId`, `label`, `recipientName`, `phone`, `fields`, `isDefault`, `formatted` (the store's display template applied) |
-| `PermissionDefinitionDto` | `name`, `audience` (`ROLE`, `EVERY_STAFF`, `EVERY_CUSTOMER`, `EVERY_GUEST`), `reserved`; its names in Arabic and English are the module's translations at `labelKey()` — `{module}::permissions.{resource}.{action}` (amendment 1, §9.4) |
+| `PermissionDefinitionDto` | `name`, `audience` (`ROLE`, `EVERY_STAFF`, `EVERY_CUSTOMER`, `EVERY_GUEST`), `reserved`, `kind` (`PER_STORE`, `GLOBAL` — store-free, amendment 4); its names in Arabic and English are the module's translations at `labelKey()` — `{module}::permissions.{resource}.{action}` (amendment 1, §9.4) |
 | `StaffNotificationPreferenceDto` | `topic`, `email`, `panel` |
 
 Enums: `AccountType`, `CustomerStatus`, `StaffStatus`, `AccessLevel`, `PermissionAudience`,
-`StaffNotificationTopic` — stored as strings.
+`PermissionKind`, `StaffNotificationTopic` — stored as strings.
 
 ### 2.5 What Access implements for others, and what it needs
 
@@ -391,9 +450,10 @@ Enums: `AccountType`, `CustomerStatus`, `StaffStatus`, `AccessLevel`, `Permissio
   `SettingsRegistry` (its settings, §1.8), `MediaUsages` (staff avatars), `ReservedPaths` (Platform
   already reserves `admin` and `api`).
 - **Platform additions in this stage:** Platform publishes its permission list in its public
-  contract (`PlatformPermissions`: names and reserved flags, with the names in Arabic and English in
-  `platform::permissions` — amendment 1), and its interim `SystemActorContext` and
-  `SystemOnlyAuthorizer` are removed.
+  contract (`PlatformPermissions`: names, reserved flags and kinds, with the names in Arabic and
+  English in `platform::permissions` — amendments 1 and 4), and its interim `SystemActorContext`
+  and `SystemOnlyAuthorizer` are removed. Platform's `VersionedCache` moves to the Shared kernel,
+  so Access caches permissions by the same never-stale rule (amendment 6).
 
 ---
 
@@ -426,14 +486,18 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `SignInStaff` → `VerifyStaffSignInCode` (+ trust this browser) | every guest | `access.session.sign_in` | Global |
 | `RequestStaffPasswordReset` / `ResetStaffPassword` | every guest | `access.session.reset_password` | Global |
 | `AcceptStaffInvitation` — set password, verify phone | every guest (with the link) | `access.staff.accept_invitation` | Global |
-| `InviteStaff` — profile, role, store scope | role | `access.staff.invite` | The stores in the scope; no escalation |
-| `ResendStaffInvitation` / `CancelStaffInvitation` | role | `access.staff.invite` | The staff member's stores |
-| `UpdateStaffProfile` — including their phone | role | `access.staff.update` | The staff member's stores |
-| `ChangeStaffRole` — pick a saved role, or edit it into a personal role; set the scope | role | `access.staff.assign_role` | Old and new stores; no escalation |
-| `DisableStaff` / `EnableStaff` | role | `access.staff.disable` | The staff member's stores |
-| `ListStaff` / `ViewStaff` | role | `access.staff.view` | Staff whose stores are within the viewer's |
-| `CreateRole` / `CloneRole` (saved roles) | role | `access.role.manage` | Only permissions the author holds |
-| `UpdateRole` / `DeleteRole` (saved roles; deleting needs a replacement for its holders) | role | `access.role.manage` | Every store of every holder |
+| `InviteStaff` — profile, role, store scope | role | `access.staff.invite` | The stores in the scope; no escalation; an admin invites staff only (amendment 9) |
+| `ResendStaffInvitation` / `CancelStaffInvitation` | role | `access.staff.invite` | Every store of the staff member |
+| `UpdateStaffProfile` — including their phone | role | `access.staff.update` | Every store of the staff member |
+| `ChangeStaffRole` — pick a saved role, or edit it into a personal role; set the scope | role | `access.staff.assign_role` | Every old and new store; no escalation; admins change staff only, never themselves (amendment 9) |
+| `DisableStaff` / `EnableStaff` | role | `access.staff.disable` | Every store of the staff member |
+| `ListStaff` / `ViewStaff` | role | `access.staff.view` | Staff whose stores all lie within the viewer's |
+| `CreateRole` / `CloneRole` (saved roles) | role | `access.role.manage` (store-free) | Only permissions the author holds; admin roles by a Super Admin only |
+| `UpdateRole` / `DeleteRole` (saved roles; deleting needs a replacement for its holders) | role | `access.role.manage` (store-free) | Every store of every holder; admin roles by a Super Admin only |
+| `ListRoles` / `ViewRole` — saved roles; one role with its permissions and holders (amendment 8) | role | `access.role.manage` or `access.staff.assign_role` | An admin sees admin roles read-only; of the holders, only those they manage, plus the total count |
+| `RefreshStaffPermissions` / `RefreshRolePermissions` — rebuild the cached permissions of one staff member, or of a role's holders (amendment 10) | role | `access.staff.assign_role` / `access.role.manage` | As for changing that staff member's role / editing that role |
+| `RoleEditorPermissions` — what the author may put in a role, with names, kinds and their own stores (amendment 8) | role | `access.role.manage` or `access.staff.assign_role` | The author's own permissions |
+| `MyPermissions` — what I may do, and where; the admin menu is built from it (amendment 8) | every staff | none: it shows only the reader's own permissions | Own data |
 | `UpdateOwnStaffProfile` / `ChangeOwnStaffPassword` / `ChangeOwnStaffPhone` / notification preferences | every staff | `access.own_account.update` | Global |
 | `SignOutStaff` | every staff | `access.own_account.update` | Global |
 | `CreateSuperAdmin` / `RevokeSuperAdmin` — never the last one | system (console) | `access.super_admin.manage` (reserved) | Global |
@@ -570,7 +634,7 @@ The verification link is a signed URL, so it needs no table. `pending_phone_chan
 
 | Table | Columns |
 |---|---|
-| `access.roles` | `id`, `name` jsonb (ar, en), `kind` (`SAVED`, `PERSONAL`), `personal_to` FK → staff NULL (set exactly when `PERSONAL`), timestamps |
+| `access.roles` | `id`, `name` jsonb (ar, en), `kind` (`SAVED`, `PERSONAL`), `level` (`ADMIN`, `STAFF`, amendment 9), `personal_to` FK → staff NULL (set exactly when `PERSONAL`; at most one personal role per staff member), timestamps — saved role names unique in each language, ignoring case (amendment 7) |
 | `access.role_permissions` | (`role_id`, `permission`) PK — `permission` must be a declared, non-reserved permission of audience `ROLE` (code rule) |
 | `access.role_assignments` | `staff_user_id` PK/FK (one role each), `role_id` FK RESTRICT, `access_level` (`ALL_STORES`, `SELECTED_STORES`) — the stores for every action — `assigned_by`, `assigned_at` |
 | `access.role_assignment_stores` | (`staff_user_id`, `store_id`) PK, FK → `platform.stores` — rows exist exactly when `SELECTED_STORES` |
@@ -579,8 +643,10 @@ The verification link is a signed URL, so it needs no table. `pending_phone_chan
 
 An action's stores for a staff member: its exception if there is one, otherwise the assignment's
 stores. Removing an action from a role removes its exceptions. The handoff's `store_ids[]` is a
-link table instead of an array, so each store id has a real foreign key. A staff member's permissions are cached (versioned, written inside the change's
-transaction — Platform's rule); a warm authorization check reads the cache table only.
+link table instead of an array, so each store id has a real foreign key. A staff member's
+permissions are cached (versioned, written inside the change's transaction — Platform's rule); a
+warm authorization check reads the cache table only. A cached copy lives at most 1 hour, and
+admins can rebuild it by hand (amendment 10).
 
 ### 5.5 Addresses
 
@@ -641,9 +707,12 @@ AccessError
 ├── PermissionEscalation          FORBIDDEN    granting more than you hold
 ├── UnknownPermission             INVALID
 ├── ReservedPermission            INVALID
+├── AdminOnlyPermission           INVALID      a management action in a staff role (amendment 9)
+├── RoleNameTaken                 CONFLICT     another saved role has that name (amendment 7)
 ├── RoleInUse                     CONFLICT     deleting a saved role someone holds, with no replacement
 ├── LastSuperAdmin                CONFLICT     revoking the only Super Admin
-├── StaffNotEditable              CONFLICT     a Super Admin, from the panel
+├── StaffNotEditable              CONFLICT     a Super Admin from the panel; an admin, except by a Super Admin; yourself
+├── SuperAdminOnly                FORBIDDEN    an admin role created, changed or given by anyone but a Super Admin (amendment 9)
 ├── AddressFormatMissing          CONFLICT     the store has no address format yet
 ├── InvalidAddress                INVALID      a field fails the store's format
 ├── DeletionPending               CONFLICT
@@ -664,6 +733,10 @@ AccessError
   refused; a personal role belongs to one staff member; editing a saved role vs editing a staff
   member's role; an action's stores are its exception's, otherwise the assignment's; an action
   added to a saved role reaches each holder in their stores.
+- Levels: management actions refused in a staff role; admin roles and admins only by a Super Admin;
+  nobody changes their own role (amendment 9). Store-free actions take no store choice or
+  exception (amendment 4).
+- The catalog: kinds, renames and removals validated at boot (amendments 3, 4).
 - Address validation against a scheme: required fields, the map pin both-or-neither and in range;
   the country's store decides the scheme.
 - Every Access error has a unique `type` and a category.
@@ -676,7 +749,12 @@ AccessError
 - Authorizer: Super Admin everywhere; staff only through their role and each action's stores
   (exceptions included); `storesWith()`;
   customers and guests only their audience's permissions; a disabled staff member nothing; the
-  warm check reads only the cache table.
+  warm check reads only the cache table; a store-free permission checked against a store, or a
+  per-store one checked with no store, fails; "every store" needs All stores (amendments 4, 5).
+- Renamed and removed permissions reach every role and exception at the end of `migrate`, also
+  with nothing to migrate; unknown names are left and reported (amendment 3).
+- An admin manages only staff whose stores all lie within theirs; a KSA-only admin cannot touch a
+  KSA+UAE staff member (amendment 9).
 - Platform's handlers authorize through Access (no interim binding left).
 - SMS codes: expiry, 5 wrong tries, resend limits; codes and links never stored in plain text and
   never in events or job payloads.
@@ -762,5 +840,13 @@ None.
 
 | # | Where | Change | Why | Status |
 |---|---|---|---|---|
-| 1 | §2.4 `PermissionDefinitionDto` | The DTO carries no `labelAr`/`labelEn`; a permission's names are the declaring module's translations at `{module}::permissions.{resource}.{action}`, read only when a screen shows them. A test fails if any permission lacks either language. | Passing both labels at declaration would load every module's permission names on every request. | Proposed in the step 1 PR |
-| 2 | §3.1 `SignOut` | A customer signs out under its own permission, `access.session.sign_out` (every customer), not `access.session.sign_in`. | Each permission has exactly one audience; signing in belongs to guests, signing out to customers. | Proposed in the step 1 PR |
+| 1 | §2.4 `PermissionDefinitionDto` | The DTO carries no `labelAr`/`labelEn`; a permission's names are the declaring module's translations at `{module}::permissions.{resource}.{action}`, read only when a screen shows them. A test fails if any permission lacks either language. | Passing both labels at declaration would load every module's permission names on every request. | Agreed (PR #25 merged) |
+| 2 | §3.1 `SignOut` | A customer signs out under its own permission, `access.session.sign_out` (every customer), not `access.session.sign_in`. | Each permission has exactly one audience; signing in belongs to guests, signing out to customers. | Agreed (PR #25 merged) |
+| 3 | §1.5, §2.2 | Renamed permissions carry over and removed ones are dropped, both declared by their module and applied at the end of every `migrate` (also with nothing to migrate); names neither declared nor removed are left and reported. | The spec did not say what happens to roles when a later version renames or removes a permission. | Owner, 2026-09-19 |
+| 4 | §1.5, §2.4 | Each permission is per store or store-free. Store-free: any store is enough; the editor shows its boxes ticked and disabled; no exceptions. Store-free today: `platform.media.upload/update/delete`, `access.role.manage`, and the reserved `platform.store.create`, `platform.currency.create/update`, `platform.media.variants.generate`. Everything else is per store. A check must match the kind. | Media and roles belong to no store. | Owner, 2026-09-19 |
+| 5 | §1.5 | "Every store" (`allStores()`) needs the permission with All stores; every current store ticked is not enough. | A change reaching every store also reaches stores opened later. | Owner, 2026-09-19 |
+| 6 | §2.5 (Platform, Shared) | `VersionedCache` moves from Platform's interior to the Shared kernel (17 → 18 classes). | Access, and later Catalog and Pricing, cache by the same never-stale rule; modules cannot reach Platform's interior. | Owner, 2026-09-19 |
+| 7 | §1.5, §5.4, §7 | Saved role names unique in each language, ignoring case (`RoleNameTaken`); a personal role starts from the saved role's names or from scratch and is deleted when its holder moves to a saved role; a role has at least one action; a clone is made only from a saved role and is refused if it holds an action the author does not; a deleted role's replacement is a saved role of the same level. | Two roles with one name confuse admins; nobody else uses a personal role; staff never become admins through a delete. | Owner, 2026-09-19 |
+| 8 | §3.2 | Read use cases added: `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`. Admins see admin roles read-only; of a role's holders, only those they manage, plus the count. | The role screens and the admin menu need them; the spec listed none. | Owner, 2026-09-19 |
+| 10 | §3.2, §5.4 | Cached permissions live at most **1 hour** (a safety net: every change replaces them at once), and an admin editing a staff member or a role can rebuild their cached permissions by hand (`RefreshStaffPermissions`, `RefreshRolePermissions`). | A second guard behind the automatic one. | Owner, 2026-09-19 |
+| 9 | §1.5, §3.2, §5.4, §7 | Three levels: Super Admin → admins → staff. Roles have a level; management actions only in admin roles (`AdminOnlyPermission`); only a Super Admin manages admins and admin roles; nobody changes their own role; an admin manages a staff member only when covering all of their stores, for their role and their whole account; a staff member's stores are the store row plus exception stores; one store = listed under it, two or more = centralized; `access.staff.view` is an ordinary action. New errors `AdminOnlyPermission` and `SuperAdminOnly`. | The owner's model of who manages whom. | Owner, 2026-09-19 |

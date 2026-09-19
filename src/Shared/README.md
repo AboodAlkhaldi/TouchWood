@@ -14,11 +14,12 @@ essentially never change. When in doubt, keep it in the module. The ceiling is ~
 | `StoreId` | Domain | A store's ULID, kept lowercase. |
 | `DomainError`, `ErrorCategory` | Domain | The base of every expected business error. Each error declares a stable `type` (`platform.store_code_taken`) and a category (`NOT_FOUND`, `CONFLICT`…). Domain code never knows HTTP. |
 | `StoreContext`, `MissingStoreContext` | Application | Which store the current request, job or command runs in. Implemented by Platform. |
-| `Authorizer`, `PermissionScope`, `Unauthorized` | Application | `authorize($permission, $scope)`, where the scope is `global()`, `store($id)` or `allStores()` — an empty store used to mean both "no store" and "every store". `storesWith($permission)` answers "which stores may I do this in" for admin lists. Every command handler authorizes first. Implemented by Access (an interim system-only version lives in Platform until then). |
+| `Authorizer`, `PermissionScope`, `Unauthorized` | Application | `authorize($permission, $scope)`, where the scope is `global()`, `store($id)` or `allStores()` — an empty store used to mean both "no store" and "every store". `storesWith($permission)` answers "which stores may I do this in" for admin lists. Every command handler authorizes first. Implemented by Access (`RoleAuthorizer`). A store-free permission is checked with `global()`, a per-store one with `store()` or `allStores()`; `allStores()` passes only with the "All stores" choice. |
 | `ActorContext`, `Actor`, `ActorType` | Application | Who is acting: staff, customer, guest, integration or system. Every id is a ULID. Inside a queued job the actor is the system with `requestedBy` set to whoever queued it. |
 | `CrossStoreWrite` | Application | Thrown when code tries to write another store's row. |
 | `CorrelationId` | Application | The key under which the request's correlation id is kept in Laravel's `Context`. |
 | `BelongsToStore`, `StoreScope` | Infrastructure | The Eloquent trait for store-scoped models. |
+| `VersionedCache` | Infrastructure | A cached snapshot that is never served stale: a change replaces its version inside the change's transaction (the cache table shares the connection). Used by Platform's stores and settings and Access's staff permissions; moved here from Platform on 2026-09-19 (owner). |
 
 ## How the pieces work
 

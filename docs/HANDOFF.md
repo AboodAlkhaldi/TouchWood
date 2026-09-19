@@ -78,6 +78,9 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §13.3, §17 | Access sends its own security messages until Ops; a frontend foundation stage follows Access | Access questions, owner decision |
 | 2026-09-18 | §5.3 | Scheduled work is queued as a job, so its audit source is JOB | Repairs review, owner decision |
 | 2026-09-18 | §7.5 | An actor id is never a secret: a guest's id is kept apart from whatever proves the cart is theirs | Repairs review, owner decision |
+| 2026-09-19 | §7.5 | Three levels (Super Admin → admins → staff): management actions only in admin roles; only a Super Admin manages admins; an admin manages staff only when covering all of their stores. Super Admin created by console, not seeded; Access's authorizer, not `Gate::before` | Access step 2, owner decision |
+| 2026-09-19 | §7.5 | Permissions are per store or store-free; "every store" means the All stores choice; renamed or removed permissions are carried into roles by every `migrate` | Access step 2, owner decision |
+| 2026-09-19 | §4.5 | `VersionedCache` moves to the Shared kernel so every module caches by the same never-stale rule | Access step 2, owner decision |
 
 ---
 
@@ -566,9 +569,21 @@ child.
 Permissions are `{module}.{resource}.{action}`, derived from the use-case catalog. Checked
 in the **application layer**, not in controllers. Deny by default.
 
-**Super Admin** bypasses via `Gate::before`, is non-deletable and non-editable, and is
-**seeded**. It is the only actor that sees every store and the only one that can create
-admins and set their store scope.
+**Super Admin** passes every permission check (Access's authorizer), is non-deletable and
+non-editable, and is **created only by a console command** (owner, 2026-09-18). It is the only
+actor that sees every store and the only one that can create admins and set their store scope.
+
+**Three levels: Super Admin → admins → staff** (owner, 2026-09-19). A role is an admin role or a
+staff role. The management actions (inviting, editing and disabling staff, assigning roles,
+managing roles) go only into admin roles; staff manage no roles and no people. Only a Super Admin
+manages admins and admin roles; no admin manages another admin or themselves. An admin manages a
+staff member only when the admin covers **all** of that person's stores: a KSA-only admin manages
+KSA-only staff, and a KSA+UAE staff member needs a KSA+UAE admin (or larger) or a Super Admin.
+
+**Permissions are per store or store-free** (owner, 2026-09-19). A store-free permission (media,
+roles) is held in full by whoever holds it; the role editor shows its store boxes ticked and
+disabled. A change that reaches every store needs the permission with "All stores". A module that
+renames or removes a permission declares it, and every `migrate` carries the change into the roles.
 
 **A customer belongs to the store they registered in** (their home store, fixed); they shop in
 every store and land in the last one they used after signing in. A store's staff see that store's

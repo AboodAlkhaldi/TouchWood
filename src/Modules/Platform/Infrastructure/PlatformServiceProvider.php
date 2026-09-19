@@ -59,7 +59,6 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Psr\Log\LoggerInterface;
 use Shared\Application\ActorContext;
-use Shared\Application\Authorizer;
 use Shared\Application\StoreContext;
 
 final class PlatformServiceProvider extends ServiceProvider
@@ -126,11 +125,7 @@ final class PlatformServiceProvider extends ServiceProvider
         $this->app->extend(ActorContext::class, fn (ActorContext $actors, Application $app): ActorContext => $actors instanceof JobAwareActorContext
             ? $actors
             : new JobAwareActorContext($actors, $app->make(JobActorState::class)));
-        // Interim until Access. Web requests are refused: with no login, nobody there is the system.
-        $this->app->scoped(Authorizer::class, fn (Application $app): Authorizer => new SystemOnlyAuthorizer(
-            $app->make(ActorContext::class),
-            $app->runningInConsole(),
-        ));
+        // The Authorizer is Access's (Access spec §2.5).
         $this->app->scoped(AuditLog::class, DatabaseAuditLog::class);
         $this->app->scoped(PlatformApi::class, PlatformApiImpl::class);
 

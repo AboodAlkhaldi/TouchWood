@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Access\Application\Query;
+
+/**
+ * Reads roles for the role screens (spec §3.2, amendment 8). Plain rows: the handlers decide what
+ * each reader may see.
+ *
+ * @phpstan-type RoleRow array{id: string, name_ar: string, name_en: string, level: string, permission_count: int, holder_count: int}
+ * @phpstan-type HolderRow array{staff_id: string, first_name: string, last_name: string}
+ */
+interface RoleReader
+{
+    /**
+     * @return list<RoleRow> every saved role, by English name
+     */
+    public function savedRoles(): array;
+
+    /**
+     * @return array{role: RoleRow, permissions: list<string>}|null null for an unknown or personal role
+     */
+    public function savedRole(string $roleId): ?array;
+
+    /**
+     * @return list<HolderRow> by name
+     */
+    public function holders(string $roleId): array;
+}
