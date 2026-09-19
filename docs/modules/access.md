@@ -148,8 +148,16 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
 - **Editing a staff member's role from that staff member's page** gives them a **personal role**:
   a copy of the saved role with the change, belonging to that one person. Nobody else changes. A
   personal role never appears in the list of saved roles; editing it again changes only that person.
-- **The store scope** is on the assignment (handoff §7.5): `ALL_STORES` or `SELECTED_STORES` with
-  a non-empty list of stores.
+- **Stores are chosen per staff member, with exceptions [DECIDED 2026-09-19].** The role holds only
+  the actions, so a saved role such as "Order fulfilment" works in any store. For each staff
+  member the admin ticks the actions' stores once — KSA, UAE, Egypt, or all stores, now and
+  added later — and that choice applies to **every action** in the role. Any single action can
+  then be given its own stores for that person: *view orders in KSA and UAE, refund only in KSA*.
+  An action added to a saved role later reaches each holder in their chosen stores. The screen:
+  tick the actions, a row of store boxes that fills every action, and store boxes per action for
+  the exceptions.
+- A staff member's **stores**, for who may see and manage them (§3.3), are every store any of
+  their actions covers.
 - **Nobody grants more than they hold** **[DECIDED 2026-09-18]**: a role can contain only
   permissions its author holds, and an assignment can cover only stores its author covers, for
   those permissions. Only a Super Admin is unlimited. Checked in code on every change.
@@ -265,9 +273,14 @@ another. **[DECIDED 2026-09-19]:**
   optional; the map pin is both coordinates or neither, within valid ranges. For now only lengths
   are checked; country-specific rules come later, per country.
 - Every address also has a `label` ("Home"), the `recipient_name`, the recipient's `phone` (E.164,
-  any country, not verified) and `is_default` — **one default** per customer per store.
-- **Not asked at registration**, but **required before an order**: checkout asks for an address in
-  the store being ordered from when there is none (Sales, stage 6, through `AccessApi`).
+  any country, not verified) and `is_default`. A customer keeps **as many addresses as they need
+  in every store**, with **one default** per store.
+- **Not asked at registration**, but **required before an order, in the store being ordered from**
+  **[DECIDED 2026-09-19]**: an order is shipped within that store's country, so checkout asks for
+  an address there when there is none (Sales, stage 6, through `AccessApi::addresses()`). A customer
+  whose home store is KSA and who has only a KSA address adds a UAE address before their first UAE
+  order; it stays on their account for next time. The home store never limits where they shop or
+  keep addresses.
 - **Store address formats** are data: the fields (key, labels in both languages, required,
   validation, order) and a display template for orders and shipping labels. A store with no format
   (a new country, before its scheme is entered) refuses addresses with a clear error.
@@ -438,7 +451,8 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 store is KSA — and only KSA staff; an Egypt-only admin only Egypt's; a multi-store admin the
 customers and staff of their stores; a Super Admin everyone. A customer who also orders in another
 store appears there through the order, with the order's customer details, not in that store's
-customer list. A staff member is visible to an admin whose stores include all of theirs.
+customer list. A staff member is visible to an admin whose stores include all of theirs (every
+store any of the staff member's actions covers).
 
 Every change is audited. Personal fields — names, email, phone, addresses, date of birth, the
 staff address — are recorded only as "changed".
@@ -556,11 +570,14 @@ The verification link is a signed URL, so it needs no table. `pending_phone_chan
 |---|---|
 | `access.roles` | `id`, `name` jsonb (ar, en), `kind` (`SAVED`, `PERSONAL`), `personal_to` FK → staff NULL (set exactly when `PERSONAL`), timestamps |
 | `access.role_permissions` | (`role_id`, `permission`) PK — `permission` must be a declared, non-reserved permission of audience `ROLE` (code rule) |
-| `access.role_assignments` | `staff_user_id` PK/FK (one role each), `role_id` FK RESTRICT, `access_level` (`ALL_STORES`, `SELECTED_STORES`), `assigned_by`, `assigned_at` |
+| `access.role_assignments` | `staff_user_id` PK/FK (one role each), `role_id` FK RESTRICT, `access_level` (`ALL_STORES`, `SELECTED_STORES`) — the stores for every action — `assigned_by`, `assigned_at` |
 | `access.role_assignment_stores` | (`staff_user_id`, `store_id`) PK, FK → `platform.stores` — rows exist exactly when `SELECTED_STORES` |
+| `access.role_assignment_exceptions` | (`staff_user_id`, `permission`) PK, `access_level` — one action with its own stores for that person; the permission must be in their role |
+| `access.role_assignment_exception_stores` | (`staff_user_id`, `permission`, `store_id`) PK, FK → `platform.stores` — rows exist exactly when the exception is `SELECTED_STORES` |
 
-The handoff's `store_ids[]` is a link table instead of an array, so each store id has a real
-foreign key. A staff member's permissions are cached (versioned, written inside the change's
+An action's stores for a staff member: its exception if there is one, otherwise the assignment's
+stores. Removing an action from a role removes its exceptions. The handoff's `store_ids[]` is a
+link table instead of an array, so each store id has a real foreign key. A staff member's permissions are cached (versioned, written inside the change's
 transaction — Platform's rule); a warm authorization check reads the cache table only.
 
 ### 5.5 Addresses
@@ -641,8 +658,10 @@ AccessError
 - Password rules: 8 / 12 characters; a leaked password refused (the leak check faked in unit
   tests).
 - Phone numbers: E.164 normalisation; any country accepted.
-- Roles: no escalation (permissions and stores); reserved permissions refused; a personal role
-  belongs to one staff member; editing a saved role vs editing a staff member's role.
+- Roles: no escalation (permissions and stores, exceptions included); reserved permissions
+  refused; a personal role belongs to one staff member; editing a saved role vs editing a staff
+  member's role; an action's stores are its exception's, otherwise the assignment's; an action
+  added to a saved role reaches each holder in their stores.
 - Address validation against a scheme: required fields, the map pin both-or-neither and in range;
   the country's store decides the scheme.
 - Every Access error has a unique `type` and a category.
@@ -650,8 +669,10 @@ AccessError
 ### Integration (PostgreSQL)
 - Migrations create the `access` schema, tables, CHECKs, indexes; every enum column matches its
   PHP enum; every CHECK has a code rule that refuses first.
-- Email unique regardless of case; phone unique; one default address per customer per store.
-- Authorizer: Super Admin everywhere; staff only through their role and stores; `storesWith()`;
+- Email unique regardless of case; phone unique; several addresses per store, one default per
+  customer per store; a KSA customer's UAE address is kept for their next UAE order.
+- Authorizer: Super Admin everywhere; staff only through their role and each action's stores
+  (exceptions included); `storesWith()`;
   customers and guests only their audience's permissions; a disabled staff member nothing; the
   warm check reads only the cache table.
 - Platform's handlers authorize through Access (no interim binding left).
@@ -728,6 +749,8 @@ AccessError
 | 30 | Super Admin flow | **Created and revoked only by console; invitation, password, phone, SMS code; never the last one** (§1.6). |
 | 31 | Addresses | **Country first (our stores' countries); one scheme of 16 fields for all three now, per store; six required; not at registration but before an order** (§1.9). |
 | 32 | Who sees which customers and staff | **By home store and store scope; Super Admin everyone** (§3.3). |
+| 33 | Stores in a role | **Per staff member: one store choice for every action, and any action may have its own stores** (§1.5). |
+| 34 | Ordering from a store the customer does not belong to | **Allowed; an address in that store is required first; several addresses per store** (§1.9). |
 
 ### 9.3 Still open
 
