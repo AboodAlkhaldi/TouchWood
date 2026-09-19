@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Authorization;
 
+use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Domain\ValueObject\StoreChoice;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
@@ -127,12 +128,17 @@ final readonly class RoleAuthorizer implements Authorizer
     }
 
     /**
-     * The stores a role action reaches for this person, or null when they do not hold it. Reserved
-     * permissions belong to Super Admins only, whatever a role contains.
+     * The stores a role action reaches for this person, or null when they do not hold it. Whatever
+     * a role contains, reserved permissions belong to Super Admins only, and the management actions
+     * to admins only (checked again here in case one reached a staff role another way).
      */
     private function roleStores(StaffGrants $staff, PermissionDefinitionDto $definition): ?StoreChoice
     {
         if ($definition->audience !== PermissionAudience::Role || $definition->reserved) {
+            return null;
+        }
+
+        if (! $staff->isAdmin() && in_array($definition->name, AccessPermissions::adminOnly(), true)) {
             return null;
         }
 

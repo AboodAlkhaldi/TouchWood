@@ -29,15 +29,13 @@ final readonly class RefreshStaffPermissionsHandler
 
     public function handle(RefreshStaffPermissions $command): void
     {
+        // Before anything is looked up, so someone without the action learns nothing about ids.
+        $this->rules->requireSomewhere(self::PERMISSION);
+
         $target = $this->staff->byId($command->staffId) ?? throw new StaffNotFound($command->staffId);
         $stores = $this->assignments->byStaff($target->id())?->staffStores();
-        $scopes = $this->rules->scopesFor($stores);
 
-        if ($scopes === []) {
-            $this->rules->requireSomewhere(self::PERMISSION);
-        }
-
-        foreach ($scopes as $scope) {
+        foreach ($this->rules->scopesFor($stores) as $scope) {
             $this->authorizer->authorize(self::PERMISSION, $scope);
         }
 

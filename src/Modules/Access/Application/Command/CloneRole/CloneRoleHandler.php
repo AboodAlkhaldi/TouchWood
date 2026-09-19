@@ -53,7 +53,9 @@ final readonly class CloneRoleHandler
                 throw new SuperAdminOnly($source->id());
             }
 
-            $this->rules->requireGrantable($author, $source->level(), $source->permissions());
+            // A name left behind by a switched-off module is not copied: it grants nothing.
+            $permissions = $this->rules->declaredOnly($source->permissions());
+            $this->rules->requireGrantable($author, $source->level(), $permissions);
 
             $taken = $this->roles->savedNameInUse($name);
 
@@ -61,7 +63,7 @@ final readonly class CloneRoleHandler
                 throw new RoleNameTaken($taken);
             }
 
-            $clone = Role::saved($this->roles->nextId(), $source->level(), $name, $source->permissions());
+            $clone = Role::saved($this->roles->nextId(), $source->level(), $name, $permissions);
             $this->roles->add($clone);
             $this->platform->recordAudit(RoleAudit::created($clone, clonedFrom: $source->id()));
 

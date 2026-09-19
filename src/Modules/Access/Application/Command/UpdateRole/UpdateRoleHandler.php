@@ -27,6 +27,9 @@ final readonly class UpdateRoleHandler
 {
     public const string PERMISSION = AccessPermissions::ROLE_MANAGE;
 
+    /** Locks are taken roles first, then assignments; a deadlock with another change is retried. */
+    private const int ATTEMPTS = 3;
+
     public function __construct(
         private Authorizer $authorizer,
         private GrantRules $rules,
@@ -82,12 +85,15 @@ final readonly class UpdateRoleHandler
             }
 
             // The author holds every action of the role, in every store it reaches for each holder.
-            $this->rules->requireGrantable($author, $role->level(), $role->permissions());
+            // A name left behind by a switched-off module stays as it is; adding one is refused.
+            $declared = $this->rules->declaredOnly($role->permissions());
+            $added = array_values(array_diff($role->permissions(), $permissionsBefore));
+            $this->rules->requireGrantable($author, $role->level(), array_values(array_unique([...$declared, ...$added])));
 
             foreach ($holders as $holder) {
                 $before = clone $holder;
                 $removed = $holder->keepExceptionsFor($role->permissions());
-                $this->rules->requireCovers($author, $role->permissions(), $holder);
+                $this->rules->requireCovers($author, $declared, $holder);
 
                 if ($removed !== []) {
                     $this->assignments->save($holder);
@@ -98,6 +104,6 @@ final readonly class UpdateRoleHandler
             $this->roles->update($role);
             $this->platform->recordAudit(RoleAudit::updated($role, $nameBefore, $role->level(), $permissionsBefore, $changed));
             $this->grants->refresh(...array_map(fn (RoleAssignment $holder): string => $holder->staffId(), $holders));
-        });
+        }, self::ATTEMPTS);
     }
 }

@@ -9,7 +9,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\PendingCommand;
 use Modules\Access\Application\Authorization\GrantsReader;
+use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
+use Modules\Access\Domain\Repository\RoleRepository;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
 use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -24,8 +26,8 @@ beforeEach(function () {
 });
 
 /**
- * A staff member holding a role with these actions, written straight into the tables: the old
- * names are no longer declared, so no handler would accept them.
+ * A staff member holding a role with these actions, written straight into the tables — the old
+ * names are no longer declared, so no handler would accept them — with their permissions cached.
  *
  * @param  list<string>  $permissions
  * @param  array<string, list<string>>  $exceptions  permission => store codes
@@ -34,7 +36,7 @@ beforeEach(function () {
 function holderOfOldNames(array $permissions, array $exceptions = []): array
 {
     $staffId = Fx::staffWith([PlatformPermissions::MEDIA_UPLOAD], ['sa', 'ae']);
-    $roleId = (string) DB::table('access.role_assignments')->where('staff_user_id', $staffId)->value('role_id');
+    $roleId = Fx::roleOf($staffId);
 
     DB::table('access.role_permissions')->where('role_id', $roleId)->delete();
     DB::table('access.role_permissions')->insert(array_map(fn (string $permission): array => ['role_id' => $roleId, 'permission' => $permission], $permissions));
@@ -47,18 +49,11 @@ function holderOfOldNames(array $permissions, array $exceptions = []): array
         ));
     }
 
+    // Cached as it is now, so a test sees whether the sync replaces the cached copy.
     app(GrantsReader::class)->refresh($staffId);
+    Fx::warmCache($staffId);
 
     return ['staff' => $staffId, 'role' => $roleId];
-}
-
-/**
- * @return list<string>
- */
-function permissionsOfRole(string $roleId): array
-{
-    /** @var list<string> */
-    return DB::table('access.role_permissions')->where('role_id', $roleId)->orderBy('permission')->pluck('permission')->all();
 }
 
 /**
@@ -77,18 +72,30 @@ function exceptionsOf(string $staffId): array
     return $exceptions;
 }
 
-it('carries a renamed permission into every role and exception, with its stores', function () {
+it('carries a renamed permission into every role and exception, with its stores, and into the cached permissions', function () {
     $holder = holderOfOldNames(['platform.store.edit', 'platform.media.upload'], ['platform.store.edit' => ['sa']]);
     app(InMemoryPermissionCatalog::class)->renamed('platform', 'platform.store.edit', PlatformPermissions::STORE_UPDATE);
 
-    event(new MigrationsEnded('up'));
+    expect(app(GrantsReader::class)->forStaff($holder['staff'])?->storesFor(PlatformPermissions::STORE_UPDATE))->toBeNull();
 
-    expect(permissionsOfRole($holder['role']))->toBe([PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE])
+    // Nothing to migrate: only the sync itself replaces the cached copy on this path.
+    event(new NoPendingMigrations('up'));
+
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE])
         ->and(exceptionsOf($holder['staff']))->toBe([PlatformPermissions::STORE_UPDATE => [Fx::storeId('sa')]])
-        ->and(DB::table('platform.audit_entries')->where('action', 'access.role.permissions_synced')->where('subject_id', $holder['role'])->exists())->toBeTrue()
-        ->and(DB::table('platform.audit_entries')->where('action', 'access.staff_user.exceptions_synced')->where('subject_id', $holder['staff'])->exists())->toBeTrue()
-        // The cached permissions were rebuilt with the change.
+        ->and(Fx::audits('access.role.permissions_synced', $holder['role']))->toBe(1)
+        ->and(Fx::audits('access.staff_user.exceptions_synced', $holder['staff']))->toBe(1)
         ->and(app(GrantsReader::class)->forStaff($holder['staff'])?->storesFor(PlatformPermissions::STORE_UPDATE)?->storeIds())->toBe([Fx::storeId('sa')]);
+});
+
+it('replaces the cached permissions of a role\'s holders who have no exceptions', function () {
+    $holder = holderOfOldNames(['platform.store.edit']);
+    app(InMemoryPermissionCatalog::class)->renamed('platform', 'platform.store.edit', PlatformPermissions::STORE_UPDATE);
+
+    event(new NoPendingMigrations('up'));
+
+    expect(app(GrantsReader::class)->forStaff($holder['staff'])?->storesFor(PlatformPermissions::STORE_UPDATE)?->storeIds())
+        ->toEqualCanonicalizing([Fx::storeId('sa'), Fx::storeId('ae')]);
 });
 
 it('merges a renamed permission into the new name when the role holds both', function () {
@@ -97,7 +104,7 @@ it('merges a renamed permission into the new name when the role holds both', fun
 
     event(new MigrationsEnded('up'));
 
-    expect(permissionsOfRole($holder['role']))->toBe([PlatformPermissions::STORE_UPDATE])
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::STORE_UPDATE])
         // The new name's own stores win.
         ->and(exceptionsOf($holder['staff']))->toBe([PlatformPermissions::STORE_UPDATE => [Fx::storeId('ae')]]);
 });
@@ -108,18 +115,52 @@ it('drops an exception when the new name is store-free', function () {
 
     event(new MigrationsEnded('up'));
 
-    expect(permissionsOfRole($holder['role']))->toBe([PlatformPermissions::MEDIA_UPLOAD])
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::MEDIA_UPLOAD])
         ->and(exceptionsOf($holder['staff']))->toBe([]);
 });
 
-it('takes a removed permission out of every role and exception', function () {
+it('never lets a rename put a management action into a staff role', function () {
+    $holder = holderOfOldNames(['access.staff.invite_old', PlatformPermissions::STORE_UPDATE]);
+    app(InMemoryPermissionCatalog::class)->renamed('access', 'access.staff.invite_old', AccessPermissions::STAFF_INVITE);
+
+    event(new MigrationsEnded('up'));
+
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::STORE_UPDATE]);
+});
+
+it('takes a removed permission out of every role, exception and cached copy', function () {
     $holder = holderOfOldNames(['platform.store.archive', PlatformPermissions::STORE_UPDATE], ['platform.store.archive' => ['sa']]);
+    app(InMemoryPermissionCatalog::class)->removed('platform', 'platform.store.archive');
+    expect(app(GrantsReader::class)->forStaff($holder['staff'])?->storesFor('platform.store.archive'))->not->toBeNull();
+
+    event(new NoPendingMigrations('up'));
+
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::STORE_UPDATE])
+        ->and(exceptionsOf($holder['staff']))->toBe([])
+        ->and(app(GrantsReader::class)->forStaff($holder['staff'])?->storesFor('platform.store.archive'))->toBeNull();
+});
+
+it('keeps a role a removal emptied, loadable so an admin can give it an action', function () {
+    $holder = holderOfOldNames(['platform.store.archive']);
     app(InMemoryPermissionCatalog::class)->removed('platform', 'platform.store.archive');
 
     event(new MigrationsEnded('up'));
 
-    expect(permissionsOfRole($holder['role']))->toBe([PlatformPermissions::STORE_UPDATE])
-        ->and(exceptionsOf($holder['staff']))->toBe([]);
+    expect(Fx::rolePermissions($holder['role']))->toBe([])
+        ->and(DB::transaction(fn () => app(RoleRepository::class)->byId($holder['role']))?->permissions())->toBe([]);
+});
+
+it('changes nothing the second time', function () {
+    $holder = holderOfOldNames(['platform.store.edit'], ['platform.store.edit' => ['sa']]);
+    app(InMemoryPermissionCatalog::class)->renamed('platform', 'platform.store.edit', PlatformPermissions::STORE_UPDATE);
+    event(new MigrationsEnded('up'));
+    $audits = DB::table('platform.audit_entries')->count();
+
+    $result = app(PermissionSync::class)->run();
+
+    expect($result)->toBe(['roles' => 0, 'staff' => 0, 'unknown' => []])
+        ->and(DB::table('platform.audit_entries')->count())->toBe($audits)
+        ->and(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::STORE_UPDATE]);
 });
 
 it('leaves a name nobody declares or removes alone, and reports it', function () {
@@ -128,7 +169,7 @@ it('leaves a name nobody declares or removes alone, and reports it', function ()
     $result = app(PermissionSync::class)->run();
 
     expect($result['unknown'])->toBe(['catalog.product.update'])
-        ->and(permissionsOfRole($holder['role']))->toBe(['catalog.product.update', PlatformPermissions::STORE_UPDATE]);
+        ->and(Fx::rolePermissions($holder['role']))->toBe(['catalog.product.update', PlatformPermissions::STORE_UPDATE]);
 });
 
 it('runs at the end of php artisan migrate, also with nothing to migrate', function () {
@@ -143,7 +184,7 @@ it('runs at the end of php artisan migrate, also with nothing to migrate', funct
 
     $migrate->assertSuccessful()->run();
 
-    expect(permissionsOfRole($holder['role']))->toBe([PlatformPermissions::STORE_UPDATE]);
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::STORE_UPDATE]);
 });
 
 it('does nothing on a rollback, or on a pretend run with migrations pending', function (object $event) {
@@ -152,9 +193,20 @@ it('does nothing on a rollback, or on a pretend run with migrations pending', fu
 
     event($event);
 
-    expect(permissionsOfRole($holder['role']))->toBe(['platform.store.edit']);
+    expect(Fx::rolePermissions($holder['role']))->toBe(['platform.store.edit']);
 })->with([
     'rolled back' => [fn () => new MigrationsEnded('down')],
     'nothing to roll back' => [fn () => new NoPendingMigrations('down')],
     'pretend' => [fn () => new MigrationsEnded('up', ['pretend' => true])],
 ]);
+
+it('rebuilds every staff member\'s cached permissions after a migration or a rollback', function () {
+    $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+    Fx::warmCache($staffId);
+    // Written behind the cache's back, as a rollback and re-migration would leave it.
+    DB::table('access.role_assignment_stores')->insert(['staff_user_id' => $staffId, 'store_id' => Fx::storeId('eg')]);
+
+    event(new MigrationsEnded('down'));
+
+    expect(app(GrantsReader::class)->forStaff($staffId)?->stores?->storeIds())->toEqualCanonicalizing([Fx::storeId('sa'), Fx::storeId('eg')]);
+});

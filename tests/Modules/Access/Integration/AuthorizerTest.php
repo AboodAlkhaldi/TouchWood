@@ -16,7 +16,6 @@ use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Actor;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
-use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
@@ -28,38 +27,10 @@ beforeEach(function () {
     seed(PlatformSeeder::class);
 });
 
-function inStore(string $code): PermissionScope
-{
-    return PermissionScope::store(StoreId::fromString(Fx::storeId($code)));
-}
-
-function allows(string $permission, PermissionScope $scope): bool
-{
-    try {
-        app(Authorizer::class)->authorize($permission, $scope);
-
-        return true;
-    } catch (Unauthorized) {
-        return false;
-    }
-}
-
-/**
- * @return list<string>|null store codes, sorted; null for every store
- */
-function storeCodesWith(string $permission): ?array
-{
-    $stores = app(Authorizer::class)->storesWith($permission);
-
-    if ($stores === null) {
-        return null;
-    }
-
-    $codes = array_map(fn (StoreId $store): string => (string) DB::table('platform.stores')->where('id', $store->value)->value('code'), $stores);
-    sort($codes);
-
-    return $codes;
-}
+it('runs against the three seeded stores these tests name', function () {
+    // "Every store ticked one by one" below means these three; a fourth would hollow the tests out.
+    expect(DB::table('platform.stores')->orderBy('code')->pluck('code')->all())->toBe(['ae', 'eg', 'sa']);
+});
 
 it('is Access\'s authorizer, not Platform\'s interim one', function () {
     expect(app(Authorizer::class))->toBeInstanceOf(RoleAuthorizer::class)
@@ -69,36 +40,42 @@ it('is Access\'s authorizer, not Platform\'s interim one', function () {
 it('lets staff act only through their role, in each action\'s stores', function () {
     Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_UPDATE, AccessPermissions::CUSTOMER_VIEW], ['sa', 'ae'], exceptions: [AccessPermissions::CUSTOMER_VIEW => ['sa']]));
 
-    expect(allows(PlatformPermissions::STORE_UPDATE, inStore('sa')))->toBeTrue()
-        ->and(allows(PlatformPermissions::STORE_UPDATE, inStore('ae')))->toBeTrue()
-        ->and(allows(PlatformPermissions::STORE_UPDATE, inStore('eg')))->toBeFalse()
+    expect(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeTrue()
+        ->and(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('ae')))->toBeTrue()
+        ->and(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('eg')))->toBeFalse()
         // The exception: this action only in KSA.
-        ->and(allows(AccessPermissions::CUSTOMER_VIEW, inStore('sa')))->toBeTrue()
-        ->and(allows(AccessPermissions::CUSTOMER_VIEW, inStore('ae')))->toBeFalse()
+        ->and(Fx::allows(AccessPermissions::CUSTOMER_VIEW, Fx::inStore('sa')))->toBeTrue()
+        ->and(Fx::allows(AccessPermissions::CUSTOMER_VIEW, Fx::inStore('ae')))->toBeFalse()
         // Not in the role at all.
-        ->and(allows(PlatformPermissions::SETTINGS_UPDATE, inStore('sa')))->toBeFalse()
-        ->and(storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBe(['ae', 'sa'])
-        ->and(storeCodesWith(AccessPermissions::CUSTOMER_VIEW))->toBe(['sa'])
-        ->and(storeCodesWith(PlatformPermissions::SETTINGS_UPDATE))->toBe([]);
+        ->and(Fx::allows(PlatformPermissions::SETTINGS_UPDATE, Fx::inStore('sa')))->toBeFalse()
+        ->and(Fx::storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBe(['ae', 'sa'])
+        ->and(Fx::storeCodesWith(AccessPermissions::CUSTOMER_VIEW))->toBe(['sa'])
+        ->and(Fx::storeCodesWith(PlatformPermissions::SETTINGS_UPDATE))->toBe([]);
+});
+
+it('lets an exception reach beyond the store row', function () {
+    Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa'], exceptions: [PlatformPermissions::STORE_UPDATE => ['sa', 'eg']]));
+
+    expect(Fx::storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBe(['eg', 'sa']);
 });
 
 it('passes an "every store" check only with All stores, never with every store ticked one by one', function () {
     Fx::actAsStaff(Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE], ['sa', 'eg', 'ae']));
 
-    expect(allows(PlatformPermissions::SETTINGS_UPDATE, inStore('eg')))->toBeTrue()
-        ->and(allows(PlatformPermissions::SETTINGS_UPDATE, PermissionScope::allStores()))->toBeFalse();
+    expect(Fx::allows(PlatformPermissions::SETTINGS_UPDATE, Fx::inStore('eg')))->toBeTrue()
+        ->and(Fx::allows(PlatformPermissions::SETTINGS_UPDATE, PermissionScope::allStores()))->toBeFalse();
 
     Fx::actAsStaff(Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE], ['*']));
 
-    expect(allows(PlatformPermissions::SETTINGS_UPDATE, PermissionScope::allStores()))->toBeTrue()
-        ->and(storeCodesWith(PlatformPermissions::SETTINGS_UPDATE))->toBeNull();
+    expect(Fx::allows(PlatformPermissions::SETTINGS_UPDATE, PermissionScope::allStores()))->toBeTrue()
+        ->and(Fx::storeCodesWith(PlatformPermissions::SETTINGS_UPDATE))->toBeNull();
 });
 
 it('holds a store-free action in full, whatever the staff member\'s stores', function () {
     Fx::actAsStaff(Fx::staffWith([PlatformPermissions::MEDIA_UPLOAD], ['sa']));
 
-    expect(allows(PlatformPermissions::MEDIA_UPLOAD, PermissionScope::global()))->toBeTrue()
-        ->and(storeCodesWith(PlatformPermissions::MEDIA_UPLOAD))->toBeNull();
+    expect(Fx::allows(PlatformPermissions::MEDIA_UPLOAD, PermissionScope::global()))->toBeTrue()
+        ->and(Fx::storeCodesWith(PlatformPermissions::MEDIA_UPLOAD))->toBeNull();
 });
 
 it('fails loudly when a check does not match the permission\'s kind, or names nothing declared', function (string $permission, PermissionScope $scope) {
@@ -113,30 +90,44 @@ it('fails loudly when a check does not match the permission\'s kind, or names no
 it('lets a Super Admin do everything, everywhere, reserved permissions included', function () {
     Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-    expect(allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeTrue()
-        ->and(allows(PlatformPermissions::SETTINGS_UPDATE, PermissionScope::allStores()))->toBeTrue()
-        ->and(allows(AccessPermissions::CUSTOMER_BLOCK, inStore('eg')))->toBeTrue()
-        ->and(storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBeNull();
+    expect(Fx::allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeTrue()
+        ->and(Fx::allows(PlatformPermissions::SETTINGS_UPDATE, PermissionScope::allStores()))->toBeTrue()
+        ->and(Fx::allows(AccessPermissions::CUSTOMER_BLOCK, Fx::inStore('eg')))->toBeTrue()
+        ->and(Fx::storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBeNull();
 });
+
+it('gives a Super Admin who is not active nothing at all', function (StaffStatus $status) {
+    Fx::actAsStaff(Fx::staff($status, superAdmin: true));
+
+    expect(Fx::allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeFalse()
+        ->and(Fx::storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBe([]);
+})->with([StaffStatus::Invited, StaffStatus::Disabled]);
 
 it('never lets a role hold a reserved permission, even one written into it directly', function () {
     $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['*']);
-    DB::table('access.role_permissions')->insert([
-        'role_id' => DB::table('access.role_assignments')->where('staff_user_id', $staffId)->value('role_id'),
-        'permission' => PlatformPermissions::STORE_CREATE,
-    ]);
+    DB::table('access.role_permissions')->insert(['role_id' => Fx::roleOf($staffId), 'permission' => PlatformPermissions::STORE_CREATE]);
     app(GrantsReader::class)->refresh($staffId);
     Fx::actAsStaff($staffId);
 
-    expect(allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeFalse();
+    expect(Fx::allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeFalse();
+});
+
+it('never lets a staff role hold a management action, even one written into it directly', function () {
+    $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['*']);
+    DB::table('access.role_permissions')->insert(['role_id' => Fx::roleOf($staffId), 'permission' => AccessPermissions::STAFF_ASSIGN_ROLE]);
+    app(GrantsReader::class)->refresh($staffId);
+    Fx::actAsStaff($staffId);
+
+    expect(Fx::allows(AccessPermissions::STAFF_ASSIGN_ROLE, Fx::inStore('sa')))->toBeFalse()
+        ->and(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeTrue();
 });
 
 it('gives every active staff member the automatic staff permissions, and no role nothing else', function () {
     Fx::actAsStaff(Fx::staff());
 
-    expect(allows(AccessPermissions::OWN_ACCOUNT_UPDATE, PermissionScope::global()))->toBeTrue()
-        ->and(allows(PlatformPermissions::STORE_UPDATE, inStore('sa')))->toBeFalse()
-        ->and(allows(AccessPermissions::SESSION_SIGN_IN, PermissionScope::global()))->toBeFalse();
+    expect(Fx::allows(AccessPermissions::OWN_ACCOUNT_UPDATE, PermissionScope::global()))->toBeTrue()
+        ->and(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeFalse()
+        ->and(Fx::allows(AccessPermissions::SESSION_SIGN_IN, PermissionScope::global()))->toBeFalse();
 });
 
 it('gives a staff member who is not active nothing at all', function (StaffStatus $status) {
@@ -145,37 +136,37 @@ it('gives a staff member who is not active nothing at all', function (StaffStatu
     app(GrantsReader::class)->refresh($staffId);
     Fx::actAsStaff($staffId);
 
-    expect(allows(PlatformPermissions::STORE_UPDATE, inStore('sa')))->toBeFalse()
-        ->and(allows(AccessPermissions::OWN_ACCOUNT_UPDATE, PermissionScope::global()))->toBeFalse()
-        ->and(storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBe([]);
+    expect(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeFalse()
+        ->and(Fx::allows(AccessPermissions::OWN_ACCOUNT_UPDATE, PermissionScope::global()))->toBeFalse()
+        ->and(Fx::storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBe([]);
 })->with([StaffStatus::Invited, StaffStatus::Disabled]);
 
 it('gives a staff id with no account nothing', function () {
     Fx::actAsStaff(strtolower((string) Str::ulid()));
 
-    expect(allows(AccessPermissions::OWN_ACCOUNT_UPDATE, PermissionScope::global()))->toBeFalse();
+    expect(Fx::allows(AccessPermissions::OWN_ACCOUNT_UPDATE, PermissionScope::global()))->toBeFalse();
 });
 
 it('gives a guest only the automatic guest permissions', function () {
     Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
 
-    expect(allows(AccessPermissions::ACCOUNT_REGISTER, PermissionScope::global()))->toBeTrue()
-        ->and(allows(AccessPermissions::ACCOUNT_UPDATE, PermissionScope::global()))->toBeFalse()
-        ->and(allows(PlatformPermissions::MEDIA_UPLOAD, PermissionScope::global()))->toBeFalse();
+    expect(Fx::allows(AccessPermissions::ACCOUNT_REGISTER, PermissionScope::global()))->toBeTrue()
+        ->and(Fx::allows(AccessPermissions::ACCOUNT_UPDATE, PermissionScope::global()))->toBeFalse()
+        ->and(Fx::allows(PlatformPermissions::MEDIA_UPLOAD, PermissionScope::global()))->toBeFalse();
 });
 
 it('lets no customer or integration act yet: customer accounts arrive in step 4', function (Actor $actor) {
     Fx::actAs($actor);
 
-    expect(allows(AccessPermissions::ACCOUNT_UPDATE, PermissionScope::global()))->toBeFalse()
-        ->and(allows(PlatformPermissions::MEDIA_UPLOAD, PermissionScope::global()))->toBeFalse();
+    expect(Fx::allows(AccessPermissions::ACCOUNT_UPDATE, PermissionScope::global()))->toBeFalse()
+        ->and(Fx::allows(PlatformPermissions::MEDIA_UPLOAD, PermissionScope::global()))->toBeFalse();
 })->with([
     'a customer' => [fn () => Actor::customer(strtolower((string) Str::ulid()))],
     'an integration' => [fn () => Actor::integration(strtolower((string) Str::ulid()))],
 ]);
 
 it('lets the system act in the console, and still refuses it in a web request until staff sign-in', function () {
-    expect(allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeTrue();
+    expect(Fx::allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeTrue();
 
     // Tests run in the console; pretend this one serves a web request, as PHP-FPM would.
     $console = new ReflectionProperty(app(), 'isRunningInConsole');
@@ -183,7 +174,7 @@ it('lets the system act in the console, and still refuses it in a web request un
     app()->forgetScopedInstances();
 
     try {
-        expect(allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeFalse()
+        expect(Fx::allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeFalse()
             ->and(app(Authorizer::class)->storesWith(PlatformPermissions::STORE_UPDATE))->toBe([]);
     } finally {
         $console->setValue(app(), true);
@@ -192,14 +183,13 @@ it('lets the system act in the console, and still refuses it in a web request un
 });
 
 it('reads only the cache table once a staff member\'s permissions are warm', function () {
-    $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
-    Fx::actAsStaff($staffId);
-    allows(PlatformPermissions::STORE_UPDATE, inStore('sa'));
-    $scope = inStore('sa');
+    Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']));
+    $scope = Fx::inStore('sa');
+    Fx::allows(PlatformPermissions::STORE_UPDATE, $scope);
 
     DB::flushQueryLog();
     DB::enableQueryLog();
-    $allowed = allows(PlatformPermissions::STORE_UPDATE, $scope);
+    $allowed = Fx::allows(PlatformPermissions::STORE_UPDATE, $scope);
     $queries = DB::getQueryLog();
     DB::disableQueryLog();
 
@@ -212,19 +202,33 @@ it('reads only the cache table once a staff member\'s permissions are warm', fun
     }
 });
 
-it('sees a change at once: the cached permissions are replaced inside the change\'s transaction', function () {
+it('sees a change at once, and keeps the old permissions when the change rolls back', function () {
     $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
     Fx::actAsStaff($staffId);
-    expect(allows(PlatformPermissions::STORE_UPDATE, inStore('eg')))->toBeFalse();
+    expect(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('eg')))->toBeFalse();
 
-    Fx::assign($staffId, Fx::role([PlatformPermissions::STORE_UPDATE]), ['sa', 'eg']);
+    $wider = Fx::role([PlatformPermissions::STORE_UPDATE]);
 
-    expect(allows(PlatformPermissions::STORE_UPDATE, inStore('eg')))->toBeTrue();
+    // The cache version is written inside the change's transaction: a rollback takes it back.
+    try {
+        DB::transaction(function () use ($staffId, $wider) {
+            Fx::assign($staffId, $wider, ['sa', 'eg']);
+
+            throw new RuntimeException('roll back');
+        });
+    } catch (RuntimeException) {
+    }
+
+    expect(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('eg')))->toBeFalse();
+
+    Fx::assign($staffId, $wider, ['sa', 'eg']);
+
+    expect(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('eg')))->toBeTrue();
 });
 
 it('gives an admin role\'s holder its actions like any role', function () {
     Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_ASSIGN_ROLE], ['sa'], RoleLevel::Admin));
 
-    expect(allows(AccessPermissions::STAFF_ASSIGN_ROLE, inStore('sa')))->toBeTrue()
-        ->and(allows(AccessPermissions::STAFF_ASSIGN_ROLE, inStore('ae')))->toBeFalse();
+    expect(Fx::allows(AccessPermissions::STAFF_ASSIGN_ROLE, Fx::inStore('sa')))->toBeTrue()
+        ->and(Fx::allows(AccessPermissions::STAFF_ASSIGN_ROLE, Fx::inStore('ae')))->toBeFalse();
 });

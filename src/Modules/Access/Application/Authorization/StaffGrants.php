@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Authorization;
 
-use Modules\Access\Domain\Model\Role;
-use Modules\Access\Domain\Model\RoleAssignment;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Domain\ValueObject\StoreChoice;
 use Modules\Access\Public\Enums\AccessLevel;
@@ -34,27 +32,6 @@ final readonly class StaffGrants
         public array $grants,
         public ?StoreChoice $stores,
     ) {}
-
-    public static function of(string $staffId, StaffStatus $status, bool $superAdmin, ?Role $role, ?RoleAssignment $assignment): self
-    {
-        $grants = [];
-
-        if ($role !== null && $assignment !== null) {
-            foreach ($role->permissions() as $permission) {
-                $grants[$permission] = $assignment->storesFor($permission);
-            }
-        }
-
-        return new self(
-            $staffId,
-            $status,
-            $superAdmin,
-            $role?->level(),
-            $role?->id(),
-            $grants,
-            $assignment?->staffStores(),
-        );
-    }
 
     public function isActive(): bool
     {

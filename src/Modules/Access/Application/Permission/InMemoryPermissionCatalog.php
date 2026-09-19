@@ -82,6 +82,14 @@ final class InMemoryPermissionCatalog implements PermissionCatalog
      */
     public function verify(): void
     {
+        // Two permissions merged into one would have to merge two people's store choices for it;
+        // rename one and remove the other instead.
+        foreach (array_count_values($this->renames) as $to => $count) {
+            if ($count > 1) {
+                throw new InvalidPermissionDefinition("\"{$to}\" is the new name of {$count} renamed permissions; rename one and remove the others.");
+            }
+        }
+
         foreach ($this->renames as $from => $to) {
             if (isset($this->definitions[$from])) {
                 throw new InvalidPermissionDefinition("\"{$from}\" is renamed to \"{$to}\" but is still declared.");

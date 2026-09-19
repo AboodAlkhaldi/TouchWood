@@ -48,7 +48,11 @@ final readonly class DatabaseRoleRepository implements RoleRepository
 
     public function personalRoleOf(string $staffId): ?Role
     {
-        $row = $this->db->table(self::ROLES)->where('personal_to', $staffId)->lockForUpdate()->first();
+        if (! Ulids::valid($staffId)) {
+            return null;
+        }
+
+        $row = $this->db->table(self::ROLES)->where('personal_to', strtolower($staffId))->lockForUpdate()->first();
 
         return $row instanceof stdClass ? $this->toRole($row) : null;
     }
@@ -118,9 +122,13 @@ final readonly class DatabaseRoleRepository implements RoleRepository
         try {
             $write();
         } catch (UniqueConstraintViolationException $e) {
-            $clash = str_contains($e->getMessage(), 'roles_saved_name_ar') ? $role->name()->ar : $role->name()->en;
+            $message = $e->getMessage();
 
-            throw new RoleNameTaken($clash);
+            if (! str_contains($message, 'roles_saved_name_')) {
+                throw $e;
+            }
+
+            throw new RoleNameTaken(str_contains($message, 'roles_saved_name_ar') ? $role->name()->ar : $role->name()->en);
         }
     }
 

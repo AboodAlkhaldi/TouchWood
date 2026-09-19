@@ -38,7 +38,7 @@ return [
     ],
     'role_in_use' => [
         'title' => 'Role in use',
-        'detail' => 'This role is held by :count staff member(s). Pick a replacement role for them first.',
+        'detail' => 'This role is held by :count staff member(s): :holders. Pick a replacement role for them first.',
     ],
     'staff_not_editable' => [
         'title' => 'This staff member cannot be changed here',

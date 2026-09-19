@@ -76,8 +76,11 @@ declares it. Names come from translations, read only when a screen shows them.
 A role is an **admin** or a **staff** role. The management actions (`staff.invite`, `staff.update`,
 `staff.assign_role`, `staff.disable`, `role.manage`) go only into admin roles. Only a Super Admin
 creates, edits or gives admin roles and manages admins; nobody changes their own role. An admin
-manages a staff member only when covering **all** of their stores — a staff member's stores being
-their store row plus any store an exception adds.
+manages a staff member only when holding **assign roles** in **all** of their stores — a staff
+member's stores being their store row plus any store an exception adds. The same holds for
+anything else that changes a staff member's access: editing, deleting or refreshing a saved role
+they hold, or moving them when a role is deleted (amendment 11). A role page lists only the
+holders the reader could reassign.
 
 ### One role per staff member, stores per staff member
 
@@ -90,9 +93,21 @@ from then on, and deleted when they move back to a saved role.
 ### Nobody grants more than they hold
 
 `GrantRules` checks every change: a role holds only actions its author holds; each action reaches
-only stores where its author holds it; a store-free action only needs holding. The system and Super
-Admins are unlimited. "Every store" means the **All stores** choice — ticking every store one by one
-is not enough, because a global change also reaches stores opened later.
+only stores where its author holds it; a store-free action only needs holding. Super Admins and
+console commands are unlimited; a queued job grants only what the person who queued it holds.
+"Every store" means the **All stores** choice — ticking every store one by one is not enough,
+because a global change also reaches stores opened later.
+
+A name left in a role by a module that is switched off grants nothing and stays where it is — an
+edit of that role still works — but it is never copied into a clone, and a limited author cannot
+give a role holding it to anyone: it would come back to life with its module.
+
+### Locks and concurrent changes
+
+Every handler locks **roles first, then staff and assignments**, so two admins changing related
+things at once queue up instead of deadlocking; the transactions still retry a deadlock up to three
+times. Commands that name a staff member check that the author may assign roles at all before
+looking the id up, so someone without the right learns nothing about which ids exist.
 
 ### The check, and its cache
 
@@ -100,7 +115,12 @@ is not enough, because a global change also reaches stores opened later.
 they are cached per staff member with Shared's `VersionedCache` (1 hour at most, as a safety net).
 Every change replaces the cached copy **inside its transaction**, and admins can also rebuild it by
 hand (`RefreshStaffPermissions`, `RefreshRolePermissions`). A warm check reads only the cache table.
-The cache holds plain arrays, because `config/cache.php` refuses to rebuild objects.
+A cold load is **one SQL statement**, so a snapshot is one consistent moment even while a change
+commits. The cache holds plain arrays, because `config/cache.php` refuses to rebuild objects. Every
+migration or rollback replaces every staff member's cached copy, as Platform does for its caches.
+
+As a second guard, the check itself never lets a staff-level role use a management action, even if
+one reached such a role another way.
 
 **Until step 3** the interim `ActorContext` reports the system for a web request too, so
 `RoleAuthorizer` lets the system act only outside web requests — exactly what Platform's interim
@@ -111,7 +131,9 @@ authorizer did. Customers act from step 4; integrations hold nothing yet.
 `PermissionSync` runs at the end of every `php artisan migrate` — on `MigrationsEnded`, and on
 `NoPendingMigrations` because Laravel fires that one instead when there is nothing to migrate. It
 moves renamed names (and their exceptions' stores) and takes removed names out, auditing each
-change. A name that is neither declared nor removed is left alone and logged: it grants nothing,
+change. Two permissions renamed into one are refused at boot (their store choices cannot be merged
+safely: rename one, remove the other), and a rename never puts a management action into a staff
+role. A name that is neither declared nor removed is left alone and logged: it grants nothing,
 and a module switched off by mistake cannot wipe anyone's roles.
 
 ### The database is the last line of defence
@@ -127,4 +149,4 @@ passes, so the role-name rule is wrapped in `COALESCE(…, false)` — the schem
 | Step | What |
 |---|---|
 | 1 | Foundation: the `access` schema, the service provider, the permission catalog with Access's and Platform's permissions |
-| 2 | Roles, assignments and exceptions; the real authorizer and its cache; the three levels; renamed and removed permissions; the role reads. `VersionedCache` moved to Shared; Platform's interim authorizer removed |
+| 2 | Roles, assignments and exceptions; the real authorizer and its cache; the three levels; renamed and removed permissions; the role reads. `VersionedCache` moved to Shared; Platform's interim authorizer removed. Then an independent review (spec, security, tests): lock order and retries, one-statement cache loads, the admin-reach rule (amendment 11), stricter handling of undeclared names, and the missing tests, with a mutation run proving them |

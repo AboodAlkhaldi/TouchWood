@@ -355,7 +355,9 @@ through Laravel's dispatcher — so Shared has no `CommandBus` or `EventBus` (ow
 
 **Hard ceiling: ~20 classes.** If Shared grows past that, something leaked into it. A type
 belongs here only if three or more modules need it and it will essentially never change.
-When in doubt, duplicate it in both modules.
+When in doubt, duplicate it in both modules. One owner exception so far: `VersionedCache` entered
+with two users (Platform, Access) because every later module that caches must follow the same
+never-stale rule (owner, 2026-09-19).
 
 ---
 
@@ -570,8 +572,9 @@ Permissions are `{module}.{resource}.{action}`, derived from the use-case catalo
 in the **application layer**, not in controllers. Deny by default.
 
 **Super Admin** passes every permission check (Access's authorizer), is non-deletable and
-non-editable, and is **created only by a console command** (owner, 2026-09-18). It is the only
-actor that sees every store and the only one that can create admins and set their store scope.
+non-editable, and is **created only by a console command** (owner, 2026-09-18). It holds every
+permission in every store without a role, and is the only one that can create admins and set their
+store scope.
 
 **Three levels: Super Admin → admins → staff** (owner, 2026-09-19). A role is an admin role or a
 staff role. The management actions (inviting, editing and disabling staff, assigning roles,
@@ -1268,8 +1271,8 @@ modules.
 ## 14 · Admin panel
 
 Everything is **store-scoped**. An admin may own KSA and Egypt and have no authority over
-UAE; their staff inherit that boundary. Only the seeded Super Admin sees every store and
-assigns admins and their scopes. Navigation renders from the permission set.
+UAE; their staff inherit that boundary. Only a Super Admin (created by console command) assigns
+admins and their scopes. Navigation renders from the permission set.
 
 **Dashboard** — charts giving a quick read on the store: sales and goods for the month,
 three months and year; total orders; orders not yet shipped; completed orders; cancelled
