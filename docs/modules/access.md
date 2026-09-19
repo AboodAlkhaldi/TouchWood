@@ -164,14 +164,16 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
   An action added to a saved role later reaches each holder in their chosen stores. The screen:
   tick the actions, a row of store boxes that fills every action, and store boxes per action for
   the exceptions.
-- A staff member's **stores**, for who may see and manage them (§3.3), are every store any of
-  their actions covers.
+- A staff member's **stores**, for who may see and manage them (§3.3), are their store row plus
+  every store an exception adds (amendment 9).
 - **Nobody grants more than they hold** **[DECIDED 2026-09-18]**: a role can contain only
   permissions its author holds, and an assignment can cover only stores its author covers, for
-  those permissions. Only a Super Admin is unlimited. Checked in code on every change.
+  those permissions. Among people, only a Super Admin is unlimited; so is the system when a
+  console command acts, while a queued job acts under the permissions of whoever queued it.
+  Checked in code on every change.
 - **Editing a saved role** reaches every store where it is held, so only a **Super Admin** or an
   admin who **covers every store of every holder** (and holds every permission in it) may edit it
-  **[DECIDED 2026-09-19]**. A KSA + Egypt admin can edit a role held only in KSA and Egypt, never
+  **[DECIDED 2026-09-19]** — covering meaning holding `access.staff.assign_role` there (amendment 11). A KSA + Egypt admin can edit a role held only in KSA and Egypt, never
   one held in UAE; a single-store admin has no authority over another store.
 - **Reserved permissions** (e.g. `platform.store.create`) exist so handlers can assert them but
   are never offered in the role editor and can never be put in a role: only a Super Admin holds them.
@@ -189,9 +191,10 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
 - **Only a Super Admin** creates, clones, edits or deletes admin roles, gives anyone an admin role,
   and manages admins. No admin manages another admin, or themselves.
 - **Admins** create and edit saved staff roles, and manage staff.
-- **An admin manages a staff member only if the admin covers all of that person's stores.** This
-  holds for changing their role and for every action on the whole account: disabling them,
-  their profile and phone, their invitation. A KSA-only admin manages KSA-only staff. A KSA+UAE
+- **An admin manages a staff member only if the admin covers all of that person's stores** — holds
+  the management action being used in every one of them (amendment 11). This holds for changing
+  their role and for every action on the whole account: disabling them, their profile and phone,
+  their invitation. A KSA-only admin manages KSA-only staff. A KSA+UAE
   staff member is managed by a KSA+UAE admin, an admin with more stores, or a Super Admin.
 - **A staff member's stores** are the store row chosen for them, plus any store an exception adds.
   Store-free actions add nothing. A staff member with one store is listed under that store; one
@@ -517,8 +520,9 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 store is KSA — and only KSA staff; an Egypt-only admin only Egypt's; a multi-store admin the
 customers and staff of their stores; a Super Admin everyone. A customer who also orders in another
 store appears there through the order, with the order's customer details, not in that store's
-customer list. A staff member is visible to an admin whose stores include all of theirs (every
-store any of the staff member's actions covers).
+customer list. A staff member is visible to a viewer who holds `access.staff.view` in all of the
+staff member's stores (their store row plus exception stores, amendment 9), and managed by an admin
+who holds the management action in all of them (amendment 11).
 
 Every change is audited. Personal fields — names, email, phone, addresses, date of birth, the
 staff address — are recorded only as "changed".
@@ -780,7 +784,8 @@ AccessError
 - The `log` SMS driver writes the code; `SecurityMessages` swappable by binding.
 
 ### Architecture
-- Every Access handler asserts a permission; no controller checks permissions itself.
+- Every Access command handler asserts a permission; the role reads check theirs (`MyPermissions`
+  needs none: it shows only the reader's own); no controller checks permissions itself.
 - Access imports only `Platform\Public` and `Shared`.
 - No `spatie/laravel-permission`.
 
@@ -843,10 +848,11 @@ None.
 | 1 | §2.4 `PermissionDefinitionDto` | The DTO carries no `labelAr`/`labelEn`; a permission's names are the declaring module's translations at `{module}::permissions.{resource}.{action}`, read only when a screen shows them. A test fails if any permission lacks either language. | Passing both labels at declaration would load every module's permission names on every request. | Agreed (PR #25 merged) |
 | 2 | §3.1 `SignOut` | A customer signs out under its own permission, `access.session.sign_out` (every customer), not `access.session.sign_in`. | Each permission has exactly one audience; signing in belongs to guests, signing out to customers. | Agreed (PR #25 merged) |
 | 3 | §1.5, §2.2 | Renamed permissions carry over and removed ones are dropped, both declared by their module and applied at the end of every `migrate` (also with nothing to migrate); names neither declared nor removed are left and reported. | The spec did not say what happens to roles when a later version renames or removes a permission. | Owner, 2026-09-19 |
-| 4 | §1.5, §2.4 | Each permission is per store or store-free. Store-free: any store is enough; the editor shows its boxes ticked and disabled; no exceptions. Store-free today: `platform.media.upload/update/delete`, `access.role.manage`, and the reserved `platform.store.create`, `platform.currency.create/update`, `platform.media.variants.generate`. Everything else is per store. A check must match the kind. | Media and roles belong to no store. | Owner, 2026-09-19 |
+| 4 | §1.5, §2.4 | Each permission is per store or store-free. Store-free: any store is enough; the editor shows its boxes ticked and disabled; no exceptions. Store-free today: `platform.media.upload/update/delete`, `access.role.manage`, and the reserved `platform.store.create`, `platform.currency.create/update`, `platform.media.variants.generate`. Everything else a role can hold is per store. The automatic permissions and Access's reserved ones follow their §3 scope: "Global" ones are store-free (signing in, one's own account, `access.super_admin.manage`, `access.account.anonymize`), and `access.address.manage` ("That store") is per store. A check must match the kind. | Media and roles belong to no store. | Owner, 2026-09-19 |
 | 5 | §1.5 | "Every store" (`allStores()`) needs the permission with All stores; every current store ticked is not enough. | A change reaching every store also reaches stores opened later. | Owner, 2026-09-19 |
 | 6 | §2.5 (Platform, Shared) | `VersionedCache` moves from Platform's interior to the Shared kernel (17 → 18 classes). | Access, and later Catalog and Pricing, cache by the same never-stale rule; modules cannot reach Platform's interior. | Owner, 2026-09-19 |
 | 7 | §1.5, §5.4, §7 | Saved role names unique in each language, ignoring case (`RoleNameTaken`); a personal role starts from the saved role's names or from scratch and is deleted when its holder moves to a saved role; a role has at least one action; a clone is made only from a saved role and is refused if it holds an action the author does not; a deleted role's replacement is a saved role of the same level. | Two roles with one name confuse admins; nobody else uses a personal role; staff never become admins through a delete. | Owner, 2026-09-19 |
 | 8 | §3.2 | Read use cases added: `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`. Admins see admin roles read-only; of a role's holders, only those they manage, plus the count. | The role screens and the admin menu need them; the spec listed none. | Owner, 2026-09-19 |
-| 10 | §3.2, §5.4 | Cached permissions live at most **1 hour** (a safety net: every change replaces them at once), and an admin editing a staff member or a role can rebuild their cached permissions by hand (`RefreshStaffPermissions`, `RefreshRolePermissions`). | A second guard behind the automatic one. | Owner, 2026-09-19 |
 | 9 | §1.5, §3.2, §5.4, §7 | Three levels: Super Admin → admins → staff. Roles have a level; management actions only in admin roles (`AdminOnlyPermission`); only a Super Admin manages admins and admin roles; nobody changes their own role; an admin manages a staff member only when covering all of their stores, for their role and their whole account; a staff member's stores are the store row plus exception stores; one store = listed under it, two or more = centralized; `access.staff.view` is an ordinary action. New errors `AdminOnlyPermission` and `SuperAdminOnly`. | The owner's model of who manages whom. | Owner, 2026-09-19 |
+| 10 | §3.2, §5.4 | Cached permissions live at most **1 hour** (a safety net: every change replaces them at once), and an admin editing a staff member or a role can rebuild their cached permissions by hand (`RefreshStaffPermissions`, `RefreshRolePermissions`). | A second guard behind the automatic one. | Owner, 2026-09-19 |
+| 11 | §1.5, §3.2 | An admin's reach over a staff member is the stores of the management action: anything that changes a staff member's access — changing their role, editing, deleting or refreshing a saved role they hold, moving them when a role is deleted — needs `access.staff.assign_role` in **all** of their stores (and `access.role.manage` to edit roles). A role page lists only the holders the admin could reassign. | Two parts of the code read "covers their stores" differently when an admin's own actions have exceptions. | Owner, 2026-09-19 |

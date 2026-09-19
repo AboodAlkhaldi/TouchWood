@@ -55,77 +55,93 @@ final readonly class CachedGrantsReader implements GrantsReader
         return new VersionedCache($this->cache, $this->db, "access:staff-grants:{$staffId}", self::SNAPSHOT_SECONDS);
     }
 
+    /**
+     * One statement, so the snapshot is one consistent moment: separate reads could combine a
+     * change's new role with its old stores while that change commits.
+     */
     private function load(string $staffId): ?StaffGrants
     {
-        $staff = $this->db->table('access.staff_users')->where('id', $staffId)->first(['status', 'is_super_admin']);
+        $row = $this->db->selectOne(<<<'SQL'
+            SELECT s.status, s.is_super_admin, a.role_id, a.access_level, r.level,
+                (SELECT coalesce(json_agg(st.store_id ORDER BY st.store_id), '[]')
+                    FROM access.role_assignment_stores st WHERE st.staff_user_id = s.id) AS stores,
+                (SELECT coalesce(json_agg(p.permission ORDER BY p.permission), '[]')
+                    FROM access.role_permissions p WHERE p.role_id = a.role_id) AS permissions,
+                (SELECT coalesce(json_agg(json_build_object(
+                        'permission', e.permission,
+                        'level', e.access_level,
+                        'stores', (SELECT coalesce(json_agg(es.store_id ORDER BY es.store_id), '[]')
+                            FROM access.role_assignment_exception_stores es
+                            WHERE es.staff_user_id = e.staff_user_id AND es.permission = e.permission)
+                    )), '[]')
+                    FROM access.role_assignment_exceptions e WHERE e.staff_user_id = s.id) AS exceptions
+            FROM access.staff_users s
+            LEFT JOIN access.role_assignments a ON a.staff_user_id = s.id
+            LEFT JOIN access.roles r ON r.id = a.role_id
+            WHERE s.id = ?
+            SQL, [$staffId]);
 
-        if (! $staff instanceof stdClass) {
+        if (! $row instanceof stdClass) {
             return null;
         }
 
-        $status = StaffStatus::from((string) $staff->status);
-        $superAdmin = (bool) $staff->is_super_admin;
+        $status = StaffStatus::from((string) $row->status);
+        $superAdmin = (bool) $row->is_super_admin;
 
-        $assignment = $this->db->table('access.role_assignments as a')
-            ->join('access.roles as r', 'r.id', '=', 'a.role_id')
-            ->where('a.staff_user_id', $staffId)
-            ->first(['a.role_id', 'a.access_level', 'r.level']);
-
-        if (! $assignment instanceof stdClass) {
+        if ($row->role_id === null) {
             return new StaffGrants($staffId, $status, $superAdmin, null, null, [], null);
         }
 
-        $level = AccessLevel::from((string) $assignment->access_level);
-        /** @var list<string> $storeIds */
-        $storeIds = $this->db->table('access.role_assignment_stores')->where('staff_user_id', $staffId)->orderBy('store_id')->pluck('store_id')->all();
-        $row = StoreChoice::of($level, $level === AccessLevel::AllStores ? [] : $storeIds);
+        $storeRow = $this->choice((string) $row->access_level, self::strings(self::json((string) $row->stores)));
+        $exceptions = [];
 
-        $exceptions = $this->exceptions($staffId);
-        $grants = [];
-
-        foreach ($this->db->table('access.role_permissions')->where('role_id', $assignment->role_id)->pluck('permission') as $permission) {
-            $grants[(string) $permission] = $exceptions[$permission] ?? $row;
+        foreach (self::json((string) $row->exceptions) as $exception) {
+            if (is_array($exception)) {
+                $exceptions[(string) $exception['permission']] = $this->choice((string) $exception['level'], self::strings(is_array($exception['stores']) ? $exception['stores'] : []));
+            }
         }
 
-        $stores = $row;
+        $grants = [];
+
+        foreach (self::strings(self::json((string) $row->permissions)) as $permission) {
+            $grants[$permission] = $exceptions[$permission] ?? $storeRow;
+        }
+
+        $stores = $storeRow;
 
         foreach ($exceptions as $exception) {
             $stores = $stores->union($exception);
         }
 
-        return new StaffGrants($staffId, $status, $superAdmin, RoleLevel::from((string) $assignment->level), (string) $assignment->role_id, $grants, $stores);
+        return new StaffGrants($staffId, $status, $superAdmin, RoleLevel::from((string) $row->level), (string) $row->role_id, $grants, $stores);
     }
 
     /**
-     * @return array<string, StoreChoice>
+     * @param  list<string>  $storeIds
      */
-    private function exceptions(string $staffId): array
+    private function choice(string $level, array $storeIds): StoreChoice
     {
-        $rows = $this->db->table('access.role_assignment_exceptions as e')
-            ->leftJoin('access.role_assignment_exception_stores as s', function ($join): void {
-                $join->on('s.staff_user_id', '=', 'e.staff_user_id')->on('s.permission', '=', 'e.permission');
-            })
-            ->where('e.staff_user_id', $staffId)
-            ->orderBy('s.store_id')
-            ->get(['e.permission', 'e.access_level', 's.store_id']);
+        $level = AccessLevel::from($level);
 
-        $levels = [];
-        $stores = [];
+        return StoreChoice::of($level, $level === AccessLevel::AllStores ? [] : $storeIds);
+    }
 
-        foreach ($rows as $row) {
-            $levels[(string) $row->permission] = AccessLevel::from((string) $row->access_level);
+    /**
+     * @return array<mixed>
+     */
+    private static function json(string $json): array
+    {
+        $decoded = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
 
-            if ($row->store_id !== null) {
-                $stores[(string) $row->permission][] = (string) $row->store_id;
-            }
-        }
+        return is_array($decoded) ? $decoded : [];
+    }
 
-        $exceptions = [];
-
-        foreach ($levels as $permission => $level) {
-            $exceptions[$permission] = StoreChoice::of($level, $level === AccessLevel::AllStores ? [] : $stores[$permission] ?? []);
-        }
-
-        return $exceptions;
+    /**
+     * @param  array<mixed>  $values
+     * @return list<string>
+     */
+    private static function strings(array $values): array
+    {
+        return array_values(array_map(strval(...), array_filter($values, is_string(...))));
     }
 }

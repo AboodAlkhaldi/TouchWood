@@ -12,6 +12,7 @@ use Modules\Access\Domain\Exception\SuperAdminOnly;
 use Modules\Access\Domain\Model\RoleAssignment;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\RoleRepository;
+use Modules\Access\Domain\ValueObject\RoleKind;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -37,7 +38,12 @@ final readonly class RefreshRolePermissionsHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $author = $this->rules->author();
 
-        $role = $this->roles->byId($command->roleId) ?? throw new RoleNotFound($command->roleId);
+        $role = $this->roles->byId($command->roleId);
+
+        // A personal role is refreshed from its staff member's page (RefreshStaffPermissions).
+        if ($role === null || $role->kind() !== RoleKind::Saved) {
+            throw new RoleNotFound($command->roleId);
+        }
 
         if ($role->level() === RoleLevel::Admin && ! $author->isUnlimited()) {
             throw new SuperAdminOnly($role->id());

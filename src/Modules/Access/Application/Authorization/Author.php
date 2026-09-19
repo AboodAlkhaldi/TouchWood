@@ -45,12 +45,4 @@ final readonly class Author
     {
         return $this->grants === null ? StoreChoice::allStores() : $this->grants->storesFor($permission);
     }
-
-    /**
-     * The author's own stores: all when unlimited, null when they hold no role.
-     */
-    public function stores(): ?StoreChoice
-    {
-        return $this->grants === null ? StoreChoice::allStores() : $this->grants->stores;
-    }
 }

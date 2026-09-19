@@ -32,27 +32,20 @@ beforeEach(function () {
     seed(PlatformSeeder::class);
 });
 
-/**
- * @param  list<string>  $stores
- */
-function actAsRoleAdmin(array $stores): string
-{
-    $adminId = Fx::staffWith([AccessPermissions::ROLE_MANAGE, PlatformPermissions::STORE_UPDATE, PlatformPermissions::MEDIA_UPLOAD], $stores, RoleLevel::Admin);
-    Fx::actAsStaff($adminId);
-
-    return $adminId;
-}
+const READING_ADMIN_ACTIONS = [AccessPermissions::ROLE_MANAGE, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE, PlatformPermissions::MEDIA_UPLOAD];
 
 describe('the roles list', function () {
-    it('shows every saved role; an admin sees admin roles too, but may edit only staff roles', function () {
+    it('shows every saved role, never a personal one; an admin sees admin roles too, but may edit only staff roles', function () {
         $staffRole = Fx::role([PlatformPermissions::STORE_UPDATE], nameEn: 'Support');
         Fx::role([PlatformPermissions::STORE_UPDATE], RoleLevel::Admin, 'Store admin');
-        actAsRoleAdmin(['*']);
+        $personalId = Fx::personalRole(Fx::staff(), [PlatformPermissions::STORE_UPDATE]);
+        Fx::actAsAdmin(['*'], READING_ADMIN_ACTIONS);
 
         $roles = app(ListRolesHandler::class)->handle(new ListRoles);
         $byName = array_column(array_map(fn (RoleSummary $role): array => ['name' => $role->nameEn, 'editable' => $role->editable], $roles), 'editable', 'name');
 
         expect($byName)->toMatchArray(['Support' => true, 'Store admin' => false])
+            ->and(array_column(array_map(fn (RoleSummary $role): array => ['id' => $role->id], $roles), 'id'))->not->toContain($personalId)
             ->and(collect($roles)->firstWhere('id', $staffRole)?->permissionCount)->toBe(1);
     });
 
@@ -64,7 +57,7 @@ describe('the roles list', function () {
 
     it('is open to an admin who only assigns roles, read-only', function () {
         Fx::role([PlatformPermissions::STORE_UPDATE]);
-        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE], ['sa'], RoleLevel::Admin));
+        Fx::actAsAdmin(['sa'], [AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE]);
 
         $roles = app(ListRolesHandler::class)->handle(new ListRoles);
 
@@ -74,13 +67,13 @@ describe('the roles list', function () {
 });
 
 describe('one role', function () {
-    it('lists only the holders the admin manages, with the total count', function () {
+    it('lists only the holders the admin could reassign, with the total count', function () {
         $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
         $ksa = Fx::staff(firstName: 'Khalid');
         $ksaAndUae = Fx::staff(firstName: 'Noura');
         Fx::assign($ksa, $roleId, ['sa']);
         Fx::assign($ksaAndUae, $roleId, ['sa', 'ae']);
-        actAsRoleAdmin(['sa']);
+        Fx::actAsAdmin(['sa'], READING_ADMIN_ACTIONS);
 
         $role = app(ViewRoleHandler::class)->handle(new ViewRole($roleId));
 
@@ -91,10 +84,22 @@ describe('one role', function () {
             ->and($role->permissions)->toBe([PlatformPermissions::STORE_UPDATE]);
     });
 
+    it('lists no holder to an admin who manages roles but assigns none', function () {
+        $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
+        Fx::assign(Fx::staff(), $roleId, ['sa']);
+        Fx::actAsAdmin(['sa'], [AccessPermissions::ROLE_MANAGE, PlatformPermissions::STORE_UPDATE]);
+
+        $role = app(ViewRoleHandler::class)->handle(new ViewRole($roleId));
+
+        expect($role->holderCount)->toBe(1)
+            ->and($role->holders)->toBe([])
+            ->and($role->editable)->toBeFalse();
+    });
+
     it('shows no admin to an admin', function () {
         $adminRole = Fx::role([PlatformPermissions::STORE_UPDATE], RoleLevel::Admin);
         Fx::assign(Fx::staff(), $adminRole, ['sa']);
-        actAsRoleAdmin(['*']);
+        Fx::actAsAdmin(['*'], READING_ADMIN_ACTIONS);
 
         $role = app(ViewRoleHandler::class)->handle(new ViewRole($adminRole));
 
@@ -103,22 +108,20 @@ describe('one role', function () {
             ->and($role->editable)->toBeFalse();
     });
 
-    it('does not open a personal role or an unknown one', function () {
-        actAsRoleAdmin(['*']);
+    it('does not open a personal role or an unknown one', function (Closure $roleId) {
+        Fx::actAsAdmin(['*'], READING_ADMIN_ACTIONS);
 
-        expect(fn () => app(ViewRoleHandler::class)->handle(new ViewRole('01j8z3k4m5n6p7q8r9s0t1v2w3')))->toThrow(RoleNotFound::class)
-            ->and(fn () => app(ViewRoleHandler::class)->handle(new ViewRole('not-an-id')))->toThrow(RoleNotFound::class);
-    });
+        expect(fn () => app(ViewRoleHandler::class)->handle(new ViewRole($roleId())))->toThrow(RoleNotFound::class);
+    })->with([
+        'a personal role' => [fn () => Fx::personalRole(Fx::staff(), [PlatformPermissions::STORE_UPDATE])],
+        'an unknown id' => [fn () => '01j8z3k4m5n6p7q8r9s0t1v2w3'],
+        'not an id' => [fn () => 'not-an-id'],
+    ]);
 });
 
 describe('the role editor', function () {
     it('offers a staff role every assignable action except the management ones, marking what the author may give and where', function () {
-        Fx::actAsStaff(Fx::staffWith(
-            [AccessPermissions::ROLE_MANAGE, PlatformPermissions::STORE_UPDATE, PlatformPermissions::MEDIA_UPLOAD],
-            ['sa', 'ae'],
-            RoleLevel::Admin,
-            [PlatformPermissions::STORE_UPDATE => ['sa']],
-        ));
+        Fx::actAsAdmin(['sa', 'ae'], [AccessPermissions::ROLE_MANAGE, PlatformPermissions::STORE_UPDATE, PlatformPermissions::MEDIA_UPLOAD], [PlatformPermissions::STORE_UPDATE => ['sa']]);
 
         $items = [];
 
@@ -140,7 +143,7 @@ describe('the role editor', function () {
     });
 
     it('offers the management actions only for an admin role, to a Super Admin', function () {
-        actAsRoleAdmin(['*']);
+        Fx::actAsAdmin(['*'], READING_ADMIN_ACTIONS);
         expect(fn () => app(RoleEditorPermissionsHandler::class)->handle(new RoleEditorPermissions(RoleLevel::Admin)))->toThrow(SuperAdminOnly::class);
 
         Fx::actAsStaff(Fx::staff(superAdmin: true));

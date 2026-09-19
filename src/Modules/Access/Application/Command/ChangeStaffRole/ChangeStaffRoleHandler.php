@@ -37,6 +37,9 @@ final readonly class ChangeStaffRoleHandler
 {
     public const string PERMISSION = AccessPermissions::STAFF_ASSIGN_ROLE;
 
+    /** Locks are taken roles first, then staff and assignments; a deadlock is retried. */
+    private const int ATTEMPTS = 3;
+
     public function __construct(
         private Authorizer $authorizer,
         private GrantRules $rules,
@@ -57,15 +60,19 @@ final readonly class ChangeStaffRoleHandler
         $row = StoreChoice::of($command->accessLevel, $command->storeIds);
         $exceptions = $this->exceptions($command->exceptions);
 
+        // Before anything is looked up, so someone without the action learns nothing about ids.
+        $this->rules->requireSomewhere(self::PERMISSION);
+
         $this->db->transaction(function () use ($command, $row, $exceptions): void {
+            // Roles are locked before staff and assignments, in every handler, so two changes cannot
+            // deadlock.
+            $saved = $command->savedRoleId === null ? null : $this->savedRole($command->savedRoleId);
+            $personal = $this->roles->personalRoleOf($command->staffId);
+            $personalBefore = $personal === null ? null : clone $personal;
             $target = $this->staff->byId($command->staffId) ?? throw new StaffNotFound($command->staffId);
             $current = $this->assignments->byStaff($target->id());
-            $personal = $this->roles->personalRoleOf($target->id());
-            $personalBefore = $personal === null ? null : clone $personal;
 
-            $role = $command->savedRoleId !== null
-                ? $this->savedRole($command->savedRoleId)
-                : $this->editPersonal($target->id(), $personal, $command->personalRole);
+            $role = $saved ?? $this->editPersonal($target->id(), $personal, $command->personalRole);
 
             $next = RoleAssignment::assign($target->id(), $role->id(), $row, $exceptions, null, CarbonImmutable::now());
 
@@ -94,7 +101,14 @@ final readonly class ChangeStaffRoleHandler
             $this->rules->requireValidExceptions($role->permissions(), $exceptions);
             $this->rules->requireCovers($author, $role->permissions(), $next);
 
-            $this->writeRole($role, $personalBefore);
+            $roleChanges = $role->pullChanges();
+
+            // The same role and stores again: nothing to write or audit.
+            if ($roleChanges === [] && $current !== null && $this->same($current, $next)) {
+                return;
+            }
+
+            $this->writeRole($role, $personalBefore, $roleChanges);
 
             $before = $current === null ? null : clone $current;
             $assignment = $current ?? $next;
@@ -109,7 +123,23 @@ final readonly class ChangeStaffRoleHandler
 
             $this->platform->recordAudit(RoleAudit::assignmentChanged($before, $assignment));
             $this->grants->refresh($target->id());
-        });
+        }, self::ATTEMPTS);
+    }
+
+    private function same(RoleAssignment $current, RoleAssignment $next): bool
+    {
+        if ($current->roleId() !== $next->roleId() || ! $current->stores()->equals($next->stores())
+            || array_keys($current->exceptions()) !== array_keys($next->exceptions())) {
+            return false;
+        }
+
+        foreach ($next->exceptions() as $permission => $stores) {
+            if (! $current->storesFor($permission)->equals($stores)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function savedRole(string $roleId): Role
@@ -144,7 +174,10 @@ final readonly class ChangeStaffRoleHandler
         return $personal;
     }
 
-    private function writeRole(Role $role, ?Role $personalBefore): void
+    /**
+     * @param  list<string>  $changed  what changed on an existing personal role
+     */
+    private function writeRole(Role $role, ?Role $personalBefore, array $changed): void
     {
         if ($role->kind() === RoleKind::Saved) {
             return;
@@ -156,8 +189,6 @@ final readonly class ChangeStaffRoleHandler
 
             return;
         }
-
-        $changed = $role->pullChanges();
 
         if ($changed !== []) {
             $this->roles->update($role);

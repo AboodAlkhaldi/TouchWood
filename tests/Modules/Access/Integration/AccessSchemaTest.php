@@ -109,6 +109,12 @@ it('refuses rows that break the rules, even when they skip the domain', function
         insertAssignmentRow($staffId, ['access_level' => 'SELECTED_STORES']);
         DB::table('access.role_assignment_stores')->insert(['staff_user_id' => $staffId, 'store_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']);
     }, 'role_assignment_stores_store_id_foreign'],
+    'an exception store that does not exist' => [function () {
+        $staffId = Fx::staff();
+        insertAssignmentRow($staffId);
+        DB::table('access.role_assignment_exceptions')->insert(['staff_user_id' => $staffId, 'permission' => 'platform.store.update', 'access_level' => 'SELECTED_STORES']);
+        DB::table('access.role_assignment_exception_stores')->insert(['staff_user_id' => $staffId, 'permission' => 'platform.store.update', 'store_id' => '01j8z3k4m5n6p7q8r9s0t1v2w3']);
+    }, 'role_assignment_exception_stores_store_id_foreign'],
     'an exception with a malformed permission' => [function () {
         $staffId = Fx::staff();
         insertAssignmentRow($staffId);

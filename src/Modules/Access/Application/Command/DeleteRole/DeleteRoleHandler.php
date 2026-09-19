@@ -17,6 +17,7 @@ use Modules\Access\Domain\Exception\SuperAdminOnly;
 use Modules\Access\Domain\Model\RoleAssignment;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\RoleRepository;
+use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\RoleKind;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -27,10 +28,14 @@ final readonly class DeleteRoleHandler
 {
     public const string PERMISSION = AccessPermissions::ROLE_MANAGE;
 
+    /** Locks are taken roles first, then assignments; a deadlock with another change is retried. */
+    private const int ATTEMPTS = 3;
+
     public function __construct(
         private Authorizer $authorizer,
         private GrantRules $rules,
         private RoleRepository $roles,
+        private StaffUserRepository $staff,
         private RoleAssignmentRepository $assignments,
         private GrantsReader $grants,
         private ConnectionInterface $db,
@@ -53,20 +58,21 @@ final readonly class DeleteRoleHandler
                 throw new SuperAdminOnly($role->id());
             }
 
+            // Roles are locked before assignments, in every handler, so two changes cannot deadlock.
+            $replacement = $command->replacementRoleId === null ? null
+                : ($this->roles->byId($command->replacementRoleId) ?? throw new RoleNotFound($command->replacementRoleId));
+
             $holders = $this->assignments->holdersOf($role->id());
             $this->rules->requireCoversHolders($author, $holders);
             $holderIds = array_map(fn (RoleAssignment $holder): string => $holder->staffId(), $holders);
 
-            if ($holders !== [] && $command->replacementRoleId === null) {
-                throw new RoleInUse($role->id(), $holderIds);
+            if ($holders !== [] && $replacement === null) {
+                throw new RoleInUse($role->id(), array_values($this->staff->names($holderIds)));
             }
 
             $replacementId = null;
 
             if ($holders !== []) {
-                $replacement = $this->roles->byId((string) $command->replacementRoleId)
-                    ?? throw new RoleNotFound((string) $command->replacementRoleId);
-
                 // A replacement of the same level: staff never become admins through a delete.
                 if ($replacement->kind() !== RoleKind::Saved || $replacement->level() !== $role->level() || $replacement->id() === $role->id()) {
                     throw new InvalidAccessAttribute('replacement', 'pick another saved role of the same level');
@@ -88,6 +94,6 @@ final readonly class DeleteRoleHandler
             $this->roles->delete($role->id());
             $this->platform->recordAudit(RoleAudit::deleted($role, $replacementId, $holderIds));
             $this->grants->refresh(...$holderIds);
-        });
+        }, self::ATTEMPTS);
     }
 }

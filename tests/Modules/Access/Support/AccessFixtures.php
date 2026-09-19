@@ -7,9 +7,11 @@ namespace Tests\Modules\Access\Support;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use LogicException;
+use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Command\ChangeStaffRole\ActionStores;
 use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRole;
 use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
+use Modules\Access\Application\Command\ChangeStaffRole\PersonalRole;
 use Modules\Access\Application\Command\CreateRole\CreateRole;
 use Modules\Access\Application\Command\CreateRole\CreateRoleHandler;
 use Modules\Access\Domain\ValueObject\RoleLevel;
@@ -18,10 +20,17 @@ use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Actor;
 use Shared\Application\ActorContext;
+use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
+use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
- * Staff, roles and assignments for Access tests. Staff rows are written directly: inviting staff
- * arrives with sign-in (step 3). Roles and assignments go through the handlers, as the system.
+ * Staff, roles and assignments for Access tests, and the helpers every Access test file shares —
+ * kept here, not as global functions, so two test files can never declare the same name.
+ *
+ * Staff rows are written directly: inviting staff arrives with sign-in (step 3). Roles and
+ * assignments go through the handlers, as the system.
  */
 final class AccessFixtures
 {
@@ -45,7 +54,8 @@ final class AccessFixtures
     }
 
     /**
-     * From now on in this test, $actor is the one acting.
+     * From now on in this test, $actor is the one acting. Forgets every scoped instance, not only
+     * those that depend on the actor: they are rebuilt on next use.
      */
     public static function actAs(Actor $actor): void
     {
@@ -62,6 +72,66 @@ final class AccessFixtures
     public static function storeId(string $code): string
     {
         return (string) app(PlatformApi::class)->storeByCode($code)?->id;
+    }
+
+    public static function inStore(string $code): PermissionScope
+    {
+        return PermissionScope::store(StoreId::fromString(self::storeId($code)));
+    }
+
+    /**
+     * Whether the current actor passes this check.
+     */
+    public static function allows(string $permission, PermissionScope $scope): bool
+    {
+        try {
+            app(Authorizer::class)->authorize($permission, $scope);
+
+            return true;
+        } catch (Unauthorized) {
+            return false;
+        }
+    }
+
+    /**
+     * The store codes, sorted, where the current actor holds this permission; null for every store.
+     *
+     * @return list<string>|null
+     */
+    public static function storeCodesWith(string $permission): ?array
+    {
+        $stores = app(Authorizer::class)->storesWith($permission);
+
+        if ($stores === null) {
+            return null;
+        }
+
+        $codes = array_map(fn (StoreId $store): string => (string) DB::table('platform.stores')->where('id', $store->value)->value('code'), $stores);
+        sort($codes);
+
+        return $codes;
+    }
+
+    /**
+     * Loads a staff member's permissions into the cache, as a check would.
+     */
+    public static function warmCache(string $staffId): void
+    {
+        app(GrantsReader::class)->forStaff($staffId);
+    }
+
+    /**
+     * @return list<string> the role's actions as stored
+     */
+    public static function rolePermissions(string $roleId): array
+    {
+        /** @var list<string> */
+        return DB::table('access.role_permissions')->where('role_id', $roleId)->orderBy('permission')->pluck('permission')->all();
+    }
+
+    public static function roleOf(string $staffId): string
+    {
+        return (string) DB::table('access.role_assignments')->where('staff_user_id', $staffId)->value('role_id');
     }
 
     /**
@@ -86,22 +156,50 @@ final class AccessFixtures
     public static function assign(string $staffId, string $roleId, array $stores, array $exceptions = []): void
     {
         self::asSystem(function () use ($staffId, $roleId, $stores, $exceptions): void {
-            app(ChangeStaffRoleHandler::class)->handle(new ChangeStaffRole(
-                $staffId,
-                $stores === ['*'] ? AccessLevel::AllStores : AccessLevel::SelectedStores,
-                $stores === ['*'] ? [] : array_map(self::storeId(...), $stores),
-                array_map(
-                    fn (string $permission, array $codes): ActionStores => new ActionStores(
-                        $permission,
-                        $codes === ['*'] ? AccessLevel::AllStores : AccessLevel::SelectedStores,
-                        $codes === ['*'] ? [] : array_map(self::storeId(...), $codes),
-                    ),
-                    array_keys($exceptions),
-                    $exceptions,
-                ),
-                savedRoleId: $roleId,
-            ));
+            app(ChangeStaffRoleHandler::class)->handle(self::change($staffId, $stores, $exceptions, savedRoleId: $roleId));
         });
+    }
+
+    /**
+     * Gives a staff member a personal role with these actions, as the system.
+     *
+     * @param  list<string>  $permissions
+     * @param  list<string>  $stores
+     * @return string the personal role's id
+     */
+    public static function personalRole(string $staffId, array $permissions, array $stores = ['sa'], RoleLevel $level = RoleLevel::Staff): string
+    {
+        self::asSystem(function () use ($staffId, $permissions, $stores, $level): void {
+            app(ChangeStaffRoleHandler::class)->handle(self::change($staffId, $stores, personal: new PersonalRole('دور شخصي', 'Personal role', $permissions, $level)));
+        });
+
+        return self::roleOf($staffId);
+    }
+
+    /**
+     * The command for a staff member's role, from store codes ('*' = all stores).
+     *
+     * @param  list<string>  $stores
+     * @param  array<string, list<string>>  $exceptions  permission => store codes
+     */
+    public static function change(string $staffId, array $stores, array $exceptions = [], ?string $savedRoleId = null, ?PersonalRole $personal = null): ChangeStaffRole
+    {
+        return new ChangeStaffRole(
+            $staffId,
+            $stores === ['*'] ? AccessLevel::AllStores : AccessLevel::SelectedStores,
+            $stores === ['*'] ? [] : array_map(self::storeId(...), $stores),
+            array_map(
+                fn (string $permission, array $codes): ActionStores => new ActionStores(
+                    $permission,
+                    $codes === ['*'] ? AccessLevel::AllStores : AccessLevel::SelectedStores,
+                    $codes === ['*'] ? [] : array_map(self::storeId(...), $codes),
+                ),
+                array_keys($exceptions),
+                $exceptions,
+            ),
+            $savedRoleId,
+            $personal,
+        );
     }
 
     /**
@@ -117,6 +215,21 @@ final class AccessFixtures
         self::assign($staffId, self::role($permissions, $level), $stores, $exceptions);
 
         return $staffId;
+    }
+
+    /**
+     * An admin of these stores, acting from now on, who holds these actions there.
+     *
+     * @param  list<string>  $stores
+     * @param  list<string>  $permissions
+     * @param  array<string, list<string>>  $exceptions
+     */
+    public static function actAsAdmin(array $stores, array $permissions, array $exceptions = []): string
+    {
+        $adminId = self::staffWith($permissions, $stores, RoleLevel::Admin, $exceptions);
+        self::actAsStaff($adminId);
+
+        return $adminId;
     }
 
     /**
@@ -152,5 +265,15 @@ final class AccessFixtures
         } finally {
             self::actAs($previous);
         }
+    }
+
+    /**
+     * How many audit entries have this action and subject.
+     */
+    public static function audits(string $action, ?string $subjectId = null): int
+    {
+        return DB::table('platform.audit_entries')->where('action', $action)
+            ->when($subjectId !== null, fn ($query) => $query->where('subject_id', $subjectId))
+            ->count();
     }
 }

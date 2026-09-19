@@ -95,8 +95,15 @@ final class AccessServiceProvider extends ServiceProvider
     private function carryPermissionChangesOnMigrate(): void
     {
         Event::listen(MigrationsEnded::class, function (MigrationsEnded $event): void {
-            if ($event->method === 'up' && ! ($event->options['pretend'] ?? false)) {
-                $this->app->make(PermissionSync::class)->run();
+            if ($event->options['pretend'] ?? false) {
+                return;
+            }
+
+            $sync = $this->app->make(PermissionSync::class);
+            $sync->refreshEveryone();
+
+            if ($event->method === 'up') {
+                $sync->run();
             }
         });
 

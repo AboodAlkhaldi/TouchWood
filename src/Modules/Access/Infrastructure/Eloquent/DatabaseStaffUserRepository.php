@@ -34,4 +34,23 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             (bool) $row->is_super_admin,
         ) : null;
     }
+
+    public function names(array $ids): array
+    {
+        $found = [];
+
+        foreach ($this->db->table('access.staff_users')->whereIn('id', $ids)->get(['id', 'first_name', 'last_name']) as $row) {
+            $found[(string) $row->id] = trim($row->first_name.' '.$row->last_name);
+        }
+
+        $names = [];
+
+        foreach ($ids as $id) {
+            if (isset($found[$id])) {
+                $names[$id] = $found[$id];
+            }
+        }
+
+        return $names;
+    }
 }

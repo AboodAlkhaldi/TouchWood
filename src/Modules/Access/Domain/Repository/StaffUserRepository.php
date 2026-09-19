@@ -12,4 +12,12 @@ interface StaffUserRepository
      * Locks the row until the transaction ends, so two changes to one staff member queue up.
      */
     public function byId(string $id): ?StaffUser;
+
+    /**
+     * "First Last" for each id, in the order given; unknown ids are left out. No lock.
+     *
+     * @param  list<string>  $ids
+     * @return array<string, string> id => name
+     */
+    public function names(array $ids): array;
 }

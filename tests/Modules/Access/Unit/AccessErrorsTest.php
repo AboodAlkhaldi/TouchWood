@@ -5,11 +5,16 @@ declare(strict_types=1);
 use App\Http\ProblemDetails;
 use Modules\Access\Domain\Exception\AccessError;
 use Modules\Access\Domain\Exception\AdminOnlyPermission;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\PermissionEscalation;
+use Modules\Access\Domain\Exception\ReservedPermission;
 use Modules\Access\Domain\Exception\RoleInUse;
 use Modules\Access\Domain\Exception\RoleNameTaken;
 use Modules\Access\Domain\Exception\RoleNotFound;
+use Modules\Access\Domain\Exception\StaffNotEditable;
+use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Exception\SuperAdminOnly;
+use Modules\Access\Domain\Exception\UnknownPermission;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
@@ -76,4 +81,9 @@ it('answers with the HTTP status the spec names', function (string $class, int $
     'a taken name → 409' => [RoleNameTaken::class, 409],
     'a management action in a staff role → 422' => [AdminOnlyPermission::class, 422],
     'an unknown role → 404' => [RoleNotFound::class, 404],
+    'an unknown staff member → 404' => [StaffNotFound::class, 404],
+    'a Super Admin, an admin or yourself → 409' => [StaffNotEditable::class, 409],
+    'an undeclared or automatic action → 422' => [UnknownPermission::class, 422],
+    'a Super Admin action in a role → 422' => [ReservedPermission::class, 422],
+    'a malformed value → 422' => [InvalidAccessAttribute::class, 422],
 ]);

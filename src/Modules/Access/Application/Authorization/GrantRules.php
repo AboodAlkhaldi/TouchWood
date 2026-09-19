@@ -48,13 +48,20 @@ final readonly class GrantRules
 
     /**
      * Who is acting. Call after the handler's authorize(): anyone else was refused already.
+     *
+     * A console command is unlimited. A queued job acts as the system on behalf of whoever queued
+     * it, so it grants only what that person holds (spec §1.5).
      */
     public function author(): Author
     {
         $actor = $this->actors->current();
 
         if ($actor->type === ActorType::System) {
-            return Author::unlimited();
+            if ($actor->requestedBy === null) {
+                return Author::unlimited();
+            }
+
+            $actor = $actor->requestedBy;
         }
 
         $staff = $actor->type === ActorType::Staff ? $this->grants->forStaff((string) $actor->id) : null;
@@ -130,7 +137,8 @@ final readonly class GrantRules
 
     /**
      * For every action of the role, the author holds it in every store it reaches for this staff
-     * member. Actions no module declares any more grant nothing, so they are skipped.
+     * member. A name no module declares any more cannot be covered: it grants nothing now, but
+     * would come back to life with its module, so a limited author cannot hand it out.
      *
      * @param  list<string>  $permissions  the role's actions
      */
@@ -141,12 +149,7 @@ final readonly class GrantRules
         }
 
         foreach ($permissions as $permission) {
-            $definition = $this->catalog->definition($permission);
-
-            if ($definition === null) {
-                continue;
-            }
-
+            $definition = $this->catalog->definition($permission) ?? throw new UnknownPermission($permission);
             $held = $author->storesFor($permission);
             $covered = $held !== null
                 && ($definition->kind === PermissionKind::Global || $held->includes($assignment->storesFor($permission)));
@@ -223,8 +226,9 @@ final readonly class GrantRules
     }
 
     /**
-     * Editing or deleting a saved role reaches every store where it is held: only an author who
-     * covers all the stores of every holder may do it (owner's decision, 2026-09-19).
+     * Editing, deleting or refreshing a saved role changes the access of everyone who holds it:
+     * only an author who covers all the stores of every holder may do it (owner's decisions,
+     * 2026-09-19).
      *
      * @param  list<RoleAssignment>  $holders
      */
@@ -232,18 +236,33 @@ final readonly class GrantRules
     {
         foreach ($holders as $holder) {
             if (! $this->covers($author, $holder->staffStores())) {
-                throw new Unauthorized(AccessPermissions::ROLE_MANAGE);
+                throw new Unauthorized(AccessPermissions::STAFF_ASSIGN_ROLE);
             }
         }
     }
 
     /**
-     * The author covers all of this staff member's stores (owner's decision, 2026-09-19).
+     * An admin's reach over a staff member: the author holds the management action that changes
+     * people's access — assigning roles — in all of their stores (owner's decision, 2026-09-19).
      */
     public function covers(Author $author, ?StoreChoice $stores): bool
     {
-        $own = $author->stores();
+        if ($author->isUnlimited() || $stores === null) {
+            return true;
+        }
 
-        return $author->isUnlimited() || $stores === null || ($own !== null && $own->includes($stores));
+        return $author->storesFor(AccessPermissions::STAFF_ASSIGN_ROLE)?->includes($stores) === true;
+    }
+
+    /**
+     * The names a module still declares. A name left behind by a module that is switched off stays
+     * where it is (it grants nothing) but is never copied into a new role.
+     *
+     * @param  list<string>  $permissions
+     * @return list<string>
+     */
+    public function declaredOnly(array $permissions): array
+    {
+        return array_values(array_filter($permissions, fn (string $permission): bool => $this->catalog->definition($permission) !== null));
     }
 }

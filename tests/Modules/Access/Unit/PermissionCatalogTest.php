@@ -155,4 +155,8 @@ it('refuses, once every module booted, a rename or removal that does not match t
         $c->removed('catalog', 'catalog.product.edit');
     }, 'both renamed and removed'],
     'a removed name is still declared' => [fn (InMemoryPermissionCatalog $c) => $c->removed('catalog', 'catalog.product.update'), 'removed but is still declared'],
+    'two permissions renamed into one' => [function (InMemoryPermissionCatalog $c) {
+        $c->renamed('catalog', 'catalog.product.edit', 'catalog.product.update');
+        $c->renamed('catalog', 'catalog.product.change', 'catalog.product.update');
+    }, 'the new name of 2 renamed permissions'],
 ]);
