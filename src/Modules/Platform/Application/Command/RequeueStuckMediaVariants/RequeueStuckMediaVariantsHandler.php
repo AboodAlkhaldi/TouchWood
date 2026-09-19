@@ -9,6 +9,7 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Domain\Model\Media;
 use Modules\Platform\Domain\Repository\MediaRepository;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
@@ -20,7 +21,7 @@ use Shared\Application\PermissionScope;
 final readonly class RequeueStuckMediaVariantsHandler
 {
     /** Reserved: only the system sweeps. */
-    public const string PERMISSION = 'platform.media.variants.generate';
+    public const string PERMISSION = PlatformPermissions::MEDIA_VARIANTS_GENERATE;
 
     public function __construct(
         private Authorizer $authorizer,

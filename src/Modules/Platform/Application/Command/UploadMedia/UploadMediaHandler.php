@@ -16,6 +16,7 @@ use Modules\Platform\Application\Settings\ReadSetting;
 use Modules\Platform\Domain\Model\Media;
 use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Public\Enums\MediaVisibility;
+use Modules\Platform\Public\PlatformPermissions;
 use RuntimeException;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
@@ -33,7 +34,7 @@ use Throwable;
  */
 final readonly class UploadMediaHandler
 {
-    public const string PERMISSION = 'platform.media.upload';
+    public const string PERMISSION = PlatformPermissions::MEDIA_UPLOAD;
 
     public function __construct(
         private Authorizer $authorizer,
