@@ -14,6 +14,7 @@ use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
+use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Domain\ValueObject\StaffProfile;
@@ -31,6 +32,7 @@ final readonly class UpdateStaffProfileHandler
         private StaffUserRepository $staff,
         private RoleAssignmentRepository $assignments,
         private GrantsReader $grants,
+        private StaffTokenRepository $tokens,
         private Avatars $avatars,
         private PlatformApi $platform,
         private Connection $db,
@@ -81,6 +83,12 @@ final readonly class UpdateStaffProfileHandler
             }
 
             $this->staff->update($target);
+
+            // A new phone ends every trusted browser (spec §1.8).
+            if (in_array('phone', $changed, true)) {
+                $this->tokens->forgetTrustedBrowsers($target->id());
+            }
+
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.profile_updated', $before, $target, $changed));
         });
     }

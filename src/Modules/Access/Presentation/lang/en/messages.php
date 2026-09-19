@@ -22,5 +22,13 @@ return [
         ],
         'action' => 'Confirm this email',
     ],
+    'password_reset' => [
+        'subject' => 'Choose a new password',
+        'lines' => [
+            'Someone asked to reset the password of your account. Open the link below to choose a new one.',
+            'The link works for a limited time. If you did not ask for this, ignore this email: your password stays as it is.',
+        ],
+        'action' => 'Choose a new password',
+    ],
     'phone_code' => 'Your verification code is :code. Do not share it with anyone.',
 ];

@@ -35,6 +35,27 @@ final readonly class StaffSecuritySettings
 
     public const string CODE_ATTEMPTS = 'access.staff.sms_code_attempts';
 
+    /** Wrong passwords for one account before it is locked (spec §1.8). */
+    public const string LOCKOUT_ATTEMPTS = 'access.staff.lockout_attempts';
+
+    public const string LOCKOUT_MINUTES = 'access.staff.lockout_minutes';
+
+    /** Wrong passwords from one IP address, across accounts, before it waits (amendment 31). */
+    public const string IP_ATTEMPTS = 'access.staff.ip_attempts';
+
+    public const string IP_MINUTES = 'access.staff.ip_minutes';
+
+    public const string SESSION_IDLE_MINUTES = 'access.staff.session_idle_minutes';
+
+    public const string SESSION_MAX_HOURS = 'access.staff.session_max_hours';
+
+    public const string TRUSTED_BROWSER_DAYS = 'access.staff.trusted_browser_days';
+
+    public const string PASSWORD_RESET_MINUTES = 'access.staff.password_reset_minutes';
+
+    /** Reset emails to one account an hour, so nobody can flood an inbox. */
+    public const string PASSWORD_RESETS_PER_HOUR = 'access.staff.password_reset_hourly_limit';
+
     public function __construct(
         private PlatformApi $platform,
     ) {}
@@ -58,7 +79,61 @@ final readonly class StaffSecuritySettings
             $setting(self::CODE_RESEND_SECONDS, 60, 0, 3600),
             $setting(self::CODES_PER_HOUR, 3, 1, 100),
             $setting(self::CODE_ATTEMPTS, 5, 1, 20),
+            $setting(self::LOCKOUT_ATTEMPTS, 5, 3, 20),
+            $setting(self::LOCKOUT_MINUTES, 15, 1, 1440),
+            $setting(self::IP_ATTEMPTS, 10, 3, 100),
+            $setting(self::IP_MINUTES, 15, 1, 1440),
+            $setting(self::SESSION_IDLE_MINUTES, 30, 5, 720),
+            $setting(self::SESSION_MAX_HOURS, 12, 1, 72),
+            $setting(self::TRUSTED_BROWSER_DAYS, 30, 1, 90),
+            $setting(self::PASSWORD_RESET_MINUTES, 30, 5, 1440),
+            $setting(self::PASSWORD_RESETS_PER_HOUR, 3, 1, 20),
         ];
+    }
+
+    public function lockoutAttempts(): int
+    {
+        return $this->int(self::LOCKOUT_ATTEMPTS);
+    }
+
+    public function lockoutMinutes(): int
+    {
+        return $this->int(self::LOCKOUT_MINUTES);
+    }
+
+    public function ipAttempts(): int
+    {
+        return $this->int(self::IP_ATTEMPTS);
+    }
+
+    public function ipMinutes(): int
+    {
+        return $this->int(self::IP_MINUTES);
+    }
+
+    public function sessionIdleMinutes(): int
+    {
+        return $this->int(self::SESSION_IDLE_MINUTES);
+    }
+
+    public function sessionMaxHours(): int
+    {
+        return $this->int(self::SESSION_MAX_HOURS);
+    }
+
+    public function trustedBrowserDays(): int
+    {
+        return $this->int(self::TRUSTED_BROWSER_DAYS);
+    }
+
+    public function passwordResetMinutes(): int
+    {
+        return $this->int(self::PASSWORD_RESET_MINUTES);
+    }
+
+    public function passwordResetsPerHour(): int
+    {
+        return $this->int(self::PASSWORD_RESETS_PER_HOUR);
     }
 
     public function passwordMinLength(): int

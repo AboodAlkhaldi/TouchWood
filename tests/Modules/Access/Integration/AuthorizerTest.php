@@ -14,6 +14,8 @@ use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Actor;
+use Shared\Application\ActorContext;
+use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
@@ -166,8 +168,9 @@ it('lets no customer or integration act yet: customer accounts arrive in step 4'
     'an integration' => [fn () => Actor::integration(strtolower((string) Str::ulid()))],
 ]);
 
-it('lets the system act in the console, and still refuses it in a web request until staff sign-in', function () {
-    expect(Fx::allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeTrue();
+it('lets the system act in the console; a web server process with no one signed in is a guest, never the system', function () {
+    expect(app(ActorContext::class)->current()->type)->toBe(ActorType::System)
+        ->and(Fx::allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeTrue();
 
     // Tests run in the console; pretend this one serves a web request, as PHP-FPM would.
     $console = new ReflectionProperty(app(), 'isRunningInConsole');
@@ -175,7 +178,8 @@ it('lets the system act in the console, and still refuses it in a web request un
     app()->forgetScopedInstances();
 
     try {
-        expect(Fx::allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeFalse()
+        expect(app(ActorContext::class)->current()->type)->toBe(ActorType::Guest)
+            ->and(Fx::allows(PlatformPermissions::STORE_CREATE, PermissionScope::global()))->toBeFalse()
             ->and(app(Authorizer::class)->storesWith(PlatformPermissions::STORE_UPDATE))->toBe([]);
     } finally {
         $console->setValue(app(), true);

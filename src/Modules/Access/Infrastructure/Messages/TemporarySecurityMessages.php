@@ -27,6 +27,11 @@ final readonly class TemporarySecurityMessages implements SecurityMessages
         $this->mailer->to($staff->email)->send(new SecurityMail('staff_invitation', ['name' => $staff->firstName, 'link' => $link], $staff->locale));
     }
 
+    public function passwordReset(string $email, string $locale, string $link): void
+    {
+        $this->mailer->to($email)->send(new SecurityMail('password_reset', ['link' => $link], $locale));
+    }
+
     public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void
     {
         $this->mailer->to($newEmail)->send(new SecurityMail('staff_email_change', ['name' => $staff->firstName, 'link' => $link], $staff->locale));

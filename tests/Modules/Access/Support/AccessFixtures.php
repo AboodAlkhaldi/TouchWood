@@ -287,13 +287,16 @@ final class AccessFixtures
      */
     public static function asSystem(callable $work): mixed
     {
-        $previous = app(ActorContext::class)->current();
+        // The binding itself, not the actor it gives: a test using the real ActorContext (HTTP
+        // requests) must get it back, not a fixed stand-in.
+        $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
         self::actAs(Actor::system());
 
         try {
             return $work();
         } finally {
-            self::actAs($previous);
+            app()->scoped(ActorContext::class, $previous);
+            app()->forgetScopedInstances();
         }
     }
 

@@ -119,9 +119,8 @@ final class PlatformServiceProvider extends ServiceProvider
 
         // Anything that depends on who is acting lives for one request or one job, never the
         // whole process — a queue worker must not audit or authorize as an earlier job's actor.
-        $this->app->scoped(ActorContext::class, SystemActorContext::class); // interim until Access
-        // Wraps this binding and Access's later one: a queued job acts as the system on behalf of
-        // whoever queued it (owner's decision, 2026-09-18).
+        // Access binds the ActorContext (spec §2.5). This wraps it: a queued job acts as the system
+        // on behalf of whoever queued it (owner's decision, 2026-09-18).
         $this->app->extend(ActorContext::class, fn (ActorContext $actors, Application $app): ActorContext => $actors instanceof JobAwareActorContext
             ? $actors
             : new JobAwareActorContext($actors, $app->make(JobActorState::class)));

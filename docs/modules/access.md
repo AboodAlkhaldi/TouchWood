@@ -444,10 +444,12 @@ interface SecurityMessages
     public function phoneCode(string $phone, string $locale, string $code): void;
     public function staffInvitation(StaffDto $staff, string $link): void;
     public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void; // amendment 17
-    public function staffSignInCode(StaffDto $staff, string $code): void;
     public function deletionScheduled(CustomerDto $customer, DateTimeImmutable $on): void;
 }
 ```
+
+A staff sign-in code is a phone code, sent with `phoneCode()` (amendment 34, proposed). The
+customer messages (`emailVerification`, `deletionScheduled`) arrive with customer accounts (step 4).
 
 Access binds a **temporary implementation**: Laravel mail with simple bilingual templates, and SMS
 through an `SmsGateway` interface. The email provider is not chosen either (handoff §15.1): until
@@ -516,7 +518,7 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 
 | Use case | Audience | Permission | Scope |
 |---|---|---|---|
-| `SignInStaff` → `VerifyStaffSignInCode` (+ trust this browser) | every guest | `access.session.sign_in` | Global |
+| `SignInStaff` → `VerifyStaffSignInCode` (+ trust this browser); `ResendStaffSignInCode`; `SendStaffSignInCodeToNewPhone` — a Super Admin whose phone was reset (amendment 14) | every guest | `access.session.sign_in` | Global |
 | `RequestStaffPasswordReset` / `ResetStaffPassword` | every guest | `access.session.reset_password` | Global |
 | `AcceptStaffInvitation` — set password, verify phone | every guest (with the link) | `access.staff.accept_invitation` | Global |
 | `InviteStaff` — profile, role, store scope | role | `access.staff.invite` | The stores in the scope; no escalation; an admin invites staff only (amendment 9) |
@@ -622,7 +624,10 @@ session and trusted browser at once. Only someone who accepted can be disabled a
 ### 4.4 Staff sign-in
 
 `password ok → (trusted browser? → signed in) : SMS code → (right code → signed in, optionally trust
-this browser for 30 days)`. Wrong codes follow the same limits as customer codes.
+this browser for 30 days)`. Wrong codes follow the same limits as customer codes. A Super Admin whose
+phone was reset gives a new number after the password, and the code sent there verifies it
+(amendment 14). The code step must be finished within 15 minutes of the password (amendment 34,
+proposed); after that, the password is asked again.
 
 ---
 
@@ -670,9 +675,9 @@ The verification link is a signed URL, so it needs no table. `pending_phone_chan
 | `access.staff_users` | `id`, `email` (unique on lower among accounts not `CANCELLED`), `password` NULL until accepted, `first_name`, `last_name`, `job_title`, `date_of_birth`, `phone` (unique among accounts not `CANCELLED`), `phone_verified_at`, `country`, `address`, `avatar_media_id` FK → `platform.media` RESTRICT, `locale`, `status` (`INVITED`, `ACTIVE`, `DISABLED`, `CANCELLED`), `is_super_admin`, `invited_by` FK → `staff_users` (null: the console), `session_version` (raised when the password changes, ending other sessions), timestamps |
 | `access.staff_invitations` | `staff_user_id` PK/FK, `token_hash` unique, `pending_password` (the chosen password, hashed, waiting for the phone code), `expires_at`, `invited_by`, `created_at` |
 | `access.staff_email_changes` | `staff_user_id` PK/FK, `new_email`, `token_hash` unique, `expires_at`, `requested_by`, `created_at` (amendment 17) |
-| `access.staff_password_resets` | `staff_user_id` PK/FK, `token_hash`, `expires_at` |
+| `access.staff_password_resets` | `staff_user_id` PK/FK, `token_hash` unique, `expires_at`, `created_at` — one live link per staff member |
 | `access.staff_phone_codes` | `staff_user_id` PK/FK, `purpose` (`ACCEPT`/`CHANGE`), `phone`, `code_hash`, `attempts`, `expires_at`, `sent_at` — verifying a phone when accepting or changing it |
-| `access.staff_sign_in_codes` | `staff_user_id` PK/FK, `code_hash`, `attempts`, `expires_at` |
+| `access.staff_sign_in_codes` | `staff_user_id` PK/FK, `phone` (where it went), `code_hash`, `attempts`, `expires_at`, `sent_at` |
 | `access.staff_trusted_browsers` | `id`, `staff_user_id` FK, `token_hash` unique, `expires_at`, `created_at`, `last_used_at` |
 | `access.staff_notification_preferences` | (`staff_user_id`, `topic`) PK, `email` bool, `panel` bool |
 
@@ -928,3 +933,4 @@ a Super Admin; and such an account is disabled until enabled together with a rol
 | 31 | §1.8 | **Staff sign-in numbers:** 10 wrong passwords from one IP address in 15 minutes make that address wait 15 minutes; a staff password reset link works **30 minutes**; signing out keeps the browser trusted; opening an email link (invitation, email change) in a browser signed in to the admin panel signs that session out first, then continues. | The spec named no number for the IP limit or the staff reset link. | Owner, 2026-09-19 |
 | 32 | §3.2 | Audited: each staff sign-in, sign-out, lockout, and browser marked trusted. Wrong passwords are counted for the lockout, not logged one by one. | A record of who got in, and of attacks, without flooding the log. | Owner, 2026-09-19 |
 | 33 | (handoff §5.3) | A failed database query is logged without its values (`mask_bindings_in_exception_messages`), so no password hash or personal data reaches the log file. | Personal data stays out of the logs, as it stays out of the audit log. | Owner, 2026-09-19 |
+| 34 | §1.8, §2.3, §4.4 | **Choices made while building step 3b:** (a) the new sign-in settings take only these ranges: account lockout 3–20 wrong passwords over 1–1,440 minutes; address limit 3–100 over 1–1,440 minutes; idle 5–720 minutes; longest session 1–72 hours; trusted browser 1–90 days; staff reset link 5–1,440 minutes; (b) a reset email goes to one account at most **3 times an hour** (a setting, 1–20), and the page answers the same every time; (c) after the right password, the code step must be finished within **15 minutes** (fixed); (d) a sign-in code is sent through `SecurityMessages::phoneCode()`: there is no separate `staffSignInCode()`, because a Super Admin's code after a phone reset goes to a number not yet on the account; (e) until customer accounts (step 4), a guest gets a new id on every request. | The spec named no numbers for these; (d) and (e) follow from how the code works. | **Proposed — awaiting the owner** |
