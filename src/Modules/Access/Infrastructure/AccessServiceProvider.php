@@ -203,7 +203,18 @@ final class AccessServiceProvider extends ServiceProvider
      */
     public static function requireRealMailer(Application $app): void
     {
-        $mailer = $app->make('config')->get('mail.default');
+        $config = $app->make('config');
+        $key = $config->get('app.key');
+
+        // An application with no key is not configured at all: a fresh checkout, where Laravel
+        // reports "production" only because there is no .env yet (composer install runs
+        // package:discover before it exists). Nothing can be sent from it, so there is nothing to
+        // protect; a real production server always has a key.
+        if (! is_string($key) || $key === '') {
+            return;
+        }
+
+        $mailer = $config->get('mail.default');
         $name = is_string($mailer) ? $mailer : '';
 
         if ($app->environment('production') && in_array($name, ['', 'log', 'array'], true)) {
