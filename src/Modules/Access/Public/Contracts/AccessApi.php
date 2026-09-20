@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Access\Public\Contracts;
 
+use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Dto\StaffNotificationPreferenceDto;
 
 /**
- * What other modules may ask Access (spec §2.1). The address reads arrive with addresses (step 5).
+ * What other modules may ask Access (spec §2.1). The address reads arrived with step 5.
  */
 interface AccessApi
 {
@@ -29,4 +30,15 @@ interface AccessApi
      * @return list<StaffNotificationPreferenceDto>
      */
     public function staffNotificationPreferences(string $staffId): array;
+
+    public function address(string $addressId): ?AddressDto;
+
+    /**
+     * The customer's addresses in one store, the default first, then the newest (spec §1.9):
+     * checkout needs one in the store being ordered from. An address whose `isComplete` is false no
+     * longer satisfies that store's format and may not be shipped to (amendment 41).
+     *
+     * @return list<AddressDto>
+     */
+    public function addresses(string $customerId, string $storeId): array;
 }

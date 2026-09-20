@@ -7,13 +7,14 @@ permissions, sign-in and sessions, addresses, and account deletion. The rules ar
 specification, [docs/modules/access.md](../../../docs/modules/access.md). This file explains how the
 code is organised and why, and grows with each build step.
 
-**Built so far: steps 1–4b of 9 — the permission catalog, roles, the real permission check, staff
-accounts, staff sign-in, customer accounts and customer sign-in.** Both sides sign in through form
+**Built so far: steps 1–5 of 9 — the permission catalog, roles, the real permission check, staff
+accounts, staff sign-in, customer accounts, customer sign-in and addresses.** Both sides sign in through form
 endpoints that answer with redirects; the pages that show those forms come with the screens, in the
 frontend foundation stage (amendment 12). A web request acts as the staff member or customer signed
 in, else as a guest — never as the system. Customers register (signed in at once), verify their
 email by link and their phone by SMS code, sign in and out on the storefront, reset and change their
-password, and edit their own profile. **Addresses come in step 5, deletion and blocking in step 6.**
+password, edit their own profile and keep an address book in each country. **Deletion, blocking and
+the staff views of a customer come in step 6.**
 
 ---
 
@@ -61,26 +62,28 @@ $preferences = $this->access->staffNotificationPreferences($staffId);   // list<
 
 | Folder | Contents |
 |---|---|
-| `Public/` | Contracts `PermissionCatalog`, `AccessApi`, `SecurityMessages`; DTOs `PermissionDefinitionDto`, `StaffDto`, `CustomerDto`, `StaffNotificationPreferenceDto`; enums `PermissionAudience`, `PermissionKind`, `AccessLevel`, `StaffStatus`, `CustomerStatus`, `AccountType`, `StaffNotificationTopic`; events `StaffActivated`, `StaffDisabled`, `CustomerRegistered`, `CustomerEmailVerified`, `CustomerPhoneVerified`, `GuestBecameCustomer`. |
-| `Domain/Model` | `Role` (saved or personal, admin or staff level, at least one action), `RoleAssignment` (a staff member's one role, their store row, and each action's own stores), `StaffUser` (invited → active ⇄ disabled, or invited → cancelled; profile, phone, email, language, Super Admin, who invited them, session version), `Customer` (one account for every store: email, account type and home store fixed; verifications only move forward), `StaffInvitation`, `StaffEmailChange`, `PhoneCode`, `CustomerPhoneCode`, `StaffPasswordReset`, `CustomerPasswordReset`, `TrustedBrowser`. |
-| `Domain/ValueObject` | `RoleName`, `StoreChoice` (all stores, or at least one chosen store), `RoleKind`, `RoleLevel`, `EmailAddress`, `PhoneNumber` (E.164, any country), `CountryCode` (the 249 ISO countries), `Language` (ar/en), `StaffProfile`, `PhoneCodePurpose`, `CustomerPhoneCodePurpose`. |
+| `Public/` | Contracts `PermissionCatalog`, `AccessApi`, `SecurityMessages`; DTOs `PermissionDefinitionDto`, `StaffDto`, `CustomerDto`, `StaffNotificationPreferenceDto`; enums `PermissionAudience`, `PermissionKind`, `AccessLevel`, `StaffStatus`, `CustomerStatus`, `AccountType`, `StaffNotificationTopic`; events `StaffActivated`, `StaffDisabled`, `CustomerRegistered`, `CustomerEmailVerified`, `CustomerPhoneVerified`, `GuestBecameCustomer`; `AddressDto` for the addresses Sales and Shipping read. |
+| `Domain/Model` | `Role` (saved or personal, admin or staff level, at least one action), `RoleAssignment` (a staff member's one role, their store row, and each action's own stores), `StaffUser` (invited → active ⇄ disabled, or invited → cancelled; profile, phone, email, language, Super Admin, who invited them, session version), `Customer` (one account for every store: email, account type and home store fixed; verifications only move forward), `StaffInvitation`, `StaffEmailChange`, `PhoneCode`, `CustomerPhoneCode`, `StaffPasswordReset`, `CustomerPasswordReset`, `TrustedBrowser`, `Address` (one customer, one store, never moved), `StoreAddressFormat` (a country's fields and how an address is printed). |
+| `Domain/ValueObject` | `RoleName`, `StoreChoice` (all stores, or at least one chosen store), `RoleKind`, `RoleLevel`, `EmailAddress`, `PhoneNumber` (E.164, any country), `CountryCode` (the 249 ISO countries), `Language` (ar/en), `StaffProfile`, `PhoneCodePurpose`, `CustomerPhoneCodePurpose`, `AddressField`, `MapPin` (both coordinates or neither). |
 | `Domain/Exception` | `AccessError` and its subclasses, with messages in `Presentation/lang/{ar,en}/errors.php`. |
 | `Application/Permission` | `InMemoryPermissionCatalog` (declarations, renames, removals, checked at boot), `AccessPermissions` (Access's list, and which actions are admin-only). |
 | `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`. |
-| `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole`, `RefreshStaffPermissions`, `RefreshRolePermissions`. Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`, `SignInCustomer`, `SignOutCustomer`, `RequestCustomerPasswordReset`, `ResetCustomerPassword`, `ChangeOwnCustomerPassword`, `ResendCustomerEmailVerification`. |
+| `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole`, `RefreshStaffPermissions`, `RefreshRolePermissions`. Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`, `SignInCustomer`, `SignOutCustomer`, `RequestCustomerPasswordReset`, `ResetCustomerPassword`, `ChangeOwnCustomerPassword`, `ResendCustomerEmailVerification`, `SaveAddress`, `DeleteAddress`, `SetDefaultAddress`. Staff: `UpdateStoreAddressFormat`. |
 | `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, and the `RoleReader` they use. |
 | `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`), `AddressLimits` (registrations and reset requests per address). |
 | `Application/Customer` | `CurrentCustomer` (whose account this request may change), `CustomerMapper`, the `CustomerLinks` port (the verification and password-reset links), the `GuestVisitors` port (the guest id this browser carries). |
+| `Application/Address` | `AddressMapper` (a store's order, its layout, and whether the address still fits), `StartingAddressFormat` (the scheme every store starts with), `GiveEveryStoreAnAddressFormat` (run when the schema is migrated). |
 | `Application/Session` | The `StaffSessions` port (the admin session: pending sign-in, signed in, kept, ended), the `CustomerSessions` port (the storefront session: started, kept, ended), `PendingSignIn`, `TrustedBrowsers`. |
 | `Application/Settings` | `StaffSecuritySettings` (global) and `CustomerSecuritySettings` (**per store**: each store's terms version, password length, verification hours and SMS numbers). |
 | `Application/Staff`, `Messages`, `Audit` | `StaffMapper`, `StaffLinks`, `Avatars`, `Invitations` (every invitation link), `StaffCancellation`; the `SmsGateway` port; `RoleAudit`, `StaffAudit` and `CustomerAudit` (every audit entry). `AccessApiImpl` sits beside them. |
-| `Infrastructure/Eloquent` | Query-builder repositories, `CachedGrantsReader`, `DatabaseRoleReader`. |
+| `Infrastructure/Eloquent` | Query-builder repositories, `CachedGrantsReader`, `DatabaseRoleReader`, `CachedStoreAddressFormatRepository` (each store's form, under its own version). |
 | `Infrastructure/Http` | `RequestActor` (who this request acts as), `RequestActorContext` (the real `ActorContext`), `LaravelStaffSessions`, `LaravelCustomerSessions`, `CookieGuestVisitors`. |
+| `Infrastructure/Listener` | `WriteStartingAddressFormat`: a store opened later gets the starting address form. |
 | `Infrastructure/Queue` | `CancelExpiredSuperAdminInvitationsJob`, scheduled every ten minutes. |
 | `Infrastructure/Messages` | `TemporarySecurityMessages`, `SecurityMail`, `LogSmsGateway`, `UrlStaffLinks`, `UrlCustomerLinks` (the signed verification link). |
 | `Infrastructure/Security`, `Media` | `HmacCodes`, `LaravelPasswordPolicy`; `StaffAvatarUsage` (the avatar as Platform media). |
 | `Infrastructure/Permission` | `PermissionSync`: carries renames and removals into the roles on every migrate. |
-| `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers), the customer tables (`customers`, `phone_codes`), the customer sign-in tables (`customers.session_version`, `customer_password_resets`), and the admin panel's own `admin_sessions`. |
+| `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers), the customer tables (`customers`, `phone_codes`), the customer sign-in tables (`customers.session_version`, `customer_password_resets`), the admin panel's own `admin_sessions`, and the address tables (`addresses`, `store_address_formats`). |
 | `Presentation/` | `routes.php` (the `/admin` form endpoints and the storefront ones under `{store}/{locale}/account/…`), controllers, form requests, the middleware (`IdentifyRequestActor`, `UseAdminSession`, `IdentifyStaff`, `RequireStaff`, `UseStorefrontSession`, `IdentifyCustomer`, `RequireCustomer`), `FormErrors`; the five Super Admin console commands, the security email view, translations. |
 
 ---
@@ -389,6 +392,30 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   or `SIGNED_IN`), with the guest id from the storefront's encrypted cookie; Sales moves or merges
   the cart. Access only reads that cookie.
 
+### Addresses: the country first, then that country's form
+
+- **An address belongs to one store** — the country it is in — and never moves: an address in
+  another country is a new address there. A customer keeps one address book per store, at most ten
+  (a per-store setting), each with a label, a recipient, a phone and an optional map pin.
+- **Each store owns its form** (`access.store_address_formats`): the fields it asks for, their
+  names in both languages, how long each may be, their order, and a display template. Changing one
+  country's form leaves the others exactly as they were.
+- Every store **starts with the standard scheme**, written when the schema is migrated
+  (`GiveEveryStoreAnAddressFormat`) and when a store is opened later (`WriteStartingAddressFormat`,
+  on Platform's `StoreCreated`), so addresses work before the staff screen exists.
+- **The form decides what a value may be**: a required field must be there, each has its own
+  maximum length, and a key the form does not define is refused — a mistyped key would otherwise
+  store what no screen and no shipping label can show.
+- **The template is text**: `{field}` is replaced by its value, a placeholder with nothing in it
+  disappears, and a line left with nothing on it is dropped. Nothing in it is executed.
+- **A form changed later leaves saved addresses alone**, but one that no longer satisfies it comes
+  back with `isComplete` false, and Sales may not ship to it until the customer completes it.
+- **One default per store**, enforced by a partial unique index and by the handlers, which clear
+  the others first. The first address in a store becomes its default; deleting the default moves the
+  flag to the newest address left.
+- **Every field is personal data**: the audit log records that an address was added, changed or
+  deleted, and never a street or a recipient's name.
+
 ### The database is the last line of defence
 
 Every CHECK, unique index and foreign key is enforced first in code, with a test that the code
@@ -407,3 +434,4 @@ passes, so the role-name rule is wrapped in `COALESCE(…, false)` — the schem
 | 3b | The staff lifecycle the owner decided (amendments 29, 30): `CANCELLED` frees an invited person's email and phone; only the inviter or a Super Admin cancels; Super Admin invitations work 24 hours and are swept by a scheduled job; two new console commands. Then signing in: the real `ActorContext`, the admin session cookie, password → SMS code or trusted browser, lockouts per account and per address, idle and 12-hour limits, session versions, password reset and change, sign-out, email links that sign the session out first, sign-in audits, failed queries logged without values. Platform's interim `SystemActorContext` removed. A mutation run (58 deliberate mistakes; 56 caught, the other 2 refused by the domain with the same error) proved the tests |
 | 4a | Customer accounts: registration in a store (individual or company, terms version per store), the email verification link as a signed storefront URL, the phone added and changed by SMS code with that store's numbers, the customer's own profile, `CustomerRegistered` / `CustomerEmailVerified` / `CustomerPhoneVerified`, the customer reads of `AccessApi`, and the authorizer's customer path, which step 3 had left closed. Customer sign-in, sessions, guests and password reset come in 4b |
 | 4b | Customer sign-in and the storefront session: the session in the site's own cookie (`UseStorefrontSession`, `IdentifyCustomer`, `RequireCustomer`), registering that signs the customer in at once, signing in and out, the store they last used, "remember me" and the idle limit, `customers.session_version`, the lockout shared with staff's code but counted on its own keys, the password reset link and the customer's own password change, resending the verification link, and `GuestBecameCustomer` for the cart Sales will move or merge. A mutation run (20 deliberate mistakes; 16 caught at once, 4 more after four tests were added) proved the tests |
+| 5 | Addresses: a customer's address book in each store, with that store's own form as data — the fields, their lengths and the layout — written for every store when the schema is migrated and when a store is opened; the first address in a store is its default and deleting the default moves the flag; at most ten per store; an address the store's form has outgrown comes back as not complete, so Sales cannot ship to it; `AccessApi::address()` and `addresses()` for checkout. No HTTP endpoints: the address book and checkout call the handlers from the frontend stage and Sales. A mutation run (20 deliberate mistakes, all caught — one of them only after the migration's own work moved into a service a test can call) proved the tests |

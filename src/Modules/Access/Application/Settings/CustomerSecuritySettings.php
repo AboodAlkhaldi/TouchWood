@@ -11,6 +11,7 @@ use Modules\Platform\Public\Dto\SettingDefinitionDto;
 use Modules\Platform\Public\Enums\SettingScope;
 use Modules\Platform\Public\Enums\SettingType;
 use Shared\Application\StoreContext;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * The customer security numbers are settings, and customer settings are **per store** (spec §1.8,
@@ -64,6 +65,9 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
     /** Registrations and reset requests from one address an hour (owner, 2026-09-20: ten). */
     public const string ADDRESS_REQUESTS_PER_HOUR = 'access.customer.address_requests_per_hour';
 
+    /** How many addresses one customer keeps in one store (amendment 41: ten). */
+    public const string ADDRESSES_PER_STORE = 'access.customer.addresses_per_store';
+
     public function __construct(
         private PlatformApi $platform,
         private StoreContext $stores,
@@ -95,6 +99,7 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
             $number(self::PASSWORD_RESET_MINUTES, 60, 5, 1440),
             $number(self::PASSWORD_RESETS_PER_HOUR, 3, 1, 20),
             $number(self::ADDRESS_REQUESTS_PER_HOUR, 10, 1, 100),
+            $number(self::ADDRESSES_PER_STORE, 10, 1, 50),
             new SettingDefinitionDto(
                 self::TERMS_VERSION, SettingScope::Store, SettingType::Text, ['max:32'], '2026-01', AccessPermissions::SETTINGS_UPDATE,
             ),
@@ -188,6 +193,15 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
     public function addressRequestsPerHour(): int
     {
         return $this->int(self::ADDRESS_REQUESTS_PER_HOUR);
+    }
+
+    /**
+     * Read for the store the address belongs to, which is the country the customer picked — not
+     * necessarily the store whose pages they are on (spec §1.9).
+     */
+    public function addressesPerStore(string $storeId): int
+    {
+        return $this->platform->setting(self::ADDRESSES_PER_STORE, StoreId::fromString($storeId))->int();
     }
 
     private function int(string $key): int

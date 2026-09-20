@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 use Modules\Access\Application\AccessApiImpl;
+use Modules\Access\Application\Address\AddressMapper;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Authorization\RoleAuthorizer;
 use Modules\Access\Application\Command\ChangeOwnCustomerPassword\ChangeOwnCustomerPasswordHandler;
@@ -37,6 +38,7 @@ use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Application\Staff\StaffLinks;
+use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\CustomerTokenRepository;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
@@ -44,7 +46,10 @@ use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\RoleRepository;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
+use Modules\Access\Domain\Repository\StoreAddressFormatRepository;
 use Modules\Access\Infrastructure\Eloquent\CachedGrantsReader;
+use Modules\Access\Infrastructure\Eloquent\CachedStoreAddressFormatRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseAddressRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseNotificationPreferenceRepository;
@@ -58,6 +63,7 @@ use Modules\Access\Infrastructure\Http\LaravelCustomerSessions;
 use Modules\Access\Infrastructure\Http\LaravelStaffSessions;
 use Modules\Access\Infrastructure\Http\RequestActor;
 use Modules\Access\Infrastructure\Http\RequestActorContext;
+use Modules\Access\Infrastructure\Listener\WriteStartingAddressFormat;
 use Modules\Access\Infrastructure\Media\StaffAvatarUsage;
 use Modules\Access\Infrastructure\Messages\LogSmsGateway;
 use Modules\Access\Infrastructure\Messages\TemporarySecurityMessages;
@@ -87,6 +93,7 @@ use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Platform\Public\PlatformPermissions;
 use Psr\Log\LoggerInterface;
 use Shared\Application\ActorContext;
@@ -108,6 +115,10 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->bind(CustomerLinks::class, UrlCustomerLinks::class);
         $this->app->bind(GuestVisitors::class, CookieGuestVisitors::class);
         $this->app->scoped(CustomerSessions::class, LaravelCustomerSessions::class);
+        $this->app->bind(AddressRepository::class, DatabaseAddressRepository::class);
+        $this->app->bind(StoreAddressFormatRepository::class, CachedStoreAddressFormatRepository::class);
+        // It keeps each store's format for the request that is mapping addresses, and no longer.
+        $this->app->scoped(AddressMapper::class);
 
         // Staff and customers count wrong passwords the same way, to their own numbers and on their
         // own keys: a busy shop address never locks the admin panel, or the other way round.
@@ -204,6 +215,10 @@ final class AccessServiceProvider extends ServiceProvider
         );
         // Staff avatars are Platform media: deleting one leaves its staff member without it.
         $this->app->make(MediaUsages::class)->register('access', StaffAvatarUsage::class);
+
+        // A store opened later starts with the standard address form, so its customers can save an
+        // address before staff ever open the format screen (amendment 41).
+        Event::listen(StoreCreated::class, [WriteStartingAddressFormat::class, 'handle']);
 
         if ($this->app->runningInConsole()) {
             $this->commands([

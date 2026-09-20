@@ -108,6 +108,27 @@ function updateCustomerRow(array $values): void
 /**
  * @param  array<string, mixed>  $overrides
  */
+function insertAddressRow(array $overrides = []): void
+{
+    DB::table('access.addresses')->insert([
+        'id' => strtolower((string) Str::ulid()),
+        // Only when the caller gives none: registering the same email twice would fail first.
+        'customer_id' => $overrides['customer_id'] ?? Fx::customer(),
+        'store_id' => Fx::storeId('sa'),
+        'label' => 'Home',
+        'recipient_name' => 'Sara Ali',
+        'phone' => '+966501234567',
+        'fields' => json_encode(['city' => 'Riyadh']),
+        'is_default' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+        ...$overrides,
+    ]);
+}
+
+/**
+ * @param  array<string, mixed>  $overrides
+ */
 function insertCustomerPhoneCodeRow(array $overrides): void
 {
     DB::table('access.phone_codes')->insert([
@@ -124,6 +145,7 @@ it('creates the access tables', function (string $table) {
     'staff_invitations', 'staff_phone_codes', 'staff_email_changes', 'staff_notification_preferences',
     'staff_sign_in_codes', 'staff_password_resets', 'staff_trusted_browsers',
     'customers', 'phone_codes', 'customer_password_resets',
+    'addresses', 'store_address_formats',
 ]);
 
 it('allows in each enum column exactly the values of its PHP enum', function (string $constraint, array $cases) {
@@ -201,6 +223,15 @@ it('refuses rows that break the rules, even when they skip the domain', function
     'a customer changing what kind of account it is' => [fn () => updateCustomerRow(['account_type' => 'COMPANY']), 'account_type is set at registration'],
     'a customer changing their home store' => [fn () => updateCustomerRow(['home_store_id' => Fx::storeId('ae')]), 'home_store_id is set at registration'],
     'a customer session version below zero' => [fn () => updateCustomerRow(['session_version' => -1]), 'customers_session_version_not_negative'],
+    'an address with half a map pin' => [fn () => insertAddressRow(['latitude' => 24.7]), 'addresses_map_pin_together'],
+    'an address pin off the globe' => [fn () => insertAddressRow(['latitude' => 91, 'longitude' => 0]), 'addresses_map_pin_range'],
+    'an address phone without its country code' => [fn () => insertAddressRow(['phone' => '0501234567']), 'addresses_phone_format'],
+    'address fields that are not an object' => [fn () => insertAddressRow(['fields' => '[]']), 'addresses_fields_object'],
+    'two default addresses in one store' => [function () {
+        $customerId = Fx::customer();
+        insertAddressRow(['customer_id' => $customerId, 'is_default' => true]);
+        insertAddressRow(['customer_id' => $customerId, 'is_default' => true]);
+    }, 'addresses_one_default_per_store'],
     'one customer reset link for two people' => [function () {
         DB::table('access.customer_password_resets')->insert(['customer_id' => Fx::customer(), 'token_hash' => hash('sha256', 't'), 'expires_at' => now(), 'created_at' => now()]);
         DB::table('access.customer_password_resets')->insert(['customer_id' => Fx::customer('second@example.test'), 'token_hash' => hash('sha256', 't'), 'expires_at' => now(), 'created_at' => now()]);
