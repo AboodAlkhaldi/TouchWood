@@ -208,6 +208,31 @@ describe('registering and signing in (spec §1.2, §1.8)', function () {
             ->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 13]));
     });
 
+    it('lets one address send only 10 of these forms an hour', function () {
+        $browser = new AdminBrowser('10.0.0.80');
+
+        foreach (range(1, 10) as $asked) {
+            $browser->post('/sa/en/account/password/forgot', ['email' => "someone{$asked}@example.test"]);
+        }
+
+        // The eleventh, whatever form it is, waits (owner, 2026-09-20).
+        expect(AdminBrowser::formError(shopRegister($browser, 'eleventh@example.test')))
+            ->toBe((string) __('access::errors.too_many_requests.detail', ['minutes' => 60]))
+            ->and(DB::table('access.customers')->count())->toBe(0);
+    });
+
+    it('sends a customer who is already signed in back to the store', function () {
+        $customerId = Fx::customer();
+        $browser = new AdminBrowser;
+        shopSignIn($browser, $customerId);
+
+        shopSignIn($browser, $customerId)->assertRedirect('/sa/en');
+        shopRegister($browser, 'other@example.test')->assertRedirect('/sa/en');
+
+        expect(shopWho($browser))->toBe($customerId)
+            ->and(DB::table('access.customers')->where('email', 'other@example.test')->exists())->toBeFalse();
+    });
+
     it('keeps the admin lockout apart from the shop one', function () {
         $customerId = Fx::customer();
         $staffId = Fx::staff();
@@ -327,6 +352,22 @@ describe('the storefront session (spec §1.8)', function () {
             ->and(DB::table('access.customers')->where('id', $customerId)->value('email_verified_at'))->not->toBeNull();
     });
 
+    it('is not swept away by a request to the admin panel', function () {
+        $customerId = Fx::customer();
+        $browser = new AdminBrowser;
+        shopSignIn($browser, $customerId, extra: ['remember' => '1']);
+
+        // Laravel deletes old session rows on a fraction of requests, with the lifetime of
+        // whichever request does it: make it certain, and let three days pass — longer than a
+        // staff session may ever last (owner, 2026-09-20: the admin panel keeps its own table).
+        config(['session.lottery' => [100, 100]]);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addDays(3));
+        (new AdminBrowser)->post('/admin/sign-in', ['email' => 'nobody@example.test', 'password' => 'not a password']);
+
+        expect(DB::table('sessions')->count())->toBe(1)
+            ->and(shopWho($browser))->toBe($customerId);
+    });
+
     it('is separate from the admin session', function () {
         $customerId = Fx::customer();
         $browser = new AdminBrowser;
@@ -387,6 +428,23 @@ describe('a customer password (spec §1.8)', function () {
 
         expect(AdminBrowser::flashed($known, 'status'))->toBe(AdminBrowser::flashed($unknown, 'status'))
             ->and(RecordingSecurityMessages::installed()->passwordResets)->toHaveCount(1);
+    });
+
+    it('signs this browser out first when the customer signed in uses the link', function () {
+        $customerId = Fx::customer();
+        $browser = new AdminBrowser;
+        shopSignIn($browser, $customerId);
+
+        $browser->post('/sa/en/account/password/forgot', ['email' => shopEmail($customerId)])->assertRedirect();
+        defer()->invoke();
+        $token = basename((string) (RecordingSecurityMessages::installed()->passwordResets[0]['link'] ?? ''));
+
+        expect(shopWho($browser))->toBeNull();
+
+        $browser->post("/sa/en/account/password/reset/{$token}", ['password' => 'a brand new long password'])->assertRedirect('/sa/en');
+        shopSignIn($browser, $customerId, 'a brand new long password')->assertRedirect('/sa/en');
+
+        expect(shopWho($browser))->toBe($customerId);
     });
 
     it('sends at most 3 links an hour to one account', function () {

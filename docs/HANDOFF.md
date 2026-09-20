@@ -97,6 +97,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-19 | §7.5, §7.7 | Accepting an invitation signs in only a Super Admin at once; staff then sign in as always. A staff sign-in SMS has its own text warning that the password was just used. An IP address made to wait is audited, named by a keyed fingerprint (IP addresses are kept only for staff actions). The staff sign-in settings have fixed ranges; 3 reset emails an hour; 15 minutes for the code step | Access step 3b review, owner decision |
 | 2026-09-19 | §5.3 | In production the application refuses to start without a real mailer (`MAIL_MAILER` not `log`, `array` or unset), so no invitation or reset link is ever written to the log | Access step 3b review, owner decision |
 | 2026-09-20 | §17, §7.2, §7.7 | Access step 4 splits into customer accounts (4a) and customer sign-in with guests (4b) — nine steps. Customers: 10 wrong passwords from one IP address in 15 minutes make it wait (as for staff, a per-store setting that can be raised); the terms and privacy version is per store; a customer's own account events are audited (registration, verifications, phone and password changes, blocking, deletion), never their sign-ins or browsing | Access step 4 plan, owner decision |
+| 2026-09-20 | §7.7 | From the step 4b reviews: the admin panel keeps its sessions in its own table, so neither side's housekeeping ends the other's sessions; a customer signed in who opens their reset link is signed out of that browser first (they change a password they remember in their account settings); registrations and reset requests are limited to 10 an hour per address; asking for a verification link again keeps sharing the reset link's hourly limit | Access step 4b review, owner decision |
 | 2026-09-20 | §7.2, §7.7 | Registering a customer signs them in at once; the guest cookie lasts a year; an email belonging to a staff account is refused at registration in the same words as a customer's; the storefront session keeps its own cookie, wide enough (a year) that only Access's own limits end a session; customer and staff lockouts count on separate keys | Access step 4b, owner decision |
 
 ---
@@ -715,7 +716,10 @@ their own, apart from staff's, so a shop's busy address never makes the admin pa
 customer's reset link works 60 minutes, at most 3 an hour per account, works once and ends every
 session of that account. The guest cookie lasts a year — Access only reads it; Sales writes it with
 the first cart line. An email that belongs to a staff account is
-refused at registration in exactly the same words as a customer's.
+refused at registration in exactly the same words as a customer's. Registrations and reset requests
+are limited to ten an hour from one address, and a customer signed in who opens their reset link is
+signed out of that browser first; a password they still remember they change in their account
+settings, which keeps that session. The admin panel keeps its session rows in its own table.
 
 ### 7.8 Addresses
 

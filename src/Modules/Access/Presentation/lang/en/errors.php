@@ -100,6 +100,10 @@ return [
         'title' => 'Too many attempts',
         'detail' => 'Too many wrong passwords. Try again in :minutes minutes.',
     ],
+    'too_many_requests' => [
+        'title' => 'Too many attempts',
+        'detail' => 'Too many requests from this connection. Try again in :minutes minutes.',
+    ],
     'sign_in_refused' => [
         'title' => 'Could not sign in',
         'detail' => 'This account cannot sign in. Please contact an administrator.',

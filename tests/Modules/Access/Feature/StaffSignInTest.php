@@ -354,9 +354,11 @@ describe('signing in (spec §1.8, §4.4)', function () {
         expect($who)->toBe($staffId)
             ->and($queries)->not->toBeEmpty();
 
+        // Its own session table (owner, 2026-09-20) and the cache: no staff, role or store table.
         foreach ($queries as $query) {
-            expect(str_contains($query, '"sessions"') || str_contains($query, '"cache"'))->toBeTrue($query)
-                ->and($query)->not->toContain('"access"')
+            expect(str_contains($query, '"admin_sessions"') || str_contains($query, '"cache"'))->toBeTrue($query)
+                ->and($query)->not->toContain('staff_users')
+                ->and($query)->not->toContain('role')
                 ->and($query)->not->toContain('"platform"');
         }
     });
