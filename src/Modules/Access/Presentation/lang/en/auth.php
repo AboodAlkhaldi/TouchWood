@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
-// What the admin sign-in pages say after each step (the pages come with the frontend stage).
+// What the sign-in and account pages say after each step, in the admin panel and on the storefront
+// (the pages themselves come with the frontend stage).
 return [
+    'email_verified' => 'Your email address is confirmed.',
     'code_sent' => 'A code was sent to your phone.',
     'reset_link_sent' => 'If this email belongs to an account, a link to choose a new password is on its way.',
     'password_reset' => 'Your password was changed. Sign in with it.',

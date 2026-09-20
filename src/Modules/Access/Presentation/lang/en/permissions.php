@@ -7,6 +7,7 @@ return [
     'account' => [
         'register' => 'Create an account',
         'verify' => 'Verify their email and phone',
+        'verify_email' => 'Verify an email address with its link',
         'update' => 'Edit their own account',
         'delete' => 'Delete their own account',
         'anonymize' => 'Anonymize deleted accounts',

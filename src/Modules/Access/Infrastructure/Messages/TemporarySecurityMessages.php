@@ -8,6 +8,7 @@ use Illuminate\Contracts\Mail\Mailer;
 use Illuminate\Contracts\Translation\Translator;
 use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Public\Contracts\SecurityMessages;
+use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
 
 /**
@@ -21,6 +22,11 @@ final readonly class TemporarySecurityMessages implements SecurityMessages
         private SmsGateway $sms,
         private Translator $translator,
     ) {}
+
+    public function emailVerification(CustomerDto $customer, string $link): void
+    {
+        $this->mailer->to($customer->email)->send(new SecurityMail('email_verification', ['name' => $customer->firstName, 'link' => $link], $customer->locale));
+    }
 
     public function staffInvitation(StaffDto $staff, string $link): void
     {
