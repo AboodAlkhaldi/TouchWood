@@ -765,9 +765,10 @@ password (staff may do it on request). The account is locked at once and anonymi
 signing in during those 14 days cancels it (owner, 2026-09-19).
 
 - The account can no longer log in.
-- Customer personal fields are overwritten: name → "Deleted customer", email → an
-  irreversible hash placeholder preserving uniqueness, phone → null, saved addresses
-  purged, preferences cleared.
+- Customer personal fields are overwritten: name → "Deleted customer", email → a placeholder that
+  keeps nothing of the old address and stays unique (`deleted-{id}@deleted.invalid`, owner
+  2026-09-20), phone → null, saved addresses purged, and anything else the account had chosen for
+  itself cleared.
 - **Orders keep their snapshot** of name, phone and delivery address as captured at order
   time. This is a financial record and it never gets anonymized, with no retention cutoff.
 - **Reviews and questions survive**, attributed to "Deleted customer".

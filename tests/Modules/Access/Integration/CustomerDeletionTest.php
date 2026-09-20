@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Console\Scheduling\Event as ScheduledEvent;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Modules\Access\Application\Command\AnonymizeDueAccounts\AnonymizeDueAccounts;
 use Modules\Access\Application\Command\AnonymizeDueAccounts\AnonymizeDueAccountsHandler;
@@ -20,19 +24,25 @@ use Modules\Access\Application\Command\DeleteCustomerOnRequest\DeleteCustomerOnR
 use Modules\Access\Application\Command\DeleteCustomerOnRequest\DeleteCustomerOnRequestHandler;
 use Modules\Access\Application\Command\RequestAccountDeletion\RequestAccountDeletion;
 use Modules\Access\Application\Command\RequestAccountDeletion\RequestAccountDeletionHandler;
+use Modules\Access\Application\Command\RequestCustomerPasswordReset\RequestCustomerPasswordReset;
+use Modules\Access\Application\Command\RequestCustomerPasswordReset\RequestCustomerPasswordResetHandler;
 use Modules\Access\Application\Command\UnblockCustomer\UnblockCustomer;
 use Modules\Access\Application\Command\UnblockCustomer\UnblockCustomerHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Exception\AccountLocked;
+use Modules\Access\Domain\Exception\CustomerNotFound;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidCustomerStatus;
 use Modules\Access\Domain\Model\Customer;
 use Modules\Access\Domain\Repository\CustomerRepository;
+use Modules\Access\Infrastructure\Queue\AnonymizeDueAccountsJob;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\CustomerBlocked;
 use Modules\Access\Public\Events\CustomerDeletionCancelled;
 use Modules\Access\Public\Events\CustomerDeletionScheduled;
+use Modules\Access\Public\Events\CustomerUnblocked;
+use Shared\Application\Actor;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -168,6 +178,31 @@ describe('staff acting on a customer (spec §3.3, amendment 43)', function () {
             ->and($changes['reason'][1] ?? null)->toBe('Asked on the phone');
     });
 
+    it('sends nothing again when the deletion is already pending', function () {
+        $customerId = Fx::customer();
+        customerAdmin();
+        app(DeleteCustomerOnRequestHandler::class)->handle(new DeleteCustomerOnRequest($customerId, 'Asked'));
+        $on = deletionRow($customerId)?->deletion_scheduled_for;
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addDay());
+        app(DeleteCustomerOnRequestHandler::class)->handle(new DeleteCustomerOnRequest($customerId, 'Asked again'));
+        defer()->invoke();
+
+        // The date they were given stands, and nobody is told twice.
+        expect(deletionRow($customerId)?->deletion_scheduled_for)->toBe($on)
+            ->and(RecordingSecurityMessages::installed()->deletions)->toHaveCount(1)
+            ->and(Fx::audits('access.customer.deletion_scheduled', $customerId))->toBe(1);
+    });
+
+    it('refuses a reason that is not one line of text', function () {
+        $customerId = Fx::customer();
+        customerAdmin();
+
+        expect(fn () => app(BlockCustomerHandler::class)->handle(new BlockCustomer($customerId, "Fraud\nand more")))
+            ->toThrow(InvalidAccessAttribute::class, 'reason')
+            ->and(deletionRow($customerId)?->status)->toBe('ACTIVE');
+    });
+
     it('needs a reason', function () {
         $customerId = Fx::customer();
         customerAdmin();
@@ -201,10 +236,13 @@ describe('staff acting on a customer (spec §3.3, amendment 43)', function () {
 
         Event::assertDispatched(CustomerBlocked::class);
 
+        Event::fake([CustomerUnblocked::class]);
         app(UnblockCustomerHandler::class)->handle(new UnblockCustomer($customerId, 'Bank confirmed the payment'));
 
         expect(deletionRow($customerId)?->status)->toBe('ACTIVE')
             ->and(Fx::audits('access.customer.unblocked', $customerId))->toBe(1);
+
+        Event::assertDispatched(CustomerUnblocked::class);
     });
 
     it('refuses a change the account\'s state does not allow', function () {
@@ -224,8 +262,10 @@ describe('staff acting on a customer (spec §3.3, amendment 43)', function () {
         $customerId = Fx::customer();
         Fx::actAsAdmin(['ae'], [AccessPermissions::CUSTOMER_BLOCK, AccessPermissions::CUSTOMER_DELETE]);
 
+        // Someone else's customer is answered as no customer at all: the panel never confirms
+        // which ids are real (review of step 6). Holding the action nowhere is refused plainly.
         expect(fn () => app(BlockCustomerHandler::class)->handle(new BlockCustomer($customerId, 'Fraud')))
-            ->toThrow(Unauthorized::class);
+            ->toThrow(CustomerNotFound::class);
 
         Fx::actAsStaff(Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa']));
 
@@ -332,6 +372,55 @@ describe('the deletion sweep (spec §1.10, amendment 43)', function () {
         expect($done)->toBe(0)
             ->and(deletionRow($customerId)?->anonymized_at)->toBeNull()
             ->and(deletionRow($customerId)?->email)->toBe('sara@example.test');
+    });
+
+    it('runs a blocked account\'s deletion too', function () {
+        $customerId = Fx::customer();
+        customerAdmin();
+        app(DeleteCustomerOnRequestHandler::class)->handle(new DeleteCustomerOnRequest($customerId, 'Asked'));
+        app(BlockCustomerHandler::class)->handle(new BlockCustomer($customerId, 'Fraud'));
+        DB::table('access.customers')->where('id', $customerId)->update(['deletion_scheduled_for' => CarbonImmutable::now()->subMinute()]);
+
+        // The two are separate columns, and neither waits for the other (spec §4.1).
+        $done = Fx::asSystem(fn (): int => app(AnonymizeDueAccountsHandler::class)->handle(new AnonymizeDueAccounts));
+
+        expect($done)->toBe(1)
+            ->and(deletionRow($customerId)?->anonymized_at)->not->toBeNull()
+            ->and(deletionRow($customerId)?->status)->toBe('BLOCKED');
+    });
+
+    it('sends no reset link to an account that was deleted', function () {
+        $customerId = Fx::customer();
+        customerAdmin();
+        app(DeleteCustomerOnRequestHandler::class)->handle(new DeleteCustomerOnRequest($customerId, 'Asked'));
+        DB::table('access.customers')->where('id', $customerId)->update(['deletion_scheduled_for' => CarbonImmutable::now()->subMinute()]);
+        Fx::asSystem(fn (): int => app(AnonymizeDueAccountsHandler::class)->handle(new AnonymizeDueAccounts));
+
+        // The placeholder address is guessable from the id; nothing may put a live link on it.
+        Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+        Fx::inStoreCode('sa', fn () => app(RequestCustomerPasswordResetHandler::class)
+            ->handle(new RequestCustomerPasswordReset("deleted-{$customerId}@deleted.invalid", '10.0.0.9')));
+        defer()->invoke();
+
+        expect(RecordingSecurityMessages::installed()->passwordResets)->toBeEmpty()
+            ->and(DB::table('access.customer_password_resets')->where('customer_id', $customerId)->count())->toBe(0);
+    });
+
+    it('is queued by the scheduler once a day, at 03:00 in Riyadh, from one server', function () {
+        Queue::fake();
+        $events = collect(app(Schedule::class)->events())
+            ->filter(fn (ScheduledEvent $event): bool => $event->description === AnonymizeDueAccountsJob::class);
+
+        // The application runs in UTC (config/app.php), where 03:00 in Riyadh is midnight.
+        expect(config('app.timezone'))->toBe('UTC')
+            ->and($events)->toHaveCount(1)
+            ->and($events->first()?->expression)->toBe('0 0 * * *')
+            ->and($events->first()?->onOneServer)->toBeTrue()
+            ->and(new AnonymizeDueAccountsJob)->toBeInstanceOf(ShouldBeUnique::class);
+
+        $events->first()?->run(app());
+
+        Queue::assertPushed(AnonymizeDueAccountsJob::class, 1);
     });
 
     it('is refused to anyone but the system', function () {

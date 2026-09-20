@@ -27,6 +27,14 @@ interface AddressRepository
      */
     public function forCustomerInStore(string $customerId, string $storeId): array;
 
+    /**
+     * Every address of a customer, in every store, each store's default first: support looks at
+     * one person's whole address book (amendment 43).
+     *
+     * @return list<Address>
+     */
+    public function forCustomer(string $customerId): array;
+
     public function countForCustomerInStore(string $customerId, string $storeId): int;
 
     /** The newest address the customer has in that store, apart from $exceptId. */

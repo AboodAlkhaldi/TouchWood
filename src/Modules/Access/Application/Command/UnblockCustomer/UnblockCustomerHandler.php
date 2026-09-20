@@ -42,13 +42,12 @@ final readonly class UnblockCustomerHandler
      */
     public function handle(UnblockCustomer $command): void
     {
-        [$store, $reason] = $this->action->about($command->customerId, $command->reason);
+        [$store, $reason] = $this->action->about(self::PERMISSION, $command->customerId, $command->reason);
         $this->authorizer->authorize(self::PERMISSION, $store);
 
         $this->db->transaction(function () use ($command, $reason): void {
             $customer = $this->customers->byId($command->customerId) ?? throw new CustomerNotFound($command->customerId);
             $customer->unblock();
-            $customer->pullChanges();
 
             $this->customers->update($customer);
             $this->platform->recordAudit(CustomerAudit::statusChanged('access.customer.unblocked', $customer, $reason));

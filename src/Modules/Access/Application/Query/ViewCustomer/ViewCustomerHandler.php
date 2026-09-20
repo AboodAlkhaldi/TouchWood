@@ -13,7 +13,6 @@ use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\CustomerStatus;
-use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -31,7 +30,6 @@ final readonly class ViewCustomerHandler
         private CustomerReader $customers,
         private AddressRepository $addresses,
         private AddressMapper $mapper,
-        private PlatformApi $platform,
     ) {}
 
     /**
@@ -91,21 +89,13 @@ final readonly class ViewCustomerHandler
     }
 
     /**
-     * Their address book in every store, so support can answer "where is my order going?" whichever
-     * country it was ordered from.
+     * Their address book in every store, in one query, so support can answer "where is my order
+     * going?" whichever country it was ordered from.
      *
      * @return list<AddressDto>
      */
     private function addressesOf(string $customerId): array
     {
-        $addresses = [];
-
-        foreach ($this->platform->stores() as $store) {
-            foreach ($this->addresses->forCustomerInStore($customerId, $store->id) as $address) {
-                $addresses[] = $this->mapper->toDto($address);
-            }
-        }
-
-        return $addresses;
+        return $this->mapper->toDtos($this->addresses->forCustomer($customerId));
     }
 }

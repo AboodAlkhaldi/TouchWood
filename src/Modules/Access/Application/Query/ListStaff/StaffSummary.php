@@ -8,12 +8,14 @@ use Modules\Access\Public\Enums\StaffStatus;
 
 /**
  * One row of the staff list. For an **admin** seen by anyone but a Super Admin, only the name, the
- * role and the status are filled in: the job title, email and phone are null (amendment 43).
+ * role and the status are filled in: the job title, email, phone, stores and joining date are null
+ * or empty (amendment 43).
  */
 final readonly class StaffSummary
 {
     /**
-     * @param  list<string>  $storeIds  the stores they work in; empty when they cover every store
+     * @param  list<string>  $storeIds  the stores they work in; empty when they cover every store,
+     *                                  and empty for an admin the reader may not see in full
      */
     public function __construct(
         public string $id,
@@ -29,6 +31,6 @@ final readonly class StaffSummary
         public bool $isAdmin,
         public bool $allStores,
         public array $storeIds,
-        public string $joinedAt,
+        public ?string $joinedAt,
     ) {}
 }

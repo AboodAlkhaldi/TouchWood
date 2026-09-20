@@ -42,11 +42,12 @@ final readonly class CancelCustomerDeletionHandler
      */
     public function handle(CancelCustomerDeletion $command): void
     {
-        [$store, $reason] = $this->action->about($command->customerId, $command->reason);
+        [$store, $reason] = $this->action->about(self::PERMISSION, $command->customerId, $command->reason);
         $this->authorizer->authorize(self::PERMISSION, $store);
 
         $this->db->transaction(function () use ($command, $reason): void {
             $customer = $this->customers->byId($command->customerId) ?? throw new CustomerNotFound($command->customerId);
+            $was = $customer->deletionScheduledFor();
             $customer->cancelDeletion();
 
             if ($customer->pullChanges() === []) {
@@ -54,7 +55,7 @@ final readonly class CancelCustomerDeletionHandler
             }
 
             $this->customers->update($customer);
-            $this->platform->recordAudit(CustomerAudit::deletion('access.customer.deletion_cancelled', $customer, $reason));
+            $this->platform->recordAudit(CustomerAudit::deletion('access.customer.deletion_cancelled', $customer, $reason, $was));
             $this->events->dispatch(new CustomerDeletionCancelled((string) Str::uuid(), $customer->id(), CarbonImmutable::now()));
         }, 3);
     }

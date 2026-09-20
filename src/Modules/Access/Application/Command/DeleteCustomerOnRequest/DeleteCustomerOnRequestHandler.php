@@ -52,7 +52,7 @@ final readonly class DeleteCustomerOnRequestHandler
      */
     public function handle(DeleteCustomerOnRequest $command): void
     {
-        [$store, $reason] = $this->action->about($command->customerId, $command->reason);
+        [$store, $reason] = $this->action->about(self::PERMISSION, $command->customerId, $command->reason);
         $this->authorizer->authorize(self::PERMISSION, $store);
         $on = CarbonImmutable::now()->addDays(RequestAccountDeletionHandler::DAYS);
 

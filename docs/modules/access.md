@@ -407,8 +407,9 @@ Handoff §7.9: anonymize, never hard-delete. **[DECIDED 2026-09-19]:**
 - **Signing in during those 14 days cancels the deletion** (after a password reset if needed), so a
   hijacked or regretted request can be undone.
 - Anonymizing (a scheduled job, queued like all scheduled work, daily at 03:00 in Riyadh): name →
-  "Deleted customer", email → `deleted-{id}@deleted.invalid`, phone → null, addresses purged;
-  the account can never sign in again. The row keeps its id, account type, home store and dates, so
+  "Deleted customer", email → `deleted-{id}@deleted.invalid`, phone → null, addresses purged, and
+  every live code or link of theirs deleted. The account can never sign in again, and nothing may
+  send it a reset link or set a password on it. The row keeps its id, account type, home store and dates, so
   counts stay honest and other modules' keys still resolve. The email becomes free: the same person
   may register again as a new account.
 - Orders keep their snapshot; reviews and questions survive as "Deleted customer" (handoff §7.9) —
@@ -473,14 +474,14 @@ interface SecurityMessages
     public function staffInvitation(StaffDto $staff, string $link): void;
     public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void; // amendment 17
     public function staffSignInCode(string $phone, string $locale, string $code): void;       // amendment 34
-    public function deletionScheduled(CustomerDto $customer, DateTimeImmutable $on): void;
+    public function customerDeletionScheduled(CustomerDto $customer, DateTimeImmutable $on): void;
 }
 ```
 
 A staff sign-in code has its own message, which warns that the password was just used: "Your admin
 panel sign-in code is …. If you did not try to sign in, change your password now." It takes the
 number, not the staff member: a Super Admin whose phone was reset gets theirs on a number not yet on
-the account (amendment 34). The customer messages (`emailVerification`, `deletionScheduled`) arrive
+the account (amendment 34). The customer messages (`emailVerification`, `customerDeletionScheduled`) arrive
 with customer accounts (step 4).
 
 Access binds a **temporary implementation**: Laravel mail with simple bilingual templates, and SMS
@@ -544,7 +545,8 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `ChangePassword` | every customer | `access.account.update` | Global |
 | `UpdateProfile` — names, language | every customer | `access.account.update` | Global |
 | `SaveAddress` / `DeleteAddress` / `SetDefaultAddress` | every customer | `access.address.manage` | That store |
-| `RequestAccountDeletion` | every customer | `access.account.delete` | Global |
+| `RequestAccountDeletion` — confirmed with the password | every customer | `access.account.delete` | Global |
+| `CancelAccountDeletion` — from the account page, while still signed in (amendment 43) | every customer | `access.account.delete` | Global |
 
 ### 3.2 Staff
 
@@ -576,9 +578,10 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 
 | Use case | Audience | Permission | Scope |
 |---|---|---|---|
-| `ListCustomers` / `ViewCustomer` | role | `access.customer.view` | The customer's home store |
-| `BlockCustomer` / `UnblockCustomer` — with a reason | role | `access.customer.block` | The customer's home store |
-| `DeleteCustomerOnRequest` — the same 14-day deletion | role | `access.customer.delete` | The customer's home store |
+| `ListCustomers` / `ViewCustomer` — the account, contacts and addresses (amendment 43) | role | `access.customer.view` | The customer's home store |
+| `ListStaff` / `ViewStaff` — an admin as a name and a role only; a Super Admin not at all (amendment 43) | role | `access.staff.view` | Every store of the staff member |
+| `BlockCustomer` / `UnblockCustomer` — with a reason | role, **admin-only** (amendment 43) | `access.customer.block` | The customer's home store |
+| `DeleteCustomerOnRequest` / `CancelCustomerDeletion` — the same 14-day deletion, with a reason | role, **admin-only** (amendment 43) | `access.customer.delete` | The customer's home store |
 | `UpdateStoreAddressFormat` | role | `access.address_format.update` | That store |
 | `UpdateAccessSettings` — lockout, OTP and session numbers | role | `access.settings.update` | That store (customer settings); all stores (staff settings) |
 | `AnonymizeDueAccounts` — daily | system (scheduled job) | `access.account.anonymize` (reserved) | Global |
@@ -658,8 +661,8 @@ session and trusted browser at once. Only someone who accepted can be disabled a
 `password ok → (trusted browser? → signed in) : SMS code → (right code → signed in, optionally trust
 this browser for 30 days)`. Wrong codes follow the same limits as customer codes. A Super Admin whose
 phone was reset gives a new number after the password, and the code sent there verifies it
-(amendment 14). The code step must be finished within 15 minutes of the password (amendment 34,
-proposed); after that, the password is asked again.
+(amendment 14). The code step must be finished within 15 minutes of the password (amendment 34);
+after that, the password is asked again.
 
 ---
 
@@ -980,3 +983,4 @@ admin's name and role only, and a Super Admin not at all (owner, 2026-09-20; ame
 | 41 | §1.9, §2.1, §2.4, §5.5, §7 | **Step 5, planned 2026-09-20** (owner's answers before any code): (a) every store gets a **starting address format** — the thirteen fields §1.9 lists that are kept as values (the country is the store itself, and the map pin has its own columns), named in both languages, each with its maximum length, plus a display template — written when the `access` schema is migrated and, for a store opened later, when Platform publishes `StoreCreated`; staff change any store's copy afterwards, as data, with no deploy; (b) a customer keeps at most **10 addresses in one store** (a per-store setting, new error `TooManyAddresses`); (c) the **first address saved in a store becomes its default**, and deleting the default moves the flag to the newest remaining address, so a store that has any address always has a default; (d) **field lengths**: label 50, recipient name 100, phone 16 (E.164), administrative area, city and district 100, street 200, building, unit, floor, postal code, additional number, PO box and short address 50, landmark 200, additional information 500; (e) a value whose **key the store's format does not define is refused** (`InvalidAddress`) — a mistyped key would otherwise store what nothing can display; (f) the **display template** is plain text with `{field}` placeholders, where a placeholder with nothing in it disappears and a line left empty is dropped; nothing in it is executed; (g) when a store's format changes, addresses already saved **keep their values but cannot be used for an order until they satisfy it again** — `AddressDto` carries `isComplete`, and the customer completes the address by editing it; (h) step 5 builds the handlers, the reads other modules need and the audit, and **no HTTP endpoints**: the address book and checkout call them from the frontend stage and Sales (as amendment 12 decided for the staff screens). | The spec left every number and the starting data open, and a store with no format refuses addresses — nobody could add one before the staff screen exists. An address that no longer fits its country's rules would otherwise reach a shipping label. | Owner, 2026-09-20 |
 | 42 | §1.9, §2.4 | **From the independent reviews of step 5** (2026-09-20, no rule of §1.9 changed): (a) an address value is **text on one line** — bytes that are not UTF-8, and control characters inside a value, are refused (a newline would otherwise add a line to a shipping label nobody wrote), while a line pasted with a newline at its end is simply trimmed; (b) a form holds at most **60 fields** and one address at most **4,000 characters in all**, so a form nobody could fill in cannot be made; (c) **`isComplete` means the whole format**, not only its required fields: an address also stops being complete when a field it uses is shortened or dropped; (d) the starting layout prints the **region** as well, since it is required and a parcel is delivered by it. Also fixed, with no visible change: the store id is read into one shape before it reaches the permission check, the cache key and the row; the customer's own row is held while their addresses change, so two tabs cannot both take a store's default or both count the last address allowed; a store opened later writes its format inside one transaction; a format row nothing here could have written reads as "no format" instead of throwing on a read; and the audit entry for a deleted address names the same fields as the one for an added address. | A value a customer types reaches a shipping label and an order document; a form is staff data, and staff data must not be able to make the shop slow or the column refuse a row. | Reviews of step 5, 2026-09-20 |
 | 43 | §1.10, §2.3, §3.1, §3.3, §9.3 | **Step 6, planned 2026-09-20** (the owner's answers before any code): (a) **§9.3 #36 answered** — a staff member holding `access.staff.view` sees an **admin** as a name and a role only, with no contact details or profile, and a **Super Admin is invisible to everyone but another Super Admin**: not in a list, not in a count, and asked for by id the answer is the same as for an id that never existed; (b) **deleting and blocking a customer are admin-only actions** (`AdminOnlyPermission`, as the staff-management actions already are, amendment 9), so an ordinary staff role can never hold either; (c) staff deleting a customer **on their request record a reason**, kept only in the audit log, and staff may also **cancel** a pending deletion under the same permission, with a reason — a customer who cannot sign in is not left waiting to be deleted; (d) anonymizing replaces the email with `deleted-{id}@deleted.invalid`, which keeps nothing of the old address and frees it for a new account; (e) the customer gets **one email when the deletion is scheduled**, saying the date and that signing in cancels it, and none afterwards (`SecurityMessages::customerDeletionScheduled`); (f) anonymizing keeps the id, the account type, the home store and the dates — nothing that names a person — so counts by store and by account type stay honest and the foreign keys orders and reviews point at still resolve; (g) the job runs **daily at 03:00 in Riyadh** (00:00 UTC: the application runs in UTC); (h) a staff member who may see a customer sees the account, their contacts and their addresses; (i) step 6 builds the handlers, the reads and the job, and **no HTTP endpoints** — the account page and the staff screens call them from the frontend stage. | The spec left every one of these open. Blocking and deleting reach a person's account, so they belong with the other actions an ordinary role cannot hold. An address a hijacker deleted must still be recoverable by its owner for fourteen days, and they must be told. | Owner, 2026-09-20 |
+| 44 | §1.10, §3.1, §3.3 | **From the independent reviews of step 6** (2026-09-20; no rule of §1.10 or amendment 43 changed): (a) an account that was deleted may no longer be **sent a reset link, or have a password set on it** — the placeholder address is guessable from the id, and the reset flow only looked at the status; (b) **who a staff member may see is part of the query**, not a filter afterwards: a total that counted people outside their stores was a headcount of stores they do not cover, and the pages came back short; (c) a customer who is not theirs is answered as **no customer at all**, as the read side already did, so the panel never confirms which ids are real; (d) the **reason** staff record must be one line of real text, like every value that reaches the audit log (amendment 42a); (e) an **admin's stores and joining date** are part of "a name and a role only", so an ordinary staff member does not learn which stores each admin covers; (f) the sweep goes round again while any account is still due, and one account that fails is logged and left for tomorrow instead of stopping the rest. | The deleted account's "can never sign in again" rested on one check; a count is as revealing as a list; and a sweep that stops at the first failure quietly misses the fourteen-day promise for everyone behind it. | Reviews of step 6, 2026-09-20 |

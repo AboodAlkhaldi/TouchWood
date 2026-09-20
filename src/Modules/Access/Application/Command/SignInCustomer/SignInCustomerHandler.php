@@ -98,7 +98,7 @@ final readonly class SignInCustomerHandler
 
             // Signing in calls off a deletion they asked for (spec §1.10): a hijacked or regretted
             // request is undone by the owner simply coming back.
-            $cancelled = $customer->deletionScheduledFor() !== null;
+            $wasDeleting = $customer->deletionScheduledFor();
             $customer->cancelDeletion();
             $customer->moveToStore($storeId);
 
@@ -106,8 +106,8 @@ final readonly class SignInCustomerHandler
                 $this->customers->update($customer);
             }
 
-            if ($cancelled) {
-                $this->platform->recordAudit(CustomerAudit::deletion('access.customer.deletion_cancelled', $customer));
+            if ($wasDeleting !== null) {
+                $this->platform->recordAudit(CustomerAudit::deletion('access.customer.deletion_cancelled', $customer, was: $wasDeleting));
                 $this->events->dispatch(new CustomerDeletionCancelled((string) Str::uuid(), $customerId, CarbonImmutable::now()));
             }
 

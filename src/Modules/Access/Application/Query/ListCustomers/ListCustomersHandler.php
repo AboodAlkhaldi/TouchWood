@@ -6,6 +6,7 @@ namespace Modules\Access\Application\Query\ListCustomers;
 
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\CustomerReader;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\CustomerStatus;
 use Shared\Application\Authorizer;
@@ -22,6 +23,8 @@ final readonly class ListCustomersHandler
     public const string PERMISSION = AccessPermissions::CUSTOMER_VIEW;
 
     private const int PER_PAGE_MAX = 100;
+
+    private const int PAGE_MAX = 100_000;
 
     public function __construct(
         private Authorizer $authorizer,
@@ -40,8 +43,11 @@ final readonly class ListCustomersHandler
         }
 
         $perPage = min(max($query->perPage, 1), self::PER_PAGE_MAX);
-        $page = max($query->page, 1);
-        $status = $query->status === null ? null : CustomerStatus::from($query->status)->value;
+        $page = min(max($query->page, 1), self::PAGE_MAX);
+        // A caller's value, so it is answered, not thrown at: from() would be a raw ValueError.
+        $status = $query->status === null
+            ? null
+            : (CustomerStatus::tryFrom($query->status) ?? throw new InvalidAccessAttribute('status', 'not an account status'))->value;
         // null is what storesWith() answers for every store, now and for one opened later.
         $storeIds = $stores === null ? null : array_map(static fn (StoreId $store): string => $store->value, $stores);
 

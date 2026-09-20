@@ -65,6 +65,23 @@ final readonly class DatabaseAddressRepository implements AddressRepository
         return array_values(array_map(fn (stdClass $row): Address => $this->toAddress($row), $rows->all()));
     }
 
+    public function forCustomer(string $customerId): array
+    {
+        if (! Ulids::valid($customerId)) {
+            return [];
+        }
+
+        $rows = $this->db->table(self::TABLE)
+            ->where('customer_id', strtolower($customerId))
+            ->orderBy('store_id')
+            ->orderByDesc('is_default')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
+
+        return array_values(array_map(fn (stdClass $row): Address => $this->toAddress($row), $rows->all()));
+    }
+
     public function countForCustomerInStore(string $customerId, string $storeId): int
     {
         return $this->db->table(self::TABLE)
@@ -116,6 +133,10 @@ final readonly class DatabaseAddressRepository implements AddressRepository
 
     public function deleteForCustomer(string $customerId): void
     {
+        if (! Ulids::valid($customerId)) {
+            return;
+        }
+
         $this->db->table(self::TABLE)->where('customer_id', strtolower($customerId))->delete();
     }
 
