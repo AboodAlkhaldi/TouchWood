@@ -38,6 +38,9 @@ interface AddressRepository
 
     public function delete(string $addressId): void;
 
+    /** Every address of a customer, in every store: the deletion purges them (spec §1.10). */
+    public function deleteForCustomer(string $customerId): void;
+
     /** Takes the default flag off every other address of that customer in that store. */
     public function clearDefault(string $customerId, string $storeId, string $exceptId): void;
 }

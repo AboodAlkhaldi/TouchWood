@@ -20,6 +20,10 @@ return [
         'title' => 'Addresses are not ready',
         'detail' => 'This store has no address form yet. Please try again later.',
     ],
+    'invalid_customer_status' => [
+        'title' => 'Nothing to change',
+        'detail' => 'This account is not in a state that allows that change.',
+    ],
     'too_many_addresses' => [
         'title' => 'Address book full',
         'detail' => 'You can keep :limit addresses in this store. Delete one to add another.',

@@ -103,7 +103,7 @@ describe('a customer\'s life (spec §1.1, §4.1)', function () {
     it('refuses a session version below zero before the database does', function () {
         expect(fn () => Customer::reconstitute(
             'c1', EmailAddress::of('sara@example.test'), 'hash', 'Sara', 'Ali', AccountType::Individual, CustomerStatus::Active,
-            null, null, null, Language::Arabic, 'store-sa', 'store-sa', '2026-01', new DateTimeImmutable, null, -1,
+            null, null, null, Language::Arabic, 'store-sa', 'store-sa', '2026-01', new DateTimeImmutable, null, null, -1,
         ))->toThrow(InvalidAccessAttribute::class, 'session_version');
     });
 

@@ -783,6 +783,7 @@ AccessError
 ├── StaffEmailInUse               CONFLICT     another staff account has this email (amendment 21)
 ├── PhoneAlreadyInUse             CONFLICT
 ├── InvalidStaffStatus            CONFLICT     a change the account's status does not allow (amendment 21)
+├── InvalidCustomerStatus         CONFLICT     blocking one that is blocked, or anything on a deleted account (amendment 43)
 ├── InvalidCredentials            FORBIDDEN    never says which part was wrong
 ├── AccountLocked                 FORBIDDEN    too many wrong passwords; says when to retry
 ├── SignInRefused                 FORBIDDEN    a staff account disabled, cancelled or anonymized
