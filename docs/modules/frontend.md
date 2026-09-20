@@ -530,6 +530,129 @@ missing, it is listed below.
 | P5 | Access → `app/Http` | Turning a business error into a message on the form (Access's `FormErrors`) moves to `app/Http`, beside `ProblemDetails` | Platform's admin screens answer forms the same way (§1.7), and this is framework glue, so the Shared kernel keeps its class limit. **[DECIDED 2026-09-19]** |
 | P6 | — | An **admin menu registry**: each module declares its menu entries, with the permission each needs | The menu is built from what the person may do, and grows module by module; "coming soon" entries are shown to Super Admins (§2.2). *Open: which module keeps the list — awaiting the owner.* |
 | P7 | Access | Read models for the screens that have none yet — the customer list and one customer (access.md §3.3 has the use cases, step 6) | §3.6 and the admin's customer screens need them |
+
+---
+
+## 5 · Performance budgets
+
+Handoff §5.4: "the five-second page is the enemy", and a CI test that fails the build on query count
+is "the single highest-value guard in the project". The owner left these numbers to me on
+2026-09-19; they are a starting point to confirm before the build.
+
+| What | Budget | How it is checked |
+|---|---|---|
+| Queries, storefront page | **8** | A feature test per page, counted **warm** (the store already resolved from the cache table, 2 small reads — `docs/STRUCTURE.md`) |
+| Queries, admin list or form | **15** | The same, per page |
+| Every page's real count | **Recorded** | The test asserts the recorded number, so a page that grows from 5 to 9 fails even under its ceiling; raising it is a deliberate edit |
+| JavaScript, shared | **200 KB gzipped** | Measured in the build: React, Inertia and everything every page uses, cached once |
+| JavaScript, one page | **60 KB gzipped** | The same. Anything heavy (charts, a rich editor) loads only on the page that needs it |
+| Fonts | **The two families, subset** | Latin and Arabic ranges only, served from our own domain (§2.1), preloaded so the first paint has them |
+
+- **A breach fails the build**, as handoff §5.4 asks. A warning that stays green is ignored, which is
+  how the slow system happened.
+- Listings use keyset paging and read models, never Eloquent hydration (handoff §5.4,
+  `docs/STRUCTURE.md`).
+- SSR renders every page (§1.3); when the SSR process is down the page still works, rendered in the
+  browser, and the failure is logged.
+
+---
+
+## 6 · Accessibility and right-to-left
+
+**[DECIDED 2026-09-19, the owner left it to me] WCAG 2.2 AA** for every screen in this stage.
+shadcn's components already carry much of it; what this adds is that it is checked, not assumed.
+
+- Everything works with a keyboard alone: menus, the store picker, dialogs, the code boxes, the
+  role editor's ticks. Focus is always visible, and a dialog returns focus where it came from.
+- Every field has a real label, not a placeholder standing in for one. An error is tied to its
+  field, so a screen reader announces it, and the toast (§2.1) is announced politely.
+- Colour never carries meaning on its own: a status is a word as well as a colour.
+- Contrast is checked in **both themes**, light and dark.
+- Touch targets are at least 24 by 24 CSS pixels, with spacing.
+- **Right-to-left:** layouts use logical properties (start and end, never left and right), so Arabic
+  mirrors correctly, as shadcn's RTL support expects (§1.8). Directional icons flip; a clock or a
+  logo does not. Arabic pages set `lang="ar"` and `dir="rtl"`, English pages `lang="en"` and `ltr`.
+- Numbers, dates and currencies are formatted for the page's language (§1.8), including the
+  Arabic-Indic digits and the currency's sign or letters.
+- An automated pass runs over every page in the browser tests (§7), and the main flows — signing in,
+  inviting a staff member, registering, adding an address — are also walked with the keyboard alone.
+
+---
+
+## 7 · Test scenarios
+
+Pest, as the rest of the project (§1.1). Browser tests run with the suite (`composer check`).
+
+**In a browser**
+
+- Admin sign-in: password → code → dashboard; the trusted browser skips the code for 30 days; a new
+  browser asks again; a wrong code, an expired code and the hourly limit each show their message.
+- Accepting an invitation: set a password, correct a mistyped phone, confirm the code, land signed
+  in. An expired link shows the "link no longer works" page.
+- A staff member is invited in three steps, appears in the list under their store, and a person with
+  two stores appears under "Centralized".
+- The role editor: ticking actions, filling every action's stores in one row, giving one action its
+  own stores, and saving an edit from a person's page as a personal role.
+- The store picker: two stores switch; one store shows a name and no menu; a removed store falls
+  back with its message.
+- A customer registers, verifies the email, adds a phone with its code, saves an address, and asks
+  to close the account.
+- The theme and display-language toggles survive a reload, and the pages come back in that theme
+  with no flash.
+- Arabic mirrors the layout, the sidebar sits on the right, and figures show Arabic-Indic digits.
+- Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card.
+- With SSR turned off, every page still renders in the browser.
+- The accessibility pass and the keyboard walk-throughs of §6.
+
+**On the server**
+
+- Every page route: who may open it, what its data contains, and 403 or 404 where it must not open.
+- Every form endpoint: validation errors land on their fields; a business error comes back as the
+  form's message; success flashes its status and redirects.
+- The query budgets of §5, warm, per page.
+- The menu contains only what the person may do, and "coming soon" entries appear for a Super Admin
+  only.
+- Ziggy: every named route belongs to exactly one group, and a storefront page's data carries no
+  admin route (the test also asserts it found routes to check).
+- The generated TypeScript types match the PHP page-data classes; a stale file fails.
+- Every translation key a page uses exists in Arabic and English.
+- Uploading a picture works for a staff member who holds no media permission (§3.2, P1).
+
+**Architecture**
+
+- No controller asserts a permission itself; the handlers do (handoff §19).
+- Every page component lives under `resources/js/pages/{Module}/`, and the test asserts it found
+  pages, so a moved folder cannot make it pass over nothing.
+- No listing hydrates Eloquent (handoff §5.4).
+
+---
+
+## 8 · Questions
+
+### 8.1 Open — the owner has not answered
+
+| # | Question | Effect |
+|---|---|---|
+| 1 | Which module keeps the **admin menu registry** (§4.3 P6) | Every module registers its entries there; Platform sits below Access and cannot use anything inside Access |
+
+### 8.2 Left to me by the owner, to confirm before building
+
+| # | Item | What I chose |
+|---|---|---|
+| 2 | Where the screens' text lives (§1.5) | The Laravel lang files, one source with the backend's text |
+| 3 | The budgets of §5 | Storefront 8 queries, admin 15, each page's count recorded; 200 KB + 60 KB of JavaScript; a breach fails the build |
+| 4 | The accessibility target (§6) | WCAG 2.2 AA, checked automatically and by keyboard |
+
+### 8.3 Waiting on something outside this stage
+
+| # | Item | Waiting for |
+|---|---|---|
+| 5 | The storefront's look (§2.3, §3.6) is derived from the admin design | The owner's storefront design, if one is made |
+| 6 | The map pin on an address (§3.6 F9) stays empty | A maps provider being chosen (handoff §15.1 keeps such items) |
+| 7 | The changes other modules must make (§4.3 P1–P7) | Each module's owner agreeing, as an amendment to that module's spec |
+| 8 | Where the SSR process runs, and on which Node version (§1.3) | Hosting (handoff §15.4) |
+| 9 | The currency signs (§1.8) | Rechecking the fonts the build installs; on today's evidence both signs stay cleared |
+| 10 | Registration continuing into the company wizard (§3.6 F3) | B2B, stage 3 |
 - Uploading gives the same answer for an image already stored: Platform returns the existing one
   (platform.md §1.4), and the library simply shows it.
 
