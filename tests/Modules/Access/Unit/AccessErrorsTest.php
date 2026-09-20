@@ -11,6 +11,7 @@ use Modules\Access\Domain\Exception\CodeRequestTooSoon;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidAddress;
 use Modules\Access\Domain\Exception\InvalidCode;
+use Modules\Access\Domain\Exception\InvalidCustomerStatus;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\LastSuperAdmin;
@@ -110,4 +111,5 @@ it('answers with the HTTP status the spec names', function (string $class, int $
     'a store with no address form → 409' => [AddressFormatMissing::class, 409],
     'a field the store\'s form refuses → 422' => [InvalidAddress::class, 422],
     'an address book that is full → 409' => [TooManyAddresses::class, 409],
+    'a change the account is not in a state for → 409' => [InvalidCustomerStatus::class, 409],
 ]);

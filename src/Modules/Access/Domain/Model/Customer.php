@@ -115,6 +115,7 @@ final class Customer
      */
     public function changePassword(string $passwordHash): void
     {
+        $this->refuseWhenAnonymized();
         $this->passwordHash = $passwordHash;
         $this->sessionVersion++;
         $this->markChanged('password');
@@ -276,6 +277,7 @@ final class Customer
         $this->passwordHash = $passwordHash;
         $this->firstName = self::DELETED_NAME;
         $this->lastName = self::DELETED_NAME;
+        $this->emailVerifiedAt = null;
         $this->phone = null;
         $this->phoneVerifiedAt = null;
         $this->deletionScheduledFor = null;

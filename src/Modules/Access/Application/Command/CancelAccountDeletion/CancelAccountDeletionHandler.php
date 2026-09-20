@@ -48,6 +48,7 @@ final readonly class CancelAccountDeletionHandler
 
         $this->db->transaction(function () use ($customerId): void {
             $customer = $this->customers->byId($customerId) ?? throw new CustomerNotFound($customerId);
+            $was = $customer->deletionScheduledFor();
             $customer->cancelDeletion();
 
             if ($customer->pullChanges() === []) {
@@ -55,7 +56,7 @@ final readonly class CancelAccountDeletionHandler
             }
 
             $this->customers->update($customer);
-            $this->platform->recordAudit(CustomerAudit::deletion('access.customer.deletion_cancelled', $customer));
+            $this->platform->recordAudit(CustomerAudit::deletion('access.customer.deletion_cancelled', $customer, was: $was));
             $this->events->dispatch(new CustomerDeletionCancelled((string) Str::uuid(), $customerId, CarbonImmutable::now()));
         }, 3);
     }

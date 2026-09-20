@@ -58,7 +58,7 @@ final readonly class DatabaseCustomerReader implements CustomerReader
         }
 
         if ($search !== null && trim($search) !== '') {
-            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower(trim($search))).'%';
+            $like = self::like($search);
 
             $query->where(function (Builder $where) use ($like): void {
                 $where->whereRaw('lower(email) like ?', [$like])
@@ -69,6 +69,15 @@ final readonly class DatabaseCustomerReader implements CustomerReader
         }
 
         return $query;
+    }
+
+    /**
+     * A search as a LIKE pattern. The backslash is escaped first: it is PostgreSQL's own escape
+     * inside LIKE, so escaping only % and _ would let a trailing one swallow the wildcard after it.
+     */
+    private static function like(string $search): string
+    {
+        return '%'.str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], mb_strtolower(trim($search))).'%';
     }
 
     /**

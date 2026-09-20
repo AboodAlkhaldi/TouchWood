@@ -6,8 +6,8 @@ namespace Modules\Access\Application\Customer;
 
 use Modules\Access\Domain\Exception\CustomerNotFound;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
-use Modules\Access\Domain\Model\Customer;
 use Modules\Access\Domain\Repository\CustomerRepository;
+use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -15,6 +15,10 @@ use Shared\Domain\ValueObject\StoreId;
  * What the four staff actions on a customer share (spec §3.3, amendment 43): the reason support was
  * given is required — it is kept only in the audit entry, never on the account — and the store to
  * check the permission in is the customer's **home store**, which is on their own row.
+ *
+ * A staff member who may act on customers somewhere, but not on this one, is told the same thing as
+ * for an id that never existed: the panel never confirms which ids are real (review of step 6).
+ * Someone who may not act on customers at all is refused plainly, by the handler's own check.
  *
  * Each handler checks its own permission with the scope this hands back, and does its own work in
  * its own transaction.
@@ -24,6 +28,7 @@ final readonly class StaffCustomerAction
     private const int REASON_MAX = 500;
 
     public function __construct(
+        private Authorizer $authorizer,
         private CustomerRepository $customers,
     ) {}
 
@@ -32,7 +37,7 @@ final readonly class StaffCustomerAction
      *
      * @throws CustomerNotFound|InvalidAccessAttribute
      */
-    public function about(string $customerId, string $reason): array
+    public function about(string $permission, string $customerId, string $reason): array
     {
         $reason = trim($reason);
 
@@ -44,8 +49,45 @@ final readonly class StaffCustomerAction
             throw new InvalidAccessAttribute('reason', 'at most '.self::REASON_MAX.' characters');
         }
 
-        $customer = $this->customers->find($customerId) ?? throw new CustomerNotFound($customerId);
+        // It is written into the audit log, which refuses anything that is not text: a control
+        // character or a byte that is not UTF-8 would be a failed insert instead of a clear answer.
+        if (! mb_check_encoding($reason, 'UTF-8') || preg_match('/\p{Cc}/u', $reason) === 1) {
+            throw new InvalidAccessAttribute('reason', 'one line of text');
+        }
 
-        return [PermissionScope::store(StoreId::fromString($customer->homeStoreId())), $reason];
+        $stores = $this->authorizer->storesWith($permission);
+        $customer = $stores === [] ? null : $this->customers->find($customerId);
+
+        // Nothing is read for someone who may not act on customers anywhere: their own handler's
+        // check refuses them in a moment, and it names the action they lack.
+        if ($stores === []) {
+            return [PermissionScope::store(StoreId::fromString('00000000000000000000000000')), $reason];
+        }
+
+        if ($customer === null) {
+            throw new CustomerNotFound($customerId);
+        }
+
+        $home = StoreId::fromString($customer->homeStoreId());
+
+        if ($stores !== null && ! $this->covers($stores, $home)) {
+            throw new CustomerNotFound($customerId);
+        }
+
+        return [PermissionScope::store($home), $reason];
+    }
+
+    /**
+     * @param  list<StoreId>  $stores
+     */
+    private function covers(array $stores, StoreId $home): bool
+    {
+        foreach ($stores as $store) {
+            if ($store->equals($home)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

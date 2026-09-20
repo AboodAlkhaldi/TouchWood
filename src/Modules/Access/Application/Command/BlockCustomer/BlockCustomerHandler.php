@@ -45,13 +45,12 @@ final readonly class BlockCustomerHandler
      */
     public function handle(BlockCustomer $command): void
     {
-        [$store, $reason] = $this->action->about($command->customerId, $command->reason);
+        [$store, $reason] = $this->action->about(self::PERMISSION, $command->customerId, $command->reason);
         $this->authorizer->authorize(self::PERMISSION, $store);
 
         $this->db->transaction(function () use ($command, $reason): void {
             $customer = $this->customers->byId($command->customerId) ?? throw new CustomerNotFound($command->customerId);
             $customer->block();
-            $customer->pullChanges();
 
             $this->customers->update($customer);
             $this->platform->recordAudit(CustomerAudit::statusChanged('access.customer.blocked', $customer, $reason));

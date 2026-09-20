@@ -11,6 +11,10 @@ use stdClass;
 /**
  * One statement per page: each staff member with their role and the stores they work in, so a
  * screen never asks again per row.
+ *
+ * Who the reader may see is part of the statement — both for the rows and for the count. Dropping
+ * rows afterwards would return short pages and a total that counted people they may not see, which
+ * is a headcount of stores they do not cover (review of step 6).
  */
 final readonly class DatabaseStaffReader implements StaffReader
 {
@@ -18,14 +22,59 @@ final readonly class DatabaseStaffReader implements StaffReader
         private ConnectionInterface $db,
     ) {}
 
-    public function staff(?string $search, ?string $status, int $page, int $perPage): array
+    public function staff(?array $readerStoreIds, bool $withSuperAdmins, ?string $search, ?string $status, int $page, int $perPage): array
     {
-        return $this->page(false, $search, $status, $page, $perPage);
-    }
+        $where = [];
+        $bindings = [];
 
-    public function superAdmins(?string $search, ?string $status, int $page, int $perPage): array
-    {
-        return $this->page(true, $search, $status, $page, $perPage);
+        if (! $withSuperAdmins) {
+            $where[] = 's.is_super_admin = ?';
+            $bindings[] = false;
+        }
+
+        if ($readerStoreIds !== null) {
+            // Theirs only when every store of theirs is one of the reader's, and they have some:
+            // "all stores" or no role at all is nobody's to see but a Super Admin's (amendment 9).
+            $where[] = <<<'SQL'
+                (a.access_level = 'SELECTED_STORES'
+                    AND EXISTS (SELECT 1 FROM access.role_assignment_stores st WHERE st.staff_user_id = s.id)
+                    AND NOT EXISTS (
+                        SELECT 1 FROM access.role_assignment_stores st
+                        WHERE st.staff_user_id = s.id AND st.store_id <> ALL (string_to_array(?, ','))
+                    ))
+                SQL;
+            $bindings[] = implode(',', array_map(strtolower(...), $readerStoreIds));
+        }
+
+        if ($status !== null) {
+            $where[] = 's.status = ?';
+            $bindings[] = $status;
+        }
+
+        if ($search !== null && trim($search) !== '') {
+            $like = self::like($search);
+            $where[] = '(lower(s.email) LIKE ? OR lower(s.first_name) LIKE ? OR lower(s.last_name) LIKE ? OR s.phone LIKE ?)';
+            $bindings = [...$bindings, $like, $like, $like, $like];
+        }
+
+        $conditions = $where === [] ? 'TRUE' : implode(' AND ', $where);
+
+        $total = $this->db->selectOne(<<<SQL
+            SELECT count(*) AS total
+            FROM access.staff_users s
+            LEFT JOIN access.role_assignments a ON a.staff_user_id = s.id
+            WHERE {$conditions}
+            SQL, $bindings);
+
+        $rows = $this->db->select(
+            $this->select()." WHERE {$conditions} ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?",
+            [...$bindings, $perPage, (max($page, 1) - 1) * $perPage],
+        );
+
+        return [
+            'total' => $total instanceof stdClass ? (int) $total->total : 0,
+            'rows' => array_values(array_map($this->toRow(...), $rows)),
+        ];
     }
 
     public function member(string $staffId): ?array
@@ -40,36 +89,12 @@ final readonly class DatabaseStaffReader implements StaffReader
     }
 
     /**
-     * @return array{total: int, rows: list<array<string, mixed>>}
+     * The backslash first: it is PostgreSQL's own escape inside LIKE, so escaping only % and _
+     * would let a trailing one swallow the wildcard after it.
      */
-    private function page(bool $superAdmins, ?string $search, ?string $status, int $page, int $perPage): array
+    private static function like(string $search): string
     {
-        $where = ['s.is_super_admin = ?'];
-        $bindings = [$superAdmins];
-
-        if ($status !== null) {
-            $where[] = 's.status = ?';
-            $bindings[] = $status;
-        }
-
-        if ($search !== null && trim($search) !== '') {
-            $like = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower(trim($search))).'%';
-            $where[] = '(lower(s.email) LIKE ? OR lower(s.first_name) LIKE ? OR lower(s.last_name) LIKE ? OR s.phone LIKE ?)';
-            $bindings = [...$bindings, $like, $like, $like, $like];
-        }
-
-        $conditions = implode(' AND ', $where);
-        $total = $this->db->selectOne("SELECT count(*) AS total FROM access.staff_users s WHERE {$conditions}", $bindings);
-
-        $rows = $this->db->select(
-            $this->select()." WHERE {$conditions} ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?",
-            [...$bindings, $perPage, (max($page, 1) - 1) * $perPage],
-        );
-
-        return [
-            'total' => $total instanceof stdClass ? (int) $total->total : 0,
-            'rows' => array_values(array_map($this->toRow(...), $rows)),
-        ];
+        return '%'.str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], mb_strtolower(trim($search))).'%';
     }
 
     private function select(): string

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Audit;
 
+use DateTimeImmutable;
 use Modules\Access\Domain\Model\Customer;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
@@ -70,11 +71,14 @@ final class CustomerAudit
 
     /**
      * A deletion scheduled or called off. The date is not personal data; who asked is the actor.
+     *
+     * @param  DateTimeImmutable|null  $was  the date before the change: a cancellation's whole
+     *                                       content is the date it called off
      */
-    public static function deletion(string $action, Customer $customer, ?string $reason = null): AuditEntryDto
+    public static function deletion(string $action, Customer $customer, ?string $reason = null, ?DateTimeImmutable $was = null): AuditEntryDto
     {
         $changes = AuditChanges::none()
-            ->changed('deletion_scheduled_for', null, $customer->deletionScheduledFor()?->format('Y-m-d H:i:sP'));
+            ->changed('deletion_scheduled_for', $was?->format('Y-m-d H:i:sP'), $customer->deletionScheduledFor()?->format('Y-m-d H:i:sP'));
 
         if ($reason !== null) {
             $changes->changed('reason', null, $reason);

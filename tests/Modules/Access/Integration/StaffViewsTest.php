@@ -188,6 +188,43 @@ describe('the staff a staff member sees (amendments 9 and 43)', function () {
             ->and(app(ViewStaffHandler::class)->handle(new ViewStaff($otherSuperAdmin))->isAdmin)->toBeTrue();
     });
 
+    it('counts only the staff the reader may see', function () {
+        Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa', 'ae']);
+        Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['ae']);
+        Fx::staff(superAdmin: true);
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']));
+
+        $page = app(ListStaffHandler::class)->handle(new ListStaff);
+
+        // Only the reader themselves: a total counting the others would be a headcount of stores
+        // they do not cover (review of step 6).
+        expect($page->total)->toBe(1)
+            ->and($page->staff)->toHaveCount(1);
+    });
+
+    it('sees a multi-store reader\'s whole patch, and no wider', function () {
+        $both = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa', 'ae']);
+        $one = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['ae']);
+        $elsewhere = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['eg']);
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa', 'ae']));
+
+        $seen = listedStaff();
+
+        expect($seen)->toHaveKey($both)
+            ->and($seen)->toHaveKey($one)
+            ->and($seen)->not->toHaveKey($elsewhere);
+    });
+
+    it('takes a search as text, not as a pattern', function () {
+        Fx::customer('sara@example.test', 'sa');
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa']));
+
+        // A wildcard a customer typed is a wildcard nobody meant.
+        expect(listedCustomers('%'))->toBe([])
+            ->and(listedCustomers('_ara@'))->toBe([])
+            ->and(listedCustomers('Ali'))->toHaveCount(1);
+    });
+
     it('hides a staff member whose stores the reader does not cover', function () {
         $wider = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa', 'ae']);
         $mine = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa']);
