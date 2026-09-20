@@ -14,6 +14,7 @@ use Modules\Access\Domain\Model\Role;
 use Modules\Access\Domain\Model\StaffUser;
 use Modules\Access\Domain\Repository\RoleRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
+use Modules\Access\Domain\ValueObject\CustomerPhoneCodePurpose;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Domain\ValueObject\PhoneCodePurpose;
@@ -23,6 +24,8 @@ use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Domain\ValueObject\RoleName;
 use Modules\Access\Domain\ValueObject\StaffProfile;
 use Modules\Access\Public\Enums\AccessLevel;
+use Modules\Access\Public\Enums\AccountType;
+use Modules\Access\Public\Enums\CustomerStatus;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Modules\Access\Public\Enums\StaffStatus;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -94,6 +97,25 @@ function insertPhoneCodeRow(array $overrides): void
     ]);
 }
 
+/**
+ * @param  array<string, mixed>  $values
+ */
+function updateCustomerRow(array $values): void
+{
+    DB::table('access.customers')->where('id', Fx::customer())->update($values);
+}
+
+/**
+ * @param  array<string, mixed>  $overrides
+ */
+function insertCustomerPhoneCodeRow(array $overrides): void
+{
+    DB::table('access.phone_codes')->insert([
+        'customer_id' => Fx::customer(), 'purpose' => 'ADD', 'phone' => '+966501234567', 'code_hash' => hash('sha256', 'code'),
+        'attempts' => 0, 'expires_at' => now(), 'sent_at' => now(), ...$overrides,
+    ]);
+}
+
 it('creates the access tables', function (string $table) {
     expect(DB::table('information_schema.tables')->where('table_schema', 'access')->where('table_name', $table)->exists())->toBeTrue();
 })->with([
@@ -101,6 +123,7 @@ it('creates the access tables', function (string $table) {
     'role_assignment_exceptions', 'role_assignment_exception_stores',
     'staff_invitations', 'staff_phone_codes', 'staff_email_changes', 'staff_notification_preferences',
     'staff_sign_in_codes', 'staff_password_resets', 'staff_trusted_browsers',
+    'customers', 'phone_codes',
 ]);
 
 it('allows in each enum column exactly the values of its PHP enum', function (string $constraint, array $cases) {
@@ -118,6 +141,10 @@ it('allows in each enum column exactly the values of its PHP enum', function (st
     'role level' => ['roles_level', RoleLevel::cases()],
     'store row' => ['role_assignments_access_level', AccessLevel::cases()],
     'an action\'s own stores' => ['role_assignment_exceptions_access_level', AccessLevel::cases()],
+    'customer status' => ['customers_status', CustomerStatus::cases()],
+    'account type' => ['customers_account_type', AccountType::cases()],
+    'a customer\'s language' => ['customers_locale', Language::cases()],
+    'what a customer\'s phone code is for' => ['phone_codes_purpose', CustomerPhoneCodePurpose::cases()],
 ]);
 
 it('refuses rows that break the rules, even when they skip the domain', function (Closure $insert, string $constraint) {
@@ -167,6 +194,14 @@ it('refuses rows that break the rules, even when they skip the domain', function
         DB::table('access.roles')->where('id', DB::table('access.role_assignments')->where('staff_user_id', $staffId)->value('role_id'))->delete();
     }, 'role_assignments_role_id_foreign'],
     'an unknown language' => [fn () => updateStaffRow(['locale' => 'fr']), 'staff_users_locale'],
+    'a customer phone without its country code' => [fn () => updateCustomerRow(['phone' => '0501234567', 'phone_verified_at' => now()]), 'customers_phone_format'],
+    'a customer phone verified but not there' => [fn () => updateCustomerRow(['phone_verified_at' => now()]), 'customers_phone_verified_together'],
+    'a customer phone there but unverified' => [fn () => updateCustomerRow(['phone' => '+966501234567']), 'customers_phone_verified_together'],
+    'an unknown customer status' => [fn () => updateCustomerRow(['status' => 'SLEEPING']), 'customers_status'],
+    'a customer changing what kind of account it is' => [fn () => updateCustomerRow(['account_type' => 'COMPANY']), 'account_type is set at registration'],
+    'a customer changing their home store' => [fn () => updateCustomerRow(['home_store_id' => Fx::storeId('ae')]), 'home_store_id is set at registration'],
+    'a phone code with a purpose we do not have' => [fn () => insertCustomerPhoneCodeRow(['purpose' => 'REMOVE']), 'phone_codes_purpose'],
+    'a phone code with a malformed number' => [fn () => insertCustomerPhoneCodeRow(['phone' => '0501234567']), 'phone_codes_phone_format'],
     'a country not in capitals' => [fn () => updateStaffRow(['country' => 'sa']), 'staff_users_country_format'],
     'a phone without its country code' => [fn () => updateStaffRow(['phone' => '0501234567']), 'staff_users_phone_format'],
     'a verified phone that is not there' => [fn () => updateStaffRow(['phone' => null]), 'staff_users_phone_verified_has_phone'],

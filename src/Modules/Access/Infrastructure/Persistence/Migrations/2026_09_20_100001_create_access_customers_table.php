@@ -74,7 +74,32 @@ return new class extends Migration
         DB::statement(<<<'SQL'
             ALTER TABLE access.phone_codes
                 ADD CONSTRAINT phone_codes_purpose CHECK (purpose IN ('ADD', 'CHANGE')),
-                ADD CONSTRAINT phone_codes_phone_format CHECK (phone ~ '^\+[1-9][0-9]{6,14}$')
+                ADD CONSTRAINT phone_codes_phone_format CHECK (phone ~ '^\+[1-9][0-9]{6,14}$'),
+                ADD CONSTRAINT phone_codes_attempts_not_negative CHECK (attempts >= 0)
+            SQL);
+
+        // The account type and the home store are set once (spec §1.1, §5.1): the Customer object
+        // has no way to change them, and this refuses it even from a raw UPDATE.
+        // OR REPLACE: migrate:fresh drops tables but not functions.
+        DB::unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION access.customers_keep_their_kind_and_home() RETURNS trigger
+            LANGUAGE plpgsql AS $$
+            BEGIN
+                IF NEW.account_type <> OLD.account_type THEN
+                    RAISE EXCEPTION 'access.customers.account_type is set at registration and never changes';
+                END IF;
+
+                IF NEW.home_store_id <> OLD.home_store_id THEN
+                    RAISE EXCEPTION 'access.customers.home_store_id is set at registration and never changes';
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$;
+
+            CREATE TRIGGER customers_keep_their_kind_and_home
+                BEFORE UPDATE ON access.customers
+                FOR EACH ROW EXECUTE FUNCTION access.customers_keep_their_kind_and_home();
             SQL);
     }
 

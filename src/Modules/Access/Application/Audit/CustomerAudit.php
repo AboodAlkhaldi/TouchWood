@@ -33,22 +33,6 @@ final class CustomerAudit
     }
 
     /**
-     * Something that happened to the account, with the values it set (none of them personal).
-     *
-     * @param  array<string, string|bool|null>  $values  attribute => new value
-     */
-    public static function event(string $action, Customer $customer, array $values = []): AuditEntryDto
-    {
-        $changes = AuditChanges::none();
-
-        foreach ($values as $attribute => $value) {
-            $changes->changed($attribute, null, $value);
-        }
-
-        return self::entry($action, $customer, $changes);
-    }
-
-    /**
      * @param  list<string>  $changed  Customer::pullChanges()
      */
     public static function updated(string $action, Customer $before, Customer $after, array $changed): AuditEntryDto

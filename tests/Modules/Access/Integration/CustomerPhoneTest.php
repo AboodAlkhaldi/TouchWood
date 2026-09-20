@@ -31,6 +31,14 @@ beforeEach(function () {
     RecordingSecurityMessages::install();
 });
 
+function signInCodesToNumber(): int
+{
+    return count(array_filter(
+        RecordingSecurityMessages::installed()->codes,
+        fn (array $code): bool => $code['phone'] === '+966501234567',
+    ));
+}
+
 function customerPhoneOf(string $customerId): ?string
 {
     $phone = DB::table('access.customers')->where('id', $customerId)->value('phone');
@@ -135,6 +143,61 @@ describe('a customer\'s phone (spec §1.3)', function () {
         expect(fn () => customerEnterCode($code))->toThrow(InvalidCode::class)
             ->and(customerPhoneOf($customerId))->toBeNull()
             ->and(DB::table('access.phone_codes')->where('customer_id', $customerId)->value('attempts'))->toBe(5);
+    });
+
+    it('lets a code die after five minutes', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+        customerAskForCode('+966501234567');
+        $code = RecordingSecurityMessages::installed()->lastCode();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(6));
+
+        expect(fn () => customerEnterCode($code))->toThrow(InvalidCode::class)
+            ->and(customerPhoneOf($customerId))->toBeNull();
+    });
+
+    it('still takes the code at four minutes', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+        customerAskForCode('+966501234567');
+        $code = RecordingSecurityMessages::installed()->lastCode();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(4));
+        customerEnterCode($code);
+
+        expect(customerPhoneOf($customerId))->toBe('+966501234567');
+    });
+
+    it('sends at most 3 codes an hour to one number (amendment 28)', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+
+        foreach (range(1, 3) as $sent) {
+            customerAskForCode('+966501234567');
+            CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+        }
+
+        expect(signInCodesToNumber())->toBe(3)
+            ->and(fn () => customerAskForCode('+966501234567'))->toThrow(CodeRequestTooSoon::class);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(61));
+        customerAskForCode('+966501234567');
+
+        expect(signInCodesToNumber())->toBe(4);
+    });
+
+    it('sends a code to the number the account already has, for a customer who never verified it', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+        customerAskForCode('+966501234567');
+        customerEnterCode();
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+
+        // Their own number is not "another customer's": asking again must work.
+        customerAskForCode('+966501234567');
+
+        expect(RecordingSecurityMessages::installed()->codes)->toHaveCount(2);
     });
 
     it('is only for the customer themselves', function () {

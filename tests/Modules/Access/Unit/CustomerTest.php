@@ -71,23 +71,33 @@ describe('a customer\'s life (spec §1.1, §4.1)', function () {
             ->and($customer->pullChanges())->toBe(['phone']);
     });
 
-    it('records only real changes to the name, language and last store', function () {
+    it('records only real changes to the name and language', function () {
         $customer = newCustomer();
 
         $customer->updateName('Sara', 'Ali');
         $customer->changeLanguage(Language::Arabic);
-        $customer->moveToStore('store-sa');
 
         expect($customer->pullChanges())->toBe([]);
 
         $customer->updateName('Sarah', 'Ali');
         $customer->changeLanguage(Language::English);
-        $customer->moveToStore('store-ae');
 
-        expect($customer->pullChanges())->toBe(['name', 'locale', 'last_store_id'])
-            ->and($customer->lastStoreId())->toBe('store-ae')
-            ->and($customer->homeStoreId())->toBe('store-sa');
+        expect($customer->pullChanges())->toBe(['name', 'locale']);
     });
+
+    it('may not order while blocked, or while a deletion waits', function (CustomerStatus $status, ?DateTimeImmutable $deletion, bool $mayOrder) {
+        $customer = Customer::reconstitute(
+            'c1', EmailAddress::of('sara@example.test'), 'hash', 'Sara', 'Ali', AccountType::Individual, $status,
+            new DateTimeImmutable, PhoneNumber::of('+966501234567'), new DateTimeImmutable, Language::Arabic,
+            'store-sa', 'store-sa', '2026-01', new DateTimeImmutable, $deletion,
+        );
+
+        expect($customer->mayOrder())->toBe($mayOrder);
+    })->with([
+        'active, nothing pending' => [CustomerStatus::Active, null, true],
+        'blocked' => [CustomerStatus::Blocked, null, false],
+        'a deletion waiting' => [CustomerStatus::Active, new DateTimeImmutable('2026-10-01'), false],
+    ]);
 
     it('keeps the account type it was registered with', function () {
         expect(newCustomer(AccountType::Company)->accountType())->toBe(AccountType::Company)

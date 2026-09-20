@@ -55,16 +55,6 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
         return $row instanceof stdClass ? $this->toCustomer($row) : null;
     }
 
-    public function byEmail(EmailAddress $email): ?Customer
-    {
-        $row = $this->db->table(self::TABLE)
-            ->whereRaw('lower(email) = lower(?)', [$email->value])
-            ->lockForUpdate()
-            ->first();
-
-        return $row instanceof stdClass ? $this->toCustomer($row) : null;
-    }
-
     public function emailInUse(EmailAddress $email): bool
     {
         return $this->db->table(self::TABLE)
@@ -85,6 +75,8 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
         $this->write(fn () => $this->db->table(self::TABLE)->insert([
             'id' => $customer->id(),
             ...$this->attributes($customer),
+            // Set once and never written again: a trigger refuses a change (spec §5.1).
+            'account_type' => $customer->accountType()->value,
             'home_store_id' => $customer->homeStoreId(),
             'terms_version' => $customer->termsVersion(),
             'terms_accepted_at' => $customer->termsAcceptedAt(),
@@ -128,7 +120,6 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             'password' => $customer->passwordHash(),
             'first_name' => $customer->firstName(),
             'last_name' => $customer->lastName(),
-            'account_type' => $customer->accountType()->value,
             'status' => $customer->status()->value,
             'email_verified_at' => $customer->emailVerifiedAt(),
             'phone' => $customer->phone()?->value,
@@ -156,6 +147,7 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             (string) $row->last_store_id,
             (string) $row->terms_version,
             CarbonImmutable::parse((string) $row->terms_accepted_at),
+            $row->deletion_scheduled_for === null ? null : CarbonImmutable::parse((string) $row->deletion_scheduled_for),
         );
     }
 }

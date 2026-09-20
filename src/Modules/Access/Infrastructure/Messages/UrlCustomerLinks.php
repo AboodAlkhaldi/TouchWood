@@ -43,12 +43,17 @@ final readonly class UrlCustomerLinks implements CustomerLinks
             throw new LogicException('APP_URL must be set: every customer link is built on it.');
         }
 
+        $scheme = parse_url($root, PHP_URL_SCHEME);
         $this->urls->forceRootUrl($root);
+        // The scheme too, or the request's would replace it: a link signed as http and opened as
+        // https fails its own signature check (behind a TLS proxy, every request looks like http).
+        $this->urls->forceScheme(is_string($scheme) ? $scheme : null);
 
         try {
             return $build();
         } finally {
             $this->urls->forceRootUrl(null);
+            $this->urls->forceScheme(null);
         }
     }
 }

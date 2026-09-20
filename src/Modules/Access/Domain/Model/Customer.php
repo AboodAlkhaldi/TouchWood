@@ -40,6 +40,7 @@ final class Customer
         private string $lastStoreId,
         private readonly string $termsVersion,
         private readonly DateTimeImmutable $termsAcceptedAt,
+        private ?DateTimeImmutable $deletionScheduledFor = null,
     ) {}
 
     /**
@@ -83,11 +84,12 @@ final class Customer
         string $lastStoreId,
         string $termsVersion,
         DateTimeImmutable $termsAcceptedAt,
+        ?DateTimeImmutable $deletionScheduledFor = null,
     ): self {
         return new self(
             $id, $email, $passwordHash, $firstName, $lastName, $accountType, $status,
             $emailVerifiedAt, $phone, $phoneVerifiedAt, $language, $homeStoreId, $lastStoreId,
-            $termsVersion, $termsAcceptedAt,
+            $termsVersion, $termsAcceptedAt, $deletionScheduledFor,
         );
     }
 
@@ -141,26 +143,15 @@ final class Customer
     }
 
     /**
-     * Where they last shopped: after signing in, on any device, they land there (spec §1.1).
-     */
-    public function moveToStore(string $storeId): void
-    {
-        if ($this->lastStoreId === $storeId) {
-            return;
-        }
-
-        $this->lastStoreId = $storeId;
-        $this->markChanged('last_store_id');
-    }
-
-    /**
      * The person's part of handoff §7.4: Sales adds the company's part for a company account.
+     * Scheduling a deletion is step 6; the column is read here so this answer is never wrong.
      */
     public function mayOrder(): bool
     {
         return $this->status === CustomerStatus::Active
             && $this->emailVerifiedAt !== null
-            && $this->phoneVerifiedAt !== null;
+            && $this->phoneVerifiedAt !== null
+            && $this->deletionScheduledFor === null;
     }
 
     public function id(): string
@@ -236,6 +227,14 @@ final class Customer
     public function termsAcceptedAt(): DateTimeImmutable
     {
         return $this->termsAcceptedAt;
+    }
+
+    /**
+     * Set while a deletion is pending (spec §1.10, built in step 6): they cannot order meanwhile.
+     */
+    public function deletionScheduledFor(): ?DateTimeImmutable
+    {
+        return $this->deletionScheduledFor;
     }
 
     /**
