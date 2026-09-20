@@ -65,9 +65,9 @@ function listedCustomers(?string $search = null): array
 /**
  * @return array<string, StaffSummary> the staff the reader sees, by id
  */
-function listedStaff(): array
+function listedStaff(?string $search = null, ?string $status = null): array
 {
-    $page = app(ListStaffHandler::class)->handle(new ListStaff);
+    $page = app(ListStaffHandler::class)->handle(new ListStaff($search, $status));
     $byId = [];
 
     foreach ($page->staff as $summary) {
@@ -159,6 +159,24 @@ describe('the staff a staff member sees (amendments 9 and 43)', function () {
             ->and($seen[$colleague]->email)->not->toBeNull()
             ->and($seen[$colleague]->status)->toBe(StaffStatus::Active)
             ->and($seen[$colleague]->isAdmin)->toBeFalse();
+    });
+
+    it('answers no filter about what it hides: an admin is neither filtered by status nor found by email', function () {
+        $adminId = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa'], RoleLevel::Admin);
+        $disabled = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa'], RoleLevel::Staff);
+        DB::table('access.staff_users')->where('id', $disabled)->update(['status' => StaffStatus::Disabled->value]);
+        $adminEmail = (string) DB::table('access.staff_users')->where('id', $adminId)->value('email');
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']));
+
+        // Filtering by a status the reader cannot see for an admin would tell them it anyway, and
+        // a search that matched an admin's email would confirm the address (owner, 2026-09-21).
+        expect(array_keys(listedStaff(status: StaffStatus::Disabled->value)))->toContain($disabled)
+            // The admin comes back under every status, so their being there says nothing.
+            ->and(listedStaff(status: StaffStatus::Disabled->value))->toHaveKey($adminId)
+            ->and(listedStaff(status: StaffStatus::Active->value))->toHaveKey($adminId)
+            ->and(listedStaff(search: $adminEmail))->not->toHaveKey($adminId)
+            // The name is what the reader does see, so it still finds them.
+            ->and(listedStaff(search: 'Staff'))->toHaveKey($adminId);
     });
 
     it('never shows a Super Admin, and never counts one', function () {

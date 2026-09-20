@@ -127,6 +127,13 @@ final readonly class VerifyStaffSignInCodeHandler
         }
 
         if ($result instanceof InvalidCode) {
+            // An attempt that deadlocked after signing them in and then ran again may leave a
+            // session behind a refusal: the code is refused, so nobody is signed in (review of
+            // step 7).
+            if ($started) {
+                $this->sessions->end();
+            }
+
             throw $result;
         }
 

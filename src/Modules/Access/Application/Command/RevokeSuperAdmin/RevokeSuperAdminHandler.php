@@ -85,6 +85,6 @@ final readonly class RevokeSuperAdminHandler
             }
 
             $this->grants->refresh($staff->id());
-        });
+        }, 3);
     }
 }

@@ -113,6 +113,25 @@ function signInCodes(): int
 }
 
 describe('signing in (spec §1.8, §4.4)', function () {
+    it('leaves no session behind when the transaction that signed them in rolls back', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser('10.1.2.9');
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+
+        // The session is started inside the transaction, so the audit entry names them as the
+        // actor. Something failing after that must take the session with it (review of step 7).
+        // The table goes only for this test: its transaction puts it back.
+        DB::statement('DROP TABLE access.staff_trusted_browsers');
+
+        $browser->post('/admin/sign-in/code', [
+            'code' => RecordingSecurityMessages::installed()->lastCode(),
+            'trust_browser' => true,
+        ])->assertStatus(500);
+
+        expect(signInWho($browser))->toBeNull()
+            ->and(Fx::audits('access.staff_user.signed_in', $staffId))->toBe(0);
+    });
+
     it('asks the password, then an SMS code, then signs in with a new session id', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser('10.1.2.3');

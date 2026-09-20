@@ -606,7 +606,9 @@ store scope.
 
 **Three levels: Super Admin → admins → staff** (owner, 2026-09-19). A role is an admin role or a
 staff role. The management actions (inviting, editing and disabling staff, assigning roles,
-managing roles) go only into admin roles; staff manage no roles and no people. Only a Super Admin
+managing roles) go only into admin roles, and so do blocking and deleting a customer (owner,
+2026-09-20) and changing a setting (owner, 2026-09-21): staff manage no roles and no people, and
+change no setting. Only a Super Admin
 manages admins and admin roles; no admin manages another admin or themselves. An admin manages a
 staff member only when the admin covers **all** of that person's stores: a KSA-only admin manages
 KSA-only staff, and a KSA+UAE staff member needs a KSA+UAE admin (or larger) or a Super Admin.
@@ -649,8 +651,8 @@ and phone. The console can resend or cancel one, and revoking an invited Super A
 **Nobody works without a role** (owner, 2026-09-19, as settled 2026-09-20): there is no account
 without one. Revoking a Super Admin is a console action, so it closes the account outright —
 `CANCELLED`, no password, every session ended, the email and phone free at once — and someone who
-is to stay is invited again; deleting a role its holders still hold needs a replacement, or leaves
-them disabled. **Redirecting an account** — a new email or phone,
+is to stay is invited again; deleting a role its holders still hold needs a replacement, and
+without one the delete is refused. **Redirecting an account** — a new email or phone,
 a resent invitation — needs every action of the person's role, like giving them that role, so no
 admin can take over an account holding more than they do.
 

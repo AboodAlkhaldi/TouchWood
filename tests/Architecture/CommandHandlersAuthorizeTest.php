@@ -38,7 +38,7 @@ it('checks a permission in every query handler', function () {
     expect(count($handlers))->toBeGreaterThanOrEqual(8);
 
     foreach ($handlers as $handler) {
-        if (preg_match('/->(authorize|storesWith|requireRoleReader)\s*\(/', codeWithoutComments($handler)) !== 1) {
+        if (preg_match('/->authorize\s*\(|->authorizer->storesWith\s*\(|->rules->requireRoleReader\s*\(/', codeWithoutComments($handler)) !== 1) {
             $unprotected[] = str_replace('\\', '/', substr($handler, strlen($root) + 1));
         }
     }
