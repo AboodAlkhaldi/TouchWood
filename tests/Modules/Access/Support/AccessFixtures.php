@@ -15,6 +15,8 @@ use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
 use Modules\Access\Application\Command\ChangeStaffRole\PersonalRole;
 use Modules\Access\Application\Command\CreateRole\CreateRole;
 use Modules\Access\Application\Command\CreateRole\CreateRoleHandler;
+use Modules\Access\Application\Command\RegisterCustomer\RegisterCustomer;
+use Modules\Access\Application\Command\RegisterCustomer\RegisterCustomerHandler;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Enums\AccessLevel;
 use Modules\Access\Public\Enums\StaffStatus;
@@ -23,6 +25,7 @@ use Shared\Application\Actor;
 use Shared\Application\ActorContext;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
+use Shared\Application\StoreContext;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -35,6 +38,9 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final class AccessFixtures
 {
+    /** The password Fx::customer() registers with. */
+    public const string CUSTOMER_PASSWORD = 'a long enough password';
+
     /**
      * A staff row written directly, complete as an invitation leaves it (and, unless invited, as
      * accepting it leaves it: a password and a verified phone).
@@ -84,6 +90,15 @@ final class AccessFixtures
     }
 
     /**
+     * Dropped inside the test's transaction, so only the code can refuse a taken email or phone.
+     */
+    public static function withoutCustomerUniqueIndexes(): void
+    {
+        DB::statement('DROP INDEX access.customers_email_unique');
+        DB::statement('DROP INDEX access.customers_phone_unique');
+    }
+
+    /**
      * From now on in this test, $actor is the one acting. Forgets every scoped instance, not only
      * those that depend on the actor: they are rebuilt on next use.
      */
@@ -102,6 +117,42 @@ final class AccessFixtures
     public static function storeId(string $code): string
     {
         return (string) app(PlatformApi::class)->storeByCode($code)?->id;
+    }
+
+    /**
+     * Runs the work in a store, as every storefront request does.
+     *
+     * @template TResult
+     *
+     * @param  callable(): TResult  $work
+     * @return TResult
+     */
+    public static function inStoreCode(string $code, callable $work): mixed
+    {
+        return app(StoreContext::class)->runIn(StoreId::fromString(self::storeId($code)), $work);
+    }
+
+    /**
+     * A customer who registered in that store, as a visitor would: active, email unverified, no
+     * phone. The request acts as a guest while registering, and keeps that actor afterwards.
+     */
+    public static function customer(string $email = 'sara@example.test', string $storeCode = 'sa', string $accountType = 'individual'): string
+    {
+        return self::inStoreCode($storeCode, function () use ($email, $accountType): string {
+            self::actAs(Actor::guest(strtolower((string) Str::ulid())));
+
+            return app(RegisterCustomerHandler::class)->handle(
+                new RegisterCustomer($email, self::CUSTOMER_PASSWORD, 'Sara', 'Ali', $accountType, 'en', true),
+            );
+        });
+    }
+
+    /**
+     * The customer themselves, for their own account's use cases.
+     */
+    public static function actAsCustomer(string $customerId): void
+    {
+        self::actAs(Actor::customer($customerId));
     }
 
     public static function inStore(string $code): PermissionScope

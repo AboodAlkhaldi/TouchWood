@@ -117,8 +117,13 @@ final readonly class RoleAuthorizer implements Authorizer
         return match ($actor->type) {
             ActorType::System => true,
             ActorType::Guest => $definition->audience === PermissionAudience::EveryGuest,
-            // Customer accounts and their status arrive in step 4; until then no customer acts.
-            ActorType::Customer, ActorType::Integration, ActorType::Staff => false,
+            // Their own account only (spec §1.5): a customer holds no role. A blocked account never
+            // signs in, and a session open when it is blocked ends at once (spec §1.8). A link that
+            // proves itself works signed in too (amendment 38).
+            ActorType::Customer => $definition->audience === PermissionAudience::EveryCustomer
+                || in_array($definition->name, AccessPermissions::linkProved(), true),
+            // Integrations hold nothing until their keys are built; a staff actor has grants.
+            ActorType::Integration, ActorType::Staff => false,
         };
     }
 

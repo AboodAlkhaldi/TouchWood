@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
+use Modules\Access\Presentation\Http\Controller\CustomerAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffLinkController;
 use Modules\Access\Presentation\Http\Controller\StaffSignInController;
@@ -35,4 +36,17 @@ Route::prefix('admin')
             Route::post('sign-out', [StaffAccountController::class, 'signOut'])->name('access.staff.sign-out');
             Route::post('account/password', [StaffAccountController::class, 'changePassword'])->name('access.staff.password.change');
         });
+    });
+
+/*
+| The storefront flows a customer reaches from an email (spec §1.2): the verification link proves
+| itself, so it needs no session — "signed" checks its signature and its expiry, and the store and
+| language come from the URL, as every storefront page does.
+*/
+
+Route::prefix('{store}/{locale}')
+    ->middleware(['web', 'store', 'signed'])
+    ->group(function (): void {
+        Route::get('account/verify-email/{customer}', [CustomerAccountController::class, 'verifyEmail'])
+            ->name('storefront.account.verify-email');
     });

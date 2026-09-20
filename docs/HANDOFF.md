@@ -96,6 +96,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-19 | §5.3 | A failed database query is logged without its values, so no password hash or personal data reaches the log file | Access step 3b, owner decision |
 | 2026-09-19 | §7.5, §7.7 | Accepting an invitation signs in only a Super Admin at once; staff then sign in as always. A staff sign-in SMS has its own text warning that the password was just used. An IP address made to wait is audited, named by a keyed fingerprint (IP addresses are kept only for staff actions). The staff sign-in settings have fixed ranges; 3 reset emails an hour; 15 minutes for the code step | Access step 3b review, owner decision |
 | 2026-09-19 | §5.3 | In production the application refuses to start without a real mailer (`MAIL_MAILER` not `log`, `array` or unset), so no invitation or reset link is ever written to the log | Access step 3b review, owner decision |
+| 2026-09-20 | §17, §7.2, §7.7 | Access step 4 splits into customer accounts (4a) and customer sign-in with guests (4b) — nine steps. Customers: 10 wrong passwords from one IP address in 15 minutes make it wait (as for staff, a per-store setting that can be raised); the terms and privacy version is per store; a customer's own account events are audited (registration, verifications, phone and password changes, blocking, deletion), never their sign-ins or browsing | Access step 4 plan, owner decision |
 
 ---
 
@@ -1464,8 +1465,9 @@ STAGE 9   Migration, hardening, launch
 Platform precedes Access because store context is a parameter of nearly everything in
 Access — staff store scoping, per-store settings, per-store verification configuration.
 
-Access is built in **eight steps** (owner, 2026-09-19): the permission catalog; roles and the real
-permission check; staff accounts (3a); signing in (3b); customers; addresses; deletion, blocking
+Access is built in **nine steps** (owner, 2026-09-19; step 4 split 2026-09-20): the permission
+catalog; roles and the real permission check; staff accounts (3a); signing in (3b); customer
+accounts (4a); customer sign-in and guests (4b); addresses; deletion, blocking
 and staff views; its README and review. Its HTTP endpoints are those of the sign-in flows; staff
 and role management endpoints come with their screens in stage 2b.
 
