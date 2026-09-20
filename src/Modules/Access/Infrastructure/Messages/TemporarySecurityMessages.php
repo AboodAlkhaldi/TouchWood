@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Infrastructure\Messages;
 
+use DateTimeImmutable;
 use Illuminate\Contracts\Mail\Mailer;
 use Illuminate\Contracts\Translation\Translator;
 use Modules\Access\Application\Messages\SmsGateway;
@@ -26,6 +27,15 @@ final readonly class TemporarySecurityMessages implements SecurityMessages
     public function emailVerification(CustomerDto $customer, string $link): void
     {
         $this->mailer->to($customer->email)->send(new SecurityMail('email_verification', ['name' => $customer->firstName, 'link' => $link], $customer->locale));
+    }
+
+    public function customerDeletionScheduled(CustomerDto $customer, DateTimeImmutable $on): void
+    {
+        $this->mailer->to($customer->email)->send(new SecurityMail(
+            'customer_deletion_scheduled',
+            ['name' => $customer->firstName, 'date' => $on->format('Y-m-d')],
+            $customer->locale,
+        ));
     }
 
     public function staffInvitation(StaffDto $staff, string $link): void

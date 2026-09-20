@@ -6,6 +6,7 @@ namespace Modules\Access\Domain\Model;
 
 use DateTimeImmutable;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Domain\Exception\InvalidCustomerStatus;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
@@ -16,18 +17,24 @@ use Modules\Access\Public\Enums\CustomerStatus;
  * A customer account (Access spec §1.1, §1.2, §4.1): one account for every store.
  *
  * What never changes: the email (a customer who needs another one registers again), the account
- * type, and the home store. What only moves forward: a verified email is never unverified again,
- * and once a phone is verified the account always has one. Blocking stops signing in; it is not a
- * deletion, which is a separate column (step 6).
+ * type, and the home store — until the account is anonymized, when the email is replaced by a
+ * placeholder and the old address is free again (spec §1.10). What only moves forward: a verified
+ * email is never unverified again, and once a phone is verified the account always has one.
+ * Blocking stops signing in; it is a separate column from the deletion, so a blocked account's
+ * deletion still runs (spec §4.1).
  */
 final class Customer
 {
+    /** What an anonymized account is called wherever a name is still shown (handoff §7.9). */
+    public const string DELETED_NAME = 'Deleted customer';
+
     /** @var list<string> */
     private array $changed = [];
 
     private function __construct(
         private readonly string $id,
-        private readonly EmailAddress $email,
+        // Not readonly for one reason: anonymizing replaces it with a placeholder (spec §1.10).
+        private EmailAddress $email,
         private string $passwordHash,
         private string $firstName,
         private string $lastName,
@@ -42,6 +49,7 @@ final class Customer
         private readonly string $termsVersion,
         private readonly DateTimeImmutable $termsAcceptedAt,
         private ?DateTimeImmutable $deletionScheduledFor = null,
+        private ?DateTimeImmutable $anonymizedAt = null,
         private int $sessionVersion = 0,
     ) {}
 
@@ -87,6 +95,7 @@ final class Customer
         string $termsVersion,
         DateTimeImmutable $termsAcceptedAt,
         ?DateTimeImmutable $deletionScheduledFor = null,
+        ?DateTimeImmutable $anonymizedAt = null,
         int $sessionVersion = 0,
     ): self {
         if ($sessionVersion < 0) {
@@ -96,7 +105,7 @@ final class Customer
         return new self(
             $id, $email, $passwordHash, $firstName, $lastName, $accountType, $status,
             $emailVerifiedAt, $phone, $phoneVerifiedAt, $language, $homeStoreId, $lastStoreId,
-            $termsVersion, $termsAcceptedAt, $deletionScheduledFor, $sessionVersion,
+            $termsVersion, $termsAcceptedAt, $deletionScheduledFor, $anonymizedAt, $sessionVersion,
         );
     }
 
@@ -106,6 +115,7 @@ final class Customer
      */
     public function changePassword(string $passwordHash): void
     {
+        $this->refuseWhenAnonymized();
         $this->passwordHash = $passwordHash;
         $this->sessionVersion++;
         $this->markChanged('password');
@@ -175,14 +185,131 @@ final class Customer
 
     /**
      * The person's part of handoff §7.4: Sales adds the company's part for a company account.
-     * Scheduling a deletion is step 6; the column is read here so this answer is never wrong.
      */
     public function mayOrder(): bool
     {
         return $this->status === CustomerStatus::Active
             && $this->emailVerifiedAt !== null
             && $this->phoneVerifiedAt !== null
-            && $this->deletionScheduledFor === null;
+            && $this->deletionScheduledFor === null
+            && $this->anonymizedAt === null;
+    }
+
+    /**
+     * The customer asked for their account to be deleted (spec §1.10): it is locked for ordering
+     * at once, and anonymized on that date unless they sign in first.
+     *
+     * **Every session of theirs ends now** (owner, 2026-09-20; amendment 45): they are signed out
+     * of every device the moment they confirm, so nothing of the account can be used while it waits
+     * — and signing in again, which is what undoes a deletion, is the only way back in.
+     */
+    public function scheduleDeletion(DateTimeImmutable $on): void
+    {
+        $this->refuseWhenAnonymized();
+
+        if ($this->deletionScheduledFor !== null) {
+            return;
+        }
+
+        $this->deletionScheduledFor = $on;
+        $this->sessionVersion++;
+        $this->markChanged('deletion_scheduled_for');
+    }
+
+    /**
+     * They signed in, or asked for it to stop (spec §1.10, amendment 43).
+     */
+    public function cancelDeletion(): void
+    {
+        $this->refuseWhenAnonymized();
+
+        if ($this->deletionScheduledFor === null) {
+            return;
+        }
+
+        $this->deletionScheduledFor = null;
+        $this->markChanged('deletion_scheduled_for');
+    }
+
+    /**
+     * Staff block an account (spec §1.1, §3.3): every session of theirs ends on its next request,
+     * and only the right password is told that the account is blocked (spec §1.8).
+     *
+     * @throws InvalidCustomerStatus when it is already blocked
+     */
+    public function block(): void
+    {
+        $this->refuseWhenAnonymized();
+
+        if ($this->status === CustomerStatus::Blocked) {
+            throw new InvalidCustomerStatus('blocked', 'already blocked');
+        }
+
+        $this->status = CustomerStatus::Blocked;
+        $this->markChanged('status');
+    }
+
+    /**
+     * @throws InvalidCustomerStatus when it is not blocked
+     */
+    public function unblock(): void
+    {
+        $this->refuseWhenAnonymized();
+
+        if ($this->status === CustomerStatus::Active) {
+            throw new InvalidCustomerStatus('unblocked', 'not blocked');
+        }
+
+        $this->status = CustomerStatus::Active;
+        $this->markChanged('status');
+    }
+
+    /**
+     * The deletion runs (spec §1.10, amendment 43): nothing that names a person is left, the
+     * account can never sign in again, and its old email is free for a new account. The id, the
+     * account type, the home store and the dates stay, so counts and other modules' keys hold.
+     *
+     * @param  EmailAddress  $email  the placeholder that takes the old address's place
+     * @param  string  $passwordHash  a value no password can match
+     *
+     * @throws InvalidCustomerStatus when it was anonymized already
+     */
+    public function anonymize(EmailAddress $email, string $passwordHash, DateTimeImmutable $at): void
+    {
+        $this->refuseWhenAnonymized();
+
+        $this->email = $email;
+        $this->passwordHash = $passwordHash;
+        $this->firstName = self::DELETED_NAME;
+        $this->lastName = self::DELETED_NAME;
+        $this->emailVerifiedAt = null;
+        $this->phone = null;
+        $this->phoneVerifiedAt = null;
+        $this->deletionScheduledFor = null;
+        $this->anonymizedAt = $at;
+        // Every session of theirs ends at its next request, whatever it holds.
+        $this->sessionVersion++;
+        $this->markChanged('anonymized');
+    }
+
+    public function isAnonymized(): bool
+    {
+        return $this->anonymizedAt !== null;
+    }
+
+    public function anonymizedAt(): ?DateTimeImmutable
+    {
+        return $this->anonymizedAt;
+    }
+
+    /**
+     * @throws InvalidCustomerStatus
+     */
+    private function refuseWhenAnonymized(): void
+    {
+        if ($this->anonymizedAt !== null) {
+            throw new InvalidCustomerStatus('changed', 'the account was deleted');
+        }
     }
 
     public function id(): string
@@ -261,7 +388,7 @@ final class Customer
     }
 
     /**
-     * Set while a deletion is pending (spec §1.10, built in step 6): they cannot order meanwhile.
+     * Set while a deletion is pending (spec §1.10): they cannot order meanwhile.
      */
     public function deletionScheduledFor(): ?DateTimeImmutable
     {

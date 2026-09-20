@@ -20,6 +20,8 @@ use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdmin;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdminHandler;
 use Modules\Access\Application\Command\EnableStaff\EnableStaff;
 use Modules\Access\Application\Command\EnableStaff\EnableStaffHandler;
+use Modules\Access\Application\Command\InviteStaff\InviteStaff;
+use Modules\Access\Application\Command\InviteStaff\InviteStaffHandler;
 use Modules\Access\Application\Command\ResendSuperAdminInvitation\ResendSuperAdminInvitation;
 use Modules\Access\Application\Command\ResendSuperAdminInvitation\ResendSuperAdminInvitationHandler;
 use Modules\Access\Application\Command\ResetSuperAdminPhone\ResetSuperAdminPhone;
@@ -28,8 +30,10 @@ use Modules\Access\Application\Command\RevokeSuperAdmin\RevokeSuperAdmin;
 use Modules\Access\Application\Command\RevokeSuperAdmin\RevokeSuperAdminHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\LastSuperAdmin;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
+use Modules\Access\Public\Enums\AccessLevel;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Access\Public\Events\StaffActivated;
 use Modules\Access\Public\Events\StaffDisabled;
@@ -166,20 +170,44 @@ it('runs only from the console: never for a Super Admin in the panel, nor a job 
 ]);
 
 describe('revoking a Super Admin', function () {
-    it('disables the account, which has no role, and it holds nothing from that moment', function () {
+    it('closes the account and frees its email at once (amendment 45)', function () {
         Event::fake([StaffDisabled::class]);
         Fx::staff(superAdmin: true);
         $revoked = Fx::staff(superAdmin: true);
+        $email = emailOf($revoked);
         Fx::warmCache($revoked);
 
-        app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin(emailOf($revoked)));
+        app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin($email));
 
         Fx::actAsStaff($revoked);
-        expect(staffByEmail(emailOf($revoked))['is_super_admin'])->toBeFalse()
-            ->and(staffByEmail(emailOf($revoked))['status'])->toBe('DISABLED')
+        expect(staffByEmail($email)['is_super_admin'])->toBeFalse()
+            // Revoking is done from the console, so the title and the account go together: nobody
+            // is left without a role (owner, 2026-09-20).
+            ->and(staffByEmail($email)['status'])->toBe('CANCELLED')
+            ->and(staffByEmail($email)['password'])->toBeNull()
             ->and(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeFalse()
             ->and(Fx::audits('access.staff_user.super_admin_revoked', $revoked))->toBe(1);
         Event::assertDispatched(StaffDisabled::class);
+    });
+
+    it('frees the email for a fresh invitation', function () {
+        Fx::staff(superAdmin: true);
+        $revoked = Fx::staff(superAdmin: true);
+        $email = emailOf($revoked);
+        app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin($email));
+
+        // The same person may be invited again, as a new account — the way back is an invitation,
+        // not an "enable" (owner, 2026-09-20).
+        Fx::actAsAdmin(['sa'], [AccessPermissions::STAFF_INVITE, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE]);
+
+        $invited = app(InviteStaffHandler::class)->handle(new InviteStaff(
+            $email, 'Noura', 'Saleh', 'Store keeper', '1995-03-10', 'SA', null, '+966501111111', 'en',
+            AccessLevel::SelectedStores, [Fx::storeId('sa')],
+            savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE]),
+        ));
+
+        expect($invited)->not->toBe($revoked)
+            ->and(DB::table('access.staff_users')->where('id', $invited)->value('status'))->toBe('INVITED');
     });
 
     it('cancels and frees a Super Admin who never accepted (amendment 30)', function () {
@@ -195,17 +223,15 @@ describe('revoking a Super Admin', function () {
             ->and(Fx::audits('access.staff_user.cancelled', $invited))->toBe(1);
     });
 
-    it('lets any admin bring a former Super Admin back, together with a role', function () {
+    it('cannot be brought back by enabling the closed account', function () {
         Fx::staff(superAdmin: true);
         $revoked = Fx::staff(superAdmin: true);
         app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin(emailOf($revoked)));
         Fx::actAsAdmin(['sa'], [AccessPermissions::STAFF_DISABLE, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE]);
 
-        expect(fn () => app(EnableStaffHandler::class)->handle(new EnableStaff($revoked)))->toThrow(InvalidAccessAttribute::class);
-
-        app(EnableStaffHandler::class)->handle(new EnableStaff($revoked, Fx::change($revoked, ['sa'], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE]))));
-
-        expect(staffByEmail(emailOf($revoked))['status'])->toBe('ACTIVE');
+        // The account is closed, not disabled: the way back is a fresh invitation (amendment 45).
+        expect(fn () => app(EnableStaffHandler::class)->handle(new EnableStaff($revoked, Fx::change($revoked, ['sa'], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE])))))
+            ->toThrow(InvalidStaffStatus::class);
     });
 
     it('never revokes the last active Super Admin; an invited or disabled one does not count', function () {

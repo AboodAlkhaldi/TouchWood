@@ -13,6 +13,14 @@ return [
         ],
         'action' => 'Confirm my email',
     ],
+    'customer_deletion_scheduled' => [
+        'subject' => 'Your account will be deleted',
+        'lines' => [
+            'Hello :name,',
+            'We received a request to delete your account. It will be deleted on :date.',
+            'If you did not ask for this, or you changed your mind, sign in before that date and the deletion stops.',
+        ],
+    ],
     'staff_invitation' => [
         'subject' => 'Your invitation to the admin panel',
         'lines' => [

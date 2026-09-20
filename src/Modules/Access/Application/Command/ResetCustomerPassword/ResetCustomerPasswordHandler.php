@@ -62,7 +62,7 @@ final readonly class ResetCustomerPasswordHandler
 
             $customer = $this->customers->byId($reset->customerId);
 
-            if ($customer === null || $customer->status() !== CustomerStatus::Active) {
+            if ($customer === null || $customer->isAnonymized() || $customer->status() !== CustomerStatus::Active) {
                 throw new InvalidOrExpiredLink;
             }
 

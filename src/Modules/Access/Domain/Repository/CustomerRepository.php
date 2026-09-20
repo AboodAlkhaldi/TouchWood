@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Domain\Repository;
 
+use DateTimeImmutable;
 use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Model\Customer;
@@ -28,6 +29,14 @@ interface CustomerRepository
      * The customer with this email, ignoring case. Locks the row.
      */
     public function byEmail(EmailAddress $email): ?Customer;
+
+    /**
+     * The accounts whose deletion date has passed and which are not anonymized yet (spec §1.10),
+     * oldest first: ids only, since each is then read again under its own lock.
+     *
+     * @return list<string>
+     */
+    public function dueForAnonymizing(DateTimeImmutable $now, int $limit): array;
 
     /**
      * Whether a customer account already has this email, ignoring case (spec §1.2).

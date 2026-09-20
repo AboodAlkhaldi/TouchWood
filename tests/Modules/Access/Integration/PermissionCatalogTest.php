@@ -75,6 +75,9 @@ it('keeps the management actions out of staff roles, and viewing staff in them',
         AccessPermissions::STAFF_ASSIGN_ROLE,
         AccessPermissions::STAFF_DISABLE,
         AccessPermissions::ROLE_MANAGE,
+        // Blocking and deleting a customer reach a person's account (amendment 43).
+        AccessPermissions::CUSTOMER_BLOCK,
+        AccessPermissions::CUSTOMER_DELETE,
     ]);
     expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::STAFF_VIEW);
 });
