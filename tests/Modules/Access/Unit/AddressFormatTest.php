@@ -90,6 +90,60 @@ describe('a store\'s address format (spec §1.9)', function () {
         expect(addressFormat('{street}')->render(['street' => '{city} <b>x</b>']))->toBe('{city} <b>x</b>');
     });
 
+    it('refuses a value that is not text on one line', function (string $value, string $reason) {
+        expect(fn () => addressFormat()->accept(addressValues(['district' => $value])))
+            ->toThrow(InvalidAddress::class, $reason);
+    })->with([
+        'a newline in the middle' => ["Al Olaya\nATTENTION: return to sender", 'one line'],
+        'a NUL byte' => ["Al\0Olaya", 'one line'],
+        'bytes that are not UTF-8' => ["Al Olaya\xC3", 'text'],
+    ]);
+
+    it('keeps a value pasted with a newline at its end', function () {
+        expect(addressFormat()->accept(addressValues(['district' => "Al Olaya\n"])))
+            ->toBe(['street' => 'King Fahd Road', 'city' => 'Riyadh', 'district' => 'Al Olaya']);
+    });
+
+    it('refuses more than one address can hold, however long its fields may be', function () {
+        // A form whose fields are each long enough to pass on their own.
+        $fields = $values = [];
+
+        foreach (range(1, 10) as $number) {
+            $fields[] = AddressField::of("field_{$number}", 'حقل', 'Field', false, 1000, $number);
+            $values["field_{$number}"] = str_repeat('a', 1000);
+        }
+
+        expect(fn () => StoreAddressFormat::of('store-sa', $fields, '{field_1}')->accept($values))
+            ->toThrow(InvalidAddress::class, 'fields');
+    });
+
+    it('refuses a form with more fields than a person would fill in', function () {
+        $fields = [];
+
+        foreach (range(1, 61) as $number) {
+            $fields[] = AddressField::of("field_{$number}", 'حقل', 'Field', false, 10, $number);
+        }
+
+        expect(fn () => StoreAddressFormat::of('store-sa', $fields, '{field_1}'))->toThrow(InvalidAddress::class, 'fields');
+    });
+
+    it('is no longer satisfied when a field it kept is shortened or dropped', function () {
+        $values = addressValues(['postal_code' => '12345']);
+        $shorter = StoreAddressFormat::of('store-sa', [
+            AddressField::of('city', 'المدينة', 'City', true, 100, 0),
+            AddressField::of('street', 'الشارع', 'Street', true, 200, 1),
+            AddressField::of('postal_code', 'الرمز البريدي', 'Postal code', false, 3, 2),
+        ], '{city}');
+        $without = StoreAddressFormat::of('store-sa', [
+            AddressField::of('city', 'المدينة', 'City', true, 100, 0),
+            AddressField::of('street', 'الشارع', 'Street', true, 200, 1),
+        ], '{city}');
+
+        expect(addressFormat()->satisfiedBy($values))->toBeTrue()
+            ->and($shorter->satisfiedBy($values))->toBeFalse()
+            ->and($without->satisfiedBy($values))->toBeFalse();
+    });
+
     it('refuses a template naming a field it does not have', function () {
         expect(fn () => addressFormat('{city} {country}'))->toThrow(InvalidAddress::class, 'display_template');
     });
@@ -123,7 +177,7 @@ describe('a store\'s address format (spec §1.9)', function () {
             ->and($format->field('street')?->maxLength)->toBe(200)
             ->and($format->field('country'))->toBeNull()
             ->and($format->render(['city' => 'Riyadh', 'street' => 'King Fahd Road', 'building' => '7', 'district' => 'Al Olaya', 'administrative_area' => 'Riyadh']))
-            ->toBe("7 King Fahd Road\nAl Olaya\nRiyadh");
+            ->toBe("7 King Fahd Road\nAl Olaya\nRiyadh\nRiyadh");
     });
 });
 
@@ -137,6 +191,12 @@ describe('a map pin (spec §1.9)', function () {
     it('refuses coordinates off the globe', function () {
         expect(fn () => MapPin::of(91.0, 0.0))->toThrow(InvalidAccessAttribute::class, 'latitude')
             ->and(fn () => MapPin::of(0.0, 181.0))->toThrow(InvalidAccessAttribute::class, 'longitude');
+    });
+
+    it('refuses a coordinate that is not a number at all', function () {
+        // Every comparison with NAN is false, so a range check alone lets it through.
+        expect(fn () => MapPin::of(NAN, 0.0))->toThrow(InvalidAccessAttribute::class, 'latitude')
+            ->and(fn () => MapPin::of(0.0, INF))->toThrow(InvalidAccessAttribute::class, 'longitude');
     });
 
     it('keeps six decimals, as the column does', function () {

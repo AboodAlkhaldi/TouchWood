@@ -22,11 +22,13 @@ final readonly class MapPin
      */
     public static function of(float $latitude, float $longitude): self
     {
-        if ($latitude < -90.0 || $latitude > 90.0) {
+        // Every comparison with NAN is false, so it would pass a range check unasked (review of
+        // step 5); the column keeps it, and the CHECK then refuses the row.
+        if (! is_finite($latitude) || $latitude < -90.0 || $latitude > 90.0) {
             throw new InvalidAccessAttribute('latitude', 'between -90 and 90');
         }
 
-        if ($longitude < -180.0 || $longitude > 180.0) {
+        if (! is_finite($longitude) || $longitude < -180.0 || $longitude > 180.0) {
             throw new InvalidAccessAttribute('longitude', 'between -180 and 180');
         }
 

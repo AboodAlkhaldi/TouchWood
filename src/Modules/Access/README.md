@@ -405,11 +405,17 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   on Platform's `StoreCreated`), so addresses work before the staff screen exists.
 - **The form decides what a value may be**: a required field must be there, each has its own
   maximum length, and a key the form does not define is refused — a mistyped key would otherwise
-  store what no screen and no shipping label can show.
+  store what no screen and no shipping label can show. Every value is **text on one line**: a
+  newline inside one would add a line to a shipping label (amendment 42). A form holds at most 60
+  fields, an address 4,000 characters in all.
 - **The template is text**: `{field}` is replaced by its value, a placeholder with nothing in it
   disappears, and a line left with nothing on it is dropped. Nothing in it is executed.
-- **A form changed later leaves saved addresses alone**, but one that no longer satisfies it comes
-  back with `isComplete` false, and Sales may not ship to it until the customer completes it.
+- **A form changed later leaves saved addresses alone**, but one that no longer satisfies it — a
+  field asked for, shortened or dropped — comes back with `isComplete` false, and Sales may not ship
+  to it until the customer completes it.
+- **One customer's addresses change one at a time**: each of the three handlers holds that
+  customer's own row for its transaction, so two tabs cannot both take a store's default or both
+  count the last address allowed.
 - **One default per store**, enforced by a partial unique index and by the handlers, which clear
   the others first. The first address in a store becomes its default; deleting the default moves the
   flag to the newest address left.

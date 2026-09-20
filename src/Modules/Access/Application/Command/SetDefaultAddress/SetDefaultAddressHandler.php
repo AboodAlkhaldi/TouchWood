@@ -9,7 +9,9 @@ use Modules\Access\Application\Audit\AddressAudit;
 use Modules\Access\Application\Customer\CurrentCustomer;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Exception\AddressNotFound;
+use Modules\Access\Domain\Exception\CustomerNotFound;
 use Modules\Access\Domain\Repository\AddressRepository;
+use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -27,6 +29,7 @@ final readonly class SetDefaultAddressHandler
     public function __construct(
         private Authorizer $authorizer,
         private CurrentCustomer $current,
+        private CustomerRepository $customers,
         private AddressRepository $addresses,
         private PlatformApi $platform,
         private Connection $db,
@@ -37,9 +40,12 @@ final readonly class SetDefaultAddressHandler
      */
     public function handle(SetDefaultAddress $command): void
     {
-        $customerId = $this->current->id();
+        $customerId = $this->current->id(self::PERMISSION);
 
         $this->db->transaction(function () use ($command, $customerId): void {
+            // Their own row, held for this transaction: two tabs choosing different defaults would
+            // otherwise leave the store with two (review of step 5).
+            $this->customers->byId($customerId) ?? throw new CustomerNotFound($customerId);
             $address = $this->addresses->byId($command->addressId);
 
             if ($address === null || ! $address->belongsTo($customerId)) {

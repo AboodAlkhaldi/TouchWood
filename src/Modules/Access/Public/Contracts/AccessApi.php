@@ -31,6 +31,11 @@ interface AccessApi
      */
     public function staffNotificationPreferences(string $staffId): array;
 
+    /**
+     * One address by its id, whoever it belongs to: this read is not scoped to a customer, so a
+     * caller that took the id from a request must compare `customerId` before showing or shipping
+     * to it (review of step 5).
+     */
     public function address(string $addressId): ?AddressDto;
 
     /**

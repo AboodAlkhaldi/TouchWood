@@ -130,16 +130,6 @@ final class Address
         $this->markChanged('is_default');
     }
 
-    public function giveUpDefault(): void
-    {
-        if (! $this->isDefault) {
-            return;
-        }
-
-        $this->isDefault = false;
-        $this->markChanged('is_default');
-    }
-
     public function id(): string
     {
         return $this->id;
@@ -213,6 +203,9 @@ final class Address
 
         return match (true) {
             $text === '' => throw new InvalidAddress($attribute, 'required'),
+            preg_match('//u', $text) !== 1 => throw new InvalidAddress($attribute, 'text'),
+            // One line, like every value of an address: a label prints what it is given.
+            preg_match('/\p{Cc}/u', $text) === 1 => throw new InvalidAddress($attribute, 'on one line, without control characters'),
             mb_strlen($text) > $max => throw new InvalidAddress($attribute, "at most {$max} characters"),
             default => $text,
         };

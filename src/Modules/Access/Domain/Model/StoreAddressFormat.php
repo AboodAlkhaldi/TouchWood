@@ -19,6 +19,12 @@ final readonly class StoreAddressFormat
 {
     private const int TEMPLATE_MAX = 2000;
 
+    /** A country's form, however detailed, is a form a person fills in (review of step 5). */
+    private const int FIELDS_MAX = 60;
+
+    /** Everything one address holds, so a form of long fields cannot fill the table. */
+    private const int VALUES_MAX = 4000;
+
     /**
      * @param  list<AddressField>  $fields  in the order they are asked for
      */
@@ -37,6 +43,10 @@ final readonly class StoreAddressFormat
     {
         if ($fields === []) {
             throw new InvalidAddress('fields', 'a format has at least one field');
+        }
+
+        if (count($fields) > self::FIELDS_MAX) {
+            throw new InvalidAddress('fields', 'at most '.self::FIELDS_MAX.' fields');
         }
 
         $keys = array_map(static fn (AddressField $field): string => $field->key, $fields);
@@ -71,15 +81,17 @@ final readonly class StoreAddressFormat
     public function accept(array $values): array
     {
         $kept = [];
+        $size = 0;
 
         foreach ($values as $key => $value) {
             $field = $this->field($key);
 
             if ($field === null) {
-                throw new InvalidAddress($key, 'not a field of this store\'s address format');
+                // Never the key itself in the error: it came from the caller (review of step 5).
+                throw new InvalidAddress(self::safeKey($key), 'not a field of this store\'s address format');
             }
 
-            $trimmed = trim($value);
+            $trimmed = self::text($key, $value);
 
             if ($trimmed === '') {
                 continue;
@@ -87,6 +99,12 @@ final readonly class StoreAddressFormat
 
             if (mb_strlen($trimmed) > $field->maxLength) {
                 throw new InvalidAddress($key, "at most {$field->maxLength} characters");
+            }
+
+            $size += mb_strlen($trimmed);
+
+            if ($size > self::VALUES_MAX) {
+                throw new InvalidAddress('fields', 'at most '.self::VALUES_MAX.' characters in all');
             }
 
             $kept[$key] = $trimmed;
@@ -128,14 +146,27 @@ final readonly class StoreAddressFormat
     }
 
     /**
-     * Whether values already stored still satisfy this format — a store may have added a required
-     * field since (amendment 41). An address that does not may not be used for an order.
+     * Whether values already stored still satisfy this format — a store may have asked for a new
+     * field since, shortened one, or dropped one (amendment 41). An address that does not satisfy
+     * it may not be used for an order until the customer saves it again.
      *
      * @param  array<string, string>  $values
      */
     public function satisfiedBy(array $values): bool
     {
-        return $this->missing($values) === [];
+        if ($this->missing($values) !== []) {
+            return false;
+        }
+
+        foreach ($values as $key => $value) {
+            $field = $this->field($key);
+
+            if ($field === null || mb_strlen(trim($value)) > $field->maxLength) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -201,6 +232,38 @@ final readonly class StoreAddressFormat
         }
 
         return $missing;
+    }
+
+    /**
+     * One value, as it may be stored: real text, on one line. A byte that is not UTF-8 would break
+     * both the column and every reader of it; a newline or a control character would add a line to
+     * a shipping label nobody wrote (review of step 5).
+     *
+     * @throws InvalidAddress
+     */
+    private static function text(string $key, string $value): string
+    {
+        if (preg_match('//u', $value) !== 1) {
+            throw new InvalidAddress($key, 'text');
+        }
+
+        // Trimmed first: a line pasted from elsewhere often ends in a newline, which is not the
+        // customer's mistake. Anything left is a control character in the middle of the value.
+        $trimmed = trim($value);
+
+        if (preg_match('/\p{Cc}/u', $trimmed) === 1) {
+            throw new InvalidAddress($key, 'on one line, without control characters');
+        }
+
+        return $trimmed;
+    }
+
+    /**
+     * A key to put in an error: the caller's own, when it looks like a key at all.
+     */
+    private static function safeKey(string $key): string
+    {
+        return preg_match('/\A[a-z][a-z0-9_]{1,39}\z/', $key) === 1 ? $key : 'field';
     }
 
     /**

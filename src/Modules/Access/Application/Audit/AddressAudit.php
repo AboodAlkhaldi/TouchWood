@@ -51,6 +51,8 @@ final class AddressAudit
     {
         return self::entry('access.customer.address_deleted', $address, AuditChanges::none()
             ->personal('label')
+            ->personal('recipient_name')
+            ->personal('phone')
             ->personal('fields')
             ->changed('is_default', $address->isDefault(), null));
     }

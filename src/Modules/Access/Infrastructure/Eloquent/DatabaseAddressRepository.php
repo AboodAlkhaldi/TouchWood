@@ -93,8 +93,8 @@ final readonly class DatabaseAddressRepository implements AddressRepository
 
         $this->db->table(self::TABLE)->insert([
             'id' => $address->id(),
-            'customer_id' => $address->customerId(),
-            'store_id' => $address->storeId(),
+            'customer_id' => strtolower($address->customerId()),
+            'store_id' => strtolower($address->storeId()),
             ...$this->attributes($address),
             'created_at' => $now,
             'updated_at' => $now,
@@ -133,7 +133,9 @@ final readonly class DatabaseAddressRepository implements AddressRepository
             'label' => $address->label(),
             'recipient_name' => $address->recipientName(),
             'phone' => $address->phone()->value,
-            'fields' => json_encode($address->fields(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            // As an object, always: a format whose fields are all optional may leave none, and the
+            // column refuses a JSON array (review of step 5).
+            'fields' => json_encode((object) $address->fields(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             'latitude' => $address->pin()?->latitude,
             'longitude' => $address->pin()?->longitude,
             'is_default' => $address->isDefault(),
@@ -151,7 +153,8 @@ final readonly class DatabaseAddressRepository implements AddressRepository
             (string) $row->label,
             (string) $row->recipient_name,
             PhoneNumber::of((string) $row->phone),
-            is_array($fields) ? array_map(strval(...), $fields) : [],
+            // Only the values this module writes: a row edited by hand cannot make a read throw.
+            is_array($fields) ? array_filter($fields, is_string(...)) : [],
             MapPin::optional(
                 $row->latitude === null ? null : (float) $row->latitude,
                 $row->longitude === null ? null : (float) $row->longitude,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Infrastructure\Listener;
 
+use Illuminate\Database\Connection;
 use Modules\Access\Application\Address\StartingAddressFormat;
 use Modules\Access\Domain\Repository\StoreAddressFormatRepository;
 use Modules\Platform\Public\Events\StoreCreated;
@@ -17,6 +18,7 @@ final readonly class WriteStartingAddressFormat
 {
     public function __construct(
         private StoreAddressFormatRepository $formats,
+        private Connection $db,
     ) {}
 
     public function handle(StoreCreated $event): void
@@ -25,6 +27,8 @@ final readonly class WriteStartingAddressFormat
             return;
         }
 
-        $this->formats->save(StartingAddressFormat::forStore($event->storeId));
+        // In one transaction, as every write of a format is: the row and the cache's new version
+        // then take effect together (review of step 5).
+        $this->db->transaction(fn () => $this->formats->save(StartingAddressFormat::forStore($event->storeId)), 3);
     }
 }
