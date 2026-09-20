@@ -17,16 +17,17 @@ use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddressHandle
 use Modules\Access\Application\Command\UpdateStoreAddressFormat\UpdateStoreAddressFormat;
 use Modules\Access\Application\Command\UpdateStoreAddressFormat\UpdateStoreAddressFormatHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\AddressFormatMissing;
 use Modules\Access\Domain\Exception\AddressNotFound;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidAddress;
 use Modules\Access\Domain\Exception\TooManyAddresses;
 use Modules\Access\Public\Contracts\AccessApi;
-use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Public\Events\StoreCreated;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
 use function Pest\Laravel\seed;
@@ -216,6 +217,58 @@ describe('a customer\'s addresses (spec §1.9)', function () {
 
         expect(fn () => saveAddress())->toThrow(Unauthorized::class);
     });
+
+    it('keeps one default even when the index that backs it is gone', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+        $first = saveAddress(['label' => 'Home']);
+        $second = saveAddress(['label' => 'Work']);
+
+        // Without the index the code alone must hold the rule (CLAUDE.md); the test's transaction
+        // puts the index back.
+        DB::statement('DROP INDEX access.addresses_one_default_per_store');
+        app(SetDefaultAddressHandler::class)->handle(new SetDefaultAddress($second));
+
+        expect(DB::table('access.addresses')->where('customer_id', $customerId)->where('is_default', true)->count())->toBe(1)
+            ->and(addressRow($first)?->is_default)->toBeFalse();
+    });
+
+    it('stores an empty object when a store asks for nothing in particular', function () {
+        $customerId = Fx::customer();
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::ADDRESS_FORMAT_UPDATE], ['sa']));
+        app(UpdateStoreAddressFormatHandler::class)->handle(new UpdateStoreAddressFormat(
+            Fx::storeId('sa'),
+            [['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => false, 'max_length' => 100, 'order' => 0]],
+            '{city}',
+        ));
+
+        Fx::actAsCustomer($customerId);
+        $addressId = saveAddress(['fields' => []]);
+
+        // A JSON array would break the column's CHECK: the code must never send one.
+        expect(addressRow($addressId)?->fields)->toBe('{}')
+            ->and(app(AccessApi::class)->address($addressId)?->fields)->toBe([]);
+    });
+
+    it('refuses a value that would add a line to a shipping label', function () {
+        Fx::actAsCustomer(Fx::customer());
+
+        expect(fn () => saveAddress(['fields' => addressBookFields(['street' => "King Fahd Road\nRETURN TO SENDER"])]))
+            ->toThrow(InvalidAddress::class, 'one line')
+            ->and(fn () => saveAddress(['recipientName' => "Sara\nAli"]))->toThrow(InvalidAddress::class, 'one line');
+    });
+
+    it('honours the store\'s own limit', function () {
+        $customerId = Fx::customer();
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::SETTINGS_UPDATE], ['sa']));
+        app(UpdateSettingHandler::class)->handle(new UpdateSetting(CustomerSecuritySettings::ADDRESSES_PER_STORE, 'sa', 2));
+
+        Fx::actAsCustomer($customerId);
+        saveAddress(['label' => 'Home']);
+        saveAddress(['label' => 'Work']);
+
+        expect(fn () => saveAddress(['label' => 'One too many']))->toThrow(TooManyAddresses::class);
+    });
 });
 
 describe('the addresses other modules read (spec §2.1)', function () {
@@ -233,7 +286,7 @@ describe('the addresses other modules read (spec §2.1)', function () {
             ->and($addresses[0]->isDefault)->toBeTrue()
             ->and($addresses[0]->isComplete)->toBeTrue()
             ->and($addresses[0]->latitude)->toBe(24.713612)
-            ->and($addresses[0]->formatted)->toBe("7 King Fahd Road\nAl Olaya\nRiyadh")
+            ->and($addresses[0]->formatted)->toBe("7 King Fahd Road\nAl Olaya\nRiyadh\nRiyadh")
             ->and($addresses[1]->isDefault)->toBeFalse();
     });
 
@@ -253,6 +306,20 @@ describe('the addresses other modules read (spec §2.1)', function () {
         expect($address?->isComplete)->toBeFalse()
             ->and($address?->fields)->toBe(addressBookFields())
             ->and($address?->formatted)->toBe('King Fahd Road');
+    });
+
+    it('keeps a second country\'s address for the next order there', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+        saveAddress(['label' => 'Home']);
+        $abroad = saveAddress(['storeId' => Fx::storeId('ae'), 'label' => 'Dubai', 'fields' => addressBookFields(['city' => 'Dubai'])]);
+
+        $there = app(AccessApi::class)->addresses($customerId, Fx::storeId('ae'));
+
+        expect($there)->toHaveCount(1)
+            ->and($there[0]->id)->toBe($abroad)
+            ->and($there[0]->isDefault)->toBeTrue()
+            ->and($there[0]->fields['city'] ?? null)->toBe('Dubai');
     });
 
     it('answers an unknown id with nothing', function () {
@@ -294,7 +361,6 @@ describe('a store\'s address format (spec §3.3)', function () {
 
     it('changes only its own store, and takes effect at once', function () {
         $customerId = Fx::customer();
-        Fx::actAsCustomer($customerId);
         Fx::actAsStaff(Fx::staffWith([AccessPermissions::ADDRESS_FORMAT_UPDATE], ['sa']));
 
         app(UpdateStoreAddressFormatHandler::class)->handle(new UpdateStoreAddressFormat(
@@ -341,16 +407,21 @@ describe('a store\'s address format (spec §3.3)', function () {
 
     it('reads a warm format from the cache, not the table', function () {
         $storeId = Fx::storeId('sa');
-        Fx::actAsCustomer(Fx::customer());
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
         saveAddress();
+        // Warm: this reads the format and caches it.
+        app(AccessApi::class)->addresses($customerId, $storeId);
 
         DB::flushQueryLog();
         DB::enableQueryLog();
-        app(PlatformApi::class)->store(StoreId::fromString($storeId));
-        $before = count(DB::getQueryLog());
-        app(AccessApi::class)->addresses(Fx::customer('warm@example.test'), $storeId);
-        $queries = array_column(array_slice(DB::getQueryLog(), $before), 'query');
+        $addresses = app(AccessApi::class)->addresses($customerId, $storeId);
+        $queries = array_column(DB::getQueryLog(), 'query');
         DB::disableQueryLog();
+
+        expect($addresses)->toHaveCount(1)
+            ->and($addresses[0]->formatted)->not->toBeEmpty()
+            ->and($queries)->not->toBeEmpty();
 
         foreach ($queries as $query) {
             expect($query)->not->toContain('store_address_formats');

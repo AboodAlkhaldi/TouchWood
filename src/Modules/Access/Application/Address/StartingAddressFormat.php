@@ -8,9 +8,9 @@ use Modules\Access\Domain\Model\StoreAddressFormat;
 use Modules\Access\Domain\ValueObject\AddressField;
 
 /**
- * The scheme every store starts with (spec §1.9, amendment 41): the sixteen fields the owner
- * decided, named in both languages, each with the length the owner set, and the layout used on
- * orders and shipping labels. It is written when the schema is migrated and when a store is opened
+ * The scheme every store starts with (spec §1.9, amendment 41): the thirteen fields kept as values,
+ * named in both languages, each with the length the owner set, and the layout used on orders and
+ * shipping labels. It is written when the schema is migrated and when a store is opened
  * later; from then on it is data, and staff may change a store's copy without a deploy.
  *
  * `country` is not a field here: an address belongs to a store, and the store is its country.
@@ -34,7 +34,8 @@ final class StartingAddressFormat
         ['additional_information', 'معلومات إضافية', 'Additional information', false, 500],
     ];
 
-    private const string TEMPLATE = "{building} {street}\n{unit} {floor}\n{district}\n{city} {postal_code}\n{short_address}\n{additional_number} {po_box}\n{landmark}\n{additional_information}";
+    // Every required field is on the label, the region included: a parcel is delivered by it.
+    private const string TEMPLATE = "{building} {street}\n{unit} {floor}\n{district}\n{city} {postal_code}\n{administrative_area}\n{short_address}\n{additional_number} {po_box}\n{landmark}\n{additional_information}";
 
     public static function forStore(string $storeId): StoreAddressFormat
     {

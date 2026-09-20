@@ -7,6 +7,7 @@ namespace Modules\Access\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Database\Connection;
+use Modules\Access\Domain\Exception\AccessError;
 use Modules\Access\Domain\Model\StoreAddressFormat;
 use Modules\Access\Domain\Repository\StoreAddressFormatRepository;
 use Modules\Access\Domain\ValueObject\AddressField;
@@ -37,6 +38,8 @@ final readonly class CachedStoreAddressFormatRepository implements StoreAddressF
             return null;
         }
 
+        $storeId = strtolower($storeId);
+
         /** @var array{fields: list<array<string, mixed>>, template: string}|null $snapshot */
         $snapshot = $this->cacheFor($storeId)->remember(fn (): ?array => $this->load($storeId));
 
@@ -44,25 +47,31 @@ final readonly class CachedStoreAddressFormatRepository implements StoreAddressF
             return null;
         }
 
-        return StoreAddressFormat::of(
-            $storeId,
-            array_map(static fn (array $field): AddressField => AddressField::fromArray($field), $snapshot['fields']),
-            $snapshot['template'],
-        );
+        try {
+            return StoreAddressFormat::of(
+                $storeId,
+                array_map(static fn (array $field): AddressField => AddressField::fromArray($field), $snapshot['fields']),
+                $snapshot['template'],
+            );
+        } catch (AccessError) {
+            // Only a row nothing here could have written. A store with no usable format has none:
+            // saving an address then says so plainly, and every address of it reads as incomplete.
+            return null;
+        }
     }
 
     public function save(StoreAddressFormat $format): void
     {
         $this->db->table(self::TABLE)->upsert([
             [
-                'store_id' => $format->storeId,
+                'store_id' => strtolower($format->storeId),
                 'fields' => json_encode($format->toArray(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                 'display_template' => $format->displayTemplate,
                 'updated_at' => CarbonImmutable::now(),
             ],
         ], ['store_id'], ['fields', 'display_template', 'updated_at']);
 
-        $this->cacheFor($format->storeId)->invalidate();
+        $this->cacheFor(strtolower($format->storeId))->invalidate();
     }
 
     public function existsFor(string $storeId): bool

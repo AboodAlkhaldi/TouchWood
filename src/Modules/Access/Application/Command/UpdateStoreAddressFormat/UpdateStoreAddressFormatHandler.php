@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Application\Command\UpdateStoreAddressFormat;
 
 use Illuminate\Database\Connection;
+use Modules\Access\Application\Address\StoreIds;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidAddress;
@@ -16,7 +17,6 @@ use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Staff change one country's address form (spec §3.3). Only that store's copy moves: the other
@@ -41,18 +41,20 @@ final readonly class UpdateStoreAddressFormatHandler
      */
     public function handle(UpdateStoreAddressFormat $command): void
     {
-        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store(StoreId::fromString($command->storeId)));
+        $store = StoreIds::of($command->storeId);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
+        $storeId = $store->value;
 
-        if ($this->platform->store(StoreId::fromString($command->storeId)) === null) {
+        if ($this->platform->store($store) === null) {
             throw new InvalidAccessAttribute('store', 'unknown');
         }
 
         $fields = array_map(static fn (array $field): AddressField => AddressField::fromArray($field), $command->fields);
 
-        $format = StoreAddressFormat::of($command->storeId, $fields, $command->displayTemplate);
+        $format = StoreAddressFormat::of($storeId, $fields, $command->displayTemplate);
 
-        $this->db->transaction(function () use ($format, $command): void {
-            $before = $this->formats->forStore($command->storeId);
+        $this->db->transaction(function () use ($format, $storeId): void {
+            $before = $this->formats->forStore($storeId);
 
             // Inside the transaction: the cached copy is replaced exactly when this commits.
             $this->formats->save($format);
@@ -60,8 +62,8 @@ final readonly class UpdateStoreAddressFormatHandler
             $this->platform->recordAudit(new AuditEntryDto(
                 'access.store_address_format.updated',
                 'access.store_address_format',
-                $command->storeId,
-                $command->storeId,
+                $storeId,
+                $storeId,
                 // The keys, not the labels: an audit entry says which fields a store now asks for.
                 AuditChanges::none()
                     ->changed('fields', $before === null ? null : self::keys($before), self::keys($format))
