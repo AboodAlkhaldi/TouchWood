@@ -56,6 +56,10 @@ return [
         'title' => 'Phone number already used',
         'detail' => 'Another account already uses this phone number.',
     ],
+    'customer_blocked' => [
+        'title' => 'Account blocked',
+        'detail' => 'Your account is blocked — please contact us.',
+    ],
     'email_already_registered' => [
         'title' => 'You already have an account',
         'detail' => 'You already have an account — please sign in.',
@@ -95,6 +99,10 @@ return [
     'account_locked' => [
         'title' => 'Too many attempts',
         'detail' => 'Too many wrong passwords. Try again in :minutes minutes.',
+    ],
+    'too_many_requests' => [
+        'title' => 'Too many attempts',
+        'detail' => 'Too many requests from this connection. Try again in :minutes minutes.',
     ],
     'sign_in_refused' => [
         'title' => 'Could not sign in',

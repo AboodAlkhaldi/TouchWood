@@ -15,9 +15,9 @@ use Modules\Access\Application\Command\ResetStaffPassword\ResetStaffPasswordHand
 use Modules\Access\Application\Command\SignOutStaff\SignOutStaff;
 use Modules\Access\Application\Command\SignOutStaff\SignOutStaffHandler;
 use Modules\Access\Presentation\Http\FormErrors;
+use Modules\Access\Presentation\Http\Request\EmailRequest;
+use Modules\Access\Presentation\Http\Request\NewPasswordRequest;
 use Modules\Access\Presentation\Http\Request\OwnPasswordRequest;
-use Modules\Access\Presentation\Http\Request\StaffEmailRequest;
-use Modules\Access\Presentation\Http\Request\StaffNewPasswordRequest;
 use Shared\Domain\Error\DomainError;
 
 /**
@@ -35,14 +35,14 @@ final readonly class StaffAccountController
     /**
      * Always the same answer, so it tells nobody whether the email has an account.
      */
-    public function forgotPassword(StaffEmailRequest $request, RequestStaffPasswordResetHandler $handler): RedirectResponse
+    public function forgotPassword(EmailRequest $request, RequestStaffPasswordResetHandler $handler): RedirectResponse
     {
         $handler->handle(new RequestStaffPasswordReset($request->text('email')));
 
         return redirect()->back()->with('status', __('access::auth.reset_link_sent'));
     }
 
-    public function resetPassword(StaffNewPasswordRequest $request, string $token, ResetStaffPasswordHandler $handler): RedirectResponse
+    public function resetPassword(NewPasswordRequest $request, string $token, ResetStaffPasswordHandler $handler): RedirectResponse
     {
         try {
             $handler->handle(new ResetStaffPassword($token, $request->text('password')));

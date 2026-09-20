@@ -32,6 +32,14 @@ final readonly class UrlCustomerLinks implements CustomerLinks
         ));
     }
 
+    public function passwordReset(string $token, string $storeCode, string $locale): string
+    {
+        return $this->onAppUrl(fn (): string => $this->urls->route(
+            'storefront.account.reset-password',
+            ['store' => $storeCode, 'locale' => $locale, 'token' => $token],
+        ));
+    }
+
     /**
      * @param  callable(): string  $build
      */

@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Access\Application\Security\SignInLimits;
+use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Domain\Exception\AccountLocked;
 
 use function Pest\Laravel\seed;
@@ -15,9 +17,13 @@ beforeEach(function () {
     seed(PlatformSeeder::class);
 });
 
+/**
+ * Staff numbers and staff keys: the customer side counts the same way, to its store's numbers
+ * (see CustomerSignInTest).
+ */
 function signInLimits(): SignInLimits
 {
-    return app(SignInLimits::class);
+    return new SignInLimits(app(RateLimiter::class), app(StaffSecuritySettings::class), 'staff');
 }
 
 it('counts an attempt before its password is checked: a sixth at once is refused (review of step 3b)', function () {

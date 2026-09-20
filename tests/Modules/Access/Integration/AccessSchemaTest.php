@@ -123,7 +123,7 @@ it('creates the access tables', function (string $table) {
     'role_assignment_exceptions', 'role_assignment_exception_stores',
     'staff_invitations', 'staff_phone_codes', 'staff_email_changes', 'staff_notification_preferences',
     'staff_sign_in_codes', 'staff_password_resets', 'staff_trusted_browsers',
-    'customers', 'phone_codes',
+    'customers', 'phone_codes', 'customer_password_resets',
 ]);
 
 it('allows in each enum column exactly the values of its PHP enum', function (string $constraint, array $cases) {
@@ -200,6 +200,11 @@ it('refuses rows that break the rules, even when they skip the domain', function
     'an unknown customer status' => [fn () => updateCustomerRow(['status' => 'SLEEPING']), 'customers_status'],
     'a customer changing what kind of account it is' => [fn () => updateCustomerRow(['account_type' => 'COMPANY']), 'account_type is set at registration'],
     'a customer changing their home store' => [fn () => updateCustomerRow(['home_store_id' => Fx::storeId('ae')]), 'home_store_id is set at registration'],
+    'a customer session version below zero' => [fn () => updateCustomerRow(['session_version' => -1]), 'customers_session_version_not_negative'],
+    'one customer reset link for two people' => [function () {
+        DB::table('access.customer_password_resets')->insert(['customer_id' => Fx::customer(), 'token_hash' => hash('sha256', 't'), 'expires_at' => now(), 'created_at' => now()]);
+        DB::table('access.customer_password_resets')->insert(['customer_id' => Fx::customer('second@example.test'), 'token_hash' => hash('sha256', 't'), 'expires_at' => now(), 'created_at' => now()]);
+    }, 'customer_password_resets_token_hash_unique'],
     'a phone code with a purpose we do not have' => [fn () => insertCustomerPhoneCodeRow(['purpose' => 'REMOVE']), 'phone_codes_purpose'],
     'a phone code with a malformed number' => [fn () => insertCustomerPhoneCodeRow(['phone' => '0501234567']), 'phone_codes_phone_format'],
     'a country not in capitals' => [fn () => updateStaffRow(['country' => 'sa']), 'staff_users_country_format'],

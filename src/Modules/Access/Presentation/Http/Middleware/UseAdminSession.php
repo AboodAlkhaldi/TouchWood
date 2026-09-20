@@ -36,12 +36,17 @@ final readonly class UseAdminSession
             'session.cookie' => $this->config->get('session.cookie'),
             'session.path' => $this->config->get('session.path'),
             'session.lifetime' => $this->config->get('session.lifetime'),
+            'session.table' => $this->config->get('session.table'),
         ];
 
         $this->config->set([
             'session.cookie' => $this->config->get('access.admin.session_cookie'),
             'session.path' => '/admin',
             'session.lifetime' => $this->settings->sessionMaxHours() * 60,
+            // Its own table: Laravel sweeps old rows with the lifetime of whichever request
+            // happens to do it, so one table would let the admin panel's twelve hours end a
+            // customer's remembered session (owner, 2026-09-20).
+            'session.table' => 'access.admin_sessions',
         ]);
         $this->useStore();
 

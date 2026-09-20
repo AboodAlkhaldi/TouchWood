@@ -11,8 +11,11 @@ use Illuminate\Support\Str;
 use Modules\Access\Application\Audit\CustomerAudit;
 use Modules\Access\Application\Customer\CustomerLinks;
 use Modules\Access\Application\Customer\CustomerMapper;
+use Modules\Access\Application\Customer\GuestVisitors;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\AddressLimits;
 use Modules\Access\Application\Security\PasswordPolicy;
+use Modules\Access\Application\Session\CustomerSessions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
@@ -24,6 +27,7 @@ use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Events\CustomerRegistered;
+use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -48,10 +52,13 @@ final readonly class RegisterCustomerHandler
         private CustomerRepository $customers,
         private StaffUserRepository $staff,
         private PasswordPolicy $passwords,
+        private AddressLimits $addresses,
         private CustomerSecuritySettings $settings,
         private CustomerLinks $links,
         private CustomerMapper $mapper,
         private SecurityMessages $messages,
+        private CustomerSessions $sessions,
+        private GuestVisitors $guests,
         private StoreContext $stores,
         private PlatformApi $platform,
         private Dispatcher $events,
@@ -66,6 +73,7 @@ final readonly class RegisterCustomerHandler
     public function handle(RegisterCustomer $command): string
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+        $this->addresses->count($command->ip);
 
         $email = EmailAddress::of($command->email);
         $language = Language::of($command->locale);
@@ -86,7 +94,7 @@ final readonly class RegisterCustomerHandler
         $termsVersion = $this->settings->termsVersion();
         $verificationHours = $this->settings->emailVerificationHours();
 
-        return $this->db->transaction(function () use ($email, $language, $accountType, $firstName, $lastName, $passwordHash, $storeId, $storeCode, $termsVersion, $verificationHours): string {
+        $customer = $this->db->transaction(function () use ($email, $language, $accountType, $firstName, $lastName, $passwordHash, $storeId, $storeCode, $termsVersion, $verificationHours): Customer {
             // One email, one account (amendment 13) — and a staff address is answered exactly like a
             // customer's, so this public form never tells a stranger who works here (owner,
             // 2026-09-20, after the step 4a review).
@@ -104,6 +112,14 @@ final readonly class RegisterCustomerHandler
             $this->platform->recordAudit(CustomerAudit::registered($customer));
             $this->events->dispatch(new CustomerRegistered((string) Str::uuid(), $customer->id(), $accountType, $storeId, $now));
 
+            $guestId = $this->guests->current();
+
+            if ($guestId !== null) {
+                $this->events->dispatch(new GuestBecameCustomer(
+                    (string) Str::uuid(), $guestId, $customer->id(), GuestBecameCustomer::REGISTERED, $now,
+                ));
+            }
+
             $link = $this->links->emailVerification($customer->id(), $storeCode, $language->value, $now->addHours($verificationHours));
             $dto = $this->mapper->toDto($customer);
 
@@ -111,8 +127,14 @@ final readonly class RegisterCustomerHandler
             // jobs table (spec §2.3).
             $this->db->afterCommit(fn () => $this->messages->emailVerification($dto, $link));
 
-            return $customer->id();
+            return $customer;
         }, 3);
+
+        // Signed in at once, as the owner decided (2026-09-20): they just chose this password. Only
+        // once the account is committed, so a rolled-back registration leaves no session behind.
+        $this->sessions->start($customer->id(), $customer->sessionVersion(), remember: false);
+
+        return $customer->id();
     }
 
     /**

@@ -89,7 +89,10 @@ ordering unlocked.
 - An unverified customer can sign in, browse and build a cart; only ordering needs both
   verifications.
 - **An email already registered** is told plainly: "You already have an account — please sign in"
-  **[DECIDED 2026-09-19]**.
+  **[DECIDED 2026-09-19]** — in the same words whether it belongs to a customer or to a staff
+  account, so staff addresses cannot be found by trying them (amendment 39).
+- **Registering signs the customer in at once** (amendment 39): they arrive on the store's page
+  signed in, with the verification email on its way, and order once both verifications are done.
 
 ### 1.3 Phone
 
@@ -295,7 +298,9 @@ a cart, no favourites.
 
 - A guest's id is a ULID, created the first time something needs it (the first cart line), not on
   every page view, so bots create nothing.
-- It lives in an **encrypted, HTTP-only cookie**. **An id is never a secret**
+- It lives in an **encrypted, HTTP-only cookie**, which lasts **a year** (amendment 39): a cart left
+  for a while is still theirs when they come back. Access only reads that cookie; whoever first
+  needs a guest writes it. **An id is never a secret**
   **[DECIDED 2026-09-18]**: the audit log may keep it forever; proof that a cart belongs to someone
   is the encrypted cookie, which cannot be forged or read without the server's key.
 - No guest table: the id exists only in the cookie and in the records that use it (carts).
@@ -325,7 +330,11 @@ they change without a deploy; customer settings are per store (handoff §7.7), s
   (invitation, email change) opened in a browser signed in to the admin panel signs that session
   out first, then continues.
 - **Customer sessions:** "remember me" keeps a customer signed in **30 days**; without it, **2 hours**
-  idle ends the session.
+  idle ends the session. Both are per-store settings; the storefront session's cookie and row are
+  given the longest "remember me" any store may set (a year, amendment 39), so the framework never
+  ends a session before Access does.
+- **The lockout counts on its own keys per side** (amendment 39): a shop's busy address never makes
+  the admin panel wait, or the other way round.
 - **Staff sessions:** **30 minutes** idle ends the session; **12 hours** at most after sign-in.
 - **Staff two-factor [DECIDED 2026-09-18]: an SMS code**, asked after the password. The browser can
   be marked **trusted for 30 days**, after which no code is asked on it until the trust expires.
@@ -333,7 +342,10 @@ they change without a deploy; customer settings are per store (handoff §7.7), s
   the staff member or changing their password or phone ends every trust.
 - **The admin area uses its own session cookie**, separate from the storefront's, so its idle
   limit, 2FA and sign-out never touch a customer session in the same browser — and a staff member
-  can also be a customer.
+  can also be a customer. It keeps its rows in its own table as well (`access.admin_sessions`,
+  amendment 40), so neither side's housekeeping can end the other's sessions.
+- **Registrations and reset requests are limited per address**: 10 an hour, a per-store setting
+  (amendment 40).
 - Signing in regenerates the session id; changing or resetting a password ends every other session
   of that account.
 - A `BLOCKED` customer or a `DISABLED` staff member cannot sign in, and their open sessions end at
@@ -660,7 +672,8 @@ All in the `access` PostgreSQL schema (added to `search_path`). ULIDs are `char(
 | `terms_version` | `varchar(32)` NOT NULL | |
 | `terms_accepted_at` | `timestamptz` NOT NULL | |
 | `deletion_scheduled_for`, `anonymized_at` | `timestamptz` NULL | |
-| `remember_token` | `varchar(100)` NULL | Laravel's "remember me" |
+| `session_version` | `integer` NOT NULL | Starts 0; every password change or reset raises it, which ends every session holding the old number (step 4b) |
+| `remember_token` | `varchar(100)` NULL | Laravel's own column; unused — "remember me" is a flag in the session, not a token (step 4b) |
 | `created_at`, `updated_at` | `timestamptz` | |
 
 ### 5.2 Phone and email flows
@@ -713,8 +726,9 @@ admins can rebuild it by hand (amendment 10).
 
 ### 5.6 Shared tables
 
-Sessions stay in `public.sessions` (its `user_id` is a ULID, Platform §5.6). The customer and admin
-areas use different session cookies (§1.8). Rate limits and lockouts use Laravel's rate limiter on
+Storefront sessions stay in `public.sessions` (its `user_id` is a ULID, Platform §5.6); the admin
+panel keeps its own rows in `access.admin_sessions`, of the same shape (amendment 40). The two areas
+also use different session cookies (§1.8). Rate limits and lockouts use Laravel's rate limiter on
 the database cache.
 
 ---
@@ -756,7 +770,9 @@ AccessError
 ├── InvalidStaffStatus            CONFLICT     a change the account's status does not allow (amendment 21)
 ├── InvalidCredentials            FORBIDDEN    never says which part was wrong
 ├── AccountLocked                 FORBIDDEN    too many wrong passwords; says when to retry
-├── SignInRefused                 FORBIDDEN    blocked ("please contact us"), disabled or anonymized
+├── SignInRefused                 FORBIDDEN    a staff account disabled, cancelled or anonymized
+├── CustomerBlocked               FORBIDDEN    a blocked customer, told only after the right password
+├── TooManyRequests               FORBIDDEN    too many registrations or reset requests from one address (amendment 40)
 ├── InvalidOrExpiredLink          INVALID
 ├── InvalidCode                   INVALID      wrong or expired SMS code
 ├── CodeRequestTooSoon            CONFLICT     resend limits
@@ -943,3 +959,5 @@ a Super Admin; and such an account is disabled until enabled together with a rol
 | 36 | §1.6, §1.8, §3.2, handoff §5.3 | (a) Accepting an invitation signs in **only a Super Admin** at once; a staff member is sent to the sign-in page and signs in as always, password and SMS code. (b) An address made to wait after 10 wrong passwords is audited (`access.staff_sign_in.address_locked`), once per lock; Platform keeps IP addresses only for staff actions (Platform spec §1.5), so the entry names the address by a keyed fingerprint — repeats show, the address cannot be read back. (c) "Change my own password" keeps its endpoint in this stage. (d) In production the application refuses to start while `MAIL_MAILER` is `log`, `array` or unset, which would write invitation and reset links to the log. (e) Trusted proxies and HTTPS-only cookies wait for the hosting choice (handoff §15). | The console names a Super Admin, so their acceptance is enough; staff prove themselves at the sign-in page. An attack on many accounts should leave a trace. Links must never sit in a log file. | Owner, 2026-09-19 |
 | 37 | §1.2, §1.8, §3.1, §3.3, handoff §17 | **Step 4, planned 2026-09-20:** it splits into **4a** (customer accounts: registration, email verification, phone, profile) and **4b** (customer sign-in, sessions, password reset, guests) — nine build steps in all. (a) A customer's sign-in limit per IP address is **10 wrong passwords in 15 minutes**, as for staff; it is a per-store setting, so a store whose customers share one mobile address can raise it without a deploy. (b) The **terms and privacy version is per store** (each store is its own market and law); the accepted version recorded at registration is that store's. (c) A customer's own **account events are audited** — registration, email and phone verification, phone and password changes, blocking, deletion — with personal fields only as "changed" and no IP address (Platform keeps those for staff only); sign-ins and browsing are not audited. | Step 3b grew too large to review in one piece. The spec named no customer IP number. Three countries cannot share one legal text. Support must be able to answer "when did this change?" without the log growing with shopping traffic. | Owner, 2026-09-20 |
 | 38 | §1.2, §3.1 | **The email verification link proves itself** (owner, 2026-09-20): whoever opens it verifies that address, signed in or not, under a new guest permission `access.account.verify_email` — §3.1's row named "every customer", which would stop a customer opening the link on a phone where they are not signed in. Verifying a **phone** stays with the customer (`access.account.verify`). Step 4a therefore also builds the one storefront route the link points at (`{store}/{locale}/account/verify-email/{customer}`, signed, 24 hours), so registering and verifying work end to end; every other customer endpoint waits for 4b. | A link sent to that address is proof of it, as the staff invitation link already is; otherwise a customer who clicks it on a device where they are not signed in is stopped, and often never comes back. | Owner, 2026-09-20 |
+| 39 | §1.2, §1.7, §1.8, §3.1 | **Choices made while building step 4b** (owner, 2026-09-20): (a) **registering signs the customer in at once** — no second form — and the session then follows the ordinary rules; (b) the **guest cookie lasts a year** (`ACCESS_GUEST_COOKIE_DAYS`, 365), so a cart left for a while is still theirs when they come back; Access only reads that cookie, Sales writes it with the first cart line; (c) an email that belongs to a **staff** account is refused at registration with exactly the same words as a customer's ("You already have an account — please sign in"), so nobody can find staff addresses by trying them; (d) the storefront session lives in the site's own cookie, and its cookie and row last as long as the longest "remember me" any store may set (`ACCESS_STOREFRONT_SESSION_DAYS`, **365 days**, applied by `UseStorefrontSession` before the `web` group) — `SESSION_LIFETIME` stays only as the framework's fallback, and Access ends the session sooner by its own limits: the store's idle minutes (2 hours) or its remembered days (30); (e) a customer's lockout counts on its **own keys**, apart from staff's, so a shop's busy address never makes the admin panel wait, or the other way round. | The spec left these open. A customer who has just proved an email and chosen a password should not type them again. A session framework cannot decide when Access ends a session; it must only be wide enough not to end it first. | Owner, 2026-09-20 |
+| 40 | §1.2, §1.8, §5.6, §7 | **From the independent reviews of step 4b** (owner, 2026-09-20): (a) the admin panel keeps its sessions in **its own table**, `access.admin_sessions` — Laravel deletes old session rows using the lifetime of whichever request happens to sweep, so one table let an admin request (twelve hours) end a customer's remembered session (thirty days); (b) a customer who is signed in and opens their **reset link, or the forgot-password form, is signed out of that browser first**, then the reset goes on — the rule staff links already follow (amendment 31); someone who remembers their password changes it in their account settings instead, which keeps the session it was changed from, and registering or signing in while already signed in simply lands them in the store; (c) registrations and reset requests are limited to **10 an hour from one address** (`access.customer.address_requests_per_hour`, 1–100, per store), a new error `TooManyRequests` — the sign-in limits count wrong passwords, which these forms never have; (d) asking for a **verification link again keeps sharing** the reset link's hourly setting (`access.customer.password_reset_hourly_limit`): one "emails to one account an hour" number covers both. Also fixed, with no visible change: signing in read the account before checking the password and wrote the whole row back afterwards, which could undo a reset, a block or a verification that landed in between; the session is started only once the change is committed; the verification link's own page now keeps the storefront session, so opening it no longer ended a remembered one. | An attacker who knows a password could have reverted a password reset; "remember me" would have lasted hours, not thirty days; the public forms could be sent thousands of times from one machine. | Owner, 2026-09-20 |
