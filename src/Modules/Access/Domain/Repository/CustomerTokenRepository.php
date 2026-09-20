@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Access\Domain\Repository;
 
+use DateTimeImmutable;
+use Modules\Access\Domain\Model\CustomerPasswordReset;
 use Modules\Access\Domain\Model\CustomerPhoneCode;
 
 /**
@@ -23,4 +25,13 @@ interface CustomerTokenRepository
     public function countFailedAttempt(string $customerId): void;
 
     public function deletePhoneCode(string $customerId): void;
+
+    public function putPasswordReset(string $customerId, string $tokenHash, DateTimeImmutable $expiresAt): void;
+
+    /**
+     * The live reset link with this hash. Locks it, so it is used once.
+     */
+    public function passwordResetByToken(string $tokenHash): ?CustomerPasswordReset;
+
+    public function deletePasswordReset(string $customerId): void;
 }

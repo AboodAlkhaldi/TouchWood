@@ -6,6 +6,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
 use Modules\Access\Application\Command\RegisterCustomer\RegisterCustomer;
 use Modules\Access\Application\Command\RegisterCustomer\RegisterCustomerHandler;
 use Modules\Access\Application\Command\UpdateCustomerProfile\UpdateCustomerProfile;
@@ -47,6 +48,10 @@ function customerRow(string $customerId): array
 
 function customerRegister(string $email = 'sara@example.test', string $storeCode = 'sa', string $accountType = 'individual', string $password = CUSTOMER_PASSWORD, string $locale = 'en', bool $terms = true, string $firstName = 'Sara', string $lastName = 'Ali'): string
 {
+    // A visitor fills the form as a guest; registering signs them in, so each new account starts
+    // from a browser that is signed out again (owner, 2026-09-20).
+    Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+
     return Fx::inStoreCode($storeCode, fn (): string => app(RegisterCustomerHandler::class)->handle(
         new RegisterCustomer($email, $password, $firstName, $lastName, $accountType, $locale, $terms),
     ));

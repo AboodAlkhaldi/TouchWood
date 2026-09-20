@@ -7,13 +7,13 @@ permissions, sign-in and sessions, addresses, and account deletion. The rules ar
 specification, [docs/modules/access.md](../../../docs/modules/access.md). This file explains how the
 code is organised and why, and grows with each build step.
 
-**Built so far: steps 1–4a of 9 — the permission catalog, roles, the real permission check, staff
-accounts, staff sign-in and customer accounts.** Staff sign in to the admin panel through form
+**Built so far: steps 1–4b of 9 — the permission catalog, roles, the real permission check, staff
+accounts, staff sign-in, customer accounts and customer sign-in.** Both sides sign in through form
 endpoints that answer with redirects; the pages that show those forms come with the screens, in the
-frontend foundation stage (amendment 12). A web request acts as the staff member signed in, else as
-a guest — never as the system. Customers can register, verify their email by link and their phone by
-SMS code, and edit their own profile; **customer sign-in, sessions, guests and password reset come
-in step 4b**, so a customer acts only where a test or another module names them.
+frontend foundation stage (amendment 12). A web request acts as the staff member or customer signed
+in, else as a guest — never as the system. Customers register (signed in at once), verify their
+email by link and their phone by SMS code, sign in and out on the storefront, reset and change their
+password, and edit their own profile. **Addresses come in step 5, deletion and blocking in step 6.**
 
 ---
 
@@ -61,27 +61,27 @@ $preferences = $this->access->staffNotificationPreferences($staffId);   // list<
 
 | Folder | Contents |
 |---|---|
-| `Public/` | Contracts `PermissionCatalog`, `AccessApi`, `SecurityMessages`; DTOs `PermissionDefinitionDto`, `StaffDto`, `CustomerDto`, `StaffNotificationPreferenceDto`; enums `PermissionAudience`, `PermissionKind`, `AccessLevel`, `StaffStatus`, `CustomerStatus`, `AccountType`, `StaffNotificationTopic`; events `StaffActivated`, `StaffDisabled`, `CustomerRegistered`, `CustomerEmailVerified`, `CustomerPhoneVerified`. |
-| `Domain/Model` | `Role` (saved or personal, admin or staff level, at least one action), `RoleAssignment` (a staff member's one role, their store row, and each action's own stores), `StaffUser` (invited → active ⇄ disabled, or invited → cancelled; profile, phone, email, language, Super Admin, who invited them, session version), `Customer` (one account for every store: email, account type and home store fixed; verifications only move forward), `StaffInvitation`, `StaffEmailChange`, `PhoneCode`, `CustomerPhoneCode`, `StaffPasswordReset`, `TrustedBrowser`. |
+| `Public/` | Contracts `PermissionCatalog`, `AccessApi`, `SecurityMessages`; DTOs `PermissionDefinitionDto`, `StaffDto`, `CustomerDto`, `StaffNotificationPreferenceDto`; enums `PermissionAudience`, `PermissionKind`, `AccessLevel`, `StaffStatus`, `CustomerStatus`, `AccountType`, `StaffNotificationTopic`; events `StaffActivated`, `StaffDisabled`, `CustomerRegistered`, `CustomerEmailVerified`, `CustomerPhoneVerified`, `GuestBecameCustomer`. |
+| `Domain/Model` | `Role` (saved or personal, admin or staff level, at least one action), `RoleAssignment` (a staff member's one role, their store row, and each action's own stores), `StaffUser` (invited → active ⇄ disabled, or invited → cancelled; profile, phone, email, language, Super Admin, who invited them, session version), `Customer` (one account for every store: email, account type and home store fixed; verifications only move forward), `StaffInvitation`, `StaffEmailChange`, `PhoneCode`, `CustomerPhoneCode`, `StaffPasswordReset`, `CustomerPasswordReset`, `TrustedBrowser`. |
 | `Domain/ValueObject` | `RoleName`, `StoreChoice` (all stores, or at least one chosen store), `RoleKind`, `RoleLevel`, `EmailAddress`, `PhoneNumber` (E.164, any country), `CountryCode` (the 249 ISO countries), `Language` (ar/en), `StaffProfile`, `PhoneCodePurpose`, `CustomerPhoneCodePurpose`. |
 | `Domain/Exception` | `AccessError` and its subclasses, with messages in `Presentation/lang/{ar,en}/errors.php`. |
 | `Application/Permission` | `InMemoryPermissionCatalog` (declarations, renames, removals, checked at boot), `AccessPermissions` (Access's list, and which actions are admin-only). |
 | `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`. |
-| `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole`, `RefreshStaffPermissions`, `RefreshRolePermissions`. Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`. |
+| `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole`, `RefreshStaffPermissions`, `RefreshRolePermissions`. Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`, `SignInCustomer`, `SignOutCustomer`, `RequestCustomerPasswordReset`, `ResetCustomerPassword`, `ChangeOwnCustomerPassword`, `ResendCustomerEmailVerification`. |
 | `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, and the `RoleReader` they use. |
-| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address). |
-| `Application/Customer` | `CurrentCustomer` (whose account this request may change), `CustomerMapper`, the `CustomerLinks` port (the verification link). |
-| `Application/Session` | The `StaffSessions` port (the admin session: pending sign-in, signed in, kept, ended), `PendingSignIn`, `TrustedBrowsers`. |
+| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`). |
+| `Application/Customer` | `CurrentCustomer` (whose account this request may change), `CustomerMapper`, the `CustomerLinks` port (the verification and password-reset links), the `GuestVisitors` port (the guest id this browser carries). |
+| `Application/Session` | The `StaffSessions` port (the admin session: pending sign-in, signed in, kept, ended), the `CustomerSessions` port (the storefront session: started, kept, ended), `PendingSignIn`, `TrustedBrowsers`. |
 | `Application/Settings` | `StaffSecuritySettings` (global) and `CustomerSecuritySettings` (**per store**: each store's terms version, password length, verification hours and SMS numbers). |
 | `Application/Staff`, `Messages`, `Audit` | `StaffMapper`, `StaffLinks`, `Avatars`, `Invitations` (every invitation link), `StaffCancellation`; the `SmsGateway` port; `RoleAudit`, `StaffAudit` and `CustomerAudit` (every audit entry). `AccessApiImpl` sits beside them. |
 | `Infrastructure/Eloquent` | Query-builder repositories, `CachedGrantsReader`, `DatabaseRoleReader`. |
-| `Infrastructure/Http` | `RequestActor` (who this request acts as), `RequestActorContext` (the real `ActorContext`), `LaravelStaffSessions`. |
+| `Infrastructure/Http` | `RequestActor` (who this request acts as), `RequestActorContext` (the real `ActorContext`), `LaravelStaffSessions`, `LaravelCustomerSessions`, `CookieGuestVisitors`. |
 | `Infrastructure/Queue` | `CancelExpiredSuperAdminInvitationsJob`, scheduled every ten minutes. |
 | `Infrastructure/Messages` | `TemporarySecurityMessages`, `SecurityMail`, `LogSmsGateway`, `UrlStaffLinks`, `UrlCustomerLinks` (the signed verification link). |
 | `Infrastructure/Security`, `Media` | `HmacCodes`, `LaravelPasswordPolicy`; `StaffAvatarUsage` (the avatar as Platform media). |
 | `Infrastructure/Permission` | `PermissionSync`: carries renames and removals into the roles on every migrate. |
-| `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers), and the customer tables (`customers`, `phone_codes`). |
-| `Presentation/` | `routes.php` (the `/admin` form endpoints and the one signed storefront link, `{store}/{locale}/account/verify-email/{customer}`), controllers, form requests, the middleware (`IdentifyRequestActor`, `UseAdminSession`, `IdentifyStaff`, `RequireStaff`), `FormErrors`; the five Super Admin console commands, the security email view, translations. |
+| `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers), the customer tables (`customers`, `phone_codes`), and the customer sign-in tables (`customers.session_version`, `customer_password_resets`). |
+| `Presentation/` | `routes.php` (the `/admin` form endpoints and the storefront ones under `{store}/{locale}/account/…`), controllers, form requests, the middleware (`IdentifyRequestActor`, `UseAdminSession`, `IdentifyStaff`, `RequireStaff`, `UseStorefrontSession`, `IdentifyCustomer`, `RequireCustomer`), `FormErrors`; the five Super Admin console commands, the security email view, translations. |
 
 ---
 
@@ -346,6 +346,40 @@ password ─┬─ trusted browser ───────────────
 
 Every number here is a setting (`StaffSecuritySettings`), except the 15 minutes to enter the code.
 
+### The storefront: a customer signing in
+
+```
+register ──▶ signed in at once (verification email on its way)
+sign in ───▶ email + password ──▶ signed in, in the store they signed in from
+```
+
+- **Its own session**, in the site's own cookie (`UseStorefrontSession`, before the `web` group):
+  the admin panel's session is never touched, and a staff member can be a customer in the same
+  browser. Signing in gives a new session id. The cookie and the `sessions` row are given the
+  longest "remember me" any store may set (a year, `ACCESS_STOREFRONT_SESSION_DAYS`) — only an
+  outer bound, so the framework never ends a session before Access does.
+- **The session ends** after the store's idle minutes (2 hours by default), or, with "remember me",
+  after the store's remembered days (30) however quiet the customer is; at once when the account is
+  blocked; and when the password changes or is reset (`customers.session_version`). A signed-in
+  request reads one row, the customer's, by its primary key.
+- **Registering signs the customer in at once** (amendment 39), in the store they registered in.
+  Signing in moves `last_store_id` to the store they used, so the next sign-in, on any device,
+  lands them there.
+- **Wrong passwords** use the same `SignInLimits` as staff, on their own keys (`access:customer-…`):
+  5 for one account lock it for 15 minutes, 10 from one address make it wait 15 — every number a
+  per-store setting. A shop's busy address never makes the admin panel wait, or the other way
+  round. A wrong email and a wrong password are answered the same; only the right password learns
+  that an account is blocked. A wrong current password, when changing one's own, counts the same.
+- **Password reset** by an email link valid 60 minutes (a per-store setting), at most 3 an hour per
+  account; the page answers the same whether or not the email has an account, and the mail goes out
+  after the answer. The link works once and ends every session of that account. Changing one's own
+  password keeps this session and ends the others.
+- **The verification link** can be resent by the customer signed in, at most 3 an hour, and does
+  nothing once the address is verified.
+- **A guest who signs in or registers** is announced to Sales as `GuestBecameCustomer` (`REGISTERED`
+  or `SIGNED_IN`), with the guest id from the storefront's encrypted cookie; Sales moves or merges
+  the cart. Access only reads that cookie.
+
 ### The database is the last line of defence
 
 Every CHECK, unique index and foreign key is enforced first in code, with a test that the code
@@ -363,3 +397,4 @@ passes, so the role-name rule is wrapped in `COALESCE(…, false)` — the schem
 | 3a | Staff accounts: the full profile, invitations accepted with a password and an SMS code, disable/enable, profile edits by an admin and by the person, email change by link, notification toggles, avatars as Platform media, the three Super Admin console commands, `AccessApi`, and the temporary security messages (Laravel mail, `log` SMS driver). No HTTP endpoints yet: they need the real `ActorContext` of step 3b. A mutation run (30 deliberate mistakes, each caught) proved the tests. Then an independent review (spec, security, tests) and the owner's answers: redirecting an account needs the person's actions; nobody works without a role; an invited person's new email gets a new invitation; an email change re-checks its requester; 3 SMS an hour; outages of the leaked-password service logged; the `log` SMS driver refused in production; many missing tests |
 | 3b | The staff lifecycle the owner decided (amendments 29, 30): `CANCELLED` frees an invited person's email and phone; only the inviter or a Super Admin cancels; Super Admin invitations work 24 hours and are swept by a scheduled job; two new console commands. Then signing in: the real `ActorContext`, the admin session cookie, password → SMS code or trusted browser, lockouts per account and per address, idle and 12-hour limits, session versions, password reset and change, sign-out, email links that sign the session out first, sign-in audits, failed queries logged without values. Platform's interim `SystemActorContext` removed. A mutation run (58 deliberate mistakes; 56 caught, the other 2 refused by the domain with the same error) proved the tests |
 | 4a | Customer accounts: registration in a store (individual or company, terms version per store), the email verification link as a signed storefront URL, the phone added and changed by SMS code with that store's numbers, the customer's own profile, `CustomerRegistered` / `CustomerEmailVerified` / `CustomerPhoneVerified`, the customer reads of `AccessApi`, and the authorizer's customer path, which step 3 had left closed. Customer sign-in, sessions, guests and password reset come in 4b |
+| 4b | Customer sign-in and the storefront session: the session in the site's own cookie (`UseStorefrontSession`, `IdentifyCustomer`, `RequireCustomer`), registering that signs the customer in at once, signing in and out, the store they last used, "remember me" and the idle limit, `customers.session_version`, the lockout shared with staff's code but counted on its own keys, the password reset link and the customer's own password change, resending the verification link, and `GuestBecameCustomer` for the cart Sales will move or merge. A mutation run (20 deliberate mistakes; 16 caught at once, 4 more after four tests were added) proved the tests |

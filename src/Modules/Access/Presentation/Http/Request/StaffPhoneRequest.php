@@ -7,7 +7,7 @@ namespace Modules\Access\Presentation\Http\Request;
 /**
  * A phone number, with its country code.
  */
-final class StaffPhoneRequest extends StaffFormRequest
+final class StaffPhoneRequest extends AccessFormRequest
 {
     /**
      * @return array<string, list<string>>

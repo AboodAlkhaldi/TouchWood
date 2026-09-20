@@ -7,7 +7,7 @@ namespace Modules\Access\Presentation\Http\Request;
 /**
  * An email address.
  */
-final class StaffEmailRequest extends StaffFormRequest
+final class StaffEmailRequest extends AccessFormRequest
 {
     /**
      * @return array<string, list<string>>

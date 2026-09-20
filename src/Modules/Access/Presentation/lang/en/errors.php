@@ -56,6 +56,10 @@ return [
         'title' => 'Phone number already used',
         'detail' => 'Another account already uses this phone number.',
     ],
+    'customer_blocked' => [
+        'title' => 'Account blocked',
+        'detail' => 'Your account is blocked — please contact us.',
+    ],
     'email_already_registered' => [
         'title' => 'You already have an account',
         'detail' => 'You already have an account — please sign in.',

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Modules\Access\Application\Security;
 
 use Illuminate\Cache\RateLimiter;
-use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Domain\Exception\AccountLocked;
 
 /**
@@ -20,9 +19,14 @@ use Modules\Access\Domain\Exception\AccountLocked;
  */
 final readonly class SignInLimits
 {
+    /**
+     * @param  string  $who  "staff" or "customer": each side counts on its own keys, so a shop's
+     *                       busy address never locks the admin panel, or the other way round
+     */
     public function __construct(
         private RateLimiter $limiter,
-        private StaffSecuritySettings $settings,
+        private LockoutLimits $settings,
+        private string $who = 'staff',
     ) {}
 
     /**
@@ -113,6 +117,6 @@ final readonly class SignInLimits
 
     private function key(string $kind, string $subject): string
     {
-        return 'access:staff-sign-in:'.$kind.':'.hash('sha256', mb_strtolower(trim($subject)));
+        return 'access:'.$this->who.'-sign-in:'.$kind.':'.hash('sha256', mb_strtolower(trim($subject)));
     }
 }

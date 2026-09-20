@@ -7,7 +7,7 @@ namespace Modules\Access\Presentation\Http\Request;
 /**
  * The email and password.
  */
-final class StaffSignInRequest extends StaffFormRequest
+final class StaffSignInRequest extends AccessFormRequest
 {
     /**
      * @return array<string, list<string>>

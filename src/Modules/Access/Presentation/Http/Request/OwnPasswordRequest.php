@@ -7,7 +7,7 @@ namespace Modules\Access\Presentation\Http\Request;
 /**
  * The current password and the new one.
  */
-final class OwnPasswordRequest extends StaffFormRequest
+final class OwnPasswordRequest extends AccessFormRequest
 {
     /**
      * @return array<string, list<string>>

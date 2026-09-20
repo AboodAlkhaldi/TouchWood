@@ -17,4 +17,10 @@ interface CustomerLinks
      * to and in the customer's language.
      */
     public function emailVerification(string $customerId, string $storeCode, string $locale, DateTimeImmutable $expiresAt): string;
+
+    /**
+     * The page where a customer chooses a new password, in the store they asked from. The token is
+     * random and stored only as a hash, so this link needs no signature.
+     */
+    public function passwordReset(string $token, string $storeCode, string $locale): string;
 }

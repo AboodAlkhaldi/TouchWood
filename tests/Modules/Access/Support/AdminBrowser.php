@@ -58,6 +58,15 @@ final class AdminBrowser
     }
 
     /**
+     * A cookie this browser already carries — one another part of the site set, such as the guest
+     * id Sales writes with the first cart line.
+     */
+    public function setCookie(string $name, string $value): void
+    {
+        $this->cookies[$name] = $value;
+    }
+
+    /**
      * The form error a redirect carries, if any.
      *
      * @param  TestResponse<Response>  $response
@@ -94,6 +103,15 @@ final class AdminBrowser
      */
     private function send(string $method, string $uri, array $data = []): TestResponse
     {
+        // One process serves one request in production, so each request starts with a fresh session
+        // store. In a test the application is reused, and without this two browsers would share one
+        // store — and one signing out would sign the other out too. Everything that keeps a store
+        // gets the new one, or a redirect would flash its errors into the old one.
+        app('session')->forgetDrivers();
+        $store = app('session')->driver();
+        app()->instance('session.store', $store);
+        app('redirect')->setSession($store);
+
         $key = app('encrypter')->getKey();
         $cookies = [];
 
