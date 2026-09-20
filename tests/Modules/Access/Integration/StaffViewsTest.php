@@ -176,7 +176,21 @@ describe('the staff a staff member sees (amendments 9 and 43)', function () {
             ->and(listedStaff(status: StaffStatus::Active->value))->toHaveKey($adminId)
             ->and(listedStaff(search: $adminEmail))->not->toHaveKey($adminId)
             // The name is what the reader does see, so it still finds them.
-            ->and(listedStaff(search: 'Staff'))->toHaveKey($adminId);
+            ->and(listedStaff(search: 'Staff'))->toHaveKey($adminId)
+            // And an ordinary colleague is still found by the email the reader is shown.
+            ->and(listedStaff(search: (string) DB::table('access.staff_users')->where('id', $disabled)->value('email')))->toHaveKey($disabled);
+    });
+
+    it('finds a colleague left with no role by their email, and shows them', function () {
+        $none = Fx::staff();
+        $email = (string) DB::table('access.staff_users')->where('id', $none)->value('email');
+        // A reader of every store: someone whose role was taken away is theirs to see, and the
+        // search must not lose them to a condition that is neither true nor false (review of
+        // step 7).
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['*']));
+
+        expect(listedStaff(search: $email))->toHaveKey($none)
+            ->and(listedStaff()[$none]->email)->toBe($email);
     });
 
     it('never shows a Super Admin, and never counts one', function () {
