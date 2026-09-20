@@ -50,7 +50,10 @@ final readonly class DatabaseStaffReader implements StaffReader
         // 44(e); the status, owner 2026-09-21). A filter on what they cannot see must not answer
         // about it either: ticking "disabled" would otherwise tell them which admins are disabled,
         // and a search would confirm an admin's email or phone by whether the row comes back.
-        $hidden = $withSuperAdmins ? 'FALSE' : "(s.is_super_admin OR r.level = 'ADMIN')";
+        // coalesce, because a staff member with no role has no level: NULL would make the whole
+        // condition NULL, and NOT NULL is NULL too, which drops the row from the page and the
+        // total instead of showing it (review of step 7; the same trap as a CHECK that is NULL).
+        $hidden = $withSuperAdmins ? 'FALSE' : "(s.is_super_admin OR coalesce(r.level, '') = 'ADMIN')";
 
         if ($status !== null) {
             $where[] = "(s.status = ? OR {$hidden})";

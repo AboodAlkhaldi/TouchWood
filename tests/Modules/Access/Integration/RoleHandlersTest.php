@@ -361,6 +361,38 @@ describe('deleting a saved role', function () {
         expect(Fx::storeCodesWith(PlatformPermissions::MEDIA_UPLOAD))->toBe([]);
     });
 
+    it('moves holders to a replacement that still holds a name no module declares', function () {
+        $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
+        $replacementId = Fx::role([PlatformPermissions::STORE_UPDATE]);
+        DB::table('access.role_permissions')->insert(['role_id' => $replacementId, 'permission' => 'catalog.product.update']);
+        $holderId = Fx::staff();
+        Fx::assign($holderId, $roleId, ['sa']);
+        // A Super Admin: a limited author is refused such a replacement by requireCovers, because
+        // the name would come back to life with its module.
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        // A name left behind by a switched-off module grants nothing and is passed over, exactly
+        // as an edit passes over it: the delete is not the place to refuse it (review of step 7).
+        app(DeleteRoleHandler::class)->handle(new DeleteRole($roleId, $replacementId));
+
+        expect(Fx::roleOf($holderId))->toBe($replacementId);
+    });
+
+    it('refuses a limited author that same replacement: the dormant name is not theirs to hand out', function () {
+        $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
+        $replacementId = Fx::role([PlatformPermissions::STORE_UPDATE]);
+        DB::table('access.role_permissions')->insert(['role_id' => $replacementId, 'permission' => 'catalog.product.update']);
+        $holderId = Fx::staff();
+        Fx::assign($holderId, $roleId, ['sa']);
+        Fx::actAsAdmin(['sa'], ROLE_ADMIN_ACTIONS);
+
+        // The delete moves people onto a role they never held, so the author must cover every
+        // action of it; a name no module declares cannot be covered (review of step 7).
+        expect(fn () => app(DeleteRoleHandler::class)->handle(new DeleteRole($roleId, $replacementId)))
+            ->toThrow(UnknownPermission::class)
+            ->and(Fx::roleOf($holderId))->toBe($roleId);
+    });
+
     it('refuses a replacement of another level, a personal role, or the role itself', function (Closure $replacement) {
         $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
         Fx::assign(Fx::staff(), $roleId, ['sa']);
