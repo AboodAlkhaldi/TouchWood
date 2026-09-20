@@ -10,6 +10,7 @@ use Illuminate\Database\Connection;
 use Modules\Access\Application\Customer\CustomerLinks;
 use Modules\Access\Application\Customer\CustomerMapper;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\AddressLimits;
 use Modules\Access\Application\Security\SecretTokens;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
@@ -45,6 +46,7 @@ final readonly class RequestCustomerPasswordResetHandler
         private CustomerMapper $mapper,
         private StoreContext $stores,
         private PlatformApi $platform,
+        private AddressLimits $addresses,
         private RateLimiter $limiter,
         private Connection $db,
     ) {}
@@ -52,6 +54,7 @@ final readonly class RequestCustomerPasswordResetHandler
     public function handle(RequestCustomerPasswordReset $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+        $this->addresses->count($command->ip);
 
         try {
             $email = EmailAddress::of($command->email);

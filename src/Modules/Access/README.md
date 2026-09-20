@@ -69,7 +69,7 @@ $preferences = $this->access->staffNotificationPreferences($staffId);   // list<
 | `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`. |
 | `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole`, `RefreshStaffPermissions`, `RefreshRolePermissions`. Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`, `SignInCustomer`, `SignOutCustomer`, `RequestCustomerPasswordReset`, `ResetCustomerPassword`, `ChangeOwnCustomerPassword`, `ResendCustomerEmailVerification`. |
 | `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, and the `RoleReader` they use. |
-| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`). |
+| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`), `AddressLimits` (registrations and reset requests per address). |
 | `Application/Customer` | `CurrentCustomer` (whose account this request may change), `CustomerMapper`, the `CustomerLinks` port (the verification and password-reset links), the `GuestVisitors` port (the guest id this browser carries). |
 | `Application/Session` | The `StaffSessions` port (the admin session: pending sign-in, signed in, kept, ended), the `CustomerSessions` port (the storefront session: started, kept, ended), `PendingSignIn`, `TrustedBrowsers`. |
 | `Application/Settings` | `StaffSecuritySettings` (global) and `CustomerSecuritySettings` (**per store**: each store's terms version, password length, verification hours and SMS numbers). |
@@ -80,7 +80,7 @@ $preferences = $this->access->staffNotificationPreferences($staffId);   // list<
 | `Infrastructure/Messages` | `TemporarySecurityMessages`, `SecurityMail`, `LogSmsGateway`, `UrlStaffLinks`, `UrlCustomerLinks` (the signed verification link). |
 | `Infrastructure/Security`, `Media` | `HmacCodes`, `LaravelPasswordPolicy`; `StaffAvatarUsage` (the avatar as Platform media). |
 | `Infrastructure/Permission` | `PermissionSync`: carries renames and removals into the roles on every migrate. |
-| `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers), the customer tables (`customers`, `phone_codes`), and the customer sign-in tables (`customers.session_version`, `customer_password_resets`). |
+| `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers), the customer tables (`customers`, `phone_codes`), the customer sign-in tables (`customers.session_version`, `customer_password_resets`), and the admin panel's own `admin_sessions`. |
 | `Presentation/` | `routes.php` (the `/admin` form endpoints and the storefront ones under `{store}/{locale}/account/…`), controllers, form requests, the middleware (`IdentifyRequestActor`, `UseAdminSession`, `IdentifyStaff`, `RequireStaff`, `UseStorefrontSession`, `IdentifyCustomer`, `RequireCustomer`), `FormErrors`; the five Super Admin console commands, the security email view, translations. |
 
 ---
@@ -305,12 +305,14 @@ password ─┬─ trusted browser ───────────────
 
 - **The admin panel has its own session**, `touchwood_admin_session`, sent only to `/admin`
   (`UseAdminSession`, before the `web` group starts the session): its limits and sign-out never
-  touch a storefront session in the same browser. It lives in the `sessions` table like every
-  session (PostgreSQL only). Signing in gives a new session id.
+  touch a storefront session in the same browser. It lives in its own table, `access.admin_sessions`
+  (amendment 40) — Laravel deletes old session rows with the lifetime of whichever request happens
+  to do it, so one table would let an admin request end a customer's remembered session. Signing in
+  gives a new session id.
 - **The session ends** after 30 minutes idle, 12 hours after signing in however busy, for good when
   the account is disabled (enabling it again brings no session back), and when the password changes
   (`staff_users.session_version` is raised; the
-  cached permissions carry it, so a warm request reads only the `sessions` and `cache` tables — a
+  cached permissions carry it, so a warm request reads only `access.admin_sessions` and the `cache` table — a
   test checks it). Changing one's
   own password keeps the session it was changed from.
 - **Wrong passwords** (`SignInLimits`): 5 for one account lock it for 15 minutes; 10 from one
@@ -374,10 +376,15 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   that an account is blocked. A wrong current password, when changing one's own, counts the same.
 - **Password reset** by an email link valid 60 minutes (a per-store setting), at most 3 an hour per
   account; the page answers the same whether or not the email has an account, and the mail goes out
-  after the answer. The link works once and ends every session of that account. Changing one's own
-  password keeps this session and ends the others.
-- **The verification link** can be resent by the customer signed in, at most 3 an hour, and does
-  nothing once the address is verified.
+  after the answer. The link works once and ends every session of that account. A customer who is
+  signed in and uses the forgot-password form or the link is signed out of that browser first
+  (amendment 40, the rule staff links follow); someone who remembers their password changes it in
+  their account settings, which keeps this session and ends the others.
+- **The verification link** can be resent by the customer signed in, at most 3 an hour — the same
+  per-store number as reset emails, by the owner's decision — and does nothing once verified.
+- **Registering and asking for a reset** are limited to 10 an hour from one address
+  (`TooManyRequests`, a per-store setting): one machine cannot make thousands of accounts or send
+  thousands of emails. Signing in is not counted there; it has its own limits.
 - **A guest who signs in or registers** is announced to Sales as `GuestBecameCustomer` (`REGISTERED`
   or `SIGNED_IN`), with the guest id from the storefront's encrypted cookie; Sales moves or merges
   the cart. Access only reads that cookie.

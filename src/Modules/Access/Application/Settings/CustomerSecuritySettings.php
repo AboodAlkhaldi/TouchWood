@@ -55,8 +55,14 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
 
     public const string PASSWORD_RESET_MINUTES = 'access.customer.password_reset_minutes';
 
-    /** Reset emails to one account an hour, so nobody can flood an inbox. */
+    /**
+     * Emails to one account an hour, so nobody can flood an inbox: reset links, and verification
+     * links asked for again, share this number (owner, 2026-09-20).
+     */
     public const string PASSWORD_RESETS_PER_HOUR = 'access.customer.password_reset_hourly_limit';
+
+    /** Registrations and reset requests from one address an hour (owner, 2026-09-20: ten). */
+    public const string ADDRESS_REQUESTS_PER_HOUR = 'access.customer.address_requests_per_hour';
 
     public function __construct(
         private PlatformApi $platform,
@@ -88,6 +94,7 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
             $number(self::REMEMBER_DAYS, 30, 1, 365),
             $number(self::PASSWORD_RESET_MINUTES, 60, 5, 1440),
             $number(self::PASSWORD_RESETS_PER_HOUR, 3, 1, 20),
+            $number(self::ADDRESS_REQUESTS_PER_HOUR, 10, 1, 100),
             new SettingDefinitionDto(
                 self::TERMS_VERSION, SettingScope::Store, SettingType::Text, ['max:32'], '2026-01', AccessPermissions::SETTINGS_UPDATE,
             ),
@@ -169,9 +176,18 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
         return $this->int(self::PASSWORD_RESET_MINUTES);
     }
 
+    /**
+     * How many reset links one account may be sent in an hour — and, sharing the same number by the
+     * owner's decision (2026-09-20), how many verification links it may ask for.
+     */
     public function passwordResetsPerHour(): int
     {
         return $this->int(self::PASSWORD_RESETS_PER_HOUR);
+    }
+
+    public function addressRequestsPerHour(): int
+    {
+        return $this->int(self::ADDRESS_REQUESTS_PER_HOUR);
     }
 
     private function int(string $key): int

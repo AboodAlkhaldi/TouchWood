@@ -13,6 +13,7 @@ use Modules\Access\Application\Customer\CustomerLinks;
 use Modules\Access\Application\Customer\CustomerMapper;
 use Modules\Access\Application\Customer\GuestVisitors;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\AddressLimits;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Session\CustomerSessions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
@@ -51,6 +52,7 @@ final readonly class RegisterCustomerHandler
         private CustomerRepository $customers,
         private StaffUserRepository $staff,
         private PasswordPolicy $passwords,
+        private AddressLimits $addresses,
         private CustomerSecuritySettings $settings,
         private CustomerLinks $links,
         private CustomerMapper $mapper,
@@ -71,6 +73,7 @@ final readonly class RegisterCustomerHandler
     public function handle(RegisterCustomer $command): string
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+        $this->addresses->count($command->ip);
 
         $email = EmailAddress::of($command->email);
         $language = Language::of($command->locale);
