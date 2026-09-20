@@ -56,9 +56,11 @@ final readonly class SignInCustomerHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $this->limits->begin($command->email, $command->ip);
 
-        $customer = $this->account($command->email);
+        $found = $this->account($command->email);
 
-        if (! $this->passwords->matches($command->password, $customer?->passwordHash())) {
+        if (! $this->passwords->matches($command->password, $found?->passwordHash())) {
+            // What locked just now is not audited on this side: a customer's sign-ins leave no
+            // audit entry at all (amendment 37c) — only their account events do.
             $this->limits->failed($command->email, $command->ip);
 
             throw new InvalidCredentials;
@@ -66,36 +68,49 @@ final readonly class SignInCustomerHandler
 
         $this->limits->succeeded($command->email, $command->ip);
 
-        // A password is stored from registration, so $customer is set here.
-        if ($customer === null) {
+        // A password is stored from registration, so the account is set here.
+        if ($found === null) {
             throw new InvalidCredentials;
         }
 
-        if ($customer->status() !== CustomerStatus::Active) {
-            throw new CustomerBlocked;
-        }
-
+        $customerId = $found->id();
         $guestId = $this->guests->current();
         $storeId = $this->stores->current()->value;
 
-        $this->db->transaction(function () use ($customer, $command, $guestId, $storeId): void {
+        $version = $this->db->transaction(function () use ($customerId, $guestId, $storeId): int {
+            // Read again, under the row's lock: checking the password takes long enough for an
+            // admin to block the account, or a reset to change its password, in between — and this
+            // writes the whole row back (review of step 4b).
+            $customer = $this->customers->byId($customerId) ?? throw new InvalidCredentials;
+
+            if ($customer->status() !== CustomerStatus::Active) {
+                throw new CustomerBlocked;
+            }
+
             $customer->moveToStore($storeId);
 
             if ($customer->pullChanges() !== []) {
                 $this->customers->update($customer);
             }
 
-            $this->sessions->start($customer->id(), $customer->sessionVersion(), $command->remember);
-
             if ($guestId !== null) {
                 // Sales merges what this browser collected as a guest into their cart (spec §1.7).
                 $this->events->dispatch(new GuestBecameCustomer(
-                    (string) Str::uuid(), $guestId, $customer->id(), GuestBecameCustomer::SIGNED_IN, CarbonImmutable::now(),
+                    (string) Str::uuid(), $guestId, $customerId, GuestBecameCustomer::SIGNED_IN, CarbonImmutable::now(),
                 ));
             }
+
+            return $customer->sessionVersion();
         }, 3);
+
+        // Only once the change is committed: a rolled-back sign-in must leave no session behind.
+        $this->sessions->start($customerId, $version, $command->remember);
     }
 
+    /**
+     * The account this email names, read before the password is checked. It is used for nothing but
+     * the password and the id: the row that is written is read again inside the transaction.
+     */
     private function account(string $email): ?Customer
     {
         try {

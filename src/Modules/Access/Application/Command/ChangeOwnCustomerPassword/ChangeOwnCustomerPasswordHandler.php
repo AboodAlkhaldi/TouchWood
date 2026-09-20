@@ -53,6 +53,7 @@ final readonly class ChangeOwnCustomerPasswordHandler
         $this->limits->begin($email, $command->ip);
 
         if (! $this->passwords->matches($command->currentPassword, $customer->passwordHash())) {
+            // Not audited, as on the sign-in page: a customer's sign-in events are not (amendment 37c).
             $this->limits->failed($email, $command->ip);
 
             throw new InvalidAccessAttribute('current_password', 'not the current password');

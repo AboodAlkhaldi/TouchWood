@@ -17,7 +17,8 @@ use Shared\Application\Actor;
 /**
  * The storefront session, in the site's own cookie — the admin panel keeps its own (spec §1.8).
  * Every request checks it against the account: a blocked customer and a changed password end it at
- * once. A signed-in request reads one row, the customer's, by its primary key.
+ * once. Of the customer tables it reads one row, the customer's, by its primary key (the session
+ * row and the store's settings are read by every storefront request anyway).
  *
  * Without "remember me" the session ends after the store's idle minutes; with it, it lasts the
  * store's remembered days however quiet the customer is.
@@ -71,6 +72,9 @@ final readonly class LaravelCustomerSessions implements CustomerSessions
     {
         $session = $this->session();
 
+        // Outside a request there is no browser to sign in, and nobody to become: a console command
+        // or a queued job acts as the system, never as the customer it works on. (The staff side
+        // does name the actor, because a Super Admin's console invitation signs them in.)
         if ($session === null) {
             return;
         }

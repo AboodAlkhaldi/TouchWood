@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Domain\Model;
 
 use DateTimeImmutable;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
@@ -88,6 +89,10 @@ final class Customer
         ?DateTimeImmutable $deletionScheduledFor = null,
         int $sessionVersion = 0,
     ): self {
+        if ($sessionVersion < 0) {
+            throw new InvalidAccessAttribute('session_version', 'zero or more');
+        }
+
         return new self(
             $id, $email, $passwordHash, $firstName, $lastName, $accountType, $status,
             $emailVerifiedAt, $phone, $phoneVerifiedAt, $language, $homeStoreId, $lastStoreId,

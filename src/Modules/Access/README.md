@@ -360,11 +360,13 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   outer bound, so the framework never ends a session before Access does.
 - **The session ends** after the store's idle minutes (2 hours by default), or, with "remember me",
   after the store's remembered days (30) however quiet the customer is; at once when the account is
-  blocked; and when the password changes or is reset (`customers.session_version`). A signed-in
-  request reads one row, the customer's, by its primary key.
+  blocked; and when the password changes or is reset (`customers.session_version`). Of the customer
+  tables, a signed-in request reads one row, the customer's, by its primary key; it also reads the
+  session row and the store's settings from the `cache` table, like every storefront request.
 - **Registering signs the customer in at once** (amendment 39), in the store they registered in.
-  Signing in moves `last_store_id` to the store they used, so the next sign-in, on any device,
-  lands them there.
+  Signing in moves `last_store_id` to the store they signed in from. Access records it; sending
+  someone to that store when they arrive without one belongs to the storefront's own pages, in the
+  frontend foundation stage — nothing in Access redirects across stores today.
 - **Wrong passwords** use the same `SignInLimits` as staff, on their own keys (`access:customer-…`):
   5 for one account lock it for 15 minutes, 10 from one address make it wait 15 — every number a
   per-store setting. A shop's busy address never makes the admin panel wait, or the other way

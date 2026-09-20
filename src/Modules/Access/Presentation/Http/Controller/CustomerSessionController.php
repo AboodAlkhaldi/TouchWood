@@ -22,10 +22,10 @@ use Modules\Access\Application\Command\SignOutCustomer\SignOutCustomer;
 use Modules\Access\Application\Command\SignOutCustomer\SignOutCustomerHandler;
 use Modules\Access\Presentation\Http\FormErrors;
 use Modules\Access\Presentation\Http\Request\CustomerRegistrationRequest;
+use Modules\Access\Presentation\Http\Request\EmailRequest;
+use Modules\Access\Presentation\Http\Request\NewPasswordRequest;
 use Modules\Access\Presentation\Http\Request\OwnPasswordRequest;
-use Modules\Access\Presentation\Http\Request\StaffEmailRequest;
-use Modules\Access\Presentation\Http\Request\StaffNewPasswordRequest;
-use Modules\Access\Presentation\Http\Request\StaffSignInRequest;
+use Modules\Access\Presentation\Http\Request\SignInRequest;
 use Shared\Domain\Error\DomainError;
 
 /**
@@ -54,7 +54,7 @@ final readonly class CustomerSessionController
         return redirect()->route('storefront.home')->with('status', __('access::auth.registered'));
     }
 
-    public function signIn(StaffSignInRequest $request, SignInCustomerHandler $handler): RedirectResponse
+    public function signIn(SignInRequest $request, SignInCustomerHandler $handler): RedirectResponse
     {
         try {
             $handler->handle(new SignInCustomer(
@@ -77,7 +77,7 @@ final readonly class CustomerSessionController
         return redirect()->route('storefront.home')->with('status', __('access::auth.signed_out'));
     }
 
-    public function forgotPassword(StaffEmailRequest $request, RequestCustomerPasswordResetHandler $handler): RedirectResponse
+    public function forgotPassword(EmailRequest $request, RequestCustomerPasswordResetHandler $handler): RedirectResponse
     {
         $handler->handle(new RequestCustomerPasswordReset($request->text('email')));
 
@@ -85,7 +85,7 @@ final readonly class CustomerSessionController
         return redirect()->back()->with('status', __('access::auth.reset_link_sent'));
     }
 
-    public function resetPassword(StaffNewPasswordRequest $request, string $token, ResetCustomerPasswordHandler $handler): RedirectResponse
+    public function resetPassword(NewPasswordRequest $request, string $token, ResetCustomerPasswordHandler $handler): RedirectResponse
     {
         try {
             $handler->handle(new ResetCustomerPassword($token, $request->text('password')));
