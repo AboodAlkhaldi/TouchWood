@@ -25,8 +25,8 @@ final class AccessPermissions
 
     /**
      * The email verification link proves itself: whoever opens it verifies that address, signed in
-     * or not (owner's decision, 2026-09-20; amendment 38). Verifying a phone stays with the
-     * customer, under ACCOUNT_VERIFY.
+     * or not (owner's decision, 2026-09-20; amendment 38) — see self::linkProved(). Verifying a
+     * phone stays with the customer, under ACCOUNT_VERIFY.
      */
     public const string ACCOUNT_VERIFY_EMAIL = 'access.account.verify_email';
 
@@ -126,5 +126,17 @@ final class AccessPermissions
     public static function adminOnly(): array
     {
         return [self::STAFF_INVITE, self::STAFF_UPDATE, self::STAFF_ASSIGN_ROLE, self::STAFF_DISABLE, self::ROLE_MANAGE];
+    }
+
+    /**
+     * Actions a signed link proves on its own (amendment 38): they are declared for guests, and a
+     * customer holds them too — otherwise someone who opens their own link in a browser where they
+     * are already signed in would be refused, which is what the amendment set out to prevent.
+     *
+     * @return list<string>
+     */
+    public static function linkProved(): array
+    {
+        return [self::ACCOUNT_VERIFY_EMAIL];
     }
 }

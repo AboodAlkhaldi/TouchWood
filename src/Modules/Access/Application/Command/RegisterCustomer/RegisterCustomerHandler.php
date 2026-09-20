@@ -16,7 +16,6 @@ use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
-use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Model\Customer;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
@@ -34,9 +33,9 @@ use Shared\Application\StoreContext;
  * A new customer account (spec §1.2): active at once, with the email unverified and no phone yet,
  * so they can browse and fill a cart; ordering waits for both verifications. The store they
  * registered in becomes their home store, fixed, and that store's terms version is recorded
- * (amendment 37). An email that already belongs to an account is answered plainly, and one that
- * belongs to a staff account is refused: an email is a customer's or a staff member's, never both
- * (amendment 13).
+ * (amendment 37). An email that already belongs to an account — a customer's or a staff member's,
+ * since an email belongs to one of them and never both (amendment 13) — is answered plainly and in
+ * the same words, so the form never says who works here.
  */
 final readonly class RegisterCustomerHandler
 {
@@ -62,7 +61,7 @@ final readonly class RegisterCustomerHandler
     /**
      * @return string the new customer's id
      *
-     * @throws EmailAlreadyRegistered|StaffEmailInUse|InvalidAccessAttribute
+     * @throws EmailAlreadyRegistered|InvalidAccessAttribute
      */
     public function handle(RegisterCustomer $command): string
     {
@@ -88,12 +87,11 @@ final readonly class RegisterCustomerHandler
         $verificationHours = $this->settings->emailVerificationHours();
 
         return $this->db->transaction(function () use ($email, $language, $accountType, $firstName, $lastName, $passwordHash, $storeId, $storeCode, $termsVersion, $verificationHours): string {
-            if ($this->customers->emailInUse($email)) {
+            // One email, one account (amendment 13) — and a staff address is answered exactly like a
+            // customer's, so this public form never tells a stranger who works here (owner,
+            // 2026-09-20, after the step 4a review).
+            if ($this->customers->emailInUse($email) || $this->staff->emailInUse($email)) {
                 throw new EmailAlreadyRegistered;
-            }
-
-            if ($this->staff->emailInUse($email)) {
-                throw new StaffEmailInUse;
             }
 
             $now = CarbonImmutable::now();

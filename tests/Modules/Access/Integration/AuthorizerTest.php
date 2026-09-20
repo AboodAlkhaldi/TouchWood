@@ -158,6 +158,17 @@ it('gives a guest only the automatic guest permissions', function () {
         ->and(Fx::allows(PlatformPermissions::MEDIA_UPLOAD, PermissionScope::global()))->toBeFalse();
 });
 
+it('lets a link that proves itself be used signed in or not (amendment 38)', function (Actor $actor, bool $holds) {
+    Fx::actAs($actor);
+
+    expect(Fx::allows(AccessPermissions::ACCOUNT_VERIFY_EMAIL, PermissionScope::global()))->toBe($holds);
+})->with([
+    // The customer clicks their own link in a browser where they are already signed in.
+    'the customer themselves' => [fn () => Actor::customer(strtolower((string) Str::ulid())), true],
+    'a guest with the link' => [fn () => Actor::guest(strtolower((string) Str::ulid())), true],
+    'a staff member' => [fn () => Actor::staff(Fx::staff()), false],
+]);
+
 it('lets a customer act for their own account only, and an integration not at all', function (Actor $actor, bool $ownAccount) {
     Fx::actAs($actor);
 

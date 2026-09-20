@@ -14,7 +14,6 @@ use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\PasswordTooWeak;
-use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Events\CustomerRegistered;
@@ -99,18 +98,27 @@ describe('registering (spec §1.2)', function () {
             ]);
     });
 
-    it('refuses an email that already belongs to an account', function (Closure $take, string $error) {
+    it('answers an email that already belongs to any account in the same words', function (Closure $take) {
         $take();
         $sent = count(RecordingSecurityMessages::installed()->emailVerifications);
 
-        expect(fn () => customerRegister('taken@example.test'))->toThrow($error)
+        // A staff address must read exactly like a customer's, or this public form would tell a
+        // stranger who works here (owner, 2026-09-20).
+        expect(fn () => customerRegister('taken@example.test'))->toThrow(EmailAlreadyRegistered::class)
             ->and(RecordingSecurityMessages::installed()->emailVerifications)->toHaveCount($sent);
     })->with([
-        'a customer has it' => [fn () => customerRegister('taken@example.test'), EmailAlreadyRegistered::class],
+        'a customer has it' => [fn () => customerRegister('taken@example.test')],
         'a staff member has it' => [function (): void {
             DB::table('access.staff_users')->where('id', Fx::staff())->update(['email' => 'TAKEN@example.test']);
-        }, StaffEmailInUse::class],
+        }],
     ]);
+
+    it('registers a company account, whose company application belongs to B2B', function () {
+        $customerId = customerRegister(accountType: 'company');
+
+        expect(customerRow($customerId)['account_type'])->toBe('COMPANY')
+            ->and(app(AccessApi::class)->customer($customerId)?->accountType)->toBe(AccountType::Company);
+    });
 
     it('refuses what the form must never accept', function (Closure $register, string $error) {
         expect($register)->toThrow($error)
@@ -135,7 +143,33 @@ describe('registering (spec §1.2)', function () {
         $inSaudi = customerRegister('sa@example.test');
 
         expect(customerRow($inEmirates)['terms_version'])->toBe('2026-09-AE')
-            ->and(customerRow($inSaudi)['terms_version'])->toBe('2026-01');
+            ->and(customerRow($inSaudi)['terms_version'])->toBe('2026-01')
+            // Each account belongs to the store it registered in, and its link points there.
+            ->and(customerRow($inEmirates)['home_store_id'])->toBe(Fx::storeId('ae'))
+            ->and(customerRow($inSaudi)['home_store_id'])->toBe(Fx::storeId('sa'))
+            ->and(RecordingSecurityMessages::installed()->emailVerifications[0]['link'])->toContain('/ae/en/account/verify-email/')
+            ->and(RecordingSecurityMessages::installed()->emailVerifications[1]['link'])->toContain('/sa/en/account/verify-email/');
+    });
+
+    it('builds the link on APP_URL, whatever host or scheme the request carries', function () {
+        config(['app.url' => 'https://panel.touchwood.test']);
+        // As a request carrying "Host: attacker.example" over plain http would leave the generator.
+        app('url')->forceRootUrl('http://attacker.example');
+        app('url')->forceScheme('http');
+
+        customerRegister();
+
+        // The scheme matters as much as the host: a link signed as http, opened as https, would
+        // fail its own signature check.
+        expect(RecordingSecurityMessages::installed()->emailVerifications[0]['link'])
+            ->toStartWith('https://panel.touchwood.test/sa/en/account/verify-email/');
+    });
+
+    it('refuses to build a link when APP_URL is not set, instead of sending a broken one', function () {
+        config(['app.url' => '']);
+
+        expect(fn () => customerRegister())->toThrow(LogicException::class, 'APP_URL')
+            ->and(RecordingSecurityMessages::installed()->emailVerifications)->toBe([]);
     });
 
     it('refuses a taken email in code, before the unique index would', function () {
@@ -177,6 +211,8 @@ describe('a customer\'s own profile (spec §3.1)', function () {
     })->with([
         'a guest' => [fn () => Fx::actAs(Actor::guest('01k5n0v9m1t8q7r6s5w4x3y2z1'))],
         'a staff member' => [fn () => Fx::actAsStaff(Fx::staff())],
+        // The system holds every permission, so only the "who is this?" check can refuse it.
+        'the system, from a console command' => [fn () => Fx::actAs(Actor::system())],
     ]);
 });
 
