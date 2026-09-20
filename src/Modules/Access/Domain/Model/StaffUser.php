@@ -133,13 +133,22 @@ final class StaffUser
     }
 
     /**
-     * The invitation withdrawn for good (amendment 29): final, and the email and phone are free
-     * for another account. Only someone who has not accepted.
+     * The account closed for good (amendment 29): final, and the email and phone are free for
+     * another account. It is reached two ways — an invitation withdrawn before it was ever accepted
+     * (`CancelStaffAccount`, which allows nothing else), and a Super Admin revoked from the console,
+     * whose account goes with the title (amendment 45). Never for an account already closed.
      */
     public function cancel(): void
     {
-        $this->requireStatus(StaffStatus::Invited);
+        if ($this->status === StaffStatus::Cancelled) {
+            throw new InvalidStaffStatus($this->status);
+        }
+
         $this->status = StaffStatus::Cancelled;
+        // A closed account keeps no password, and every session of theirs ends at once: nothing
+        // signs in again, and the row stays only for the audit log.
+        $this->passwordHash = null;
+        $this->sessionVersion++;
         $this->markChanged('status');
     }
 

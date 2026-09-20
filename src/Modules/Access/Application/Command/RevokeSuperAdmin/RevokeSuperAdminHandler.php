@@ -66,29 +66,22 @@ final readonly class RevokeSuperAdminHandler
             }
 
             $before = clone $staff;
+            $wasActive = $staff->status() === StaffStatus::Active;
             $staff->revokeSuperAdmin();
 
-            // Never accepted: cancelled and freed, like any invitation withdrawn (amendment 30).
-            if ($staff->status() === StaffStatus::Invited) {
-                $this->staff->update($staff);
-                $this->platform->recordAudit(StaffAudit::updated('access.staff_user.super_admin_revoked', $before, $staff, $staff->pullChanges()));
-                $this->cancellation->cancel($staff);
+            // Revoked from the console, so the account goes — and its email and phone are free at
+            // once (owner, 2026-09-20; amendment 45). Nobody is left without a role: a former
+            // Super Admin who is to stay is invited again, like anyone else.
+            $this->staff->update($staff);
+            $this->platform->recordAudit(StaffAudit::updated('access.staff_user.super_admin_revoked', $before, $staff, $staff->pullChanges()));
+            $this->tokens->deletePasswordReset($staff->id());
+            $this->tokens->forgetTrustedBrowsers($staff->id());
+            $this->cancellation->cancel($staff);
 
-                return;
-            }
-
-            if ($staff->status() === StaffStatus::Active) {
-                $staff->disable();
+            if ($wasActive) {
                 $this->events->dispatch(new StaffDisabled((string) Str::uuid(), $staff->id(), CarbonImmutable::now()));
             }
 
-            $this->staff->update($staff);
-            $this->tokens->deleteInvitation($staff->id());
-            $this->tokens->deletePhoneCode($staff->id());
-            $this->tokens->deleteEmailChange($staff->id());
-            $this->tokens->deletePasswordReset($staff->id());
-            $this->tokens->forgetTrustedBrowsers($staff->id());
-            $this->platform->recordAudit(StaffAudit::updated('access.staff_user.super_admin_revoked', $before, $staff, $staff->pullChanges()));
             $this->grants->refresh($staff->id());
         });
     }

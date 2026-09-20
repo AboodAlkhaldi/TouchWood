@@ -198,6 +198,10 @@ final class Customer
     /**
      * The customer asked for their account to be deleted (spec §1.10): it is locked for ordering
      * at once, and anonymized on that date unless they sign in first.
+     *
+     * **Every session of theirs ends now** (owner, 2026-09-20; amendment 45): they are signed out
+     * of every device the moment they confirm, so nothing of the account can be used while it waits
+     * — and signing in again, which is what undoes a deletion, is the only way back in.
      */
     public function scheduleDeletion(DateTimeImmutable $on): void
     {
@@ -208,6 +212,7 @@ final class Customer
         }
 
         $this->deletionScheduledFor = $on;
+        $this->sessionVersion++;
         $this->markChanged('deletion_scheduled_for');
     }
 

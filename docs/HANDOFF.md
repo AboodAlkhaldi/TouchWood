@@ -773,7 +773,9 @@ signing in during those 14 days cancels it (owner, 2026-09-19).
   time. This is a financial record and it never gets anonymized, with no retention cutoff.
 - **Reviews and questions survive**, attributed to "Deleted customer".
 
-**Built in step 6 (owner, 2026-09-20).** The customer is told once, when the deletion is scheduled:
+**Built in step 6 (owner, 2026-09-20).** Confirming a deletion signs the customer out of every
+device at once, so nothing of the account can be used while it waits; signing in again is both the
+way back and what calls the deletion off. The customer is told once, when it is scheduled:
 the date, and that signing in cancels it. Staff may delete a customer on their request, and cancel
 one, under an **admin-only** action that records a reason in the audit log — blocking a customer is
 admin-only too. The anonymized email becomes `deleted-{id}@deleted.invalid`, so the old address is
