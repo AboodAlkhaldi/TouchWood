@@ -20,14 +20,17 @@ final readonly class CurrentCustomer
     ) {}
 
     /**
+     * @param  string  $permission  the one the caller was about to check, so the refusal names the
+     *                              action that was refused
+     *
      * @throws Unauthorized when a guest, a staff member or the system is acting
      */
-    public function id(): string
+    public function id(string $permission = AccessPermissions::ACCOUNT_UPDATE): string
     {
         $actor = $this->actors->current();
 
         if ($actor->type !== ActorType::Customer || $actor->id === null) {
-            throw new Unauthorized(AccessPermissions::ACCOUNT_UPDATE);
+            throw new Unauthorized($permission);
         }
 
         return $actor->id;
