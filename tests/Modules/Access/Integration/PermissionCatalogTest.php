@@ -102,9 +102,11 @@ it('keeps the management actions out of staff roles, and viewing staff in them',
         // Blocking and deleting a customer reach a person's account (amendment 43).
         AccessPermissions::CUSTOMER_BLOCK,
         AccessPermissions::CUSTOMER_DELETE,
-        // The settings decide how everyone signs in (owner, 2026-09-21).
-        AccessPermissions::SETTINGS_UPDATE,
+        // The staff security settings decide how everyone signs in; a store's own settings do not
+        // (owner, 2026-09-21).
+        AccessPermissions::STAFF_SETTINGS_UPDATE,
     ]);
+    expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::SETTINGS_UPDATE);
     expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::STAFF_VIEW);
 });
 

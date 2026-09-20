@@ -103,7 +103,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-20 | §7.2, §7.7 | Registering a customer signs them in at once; the guest cookie lasts a year; an email belonging to a staff account is refused at registration in the same words as a customer's; the storefront session keeps its own cookie, wide enough (a year) that only Access's own limits end a session; customer and staff lockouts count on separate keys | Access step 4b, owner decision |
 | 2026-09-20 | §7.9, §7.5 | From the step 6 reviews: a deleted account can no longer be sent a reset link or have a password set on it; who a staff member may see is part of the query, not a filter after it, so counts and pages are right; an admin's stores and joining date are part of "a name and a role only"; the nightly sweep goes round again while accounts are due and logs the one that fails | Access step 6 review, owner decision |
 | 2026-09-20 | §7.5, §7.9 | Confirming a deletion signs the customer out of every device (signing in again is the only way back, and cancels it); revoking a Super Admin closes the account and frees its email and phone at once, so no staff member is ever left without a role; `customers.remember_token` dropped | Access step 6, owner decision |
-| 2026-09-21 | §7.5, §7.6, §7.9 | From the reviews of the whole Access module: changing a setting is an admin-only action; a staff member changing their own phone gives their current password first; anonymizing deletes the account's session rows, so the storefront's rows now carry the customer they belong to; an admin's status is not shown to ordinary staff either; one email belongs to one account in both directions (a staff account cannot take a customer's address) | Access step 7, owner decision |
+| 2026-09-21 | §7.5, §7.6, §7.9 | From the reviews of the whole Access module: the settings permission is split — the staff security numbers are admin-only (`access.staff_settings.update`), a store's own settings stay ordinary; a staff member changing their own phone gives their current password first; anonymizing deletes the account's session rows, so the storefront's rows now carry the customer they belong to; an admin's status is not shown to ordinary staff either; one email belongs to one account in both directions (a staff account cannot take a customer's address) | Access step 7, owner decision |
 
 ---
 
@@ -607,8 +607,8 @@ store scope.
 **Three levels: Super Admin → admins → staff** (owner, 2026-09-19). A role is an admin role or a
 staff role. The management actions (inviting, editing and disabling staff, assigning roles,
 managing roles) go only into admin roles, and so do blocking and deleting a customer (owner,
-2026-09-20) and changing a setting (owner, 2026-09-21): staff manage no roles and no people, and
-change no setting. Only a Super Admin
+2026-09-20) and changing the staff security settings (owner, 2026-09-21): staff manage no roles and
+no people, and change no rule of signing in. A store's own settings stay an ordinary action. Only a Super Admin
 manages admins and admin roles; no admin manages another admin or themselves. An admin manages a
 staff member only when the admin covers **all** of that person's stores: a KSA-only admin manages
 KSA-only staff, and a KSA+UAE staff member needs a KSA+UAE admin (or larger) or a Super Admin.

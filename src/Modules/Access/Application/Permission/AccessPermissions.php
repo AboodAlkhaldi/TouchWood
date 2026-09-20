@@ -65,7 +65,11 @@ final class AccessPermissions
 
     public const string ADDRESS_FORMAT_UPDATE = 'access.address_format.update';
 
+    /** A store's own settings: its terms version, how many addresses, its verification numbers. */
     public const string SETTINGS_UPDATE = 'access.settings.update';
+
+    /** The numbers that decide how staff sign in: admin roles only (owner, 2026-09-21). */
+    public const string STAFF_SETTINGS_UPDATE = 'access.staff_settings.update';
 
     // Super Admins and the system only.
     public const string SUPER_ADMIN_MANAGE = 'access.super_admin.manage';
@@ -111,6 +115,7 @@ final class AccessPermissions
             new PermissionDefinitionDto(self::CUSTOMER_DELETE),
             new PermissionDefinitionDto(self::ADDRESS_FORMAT_UPDATE),
             new PermissionDefinitionDto(self::SETTINGS_UPDATE),
+            new PermissionDefinitionDto(self::STAFF_SETTINGS_UPDATE),
 
             new PermissionDefinitionDto(self::SUPER_ADMIN_MANAGE, reserved: true, kind: $storeFree),
             new PermissionDefinitionDto(self::ACCOUNT_ANONYMIZE, reserved: true, kind: $storeFree),
@@ -129,10 +134,11 @@ final class AccessPermissions
             self::STAFF_INVITE, self::STAFF_UPDATE, self::STAFF_ASSIGN_ROLE, self::STAFF_DISABLE, self::ROLE_MANAGE,
             // Blocking and deleting reach a person's account (owner, 2026-09-20; amendment 43).
             self::CUSTOMER_BLOCK, self::CUSTOMER_DELETE,
-            // The settings decide how everyone signs in — password length, lockouts, session
-            // limits, code length — so they belong with the other actions that reach every
-            // account (owner, 2026-09-21).
-            self::SETTINGS_UPDATE,
+            // The staff security settings decide how everyone signs in — password length,
+            // lockouts, session limits, code length — so they belong with the other actions that
+            // reach every account. A store's own settings stay an ordinary action (owner,
+            // 2026-09-21).
+            self::STAFF_SETTINGS_UPDATE,
         ];
     }
 

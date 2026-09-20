@@ -43,7 +43,10 @@ return [
         'update' => 'Edit address schemes',
     ],
     'settings' => [
-        'update' => 'Change sign-in and security settings',
+        'update' => 'Change store settings',
+    ],
+    'staff_settings' => [
+        'update' => 'Change staff sign-in and security settings',
     ],
     'super_admin' => [
         'manage' => 'Create and revoke Super Admins',
