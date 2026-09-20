@@ -7,7 +7,7 @@ namespace Modules\Access\Presentation\Http\Request;
 /**
  * An SMS code, and whether to trust this browser.
  */
-final class StaffCodeRequest extends StaffFormRequest
+final class StaffCodeRequest extends AccessFormRequest
 {
     /**
      * @return array<string, list<string>>

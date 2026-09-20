@@ -39,6 +39,11 @@ final readonly class LaravelStaffSessions implements StaffSessions
     public function signedIn(): ?string
     {
         $session = $this->session();
+
+        if ($session === null) {
+            return null;
+        }
+
         $data = $session->get(self::SIGNED_IN);
 
         if (! is_array($data) || ! is_string($data['id'] ?? null) || ! is_int($data['version'] ?? null)
@@ -65,7 +70,7 @@ final readonly class LaravelStaffSessions implements StaffSessions
 
     public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone): void
     {
-        $this->session()->put(self::PENDING, [
+        $this->session()?->put(self::PENDING, [
             'id' => $staffId,
             'version' => $sessionVersion,
             'needs_phone' => $needsPhone,
@@ -75,15 +80,16 @@ final readonly class LaravelStaffSessions implements StaffSessions
 
     public function pendingSignIn(): ?PendingSignIn
     {
-        $data = $this->session()->get(self::PENDING);
+        $session = $this->session();
+        $data = $session?->get(self::PENDING);
 
-        if (! is_array($data) || ! is_string($data['id'] ?? null) || ! is_int($data['version'] ?? null)
+        if ($session === null || ! is_array($data) || ! is_string($data['id'] ?? null) || ! is_int($data['version'] ?? null)
             || ! is_int($data['at'] ?? null)) {
             return null;
         }
 
         if (CarbonImmutable::now()->getTimestamp() - $data['at'] > self::PENDING_MINUTES * 60) {
-            $this->session()->forget(self::PENDING);
+            $session->forget(self::PENDING);
 
             return null;
         }
@@ -95,6 +101,12 @@ final readonly class LaravelStaffSessions implements StaffSessions
     {
         $session = $this->session();
         $now = CarbonImmutable::now()->getTimestamp();
+
+        if ($session === null) {
+            $this->actor->set(Actor::staff($staffId));
+
+            return;
+        }
 
         $session->forget(self::PENDING);
         // A new id at every sign-in, and the old one destroyed (spec §1.8).
@@ -108,26 +120,28 @@ final readonly class LaravelStaffSessions implements StaffSessions
     public function keep(int $sessionVersion): void
     {
         $session = $this->session();
-        $data = $session->get(self::SIGNED_IN);
+        $data = $session?->get(self::SIGNED_IN);
 
-        if (is_array($data)) {
+        if ($session !== null && is_array($data)) {
             $session->put(self::SIGNED_IN, [...$data, 'version' => $sessionVersion]);
         }
     }
 
     public function end(): void
     {
-        $this->session()->invalidate();
+        $this->session()?->invalidate();
         $this->actor->set($this->actor->guest());
     }
 
     /**
-     * The request's own session — the admin one on /admin — or, outside a request, the default.
+     * The request's own session — the admin one on /admin — and only that. Outside a request there
+     * is no browser to sign in, and the session store is one object for the whole application, so
+     * writing to it there would leak into the next request (found while building step 4b).
      */
-    private function session(): Session
+    private function session(): ?Session
     {
         $request = $this->app->make(Request::class);
 
-        return $request->hasSession() ? $request->session() : $this->app->make('session.store');
+        return $request->hasSession() ? $request->session() : null;
     }
 }

@@ -34,6 +34,9 @@ return [
     |
     */
 
+    // Anything Access serves sets its own lifetime per request — the admin panel's longest session
+    // (UseAdminSession) and the storefront's longest "remember me" (UseStorefrontSession) — and
+    // Access ends a session as soon as its own limits say so. This is only the fallback.
     'lifetime' => (int) env('SESSION_LIFETIME', 120),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),

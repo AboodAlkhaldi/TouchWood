@@ -41,6 +41,7 @@ final class Customer
         private readonly string $termsVersion,
         private readonly DateTimeImmutable $termsAcceptedAt,
         private ?DateTimeImmutable $deletionScheduledFor = null,
+        private int $sessionVersion = 0,
     ) {}
 
     /**
@@ -85,12 +86,37 @@ final class Customer
         string $termsVersion,
         DateTimeImmutable $termsAcceptedAt,
         ?DateTimeImmutable $deletionScheduledFor = null,
+        int $sessionVersion = 0,
     ): self {
         return new self(
             $id, $email, $passwordHash, $firstName, $lastName, $accountType, $status,
             $emailVerifiedAt, $phone, $phoneVerifiedAt, $language, $homeStoreId, $lastStoreId,
-            $termsVersion, $termsAcceptedAt, $deletionScheduledFor,
+            $termsVersion, $termsAcceptedAt, $deletionScheduledFor, $sessionVersion,
         );
+    }
+
+    /**
+     * A new password — changed by its owner or reset by email link. Every session signed in before
+     * it ends (spec §1.8): the session version moves on.
+     */
+    public function changePassword(string $passwordHash): void
+    {
+        $this->passwordHash = $passwordHash;
+        $this->sessionVersion++;
+        $this->markChanged('password');
+    }
+
+    /**
+     * Where they last shopped: after signing in, on any device, they land there (spec §1.1).
+     */
+    public function moveToStore(string $storeId): void
+    {
+        if ($this->lastStoreId === $storeId) {
+            return;
+        }
+
+        $this->lastStoreId = $storeId;
+        $this->markChanged('last_store_id');
     }
 
     /**
@@ -235,6 +261,14 @@ final class Customer
     public function deletionScheduledFor(): ?DateTimeImmutable
     {
         return $this->deletionScheduledFor;
+    }
+
+    /**
+     * A session signed in under an older version has ended (spec §1.8).
+     */
+    public function sessionVersion(): int
+    {
+        return $this->sessionVersion;
     }
 
     /**

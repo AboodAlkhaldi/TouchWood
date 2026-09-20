@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Application\Settings;
 
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\LockoutLimits;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\SettingDefinitionDto;
 use Modules\Platform\Public\Enums\SettingScope;
@@ -14,7 +15,7 @@ use Modules\Platform\Public\Enums\SettingType;
  * The staff security numbers are settings, so they change without a deploy; staff settings are
  * global (spec §1.8). Defaults are the owner's decisions of 2026-09-18.
  */
-final readonly class StaffSecuritySettings
+final readonly class StaffSecuritySettings implements LockoutLimits
 {
     public const string PASSWORD_MIN_LENGTH = 'access.staff.password_min_length';
 

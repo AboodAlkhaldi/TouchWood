@@ -11,8 +11,10 @@ use Illuminate\Support\Str;
 use Modules\Access\Application\Audit\CustomerAudit;
 use Modules\Access\Application\Customer\CustomerLinks;
 use Modules\Access\Application\Customer\CustomerMapper;
+use Modules\Access\Application\Customer\GuestVisitors;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PasswordPolicy;
+use Modules\Access\Application\Session\CustomerSessions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
@@ -24,6 +26,7 @@ use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Events\CustomerRegistered;
+use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -52,6 +55,8 @@ final readonly class RegisterCustomerHandler
         private CustomerLinks $links,
         private CustomerMapper $mapper,
         private SecurityMessages $messages,
+        private CustomerSessions $sessions,
+        private GuestVisitors $guests,
         private StoreContext $stores,
         private PlatformApi $platform,
         private Dispatcher $events,
@@ -103,6 +108,17 @@ final readonly class RegisterCustomerHandler
             $this->customers->add($customer);
             $this->platform->recordAudit(CustomerAudit::registered($customer));
             $this->events->dispatch(new CustomerRegistered((string) Str::uuid(), $customer->id(), $accountType, $storeId, $now));
+
+            // In at once, as the owner decided (2026-09-20): they just chose this password, and a
+            // cart they filled as a guest follows them (spec §1.7).
+            $this->sessions->start($customer->id(), $customer->sessionVersion(), remember: false);
+            $guestId = $this->guests->current();
+
+            if ($guestId !== null) {
+                $this->events->dispatch(new GuestBecameCustomer(
+                    (string) Str::uuid(), $guestId, $customer->id(), GuestBecameCustomer::REGISTERED, $now,
+                ));
+            }
 
             $link = $this->links->emailVerification($customer->id(), $storeCode, $language->value, $now->addHours($verificationHours));
             $dto = $this->mapper->toDto($customer);

@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use Modules\Access\Presentation\Http\Controller\CustomerAccountController;
+use Modules\Access\Presentation\Http\Controller\CustomerSessionController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffLinkController;
 use Modules\Access\Presentation\Http\Controller\StaffSignInController;
+use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
+use Modules\Access\Presentation\Http\Middleware\RequireCustomer;
 use Modules\Access\Presentation\Http\Middleware\RequireStaff;
 use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
+use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 
 /*
 | The admin panel's sign-in flows (spec §1.8, amendment 12): posts answered with redirects. The pages
@@ -49,4 +53,24 @@ Route::prefix('{store}/{locale}')
     ->group(function (): void {
         Route::get('account/verify-email/{customer}', [CustomerAccountController::class, 'verifyEmail'])
             ->name('storefront.account.verify-email');
+    });
+
+/*
+| Registering and signing in on the storefront (spec §1.2, §1.8). The session is the site's own, so
+| the admin panel's is never touched; IdentifyCustomer names whoever the session holds.
+*/
+
+Route::prefix('{store}/{locale}')
+    ->middleware([UseStorefrontSession::ALIAS, 'web', 'store', IdentifyCustomer::ALIAS])
+    ->group(function (): void {
+        Route::post('account/register', [CustomerSessionController::class, 'register'])->name('storefront.account.register');
+        Route::post('account/sign-in', [CustomerSessionController::class, 'signIn'])->name('storefront.account.sign-in');
+        Route::post('account/password/forgot', [CustomerSessionController::class, 'forgotPassword'])->name('storefront.account.password.forgot');
+        Route::post('account/password/reset/{token}', [CustomerSessionController::class, 'resetPassword'])->name('storefront.account.reset-password');
+
+        Route::middleware(RequireCustomer::ALIAS)->group(function (): void {
+            Route::post('account/sign-out', [CustomerSessionController::class, 'signOut'])->name('storefront.account.sign-out');
+            Route::post('account/password', [CustomerSessionController::class, 'changePassword'])->name('storefront.account.password.change');
+            Route::post('account/verify-email/resend', [CustomerSessionController::class, 'resendVerification'])->name('storefront.account.verify-email.resend');
+        });
     });
