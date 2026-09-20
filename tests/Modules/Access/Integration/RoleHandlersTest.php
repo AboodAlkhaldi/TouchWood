@@ -79,6 +79,9 @@ describe('creating a role', function () {
         'an automatic action' => [[AccessPermissions::ACCOUNT_REGISTER], UnknownPermission::class],
         'a Super Admin action' => [[PlatformPermissions::STORE_CREATE], ReservedPermission::class],
         'a management action in a staff role' => [[AccessPermissions::STAFF_INVITE], AdminOnlyPermission::class],
+        // The staff security settings decide how everyone signs in; a store's own settings do not,
+        // and stay an ordinary action (owner, 2026-09-21).
+        'the staff security settings in a staff role' => [[AccessPermissions::STAFF_SETTINGS_UPDATE], AdminOnlyPermission::class],
         'no action at all' => [[], InvalidAccessAttribute::class],
         'an action the author does not hold' => [[PlatformPermissions::SETTINGS_UPDATE], PermissionEscalation::class],
     ]);

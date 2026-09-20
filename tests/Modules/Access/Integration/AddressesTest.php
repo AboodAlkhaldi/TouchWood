@@ -265,8 +265,8 @@ describe('a customer\'s addresses (spec §1.9)', function () {
 
     it('honours the store\'s own limit', function () {
         $customerId = Fx::customer();
-        // Changing a setting is an admin-only action (owner, 2026-09-21).
-        Fx::actAsAdmin(['sa'], [AccessPermissions::SETTINGS_UPDATE]);
+        // A store's own settings stay an ordinary staff action (owner, 2026-09-21).
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::SETTINGS_UPDATE], ['sa']));
         app(UpdateSettingHandler::class)->handle(new UpdateSetting(CustomerSecuritySettings::ADDRESSES_PER_STORE, 'sa', 2));
 
         Fx::actAsCustomer($customerId);
