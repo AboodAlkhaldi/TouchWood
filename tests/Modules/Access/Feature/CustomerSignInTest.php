@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
 use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 use Modules\Access\Public\Enums\CustomerStatus;
@@ -25,8 +26,6 @@ use function Illuminate\Support\defer;
 use function Pest\Laravel\seed;
 
 uses(RefreshDatabase::class);
-
-const SHOP_PASSWORD = 'a long enough password';
 
 beforeEach(function () {
     // Sessions live in the database, as in production: the storefront session is read again on
@@ -75,7 +74,7 @@ function shopEmail(string $customerId): string
  * @param  array<string, mixed>  $extra
  * @return TestResponse<Response>
  */
-function shopSignIn(AdminBrowser $browser, string $customerId, string $password = SHOP_PASSWORD, array $extra = []): TestResponse
+function shopSignIn(AdminBrowser $browser, string $customerId, string $password = Fx::CUSTOMER_PASSWORD, array $extra = []): TestResponse
 {
     return $browser->post('/sa/en/account/sign-in', ['email' => shopEmail($customerId), 'password' => $password, ...$extra]);
 }
@@ -87,7 +86,7 @@ function shopRegister(AdminBrowser $browser, string $email = 'new@example.test',
 {
     return $browser->post("/{$store}/en/account/register", [
         'email' => $email,
-        'password' => SHOP_PASSWORD,
+        'password' => Fx::CUSTOMER_PASSWORD,
         'first_name' => 'Noura',
         'last_name' => 'Saleh',
         'account_type' => 'individual',
@@ -110,12 +109,18 @@ describe('registering and signing in (spec §1.2, §1.8)', function () {
     it('signs in with the email and password, with a new session id', function () {
         $customerId = Fx::customer();
         $browser = new AdminBrowser;
-        $before = $browser->cookie((string) config('session.cookie'));
+
+        // A session before signing in (a guest browsing), so the id can be compared with the one
+        // after: the row of the old id must be gone.
+        shopWho($browser);
+        $before = DB::table('sessions')->pluck('id')->all();
+
+        expect($before)->toHaveCount(1);
 
         shopSignIn($browser, $customerId)->assertRedirect('/sa/en');
 
         expect(shopWho($browser))->toBe($customerId)
-            ->and($browser->cookie((string) config('session.cookie')))->not->toBe($before);
+            ->and(DB::table('sessions')->whereIn('id', $before)->count())->toBe(0);
     });
 
     it('answers a wrong email and a wrong password the same way', function () {
@@ -123,7 +128,7 @@ describe('registering and signing in (spec §1.2, §1.8)', function () {
         $browser = new AdminBrowser;
 
         $wrongPassword = shopSignIn($browser, $customerId, 'not the password');
-        $unknownEmail = $browser->post('/sa/en/account/sign-in', ['email' => 'nobody@example.test', 'password' => SHOP_PASSWORD]);
+        $unknownEmail = $browser->post('/sa/en/account/sign-in', ['email' => 'nobody@example.test', 'password' => Fx::CUSTOMER_PASSWORD]);
 
         expect(AdminBrowser::formError($wrongPassword))->toBe((string) __('access::errors.invalid_credentials.detail'))
             ->and(AdminBrowser::formError($unknownEmail))->toBe((string) __('access::errors.invalid_credentials.detail'))
@@ -195,6 +200,12 @@ describe('registering and signing in (spec §1.2, §1.8)', function () {
         // A minute later the first four would have been forgotten; the lock still has its 15.
         expect(AdminBrowser::formError(shopSignIn($browser, $customerId)))
             ->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]));
+
+        // And it outlives the count it came from: 16 minutes after the first wrong password.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(2));
+
+        expect(AdminBrowser::formError(shopSignIn($browser, $customerId)))
+            ->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 13]));
     });
 
     it('keeps the admin lockout apart from the shop one', function () {
@@ -210,14 +221,39 @@ describe('registering and signing in (spec §1.2, §1.8)', function () {
         $admin = $browser->post('/admin/sign-in', ['email' => (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'), 'password' => 'a long enough password']);
 
         expect($admin->headers->get('Location'))->toContain('/admin/sign-in/code')
-            ->and($customerId)->not->toBeEmpty();
+            // The shop side of that address is waiting, with the right password too.
+            ->and(AdminBrowser::formError(shopSignIn(new AdminBrowser('10.0.0.71'), $customerId)))
+            ->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]));
+    });
+
+    it('keeps what changed while the password was being checked', function () {
+        $customerId = Fx::customer();
+        $real = app(PasswordPolicy::class);
+        $policy = Mockery::mock(PasswordPolicy::class);
+        $policy->shouldReceive('hashNew')->andReturnUsing(fn (string $password, int $min): string => $real->hashNew($password, $min));
+        $policy->shouldReceive('matches')->andReturnUsing(function (string $password, ?string $hash) use ($real, $customerId): bool {
+            // A password reset commits while the hasher is working: the sign-in must not write its
+            // own, older copy of the row back over it (review of step 4b).
+            DB::table('access.customers')->where('id', $customerId)->update(['password' => 'reset-hash', 'session_version' => 7]);
+
+            return $real->matches($password, $hash);
+        });
+        app()->instance(PasswordPolicy::class, $policy);
+
+        (new AdminBrowser)->post('/ae/en/account/sign-in', ['email' => shopEmail($customerId), 'password' => Fx::CUSTOMER_PASSWORD])->assertRedirect('/ae/en');
+
+        $column = fn (string $name): mixed => DB::table('access.customers')->where('id', $customerId)->value($name);
+
+        expect($column('password'))->toBe('reset-hash')
+            ->and((int) $column('session_version'))->toBe(7)
+            ->and($column('last_store_id'))->toBe(Fx::storeId('ae'));
     });
 
     it('lands the customer in the store they last used', function () {
         $customerId = Fx::customer();
         $browser = new AdminBrowser;
 
-        $browser->post('/ae/en/account/sign-in', ['email' => shopEmail($customerId), 'password' => SHOP_PASSWORD])->assertRedirect('/ae/en');
+        $browser->post('/ae/en/account/sign-in', ['email' => shopEmail($customerId), 'password' => Fx::CUSTOMER_PASSWORD])->assertRedirect('/ae/en');
 
         expect(DB::table('access.customers')->where('id', $customerId)->value('last_store_id'))->toBe(Fx::storeId('ae'))
             ->and(DB::table('access.customers')->where('id', $customerId)->value('home_store_id'))->toBe(Fx::storeId('sa'));
@@ -274,6 +310,21 @@ describe('the storefront session (spec §1.8)', function () {
         DB::table('access.customers')->where('id', $customerId)->update(['status' => CustomerStatus::Blocked->value]);
 
         expect(shopWho($browser))->toBeNull();
+    });
+
+    it('survives the pages that are not the sign-in forms', function () {
+        $customerId = Fx::customer();
+        $browser = new AdminBrowser;
+        shopSignIn($browser, $customerId, extra: ['remember' => '1']);
+
+        // Three hours later — longer than the framework's own fallback lifetime — they open their
+        // verification link: that route keeps the storefront's own session too, so a remembered
+        // customer is not signed out by it (review of step 4b).
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(3));
+        $browser->get(RecordingSecurityMessages::installed()->emailVerifications[0]['link'] ?? '');
+
+        expect(shopWho($browser))->toBe($customerId)
+            ->and(DB::table('access.customers')->where('id', $customerId)->value('email_verified_at'))->not->toBeNull();
     });
 
     it('is separate from the admin session', function () {
@@ -358,7 +409,7 @@ describe('a customer password (spec §1.8)', function () {
         shopSignIn($here, $customerId);
         shopSignIn($there, $customerId);
 
-        $here->post('/sa/en/account/password', ['current_password' => SHOP_PASSWORD, 'password' => 'a brand new long password'])->assertRedirect();
+        $here->post('/sa/en/account/password', ['current_password' => Fx::CUSTOMER_PASSWORD, 'password' => 'a brand new long password'])->assertRedirect();
 
         expect(shopWho($here))->toBe($customerId)
             ->and(shopWho($there))->toBeNull()
@@ -378,9 +429,15 @@ describe('a customer password (spec §1.8)', function () {
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(14));
         $browser->post('/sa/en/account/password', ['current_password' => 'guess 5', 'password' => 'a brand new long password']);
 
-        expect(AdminBrowser::formError($browser->post('/sa/en/account/password', ['current_password' => SHOP_PASSWORD, 'password' => 'a brand new long password'])))
+        expect(AdminBrowser::formError($browser->post('/sa/en/account/password', ['current_password' => Fx::CUSTOMER_PASSWORD, 'password' => 'a brand new long password'])))
             ->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 15]))
             ->and(DB::table('access.customers')->where('id', $customerId)->value('session_version'))->toBe(0);
+
+        // Still locked once the count that led to it would have run out.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(2));
+
+        expect(AdminBrowser::formError($browser->post('/sa/en/account/password', ['current_password' => Fx::CUSTOMER_PASSWORD, 'password' => 'a brand new long password'])))
+            ->toBe((string) __('access::errors.account_locked.detail', ['minutes' => 13]));
     });
 });
 

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Model\Customer;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\Language;
@@ -98,6 +99,13 @@ describe('a customer\'s life (spec §1.1, §4.1)', function () {
         'blocked' => [CustomerStatus::Blocked, null, false],
         'a deletion waiting' => [CustomerStatus::Active, new DateTimeImmutable('2026-10-01'), false],
     ]);
+
+    it('refuses a session version below zero before the database does', function () {
+        expect(fn () => Customer::reconstitute(
+            'c1', EmailAddress::of('sara@example.test'), 'hash', 'Sara', 'Ali', AccountType::Individual, CustomerStatus::Active,
+            null, null, null, Language::Arabic, 'store-sa', 'store-sa', '2026-01', new DateTimeImmutable, null, -1,
+        ))->toThrow(InvalidAccessAttribute::class, 'session_version');
+    });
 
     it('keeps the account type it was registered with', function () {
         expect(newCustomer(AccountType::Company)->accountType())->toBe(AccountType::Company)

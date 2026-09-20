@@ -6,7 +6,6 @@ namespace Modules\Access\Application\Command\ResendCustomerEmailVerification;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiter;
-use Illuminate\Database\Connection;
 use Modules\Access\Application\Customer\CurrentCustomer;
 use Modules\Access\Application\Customer\CustomerLinks;
 use Modules\Access\Application\Customer\CustomerMapper;
@@ -14,12 +13,15 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\CodeRequestTooSoon;
 use Modules\Access\Domain\Exception\CustomerNotFound;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\StoreContext;
+
+use function Illuminate\Support\defer;
 
 /**
  * A new verification link for the customer signed in (spec §1.2), at most a few an hour so nobody
@@ -41,11 +43,10 @@ final readonly class ResendCustomerEmailVerificationHandler
         private StoreContext $stores,
         private PlatformApi $platform,
         private RateLimiter $limiter,
-        private Connection $db,
     ) {}
 
     /**
-     * @throws CodeRequestTooSoon|CustomerNotFound
+     * @throws CodeRequestTooSoon|CustomerNotFound|InvalidAccessAttribute
      */
     public function handle(ResendCustomerEmailVerification $command): void
     {
@@ -66,13 +67,15 @@ final readonly class ResendCustomerEmailVerificationHandler
         $this->limiter->hit($hourly, 3600);
 
         $store = $this->stores->current();
-        $storeCode = ($this->platform->store($store) ?? throw new CustomerNotFound($customerId))->code;
+        $storeCode = ($this->platform->store($store) ?? throw new InvalidAccessAttribute('store', 'unknown'))->code;
         $link = $this->links->emailVerification(
             $customer->id(), $storeCode, $customer->language()->value,
             CarbonImmutable::now()->addHours($this->settings->emailVerificationHours()),
         );
         $dto = $this->mapper->toDto($customer);
 
-        $this->db->afterCommit(fn () => $this->messages->emailVerification($dto, $link));
+        // This handler opens no transaction, so there is nothing to wait for: the mail goes out
+        // after the answer, never through the queue (a job would keep the link in the jobs table).
+        defer(fn () => $this->messages->emailVerification($dto, $link));
     }
 }

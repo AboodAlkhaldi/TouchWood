@@ -669,7 +669,8 @@ All in the `access` PostgreSQL schema (added to `search_path`). ULIDs are `char(
 | `terms_version` | `varchar(32)` NOT NULL | |
 | `terms_accepted_at` | `timestamptz` NOT NULL | |
 | `deletion_scheduled_for`, `anonymized_at` | `timestamptz` NULL | |
-| `remember_token` | `varchar(100)` NULL | Laravel's "remember me" |
+| `session_version` | `integer` NOT NULL | Starts 0; every password change or reset raises it, which ends every session holding the old number (step 4b) |
+| `remember_token` | `varchar(100)` NULL | Laravel's own column; unused — "remember me" is a flag in the session, not a token (step 4b) |
 | `created_at`, `updated_at` | `timestamptz` | |
 
 ### 5.2 Phone and email flows
@@ -765,7 +766,8 @@ AccessError
 ├── InvalidStaffStatus            CONFLICT     a change the account's status does not allow (amendment 21)
 ├── InvalidCredentials            FORBIDDEN    never says which part was wrong
 ├── AccountLocked                 FORBIDDEN    too many wrong passwords; says when to retry
-├── SignInRefused                 FORBIDDEN    blocked ("please contact us"), disabled or anonymized
+├── SignInRefused                 FORBIDDEN    a staff account disabled, cancelled or anonymized
+├── CustomerBlocked               FORBIDDEN    a blocked customer, told only after the right password
 ├── InvalidOrExpiredLink          INVALID
 ├── InvalidCode                   INVALID      wrong or expired SMS code
 ├── CodeRequestTooSoon            CONFLICT     resend limits

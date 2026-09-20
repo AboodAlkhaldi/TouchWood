@@ -18,9 +18,9 @@ use Modules\Access\Application\Command\SignInStaff\SignInStaffHandler;
 use Modules\Access\Application\Command\VerifyStaffSignInCode\VerifyStaffSignInCode;
 use Modules\Access\Application\Command\VerifyStaffSignInCode\VerifyStaffSignInCodeHandler;
 use Modules\Access\Presentation\Http\FormErrors;
+use Modules\Access\Presentation\Http\Request\SignInRequest;
 use Modules\Access\Presentation\Http\Request\StaffCodeRequest;
 use Modules\Access\Presentation\Http\Request\StaffPhoneRequest;
-use Modules\Access\Presentation\Http\Request\StaffSignInRequest;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Domain\Error\DomainError;
@@ -36,7 +36,7 @@ final readonly class StaffSignInController
         private Config $config,
     ) {}
 
-    public function password(StaffSignInRequest $request, SignInStaffHandler $handler): RedirectResponse
+    public function password(SignInRequest $request, SignInStaffHandler $handler): RedirectResponse
     {
         if ($this->actors->current()->type === ActorType::Staff) {
             return redirect('/admin');

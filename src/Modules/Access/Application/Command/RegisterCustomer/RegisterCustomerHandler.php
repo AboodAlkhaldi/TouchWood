@@ -91,7 +91,7 @@ final readonly class RegisterCustomerHandler
         $termsVersion = $this->settings->termsVersion();
         $verificationHours = $this->settings->emailVerificationHours();
 
-        return $this->db->transaction(function () use ($email, $language, $accountType, $firstName, $lastName, $passwordHash, $storeId, $storeCode, $termsVersion, $verificationHours): string {
+        $customer = $this->db->transaction(function () use ($email, $language, $accountType, $firstName, $lastName, $passwordHash, $storeId, $storeCode, $termsVersion, $verificationHours): Customer {
             // One email, one account (amendment 13) — and a staff address is answered exactly like a
             // customer's, so this public form never tells a stranger who works here (owner,
             // 2026-09-20, after the step 4a review).
@@ -109,9 +109,6 @@ final readonly class RegisterCustomerHandler
             $this->platform->recordAudit(CustomerAudit::registered($customer));
             $this->events->dispatch(new CustomerRegistered((string) Str::uuid(), $customer->id(), $accountType, $storeId, $now));
 
-            // In at once, as the owner decided (2026-09-20): they just chose this password, and a
-            // cart they filled as a guest follows them (spec §1.7).
-            $this->sessions->start($customer->id(), $customer->sessionVersion(), remember: false);
             $guestId = $this->guests->current();
 
             if ($guestId !== null) {
@@ -127,8 +124,14 @@ final readonly class RegisterCustomerHandler
             // jobs table (spec §2.3).
             $this->db->afterCommit(fn () => $this->messages->emailVerification($dto, $link));
 
-            return $customer->id();
+            return $customer;
         }, 3);
+
+        // Signed in at once, as the owner decided (2026-09-20): they just chose this password. Only
+        // once the account is committed, so a rolled-back registration leaves no session behind.
+        $this->sessions->start($customer->id(), $customer->sessionVersion(), remember: false);
+
+        return $customer->id();
     }
 
     /**

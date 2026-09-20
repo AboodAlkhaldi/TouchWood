@@ -134,7 +134,8 @@ final class AccessFixtures
 
     /**
      * A customer who registered in that store, as a visitor would: active, email unverified, no
-     * phone. The request acts as a guest while registering, and keeps that actor afterwards.
+     * phone. It registers as a guest and puts the previous ActorContext back afterwards, so a test
+     * that goes on to make HTTP requests is not left acting as that fixed guest.
      */
     public static function customer(string $email = 'sara@example.test', string $storeCode = 'sa', string $accountType = 'individual'): string
     {

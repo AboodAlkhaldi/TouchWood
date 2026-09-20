@@ -49,7 +49,7 @@ Route::prefix('admin')
 */
 
 Route::prefix('{store}/{locale}')
-    ->middleware(['web', 'store', 'signed'])
+    ->middleware([UseStorefrontSession::ALIAS, 'web', 'store', 'signed'])
     ->group(function (): void {
         Route::get('account/verify-email/{customer}', [CustomerAccountController::class, 'verifyEmail'])
             ->name('storefront.account.verify-email');

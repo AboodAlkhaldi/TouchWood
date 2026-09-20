@@ -11,17 +11,17 @@ namespace Modules\Access\Presentation\Http\Request;
 final class CustomerRegistrationRequest extends AccessFormRequest
 {
     /**
-     * @return array<string, string>
+     * @return array<string, list<string>|string>
      */
     public function rules(): array
     {
         return [
-            'email' => 'required|string',
-            'password' => 'required|string',
-            'first_name' => 'required|string',
-            'last_name' => 'required|string',
-            'account_type' => 'required|string',
-            'locale' => 'required|string',
+            'email' => ['required', 'string', 'max:254'],
+            'password' => ['required', 'string', 'max:1024'],
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'account_type' => ['required', 'string', 'max:16'],
+            'locale' => ['required', 'string', 'max:2'],
             'terms' => 'accepted',
         ];
     }

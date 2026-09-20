@@ -713,7 +713,8 @@ session, in the site's own cookie, and that cookie and its row last as long as t
 limits do — the store's idle minutes, or its remembered days. Wrong passwords count on keys of
 their own, apart from staff's, so a shop's busy address never makes the admin panel wait. A
 customer's reset link works 60 minutes, at most 3 an hour per account, works once and ends every
-session of that account. The guest cookie lasts a year. An email that belongs to a staff account is
+session of that account. The guest cookie lasts a year — Access only reads it; Sales writes it with
+the first cart line. An email that belongs to a staff account is
 refused at registration in exactly the same words as a customer's.
 
 ### 7.8 Addresses
