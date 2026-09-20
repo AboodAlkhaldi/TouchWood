@@ -41,6 +41,9 @@ final class AccessFixtures
     /** The password Fx::customer() registers with. */
     public const string CUSTOMER_PASSWORD = 'a long enough password';
 
+    /** The password Fx::staff() leaves on an accepted account. */
+    public const string STAFF_PASSWORD = 'a long enough password';
+
     /**
      * A staff row written directly, complete as an invitation leaves it (and, unless invited, as
      * accepting it leaves it: a password and a verified phone).
@@ -53,7 +56,7 @@ final class AccessFixtures
         DB::table('access.staff_users')->insert([
             'id' => $id,
             'email' => "{$id}@example.test",
-            'password' => $accepted ? Hash::make('a long enough password') : null,
+            'password' => $accepted ? Hash::make(self::STAFF_PASSWORD) : null,
             'first_name' => $firstName,
             'last_name' => 'Member',
             'job_title' => 'Tester',

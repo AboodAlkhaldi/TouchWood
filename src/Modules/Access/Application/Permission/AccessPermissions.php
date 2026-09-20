@@ -129,6 +129,10 @@ final class AccessPermissions
             self::STAFF_INVITE, self::STAFF_UPDATE, self::STAFF_ASSIGN_ROLE, self::STAFF_DISABLE, self::ROLE_MANAGE,
             // Blocking and deleting reach a person's account (owner, 2026-09-20; amendment 43).
             self::CUSTOMER_BLOCK, self::CUSTOMER_DELETE,
+            // The settings decide how everyone signs in — password length, lockouts, session
+            // limits, code length — so they belong with the other actions that reach every
+            // account (owner, 2026-09-21).
+            self::SETTINGS_UPDATE,
         ];
     }
 

@@ -40,7 +40,7 @@ final readonly class UpdateCustomerProfileHandler
     public function handle(UpdateCustomerProfile $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $customerId = $this->current->id();
+        $customerId = $this->current->id(self::PERMISSION);
         $language = Language::of($command->locale);
         $firstName = $this->name('first_name', $command->firstName);
         $lastName = $this->name('last_name', $command->lastName);

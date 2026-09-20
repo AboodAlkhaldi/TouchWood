@@ -26,7 +26,7 @@ function modulesWithDtos(): array
 }
 
 it('finds DTOs to check', function () {
-    expect(modulesWithDtos())->toContain('Platform');
+    expect(modulesWithDtos())->toContain('Platform')->toContain('Access');
 });
 
 foreach (modulesWithDtos() as $module) {

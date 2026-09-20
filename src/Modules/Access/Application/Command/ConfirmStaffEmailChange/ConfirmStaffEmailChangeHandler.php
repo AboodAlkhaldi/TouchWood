@@ -13,6 +13,7 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\SecretTokens;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
+use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
@@ -33,6 +34,7 @@ final readonly class ConfirmStaffEmailChangeHandler
         private Authorizer $authorizer,
         private GrantRules $rules,
         private StaffUserRepository $staff,
+        private CustomerRepository $customers,
         private RoleAssignmentRepository $assignments,
         private StaffTokenRepository $tokens,
         private PlatformApi $platform,
@@ -65,7 +67,9 @@ final readonly class ConfirmStaffEmailChangeHandler
             }
 
             // Another account may have taken the address since the link was sent.
-            if ($this->staff->emailInUse($change->newEmail, $staff->id())) {
+            // One email, one account (amendment 13): a customer's address is taken too, and is
+            // answered the same way, so the panel never says which kind of account holds it.
+            if ($this->staff->emailInUse($change->newEmail, $staff->id()) || $this->customers->emailInUse($change->newEmail)) {
                 throw new StaffEmailInUse;
             }
 

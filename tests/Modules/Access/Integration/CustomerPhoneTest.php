@@ -187,6 +187,17 @@ describe('a customer\'s phone (spec §1.3)', function () {
         expect(signInCodesToNumber())->toBe(4);
     });
 
+    it('keeps the number itself out of the rate-limit keys', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+        customerAskForCode('+966501234567');
+
+        // The cache table holds the limiter's keys, and a backup or a slow query log holds them
+        // again: a phone number belongs in neither (review of step 7).
+        expect(DB::table('cache')->where('key', 'like', '%966501234567%')->count())->toBe(0)
+            ->and(DB::table('cache')->where('key', 'like', '%'.hash('sha256', '+966501234567').'%')->count())->toBeGreaterThan(0);
+    });
+
     it('sends a code to the number the account already has, for a customer who never verified it', function () {
         $customerId = Fx::customer();
         Fx::actAsCustomer($customerId);

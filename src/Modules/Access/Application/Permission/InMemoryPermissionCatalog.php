@@ -140,16 +140,6 @@ final class InMemoryPermissionCatalog implements PermissionCatalog
     }
 
     /**
-     * Whether a role may hold this permission: declared, for roles, not reserved.
-     */
-    public function isAssignableName(string $name): bool
-    {
-        $permission = $this->definitions[$name] ?? null;
-
-        return $permission !== null && $this->isAssignable($permission);
-    }
-
-    /**
      * @return list<PermissionDefinitionDto> the permissions everyone of this kind holds automatically
      */
     public function automatic(PermissionAudience $audience): array

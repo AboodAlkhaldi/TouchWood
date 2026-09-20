@@ -18,6 +18,7 @@ use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Model\RoleAssignment;
 use Modules\Access\Domain\Model\StaffUser;
+use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\EmailAddress;
@@ -45,6 +46,7 @@ final readonly class InviteStaffHandler
         private Authorizer $authorizer,
         private GrantRules $rules,
         private StaffUserRepository $staff,
+        private CustomerRepository $customers,
         private NotificationPreferenceRepository $preferences,
         private ChangeStaffRoleHandler $roles,
         private Avatars $avatars,
@@ -73,7 +75,9 @@ final readonly class InviteStaffHandler
         $this->avatars->requireUsable($command->avatarMediaId);
 
         return $this->db->transaction(function () use ($command, $author, $email, $profile, $phone, $language): string {
-            if ($this->staff->emailInUse($email)) {
+            // One email, one account (amendment 13): a customer's address is taken too, and is
+            // answered the same way, so the panel never says which kind of account holds it.
+            if ($this->staff->emailInUse($email) || $this->customers->emailInUse($email)) {
                 throw new StaffEmailInUse;
             }
 
@@ -100,6 +104,6 @@ final readonly class InviteStaffHandler
             $this->invitations->send($staff, $author->staffId);
 
             return $staff->id();
-        });
+        }, 3);
     }
 }

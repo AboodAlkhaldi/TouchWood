@@ -93,6 +93,6 @@ final readonly class UpdateStaffProfileHandler
             }
 
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.profile_updated', $before, $target, $changed));
-        });
+        }, 3);
     }
 }

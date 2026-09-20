@@ -13,6 +13,7 @@ use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Database\Events\NoPendingMigrations;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Routing\Router;
+use Illuminate\Session\SessionManager;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
@@ -20,7 +21,6 @@ use Modules\Access\Application\AccessApiImpl;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Authorization\RoleAuthorizer;
 use Modules\Access\Application\Command\ChangeOwnCustomerPassword\ChangeOwnCustomerPasswordHandler;
-use Modules\Access\Application\Command\ChangeOwnStaffPassword\ChangeOwnStaffPasswordHandler;
 use Modules\Access\Application\Command\RequestAccountDeletion\RequestAccountDeletionHandler;
 use Modules\Access\Application\Command\SignInCustomer\SignInCustomerHandler;
 use Modules\Access\Application\Command\SignInStaff\SignInStaffHandler;
@@ -33,6 +33,7 @@ use Modules\Access\Application\Query\CustomerReader;
 use Modules\Access\Application\Query\RoleReader;
 use Modules\Access\Application\Query\StaffReader;
 use Modules\Access\Application\Security\Codes;
+use Modules\Access\Application\Security\OwnPasswordCheck;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Security\SignInLimits;
 use Modules\Access\Application\Session\CustomerSessions;
@@ -63,6 +64,7 @@ use Modules\Access\Infrastructure\Eloquent\DatabaseStaffReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffUserRepository;
 use Modules\Access\Infrastructure\Http\CookieGuestVisitors;
+use Modules\Access\Infrastructure\Http\CustomerSessionHandler;
 use Modules\Access\Infrastructure\Http\LaravelCustomerSessions;
 use Modules\Access\Infrastructure\Http\LaravelStaffSessions;
 use Modules\Access\Infrastructure\Http\RequestActor;
@@ -125,7 +127,7 @@ final class AccessServiceProvider extends ServiceProvider
 
         // Staff and customers count wrong passwords the same way, to their own numbers and on their
         // own keys: a busy shop address never locks the admin panel, or the other way round.
-        $this->app->when([SignInStaffHandler::class, ChangeOwnStaffPasswordHandler::class])
+        $this->app->when([SignInStaffHandler::class, OwnPasswordCheck::class])
             ->needs(SignInLimits::class)
             ->give(fn (Application $app): SignInLimits => new SignInLimits(
                 $app->make(RateLimiter::class),
@@ -200,6 +202,18 @@ final class AccessServiceProvider extends ServiceProvider
 
         // Every web request starts as a guest, so no route ever runs as the system.
         $this->app->make(HttpKernel::class)->pushMiddleware(IdentifyRequestActor::class);
+
+        // The storefront's own session driver: the same database driver, writing the customer
+        // each row belongs to, so a deleted account's sessions go with it (owner, 2026-09-21).
+        $this->app->make(SessionManager::class)->extend(
+            UseStorefrontSession::DRIVER,
+            fn (Application $app): CustomerSessionHandler => new CustomerSessionHandler(
+                $app->make('db')->connection($app->make('config')->get('session.connection')),
+                (string) $app->make('config')->get('session.table', 'sessions'),
+                (int) $app->make('config')->get('session.lifetime'),
+                $app,
+            ),
+        );
 
         $router = $this->app->make(Router::class);
         $router->aliasMiddleware(UseAdminSession::ALIAS, UseAdminSession::class);

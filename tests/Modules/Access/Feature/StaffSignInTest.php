@@ -441,7 +441,7 @@ describe('trusted browsers', function () {
         )],
         'they changed their own phone' => [false, function (string $id): void {
             Fx::actAsStaff($id);
-            app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550002'));
+            app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550002', SIGN_IN_PASSWORD, '10.0.0.1'));
             app(VerifyOwnPhoneChangeHandler::class)->handle(new VerifyOwnPhoneChange(RecordingSecurityMessages::installed()->lastCode()));
         }],
         'a Super Admin revoked' => [true, function (string $id): void {
@@ -630,8 +630,13 @@ describe('limits on the way in', function () {
         $short = $browser->post('/admin/account/password', ['current_password' => SIGN_IN_PASSWORD, 'password' => 'too short']);
         $leaked = $browser->post('/admin/account/password', ['current_password' => SIGN_IN_PASSWORD, 'password' => FakeBreachList::LEAKED]);
 
-        expect(AdminBrowser::formError($short))->not->toBeNull()
-            ->and(AdminBrowser::formError($leaked))->not->toBeNull()
+        // Both reasons are answered with the one message, which never says which of the two it
+        // was: a form that said "this password has leaked" would confirm the password to a
+        // stranger at the keyboard (review of step 7).
+        $refused = (string) __('access::errors.password_too_weak.detail', ['min' => 12]);
+
+        expect(AdminBrowser::formError($short))->toBe($refused)
+            ->and(AdminBrowser::formError($leaked))->toBe($refused)
             ->and(signInWho($browser))->toBe($staffId);
     });
 });
@@ -854,7 +859,7 @@ describe('phones at sign-in', function () {
         'by themselves, elsewhere' => function (string $id): void {
             Fx::asSystem(function () use ($id): void {
                 Fx::actAsStaff($id);
-                app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550009'));
+                app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550009', SIGN_IN_PASSWORD, '10.0.0.1'));
                 app(VerifyOwnPhoneChangeHandler::class)->handle(new VerifyOwnPhoneChange(RecordingSecurityMessages::installed()->lastCode()));
             });
         },

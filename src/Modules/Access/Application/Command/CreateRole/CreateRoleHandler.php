@@ -56,6 +56,6 @@ final readonly class CreateRoleHandler
             $this->platform->recordAudit(RoleAudit::created($role));
 
             return $role->id();
-        });
+        }, 3);
     }
 }

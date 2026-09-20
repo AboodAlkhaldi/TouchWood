@@ -25,7 +25,8 @@ use Shared\Application\Actor;
  */
 final readonly class LaravelCustomerSessions implements CustomerSessions
 {
-    private const string SIGNED_IN = 'access.customer';
+    /** Also read by CustomerSessionHandler, which stamps each row with the customer it belongs to. */
+    public const string SIGNED_IN = 'access.customer';
 
     public function __construct(
         private Container $app,
@@ -109,6 +110,34 @@ final readonly class LaravelCustomerSessions implements CustomerSessions
     {
         $this->session()?->invalidate();
         $this->actor->set($this->actor->guest());
+    }
+
+    public function endEveryDeviceOf(string $customerId): void
+    {
+        // The rows themselves, not this browser's: the sweep runs from the queue, where there
+        // is no session at all. Inside the caller's transaction, so the rows go with the row
+        // they belong to (owner, 2026-09-21).
+        $this->app->make('db')->connection($this->connection())
+            ->table($this->table())
+            ->where('user_id', $customerId)
+            ->delete();
+    }
+
+    /**
+     * The storefront's session table and connection, as the site is configured to write them.
+     */
+    private function table(): string
+    {
+        $table = $this->app->make('config')->get('session.table');
+
+        return is_string($table) ? $table : 'sessions';
+    }
+
+    private function connection(): ?string
+    {
+        $connection = $this->app->make('config')->get('session.connection');
+
+        return is_string($connection) ? $connection : null;
     }
 
     /**

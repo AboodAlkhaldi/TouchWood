@@ -24,6 +24,9 @@ final readonly class UseStorefrontSession
 {
     public const string ALIAS = 'access.storefront-session';
 
+    /** The storefront's own session driver, which writes the customer each row belongs to. */
+    public const string DRIVER = 'access-storefront';
+
     public function __construct(
         private Config $config,
         private SessionManager $sessions,
@@ -34,14 +37,23 @@ final readonly class UseStorefrontSession
     public function handle(Request $request, Closure $next): Response
     {
         $previous = $this->config->get('session.lifetime');
+        $previousDriver = $this->config->get('session.driver');
         $days = $this->config->get('access.storefront.session_days');
         $this->config->set('session.lifetime', (is_int($days) ? $days : 365) * 24 * 60);
+
+        // Only a storefront row carries a customer id, so only the storefront needs the driver
+        // that writes one; a test or a host that keeps sessions elsewhere is left alone.
+        if ($previousDriver === 'database') {
+            $this->config->set('session.driver', self::DRIVER);
+        }
+
         $this->useStore();
 
         try {
             return $next($request);
         } finally {
             $this->config->set('session.lifetime', $previous);
+            $this->config->set('session.driver', $previousDriver);
             $this->useStore();
         }
     }

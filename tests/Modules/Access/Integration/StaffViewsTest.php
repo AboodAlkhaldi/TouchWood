@@ -149,8 +149,15 @@ describe('the staff a staff member sees (amendments 9 and 43)', function () {
             ->and($seen[$adminId]->email)->toBeNull()
             ->and($seen[$adminId]->phone)->toBeNull()
             ->and($seen[$adminId]->jobTitle)->toBeNull()
+            ->and($seen[$adminId]->joinedAt)->toBeNull()
+            ->and($seen[$adminId]->storeIds)->toBe([])
+            ->and($seen[$adminId]->allStores)->toBeFalse()
+            // Whether an admin's own account is active is not an ordinary colleague's to
+            // follow either (owner, 2026-09-21).
+            ->and($seen[$adminId]->status)->toBeNull()
             // An ordinary colleague is shown in full.
             ->and($seen[$colleague]->email)->not->toBeNull()
+            ->and($seen[$colleague]->status)->toBe(StaffStatus::Active)
             ->and($seen[$colleague]->isAdmin)->toBeFalse();
     });
 
