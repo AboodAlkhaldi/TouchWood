@@ -23,6 +23,13 @@ final class AccessPermissions
 
     public const string STAFF_ACCEPT_INVITATION = 'access.staff.accept_invitation';
 
+    /**
+     * The email verification link proves itself: whoever opens it verifies that address, signed in
+     * or not (owner's decision, 2026-09-20; amendment 38). Verifying a phone stays with the
+     * customer, under ACCOUNT_VERIFY.
+     */
+    public const string ACCOUNT_VERIFY_EMAIL = 'access.account.verify_email';
+
     // Every customer, for their own account.
     public const string ACCOUNT_VERIFY = 'access.account.verify';
 
@@ -81,6 +88,7 @@ final class AccessPermissions
             new PermissionDefinitionDto(self::SESSION_SIGN_IN, $guest, kind: $storeFree),
             new PermissionDefinitionDto(self::SESSION_RESET_PASSWORD, $guest, kind: $storeFree),
             new PermissionDefinitionDto(self::STAFF_ACCEPT_INVITATION, $guest, kind: $storeFree),
+            new PermissionDefinitionDto(self::ACCOUNT_VERIFY_EMAIL, $guest, kind: $storeFree),
 
             new PermissionDefinitionDto(self::ACCOUNT_VERIFY, $customer, kind: $storeFree),
             new PermissionDefinitionDto(self::ACCOUNT_UPDATE, $customer, kind: $storeFree),

@@ -4,6 +4,15 @@ declare(strict_types=1);
 
 // The security messages Access sends until Ops exists (spec §2.3).
 return [
+    'email_verification' => [
+        'subject' => 'Confirm your email address',
+        'lines' => [
+            'Hello :name,',
+            'Thank you for creating an account. Open the link below to confirm this email address.',
+            'The link works for a limited time. If you did not create an account, ignore this email.',
+        ],
+        'action' => 'Confirm my email',
+    ],
     'staff_invitation' => [
         'subject' => 'Your invitation to the admin panel',
         'lines' => [

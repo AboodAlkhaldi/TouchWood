@@ -18,6 +18,7 @@ use InvalidArgumentException;
 use Modules\Access\Application\AccessApiImpl;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Authorization\RoleAuthorizer;
+use Modules\Access\Application\Customer\CustomerLinks;
 use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
@@ -25,14 +26,19 @@ use Modules\Access\Application\Query\RoleReader;
 use Modules\Access\Application\Security\Codes;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Session\StaffSessions;
+use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Application\Staff\StaffLinks;
+use Modules\Access\Domain\Repository\CustomerRepository;
+use Modules\Access\Domain\Repository\CustomerTokenRepository;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\RoleRepository;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Infrastructure\Eloquent\CachedGrantsReader;
+use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseNotificationPreferenceRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleAssignmentRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleReader;
@@ -45,6 +51,7 @@ use Modules\Access\Infrastructure\Http\RequestActorContext;
 use Modules\Access\Infrastructure\Media\StaffAvatarUsage;
 use Modules\Access\Infrastructure\Messages\LogSmsGateway;
 use Modules\Access\Infrastructure\Messages\TemporarySecurityMessages;
+use Modules\Access\Infrastructure\Messages\UrlCustomerLinks;
 use Modules\Access\Infrastructure\Messages\UrlStaffLinks;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
 use Modules\Access\Infrastructure\Queue\CancelExpiredSuperAdminInvitationsJob;
@@ -83,6 +90,9 @@ final class AccessServiceProvider extends ServiceProvider
 
         $this->app->bind(StaffUserRepository::class, DatabaseStaffUserRepository::class);
         $this->app->bind(StaffTokenRepository::class, DatabaseStaffTokenRepository::class);
+        $this->app->bind(CustomerRepository::class, DatabaseCustomerRepository::class);
+        $this->app->bind(CustomerTokenRepository::class, DatabaseCustomerTokenRepository::class);
+        $this->app->bind(CustomerLinks::class, UrlCustomerLinks::class);
         $this->app->bind(NotificationPreferenceRepository::class, DatabaseNotificationPreferenceRepository::class);
         $this->app->bind(RoleRepository::class, DatabaseRoleRepository::class);
         $this->app->bind(RoleAssignmentRepository::class, DatabaseRoleAssignmentRepository::class);
@@ -152,7 +162,11 @@ final class AccessServiceProvider extends ServiceProvider
             $this->loadRoutesFrom($presentation.'/routes.php');
         }
 
-        $this->app->make(SettingsRegistry::class)->define('access', ...StaffSecuritySettings::definitions());
+        $this->app->make(SettingsRegistry::class)->define(
+            'access',
+            ...StaffSecuritySettings::definitions(),
+            ...CustomerSecuritySettings::definitions(),
+        );
         // Staff avatars are Platform media: deleting one leaves its staff member without it.
         $this->app->make(MediaUsages::class)->register('access', StaffAvatarUsage::class);
 

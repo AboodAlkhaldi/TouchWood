@@ -56,6 +56,14 @@ return [
         'title' => 'Phone number already used',
         'detail' => 'Another account already uses this phone number.',
     ],
+    'email_already_registered' => [
+        'title' => 'You already have an account',
+        'detail' => 'You already have an account — please sign in.',
+    ],
+    'customer_not_found' => [
+        'title' => 'Account not found',
+        'detail' => 'We could not find this account.',
+    ],
     'invalid_or_expired_link' => [
         'title' => 'Link not valid',
         'detail' => 'This link is not valid or has expired. Ask for a new one.',

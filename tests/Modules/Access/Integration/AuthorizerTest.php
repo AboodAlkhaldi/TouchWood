@@ -158,14 +158,17 @@ it('gives a guest only the automatic guest permissions', function () {
         ->and(Fx::allows(PlatformPermissions::MEDIA_UPLOAD, PermissionScope::global()))->toBeFalse();
 });
 
-it('lets no customer or integration act yet: customer accounts arrive in step 4', function (Actor $actor) {
+it('lets a customer act for their own account only, and an integration not at all', function (Actor $actor, bool $ownAccount) {
     Fx::actAs($actor);
 
-    expect(Fx::allows(AccessPermissions::ACCOUNT_UPDATE, PermissionScope::global()))->toBeFalse()
+    expect(Fx::allows(AccessPermissions::ACCOUNT_UPDATE, PermissionScope::global()))->toBe($ownAccount)
+        ->and(Fx::allows(AccessPermissions::ACCOUNT_REGISTER, PermissionScope::global()))->toBeFalse()
+        ->and(Fx::allows(AccessPermissions::STAFF_INVITE, Fx::inStore('sa')))->toBeFalse()
         ->and(Fx::allows(PlatformPermissions::MEDIA_UPLOAD, PermissionScope::global()))->toBeFalse();
 })->with([
-    'a customer' => [fn () => Actor::customer(strtolower((string) Str::ulid()))],
-    'an integration' => [fn () => Actor::integration(strtolower((string) Str::ulid()))],
+    // Their own account's actions (spec §1.5); registering belongs to a guest, and no role to either.
+    'a customer' => [fn () => Actor::customer(strtolower((string) Str::ulid())), true],
+    'an integration' => [fn () => Actor::integration(strtolower((string) Str::ulid())), false],
 ]);
 
 it('lets the system act in the console; a web server process with no one signed in is a guest, never the system', function () {

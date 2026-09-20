@@ -6,6 +6,7 @@ namespace Tests\Modules\Access\Support;
 
 use LogicException;
 use Modules\Access\Public\Contracts\SecurityMessages;
+use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
 
 /**
@@ -16,6 +17,9 @@ final class RecordingSecurityMessages implements SecurityMessages
 {
     /** @var list<array{to: string, link: string, locale: string}> */
     public array $invitations = [];
+
+    /** @var list<array{to: string, link: string, locale: string}> */
+    public array $emailVerifications = [];
 
     /** @var list<array{staff: string, to: string, link: string}> */
     public array $emailChanges = [];
@@ -49,6 +53,11 @@ final class RecordingSecurityMessages implements SecurityMessages
         }
 
         return self::$installed;
+    }
+
+    public function emailVerification(CustomerDto $customer, string $link): void
+    {
+        $this->emailVerifications[] = ['to' => $customer->email, 'link' => $link, 'locale' => $customer->locale];
     }
 
     public function staffInvitation(StaffDto $staff, string $link): void
