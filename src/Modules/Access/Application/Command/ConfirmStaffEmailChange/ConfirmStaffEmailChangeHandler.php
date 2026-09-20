@@ -73,6 +73,8 @@ final readonly class ConfirmStaffEmailChangeHandler
             $staff->changeEmail($change->newEmail);
             $this->staff->update($staff);
             $this->tokens->deleteEmailChange($staff->id());
+            // A reset link mailed to the old address dies with it (review of step 3b).
+            $this->tokens->deletePasswordReset($staff->id());
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.email_changed', $before, $staff, $staff->pullChanges()));
         }, 3);
     }

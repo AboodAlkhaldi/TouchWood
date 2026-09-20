@@ -20,8 +20,11 @@ final class RecordingSecurityMessages implements SecurityMessages
     /** @var list<array{staff: string, to: string, link: string}> */
     public array $emailChanges = [];
 
-    /** @var list<array{phone: string, locale: string, code: string}> */
+    /** @var list<array{phone: string, locale: string, code: string, kind: 'verify'|'sign_in'}> */
     public array $codes = [];
+
+    /** @var list<array{to: string, locale: string, link: string}> */
+    public array $passwordResets = [];
 
     private static ?self $installed = null;
 
@@ -53,6 +56,21 @@ final class RecordingSecurityMessages implements SecurityMessages
         $this->invitations[] = ['to' => $staff->email, 'link' => $link, 'locale' => $staff->locale];
     }
 
+    public function passwordReset(string $email, string $locale, string $link): void
+    {
+        $this->passwordResets[] = ['to' => $email, 'locale' => $locale, 'link' => $link];
+    }
+
+    /**
+     * The token at the end of the last password reset link.
+     */
+    public function lastPasswordResetToken(): string
+    {
+        $last = end($this->passwordResets);
+
+        return $last === false ? '' : basename($last['link']);
+    }
+
     public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void
     {
         $this->emailChanges[] = ['staff' => $staff->id, 'to' => $newEmail, 'link' => $link];
@@ -60,7 +78,12 @@ final class RecordingSecurityMessages implements SecurityMessages
 
     public function phoneCode(string $phone, string $locale, string $code): void
     {
-        $this->codes[] = ['phone' => $phone, 'locale' => $locale, 'code' => $code];
+        $this->codes[] = ['phone' => $phone, 'locale' => $locale, 'code' => $code, 'kind' => 'verify'];
+    }
+
+    public function staffSignInCode(string $phone, string $locale, string $code): void
+    {
+        $this->codes[] = ['phone' => $phone, 'locale' => $locale, 'code' => $code, 'kind' => 'sign_in'];
     }
 
     /**

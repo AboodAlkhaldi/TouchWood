@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\QueryErrorLog;
 use App\Http\Middleware\AssignCorrelationId;
 use App\Http\ProblemDetails;
 use Illuminate\Foundation\Application;
@@ -19,4 +20,5 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         ProblemDetails::register($exceptions);
+        QueryErrorLog::register($exceptions);
     })->create();

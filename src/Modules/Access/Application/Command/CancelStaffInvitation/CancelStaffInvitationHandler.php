@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Command\CancelStaffInvitation;
 
-use Carbon\CarbonImmutable;
-use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Connection;
-use Illuminate\Support\Str;
 use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
@@ -18,7 +15,6 @@ use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Public\Enums\StaffStatus;
-use Modules\Access\Public\Events\StaffDisabled;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 
@@ -34,7 +30,6 @@ final readonly class CancelStaffInvitationHandler
         private GrantsReader $grants,
         private StaffTokenRepository $tokens,
         private PlatformApi $platform,
-        private Dispatcher $events,
         private Connection $db,
     ) {}
 
@@ -55,15 +50,9 @@ final readonly class CancelStaffInvitationHandler
                 throw new InvalidStaffStatus($target->status());
             }
 
-            $before = clone $target;
-            $target->disable();
-            $this->staff->update($target);
             $this->tokens->deleteInvitation($target->id());
             $this->tokens->deletePhoneCode($target->id());
-            $this->platform->recordAudit(StaffAudit::updated('access.staff_user.invitation_cancelled', $before, $target, $target->pullChanges()));
-            $this->grants->refresh($target->id());
-
-            $this->events->dispatch(new StaffDisabled((string) Str::uuid(), $target->id(), CarbonImmutable::now()));
+            $this->platform->recordAudit(StaffAudit::event('access.staff_user.invitation_cancelled', $target));
         });
     }
 }

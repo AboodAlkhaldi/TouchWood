@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Modules\Access\Application\Command\CancelStaffInvitation;
 
 /**
- * The invitation stops working and the account is disabled (spec §4.3); enabling it later sends a
- * new invitation.
+ * The link stops working; the person stays invited, and a new link can be resent later
+ * (amendment 29). Cancelling the account itself is CancelStaffAccount.
  */
 final readonly class CancelStaffInvitation
 {

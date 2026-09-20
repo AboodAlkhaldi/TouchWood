@@ -51,6 +51,17 @@ final class StaffAudit
     }
 
     /**
+     * An address made to wait after too many wrong passwords, across accounts (owner, 2026-09-19).
+     * Platform keeps an IP address only for staff actions (Platform spec §1.5), so the subject is a
+     * keyed fingerprint of it (Codes::hash): the same address always gives the same one, so repeats
+     * show, but a copy of the database cannot be turned back into the address.
+     */
+    public static function addressLocked(string $fingerprint): AuditEntryDto
+    {
+        return new AuditEntryDto('access.staff_sign_in.address_locked', 'access.sign_in_address', $fingerprint, null, AuditChanges::none());
+    }
+
+    /**
      * @param  list<string>  $changed  StaffUser::pullChanges()
      */
     public static function updated(string $action, StaffUser $before, StaffUser $after, array $changed): AuditEntryDto

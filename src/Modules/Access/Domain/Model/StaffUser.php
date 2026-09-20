@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Domain\Model;
 
 use DateTimeImmutable;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\Language;
@@ -13,15 +14,16 @@ use Modules\Access\Domain\ValueObject\StaffProfile;
 use Modules\Access\Public\Enums\StaffStatus;
 
 /**
- * A staff account (Access spec §1.4, §4.3).
+ * A staff account (Access spec §1.4, §4.3, amendment 29).
  *
  *    invite ──▶ INVITED ── accept (password + phone code) ──▶ ACTIVE
- *                 │ cancel                          disable │  ▲ enable
- *                 ▼                                         ▼  │
- *              DISABLED ◀─────────────────────────────── DISABLED
+ *                 │                                  disable │  ▲ enable
+ *                 │ cancel the account                       ▼  │
+ *                 ▼                                        DISABLED
+ *             CANCELLED — final; the email and phone are free again
  *
- * Enabling someone who never accepted takes them back to INVITED: they have no password yet.
- * Never deleted: the audit log names them forever.
+ * Only someone who accepted is ever disabled and enabled. Never deleted: the audit log names them
+ * forever.
  */
 final class StaffUser
 {
@@ -39,15 +41,23 @@ final class StaffUser
         private Language $language,
         private StaffStatus $status,
         private bool $superAdmin,
+        private readonly ?string $invitedBy,
+        private int $sessionVersion = 0,
     ) {}
 
     /**
      * The whole profile is required at invitation; the phone is verified when the invitation is
      * accepted (owner's decision, 2026-09-19).
+     *
+     * @param  string|null  $invitedBy  the inviting staff member; null for the console
      */
-    public static function invite(string $id, EmailAddress $email, StaffProfile $profile, PhoneNumber $phone, Language $language, bool $superAdmin = false): self
+    public static function invite(string $id, EmailAddress $email, StaffProfile $profile, PhoneNumber $phone, Language $language, ?string $invitedBy, bool $superAdmin = false): self
     {
-        return new self($id, $email, null, $profile, $phone, null, null, $language, StaffStatus::Invited, $superAdmin);
+        if ($invitedBy === $id) {
+            throw new InvalidAccessAttribute('invited_by', 'nobody invites themselves');
+        }
+
+        return new self($id, $email, null, $profile, $phone, null, null, $language, StaffStatus::Invited, $superAdmin, $invitedBy);
     }
 
     public static function reconstitute(
@@ -61,8 +71,22 @@ final class StaffUser
         Language $language,
         StaffStatus $status,
         bool $superAdmin,
+        ?string $invitedBy,
+        int $sessionVersion = 0,
     ): self {
-        return new self($id, $email, $passwordHash, $profile, $phone, $phoneVerifiedAt, $avatarMediaId, $language, $status, $superAdmin);
+        return new self($id, $email, $passwordHash, $profile, $phone, $phoneVerifiedAt, $avatarMediaId, $language, $status, $superAdmin, $invitedBy, $sessionVersion);
+    }
+
+    /**
+     * A new password — changed by its owner or reset by email link. Every session signed in before
+     * it ends (spec §1.8): the session version moves on.
+     */
+    public function changePassword(string $passwordHash): void
+    {
+        $this->requireStatus(StaffStatus::Active);
+        $this->passwordHash = $passwordHash;
+        $this->sessionVersion++;
+        $this->markChanged('password');
     }
 
     /**
@@ -84,22 +108,38 @@ final class StaffUser
     }
 
     /**
-     * Also cancels an invitation (spec §4.3).
+     * Only someone who accepted: an invited person's invitation is cancelled instead. Every session
+     * ends for good: the session version moves on, so enabling them again brings none back (review
+     * of step 3b).
      */
     public function disable(): void
     {
-        if ($this->status === StaffStatus::Disabled) {
-            throw new InvalidStaffStatus($this->status);
-        }
-
+        $this->requireStatus(StaffStatus::Active);
         $this->status = StaffStatus::Disabled;
+        $this->sessionVersion++;
         $this->markChanged('status');
     }
 
     public function enable(): void
     {
         $this->requireStatus(StaffStatus::Disabled);
-        $this->status = $this->hasAccepted() ? StaffStatus::Active : StaffStatus::Invited;
+
+        if (! $this->hasAccepted()) {
+            throw new InvalidStaffStatus($this->status);
+        }
+
+        $this->status = StaffStatus::Active;
+        $this->markChanged('status');
+    }
+
+    /**
+     * The invitation withdrawn for good (amendment 29): final, and the email and phone are free
+     * for another account. Only someone who has not accepted.
+     */
+    public function cancel(): void
+    {
+        $this->requireStatus(StaffStatus::Invited);
+        $this->status = StaffStatus::Cancelled;
         $this->markChanged('status');
     }
 
@@ -268,6 +308,22 @@ final class StaffUser
     public function isSuperAdmin(): bool
     {
         return $this->superAdmin;
+    }
+
+    /**
+     * Who invited them, never changed by a resend; null when the console did.
+     */
+    public function invitedBy(): ?string
+    {
+        return $this->invitedBy;
+    }
+
+    /**
+     * A session signed in under an older version has ended.
+     */
+    public function sessionVersion(): int
+    {
+        return $this->sessionVersion;
     }
 
     private function requireStatus(StaffStatus $status): void

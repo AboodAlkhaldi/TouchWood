@@ -18,7 +18,8 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
 /**
- * Ending the person's trusted browsers arrives with staff sign-in (step 3b).
+ * The phone goes, and so does every trusted browser (amendment 14): the next sign-in asks for a new
+ * number after the password.
  */
 final readonly class ResetSuperAdminPhoneHandler
 {
@@ -50,6 +51,7 @@ final readonly class ResetSuperAdminPhoneHandler
             $staff->resetPhone();
             $this->staff->update($staff);
             $this->tokens->deletePhoneCode($staff->id());
+            $this->tokens->forgetTrustedBrowsers($staff->id());
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.phone_reset', $before, $staff, $staff->pullChanges()));
         });
     }
