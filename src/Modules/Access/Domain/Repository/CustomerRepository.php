@@ -25,6 +25,11 @@ interface CustomerRepository
     public function find(string $id): ?Customer;
 
     /**
+     * The customer with this email, ignoring case. Locks the row.
+     */
+    public function byEmail(EmailAddress $email): ?Customer;
+
+    /**
      * Whether a customer account already has this email, ignoring case (spec §1.2).
      */
     public function emailInUse(EmailAddress $email): bool;

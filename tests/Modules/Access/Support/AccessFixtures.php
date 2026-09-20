@@ -134,17 +134,24 @@ final class AccessFixtures
 
     /**
      * A customer who registered in that store, as a visitor would: active, email unverified, no
-     * phone. The request acts as a guest while registering, and keeps that actor afterwards.
+     * phone. It registers as a guest and puts the previous ActorContext back afterwards, so a test
+     * that goes on to make HTTP requests is not left acting as that fixed guest.
      */
     public static function customer(string $email = 'sara@example.test', string $storeCode = 'sa', string $accountType = 'individual'): string
     {
-        return self::inStoreCode($storeCode, function () use ($email, $accountType): string {
-            self::actAs(Actor::guest(strtolower((string) Str::ulid())));
+        // Registering as a guest, then giving the real ActorContext back: a test that goes on to
+        // send requests must read who is acting from the session, not from a fixed stand-in.
+        $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+        self::actAs(Actor::guest(strtolower((string) Str::ulid())));
 
-            return app(RegisterCustomerHandler::class)->handle(
+        try {
+            return self::inStoreCode($storeCode, fn (): string => app(RegisterCustomerHandler::class)->handle(
                 new RegisterCustomer($email, self::CUSTOMER_PASSWORD, 'Sara', 'Ali', $accountType, 'en', true),
-            );
-        });
+            ));
+        } finally {
+            app()->scoped(ActorContext::class, $previous);
+            app()->forgetScopedInstances();
+        }
     }
 
     /**

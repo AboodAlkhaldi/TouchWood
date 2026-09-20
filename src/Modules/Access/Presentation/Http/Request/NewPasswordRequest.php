@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Modules\Access\Presentation\Http\Request;
 
 /**
- * The email and password.
+ * A new password; its rules are the domain's (spec §1.8).
  */
-final class StaffSignInRequest extends StaffFormRequest
+final class NewPasswordRequest extends AccessFormRequest
 {
     /**
      * @return array<string, list<string>>
      */
     public function rules(): array
     {
-        return ['email' => ['required', 'string', 'max:254'], 'password' => ['required', 'string', 'max:1024']];
+        return ['password' => ['required', 'string', 'max:1024']];
     }
 }

@@ -7,7 +7,7 @@ namespace Modules\Access\Presentation\Http\Request;
 /**
  * The invitee's password and phone.
  */
-final class StaffInvitationRequest extends StaffFormRequest
+final class StaffInvitationRequest extends AccessFormRequest
 {
     /**
      * @return array<string, list<string>>

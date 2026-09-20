@@ -55,6 +55,16 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
         return $row instanceof stdClass ? $this->toCustomer($row) : null;
     }
 
+    public function byEmail(EmailAddress $email): ?Customer
+    {
+        $row = $this->db->table(self::TABLE)
+            ->whereRaw('lower(email) = lower(?)', [$email->value])
+            ->lockForUpdate()
+            ->first();
+
+        return $row instanceof stdClass ? $this->toCustomer($row) : null;
+    }
+
     public function emailInUse(EmailAddress $email): bool
     {
         return $this->db->table(self::TABLE)
@@ -126,6 +136,7 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             'phone_verified_at' => $customer->phoneVerifiedAt(),
             'locale' => $customer->language()->value,
             'last_store_id' => $customer->lastStoreId(),
+            'session_version' => $customer->sessionVersion(),
         ];
     }
 
@@ -148,6 +159,7 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             (string) $row->terms_version,
             CarbonImmutable::parse((string) $row->terms_accepted_at),
             $row->deletion_scheduled_for === null ? null : CarbonImmutable::parse((string) $row->deletion_scheduled_for),
+            (int) $row->session_version,
         );
     }
 }

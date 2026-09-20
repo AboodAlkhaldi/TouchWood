@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Infrastructure;
 
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
@@ -18,13 +19,20 @@ use InvalidArgumentException;
 use Modules\Access\Application\AccessApiImpl;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Authorization\RoleAuthorizer;
+use Modules\Access\Application\Command\ChangeOwnCustomerPassword\ChangeOwnCustomerPasswordHandler;
+use Modules\Access\Application\Command\ChangeOwnStaffPassword\ChangeOwnStaffPasswordHandler;
+use Modules\Access\Application\Command\SignInCustomer\SignInCustomerHandler;
+use Modules\Access\Application\Command\SignInStaff\SignInStaffHandler;
 use Modules\Access\Application\Customer\CustomerLinks;
+use Modules\Access\Application\Customer\GuestVisitors;
 use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Application\Query\RoleReader;
 use Modules\Access\Application\Security\Codes;
 use Modules\Access\Application\Security\PasswordPolicy;
+use Modules\Access\Application\Security\SignInLimits;
+use Modules\Access\Application\Session\CustomerSessions;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
@@ -45,6 +53,8 @@ use Modules\Access\Infrastructure\Eloquent\DatabaseRoleReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffUserRepository;
+use Modules\Access\Infrastructure\Http\CookieGuestVisitors;
+use Modules\Access\Infrastructure\Http\LaravelCustomerSessions;
 use Modules\Access\Infrastructure\Http\LaravelStaffSessions;
 use Modules\Access\Infrastructure\Http\RequestActor;
 use Modules\Access\Infrastructure\Http\RequestActorContext;
@@ -63,10 +73,13 @@ use Modules\Access\Presentation\Console\CreateSuperAdminCommand;
 use Modules\Access\Presentation\Console\ResendSuperAdminInvitationCommand;
 use Modules\Access\Presentation\Console\ResetSuperAdminPhoneCommand;
 use Modules\Access\Presentation\Console\RevokeSuperAdminCommand;
+use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
 use Modules\Access\Presentation\Http\Middleware\IdentifyRequestActor;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
+use Modules\Access\Presentation\Http\Middleware\RequireCustomer;
 use Modules\Access\Presentation\Http\Middleware\RequireStaff;
 use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
+use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Contracts\SecurityMessages;
@@ -93,6 +106,25 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->bind(CustomerRepository::class, DatabaseCustomerRepository::class);
         $this->app->bind(CustomerTokenRepository::class, DatabaseCustomerTokenRepository::class);
         $this->app->bind(CustomerLinks::class, UrlCustomerLinks::class);
+        $this->app->bind(GuestVisitors::class, CookieGuestVisitors::class);
+        $this->app->scoped(CustomerSessions::class, LaravelCustomerSessions::class);
+
+        // Staff and customers count wrong passwords the same way, to their own numbers and on their
+        // own keys: a busy shop address never locks the admin panel, or the other way round.
+        $this->app->when([SignInStaffHandler::class, ChangeOwnStaffPasswordHandler::class])
+            ->needs(SignInLimits::class)
+            ->give(fn (Application $app): SignInLimits => new SignInLimits(
+                $app->make(RateLimiter::class),
+                $app->make(StaffSecuritySettings::class),
+                'staff',
+            ));
+        $this->app->when([SignInCustomerHandler::class, ChangeOwnCustomerPasswordHandler::class])
+            ->needs(SignInLimits::class)
+            ->give(fn (Application $app): SignInLimits => new SignInLimits(
+                $app->make(RateLimiter::class),
+                $app->make(CustomerSecuritySettings::class),
+                'customer',
+            ));
         $this->app->bind(NotificationPreferenceRepository::class, DatabaseNotificationPreferenceRepository::class);
         $this->app->bind(RoleRepository::class, DatabaseRoleRepository::class);
         $this->app->bind(RoleAssignmentRepository::class, DatabaseRoleAssignmentRepository::class);
@@ -157,6 +189,9 @@ final class AccessServiceProvider extends ServiceProvider
         $router->aliasMiddleware(UseAdminSession::ALIAS, UseAdminSession::class);
         $router->aliasMiddleware(IdentifyStaff::ALIAS, IdentifyStaff::class);
         $router->aliasMiddleware(RequireStaff::ALIAS, RequireStaff::class);
+        $router->aliasMiddleware(UseStorefrontSession::ALIAS, UseStorefrontSession::class);
+        $router->aliasMiddleware(IdentifyCustomer::ALIAS, IdentifyCustomer::class);
+        $router->aliasMiddleware(RequireCustomer::ALIAS, RequireCustomer::class);
 
         if (! $this->app->routesAreCached()) {
             $this->loadRoutesFrom($presentation.'/routes.php');

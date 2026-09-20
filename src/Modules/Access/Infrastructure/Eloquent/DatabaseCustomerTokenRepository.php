@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Modules\Access\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Modules\Access\Domain\Model\CustomerPasswordReset;
 use Modules\Access\Domain\Model\CustomerPhoneCode;
 use Modules\Access\Domain\Repository\CustomerTokenRepository;
 use Modules\Access\Domain\ValueObject\CustomerPhoneCodePurpose;
@@ -15,6 +17,8 @@ use stdClass;
 final readonly class DatabaseCustomerTokenRepository implements CustomerTokenRepository
 {
     private const string PHONE_CODES = 'access.phone_codes';
+
+    private const string PASSWORD_RESETS = 'access.customer_password_resets';
 
     public function __construct(
         private ConnectionInterface $db,
@@ -56,5 +60,29 @@ final readonly class DatabaseCustomerTokenRepository implements CustomerTokenRep
     public function deletePhoneCode(string $customerId): void
     {
         $this->db->table(self::PHONE_CODES)->where('customer_id', $customerId)->delete();
+    }
+
+    public function putPasswordReset(string $customerId, string $tokenHash, DateTimeImmutable $expiresAt): void
+    {
+        $this->db->table(self::PASSWORD_RESETS)->upsert(
+            [['customer_id' => $customerId, 'token_hash' => $tokenHash, 'expires_at' => $expiresAt, 'created_at' => CarbonImmutable::now()]],
+            ['customer_id'],
+            ['token_hash', 'expires_at', 'created_at'],
+        );
+    }
+
+    public function passwordResetByToken(string $tokenHash): ?CustomerPasswordReset
+    {
+        $row = $this->db->table(self::PASSWORD_RESETS)->where('token_hash', $tokenHash)->lockForUpdate()->first();
+
+        return $row instanceof stdClass ? new CustomerPasswordReset(
+            (string) $row->customer_id,
+            CarbonImmutable::parse((string) $row->expires_at),
+        ) : null;
+    }
+
+    public function deletePasswordReset(string $customerId): void
+    {
+        $this->db->table(self::PASSWORD_RESETS)->where('customer_id', $customerId)->delete();
     }
 }
