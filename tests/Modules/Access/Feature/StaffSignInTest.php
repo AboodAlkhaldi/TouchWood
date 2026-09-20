@@ -689,10 +689,11 @@ describe('password reset', function () {
             app(DisableStaffHandler::class)->handle(new DisableStaff($id));
             app(EnableStaffHandler::class)->handle(new EnableStaff($id));
         }],
-        'a Super Admin revoked, then enabled again with a role' => [true, function (string $id): void {
+        // Revoking closes the account and frees its email at once (amendment 45), so the link dies
+        // with it: the way back is a fresh invitation.
+        'a Super Admin revoked' => [true, function (string $id): void {
             Fx::staff(superAdmin: true);
             app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin(signInEmail($id)));
-            app(EnableStaffHandler::class)->handle(new EnableStaff($id, Fx::change($id, ['sa'], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE]))));
         }],
         'a new email' => [false, function (string $id): void {
             app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($id, 'moved@example.test'));

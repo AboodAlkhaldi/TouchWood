@@ -16,8 +16,6 @@ use Modules\Access\Application\Command\AnonymizeDueAccounts\AnonymizeDueAccounts
 use Modules\Access\Application\Command\AnonymizeDueAccounts\AnonymizeDueAccountsHandler;
 use Modules\Access\Application\Command\BlockCustomer\BlockCustomer;
 use Modules\Access\Application\Command\BlockCustomer\BlockCustomerHandler;
-use Modules\Access\Application\Command\CancelAccountDeletion\CancelAccountDeletion;
-use Modules\Access\Application\Command\CancelAccountDeletion\CancelAccountDeletionHandler;
 use Modules\Access\Application\Command\CancelCustomerDeletion\CancelCustomerDeletion;
 use Modules\Access\Application\Command\CancelCustomerDeletion\CancelCustomerDeletionHandler;
 use Modules\Access\Application\Command\DeleteCustomerOnRequest\DeleteCustomerOnRequest;
@@ -39,7 +37,6 @@ use Modules\Access\Infrastructure\Queue\AnonymizeDueAccountsJob;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\CustomerBlocked;
-use Modules\Access\Public\Events\CustomerDeletionCancelled;
 use Modules\Access\Public\Events\CustomerDeletionScheduled;
 use Modules\Access\Public\Events\CustomerUnblocked;
 use Shared\Application\Actor;
@@ -140,18 +137,16 @@ describe('a customer deleting their own account (spec §1.10)', function () {
             ->and(RecordingSecurityMessages::installed()->deletions)->toBeEmpty();
     });
 
-    it('is called off from the account page', function () {
-        Event::fake([CustomerDeletionCancelled::class]);
+    it('signs them out of every device the moment they confirm', function () {
         $customerId = Fx::customer();
         Fx::actAsCustomer($customerId);
+        $before = (int) deletionRow($customerId)?->session_version;
+
         Fx::inStoreCode('sa', fn () => app(RequestAccountDeletionHandler::class)->handle(new RequestAccountDeletion(Fx::CUSTOMER_PASSWORD, '10.0.0.3')));
 
-        app(CancelAccountDeletionHandler::class)->handle(new CancelAccountDeletion);
-
-        expect(deletionRow($customerId)?->deletion_scheduled_for)->toBeNull()
-            ->and(Fx::audits('access.customer.deletion_cancelled', $customerId))->toBe(1);
-
-        Event::assertDispatched(CustomerDeletionCancelled::class);
+        // Nothing of the account can be used while it waits (owner, 2026-09-20): every session of
+        // theirs ends, and signing in again — which is what calls the deletion off — is the way back.
+        expect((int) deletionRow($customerId)?->session_version)->toBe($before + 1);
     });
 
     it('is only for the customer acting', function () {
@@ -295,7 +290,8 @@ describe('the deletion sweep (spec §1.10, amendment 43)', function () {
             ->and($row?->email)->toBe("deleted-{$due}@deleted.invalid")
             ->and($row?->phone)->toBeNull()
             ->and($row?->deletion_scheduled_for)->toBeNull()
-            ->and((int) $row?->session_version)->toBe(1)
+            // One for the deletion they asked for, one for the deletion itself.
+            ->and((int) $row?->session_version)->toBe(2)
             // What stays: the account type, the home store and the dates (amendment 43).
             ->and($row?->account_type)->toBe('INDIVIDUAL')
             ->and($row?->home_store_id)->toBe(Fx::storeId('sa'))

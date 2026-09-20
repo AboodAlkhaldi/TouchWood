@@ -187,9 +187,9 @@ describe('a staff member\'s life', function () {
             $staff->enable();
         }],
         'enable someone invited' => [fn () => invitedStaff()->enable()],
-        'cancel someone who accepted' => [function () {
+        'cancel an account that is closed already' => [function () {
             $staff = invitedStaff();
-            $staff->accept('hash', PhoneNumber::of('+966509999999'), new DateTimeImmutable);
+            $staff->cancel();
             $staff->cancel();
         }],
     ]);
