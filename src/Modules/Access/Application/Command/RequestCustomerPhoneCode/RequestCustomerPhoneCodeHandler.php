@@ -40,7 +40,7 @@ final readonly class RequestCustomerPhoneCodeHandler
     public function handle(RequestCustomerPhoneCode $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $customerId = $this->current->id();
+        $customerId = $this->current->id(self::PERMISSION);
         $phone = PhoneNumber::of($command->phone);
 
         $this->db->transaction(function () use ($customerId, $phone): void {

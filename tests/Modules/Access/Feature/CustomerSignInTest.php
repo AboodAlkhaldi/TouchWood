@@ -10,6 +10,11 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Modules\Access\Application\Command\AnonymizeDueAccounts\AnonymizeDueAccounts;
+use Modules\Access\Application\Command\AnonymizeDueAccounts\AnonymizeDueAccountsHandler;
+use Modules\Access\Application\Command\DeleteCustomerOnRequest\DeleteCustomerOnRequest;
+use Modules\Access\Application\Command\DeleteCustomerOnRequest\DeleteCustomerOnRequestHandler;
+use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
 use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
@@ -547,5 +552,40 @@ describe('resending the verification link (spec §1.2)', function () {
         $browser->post('/sa/en/account/verify-email/resend');
 
         expect(RecordingSecurityMessages::installed()->emailVerifications)->toHaveCount(1);
+    });
+});
+
+describe('a session row and the account it belongs to (owner, 2026-09-21)', function () {
+    it('writes the customer into the row, and leaves a visitor who is nobody empty', function () {
+        $customerId = Fx::customer();
+        $guest = new AdminBrowser;
+        $guest->get('/sa/en/_who');
+        $browser = new AdminBrowser;
+        shopSignIn($browser, $customerId);
+
+        expect(DB::table('sessions')->where('user_id', $customerId)->count())->toBe(1)
+            ->and(DB::table('sessions')->whereNull('user_id')->count())->toBeGreaterThan(0);
+    });
+
+    it('takes every session of the account away when it is anonymized', function () {
+        $customerId = Fx::customer();
+        $other = Fx::customer('other@example.test');
+        $phone = new AdminBrowser('10.0.0.80');
+        $laptop = new AdminBrowser('10.0.0.81');
+        shopSignIn($phone, $customerId);
+        shopSignIn($laptop, $customerId);
+        shopSignIn(new AdminBrowser('10.0.0.82'), $other);
+
+        expect(DB::table('sessions')->where('user_id', $customerId)->count())->toBe(2);
+
+        // A row holds the person's id, the address it came from and the browser it was: none of
+        // that may outlive the account by up to a year (owner, 2026-09-21).
+        Fx::actAsAdmin(['sa'], [AccessPermissions::CUSTOMER_DELETE, AccessPermissions::CUSTOMER_VIEW]);
+        app(DeleteCustomerOnRequestHandler::class)->handle(new DeleteCustomerOnRequest($customerId, 'Asked'));
+        DB::table('access.customers')->where('id', $customerId)->update(['deletion_scheduled_for' => CarbonImmutable::now()->subMinute()]);
+        Fx::asSystem(fn (): int => app(AnonymizeDueAccountsHandler::class)->handle(new AnonymizeDueAccounts));
+
+        expect(DB::table('sessions')->where('user_id', $customerId)->count())->toBe(0)
+            ->and(DB::table('sessions')->where('user_id', $other)->count())->toBe(1);
     });
 });

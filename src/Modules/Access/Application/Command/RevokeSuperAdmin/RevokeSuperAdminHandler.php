@@ -26,9 +26,11 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
 /**
- * A former Super Admin has no role, and nobody works without one: the account is disabled, with
- * every link and code it had, until an admin enables it together with a role. One who never
- * accepted is cancelled instead, and freed (owner's decisions, 2026-09-19).
+ * A former Super Admin has no role, and nobody works without one. Revoking is a console action, so
+ * the account is closed with the title: CANCELLED, no password, every link, code and session gone,
+ * and the email and phone free at once for a new account. Someone who is to stay is invited again
+ * like anyone else. One who never accepted is cancelled the same way (owner, 2026-09-19 and
+ * 2026-09-20; amendments 30 and 45(b)).
  */
 final readonly class RevokeSuperAdminHandler
 {

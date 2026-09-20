@@ -49,7 +49,7 @@ final readonly class CustomerPhoneVerification
         }
 
         // Per number, not per account: nobody can make one phone ring by registering many accounts.
-        $hourly = 'access:customer-sms:'.$phone->value;
+        $hourly = 'access:customer-sms:'.hash('sha256', $phone->value);
 
         if ($this->limiter->tooManyAttempts($hourly, $this->settings->codesPerHour())) {
             throw new CodeRequestTooSoon($this->limiter->availableIn($hourly));

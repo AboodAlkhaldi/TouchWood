@@ -51,7 +51,7 @@ final readonly class ResendCustomerEmailVerificationHandler
     public function handle(ResendCustomerEmailVerification $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $customerId = $this->current->id();
+        $customerId = $this->current->id(self::PERMISSION);
         $customer = $this->customers->find($customerId) ?? throw new CustomerNotFound($customerId);
 
         if ($customer->emailVerifiedAt() !== null) {

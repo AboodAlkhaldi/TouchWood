@@ -29,12 +29,15 @@ use Modules\Access\Public\Enums\CustomerStatus;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Modules\Access\Public\Enums\StaffStatus;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Access\Support\FakeBreachList;
 
 use function Pest\Laravel\seed;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    // Registering a customer checks the password against the breach list: never the real one.
+    FakeBreachList::install();
     seed(PlatformSeeder::class);
 });
 

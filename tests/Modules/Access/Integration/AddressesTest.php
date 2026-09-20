@@ -29,12 +29,15 @@ use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Public\Events\StoreCreated;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Access\Support\FakeBreachList;
 
 use function Pest\Laravel\seed;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    // Registering a customer checks the password against the breach list: never the real one.
+    FakeBreachList::install();
     seed(PlatformSeeder::class);
 });
 
@@ -107,6 +110,8 @@ describe('a customer\'s addresses (spec §1.9)', function () {
             'recipient_name' => 'changed',
             'phone' => 'changed',
             'fields' => 'changed',
+            // Where someone lives is personal too: only "changed" (review of step 7).
+            'map_pin' => 'changed',
             'is_default' => [null, true],
         ]);
     });
@@ -260,7 +265,8 @@ describe('a customer\'s addresses (spec §1.9)', function () {
 
     it('honours the store\'s own limit', function () {
         $customerId = Fx::customer();
-        Fx::actAsStaff(Fx::staffWith([AccessPermissions::SETTINGS_UPDATE], ['sa']));
+        // Changing a setting is an admin-only action (owner, 2026-09-21).
+        Fx::actAsAdmin(['sa'], [AccessPermissions::SETTINGS_UPDATE]);
         app(UpdateSettingHandler::class)->handle(new UpdateSetting(CustomerSecuritySettings::ADDRESSES_PER_STORE, 'sa', 2));
 
         Fx::actAsCustomer($customerId);

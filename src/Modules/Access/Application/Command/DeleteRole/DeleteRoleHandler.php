@@ -78,6 +78,11 @@ final readonly class DeleteRoleHandler
                     throw new InvalidAccessAttribute('replacement', 'pick another saved role of the same level');
                 }
 
+                // The author must be allowed to give away everything the replacement holds, the
+                // same as when a role is made or edited: reserved and admin-only names never
+                // arrive through a delete either (review of step 7).
+                $this->rules->requireGrantable($author, $replacement->level(), $replacement->permissions());
+
                 $replacementId = $replacement->id();
                 $now = CarbonImmutable::now();
 

@@ -47,7 +47,7 @@ final readonly class PhoneVerification
             throw new CodeRequestTooSoon($wait);
         }
 
-        $hourly = 'access:staff-sms:'.$phone->value;
+        $hourly = 'access:staff-sms:'.hash('sha256', $phone->value);
 
         if ($this->limiter->tooManyAttempts($hourly, $this->settings->codesPerHour())) {
             throw new CodeRequestTooSoon($this->limiter->availableIn($hourly));

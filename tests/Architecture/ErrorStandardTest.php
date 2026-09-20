@@ -22,6 +22,11 @@ foreach (['Shared\Domain', 'Shared\Application'] as $layer) {
     });
 }
 
+it('finds modules with errors to check', function () {
+    // Named one by one: a renamed module must fail here, not quietly stop generating checks.
+    expect(modulesWithCode())->toContain('Platform')->toContain('Access');
+});
+
 foreach (modulesWithCode() as $module) {
     arch("{$module}: every domain error extends DomainError", function () use ($module) {
         expect("Modules\\{$module}\\Domain\\Exception")->toExtend(DomainError::class);

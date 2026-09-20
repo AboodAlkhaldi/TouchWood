@@ -57,6 +57,6 @@ final readonly class ResendStaffInvitationHandler
 
             $this->invitations->send($target, $author->staffId);
             $this->platform->recordAudit(StaffAudit::event('access.staff_user.invitation_resent', $target));
-        });
+        }, 3);
     }
 }
