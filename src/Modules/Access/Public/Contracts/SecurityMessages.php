@@ -12,15 +12,21 @@ use Modules\Access\Public\Dto\StaffDto;
  *
  * Codes and links travel only through this interface: never inside events or queued job payloads,
  * which are stored in the database. Each message is in its recipient's communication language.
- * The customer messages arrive with customer accounts (step 4), sign-in codes and password resets
- * with staff sign-in (step 3b).
+ * The customer messages arrive with customer accounts (step 4).
  */
 interface SecurityMessages
 {
     /**
-     * @param  string  $link  the invitation link (72 hours)
+     * @param  string  $link  the invitation link (72 hours; a Super Admin's 24)
      */
     public function staffInvitation(StaffDto $staff, string $link): void;
+
+    /**
+     * A link to choose a new password (a staff member's works 30 minutes, amendment 31).
+     *
+     * @param  string  $locale  "ar" or "en"
+     */
+    public function passwordReset(string $email, string $locale, string $link): void;
 
     /**
      * Sent to the NEW address, which becomes the staff member's email when the link is used
@@ -29,9 +35,18 @@ interface SecurityMessages
     public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void;
 
     /**
-     * A code that verifies a phone, sent to that phone.
+     * A code sent to a phone to verify it.
      *
      * @param  string  $locale  "ar" or "en"
      */
     public function phoneCode(string $phone, string $locale, string $code): void;
+
+    /**
+     * A staff sign-in code, which also warns that the password was just used: if it was not them,
+     * someone else has it (owner's decision, 2026-09-19; amendment 34). Sent to $phone, not taken
+     * from the account: a Super Admin whose phone was reset gets theirs on a number not yet on it.
+     *
+     * @param  string  $locale  "ar" or "en"
+     */
+    public function staffSignInCode(string $phone, string $locale, string $code): void;
 }

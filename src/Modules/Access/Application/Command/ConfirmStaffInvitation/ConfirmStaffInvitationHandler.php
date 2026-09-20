@@ -13,6 +13,7 @@ use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Application\Security\SecretTokens;
+use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
@@ -35,17 +36,21 @@ final readonly class ConfirmStaffInvitationHandler
         private StaffTokenRepository $tokens,
         private PhoneVerification $verification,
         private GrantsReader $grants,
+        private StaffSessions $sessions,
         private PlatformApi $platform,
         private Dispatcher $events,
         private Connection $db,
     ) {}
 
-    public function handle(ConfirmStaffInvitation $command): void
+    /**
+     * @return bool whether they were signed in: only a Super Admin goes straight in
+     */
+    public function handle(ConfirmStaffInvitation $command): bool
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         // A wrong code is counted and committed before the error is thrown (PhoneVerification).
-        $failure = $this->db->transaction(function () use ($command): ?InvalidCode {
+        $result = $this->db->transaction(function () use ($command): bool|InvalidCode {
             $now = CarbonImmutable::now();
             $invitation = $this->tokens->invitationByToken(SecretTokens::hash($command->token));
 
@@ -78,11 +83,22 @@ final readonly class ConfirmStaffInvitationHandler
 
             $this->events->dispatch(new StaffActivated((string) Str::uuid(), $staff->id(), $now));
 
-            return null;
+            // A Super Admin, whom the console invited, goes straight in with the password and code
+            // just given; staff then sign in as always, password and code (owner, 2026-09-19).
+            if (! $staff->isSuperAdmin()) {
+                return false;
+            }
+
+            $this->sessions->start($staff->id(), $staff->sessionVersion());
+            $this->platform->recordAudit(StaffAudit::event('access.staff_user.signed_in', $staff, ['trusted_browser' => false]));
+
+            return true;
         });
 
-        if ($failure !== null) {
-            throw $failure;
+        if ($result instanceof InvalidCode) {
+            throw $result;
         }
+
+        return $result;
     }
 }

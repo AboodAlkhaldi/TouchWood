@@ -6,7 +6,7 @@ namespace Modules\Access\Application\Command\DisableStaff;
 
 /**
  * A staff member who left: they hold nothing and cannot sign in; never deleted (spec §1.4). Their
- * open sessions and trusted browsers end with staff sign-in (step 3b).
+ * open sessions end for good, with every link, code and trusted browser.
  */
 final readonly class DisableStaff
 {

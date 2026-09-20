@@ -13,10 +13,7 @@ use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
-use Modules\Access\Application\Security\SecretTokens;
-use Modules\Access\Application\Settings\StaffSecuritySettings;
-use Modules\Access\Application\Staff\StaffLinks;
-use Modules\Access\Application\Staff\StaffMapper;
+use Modules\Access\Application\Staff\Invitations;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Model\StaffUser;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
@@ -28,7 +25,6 @@ use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Domain\ValueObject\StaffProfile;
-use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Access\Public\Events\StaffActivated;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -36,9 +32,9 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
 /**
- * A new Super Admin gets an invitation (72 hours). An existing staff member is promoted: their role
- * is removed, because a Super Admin has none; a disabled one is enabled; one who never accepted
- * gets a fresh invitation (owner's decision, 2026-09-19).
+ * A new Super Admin gets an invitation that works 24 hours (amendment 30). An existing staff member
+ * is promoted: their role is removed, because a Super Admin has none; a disabled one is enabled;
+ * one who never accepted gets a fresh Super Admin invitation (owner's decisions, 2026-09-19).
  */
 final readonly class CreateSuperAdminHandler
 {
@@ -57,9 +53,7 @@ final readonly class CreateSuperAdminHandler
         private StaffTokenRepository $tokens,
         private NotificationPreferenceRepository $preferences,
         private GrantsReader $grants,
-        private StaffSecuritySettings $settings,
-        private SecurityMessages $messages,
-        private StaffLinks $links,
+        private Invitations $invitations,
         private PlatformApi $platform,
         private Dispatcher $events,
         private Connection $db,
@@ -98,11 +92,11 @@ final readonly class CreateSuperAdminHandler
             throw new PhoneAlreadyInUse;
         }
 
-        $staff = StaffUser::invite($this->staff->nextId(), $email, $profile, $phone, Language::of((string) $command->locale), superAdmin: true);
+        $staff = StaffUser::invite($this->staff->nextId(), $email, $profile, $phone, Language::of((string) $command->locale), null, superAdmin: true);
         $this->staff->add($staff);
         $this->preferences->createDefaults($staff->id());
         $this->platform->recordAudit(StaffAudit::invited($staff));
-        $this->invite($staff);
+        $this->invitations->send($staff, null);
     }
 
     private function promote(StaffUser $staff): void
@@ -140,17 +134,11 @@ final readonly class CreateSuperAdminHandler
 
         $this->grants->refresh($staff->id());
 
+        // Someone who never accepted gets a Super Admin's invitation: 24 hours (amendment 30).
         if ($staff->status() === StaffStatus::Invited) {
-            $this->invite($staff);
+            $this->invitations->send($staff, null);
         } elseif ($before->status() === StaffStatus::Disabled) {
             $this->events->dispatch(new StaffActivated((string) Str::uuid(), $staff->id(), CarbonImmutable::now()));
         }
-    }
-
-    private function invite(StaffUser $staff): void
-    {
-        $invitation = SecretTokens::issue();
-        $this->tokens->putInvitation($staff->id(), $invitation['hash'], CarbonImmutable::now()->addHours($this->settings->invitationHours()), null);
-        $this->db->afterCommit(fn () => $this->messages->staffInvitation(StaffMapper::toDto($staff), $this->links->invitation($invitation['token'])));
     }
 }

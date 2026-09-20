@@ -90,12 +90,22 @@
   into admin roles; only a Super Admin manages admins; an admin manages a staff member only when
   covering all of their stores (owner, 2026-09-19).
 
-## Interim until Access step 3b
+## Who acts (Access, from step 3b)
 
-- The `Authorizer` is Access's `RoleAuthorizer`. `ActorContext` is still Platform's interim binding,
-  which reports the system everywhere, so the system may act only outside web requests until staff
-  sign-in (step 3b). Access replaces it — with `bind()`/`scoped()`, never `instance()`: Platform wraps
-  the `ActorContext` binding so a queued job acts as the system on behalf of whoever queued it.
+- The `Authorizer` is Access's `RoleAuthorizer`; the `ActorContext` is Access's `RequestActorContext`.
+  A web request acts as the staff member signed in, else as a guest — **never as the system**;
+  outside a web request (console, queue worker) it is the system. Platform wraps the binding so a
+  queued job acts as the system on behalf of whoever queued it: bind with `bind()`/`scoped()`, never
+  `instance()`.
+- Admin panel routes live under `/admin` with the middleware
+  `[UseAdminSession::ALIAS, 'web', IdentifyStaff::ALIAS]` — the admin session cookie is set before
+  `web` starts the session — and `RequireStaff::ALIAS` on what needs someone signed in. Access's
+  `Presentation/routes.php` shows the pattern.
+- Tests that need a session across requests set `session.driver` to `database` (phpunit.xml's
+  `array` keeps nothing between requests). A test that binds an actor (`Fx::actAs*`) makes later
+  HTTP requests act as that actor too; `Fx::asSystem()` puts the previous binding back.
+- Run one test process at a time: two runs against `touchwood_test` at once break each other's
+  migrations and transactions.
 
 ## Actors
 

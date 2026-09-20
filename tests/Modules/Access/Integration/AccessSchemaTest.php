@@ -100,6 +100,7 @@ it('creates the access tables', function (string $table) {
     'staff_users', 'roles', 'role_permissions', 'role_assignments', 'role_assignment_stores',
     'role_assignment_exceptions', 'role_assignment_exception_stores',
     'staff_invitations', 'staff_phone_codes', 'staff_email_changes', 'staff_notification_preferences',
+    'staff_sign_in_codes', 'staff_password_resets', 'staff_trusted_browsers',
 ]);
 
 it('allows in each enum column exactly the values of its PHP enum', function (string $constraint, array $cases) {
@@ -111,7 +112,7 @@ it('allows in each enum column exactly the values of its PHP enum', function (st
 })->with([
     'staff status' => ['staff_users_status', StaffStatus::cases()],
     'communication language' => ['staff_users_locale', Language::cases()],
-    'what a phone code is for' => ['staff_phone_codes_purpose', PhoneCodePurpose::cases()],
+    'what a phone code is for' => ['staff_phone_codes_purpose', PhoneCodePurpose::verifyingPhone()],
     'notification topic' => ['staff_notification_preferences_topic', StaffNotificationTopic::cases()],
     'role kind' => ['roles_kind', RoleKind::cases()],
     'role level' => ['roles_level', RoleLevel::cases()],
@@ -171,6 +172,28 @@ it('refuses rows that break the rules, even when they skip the domain', function
     'a verified phone that is not there' => [fn () => updateStaffRow(['phone' => null]), 'staff_users_phone_verified_has_phone'],
     'an active account without a password' => [fn () => updateStaffRow(['password' => null]), 'staff_users_active_has_password'],
     'an invitation with a password' => [fn () => updateStaffRow(['status' => 'INVITED']), 'staff_users_invited_has_no_password'],
+    'a disabled account that never accepted' => [fn () => updateStaffRow(['status' => 'DISABLED', 'password' => null]), 'staff_users_disabled_has_password'],
+    'a cancelled account with a password' => [fn () => updateStaffRow(['status' => 'CANCELLED']), 'staff_users_cancelled_has_no_password'],
+    'invited by themselves' => [function () {
+        $staffId = Fx::staff();
+        DB::table('access.staff_users')->where('id', $staffId)->update(['invited_by' => $staffId]);
+    }, 'staff_users_not_invited_by_self'],
+    'invited by someone unknown' => [fn () => updateStaffRow(['invited_by' => '01j8z3k4m5n6p7q8r9s0t1v2w3']), 'staff_users_invited_by_foreign'],
+    'a sign-in code sent to a malformed phone' => [fn () => DB::table('access.staff_sign_in_codes')->insert([
+        'staff_user_id' => Fx::staff(), 'phone' => '966501234567', 'code_hash' => hash('sha256', 'code'), 'attempts' => 0, 'expires_at' => now(), 'sent_at' => now(),
+    ]), 'staff_sign_in_codes_phone_format'],
+    'one reset link for two people' => [function () {
+        DB::table('access.staff_password_resets')->insert(['staff_user_id' => Fx::staff(), 'token_hash' => hash('sha256', 't'), 'expires_at' => now(), 'created_at' => now()]);
+        DB::table('access.staff_password_resets')->insert(['staff_user_id' => Fx::staff(), 'token_hash' => hash('sha256', 't'), 'expires_at' => now(), 'created_at' => now()]);
+    }, 'staff_password_resets_token_hash_unique'],
+    'one trust token for two browsers' => [function () {
+        foreach ([1, 2] as $n) {
+            DB::table('access.staff_trusted_browsers')->insert([
+                'id' => strtolower((string) Str::ulid()), 'staff_user_id' => Fx::staff(), 'token_hash' => hash('sha256', 't'),
+                'expires_at' => now(), 'created_at' => now(), 'last_used_at' => now(),
+            ]);
+        }
+    }, 'staff_trusted_browsers_token_hash_unique'],
     'born on 1 January 1900' => [fn () => updateStaffRow(['date_of_birth' => '1900-01-01']), 'staff_users_date_of_birth_range'],
     'one email twice, in another case' => [fn () => updateStaffRow(['email' => strtoupper(emailOfRow(Fx::staff()))]), 'staff_users_email_unique'],
     'one phone twice' => [fn () => updateStaffRow(['phone' => DB::table('access.staff_users')->where('id', Fx::staff())->value('phone')]), 'staff_users_phone_unique'],
@@ -201,9 +224,20 @@ it('refuses rows that break the rules, even when they skip the domain', function
     }, 'staff_email_changes_token_hash_unique'],
 ]);
 
+it('lets a new account use the email and phone of a cancelled one', function () {
+    $cancelled = Fx::staff(StaffStatus::Invited);
+    DB::table('access.staff_users')->where('id', $cancelled)->update(['status' => 'CANCELLED']);
+    $row = (array) DB::table('access.staff_users')->where('id', $cancelled)->first();
+    $again = Fx::staff(StaffStatus::Invited);
+
+    DB::table('access.staff_users')->where('id', $again)->update(['email' => strtoupper((string) $row['email']), 'phone' => $row['phone']]);
+
+    expect(DB::table('access.staff_users')->where('phone', $row['phone'])->count())->toBe(2);
+});
+
 it('turns an email or phone taken at the same moment into a clear error, not a database error', function (Closure $taken, string $error) {
     // As if another admin saved the same email or phone between our check and our insert.
-    $staff = StaffUser::invite(strtolower((string) Str::ulid()), EmailAddress::of('new@example.test'), StaffProfile::of('A', 'B', 'C', '1990-01-01', 'SA', null), PhoneNumber::of('+966501112233'), Language::English);
+    $staff = StaffUser::invite(strtolower((string) Str::ulid()), EmailAddress::of('new@example.test'), StaffProfile::of('A', 'B', 'C', '1990-01-01', 'SA', null), PhoneNumber::of('+966501112233'), Language::English, null);
     $taken();
 
     expect(fn () => DB::transaction(fn () => app(StaffUserRepository::class)->add($staff)))->toThrow($error);

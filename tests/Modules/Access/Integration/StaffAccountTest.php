@@ -114,16 +114,13 @@ describe('disabling and enabling', function () {
         Event::assertDispatched(StaffActivated::class);
     });
 
-    it('sends a new invitation when enabling someone who never accepted', function () {
+    it('never disables someone invited: their invitation is cancelled instead (amendment 29)', function () {
         $staffId = Fx::staff(StaffStatus::Invited);
         Fx::assign($staffId, Fx::role([PlatformPermissions::STORE_UPDATE]), ['sa']);
-        DB::table('access.staff_users')->where('id', $staffId)->update(['status' => 'DISABLED']);
         Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
 
-        app(EnableStaffHandler::class)->handle(new EnableStaff($staffId));
-
-        expect(column($staffId, 'status'))->toBe('INVITED')
-            ->and(received()->invitations)->toHaveCount(1);
+        expect(fn () => app(DisableStaffHandler::class)->handle(new DisableStaff($staffId)))->toThrow(InvalidStaffStatus::class)
+            ->and(column($staffId, 'status'))->toBe('INVITED');
     });
 });
 
@@ -434,8 +431,8 @@ describe('what each change leaves behind (review of step 3a)', function () {
         expect(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeTrue();
     });
 
-    it('dispatches its events only once the change commits, and none for a new invitation', function () {
-        Event::fake([StaffDisabled::class, StaffActivated::class]);
+    it('dispatches its events only once the change commits', function () {
+        Event::fake([StaffDisabled::class]);
         $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
         Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
 
@@ -446,13 +443,6 @@ describe('what each change leaves behind (review of step 3a)', function () {
         }))->toThrow(RuntimeException::class)
             ->and(column($staffId, 'status'))->toBe('ACTIVE');
         Event::assertNotDispatched(StaffDisabled::class);
-
-        $invited = Fx::staff(StaffStatus::Invited);
-        Fx::assign($invited, Fx::role([PlatformPermissions::STORE_UPDATE]), ['sa']);
-        DB::table('access.staff_users')->where('id', $invited)->update(['status' => 'DISABLED']);
-        app(EnableStaffHandler::class)->handle(new EnableStaff($invited));
-
-        Event::assertNotDispatched(StaffActivated::class);
     });
 
     it('refuses a new email for a disabled account, and a disabled account\'s pending link dies', function () {

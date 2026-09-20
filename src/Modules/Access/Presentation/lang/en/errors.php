@@ -80,4 +80,16 @@ return [
         'title' => 'Not possible now',
         'detail' => 'This cannot be done while the staff member is in this state.',
     ],
+    'invalid_credentials' => [
+        'title' => 'Could not sign in',
+        'detail' => 'Wrong email or password.',
+    ],
+    'account_locked' => [
+        'title' => 'Too many attempts',
+        'detail' => 'Too many wrong passwords. Try again in :minutes minutes.',
+    ],
+    'sign_in_refused' => [
+        'title' => 'Could not sign in',
+        'detail' => 'This account cannot sign in. Please contact an administrator.',
+    ],
 ];

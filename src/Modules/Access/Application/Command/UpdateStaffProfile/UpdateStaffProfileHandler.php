@@ -10,12 +10,16 @@ use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Staff\Avatars;
+use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
+use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
+use Modules\Access\Domain\ValueObject\PhoneCodePurpose;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Domain\ValueObject\StaffProfile;
+use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 
@@ -29,6 +33,7 @@ final readonly class UpdateStaffProfileHandler
         private StaffUserRepository $staff,
         private RoleAssignmentRepository $assignments,
         private GrantsReader $grants,
+        private StaffTokenRepository $tokens,
         private Avatars $avatars,
         private PlatformApi $platform,
         private Connection $db,
@@ -54,6 +59,11 @@ final readonly class UpdateStaffProfileHandler
             $targetGrants = $this->grants->forStaff($target->id());
             $this->rules->requireManageable($author, $target, $targetGrants);
 
+            // A cancelled account is final (amendment 29).
+            if ($target->status() === StaffStatus::Cancelled) {
+                throw new InvalidStaffStatus($target->status());
+            }
+
             // A new phone receives the sign-in codes: it needs every action of their role.
             if ($target->phone() === null || ! $target->phone()->equals($phone)) {
                 $this->rules->requireCoversActionsOf($author, $targetGrants);
@@ -74,6 +84,14 @@ final readonly class UpdateStaffProfileHandler
             }
 
             $this->staff->update($target);
+
+            // A new phone ends every trusted browser (spec §1.8), and a sign-in code on its way to
+            // the old number (review of step 3b).
+            if (in_array('phone', $changed, true)) {
+                $this->tokens->forgetTrustedBrowsers($target->id());
+                $this->tokens->deletePhoneCode($target->id(), PhoneCodePurpose::SignIn);
+            }
+
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.profile_updated', $before, $target, $changed));
         });
     }

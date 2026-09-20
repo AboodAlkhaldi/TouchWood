@@ -33,4 +33,16 @@ final readonly class LaravelPasswordPolicy implements PasswordPolicy
 
         return $this->hasher->make($password);
     }
+
+    public function matches(string $password, ?string $hash): bool
+    {
+        if ($hash === null) {
+            // As long as a real check takes, so the answer's timing tells nobody the email is unknown.
+            $this->hasher->make($password);
+
+            return false;
+        }
+
+        return $this->hasher->check($password, $hash);
+    }
 }

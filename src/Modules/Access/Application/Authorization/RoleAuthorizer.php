@@ -26,20 +26,15 @@ use Shared\Application\Unauthorized;
  *   stores — only while their account is active;
  * - a guest holds the automatic guest permissions;
  * - customers get theirs with customer accounts (step 4); integrations hold none yet;
- * - the system holds everything, but only outside web requests until Access's ActorContext
- *   arrives with staff sign-in (step 3): until then the interim context reports the system for a
- *   web request too, so a web request must still be refused.
+ * - the system holds everything: Access's ActorContext never reports it for a web request — only
+ *   for the console, and for a queued job, which grants only what its requester holds (GrantRules).
  */
 final readonly class RoleAuthorizer implements Authorizer
 {
-    /**
-     * @param  bool  $systemMayAct  false while serving a web request (until step 3, see above)
-     */
     public function __construct(
         private ActorContext $actors,
         private InMemoryPermissionCatalog $catalog,
         private GrantsReader $grants,
-        private bool $systemMayAct,
     ) {}
 
     public function authorize(string $permission, PermissionScope $scope): void
@@ -120,7 +115,7 @@ final readonly class RoleAuthorizer implements Authorizer
     private function allowsWithoutRole(Actor $actor, PermissionDefinitionDto $definition): bool
     {
         return match ($actor->type) {
-            ActorType::System => $this->systemMayAct,
+            ActorType::System => true,
             ActorType::Guest => $definition->audience === PermissionAudience::EveryGuest,
             // Customer accounts and their status arrive in step 4; until then no customer acts.
             ActorType::Customer, ActorType::Integration, ActorType::Staff => false,

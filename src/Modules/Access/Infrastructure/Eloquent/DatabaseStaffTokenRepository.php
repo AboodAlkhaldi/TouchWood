@@ -10,6 +10,8 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Access\Domain\Model\PhoneCode;
 use Modules\Access\Domain\Model\StaffEmailChange;
 use Modules\Access\Domain\Model\StaffInvitation;
+use Modules\Access\Domain\Model\StaffPasswordReset;
+use Modules\Access\Domain\Model\TrustedBrowser;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\PhoneCodePurpose;
@@ -23,6 +25,12 @@ final readonly class DatabaseStaffTokenRepository implements StaffTokenRepositor
     private const string EMAIL_CHANGES = 'access.staff_email_changes';
 
     private const string PHONE_CODES = 'access.staff_phone_codes';
+
+    private const string SIGN_IN_CODES = 'access.staff_sign_in_codes';
+
+    private const string PASSWORD_RESETS = 'access.staff_password_resets';
+
+    private const string TRUSTED_BROWSERS = 'access.staff_trusted_browsers';
 
     public function __construct(
         private ConnectionInterface $db,
@@ -92,24 +100,31 @@ final readonly class DatabaseStaffTokenRepository implements StaffTokenRepositor
 
     public function putPhoneCode(PhoneCode $code): void
     {
-        $this->db->table(self::PHONE_CODES)->upsert([[
+        $row = [
             'staff_user_id' => $code->staffId,
-            'purpose' => $code->purpose->value,
             'phone' => $code->phone->value,
             'code_hash' => $code->codeHash,
             'attempts' => $code->attempts,
             'expires_at' => $code->expiresAt,
             'sent_at' => $code->sentAt,
-        ]], ['staff_user_id'], ['purpose', 'phone', 'code_hash', 'attempts', 'expires_at', 'sent_at']);
+        ];
+
+        if ($code->purpose === PhoneCodePurpose::SignIn) {
+            $this->db->table(self::SIGN_IN_CODES)->upsert([$row], ['staff_user_id'], ['phone', 'code_hash', 'attempts', 'expires_at', 'sent_at']);
+
+            return;
+        }
+
+        $this->db->table(self::PHONE_CODES)->upsert([[...$row, 'purpose' => $code->purpose->value]], ['staff_user_id'], ['purpose', 'phone', 'code_hash', 'attempts', 'expires_at', 'sent_at']);
     }
 
-    public function phoneCode(string $staffId): ?PhoneCode
+    public function phoneCode(string $staffId, PhoneCodePurpose $purpose): ?PhoneCode
     {
-        $row = $this->db->table(self::PHONE_CODES)->where('staff_user_id', $staffId)->lockForUpdate()->first();
+        $row = $this->db->table($this->codesTable($purpose))->where('staff_user_id', $staffId)->lockForUpdate()->first();
 
         return $row instanceof stdClass ? new PhoneCode(
             (string) $row->staff_user_id,
-            PhoneCodePurpose::from((string) $row->purpose),
+            $purpose === PhoneCodePurpose::SignIn ? PhoneCodePurpose::SignIn : PhoneCodePurpose::from((string) $row->purpose),
             PhoneNumber::of((string) $row->phone),
             (string) $row->code_hash,
             (int) $row->attempts,
@@ -118,13 +133,79 @@ final readonly class DatabaseStaffTokenRepository implements StaffTokenRepositor
         ) : null;
     }
 
-    public function countFailedAttempt(string $staffId): void
+    public function countFailedAttempt(string $staffId, PhoneCodePurpose $purpose): void
     {
-        $this->db->table(self::PHONE_CODES)->where('staff_user_id', $staffId)->increment('attempts');
+        $this->db->table($this->codesTable($purpose))->where('staff_user_id', $staffId)->increment('attempts');
     }
 
-    public function deletePhoneCode(string $staffId): void
+    public function deletePhoneCode(string $staffId, ?PhoneCodePurpose $purpose = null): void
     {
-        $this->db->table(self::PHONE_CODES)->where('staff_user_id', $staffId)->delete();
+        $tables = $purpose === null ? [self::PHONE_CODES, self::SIGN_IN_CODES] : [$this->codesTable($purpose)];
+
+        foreach ($tables as $table) {
+            $this->db->table($table)->where('staff_user_id', $staffId)->delete();
+        }
+    }
+
+    public function putPasswordReset(string $staffId, string $tokenHash, DateTimeImmutable $expiresAt): void
+    {
+        $this->db->table(self::PASSWORD_RESETS)->upsert([[
+            'staff_user_id' => $staffId,
+            'token_hash' => $tokenHash,
+            'expires_at' => $expiresAt,
+            'created_at' => CarbonImmutable::now(),
+        ]], ['staff_user_id'], ['token_hash', 'expires_at', 'created_at']);
+    }
+
+    public function passwordResetByToken(string $tokenHash): ?StaffPasswordReset
+    {
+        $row = $this->db->table(self::PASSWORD_RESETS)->where('token_hash', $tokenHash)->lockForUpdate()->first();
+
+        return $row instanceof stdClass
+            ? new StaffPasswordReset((string) $row->staff_user_id, CarbonImmutable::parse((string) $row->expires_at))
+            : null;
+    }
+
+    public function deletePasswordReset(string $staffId): void
+    {
+        $this->db->table(self::PASSWORD_RESETS)->where('staff_user_id', $staffId)->delete();
+    }
+
+    public function addTrustedBrowser(TrustedBrowser $browser, string $tokenHash): void
+    {
+        $now = CarbonImmutable::now();
+
+        $this->db->table(self::TRUSTED_BROWSERS)->insert([
+            'id' => $browser->id,
+            'staff_user_id' => $browser->staffId,
+            'token_hash' => $tokenHash,
+            'expires_at' => $browser->expiresAt,
+            'created_at' => $now,
+            'last_used_at' => $now,
+        ]);
+    }
+
+    public function trustedBrowser(string $tokenHash): ?TrustedBrowser
+    {
+        $row = $this->db->table(self::TRUSTED_BROWSERS)->where('token_hash', $tokenHash)->first();
+
+        return $row instanceof stdClass
+            ? new TrustedBrowser((string) $row->id, (string) $row->staff_user_id, CarbonImmutable::parse((string) $row->expires_at))
+            : null;
+    }
+
+    public function touchTrustedBrowser(string $id, DateTimeImmutable $usedAt): void
+    {
+        $this->db->table(self::TRUSTED_BROWSERS)->where('id', $id)->update(['last_used_at' => $usedAt]);
+    }
+
+    public function forgetTrustedBrowsers(string $staffId): void
+    {
+        $this->db->table(self::TRUSTED_BROWSERS)->where('staff_user_id', $staffId)->delete();
+    }
+
+    private function codesTable(PhoneCodePurpose $purpose): string
+    {
+        return $purpose === PhoneCodePurpose::SignIn ? self::SIGN_IN_CODES : self::PHONE_CODES;
     }
 }
