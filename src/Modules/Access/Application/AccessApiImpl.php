@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application;
 
+use Modules\Access\Application\Address\AddressMapper;
 use Modules\Access\Application\Customer\CustomerMapper;
 use Modules\Access\Application\Staff\StaffMapper;
+use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Dto\StaffNotificationPreferenceDto;
@@ -22,6 +25,8 @@ final readonly class AccessApiImpl implements AccessApi
         private NotificationPreferenceRepository $preferences,
         private CustomerRepository $customers,
         private CustomerMapper $customerMapper,
+        private AddressRepository $addresses,
+        private AddressMapper $addressMapper,
     ) {}
 
     public function customer(string $customerId): ?CustomerDto
@@ -56,5 +61,17 @@ final readonly class AccessApiImpl implements AccessApi
         }
 
         return $preferences;
+    }
+
+    public function address(string $addressId): ?AddressDto
+    {
+        $address = $this->addresses->find($addressId);
+
+        return $address === null ? null : $this->addressMapper->toDto($address);
+    }
+
+    public function addresses(string $customerId, string $storeId): array
+    {
+        return $this->addressMapper->toDtos($this->addresses->forCustomerInStore($customerId, $storeId));
     }
 }

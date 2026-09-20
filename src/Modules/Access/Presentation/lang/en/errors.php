@@ -8,6 +8,22 @@ return [
         'title' => 'Invalid details',
         'detail' => 'The :attribute is not valid.',
     ],
+    'invalid_address' => [
+        'title' => 'Check the address',
+        'detail' => 'The :field is not valid for this country.',
+    ],
+    'address_not_found' => [
+        'title' => 'Address not found',
+        'detail' => 'This address is no longer in your address book.',
+    ],
+    'address_format_missing' => [
+        'title' => 'Addresses are not ready',
+        'detail' => 'This store has no address form yet. Please try again later.',
+    ],
+    'too_many_addresses' => [
+        'title' => 'Address book full',
+        'detail' => 'You can keep :limit addresses in this store. Delete one to add another.',
+    ],
     'role_not_found' => [
         'title' => 'Role not found',
         'detail' => 'There is no such role.',

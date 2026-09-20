@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 use App\Http\ProblemDetails;
 use Modules\Access\Domain\Exception\AccessError;
+use Modules\Access\Domain\Exception\AddressFormatMissing;
+use Modules\Access\Domain\Exception\AddressNotFound;
 use Modules\Access\Domain\Exception\AdminOnlyPermission;
 use Modules\Access\Domain\Exception\CodeRequestTooSoon;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Domain\Exception\InvalidAddress;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
@@ -22,6 +25,7 @@ use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Exception\StaffNotEditable;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Exception\SuperAdminOnly;
+use Modules\Access\Domain\Exception\TooManyAddresses;
 use Modules\Access\Domain\Exception\UnknownPermission;
 use Shared\Domain\Error\ErrorCategory;
 
@@ -46,7 +50,7 @@ function accessErrorClasses(): array
 }
 
 it('finds the Access errors', function () {
-    expect(count(accessErrorClasses()))->toBeGreaterThanOrEqual(19);
+    expect(count(accessErrorClasses()))->toBeGreaterThanOrEqual(28);
 });
 
 it('gives every Access error a unique access type and a category', function () {
@@ -102,4 +106,8 @@ it('answers with the HTTP status the spec names', function (string $class, int $
     'a short or leaked password → 422' => [PasswordTooWeak::class, 422],
     'the last active Super Admin → 409' => [LastSuperAdmin::class, 409],
     'a change the account\'s state does not allow → 409' => [InvalidStaffStatus::class, 409],
+    'an unknown address → 404' => [AddressNotFound::class, 404],
+    'a store with no address form → 409' => [AddressFormatMissing::class, 409],
+    'a field the store\'s form refuses → 422' => [InvalidAddress::class, 422],
+    'an address book that is full → 409' => [TooManyAddresses::class, 409],
 ]);
