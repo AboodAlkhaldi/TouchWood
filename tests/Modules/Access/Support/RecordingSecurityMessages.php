@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Modules\Access\Support;
 
+use DateTimeImmutable;
 use LogicException;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Dto\CustomerDto;
@@ -20,6 +21,9 @@ final class RecordingSecurityMessages implements SecurityMessages
 
     /** @var list<array{to: string, link: string, locale: string}> */
     public array $emailVerifications = [];
+
+    /** @var list<array{to: string, on: string, locale: string}> */
+    public array $deletions = [];
 
     /** @var list<array{staff: string, to: string, link: string}> */
     public array $emailChanges = [];
@@ -58,6 +62,11 @@ final class RecordingSecurityMessages implements SecurityMessages
     public function emailVerification(CustomerDto $customer, string $link): void
     {
         $this->emailVerifications[] = ['to' => $customer->email, 'link' => $link, 'locale' => $customer->locale];
+    }
+
+    public function customerDeletionScheduled(CustomerDto $customer, DateTimeImmutable $on): void
+    {
+        $this->deletions[] = ['to' => $customer->email, 'on' => $on->format('Y-m-d'), 'locale' => $customer->locale];
     }
 
     public function staffInvitation(StaffDto $staff, string $link): void

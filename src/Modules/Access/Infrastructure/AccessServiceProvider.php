@@ -17,11 +17,11 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 use Modules\Access\Application\AccessApiImpl;
-use Modules\Access\Application\Address\AddressMapper;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Authorization\RoleAuthorizer;
 use Modules\Access\Application\Command\ChangeOwnCustomerPassword\ChangeOwnCustomerPasswordHandler;
 use Modules\Access\Application\Command\ChangeOwnStaffPassword\ChangeOwnStaffPasswordHandler;
+use Modules\Access\Application\Command\RequestAccountDeletion\RequestAccountDeletionHandler;
 use Modules\Access\Application\Command\SignInCustomer\SignInCustomerHandler;
 use Modules\Access\Application\Command\SignInStaff\SignInStaffHandler;
 use Modules\Access\Application\Customer\CustomerLinks;
@@ -29,7 +29,9 @@ use Modules\Access\Application\Customer\GuestVisitors;
 use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
+use Modules\Access\Application\Query\CustomerReader;
 use Modules\Access\Application\Query\RoleReader;
+use Modules\Access\Application\Query\StaffReader;
 use Modules\Access\Application\Security\Codes;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Security\SignInLimits;
@@ -50,12 +52,14 @@ use Modules\Access\Domain\Repository\StoreAddressFormatRepository;
 use Modules\Access\Infrastructure\Eloquent\CachedGrantsReader;
 use Modules\Access\Infrastructure\Eloquent\CachedStoreAddressFormatRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseAddressRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseNotificationPreferenceRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleAssignmentRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseStaffReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffUserRepository;
 use Modules\Access\Infrastructure\Http\CookieGuestVisitors;
@@ -70,6 +74,7 @@ use Modules\Access\Infrastructure\Messages\TemporarySecurityMessages;
 use Modules\Access\Infrastructure\Messages\UrlCustomerLinks;
 use Modules\Access\Infrastructure\Messages\UrlStaffLinks;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
+use Modules\Access\Infrastructure\Queue\AnonymizeDueAccountsJob;
 use Modules\Access\Infrastructure\Queue\CancelExpiredSuperAdminInvitationsJob;
 use Modules\Access\Infrastructure\Security\HmacCodes;
 use Modules\Access\Infrastructure\Security\LaravelPasswordPolicy;
@@ -117,8 +122,6 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->scoped(CustomerSessions::class, LaravelCustomerSessions::class);
         $this->app->bind(AddressRepository::class, DatabaseAddressRepository::class);
         $this->app->bind(StoreAddressFormatRepository::class, CachedStoreAddressFormatRepository::class);
-        // It keeps each store's format for the request that is mapping addresses, and no longer.
-        $this->app->scoped(AddressMapper::class);
 
         // Staff and customers count wrong passwords the same way, to their own numbers and on their
         // own keys: a busy shop address never locks the admin panel, or the other way round.
@@ -129,7 +132,7 @@ final class AccessServiceProvider extends ServiceProvider
                 $app->make(StaffSecuritySettings::class),
                 'staff',
             ));
-        $this->app->when([SignInCustomerHandler::class, ChangeOwnCustomerPasswordHandler::class])
+        $this->app->when([SignInCustomerHandler::class, ChangeOwnCustomerPasswordHandler::class, RequestAccountDeletionHandler::class])
             ->needs(SignInLimits::class)
             ->give(fn (Application $app): SignInLimits => new SignInLimits(
                 $app->make(RateLimiter::class),
@@ -140,6 +143,8 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->bind(RoleRepository::class, DatabaseRoleRepository::class);
         $this->app->bind(RoleAssignmentRepository::class, DatabaseRoleAssignmentRepository::class);
         $this->app->bind(RoleReader::class, DatabaseRoleReader::class);
+        $this->app->bind(CustomerReader::class, DatabaseCustomerReader::class);
+        $this->app->bind(StaffReader::class, DatabaseStaffReader::class);
         $this->app->bind(GrantsReader::class, CachedGrantsReader::class);
         $this->app->bind(AccessApi::class, AccessApiImpl::class);
 
@@ -234,6 +239,9 @@ final class AccessServiceProvider extends ServiceProvider
         // work is queued as a job, never command() or call() (owner's decision, 2026-09-18).
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->job(CancelExpiredSuperAdminInvitationsJob::class)->everyTenMinutes()->onOneServer();
+            // The deletions whose fourteen days have passed (amendment 43): 03:00 in Riyadh, which
+            // is midnight where the application runs.
+            $schedule->job(AnonymizeDueAccountsJob::class)->dailyAt('00:00')->onOneServer();
         });
 
         $catalog = $this->app->make(InMemoryPermissionCatalog::class);

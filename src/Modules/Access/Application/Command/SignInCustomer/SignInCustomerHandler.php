@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Str;
+use Modules\Access\Application\Audit\CustomerAudit;
 use Modules\Access\Application\Customer\GuestVisitors;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PasswordPolicy;
@@ -21,7 +22,9 @@ use Modules\Access\Domain\Model\Customer;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Public\Enums\CustomerStatus;
+use Modules\Access\Public\Events\CustomerDeletionCancelled;
 use Modules\Access\Public\Events\GuestBecameCustomer;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\StoreContext;
@@ -44,6 +47,7 @@ final readonly class SignInCustomerHandler
         private CustomerSessions $sessions,
         private GuestVisitors $guests,
         private StoreContext $stores,
+        private PlatformApi $platform,
         private Dispatcher $events,
         private Connection $db,
     ) {}
@@ -83,14 +87,28 @@ final readonly class SignInCustomerHandler
             // writes the whole row back (review of step 4b).
             $customer = $this->customers->byId($customerId) ?? throw new InvalidCredentials;
 
+            // An anonymized account is nobody: its placeholder address has no owner to tell.
+            if ($customer->isAnonymized()) {
+                throw new InvalidCredentials;
+            }
+
             if ($customer->status() !== CustomerStatus::Active) {
                 throw new CustomerBlocked;
             }
 
+            // Signing in calls off a deletion they asked for (spec §1.10): a hijacked or regretted
+            // request is undone by the owner simply coming back.
+            $wasDeleting = $customer->deletionScheduledFor();
+            $customer->cancelDeletion();
             $customer->moveToStore($storeId);
 
             if ($customer->pullChanges() !== []) {
                 $this->customers->update($customer);
+            }
+
+            if ($wasDeleting !== null) {
+                $this->platform->recordAudit(CustomerAudit::deletion('access.customer.deletion_cancelled', $customer, was: $wasDeleting));
+                $this->events->dispatch(new CustomerDeletionCancelled((string) Str::uuid(), $customerId, CarbonImmutable::now()));
             }
 
             if ($guestId !== null) {

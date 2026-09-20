@@ -97,6 +97,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-19 | §7.5, §7.7 | Accepting an invitation signs in only a Super Admin at once; staff then sign in as always. A staff sign-in SMS has its own text warning that the password was just used. An IP address made to wait is audited, named by a keyed fingerprint (IP addresses are kept only for staff actions). The staff sign-in settings have fixed ranges; 3 reset emails an hour; 15 minutes for the code step | Access step 3b review, owner decision |
 | 2026-09-19 | §5.3 | In production the application refuses to start without a real mailer (`MAIL_MAILER` not `log`, `array` or unset), so no invitation or reset link is ever written to the log | Access step 3b review, owner decision |
 | 2026-09-20 | §17, §7.2, §7.7 | Access step 4 splits into customer accounts (4a) and customer sign-in with guests (4b) — nine steps. Customers: 10 wrong passwords from one IP address in 15 minutes make it wait (as for staff, a per-store setting that can be raised); the terms and privacy version is per store; a customer's own account events are audited (registration, verifications, phone and password changes, blocking, deletion), never their sign-ins or browsing | Access step 4 plan, owner decision |
+| 2026-09-20 | §7.5, §7.9 | Access step 6 (deletion, blocking, staff views): staff holding "see staff" see an admin's name and role only, and never a Super Admin — not in a list, not in a count, and unknown by id; blocking and deleting a customer are admin-only actions, deleting (and cancelling a deletion) records a reason in the audit log; the anonymized email becomes `deleted-{id}@deleted.invalid` and the old one is free again; one email tells the customer the deletion date and that signing in cancels it; anonymizing keeps the id, account type, home store and dates; the daily job runs at 03:00 Riyadh (00:00 UTC); no HTTP endpoints in this step | Access step 6 plan, owner decision |
 | 2026-09-20 | §7.8 | Access step 5 (addresses): every store starts with the standard scheme, written at migrate and when a store is opened; at most 10 addresses per customer per store (a per-store setting); the first address in a store is its default and deleting the default moves the flag; field lengths fixed; a key the format does not define is refused; the display template is `{field}` placeholders with empty ones dropped; a format that changes later leaves saved addresses alone but one that no longer fits cannot be used for an order; no HTTP endpoints in this step | Access step 5 plan, owner decision |
 | 2026-09-20 | §7.7 | From the step 4b reviews: the admin panel keeps its sessions in its own table, so neither side's housekeeping ends the other's sessions; a customer signed in who opens their reset link is signed out of that browser first (they change a password they remember in their account settings); registrations and reset requests are limited to 10 an hour per address; asking for a verification link again keeps sharing the reset link's hourly limit | Access step 4b review, owner decision |
 | 2026-09-20 | §7.2, §7.7 | Registering a customer signs them in at once; the guest cookie lasts a year; an email belonging to a staff account is refused at registration in the same words as a customer's; the storefront session keeps its own cookie, wide enough (a year) that only Access's own limits end a session; customer and staff lockouts count on separate keys | Access step 4b, owner decision |
@@ -764,12 +765,22 @@ password (staff may do it on request). The account is locked at once and anonymi
 signing in during those 14 days cancels it (owner, 2026-09-19).
 
 - The account can no longer log in.
-- Customer personal fields are overwritten: name → "Deleted customer", email → an
-  irreversible hash placeholder preserving uniqueness, phone → null, saved addresses
-  purged, preferences cleared.
+- Customer personal fields are overwritten: name → "Deleted customer", email → a placeholder that
+  keeps nothing of the old address and stays unique (`deleted-{id}@deleted.invalid`, owner
+  2026-09-20), phone → null, saved addresses purged, and anything else the account had chosen for
+  itself cleared.
 - **Orders keep their snapshot** of name, phone and delivery address as captured at order
   time. This is a financial record and it never gets anonymized, with no retention cutoff.
 - **Reviews and questions survive**, attributed to "Deleted customer".
+
+**Built in step 6 (owner, 2026-09-20).** Confirming a deletion signs the customer out of every
+device at once, so nothing of the account can be used while it waits; signing in again is both the
+way back and what calls the deletion off. The customer is told once, when it is scheduled:
+the date, and that signing in cancels it. Staff may delete a customer on their request, and cancel
+one, under an **admin-only** action that records a reason in the audit log — blocking a customer is
+admin-only too. The anonymized email becomes `deleted-{id}@deleted.invalid`, so the old address is
+free for a new account and nothing of it is kept. The row keeps its id, account type, home store and
+dates, and loses every field that names a person. The job runs daily at 03:00 in Riyadh.
 
 ---
 

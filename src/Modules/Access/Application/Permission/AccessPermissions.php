@@ -125,7 +125,11 @@ final class AccessPermissions
      */
     public static function adminOnly(): array
     {
-        return [self::STAFF_INVITE, self::STAFF_UPDATE, self::STAFF_ASSIGN_ROLE, self::STAFF_DISABLE, self::ROLE_MANAGE];
+        return [
+            self::STAFF_INVITE, self::STAFF_UPDATE, self::STAFF_ASSIGN_ROLE, self::STAFF_DISABLE, self::ROLE_MANAGE,
+            // Blocking and deleting reach a person's account (owner, 2026-09-20; amendment 43).
+            self::CUSTOMER_BLOCK, self::CUSTOMER_DELETE,
+        ];
     }
 
     /**

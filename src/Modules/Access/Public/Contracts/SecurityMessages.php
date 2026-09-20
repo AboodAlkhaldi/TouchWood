@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Public\Contracts;
 
+use DateTimeImmutable;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
 
@@ -21,6 +22,13 @@ interface SecurityMessages
      * The link that verifies a customer's email address (24 hours, spec §1.2), in their language.
      */
     public function emailVerification(CustomerDto $customer, string $link): void;
+
+    /**
+     * The one message a deletion sends (spec §1.10, amendment 43): the date the account is
+     * anonymized, and that signing in before then cancels it. Nothing is sent afterwards — by then
+     * the address is gone.
+     */
+    public function customerDeletionScheduled(CustomerDto $customer, DateTimeImmutable $on): void;
 
     /**
      * @param  string  $link  the invitation link (72 hours; a Super Admin's 24)

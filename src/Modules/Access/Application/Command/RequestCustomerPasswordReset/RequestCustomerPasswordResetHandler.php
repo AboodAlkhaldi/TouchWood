@@ -72,7 +72,9 @@ final readonly class RequestCustomerPasswordResetHandler
         $this->db->transaction(function () use ($email, $storeCode): void {
             $customer = $this->customers->byEmail($email);
 
-            if ($customer === null || $customer->status() !== CustomerStatus::Active) {
+            // A deleted account is nobody: its placeholder address has no owner to write to, and
+            // nothing may put a live link on it again (review of step 6).
+            if ($customer === null || $customer->isAnonymized() || $customer->status() !== CustomerStatus::Active) {
                 return;
             }
 
