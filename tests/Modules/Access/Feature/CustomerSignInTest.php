@@ -274,6 +274,30 @@ describe('registering and signing in (spec §1.2, §1.8)', function () {
             ->and($column('last_store_id'))->toBe(Fx::storeId('ae'));
     });
 
+    it('calls off a deletion the customer had asked for', function () {
+        $customerId = Fx::customer();
+        DB::table('access.customers')->where('id', $customerId)->update(['deletion_scheduled_for' => now()->addDays(14)]);
+        $browser = new AdminBrowser;
+
+        shopSignIn($browser, $customerId)->assertRedirect('/sa/en');
+
+        // Coming back is how a hijacked or regretted deletion is undone (spec §1.10).
+        expect(DB::table('access.customers')->where('id', $customerId)->value('deletion_scheduled_for'))->toBeNull()
+            ->and(shopWho($browser))->toBe($customerId)
+            ->and(Fx::audits('access.customer.deletion_cancelled', $customerId))->toBe(1);
+    });
+
+    it('refuses an account that was deleted, as it refuses an unknown one', function () {
+        $customerId = Fx::customer();
+        DB::table('access.customers')->where('id', $customerId)
+            ->update(['anonymized_at' => now(), 'email' => "deleted-{$customerId}@deleted.invalid"]);
+
+        expect(AdminBrowser::formError((new AdminBrowser)->post('/sa/en/account/sign-in', [
+            'email' => "deleted-{$customerId}@deleted.invalid",
+            'password' => Fx::CUSTOMER_PASSWORD,
+        ])))->toBe((string) __('access::errors.invalid_credentials.detail'));
+    });
+
     it('lands the customer in the store they last used', function () {
         $customerId = Fx::customer();
         $browser = new AdminBrowser;

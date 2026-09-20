@@ -6,6 +6,7 @@ namespace Modules\Access\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
 use Closure;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
@@ -63,6 +64,19 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             ->first();
 
         return $row instanceof stdClass ? $this->toCustomer($row) : null;
+    }
+
+    public function dueForAnonymizing(DateTimeImmutable $now, int $limit): array
+    {
+        $ids = $this->db->table(self::TABLE)
+            ->whereNotNull('deletion_scheduled_for')
+            ->where('deletion_scheduled_for', '<=', $now)
+            ->whereNull('anonymized_at')
+            ->orderBy('deletion_scheduled_for')
+            ->limit($limit)
+            ->pluck('id');
+
+        return array_values(array_map(strval(...), $ids->all()));
     }
 
     public function emailInUse(EmailAddress $email): bool
@@ -136,6 +150,8 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             'phone_verified_at' => $customer->phoneVerifiedAt(),
             'locale' => $customer->language()->value,
             'last_store_id' => $customer->lastStoreId(),
+            'deletion_scheduled_for' => $customer->deletionScheduledFor(),
+            'anonymized_at' => $customer->anonymizedAt(),
             'session_version' => $customer->sessionVersion(),
         ];
     }
@@ -159,6 +175,7 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             (string) $row->terms_version,
             CarbonImmutable::parse((string) $row->terms_accepted_at),
             $row->deletion_scheduled_for === null ? null : CarbonImmutable::parse((string) $row->deletion_scheduled_for),
+            $row->anonymized_at === null ? null : CarbonImmutable::parse((string) $row->anonymized_at),
             (int) $row->session_version,
         );
     }

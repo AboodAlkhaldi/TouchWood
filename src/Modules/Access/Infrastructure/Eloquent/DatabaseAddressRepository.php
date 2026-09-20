@@ -114,6 +114,11 @@ final readonly class DatabaseAddressRepository implements AddressRepository
         $this->db->table(self::TABLE)->where('id', strtolower($addressId))->delete();
     }
 
+    public function deleteForCustomer(string $customerId): void
+    {
+        $this->db->table(self::TABLE)->where('customer_id', strtolower($customerId))->delete();
+    }
+
     public function clearDefault(string $customerId, string $storeId, string $exceptId): void
     {
         $this->db->table(self::TABLE)
