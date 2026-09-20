@@ -80,8 +80,10 @@ final readonly class DeleteRoleHandler
 
                 // The author must be allowed to give away everything the replacement holds, the
                 // same as when a role is made or edited: reserved and admin-only names never
-                // arrive through a delete either (review of step 7).
-                $this->rules->requireGrantable($author, $replacement->level(), $replacement->permissions());
+                // arrive through a delete either (review of step 7). A name left behind by a
+                // switched-off module is passed over, as UpdateRole passes over it: it grants
+                // nothing while its module is off, and it is not this delete's to refuse.
+                $this->rules->requireGrantable($author, $replacement->level(), $this->rules->declaredOnly($replacement->permissions()));
 
                 $replacementId = $replacement->id();
                 $now = CarbonImmutable::now();

@@ -46,14 +46,23 @@ final readonly class DatabaseStaffReader implements StaffReader
             $bindings[] = implode(',', array_map(strtolower(...), $readerStoreIds));
         }
 
+        // A reader who is not a Super Admin sees an admin as a name and a role only (amendments 43,
+        // 44(e); the status, owner 2026-09-21). A filter on what they cannot see must not answer
+        // about it either: ticking "disabled" would otherwise tell them which admins are disabled,
+        // and a search would confirm an admin's email or phone by whether the row comes back.
+        $hidden = $withSuperAdmins ? 'FALSE' : "(s.is_super_admin OR r.level = 'ADMIN')";
+
         if ($status !== null) {
-            $where[] = 's.status = ?';
+            $where[] = "(s.status = ? OR {$hidden})";
             $bindings[] = $status;
         }
 
         if ($search !== null && trim($search) !== '') {
             $like = self::like($search);
-            $where[] = '(lower(s.email) LIKE ? OR lower(s.first_name) LIKE ? OR lower(s.last_name) LIKE ? OR s.phone LIKE ?)';
+            // The name is what every reader sees, so every row is matched on it; the email and the
+            // phone match only where the reader would be shown them.
+            $where[] = "(lower(s.first_name) LIKE ? OR lower(s.last_name) LIKE ?
+                OR ((lower(s.email) LIKE ? OR s.phone LIKE ?) AND NOT {$hidden}))";
             $bindings = [...$bindings, $like, $like, $like, $like];
         }
 
@@ -63,6 +72,7 @@ final readonly class DatabaseStaffReader implements StaffReader
             SELECT count(*) AS total
             FROM access.staff_users s
             LEFT JOIN access.role_assignments a ON a.staff_user_id = s.id
+            LEFT JOIN access.roles r ON r.id = a.role_id
             WHERE {$conditions}
             SQL, $bindings);
 

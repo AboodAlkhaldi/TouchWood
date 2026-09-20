@@ -33,6 +33,7 @@ use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\LastSuperAdmin;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
+use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Public\Enums\AccessLevel;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Access\Public\Events\StaffActivated;
@@ -51,6 +52,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     seed(PlatformSeeder::class);
+    FakeBreachList::install();
     RecordingSecurityMessages::install();
 });
 
@@ -88,6 +90,15 @@ function superAdminConsole(string $command, array $parameters): PendingCommand
 }
 
 describe('creating a Super Admin', function () {
+    it('refuses an address a customer holds, from the console too', function () {
+        Fx::customer('shared@example.test');
+
+        // One email, one account (amendment 13): the console is no exception (amendment 46(f)).
+        expect(fn () => app(CreateSuperAdminHandler::class)->handle(newSuperAdmin('SHARED@example.test')))
+            ->toThrow(StaffEmailInUse::class)
+            ->and(DB::table('access.staff_users')->whereRaw('lower(email) = ?', ['shared@example.test'])->exists())->toBeFalse();
+    });
+
     it('invites a new account with the whole profile, as a Super Admin with no role', function () {
         expect(app(CreateSuperAdminHandler::class)->handle(newSuperAdmin()))->toBe(CreateSuperAdminHandler::CREATED);
 

@@ -124,6 +124,12 @@ final readonly class SignInStaffHandler
             return SignInResult::SignedIn;
         }
 
+        // An attempt that deadlocked after signing them in, and then found the browser untrusted
+        // when it ran again, must not leave that session behind: the code step follows (step 7).
+        if ($started) {
+            $this->sessions->end();
+        }
+
         $phone = $staff->phone();
 
         if ($phone === null) {

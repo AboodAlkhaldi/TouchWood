@@ -567,6 +567,19 @@ describe('a session row and the account it belongs to (owner, 2026-09-21)', func
             ->and(DB::table('sessions')->whereNull('user_id')->count())->toBeGreaterThan(0);
     });
 
+    it('still writes the customer when the session is encrypted', function () {
+        // SESSION_ENCRYPT hands the handler ciphertext instead of the session's own JSON. Without
+        // reading through it, every row would be written with no owner and a deleted account's
+        // rows would quietly stay (review of step 7).
+        config(['session.encrypt' => true]);
+        $customerId = Fx::customer();
+        $browser = new AdminBrowser;
+        shopSignIn($browser, $customerId);
+
+        expect(shopWho($browser))->toBe($customerId)
+            ->and(DB::table('sessions')->where('user_id', $customerId)->count())->toBe(1);
+    });
+
     it('takes every session of the account away when it is anonymized', function () {
         $customerId = Fx::customer();
         $other = Fx::customer('other@example.test');

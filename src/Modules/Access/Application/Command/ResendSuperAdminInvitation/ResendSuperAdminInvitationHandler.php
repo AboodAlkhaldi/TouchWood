@@ -51,6 +51,6 @@ final readonly class ResendSuperAdminInvitationHandler
 
             $this->invitations->send($staff, null);
             $this->platform->recordAudit(StaffAudit::event('access.staff_user.invitation_resent', $staff));
-        });
+        }, 3);
     }
 }

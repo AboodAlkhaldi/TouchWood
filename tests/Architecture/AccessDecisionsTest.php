@@ -22,20 +22,33 @@ it('never depends on spatie/laravel-permission', function () {
         ->and(is_dir($root.'/vendor/spatie/laravel-permission'))->toBeFalse();
 });
 
-it('has no controller that checks a permission itself', function () {
+it('has no controller or form request that checks a permission itself', function () {
     $root = dirname(__DIR__, 2);
-    $controllers = glob($root.'/src/Modules/*/Presentation/Http/Controller/*.php') ?: [];
+    $web = [];
+
+    // The whole web layer, however deeply a module nests it: a controller in a subfolder, and a
+    // form request, where Laravel's own authorize() lives (review of step 7).
+    foreach (glob($root.'/src/Modules/*/Presentation/Http', GLOB_ONLYDIR) ?: [] as $dir) {
+        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
+
+        foreach ($files as $file) {
+            if ($file->getExtension() === 'php' && ! str_contains($file->getPathname(), 'Middleware')) {
+                $web[] = $file->getPathname();
+            }
+        }
+    }
+
     $checking = [];
 
     // Guards against a moved directory making this test pass over nothing.
-    expect(count($controllers))->toBeGreaterThanOrEqual(5);
+    expect(count($web))->toBeGreaterThanOrEqual(15);
 
-    foreach ($controllers as $controller) {
-        $code = codeWithoutComments($controller);
+    foreach ($web as $file) {
+        $code = codeWithoutComments($file);
 
-        // Laravel's own ways of asking, and ours: a controller uses none of them.
-        if (preg_match('/->(authorize|allows|denies|storesWith)\s*\(|Gate::|\$this->authorize\s*\(/', $code) === 1) {
-            $checking[] = str_replace('\\', '/', substr($controller, strlen($root) + 1));
+        // Laravel's own ways of asking, and ours: neither uses any of them.
+        if (preg_match('/->(authorize|allows|denies|storesWith|can|cannot)\s*\(|Gate::/', $code) === 1) {
+            $checking[] = str_replace('\\', '/', substr($file, strlen($root) + 1));
         }
     }
 

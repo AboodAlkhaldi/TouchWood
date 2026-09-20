@@ -114,9 +114,10 @@ final readonly class LaravelCustomerSessions implements CustomerSessions
 
     public function endEveryDeviceOf(string $customerId): void
     {
-        // The rows themselves, not this browser's: the sweep runs from the queue, where there
-        // is no session at all. Inside the caller's transaction, so the rows go with the row
-        // they belong to (owner, 2026-09-21).
+        // The rows themselves, not this browser's: the sweep runs from the console or the queue
+        // (its handler requires it), where no middleware has pointed the session elsewhere, so the
+        // configured table is the storefront's. Inside the caller's transaction, so the rows go
+        // with the row they belong to (owner, 2026-09-21).
         $this->app->make('db')->connection($this->connection())
             ->table($this->table())
             ->where('user_id', $customerId)

@@ -53,6 +53,6 @@ final readonly class ResetSuperAdminPhoneHandler
             $this->tokens->deletePhoneCode($staff->id());
             $this->tokens->forgetTrustedBrowsers($staff->id());
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.phone_reset', $before, $staff, $staff->pullChanges()));
-        });
+        }, 3);
     }
 }

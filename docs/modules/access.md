@@ -100,8 +100,7 @@ Handoff §7.3. One phone per account; adding and changing both go through an SMS
 
 - **First phone:** the customer enters a number → an SMS code → on the right code, `phone` and
   `phone_verified_at` are set.
-- **Change:** the current password first (amendment 46(b)) — the number is where the sign-in code
-  goes — then a pending change (handoff §7.3's `pending_phone_changes`, here a `phone_codes` row
+- **Change:** a pending change (handoff §7.3's `pending_phone_changes`, here a `phone_codes` row
   with purpose `CHANGE`, §5.2) holds the new number and the code's hash. The old number stays live
   until the new one verifies; then they swap and the pending row is deleted. There is no way to
   remove a phone.
@@ -129,8 +128,9 @@ Handoff §7.6.
 | `is_super_admin` | Only set by the console command (§1.6). |
 
 **Phone.** It receives the 2FA codes, so it is verified by an SMS code when the invitation is
-accepted. A staff member changing their own phone confirms the new number with a code before it
-takes effect. An admin with `access.staff.update` may change it (a lost phone); the staff member
+accepted. A staff member changing their own phone **gives their current password first** (amendment
+46(b)) — a wrong one counts towards the same lockout as signing in — and then confirms the new
+number with a code before it takes effect. An admin with `access.staff.update` may change it (a lost phone); the staff member
 then verifies the new number at their next sign-in. A Super Admin's phone is changed only by the
 Super Admin themselves (confirmed by a code) or by console command (§1.6).
 
@@ -192,9 +192,12 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
 
 - Every role has a **level**, `ADMIN` or `STAFF`. Whoever holds an admin role is an **admin**;
   whoever holds a staff role is **staff**.
-- **Management actions** — `access.staff.invite`, `access.staff.update`,
-  `access.staff.assign_role`, `access.staff.disable` and `access.role.manage` — can be put only
-  into admin roles. Staff manage no roles and no people.
+- **Admin-only actions** — the five management ones (`access.staff.invite`,
+  `access.staff.update`, `access.staff.assign_role`, `access.staff.disable`,
+  `access.role.manage`), the two that reach a customer's account (`access.customer.block`,
+  `access.customer.delete`, amendment 43) and `access.settings.update`, which decides how everyone
+  signs in (amendment 46(a)) — can be put only into admin roles. Staff manage no roles and no
+  people, and change no setting.
 - **Only a Super Admin** creates, clones, edits or deletes admin roles, gives anyone an admin role,
   and manages admins. No admin manages another admin, or themselves.
 - **Admins** create and edit saved staff roles, and manage staff.
@@ -210,8 +213,9 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
   account without one: revoking a Super Admin is a console action, so it **closes the account** —
   `CANCELLED`, no password, every session ended, the email and phone free at once — and a former
   Super Admin who is to stay is invited again. Deleting a role its holders still hold needs a
-  replacement, or leaves them disabled. `EnableStaff` still takes the role it enables with, for
-  the one account a migration or an import could leave without one.
+  replacement: without one the delete is refused, listing the holders (`RoleInUse`).
+  `EnableStaff` still takes the role it enables with, for the one account a migration or an import
+  could leave without one.
 - **A staff member's stores** are the store row chosen for them, plus any store an exception adds.
   Store-free actions add nothing. A staff member with one store is listed under that store; one
   with two or more is listed as **centralized**, and only an admin with the same stores or more
@@ -507,7 +511,7 @@ which are stored in the database.
 
 | DTO | Fields |
 |---|---|
-| `CustomerDto` | `id`, `accountType`, `status`, `firstName`, `lastName`, `email`, `phone`, `emailVerified`, `phoneVerified`, `locale`, `deletionScheduledFor` |
+| `CustomerDto` | `id`, `accountType`, `status`, `firstName`, `lastName`, `email`, `phone`, `emailVerified`, `phoneVerified`, `locale`, `deletionScheduledFor`, `anonymized` (amendment 46) |
 | `StaffDto` | `id`, `firstName`, `lastName`, `email`, `phone`, `locale`, `status`, `isSuperAdmin` |
 | `AddressDto` | `id`, `customerId`, `storeId`, `label`, `recipientName`, `phone`, `fields`, `latitude`, `longitude`, `isDefault`, `isComplete` (it still satisfies the store's format, amendment 41), `formatted` (the store's display template applied) |
 | `PermissionDefinitionDto` | `name`, `audience` (`ROLE`, `EVERY_STAFF`, `EVERY_CUSTOMER`, `EVERY_GUEST`), `reserved`, `kind` (`PER_STORE`, `GLOBAL` — store-free, amendment 4); its names in Arabic and English are the module's translations at `labelKey()` — `{module}::permissions.{resource}.{action}` (amendment 1, §9.4) |
@@ -544,7 +548,7 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | Use case | Audience | Permission | Scope |
 |---|---|---|---|
 | `RegisterCustomer` — email, password, names, account type, locale | every guest | `access.account.register` | Global |
-| `SendEmailVerification` / `VerifyEmail` | every customer | `access.account.verify` | Global |
+| `SendEmailVerification` (`access.account.verify`, every customer) / `VerifyEmail` (`access.account.verify_email`, **every guest**: the link sent to the address is the proof, amendment 38) | | | Global |
 | `RequestPhoneCode` — first phone or a change | every customer | `access.account.verify` | Global |
 | `VerifyPhone` — completes adding or changing | every customer | `access.account.verify` | Global |
 | `SignIn` — cancels a pending deletion | every guest | `access.session.sign_in` | Global |
@@ -575,7 +579,7 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `RefreshStaffPermissions` / `RefreshRolePermissions` — rebuild the cached permissions of one staff member, or of a role's holders (amendment 10) | role | `access.staff.assign_role` / `access.role.manage` | As for changing that staff member's role / editing that role |
 | `RoleEditorPermissions` — what the author may put in a role, with names, kinds and their own stores (amendment 8) | role | `access.role.manage` or `access.staff.assign_role` | The author's own permissions |
 | `MyPermissions` — what I may do, and where; the admin menu is built from it (amendment 8) | every staff | none: it shows only the reader's own permissions | Own data |
-| `UpdateOwnStaffProfile` / `ChangeOwnStaffPassword` / `ChangeOwnStaffPhone` / notification preferences | every staff | `access.own_account.update` | Global |
+| `UpdateOwnStaffProfile` / `ChangeOwnStaffPassword` / the own phone change (`RequestOwnPhoneChange` + `VerifyOwnPhoneChange`, the current password first) / `UpdateOwnNotificationPreferences` | every staff | `access.own_account.update` | Global |
 | `SignOutStaff` | every staff | `access.own_account.update` | Global |
 | `CreateSuperAdmin` / `RevokeSuperAdmin` — never the last active one; create promotes an existing staff member / `ResetSuperAdminPhone` (amendments 14, 18) / `ResendSuperAdminInvitation` / `CancelSuperAdminInvitation` (amendment 30) | system (console) | `access.super_admin.manage` (reserved) | Global |
 | `CancelExpiredSuperAdminInvitations` — a scheduled job (amendment 30) | system | `access.super_admin.manage` (reserved) | Global |
@@ -590,7 +594,7 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `BlockCustomer` / `UnblockCustomer` — with a reason | role, **admin-only** (amendment 43) | `access.customer.block` | The customer's home store |
 | `DeleteCustomerOnRequest` / `CancelCustomerDeletion` — the same 14-day deletion, with a reason | role, **admin-only** (amendment 43) | `access.customer.delete` | The customer's home store |
 | `UpdateStoreAddressFormat` | role | `access.address_format.update` | That store |
-| `UpdateAccessSettings` — lockout, OTP and session numbers | role | `access.settings.update` | That store (customer settings); all stores (staff settings) |
+| `UpdateAccessSettings` — lockout, OTP and session numbers (Platform's `UpdateSetting`, under Access's permission) | role, **admin-only** (amendment 46(a)) | `access.settings.update` | That store (customer settings); all stores (staff settings) |
 | `AnonymizeDueAccounts` — daily | system (scheduled job) | `access.account.anonymize` (reserved) | Global |
 
 **Who sees whom [DECIDED 2026-09-19].** A KSA-only admin sees only KSA customers — those whose home
@@ -789,13 +793,13 @@ The security messages of §2.3, sent by Access until Ops exists. No other notifi
 ```
 AccessError
 ├── EmailAlreadyRegistered        CONFLICT     "You already have an account — please sign in"
-├── StaffEmailInUse               CONFLICT     another staff account has this email (amendment 21)
+├── StaffEmailInUse               CONFLICT     another account already has this email — staff or customer, and it never says which (amendment 46(f)) (amendment 21)
 ├── PhoneAlreadyInUse             CONFLICT
 ├── InvalidStaffStatus            CONFLICT     a change the account's status does not allow (amendment 21)
 ├── InvalidCustomerStatus         CONFLICT     blocking one that is blocked, or anything on a deleted account (amendment 43)
 ├── InvalidCredentials            FORBIDDEN    never says which part was wrong
 ├── AccountLocked                 FORBIDDEN    too many wrong passwords; says when to retry
-├── SignInRefused                 FORBIDDEN    a staff account disabled, cancelled or anonymized
+├── SignInRefused                 FORBIDDEN    a staff account disabled or cancelled (an anonymized customer is answered InvalidCredentials)
 ├── CustomerBlocked               FORBIDDEN    a blocked customer, told only after the right password
 ├── TooManyRequests               FORBIDDEN    too many registrations or reset requests from one address (amendment 40)
 ├── InvalidOrExpiredLink          INVALID
@@ -990,4 +994,4 @@ admin's name and role only, and a Super Admin not at all (owner, 2026-09-20; ame
 | 43 | §1.10, §2.3, §3.1, §3.3, §9.3 | **Step 6, planned 2026-09-20** (the owner's answers before any code): (a) **§9.3 #36 answered** — a staff member holding `access.staff.view` sees an **admin** as a name and a role only, with no contact details or profile, and a **Super Admin is invisible to everyone but another Super Admin**: not in a list, not in a count, and asked for by id the answer is the same as for an id that never existed; (b) **deleting and blocking a customer are admin-only actions** (`AdminOnlyPermission`, as the staff-management actions already are, amendment 9), so an ordinary staff role can never hold either; (c) staff deleting a customer **on their request record a reason**, kept only in the audit log, and staff may also **cancel** a pending deletion under the same permission, with a reason — a customer who cannot sign in is not left waiting to be deleted; (d) anonymizing replaces the email with `deleted-{id}@deleted.invalid`, which keeps nothing of the old address and frees it for a new account; (e) the customer gets **one email when the deletion is scheduled**, saying the date and that signing in cancels it, and none afterwards (`SecurityMessages::customerDeletionScheduled`); (f) anonymizing keeps the id, the account type, the home store and the dates — nothing that names a person — so counts by store and by account type stay honest and the foreign keys orders and reviews point at still resolve; (g) the job runs **daily at 03:00 in Riyadh** (00:00 UTC: the application runs in UTC); (h) a staff member who may see a customer sees the account, their contacts and their addresses; (i) step 6 builds the handlers, the reads and the job, and **no HTTP endpoints** — the account page and the staff screens call them from the frontend stage. | The spec left every one of these open. Blocking and deleting reach a person's account, so they belong with the other actions an ordinary role cannot hold. An address a hijacker deleted must still be recoverable by its owner for fourteen days, and they must be told. | Owner, 2026-09-20 |
 | 44 | §1.10, §3.1, §3.3 | **From the independent reviews of step 6** (2026-09-20; no rule of §1.10 or amendment 43 changed): (a) an account that was deleted may no longer be **sent a reset link, or have a password set on it** — the placeholder address is guessable from the id, and the reset flow only looked at the status; (b) **who a staff member may see is part of the query**, not a filter afterwards: a total that counted people outside their stores was a headcount of stores they do not cover, and the pages came back short; (c) a customer who is not theirs is answered as **no customer at all**, as the read side already did, so the panel never confirms which ids are real; (d) the **reason** staff record must be one line of real text, like every value that reaches the audit log (amendment 42a); (e) an **admin's stores and joining date** are part of "a name and a role only" (and their status too, amendment 46(d)), so an ordinary staff member does not learn which stores each admin covers; (f) the sweep goes round again while any account is still due, and one account that fails is logged and left for tomorrow instead of stopping the rest. | The deleted account's "can never sign in again" rested on one check; a count is as revealing as a list; and a sweep that stops at the first failure quietly misses the fourteen-day promise for everyone behind it. | Reviews of step 6, 2026-09-20 |
 | 45 | §1.6, §1.10, §3.1, §5.1, §9.4 (amendment 27) | **The owner's answers to the step 6 review questions** (2026-09-20): (a) **confirming a deletion signs the customer out of every device at once** — the session version moves on — so nothing of the account can be used while it waits; signing in again is both the way back and what calls the deletion off, and the "cancel from the account page while still signed in" that step 6 had added is therefore **removed**; (b) **there is no such thing as a staff member with no role**: revoking a Super Admin is a console action, so the account is **closed and its email and phone are free at once** (`CANCELLED`, with no password and every session ended), and a former Super Admin who is to stay is **invited again** like anyone else — this replaces amendment 27's "disabled until enabled together with a role" for that case, while deleting a role someone holds still needs a replacement or leaves them disabled; (c) `customers.remember_token`, which nothing ever wrote, is **dropped**. | A deletion that leaves the browser signed in invites the very mistake the fourteen days exist to undo. An account without a role is a state nobody can act on; closing it frees the person's email immediately, which is what the console revoke is for. | Owner, 2026-09-20 |
-| 46 | §1.4, §1.5, §1.10, §3.3, §5.6 | **From the three independent reviews of the whole module, and the owner's answers** (2026-09-21): (a) **`access.settings.update` is admin-only**, like the other actions that reach every account — the staff security numbers decide how everyone signs in; (b) a staff member changing **their own phone gives their current password first**, counted like a wrong one at sign-in: the number is where the sign-in code goes, so a stolen session alone must not move the second factor; (c) **anonymizing takes the account's session rows with it** — each row holds the person's id, address and browser for up to a year — so the storefront's session rows now carry the customer they belong to; (d) an **admin's status** is not part of "a name and a role" either (amendments 43(a), 44(e)): an ordinary staff member does not learn whether a colleague's account is active; (e) the admin "forgot password" page keeps **no per-address limit**: the reset is already capped at 3 an hour per account and the case is rare; (f) the rule that one email belongs to one account is now enforced **both ways** — inviting a staff member, or changing a staff email, onto an address a customer holds is refused in the same words as a colleague's; (g) the SMS limiter keys hold a **hash** of the number, never the number; the sweep runs only from the console or the queue and stops when a round moves nothing; `CustomerDto` says when an account was anonymized; a staff sign-in leaves no session behind a rolled-back transaction; the map pin is audited as personal. | The module's last pass before it merges. (a)–(d) are the owner's answers to what the reviews raised; the rest are defects the reviews found in the code, not changes of rule. | Owner and the reviews of step 7, 2026-09-21 |
+| 46 | §1.4, §1.5, §1.10, §3.3, §5.6 | **From the three independent reviews of the whole module, and the owner's answers** (2026-09-21): (a) **`access.settings.update` is admin-only**, like the other actions that reach every account — the staff security numbers decide how everyone signs in; (b) a staff member changing **their own phone gives their current password first**, counted like a wrong one at sign-in: the number is where the sign-in code goes, so a stolen session alone must not move the second factor; (c) **anonymizing takes the account's session rows with it** — each row holds the person's id, address and browser for up to a year — so the storefront's session rows now carry the customer they belong to; (d) an **admin's status** is not part of "a name and a role" either (amendments 43(a), 44(e)): an ordinary staff member does not learn whether a colleague's account is active; (e) the admin "forgot password" page keeps **no per-address limit**: the reset is already capped at 3 an hour per account and the case is rare; (f) the rule that one email belongs to one account is now enforced **both ways** — inviting a staff member, changing a staff email, or creating a Super Admin from the console, onto an address a customer holds, is refused in the same words as a colleague's; (g) the SMS limiter keys hold a **hash** of the number, never the number; the sweep runs only from the console or the queue and stops when a round moves nothing; `CustomerDto` says whether an account was anonymized; a staff sign-in leaves no session behind a rolled-back transaction; the map pin is audited as personal. | The module's last pass before it merges. (a)–(d) are the owner's answers to what the reviews raised; the rest are defects the reviews found in the code, not changes of rule. | Owner and the reviews of step 7, 2026-09-21 |
