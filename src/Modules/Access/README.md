@@ -497,7 +497,10 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   answered as no customer at all.
 - **Staff:** a colleague is visible only when the reader holds "see staff" in **all** of that
   person's stores (amendment 9). An **admin** shows a name and a role — no job title, email, phone,
-  stores, joining date or status (amendments 43, 44(e); the status, owner 2026-09-21). A **Super
+  stores, joining date or status (amendments 43, 44(e); the status, owner 2026-09-21). Nothing
+  answers about those columns either: a status filter never removes an admin, a search matches one
+  on the name alone, and the list is ordered **by name** for a reader who is not a Super Admin,
+  because ordering by joining date would give an admin's away. A **Super
   Admin** is invisible to everyone but another Super Admin: not in a list,
   not in a count, and asked for by id the answer is the same as for an id that never existed
   (amendment 43).
