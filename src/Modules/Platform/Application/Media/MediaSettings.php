@@ -8,6 +8,7 @@ use Modules\Platform\Public\Dto\SettingDefinitionDto;
 use Modules\Platform\Public\Enums\MediaVisibility;
 use Modules\Platform\Public\Enums\SettingScope;
 use Modules\Platform\Public\Enums\SettingType;
+use Modules\Platform\Public\PlatformPermissions;
 
 /**
  * Upload limits are global settings, so they change without a deploy (Platform spec §1.4). The
@@ -29,8 +30,8 @@ final class MediaSettings
     public static function definitions(): array
     {
         return [
-            new SettingDefinitionDto(self::MAX_PUBLIC_BYTES, SettingScope::Global, SettingType::Integer, ['min:1', 'max:'.self::HUNDRED_MEGABYTES], self::TEN_MEGABYTES, 'platform.settings.update'),
-            new SettingDefinitionDto(self::MAX_PRIVATE_BYTES, SettingScope::Global, SettingType::Integer, ['min:1', 'max:'.self::HUNDRED_MEGABYTES], self::TEN_MEGABYTES, 'platform.settings.update'),
+            new SettingDefinitionDto(self::MAX_PUBLIC_BYTES, SettingScope::Global, SettingType::Integer, ['min:1', 'max:'.self::HUNDRED_MEGABYTES], self::TEN_MEGABYTES, PlatformPermissions::SETTINGS_UPDATE),
+            new SettingDefinitionDto(self::MAX_PRIVATE_BYTES, SettingScope::Global, SettingType::Integer, ['min:1', 'max:'.self::HUNDRED_MEGABYTES], self::TEN_MEGABYTES, PlatformPermissions::SETTINGS_UPDATE),
         ];
     }
 

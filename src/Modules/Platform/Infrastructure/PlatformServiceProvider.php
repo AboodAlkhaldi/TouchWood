@@ -59,7 +59,6 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Psr\Log\LoggerInterface;
 use Shared\Application\ActorContext;
-use Shared\Application\Authorizer;
 use Shared\Application\StoreContext;
 
 final class PlatformServiceProvider extends ServiceProvider
@@ -120,17 +119,12 @@ final class PlatformServiceProvider extends ServiceProvider
 
         // Anything that depends on who is acting lives for one request or one job, never the
         // whole process — a queue worker must not audit or authorize as an earlier job's actor.
-        $this->app->scoped(ActorContext::class, SystemActorContext::class); // interim until Access
-        // Wraps this binding and Access's later one: a queued job acts as the system on behalf of
-        // whoever queued it (owner's decision, 2026-09-18).
+        // Access binds the ActorContext (spec §2.5). This wraps it: a queued job acts as the system
+        // on behalf of whoever queued it (owner's decision, 2026-09-18).
         $this->app->extend(ActorContext::class, fn (ActorContext $actors, Application $app): ActorContext => $actors instanceof JobAwareActorContext
             ? $actors
             : new JobAwareActorContext($actors, $app->make(JobActorState::class)));
-        // Interim until Access. Web requests are refused: with no login, nobody there is the system.
-        $this->app->scoped(Authorizer::class, fn (Application $app): Authorizer => new SystemOnlyAuthorizer(
-            $app->make(ActorContext::class),
-            $app->runningInConsole(),
-        ));
+        // The Authorizer is Access's (Access spec §2.5).
         $this->app->scoped(AuditLog::class, DatabaseAuditLog::class);
         $this->app->scoped(PlatformApi::class, PlatformApiImpl::class);
 

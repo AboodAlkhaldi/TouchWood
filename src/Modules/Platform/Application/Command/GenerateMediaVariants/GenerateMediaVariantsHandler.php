@@ -13,6 +13,7 @@ use Modules\Platform\Application\Media\MediaStorage;
 use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
 use Modules\Platform\Public\Events\MediaVariantsReady;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
@@ -23,7 +24,7 @@ use Shared\Application\PermissionScope;
 final readonly class GenerateMediaVariantsHandler
 {
     /** Reserved: only the system generates variants. */
-    public const string PERMISSION = 'platform.media.variants.generate';
+    public const string PERMISSION = PlatformPermissions::MEDIA_VARIANTS_GENERATE;
 
     public function __construct(
         private Authorizer $authorizer,

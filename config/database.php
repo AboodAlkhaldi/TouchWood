@@ -100,8 +100,11 @@ return [
             // Timestamps are sent without an offset, so the session must read them as UTC.
             'timezone' => 'UTC',
             // Every module schema must be listed here, or migrate:fresh will not wipe it.
-            'search_path' => 'public,platform',
+            'search_path' => 'public,platform,access',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // A failed query is logged without its values, so no password hash or personal data
+            // reaches the log file (owner's decision, 2026-09-19).
+            'mask_bindings_in_exception_messages' => true,
         ],
 
         'sqlsrv' => [

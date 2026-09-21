@@ -25,13 +25,14 @@ use Modules\Platform\Domain\ValueObject\TaxRate;
 use Modules\Platform\Domain\ValueObject\Timezone;
 use Modules\Platform\Domain\ValueObject\TranslatedText;
 use Modules\Platform\Public\Events\StoreCreated;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
 
 final readonly class CreateStoreHandler
 {
-    public const string PERMISSION = 'platform.store.create';
+    public const string PERMISSION = PlatformPermissions::STORE_CREATE;
 
     public function __construct(
         private Authorizer $authorizer,

@@ -89,6 +89,14 @@ final class InMemorySettingsRegistry implements SettingsRegistry
     }
 
     /**
+     * @return list<SettingDefinitionDto> in the order they were declared
+     */
+    public function all(): array
+    {
+        return array_values($this->definitions);
+    }
+
+    /**
      * The first reason the value is not valid for the definition, or null when it is.
      *
      * The type is checked strictly first: Laravel's rules skip empty strings and accept "5" as an

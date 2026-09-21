@@ -78,6 +78,6 @@ it('finds no store literals in Domain or Application', function () {
     }
 
     // Guards against a moved directory making this test pass over nothing.
-    expect($scanned)->toBeGreaterThan(20)
+    expect($scanned)->toBeGreaterThan(300)
         ->and($violations)->toBe([]);
 });

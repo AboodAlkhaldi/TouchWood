@@ -65,8 +65,45 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-18 | §4.1 | Store and language cookies last one year | Platform decisions review |
 | 2026-09-18 | §5.5 | Every stored media id has a `RESTRICT` foreign key to `media`, never an id inside JSON | Final repairs review, owner decision |
 | 2026-09-18 | §15 | Items to decide when hosting is chosen: database users for the audit log, trusted proxies, CDN purge | Repairs review, owner decision |
+| 2026-09-18 | §3 | `spatie/laravel-permission` not used: roles, permissions and store-scoped assignments are Access's own tables | Access questions, owner decision |
+| 2026-09-18 | §7.2, §7.3 | Registration asks first and last name; sign-in by email and password only; the email never changes; phones from any country, unique | Access questions, owner decision |
+| 2026-09-18 | §7.5 | One role per staff member; nobody grants more than they hold; Super Admins only by console command | Access questions, owner decision |
+| 2026-09-19 | §7.5 | Saved roles are shared (editing changes all holders); editing from a staff member's page makes a personal role; a guest's cart merges on sign-in | Access questions, owner decision |
+| 2026-09-18 | §7.6, §7.7 | Staff 2FA by SMS code with a 30-day trusted browser; staff disabled, never deleted; the default security numbers | Access questions, owner decision |
+| 2026-09-19 | §7.2, §7.9 | Company registration continues in B2B as one wizard; deletion with a 14-day grace period | Access questions, owner decision |
+| 2026-09-19 | §7.8 | One address scheme for all three stores now (16 fields, six required), picked by country; each store keeps its own copy; an order needs an address | Access spec review, owner decision |
+| 2026-09-19 | §7.5 | Customers belong to their registration store; staff see only their stores' customers and staff; Super Admins created and revoked only by console, never the last one | Access spec review, owner decision |
+| 2026-09-19 | §7.5 | A staff member's stores apply to every action in their role, with per-action exceptions | Access spec review, owner decision |
+| 2026-09-19 | §7.8 | A customer orders from any store but needs an address in that store first; several addresses per store | Access spec review, owner decision |
+| 2026-09-18 | §13.3, §17 | Access sends its own security messages until Ops; a frontend foundation stage follows Access | Access questions, owner decision |
 | 2026-09-18 | §5.3 | Scheduled work is queued as a job, so its audit source is JOB | Repairs review, owner decision |
 | 2026-09-18 | §7.5 | An actor id is never a secret: a guest's id is kept apart from whatever proves the cart is theirs | Repairs review, owner decision |
+| 2026-09-19 | §7.5 | Three levels (Super Admin → admins → staff): management actions only in admin roles; only a Super Admin manages admins; an admin manages staff only when covering all of their stores. Super Admin created by console, not seeded; Access's authorizer, not `Gate::before` | Access step 2, owner decision |
+| 2026-09-19 | §7.5 | Permissions are per store or store-free; "every store" means the All stores choice; renamed or removed permissions are carried into roles by every `migrate` | Access step 2, owner decision |
+| 2026-09-19 | §4.5 | `VersionedCache` moves to the Shared kernel so every module caches by the same never-stale rule | Access step 2, owner decision |
+| 2026-09-19 | §17 | Access builds in eight steps: step 3 splits into staff accounts (3a) and signing in (3b). Its HTTP endpoints are those of the sign-in flows; staff and role management endpoints come with their screens (stage 2b) | Access step 3, owner decision |
+| 2026-09-19 | §7.3, §7.6 | A staff phone is unique among staff; an email belongs to a staff account or a customer account, never both; one person may use one phone for both | Access step 3, owner decision |
+| 2026-09-19 | §7.6 | Staff are invited with the whole profile and verify their phone by SMS code when accepting; the communication language is set at invitation and changed in the person's own settings; a staff email can change, taking effect when the link sent to the new address is used; new staff get in-panel notifications, no email ones | Access step 3, owner decision |
+| 2026-09-19 | §7.5 | Super Admin console commands: create takes the whole profile or promotes an existing staff member; revoke never removes the last active one; a lost phone is reset by console | Access step 3, owner decision |
+| 2026-09-19 | §7.7 | When the leaked-password service cannot be reached, the password is accepted and the outage logged | Access step 3, owner decision |
+| 2026-09-19 | §7.5 | Nobody works without a role: an account left with none (a revoked Super Admin) is disabled until any admin, or a Super Admin, enables it together with a role; deleting a held role still needs a replacement | Access step 3a review, owner decision |
+| 2026-09-19 | §7.5 | Redirecting a staff account — a new email or phone, a resent invitation — needs every action of the person's role, like giving them that role | Access step 3a review, owner decision |
+| 2026-09-19 | §7.6 | Changing an invited person's email sends a new invitation there; the old link dies | Access step 3a review, owner decision |
+| 2026-09-19 | §7.7 | SMS codes: at most 3 an hour per number (was 5) | Access step 3a review, owner decision |
+| 2026-09-19 | §7.6 | Staff lifecycle: an invited person is "not registered yet"; cancelling the invitation kills the link only; cancelling the account (the inviter or a Super Admin) is final and frees the email and phone; only someone who accepted is disabled and enabled | Access step 3b, owner decision |
+| 2026-09-19 | §7.5 | A Super Admin invitation works 24 hours (a setting), then the system cancels and frees it; the console resends or cancels one; revoking an invited Super Admin cancels it | Access step 3b, owner decision |
+| 2026-09-19 | §7.7 | Staff: 10 wrong passwords from one IP address in 15 minutes make it wait 15 minutes; a staff password reset link works 30 minutes; signing out keeps the browser trusted; an email link opened while signed in to the admin panel signs that session out first; sign-ins, sign-outs, lockouts and trusted browsers are audited | Access step 3b, owner decision |
+| 2026-09-19 | §5.3 | A failed database query is logged without its values, so no password hash or personal data reaches the log file | Access step 3b, owner decision |
+| 2026-09-19 | §7.5, §7.7 | Accepting an invitation signs in only a Super Admin at once; staff then sign in as always. A staff sign-in SMS has its own text warning that the password was just used. An IP address made to wait is audited, named by a keyed fingerprint (IP addresses are kept only for staff actions). The staff sign-in settings have fixed ranges; 3 reset emails an hour; 15 minutes for the code step | Access step 3b review, owner decision |
+| 2026-09-19 | §5.3 | In production the application refuses to start without a real mailer (`MAIL_MAILER` not `log`, `array` or unset), so no invitation or reset link is ever written to the log | Access step 3b review, owner decision |
+| 2026-09-20 | §17, §7.2, §7.7 | Access step 4 splits into customer accounts (4a) and customer sign-in with guests (4b) — nine steps. Customers: 10 wrong passwords from one IP address in 15 minutes make it wait (as for staff, a per-store setting that can be raised); the terms and privacy version is per store; a customer's own account events are audited (registration, verifications, phone and password changes, blocking, deletion), never their sign-ins or browsing | Access step 4 plan, owner decision |
+| 2026-09-20 | §7.5, §7.9 | Access step 6 (deletion, blocking, staff views): staff holding "see staff" see an admin's name and role only, and never a Super Admin — not in a list, not in a count, and unknown by id; blocking and deleting a customer are admin-only actions, deleting (and cancelling a deletion) records a reason in the audit log; the anonymized email becomes `deleted-{id}@deleted.invalid` and the old one is free again; one email tells the customer the deletion date and that signing in cancels it; anonymizing keeps the id, account type, home store and dates; the daily job runs at 03:00 Riyadh (00:00 UTC); no HTTP endpoints in this step | Access step 6 plan, owner decision |
+| 2026-09-20 | §7.8 | Access step 5 (addresses): every store starts with the standard scheme, written at migrate and when a store is opened; at most 10 addresses per customer per store (a per-store setting); the first address in a store is its default and deleting the default moves the flag; field lengths fixed; a key the format does not define is refused; the display template is `{field}` placeholders with empty ones dropped; a format that changes later leaves saved addresses alone but one that no longer fits cannot be used for an order; no HTTP endpoints in this step | Access step 5 plan, owner decision |
+| 2026-09-20 | §7.7 | From the step 4b reviews: the admin panel keeps its sessions in its own table, so neither side's housekeeping ends the other's sessions; a customer signed in who opens their reset link is signed out of that browser first (they change a password they remember in their account settings); registrations and reset requests are limited to 10 an hour per address; asking for a verification link again keeps sharing the reset link's hourly limit | Access step 4b review, owner decision |
+| 2026-09-20 | §7.2, §7.7 | Registering a customer signs them in at once; the guest cookie lasts a year; an email belonging to a staff account is refused at registration in the same words as a customer's; the storefront session keeps its own cookie, wide enough (a year) that only Access's own limits end a session; customer and staff lockouts count on separate keys | Access step 4b, owner decision |
+| 2026-09-20 | §7.9, §7.5 | From the step 6 reviews: a deleted account can no longer be sent a reset link or have a password set on it; who a staff member may see is part of the query, not a filter after it, so counts and pages are right; an admin's stores and joining date are part of "a name and a role only"; the nightly sweep goes round again while accounts are due and logs the one that fails | Access step 6 review, owner decision |
+| 2026-09-20 | §7.5, §7.9 | Confirming a deletion signs the customer out of every device (signing in again is the only way back, and cancels it); revoking a Super Admin closes the account and frees its email and phone at once, so no staff member is ever left without a role; `customers.remember_token` dropped | Access step 6, owner decision |
+| 2026-09-21 | §7.5, §7.6, §7.9 | From the reviews of the whole Access module: the settings permission is split — the staff security numbers are admin-only (`access.staff_settings.update`), a store's own settings stay ordinary; a staff member changing their own phone gives their current password first; anonymizing deletes the account's session rows, so the storefront's rows now carry the customer they belong to; an admin's status is not shown to ordinary staff either; one email belongs to one account in both directions (a staff account cannot take a customer's address) | Access step 7, owner decision |
 
 ---
 
@@ -137,13 +174,16 @@ Memorize these. Most defects in a system like this are one of these being violat
 | Media | S3-compatible object storage + CDN |
 
 Key packages: `spatie/laravel-data` (presentation layer only — DTOs crossing a module boundary
-are plain readonly classes, §4.3), `spatie/laravel-model-states`,
-`spatie/laravel-permission`, `spatie/laravel-query-builder`,
+are plain readonly classes, §4.3), `spatie/laravel-model-states`, `spatie/laravel-query-builder`,
 `spatie/laravel-translatable`, `brick/math`, `intervention/image`.
 
 `brick/money` is **not** used: it carries its own currency list with built-in exponents, while
 §5.1 requires the exponent to come from our `currencies` row. `Money` is our own value object;
 `brick/math` gives it exact arithmetic.
+
+`spatie/laravel-permission` is **not** used (owner, 2026-09-18): the store scope lives on each role
+assignment (§7.5), which that package cannot express. Access keeps roles, permissions and
+assignments in its own tables.
 
 `spatie/laravel-medialibrary` is **not** used: it attaches each file to another module's
 Eloquent model, which §4.3 forbids. Media is Platform's own table (§5.5).
@@ -338,7 +378,9 @@ through Laravel's dispatcher — so Shared has no `CommandBus` or `EventBus` (ow
 
 **Hard ceiling: ~20 classes.** If Shared grows past that, something leaked into it. A type
 belongs here only if three or more modules need it and it will essentially never change.
-When in doubt, duplicate it in both modules.
+When in doubt, duplicate it in both modules. One owner exception so far: `VersionedCache` entered
+with two users (Platform, Access) because every later module that caches must follow the same
+never-stale rule (owner, 2026-09-19).
 
 ---
 
@@ -390,7 +432,7 @@ Arabic is the default language. Both locales are first-class.
 | Enums | PHP 8 backed enums, stored as **strings**. |
 | Validation | Two layers — form requests for shape and type, domain objects for invariants. Database CHECKs, unique indexes and foreign keys are the last line of defence: every rule they enforce is checked in code first, with a clear error, and tested, so the database should never receive a row it would refuse. |
 | Webhooks | Idempotency key on every one. |
-| Logging | Structured. Correlation id through the request and its queued jobs. The id is always generated by us; a caller's `X-Correlation-Id` is ignored. |
+| Logging | Structured. Correlation id through the request and its queued jobs. The id is always generated by us; a caller's `X-Correlation-Id` is ignored. A failed database query is logged without its values, so no password hash or personal data reaches the log file (owner, 2026-09-19). |
 
 Naming: tables plural snake_case under the module schema; commands imperative
 (`PublishProduct`); events past tense (`ProductPublished`).
@@ -495,12 +537,20 @@ register (email + password) → email verification link
 
 Ordering requires **both** email and phone verified.
 
+Registration also asks the first and last name. Customers sign in with **email and password
+only**; a forgotten password is reset by an email link. **The email never changes**: a customer
+who needs another one registers again (owner, 2026-09-18).
+
 Account type (`INDIVIDUAL` | `COMPANY`) is chosen at registration and **never changes**.
 No upgrade, no downgrade, from any state, in either direction. Do not build a transition.
+The registration flow differs by type: a company goes on to enter its company data and documents,
+which B2B owns (§8.1) — Access creates the account, B2B the application, shown as one wizard
+(owner, 2026-09-19).
 
 ### 7.3 Phone
 
-One phone per account. Never null once set. Changing it:
+One phone per account. Never null once set. Any country's number, stored in international
+format, and **unique across customers** (owner, 2026-09-18). Changing it:
 
 ```
 customers.phone, customers.phone_verified_at
@@ -509,6 +559,11 @@ pending_phone_changes(customer_id, new_phone, otp_hash, expires_at)
 
 The old number stays live and usable until the new one verifies. On success, swap and
 delete the pending row. There is no way to remove a phone and leave the field empty.
+
+A **staff** phone is unique among staff, so a code reaches exactly one staff member. An email
+belongs to a staff account or a customer account, never both; one person may use the same phone
+as a customer and as staff, verifying it once for each. A Super Admin who lost their phone has it
+removed by console command and verifies a new one at their next sign-in (owner, 2026-09-19).
 
 ### 7.4 Account status vs company status
 
@@ -544,11 +599,33 @@ child.
 Permissions are `{module}.{resource}.{action}`, derived from the use-case catalog. Checked
 in the **application layer**, not in controllers. Deny by default.
 
-**Super Admin** bypasses via `Gate::before`, is non-deletable and non-editable, and is
-**seeded**. It is the only actor that sees every store and the only one that can create
-admins and set their store scope.
+**Super Admin** passes every permission check (Access's authorizer), is non-deletable and
+non-editable, and is **created only by a console command** (owner, 2026-09-18). It holds every
+permission in every store without a role, and is the only one that can create admins and set their
+store scope.
 
-**Store access lives on the role assignment, not the user:**
+**Three levels: Super Admin → admins → staff** (owner, 2026-09-19). A role is an admin role or a
+staff role. The management actions (inviting, editing and disabling staff, assigning roles,
+managing roles) go only into admin roles, and so do blocking and deleting a customer (owner,
+2026-09-20) and changing the staff security settings (owner, 2026-09-21): staff manage no roles and
+no people, and change no rule of signing in. A store's own settings stay an ordinary action. Only a Super Admin
+manages admins and admin roles; no admin manages another admin or themselves. An admin manages a
+staff member only when the admin covers **all** of that person's stores: a KSA-only admin manages
+KSA-only staff, and a KSA+UAE staff member needs a KSA+UAE admin (or larger) or a Super Admin.
+
+**Permissions are per store or store-free** (owner, 2026-09-19). A store-free permission (media,
+roles) is held in full by whoever holds it; the role editor shows its store boxes ticked and
+disabled. A change that reaches every store needs the permission with "All stores". A module that
+renames or removes a permission declares it, and every `migrate` carries the change into the roles.
+
+**A customer belongs to the store they registered in** (their home store, fixed); they shop in
+every store and land in the last one they used after signing in. A store's staff see that store's
+customers and staff; a multi-store admin sees their stores'; only a Super Admin sees everyone
+(owner, 2026-09-19).
+
+**Store access lives on the role assignment, not the user** — chosen once for all of a staff
+member's actions, and any single action can have its own stores for that person (owner,
+2026-09-19):
 
 ```
 role_assignments
@@ -560,6 +637,25 @@ role_assignments
 This is how an admin can own KSA and Egypt and have no authority over UAE, and how their
 staff inherit the same boundary.
 
+**One role per staff member** (owner, 2026-09-18/19). Roles are **saved roles**, shared by every
+staff member who holds them: editing a saved role changes it for all of them. Editing a role from a
+staff member's own page gives that person a **personal role**, and nobody else changes. **Nobody
+grants more than they hold**: a role can contain only the author's permissions, an assignment only
+the author's stores. Super Admins are created only by a console command on the server; more than
+one may exist. The command takes the whole profile, or promotes an existing staff member (whose
+role ends); revoking by console never removes the last active Super Admin; nothing in the panel —
+not even another Super Admin — creates, changes or removes one (owner, 2026-09-19). A Super Admin
+invitation works 24 hours (a setting); left unaccepted, the system cancels it and frees the email
+and phone. The console can resend or cancel one, and revoking an invited Super Admin cancels it.
+
+**Nobody works without a role** (owner, 2026-09-19, as settled 2026-09-20): there is no account
+without one. Revoking a Super Admin is a console action, so it closes the account outright —
+`CANCELLED`, no password, every session ended, the email and phone free at once — and someone who
+is to stay is invited again; deleting a role its holders still hold needs a replacement, and
+without one the delete is refused. **Redirecting an account** — a new email or phone,
+a resent invitation — needs every action of the person's role, like giving them that role, so no
+admin can take over an account holding more than they do.
+
 **Admin navigation is derived from the permission set**, never hardcoded. A staff member
 with catalog permissions only sees catalog tabs.
 
@@ -569,7 +665,8 @@ setting). Access can also answer "which stores may this actor do this in", for a
 
 **Actors** (owner, 2026-09-18): staff, customer, guest (browses and keeps a cart, with no
 favourites; the cart moves to the account when they register), integration (a machine, such as a
-payment webhook) and the system. Every actor id is a ULID, and an id is never a secret: a guest's
+payment webhook) and the system. A guest's cart moves to the account when they register and merges
+into it when they sign in (owner, 2026-09-19). Every actor id is a ULID, and an id is never a secret: a guest's
 id is safe to keep in the audit log forever, while whatever proves the cart is theirs (an encrypted
 cookie, or an app's token stored only as a hash) is kept apart from it. A person's permission is checked when they start an action; a queued job then acts as the
 system on behalf of that person, and the audit log records who asked.
@@ -580,17 +677,58 @@ Admin creates the record → the system emails an expiring invitation link → t
 member sets their own password. The admin never knows it. Invitations can be cancelled and
 resent.
 
-**Two-factor authentication for staff is in v1.**
+**Two-factor authentication for staff is in v1**: an SMS code after the password, and a browser
+can be trusted for 30 days (owner, 2026-09-18). A staff member who leaves is **disabled, never
+deleted** — the audit log names them forever.
 
 Staff profile carries: first name, last name, job title, date of birth, email, phone,
 country, address, avatar. Plus **per-staff notification preferences** — new orders,
 company applications, low stock, campaign expiry — each toggleable for email and in-panel.
 
+The admin enters the **whole profile at invitation** (only the address and avatar are optional);
+the invitee sets a password and verifies the phone by SMS code when accepting. The
+**communication language** (every email and code) is chosen at invitation and changed in the
+person's own settings; the panel's EN/AR switch changes only the display. A staff **email can
+change**: the new address takes effect when the link sent to it is used — for someone invited who
+has not accepted, a new invitation goes there and the old link dies. New staff start with
+in-panel notifications on and email ones off (owner, 2026-09-19).
+
+**An invited person is "not registered yet"** and becomes active only by accepting. The admin can
+resend the link, *cancel the invitation* (the link dies; they stay invited) or *cancel the account*
+— only the admin who invited them, while they may still invite, or a Super Admin: final, and the
+email and phone are free for a new invitation; the row stays for the audit log. Only someone who
+accepted is ever disabled and enabled (owner, 2026-09-19).
+
 ### 7.7 Sessions
 
 Session authentication. Session policy, lockout thresholds and OTP parameters are
 configurable per store; defaults are provisional until the SMS provider is chosen and may
-be tuned then.
+be tuned then. The defaults (owner, 2026-09-18): passwords at least 8 characters for customers and
+12 for staff, checked against known leaked passwords (when that service cannot be reached, the
+password is accepted and the outage logged — owner, 2026-09-19); 5 wrong passwords lock an account for 15
+minutes; customers stay signed in 30 days with "remember me", otherwise 2 hours idle; staff 30
+minutes idle and 12 hours at most; SMS codes of 6 digits valid 5 minutes, resent after 60 seconds,
+at most 3 an hour per number (owner, 2026-09-19; was 5), dead after 5 wrong tries; the email verification link lasts 24 hours, a password
+reset link 60 minutes, a staff invitation 72 hours.
+
+For staff (owner, 2026-09-19): 10 wrong passwords from one IP address in 15 minutes make that
+address wait 15 minutes; a staff password reset link works 30 minutes and ends every session and
+trusted browser; signing out keeps the browser trusted; an email link (invitation, email change)
+opened in a browser signed in to the admin panel signs that session out first, then continues.
+Sign-ins, sign-outs, lockouts and browsers marked trusted are audited.
+
+For customers (owner, 2026-09-20): registering signs them in at once; the storefront keeps its own
+session, in the site's own cookie, and that cookie and its row last as long as the longest
+"remember me" any store may set (a year), so the framework never ends a session before Access's own
+limits do — the store's idle minutes, or its remembered days. Wrong passwords count on keys of
+their own, apart from staff's, so a shop's busy address never makes the admin panel wait. A
+customer's reset link works 60 minutes, at most 3 an hour per account, works once and ends every
+session of that account. The guest cookie lasts a year — Access only reads it; Sales writes it with
+the first cart line. An email that belongs to a staff account is
+refused at registration in exactly the same words as a customer's. Registrations and reset requests
+are limited to ten an hour from one address, and a customer signed in who opens their reset link is
+signed out of that browser first; a password they still remember they change in their account
+settings, which keeps that session. The admin panel keeps its session rows in its own table.
 
 ### 7.8 Addresses
 
@@ -608,21 +746,48 @@ store_address_formats
 └── display_template               ← rendering on the order and the shipping label
 ```
 
-**The per-store formats are still owed by the owner.** Build the configuration mechanism;
-seed KSA with the Saudi National Address format (building number, street, district,
-city, postal code, additional number) and flag the other two.
+**Address scheme (owner, 2026-09-19).** The customer first picks the country, from the stores'
+countries only; that country's store scheme appears. For now all three stores share one scheme:
+country, administrative area (region, governorate or emirate), city, district, street, building,
+unit, floor, postal code, additional number, PO box, short address, landmark, additional
+information, and a map pin (latitude, longitude). Required: country, administrative area, city,
+district, street, building. Each store keeps its own copy, so a country's scheme can change later
+as data. An address is not asked at registration, but an order needs one **in the store being
+ordered from**: a KSA customer ordering from UAE adds a UAE address first. A customer keeps several
+addresses per store.
+
+**Built in step 5 (owner, 2026-09-20).** Every store starts with that scheme — written when the
+schema is migrated, and when a store is opened later — so addresses work before the staff screen
+exists; staff change a store's copy afterwards as data. A customer keeps at most **10 addresses in
+one store** (a per-store setting); the first is its default, and deleting the default moves the flag
+to the newest remaining one. A key the store's format does not define is refused. The display
+template is plain text with `{field}` placeholders: an empty placeholder disappears, an empty line is
+dropped. A format changed later leaves saved addresses alone, but one that no longer fits cannot be
+used for an order until the customer completes it.
 
 ### 7.9 Account deletion
 
-**Anonymize, never hard delete.**
+**Anonymize, never hard delete.** The customer asks from their account, confirming with their
+password (staff may do it on request). The account is locked at once and anonymized 14 days later;
+signing in during those 14 days cancels it (owner, 2026-09-19).
 
 - The account can no longer log in.
-- Customer personal fields are overwritten: name → "Deleted customer", email → an
-  irreversible hash placeholder preserving uniqueness, phone → null, saved addresses
-  purged, preferences cleared.
+- Customer personal fields are overwritten: name → "Deleted customer", email → a placeholder that
+  keeps nothing of the old address and stays unique (`deleted-{id}@deleted.invalid`, owner
+  2026-09-20), phone → null, saved addresses purged, and anything else the account had chosen for
+  itself cleared.
 - **Orders keep their snapshot** of name, phone and delivery address as captured at order
   time. This is a financial record and it never gets anonymized, with no retention cutoff.
 - **Reviews and questions survive**, attributed to "Deleted customer".
+
+**Built in step 6 (owner, 2026-09-20).** Confirming a deletion signs the customer out of every
+device at once, so nothing of the account can be used while it waits; signing in again is both the
+way back and what calls the deletion off. The customer is told once, when it is scheduled:
+the date, and that signing in cancels it. Staff may delete a customer on their request, and cancel
+one, under an **admin-only** action that records a reason in the audit log — blocking a customer is
+admin-only too. The anonymized email becomes `deleted-{id}@deleted.invalid`, so the old address is
+free for a new account and nothing of it is kept. The row keeps its id, account type, home store and
+dates, and loses every field that names a person. The job runs daily at 03:00 in Riyadh.
 
 ---
 
@@ -1171,6 +1336,10 @@ offers, Jeddah branch opening.
 
 Notifications, newsletters, subscribers, reports, exports.
 
+**Security messages** — email verification, SMS codes, staff invitations, password resets — are
+sent by Access until Ops exists, behind an interface Ops then implements, so the switch is one
+binding (owner, 2026-09-18).
+
 **Notifications are event-driven.** Every notification is a queued listener on an event a
 module already publishes, resolved against the recipient's stored locale. There is no
 central notification matrix document — each module's specification lists its events, and the
@@ -1197,8 +1366,8 @@ modules.
 ## 14 · Admin panel
 
 Everything is **store-scoped**. An admin may own KSA and Egypt and have no authority over
-UAE; their staff inherit that boundary. Only the seeded Super Admin sees every store and
-assigns admins and their scopes. Navigation renders from the permission set.
+UAE; their staff inherit that boundary. Only a Super Admin (created by console command) assigns
+admins and their scopes. Navigation renders from the permission set.
 
 **Dashboard** — charts giving a quick read on the store: sales and goods for the month,
 three months and year; total orders; orders not yet shipped; completed orders; cancelled
@@ -1251,7 +1420,6 @@ Example roles: Owner · Catalog manager · Order fulfilment · Company accounts 
 | Carrier list and rate tables | Shipping |
 | SMS provider | Access (OTP), Ops |
 | Email provider and sending domain | Access, Ops |
-| Per-store address formats | Access, Shipping |
 | Old database dump | Migration |
 
 ### 15.2 Deferred to their build stage
@@ -1275,7 +1443,18 @@ Decide these when the owning module is reached; do not design them now.
 - **Database users for the audit log.** A restricted user for the app, allowed only to insert and
   read audit entries, and a separate owner for migrations, so nobody using the app's credentials can
   alter history. Today one user owns everything.
-- **Trusted proxies**, so a staff member's recorded IP is theirs, not the CDN's.
+- **Trusted proxies**, so a staff member's recorded IP is theirs, not the CDN's — and so the staff
+  sign-in limit per IP address sees each visitor: behind an untrusted proxy every request shares one
+  address, and 10 wrong passwords from anyone would make every staff member wait 15 minutes (owner,
+  2026-09-19: settled with the hosting).
+- **HTTPS-only cookies** (`SESSION_SECURE_COOKIE=true`) for the admin session and trusted-browser
+  cookies (owner, 2026-09-19: settled with the hosting). Until it is set, the trusted-browser cookie
+  follows `config('session.secure')`, which Symfony only forces on a request it can see is secure —
+  behind an untrusted TLS proxy it cannot, and the 30-day cookie may leave without `Secure`.
+- Both of the above are **hardening today and a broken flow tomorrow**: Laravel checks a signed URL
+  against the scheme and host of the request, while Access signs its links on `APP_URL`. Behind a
+  TLS-terminating proxy that is not trusted, every request looks like `http`, so every customer
+  email-verification link would fail its signature and answer 403 (review of Access step 7).
 - **CDN purge** of a deleted public image's sizes.
 
 ---
@@ -1320,6 +1499,8 @@ that is the signal to stop.
 ```
 STAGE 1   Platform      stores, currencies, tax, settings, media, audit
 STAGE 2   Access        identity, auth, verification, RBAC, staff, addresses, 2FA
+STAGE 2b  Frontend      Inertia + React + shadcn with SSR; auth pages, admin sign-in,
+          foundation    Platform's admin screens
 STAGE 3   B2B           company lifecycle
 ──────── everything above depends on nothing external ────────
 STAGE 4   Catalog       BLOCKED on the external provider schema
@@ -1332,6 +1513,12 @@ STAGE 9   Migration, hardening, launch
 
 Platform precedes Access because store context is a parameter of nearly everything in
 Access — staff store scoping, per-store settings, per-store verification configuration.
+
+Access is built in **nine steps** (owner, 2026-09-19; step 4 split 2026-09-20): the permission
+catalog; roles and the real permission check; staff accounts (3a); signing in (3b); customer
+accounts (4a); customer sign-in and guests (4b); addresses; deletion, blocking
+and staff views; its README and review. Its HTTP endpoints are those of the sign-in flows; staff
+and role management endpoints come with their screens in stage 2b.
 
 Stages 1–3 depend on nothing external, which is why they run first while the provider
 schema is being chased.

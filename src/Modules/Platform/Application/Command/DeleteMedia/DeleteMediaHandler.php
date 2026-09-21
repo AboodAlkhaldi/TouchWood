@@ -17,6 +17,7 @@ use Modules\Platform\Domain\Exception\MediaNotFound;
 use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Public\Dto\MediaUseDto;
 use Modules\Platform\Public\Events\MediaDeleted;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
@@ -29,7 +30,7 @@ use Shared\Application\PermissionScope;
  */
 final readonly class DeleteMediaHandler
 {
-    public const string PERMISSION = 'platform.media.delete';
+    public const string PERMISSION = PlatformPermissions::MEDIA_DELETE;
 
     public function __construct(
         private Authorizer $authorizer,

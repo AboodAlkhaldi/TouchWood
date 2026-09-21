@@ -168,8 +168,12 @@ src/Shared/
 │                         Authorizer · PermissionScope · Unauthorized
 │                         ActorContext · Actor · ActorType · CorrelationId
 └── Infrastructure/
-    └── Persistence/      BelongsToStore · StoreScope
+    ├── Persistence/      BelongsToStore · StoreScope
+    └── Cache/            VersionedCache
 ```
+
+`VersionedCache` moved here from Platform when Access needed it for staff permissions (owner,
+2026-09-19): every module that caches follows the same never-stale rule. 18 classes.
 
 The error renderer (`ProblemDetails`) and the correlation-id middleware are framework glue and live
 in `app/Http` (owner, 2026-09-18); only the correlation id's Context key stays in the kernel.
@@ -319,6 +323,8 @@ happening again.
 ```
 STAGE 1   Platform      stores, currencies, tax, settings, media, audit
 STAGE 2   Access        identity, auth, verification, RBAC, staff, addresses, 2FA
+STAGE 2b  Frontend      Inertia + React + shadcn with SSR; auth pages, admin sign-in,
+          foundation    Platform's admin screens
 STAGE 3   B2B           company lifecycle
 ──────────── everything above depends on nothing external ────────────
 STAGE 4   Catalog       BLOCKED on the external provider schema

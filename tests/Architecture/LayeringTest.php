@@ -14,7 +14,9 @@ arch('the shared domain is framework-free', function () {
 });
 
 it('finds modules with code to check', function () {
-    expect(modulesWithCode())->toContain('Platform');
+    // Named one by one: a renamed or moved module must fail here, not quietly stop
+    // generating every check below it (review of step 7).
+    expect(modulesWithCode())->toContain('Platform')->toContain('Access');
 });
 
 foreach (modulesWithCode() as $module) {

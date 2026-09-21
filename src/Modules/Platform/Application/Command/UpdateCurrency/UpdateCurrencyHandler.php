@@ -16,12 +16,13 @@ use Modules\Platform\Domain\Repository\CurrencyRepository;
 use Modules\Platform\Domain\ValueObject\CurrencyCode;
 use Modules\Platform\Domain\ValueObject\TranslatedText;
 use Modules\Platform\Public\Events\CurrencyUpdated;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
 final readonly class UpdateCurrencyHandler
 {
-    public const string PERMISSION = 'platform.currency.update';
+    public const string PERMISSION = PlatformPermissions::CURRENCY_UPDATE;
 
     public function __construct(
         private Authorizer $authorizer,

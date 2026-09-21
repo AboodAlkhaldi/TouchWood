@@ -9,12 +9,13 @@ use Modules\Platform\Application\Audit\MediaAudit;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Domain\Exception\MediaNotFound;
 use Modules\Platform\Domain\Repository\MediaRepository;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
 final readonly class UpdateMediaAltTextHandler
 {
-    public const string PERMISSION = 'platform.media.update';
+    public const string PERMISSION = PlatformPermissions::MEDIA_UPDATE;
 
     public function __construct(
         private Authorizer $authorizer,

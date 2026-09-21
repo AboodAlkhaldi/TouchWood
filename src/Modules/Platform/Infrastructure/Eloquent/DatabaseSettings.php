@@ -9,6 +9,7 @@ use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Database\Connection;
 use Modules\Platform\Application\Settings\SettingValues;
 use Modules\Platform\Application\Settings\StoredSetting;
+use Shared\Infrastructure\Cache\VersionedCache;
 
 /**
  * Every stored setting, loaded in one query and kept in the shared cache until one changes (see
