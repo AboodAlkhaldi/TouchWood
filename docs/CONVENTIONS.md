@@ -1,4 +1,4 @@
-# TouchWood Platform
+# TouchWood — working conventions
 
 `docs/HANDOFF.md` is the source of truth. Read it before changing anything.
 
