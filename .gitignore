@@ -27,5 +27,3 @@ Homestead.yaml
 Thumbs.db
 .deptrac.cache
 
-# Claude Code editor settings, not the project
-.claude/

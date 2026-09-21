@@ -229,7 +229,7 @@ describe('a customer\'s addresses (spec §1.9)', function () {
         $first = saveAddress(['label' => 'Home']);
         $second = saveAddress(['label' => 'Work']);
 
-        // Without the index the code alone must hold the rule (CLAUDE.md); the test's transaction
+        // Without the index the code alone must hold the rule (handoff §5.3); the test's transaction
         // puts the index back.
         DB::statement('DROP INDEX access.addresses_one_default_per_store');
         app(SetDefaultAddressHandler::class)->handle(new SetDefaultAddress($second));

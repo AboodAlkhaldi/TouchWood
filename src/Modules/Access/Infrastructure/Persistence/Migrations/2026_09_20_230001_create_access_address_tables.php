@@ -46,7 +46,7 @@ return new class extends Migration
             $table->index(['customer_id', 'store_id']);
         });
 
-        // The last line of defence; the code refuses each of these first (spec §5, CLAUDE.md).
+        // The last line of defence; the code refuses each of these first (spec §5, handoff §5.3).
         DB::statement("ALTER TABLE access.addresses ADD CONSTRAINT addresses_phone_format CHECK (phone ~ '^\\+[1-9][0-9]{6,14}$')");
         DB::statement('ALTER TABLE access.addresses ADD CONSTRAINT addresses_map_pin_together CHECK (num_nulls(latitude, longitude) <> 1)');
         DB::statement('ALTER TABLE access.addresses ADD CONSTRAINT addresses_map_pin_range CHECK (latitude IS NULL OR (latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180))');
