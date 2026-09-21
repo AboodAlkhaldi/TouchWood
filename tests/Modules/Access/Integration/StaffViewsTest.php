@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -60,6 +61,17 @@ function listedCustomers(?string $search = null): array
     $page = app(ListCustomersHandler::class)->handle(new ListCustomers($search));
 
     return array_map(static fn (object $customer): string => $customer->id, $page->customers);
+}
+
+/**
+ * Gives a staff member a first name and a joining date, to read the list's order by.
+ */
+function named(string $staffId, string $firstName, CarbonImmutable $joinedAt): void
+{
+    DB::table('access.staff_users')->where('id', $staffId)->update([
+        'first_name' => $firstName,
+        'created_at' => $joinedAt,
+    ]);
 }
 
 /**
@@ -179,6 +191,27 @@ describe('the staff a staff member sees (amendments 9 and 43)', function () {
             ->and(listedStaff(search: 'Staff'))->toHaveKey($adminId)
             // And an ordinary colleague is still found by the email the reader is shown.
             ->and(listedStaff(search: (string) DB::table('access.staff_users')->where('id', $disabled)->value('email')))->toHaveKey($disabled);
+    });
+
+    it('orders the list by name for a reader who may not see every joining date', function () {
+        $admin = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa'], RoleLevel::Admin);
+        $newest = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa']);
+        $middle = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa']);
+        named($newest, 'Zaid', CarbonImmutable::now());
+        named($middle, 'Amal', CarbonImmutable::now()->subDay());
+        named($admin, 'Maha', CarbonImmutable::now()->subDays(2));
+        $three = [$admin, $newest, $middle];
+
+        // By joining date the admin would sit last, between colleagues whose dates the reader is
+        // shown, which is the date itself (owner, 2026-09-21). By name it says nothing.
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']));
+
+        expect(array_values(array_intersect(array_keys(listedStaff()), $three)))->toBe([$middle, $admin, $newest]);
+
+        // A Super Admin is shown every date, so their list stays newest first.
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(array_values(array_intersect(array_keys(listedStaff()), $three)))->toBe([$newest, $middle, $admin]);
     });
 
     it('finds a colleague left with no role by their email, and shows them', function () {

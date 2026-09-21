@@ -79,8 +79,16 @@ final readonly class DatabaseStaffReader implements StaffReader
             WHERE {$conditions}
             SQL, $bindings);
 
+        // Newest first for a reader who is shown every joining date; by name for anyone else. An
+        // admin's joining date is not theirs to see (amendment 46(d)), and a list ordered by that
+        // date would tell them anyway: an admin sitting between two colleagues whose dates they
+        // do see is bracketed between them (owner, 2026-09-21).
+        $order = $withSuperAdmins
+            ? 's.created_at DESC, s.id DESC'
+            : 'lower(s.first_name), lower(s.last_name), s.id';
+
         $rows = $this->db->select(
-            $this->select()." WHERE {$conditions} ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?",
+            $this->select()." WHERE {$conditions} ORDER BY {$order} LIMIT ? OFFSET ?",
             [...$bindings, $perPage, (max($page, 1) - 1) * $perPage],
         );
 
