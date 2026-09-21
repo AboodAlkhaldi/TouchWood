@@ -20,6 +20,7 @@ use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Model\StaffUser;
+use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
@@ -39,6 +40,7 @@ final readonly class ChangeStaffEmailHandler
         private Authorizer $authorizer,
         private GrantRules $rules,
         private StaffUserRepository $staff,
+        private CustomerRepository $customers,
         private RoleAssignmentRepository $assignments,
         private GrantsReader $grants,
         private StaffTokenRepository $tokens,
@@ -76,7 +78,9 @@ final readonly class ChangeStaffEmailHandler
                 throw new InvalidAccessAttribute('email', 'the same as the current one');
             }
 
-            if ($this->staff->emailInUse($email, $target->id())) {
+            // One email, one account (amendment 13): a customer's address is taken too, and is
+            // answered the same way, so the panel never says which kind of account holds it.
+            if ($this->staff->emailInUse($email, $target->id()) || $this->customers->emailInUse($email)) {
                 throw new StaffEmailInUse;
             }
 
@@ -97,7 +101,7 @@ final readonly class ChangeStaffEmailHandler
 
             // Sent to the new address: it becomes the email only once its owner uses the link.
             $this->db->afterCommit(fn () => $this->messages->staffEmailChange(StaffMapper::toDto($target), $email->value, $this->links->emailChange($link['token'])));
-        });
+        }, 3);
     }
 
     /**

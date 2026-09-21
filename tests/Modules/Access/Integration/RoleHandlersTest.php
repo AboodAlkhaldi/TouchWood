@@ -79,6 +79,9 @@ describe('creating a role', function () {
         'an automatic action' => [[AccessPermissions::ACCOUNT_REGISTER], UnknownPermission::class],
         'a Super Admin action' => [[PlatformPermissions::STORE_CREATE], ReservedPermission::class],
         'a management action in a staff role' => [[AccessPermissions::STAFF_INVITE], AdminOnlyPermission::class],
+        // The staff security settings decide how everyone signs in; a store's own settings do not,
+        // and stay an ordinary action (owner, 2026-09-21).
+        'the staff security settings in a staff role' => [[AccessPermissions::STAFF_SETTINGS_UPDATE], AdminOnlyPermission::class],
         'no action at all' => [[], InvalidAccessAttribute::class],
         'an action the author does not hold' => [[PlatformPermissions::SETTINGS_UPDATE], PermissionEscalation::class],
     ]);
@@ -356,6 +359,38 @@ describe('deleting a saved role', function () {
         // The holder's cached permissions follow the move at once.
         Fx::actAsStaff($holderId);
         expect(Fx::storeCodesWith(PlatformPermissions::MEDIA_UPLOAD))->toBe([]);
+    });
+
+    it('moves holders to a replacement that still holds a name no module declares', function () {
+        $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
+        $replacementId = Fx::role([PlatformPermissions::STORE_UPDATE]);
+        DB::table('access.role_permissions')->insert(['role_id' => $replacementId, 'permission' => 'catalog.product.update']);
+        $holderId = Fx::staff();
+        Fx::assign($holderId, $roleId, ['sa']);
+        // A Super Admin: a limited author is refused such a replacement by requireCovers, because
+        // the name would come back to life with its module.
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        // A name left behind by a switched-off module grants nothing and is passed over, exactly
+        // as an edit passes over it: the delete is not the place to refuse it (review of step 7).
+        app(DeleteRoleHandler::class)->handle(new DeleteRole($roleId, $replacementId));
+
+        expect(Fx::roleOf($holderId))->toBe($replacementId);
+    });
+
+    it('refuses a limited author that same replacement: the dormant name is not theirs to hand out', function () {
+        $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
+        $replacementId = Fx::role([PlatformPermissions::STORE_UPDATE]);
+        DB::table('access.role_permissions')->insert(['role_id' => $replacementId, 'permission' => 'catalog.product.update']);
+        $holderId = Fx::staff();
+        Fx::assign($holderId, $roleId, ['sa']);
+        Fx::actAsAdmin(['sa'], ROLE_ADMIN_ACTIONS);
+
+        // The delete moves people onto a role they never held, so the author must cover every
+        // action of it; a name no module declares cannot be covered (review of step 7).
+        expect(fn () => app(DeleteRoleHandler::class)->handle(new DeleteRole($roleId, $replacementId)))
+            ->toThrow(UnknownPermission::class)
+            ->and(Fx::roleOf($holderId))->toBe($roleId);
     });
 
     it('refuses a replacement of another level, a personal role, or the role itself', function (Closure $replacement) {

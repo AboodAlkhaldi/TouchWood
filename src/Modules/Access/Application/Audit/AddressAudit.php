@@ -25,6 +25,7 @@ final class AddressAudit
             ->personal('recipient_name')
             ->personal('phone')
             ->personal('fields')
+            ->personal('map_pin')
             ->changed('is_default', null, $address->isDefault());
 
         return self::entry('access.customer.address_added', $address, $changes);
@@ -54,6 +55,7 @@ final class AddressAudit
             ->personal('recipient_name')
             ->personal('phone')
             ->personal('fields')
+            ->personal('map_pin')
             ->changed('is_default', $address->isDefault(), null));
     }
 

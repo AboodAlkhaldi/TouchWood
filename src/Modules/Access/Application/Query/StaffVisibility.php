@@ -15,8 +15,8 @@ use Shared\Domain\ValueObject\StoreId;
  * the list and the single view can never drift apart:
  *
  * - a colleague is visible only when the reader holds "see staff" in **all** of their stores;
- * - an **admin** shows a name, a role and a status — no job title, email, phone, stores or joining
- *   date;
+ * - an **admin** shows a name and a role — no job title, email, phone, stores, joining date or
+ *   status (owner, 2026-09-21);
  * - a **Super Admin** is seen only by another Super Admin, and then in full.
  */
 final readonly class StaffVisibility
@@ -63,7 +63,7 @@ final readonly class StaffVisibility
             $open ? (string) $row['job_title'] : null,
             $open ? (string) $row['email'] : null,
             $open ? ($row['phone'] === null ? null : (string) $row['phone']) : null,
-            StaffStatus::from((string) $row['status']),
+            $open ? StaffStatus::from((string) $row['status']) : null,
             $row['role_id'] === null ? null : (string) $row['role_id'],
             (string) $row['role_name_ar'],
             (string) $row['role_name_en'],

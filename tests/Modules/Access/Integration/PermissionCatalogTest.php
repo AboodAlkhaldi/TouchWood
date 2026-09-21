@@ -37,6 +37,30 @@ function handlerPermissions(): array
     return $permissions;
 }
 
+/**
+ * The command handlers that declare no PERMISSION constant.
+ *
+ * @return list<string>
+ */
+function handlersWithoutPermissionConstant(): array
+{
+    $missing = [];
+
+    foreach (glob(dirname(__DIR__, 4).'/src/Modules/*/Application/Command/*/*Handler.php') ?: [] as $file) {
+        $module = basename(dirname($file, 4));
+        $command = basename(dirname($file));
+        $class = "Modules\\{$module}\\Application\\Command\\{$command}\\".basename($file, '.php');
+
+        if (! defined("{$class}::PERMISSION")) {
+            $missing[] = $class;
+        }
+    }
+
+    sort($missing);
+
+    return $missing;
+}
+
 it('declares every Platform permission, with the reserved ones reserved and the store-free ones store-free', function () {
     $catalog = app(InMemoryPermissionCatalog::class);
 
@@ -78,14 +102,31 @@ it('keeps the management actions out of staff roles, and viewing staff in them',
         // Blocking and deleting a customer reach a person's account (amendment 43).
         AccessPermissions::CUSTOMER_BLOCK,
         AccessPermissions::CUSTOMER_DELETE,
+        // The staff security settings decide how everyone signs in; a store's own settings do not
+        // (owner, 2026-09-21).
+        AccessPermissions::STAFF_SETTINGS_UPDATE,
     ]);
+    expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::SETTINGS_UPDATE);
     expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::STAFF_VIEW);
 });
 
-it('checks the declared renames and removals once every module has booted', function () {
-    // verify() ran when the application booted; with nothing renamed it passes.
-    expect(app(InMemoryPermissionCatalog::class)->renames())->toBe([])
-        ->and(app(InMemoryPermissionCatalog::class)->removals())->toBe([]);
+it('passes its own check of the renames and removals every module declared', function () {
+    $catalog = app(InMemoryPermissionCatalog::class);
+
+    // verify() runs when the application boots (AccessServiceProvider). Running it again
+    // here against the real declarations is what proves they are sound: a rename to a name
+    // no module declares, or one both renamed and removed, throws (review of step 7).
+    expect($catalog->all())->not->toBeEmpty();
+    $catalog->verify();
+
+    expect($catalog->renames())->toBe([])
+        ->and($catalog->removals())->toBe([]);
+});
+
+it('gives every command handler a PERMISSION constant, save the one that reads it from the setting', function () {
+    // UpdateSetting takes its permission from the setting's own definition, so it declares
+    // none; every other handler must, or handlerPermissions() would pass over it.
+    expect(handlersWithoutPermissionConstant())->toBe(['Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler']);
 });
 
 it('declares every Access permission', function () {

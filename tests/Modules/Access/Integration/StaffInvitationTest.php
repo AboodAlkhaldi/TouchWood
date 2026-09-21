@@ -146,6 +146,16 @@ describe('inviting', function () {
         'the phone' => [fn () => invite('other@example.test', '+966 50 222 2222'), PhoneAlreadyInUse::class],
     ]);
 
+    it('refuses an email a customer holds, without saying which kind of account holds it', function () {
+        Fx::customer('shared@example.test');
+        Fx::actAsAdmin(['sa'], INVITING_ADMIN);
+
+        // One email, one account (amendment 13). Nothing in the panel distinguishes this from an
+        // address another staff member holds, and no staff row is written.
+        expect(fn () => invite('SHARED@example.test'))->toThrow(StaffEmailInUse::class)
+            ->and(DB::table('access.staff_users')->where('email', 'shared@example.test')->exists())->toBeFalse();
+    });
+
     it('needs both "invite staff" and "assign roles" in every store the new member gets', function (array $actions, array $stores) {
         Fx::actAsAdmin(['sa'], Fx::names($actions));
 

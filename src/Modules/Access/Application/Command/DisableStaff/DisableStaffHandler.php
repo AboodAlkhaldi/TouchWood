@@ -62,6 +62,6 @@ final readonly class DisableStaffHandler
             $this->grants->refresh($target->id());
 
             $this->events->dispatch(new StaffDisabled((string) Str::uuid(), $target->id(), CarbonImmutable::now()));
-        });
+        }, 3);
     }
 }

@@ -48,6 +48,6 @@ it('allows reading across stores only in read models and Ops', function () {
     }
 
     // Guards against a moved directory making this test pass over nothing.
-    expect($scanned)->toBeGreaterThan(50)
+    expect($scanned)->toBeGreaterThan(480)
         ->and($violations)->toBe([]);
 });

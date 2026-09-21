@@ -35,6 +35,7 @@ use Modules\Access\Application\Command\UpdateStaffProfile\UpdateStaffProfileHand
 use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChange;
 use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChangeHandler;
 use Modules\Access\Application\Security\Codes;
+use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
 use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
 use Modules\Access\Public\Enums\AccessLevel;
@@ -113,6 +114,61 @@ function signInCodes(): int
 }
 
 describe('signing in (spec §1.8, §4.4)', function () {
+    it('reads the account again under its lock, so a disable that lands in between still refuses', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser('10.1.2.21');
+        signInFully($browser, $staffId, trust: true);
+        $browser->post('/admin/sign-out');
+
+        // Checking a password takes long enough for an admin to disable the account meanwhile. The
+        // read before the transaction is for the password and the id only (review of step 7).
+        $real = app(StaffUserRepository::class);
+        $stale = $real->byId($staffId);
+        DB::table('access.staff_users')->where('id', $staffId)->update(['status' => StaffStatus::Disabled->value]);
+
+        $repository = Mockery::mock(StaffUserRepository::class);
+        $repository->shouldReceive('byEmail')->andReturn($stale);
+        $repository->shouldReceive('byId')->andReturnUsing(fn (string $id) => $real->byId($id));
+        app()->bind(StaffUserRepository::class, fn () => $repository);
+
+        expect(AdminBrowser::formError(signInPassword($browser, $staffId)))->toBe((string) __('access::errors.sign_in_refused.detail'))
+            ->and(signInWho($browser))->toBeNull();
+    });
+
+    it('leaves no session behind when the trusted-browser transaction rolls back', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser('10.1.2.22');
+        signInFully($browser, $staffId, trust: true);
+        $browser->post('/admin/sign-out');
+
+        // The session is started inside the transaction so the entry names them as the actor; the
+        // entry itself then fails. The table goes only for this test: its transaction puts it back.
+        DB::statement('DROP TABLE platform.audit_entries');
+
+        signInPassword($browser, $staffId)->assertStatus(500);
+
+        expect(signInWho($browser))->toBeNull();
+    });
+
+    it('leaves no session behind when the transaction that signed them in rolls back', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser('10.1.2.9');
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+
+        // The session is started inside the transaction, so the audit entry names them as the
+        // actor. Something failing after that must take the session with it (review of step 7).
+        // The table goes only for this test: its transaction puts it back.
+        DB::statement('DROP TABLE access.staff_trusted_browsers');
+
+        $browser->post('/admin/sign-in/code', [
+            'code' => RecordingSecurityMessages::installed()->lastCode(),
+            'trust_browser' => true,
+        ])->assertStatus(500);
+
+        expect(signInWho($browser))->toBeNull()
+            ->and(Fx::audits('access.staff_user.signed_in', $staffId))->toBe(0);
+    });
+
     it('asks the password, then an SMS code, then signs in with a new session id', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser('10.1.2.3');
@@ -441,7 +497,7 @@ describe('trusted browsers', function () {
         )],
         'they changed their own phone' => [false, function (string $id): void {
             Fx::actAsStaff($id);
-            app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550002'));
+            app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550002', SIGN_IN_PASSWORD, '10.0.0.1'));
             app(VerifyOwnPhoneChangeHandler::class)->handle(new VerifyOwnPhoneChange(RecordingSecurityMessages::installed()->lastCode()));
         }],
         'a Super Admin revoked' => [true, function (string $id): void {
@@ -622,6 +678,29 @@ describe('limits on the way in', function () {
             ->and(DB::table('access.staff_users')->where('id', $staffId)->value('session_version'))->toBe(0);
     });
 
+    it('starts the count again after the right current password', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser('10.0.0.62');
+        signInFully($browser, $staffId);
+
+        foreach (range(1, 4) as $try) {
+            $browser->post('/admin/account/password', ['current_password' => 'a guess '.$try, 'password' => 'a brand new long password']);
+        }
+
+        // The right one clears the four before it, as it does at sign-in, so four more do not lock
+        // the account and the fifth change still works (review of step 7).
+        $browser->post('/admin/account/password', ['current_password' => SIGN_IN_PASSWORD, 'password' => 'a brand new long password'])->assertRedirect();
+
+        foreach (range(1, 4) as $try) {
+            $browser->post('/admin/account/password', ['current_password' => 'another guess '.$try, 'password' => 'one more long password']);
+        }
+
+        $right = $browser->post('/admin/account/password', ['current_password' => 'a brand new long password', 'password' => 'one more long password']);
+
+        expect(AdminBrowser::formError($right))->toBeNull()
+            ->and(Fx::audits('access.staff_user.locked_out', $staffId))->toBe(0);
+    });
+
     it('asks a new password to follow the rules: 12 characters, not leaked', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
@@ -630,8 +709,13 @@ describe('limits on the way in', function () {
         $short = $browser->post('/admin/account/password', ['current_password' => SIGN_IN_PASSWORD, 'password' => 'too short']);
         $leaked = $browser->post('/admin/account/password', ['current_password' => SIGN_IN_PASSWORD, 'password' => FakeBreachList::LEAKED]);
 
-        expect(AdminBrowser::formError($short))->not->toBeNull()
-            ->and(AdminBrowser::formError($leaked))->not->toBeNull()
+        // Both reasons are answered with the one message, which never says which of the two it
+        // was: a form that said "this password has leaked" would confirm the password to a
+        // stranger at the keyboard (review of step 7).
+        $refused = (string) __('access::errors.password_too_weak.detail', ['min' => 12]);
+
+        expect(AdminBrowser::formError($short))->toBe($refused)
+            ->and(AdminBrowser::formError($leaked))->toBe($refused)
             ->and(signInWho($browser))->toBe($staffId);
     });
 });
@@ -854,7 +938,7 @@ describe('phones at sign-in', function () {
         'by themselves, elsewhere' => function (string $id): void {
             Fx::asSystem(function () use ($id): void {
                 Fx::actAsStaff($id);
-                app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550009'));
+                app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550009', SIGN_IN_PASSWORD, '10.0.0.1'));
                 app(VerifyOwnPhoneChangeHandler::class)->handle(new VerifyOwnPhoneChange(RecordingSecurityMessages::installed()->lastCode()));
             });
         },

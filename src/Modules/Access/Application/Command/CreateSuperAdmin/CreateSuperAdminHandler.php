@@ -15,7 +15,9 @@ use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Staff\Invitations;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
+use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Model\StaffUser;
+use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\RoleRepository;
@@ -48,6 +50,7 @@ final readonly class CreateSuperAdminHandler
         private Authorizer $authorizer,
         private GrantRules $rules,
         private StaffUserRepository $staff,
+        private CustomerRepository $customers,
         private RoleRepository $roles,
         private RoleAssignmentRepository $assignments,
         private StaffTokenRepository $tokens,
@@ -87,6 +90,12 @@ final readonly class CreateSuperAdminHandler
     {
         $profile = StaffProfile::of((string) $command->firstName, (string) $command->lastName, (string) $command->jobTitle, (string) $command->dateOfBirth, (string) $command->country, $command->address);
         $phone = PhoneNumber::of((string) $command->phone);
+
+        // One email, one account (amendment 13): the console is no exception, and a customer's
+        // address is taken as surely as a colleague's (review of step 7).
+        if ($this->customers->emailInUse($email)) {
+            throw new StaffEmailInUse;
+        }
 
         if ($this->staff->phoneInUse($phone)) {
             throw new PhoneAlreadyInUse;

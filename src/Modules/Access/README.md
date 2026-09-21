@@ -4,19 +4,28 @@
 
 Access answers **who someone is and what they may do**: customer and staff accounts, roles and
 permissions, sign-in and sessions, addresses, and account deletion. The rules are in the approved
-specification, [docs/modules/access.md](../../../docs/modules/access.md). This file explains how the
-code is organised and why, and grows with each build step.
+specification, [docs/modules/access.md](../../../docs/modules/access.md); this file explains how the
+code is organised and why.
 
-**Built so far: steps 1–6 of 9 — the permission catalog, roles, the real permission check, staff
-accounts, staff sign-in, customer accounts, customer sign-in, addresses, and deletion, blocking and
-the staff views.** Both sides sign in through form
-endpoints that answer with redirects; the pages that show those forms come with the screens, in the
-frontend foundation stage (amendment 12). A web request acts as the staff member or customer signed
-in, else as a guest — never as the system. Customers register (signed in at once), verify their
-email by link and their phone by SMS code, sign in and out on the storefront, reset and change their
-password, edit their own profile, keep an address book in each country, and ask for their account to
-be deleted. Staff see the customers and the colleagues of their own stores, block and unblock, and
-delete on a customer's request. **Step 7 is the module's own README and its final review.**
+**The module is complete.** A staff member is invited with their whole profile, accepts, and signs
+in with a password and an SMS code, on a browser they may keep trusted for thirty days; one role
+each, with the stores it reaches, and nobody grants more than they hold. A customer registers in a
+store and is signed in at once, verifies their email by link and their phone by code, keeps an
+address book in every country they order from, and may ask for the account to be deleted — which
+locks it, signs them out everywhere, and anonymizes it fourteen days later unless they come back.
+Staff see the customers and the colleagues of their own stores, block, unblock, and delete on a
+customer's request. Every check is a declared permission, every change is audited, and a web request
+acts as the person signed in, else as a guest — never as the system.
+
+### What is deliberately not here
+
+- **Screens.** Access serves the form endpoints that need a cookie — signing in, the email links,
+  password reset — and answers them with redirects. The pages themselves, and the admin and account
+  screens that call the rest of these handlers, are built in the frontend foundation stage
+  (amendment 12): the address book, the staff and role editors, the customer list.
+- **Sending.** `SecurityMessages` is Access's contract; Ops will bind its own implementation. Until
+  then a temporary sender uses Laravel mail and a logging SMS gateway.
+- **Hosting.** Trusted proxies and HTTPS-only cookies wait for the hosting decision (handoff §15.4).
 
 ---
 
@@ -52,9 +61,23 @@ $staff = $this->access->staff($staffId);                                 // Acce
 
 // Which notifications they want, and where (Ops reads this before sending).
 $preferences = $this->access->staffNotificationPreferences($staffId);   // list<StaffNotificationPreferenceDto>
+
+// A customer, and whether they may order at all (their part of it: Sales adds the company's).
+$customer = $this->access->customer($customerId);                       // ?CustomerDto
+$mayOrder = $this->access->customerMayOrder($customerId);               // bool
+
+// Checkout: their addresses in the store being ordered from, the store's default first.
+$addresses = $this->access->addresses($customerId, $storeId);           // list<AddressDto>
 ```
 
-- Listen for `StaffActivated` and `StaffDisabled` (dispatched after commit).
+- **`AddressDto::$isComplete` is false** when the store's address format has asked for something
+  since that address was saved: do not ship to it until the customer completes it (amendment 41).
+  `address($addressId)` is not scoped to a customer — compare `customerId` before showing one.
+- **Events, all published after commit, ids only:** `StaffActivated`, `StaffDisabled`,
+  `CustomerRegistered`, `CustomerEmailVerified`, `CustomerPhoneVerified`, `GuestBecameCustomer`
+  (Sales moves or merges the cart), `CustomerBlocked`, `CustomerUnblocked`,
+  `CustomerDeletionScheduled`, `CustomerDeletionCancelled`, and `CustomerAnonymized` — on which
+  Sales, Feedback, B2B, Loyalty and Promotions replace their own copies with "Deleted customer".
 - Ops will send the security messages by binding its own `SecurityMessages`; until then Access's
   temporary sender uses Laravel mail and its `SmsGateway`.
 
@@ -68,24 +91,25 @@ $preferences = $this->access->staffNotificationPreferences($staffId);   // list<
 | `Domain/Model` | `Role` (saved or personal, admin or staff level, at least one action), `RoleAssignment` (a staff member's one role, their store row, and each action's own stores), `StaffUser` (invited → active ⇄ disabled, or invited → cancelled; profile, phone, email, language, Super Admin, who invited them, session version), `Customer` (one account for every store: email, account type and home store fixed; verifications only move forward), `StaffInvitation`, `StaffEmailChange`, `PhoneCode`, `CustomerPhoneCode`, `StaffPasswordReset`, `CustomerPasswordReset`, `TrustedBrowser`, `Address` (one customer, one store, never moved), `StoreAddressFormat` (a country's fields and how an address is printed). |
 | `Domain/ValueObject` | `RoleName`, `StoreChoice` (all stores, or at least one chosen store), `RoleKind`, `RoleLevel`, `EmailAddress`, `PhoneNumber` (E.164, any country), `CountryCode` (the 249 ISO countries), `Language` (ar/en), `StaffProfile`, `PhoneCodePurpose`, `CustomerPhoneCodePurpose`, `AddressField`, `MapPin` (both coordinates or neither). |
 | `Domain/Exception` | `AccessError` and its subclasses, with messages in `Presentation/lang/{ar,en}/errors.php`. |
-| `Application/Permission` | `InMemoryPermissionCatalog` (declarations, renames, removals, checked at boot), `AccessPermissions` (Access's list, and which actions are admin-only). |
-| `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`. |
+| `Application/Permission` | `InMemoryPermissionCatalog` (declarations, renames, removals, checked at boot), `AccessPermissions` (Access's list, and which actions are admin-only), `InvalidPermissionDefinition` (a declaration that contradicts itself, refused at boot). |
+| `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`, `InvalidPermissionCheck` (a per-store permission checked without a store, or the other way round). |
 | `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole`, `RefreshStaffPermissions`, `RefreshRolePermissions`. Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`, `SignInCustomer`, `SignOutCustomer`, `RequestCustomerPasswordReset`, `ResetCustomerPassword`, `ChangeOwnCustomerPassword`, `ResendCustomerEmailVerification`, `SaveAddress`, `DeleteAddress`, `SetDefaultAddress`, `RequestAccountDeletion`. Staff: `UpdateStoreAddressFormat`, `BlockCustomer`, `UnblockCustomer`, `DeleteCustomerOnRequest`, `CancelCustomerDeletion`; the scheduled `AnonymizeDueAccounts`. |
-| `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, `ListCustomers`, `ViewCustomer`, `ListStaff`, `ViewStaff`, and the `RoleReader`, `CustomerReader` and `StaffReader` they use. |
-| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`), `AddressLimits` (registrations and reset requests per address). |
-| `Application/Customer` | `CurrentCustomer` (whose account this request may change), `CustomerMapper`, the `CustomerLinks` port (the verification and password-reset links), the `GuestVisitors` port (the guest id this browser carries). |
-| `Application/Address` | `AddressMapper` (a store's order, its layout, and whether the address still fits), `StartingAddressFormat` (the scheme every store starts with), `GiveEveryStoreAnAddressFormat` (run when the schema is migrated). |
+| `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, `ListCustomers`, `ViewCustomer`, `ListStaff`, `ViewStaff`, and the `RoleReader`, `CustomerReader` and `StaffReader` they use, with `StaffVisibility` (who a reader may see, and how much of them). |
+| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `OwnPasswordCheck` ("type your current password", counted like a wrong one at sign-in), `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`), `AddressLimits` (registrations and reset requests per address). |
+| `Application/Customer` | `CurrentCustomer` (whose account this request may change), `StaffCustomerAction` (what the four staff actions on a customer share: the reason, and the customer's home store to check in), `CustomerMapper`, the `CustomerLinks` port (the verification and password-reset links), the `GuestVisitors` port (the guest id this browser carries). |
+| `Application/Address` | `AddressMapper` (a store's order, its layout, and whether the address still fits), `StoreIds` (the store an address belongs to, as it arrives from a caller), `StartingAddressFormat` (the scheme every store starts with), `GiveEveryStoreAnAddressFormat` (run when the schema is migrated). |
 | `Application/Session` | The `StaffSessions` port (the admin session: pending sign-in, signed in, kept, ended), the `CustomerSessions` port (the storefront session: started, kept, ended), `PendingSignIn`, `TrustedBrowsers`. |
 | `Application/Settings` | `StaffSecuritySettings` (global) and `CustomerSecuritySettings` (**per store**: each store's terms version, password length, verification hours and SMS numbers). |
-| `Application/Staff`, `Messages`, `Audit` | `StaffMapper`, `StaffLinks`, `Avatars`, `Invitations` (every invitation link), `StaffCancellation`; the `SmsGateway` port; `RoleAudit`, `StaffAudit` and `CustomerAudit` (every audit entry). `AccessApiImpl` sits beside them. |
-| `Infrastructure/Eloquent` | Query-builder repositories, `CachedGrantsReader`, `DatabaseRoleReader`, `CachedStoreAddressFormatRepository` (each store's form, under its own version). |
-| `Infrastructure/Http` | `RequestActor` (who this request acts as), `RequestActorContext` (the real `ActorContext`), `LaravelStaffSessions`, `LaravelCustomerSessions`, `CookieGuestVisitors`. |
+| `Application/Staff`, `Messages`, `Audit` | `StaffMapper`, `StaffLinks`, `Avatars`, `Invitations` (every invitation link), `StaffCancellation`; the `SmsGateway` port; `RoleAudit`, `StaffAudit`, `CustomerAudit` and `AddressAudit` (every audit entry). `AccessApiImpl` sits beside them. |
+| `Infrastructure/Eloquent` | Query-builder repositories, `Ulids` (an id from a caller is a ULID before it reaches a query), `CachedGrantsReader`, `DatabaseRoleReader`, `CachedStoreAddressFormatRepository` (each store's form, under its own version). |
+| `Infrastructure/Http` | `RequestActor` (who this request acts as), `RequestActorContext` (the real `ActorContext`), `LaravelStaffSessions`, `LaravelCustomerSessions`, `CustomerSessionHandler` (the storefront's session rows, each stamped with the customer it belongs to), `CookieGuestVisitors`. |
 | `Infrastructure/Listener` | `WriteStartingAddressFormat`: a store opened later gets the starting address form. |
-| `Infrastructure/Queue` | `CancelExpiredSuperAdminInvitationsJob`, every ten minutes; `AnonymizeDueAccountsJob`, daily at 03:00 in Riyadh. |
+| `Infrastructure/Queue` | `CancelExpiredSuperAdminInvitationsJob`, every ten minutes; `AnonymizeDueAccountsJob`, daily at 03:00 in Riyadh, which the application runs in UTC keeps as `dailyAt('00:00')`. |
 | `Infrastructure/Messages` | `TemporarySecurityMessages`, `SecurityMail`, `LogSmsGateway`, `UrlStaffLinks`, `UrlCustomerLinks` (the signed verification link). |
-| `Infrastructure/Security`, `Media` | `HmacCodes`, `LaravelPasswordPolicy`; `StaffAvatarUsage` (the avatar as Platform media). |
+| `Infrastructure/Security`, `Media` | `HmacCodes`, `LaravelPasswordPolicy`, `LoggedBreachList` (the leaked-password service, whose outages are logged and never refuse a password); `StaffAvatarUsage` (the avatar as Platform media). |
 | `Infrastructure/Permission` | `PermissionSync`: carries renames and removals into the roles on every migrate. |
-| `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers), the customer tables (`customers`, `phone_codes`), the customer sign-in tables (`customers.session_version`, `customer_password_resets`), the admin panel's own `admin_sessions`, and the address tables (`addresses`, `store_address_formats`). |
+| `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers), the customer tables (`customers`, `phone_codes`), the customer sign-in tables (`customers.session_version`, `customer_password_resets`), the admin panel's own `admin_sessions`, the address tables (`addresses`, `store_address_formats`) and the one that drops `customers.remember_token`. |
+| Empty by design | `Application/Listener`, `Domain/Event`, `Domain/Service`, `Infrastructure/External` and `Presentation/Http/Resource` hold only a `.gitkeep`: Access listens to no other module, raises its events from `Public/Events`, keeps its rules in the models, calls no outside service of its own, and answers with views rather than API resources. |
 | `Presentation/` | `routes.php` (the `/admin` form endpoints and the storefront ones under `{store}/{locale}/account/…`), controllers, form requests, the middleware (`IdentifyRequestActor`, `UseAdminSession`, `IdentifyStaff`, `RequireStaff`, `UseStorefrontSession`, `IdentifyCustomer`, `RequireCustomer`), `FormErrors`; the five Super Admin console commands, the security email view, translations. |
 
 ---
@@ -104,7 +128,10 @@ declares it. Names come from translations, read only when a screen shows them.
 ### Three levels: Super Admin → admins → staff
 
 A role is an **admin** or a **staff** role. The management actions (`staff.invite`, `staff.update`,
-`staff.assign_role`, `staff.disable`, `role.manage`) go only into admin roles. Only a Super Admin
+`staff.assign_role`, `staff.disable`, `role.manage`), the two that reach a customer's account
+(`customer.block`, `customer.delete`, amendment 43) and `staff_settings.update` — the numbers that
+decide how staff sign in (owner, 2026-09-21) — go only into admin roles. A store's own settings are
+`settings.update`, an ordinary action a staff role may hold. Only a Super Admin
 creates, edits or gives admin roles and manages admins; nobody changes their own role. An admin
 manages a staff member only when holding **assign roles** in **all** of their stores — a staff
 member's stores being their store row plus any store an exception adds. The same holds for
@@ -135,8 +162,10 @@ give a role holding it to anyone: it would come back to life with its module.
 ### Locks and concurrent changes
 
 Every handler locks **roles first, then staff and assignments**, so two admins changing related
-things at once queue up instead of deadlocking; the transactions still retry a deadlock up to three
-times. Commands that name a staff member check that the author may assign roles at all before
+things at once queue up instead of deadlocking; every handler that changes a role, an assignment or
+**another person's** staff account retries a deadlock up to three times (`transaction(…, 3)`). The
+paths where someone acts on their own account alone — signing in and out, their own password, phone
+or notification settings, a link or a code — take the single default attempt. Commands that name a staff member check that the author may assign roles at all before
 looking the id up, so someone without the right learns nothing about which ids exist.
 
 ### The check, and its cache
@@ -197,17 +226,22 @@ Disabling ends everything the person holds at once (their cached permissions are
 same transaction); only someone who accepted is disabled and enabled. Disabling, enabling, editing a profile and changing an email each
 need their action (**disable staff**, **edit staff**) in **all** of the person's stores, and never
 reach a Super Admin, another admin (except for a Super Admin) or oneself. A phone the admin changes
-is unverified until the person verifies it. Each person edits their own profile, communication language, avatar,
-phone (the new number counts only after its code) and notification toggles.
+is unverified until the person verifies it. Each person edits their own profile, communication
+language, avatar, phone and notification toggles. Their own **phone** asks for their current
+password first and then a code to the new number, which counts only once it is entered: the number
+is where the sign-in code goes, so a stolen session alone cannot move the second factor (owner,
+2026-09-21). A wrong password there is counted like a wrong one at sign-in.
 
 **Redirecting an account** — a new email, a new phone, a resent invitation — would let the admin
 use the person's role, so it also needs every action of that role in the stores it reaches for
 them (`GrantRules::requireCoversActionsOf`), the same as giving them the role.
 
-**Nobody works without a role.** A revoked Super Admin is disabled, with every link and code. An
-account with no role is enabled only together with one: `EnableStaff` takes the role and gives it
-first, under every rule of `ChangeStaffRole`, in the same transaction — a refusal undoes both. Any
-admin holding the action somewhere, or a Super Admin, may do it, because the person has no stores.
+**Nobody works without a role.** Revoking a Super Admin is a console action, so it closes the
+account with the title: `CANCELLED`, no password, every link, code and session gone, and the email
+and phone free at once for a new account (amendment 45(b)). Someone who is to stay is invited
+again. `EnableStaff` still takes the role it enables with — it gives the role first, under every
+rule of `ChangeStaffRole`, in the same transaction, so a refusal undoes both — and any admin
+holding the action somewhere, or a Super Admin, may do it, because such a person has no stores.
 
 A staff **email changes only through a link sent to the new address** (72 hours); until it is used
 the old one stays, and it takes effect only if whoever asked may still make the change then. A
@@ -225,7 +259,9 @@ store they registered in becomes their **home store**, fixed — it decides whic
 the **terms version** recorded is that store's setting (amendment 37).
 
 An email belongs to a customer account **or** a staff account, never both (amendment 13), so
-registration refuses both, each with its own message. The email itself never changes.
+registration refuses both — in the same words, so this public form never tells a stranger who works
+here (amendment 39(c)) — and so does inviting a staff member, changing a staff email or creating a
+Super Admin onto an address a customer holds (amendment 46(f)). The email itself never changes.
 
 **The verification link proves itself** (amendment 38): a signed storefront URL, good for 24 hours,
 that verifies the address for whoever opens it — signed in or not — and needs no table. It is built
@@ -343,6 +379,11 @@ password ─┬─ trusted browser ───────────────
   link is built on `APP_URL`, never on the host a request names.
 - **An email link opened while signed in** (an invitation, an email change) signs that admin session
   out first, then continues (amendment 31).
+- **When a message is sent.** The default is `afterCommit`: nothing is sent for a change that rolled
+  back, and no link ever sits in the `jobs` table. A message whose *timing* would tell a stranger
+  something — the password-reset and deletion messages, whose page must answer the same either way —
+  is also wrapped in `defer()`, so it goes out after the response rather than inside it. A message is
+  never queued.
 - **Audited:** each sign-in, sign-out, lockout and browser trusted, and each address made to wait.
   Wrong passwords are counted, not logged one by one. An address made to wait belongs to no staff
   member, and Platform keeps IP addresses only for staff actions, so its entry names it by a keyed
@@ -435,13 +476,16 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
 - **Staff may delete on a customer's request** and **block or unblock** a customer. Both are
   **admin-only** actions in the customer's home store, and both record a **reason**, which is kept
   only in the audit entry — never on the account.
-- **The sweep runs daily at 03:00 in Riyadh** (`AnonymizeDueAccountsJob`, queued like all scheduled
+- **The sweep runs daily at 03:00 in Riyadh** — the application's clock is UTC (`config/app.php`),
+  so the schedule reads `dailyAt('00:00')` (`AnonymizeDueAccountsJob`, queued like all scheduled
   work) and reads each account again under its lock, so one that was stopped in the meantime is left
   alone. Each account is anonymized in its own transaction.
 - **What goes:** the names become "Deleted customer", the email becomes
   `deleted-{id}@deleted.invalid` — which keeps nothing of the old address and frees it for a new
   account — the phone, every address, and any live code or reset link. The password becomes a value
-  no password can match, and the session version moves on, so nothing signed in survives.
+  no password can match, the session version moves on, and the session rows themselves are deleted:
+  each held the person's id, the address it came from and the browser it was, and none of that
+  outlives the account (owner, 2026-09-21).
 - **What stays:** the id, the account type, the home store and the dates, so counts by store stay
   honest and the keys orders and reviews hold still resolve. The audit entry says which fields
   changed and nothing of what they held.
@@ -452,8 +496,9 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   contacts and their address book; a Super Admin sees everyone. A customer of another store is
   answered as no customer at all.
 - **Staff:** a colleague is visible only when the reader holds "see staff" in **all** of that
-  person's stores (amendment 9). An **admin** shows a name, a role and a status — no job title,
-  email or phone. A **Super Admin** is invisible to everyone but another Super Admin: not in a list,
+  person's stores (amendment 9). An **admin** shows a name and a role — no job title, email, phone,
+  stores, joining date or status (amendments 43, 44(e); the status, owner 2026-09-21). A **Super
+  Admin** is invisible to everyone but another Super Admin: not in a list,
   not in a count, and asked for by id the answer is the same as for an id that never existed
   (amendment 43).
 
@@ -476,4 +521,26 @@ passes, so the role-name rule is wrapped in `COALESCE(…, false)` — the schem
 | 4a | Customer accounts: registration in a store (individual or company, terms version per store), the email verification link as a signed storefront URL, the phone added and changed by SMS code with that store's numbers, the customer's own profile, `CustomerRegistered` / `CustomerEmailVerified` / `CustomerPhoneVerified`, the customer reads of `AccessApi`, and the authorizer's customer path, which step 3 had left closed. Customer sign-in, sessions, guests and password reset come in 4b |
 | 4b | Customer sign-in and the storefront session: the session in the site's own cookie (`UseStorefrontSession`, `IdentifyCustomer`, `RequireCustomer`), registering that signs the customer in at once, signing in and out, the store they last used, "remember me" and the idle limit, `customers.session_version`, the lockout shared with staff's code but counted on its own keys, the password reset link and the customer's own password change, resending the verification link, and `GuestBecameCustomer` for the cart Sales will move or merge. A mutation run (20 deliberate mistakes; 16 caught at once, 4 more after four tests were added) proved the tests |
 | 5 | Addresses: a customer's address book in each store, with that store's own form as data — the fields, their lengths and the layout — written for every store when the schema is migrated and when a store is opened; the first address in a store is its default and deleting the default moves the flag; at most ten per store; an address the store's form has outgrown comes back as not complete, so Sales cannot ship to it; `AccessApi::address()` and `addresses()` for checkout. No HTTP endpoints: the address book and checkout call the handlers from the frontend stage and Sales. A mutation run (20 deliberate mistakes, all caught — one of them only after the migration's own work moved into a service a test can call) proved the tests |
-| 6 | Deletion, blocking and the staff views: "delete my account" with the password, the account locked at once and anonymized fourteen days later by a daily sweep, one email saying the date and that signing in cancels it; signing in, the account page and support all cancel it; blocking, unblocking and deleting on a customer's request are admin-only actions in the customer's home store, each with a reason kept only in the audit log; the five events Ops and Sales listen for; `ListCustomers`, `ViewCustomer`, `ListStaff` and `ViewStaff`, where an admin shows a name and a role only and a Super Admin is invisible to everyone but another Super Admin (spec §9.3 #36, answered). No HTTP endpoints: the account page and the staff screens call the handlers from the frontend stage. A mutation run (25 deliberate mistakes; 21 caught at once, 4 more after four tests were strengthened, 1 equivalent — the sweep's own re-check makes a wider query harmless) proved the tests |
+| 6 | Deletion, blocking and the staff views: "delete my account" with the password, the account locked at once and anonymized fourteen days later by a daily sweep, one email saying the date and that signing in cancels it; signing in cancels it, and so does support for a customer who cannot sign in (amendment 45(a) removed the account-page cancel: confirming a deletion signs them out everywhere); blocking, unblocking and deleting on a customer's request are admin-only actions in the customer's home store, each with a reason kept only in the audit log; the five events Ops and Sales listen for; `ListCustomers`, `ViewCustomer`, `ListStaff` and `ViewStaff`, where an admin shows a name and a role only and a Super Admin is invisible to everyone but another Super Admin (spec §9.3 #36, answered). No HTTP endpoints: the account page and the staff screens call the handlers from the frontend stage. A mutation run (25 deliberate mistakes; 21 caught at once, 4 more after four tests were strengthened, 1 equivalent — the sweep's own re-check makes a wider query harmless) proved the tests |
+| 7 | The module's own pass: this README rewritten as one document for the finished module, a last sweep of the specification against the code, and three independent reviews of the whole module (completeness, security, architecture and tests) before `access` merged into `main`. What they found and what was changed: the one-email-one-account rule now holds in both directions (a staff account could take a customer's address); the SMS limiter keys hold a hash, never the number; the nightly sweep runs only from the console or the queue and stops when a round moves nothing; `CustomerDto` says whether an account was anonymized; the staff sign-in leaves no session behind a rolled-back transaction and reads the account again under its lock; the map pin is audited as personal; the architecture guards cover the query handlers, name the modules they check and can no longer pass over almost nothing; two test files no longer reach the real breach list, and no test may reach the network at all |
+
+---
+
+## Reading this module
+
+Start with the specification ([docs/modules/access.md](../../../docs/modules/access.md)) — it is the
+source of truth, and §9.4 records every decision taken while building, with the owner's reason.
+Then, in the code:
+
+1. `Public/` — everything another module may touch: `AccessApi`, `PermissionCatalog`,
+   `SecurityMessages`, the DTOs, the enums and the events.
+2. `Domain/Model` — the rules that have nothing to do with Laravel: what a staff member, a customer,
+   a role, an address and a store's address format may and may not do.
+3. `Application/Command` — one folder per use case, each a command and a handler that authorizes
+   first, works inside one transaction, and audits what it changed.
+4. `Infrastructure/` — the repositories, the sessions, the messages, the migrations and the two
+   scheduled jobs; `Presentation/` — the form endpoints, the middleware, the console commands and
+   the translations.
+
+The tests mirror that: `tests/Modules/Access/{Unit,Integration,Feature}`, plus `tests/Architecture`
+for the rules that hold across modules.

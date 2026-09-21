@@ -67,7 +67,7 @@ final readonly class StaffSecuritySettings implements LockoutLimits
     public static function definitions(): array
     {
         $setting = fn (string $key, int $default, int $min, int $max): SettingDefinitionDto => new SettingDefinitionDto(
-            $key, SettingScope::Global, SettingType::Integer, ["min:{$min}", "max:{$max}"], $default, AccessPermissions::SETTINGS_UPDATE,
+            $key, SettingScope::Global, SettingType::Integer, ["min:{$min}", "max:{$max}"], $default, AccessPermissions::STAFF_SETTINGS_UPDATE,
         );
 
         return [

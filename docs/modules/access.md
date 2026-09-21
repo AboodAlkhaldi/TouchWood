@@ -128,8 +128,9 @@ Handoff §7.6.
 | `is_super_admin` | Only set by the console command (§1.6). |
 
 **Phone.** It receives the 2FA codes, so it is verified by an SMS code when the invitation is
-accepted. A staff member changing their own phone confirms the new number with a code before it
-takes effect. An admin with `access.staff.update` may change it (a lost phone); the staff member
+accepted. A staff member changing their own phone **gives their current password first** (amendment
+46(b)) — a wrong one counts towards the same lockout as signing in — and then confirms the new
+number with a code before it takes effect. An admin with `access.staff.update` may change it (a lost phone); the staff member
 then verifies the new number at their next sign-in. A Super Admin's phone is changed only by the
 Super Admin themselves (confirmed by a code) or by console command (§1.6).
 
@@ -191,9 +192,14 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
 
 - Every role has a **level**, `ADMIN` or `STAFF`. Whoever holds an admin role is an **admin**;
   whoever holds a staff role is **staff**.
-- **Management actions** — `access.staff.invite`, `access.staff.update`,
-  `access.staff.assign_role`, `access.staff.disable` and `access.role.manage` — can be put only
-  into admin roles. Staff manage no roles and no people.
+- **Admin-only actions** — the five management ones (`access.staff.invite`,
+  `access.staff.update`, `access.staff.assign_role`, `access.staff.disable`,
+  `access.role.manage`), the two that reach a customer's account (`access.customer.block`,
+  `access.customer.delete`, amendment 43) and `access.staff_settings.update`, the numbers that
+  decide how staff sign in (amendment 46(a)) — can be put only into admin roles. Staff manage no
+  roles and no people, and change no rule of signing in. A **store's own** settings — its terms
+  version, how many addresses, its verification numbers — stay an ordinary action,
+  `access.settings.update`.
 - **Only a Super Admin** creates, clones, edits or deletes admin roles, gives anyone an admin role,
   and manages admins. No admin manages another admin, or themselves.
 - **Admins** create and edit saved staff roles, and manage staff.
@@ -205,13 +211,18 @@ Handoff §7.5, with the owner's answers **[DECIDED 2026-09-18, 2026-09-19]**:
 - **Redirecting an account** — a new email or phone, a resent invitation — also needs every action
   of the person's role, in the stores it reaches for them (amendment 26): otherwise an admin could
   take over an account holding more than they do.
-- **Nobody works without a role** (amendment 27). An account left with no role (a revoked Super
-  Admin) is disabled; any admin holding the action somewhere, or a Super Admin, enables it only
-  together with a role.
+- **Nobody works without a role** (amendment 27, as amendment 45(b) settled it). There is no
+  account without one: revoking a Super Admin is a console action, so it **closes the account** —
+  `CANCELLED`, no password, every session ended, the email and phone free at once — and a former
+  Super Admin who is to stay is invited again. Deleting a role its holders still hold needs a
+  replacement: without one the delete is refused, listing the holders (`RoleInUse`).
+  `EnableStaff` still takes the role it enables with, for the one account a migration or an import
+  could leave without one.
 - **A staff member's stores** are the store row chosen for them, plus any store an exception adds.
   Store-free actions add nothing. A staff member with one store is listed under that store; one
   with two or more is listed as **centralized**, and only an admin with the same stores or more
-  manages them.
+  manages them. "Centralized" is not stored anywhere: it is what the screens call a staff member
+  whose stores number more than one, read from the assignment.
 - `access.staff.view` is an ordinary action that a staff role may hold. Its holder sees the staff
   whose stores all lie within their own stores for that action: a KSA-only holder never sees
   KSA+UAE staff, and a KSA+UAE holder sees KSA, UAE and KSA+UAE staff.
@@ -278,9 +289,10 @@ creates admins and sets their store scope.
   **promotes** them: their role is removed (a Super Admin has none); an active person keeps their
   password and phone, and someone who never accepted gets a fresh invitation (amendment 18).
 - **Removed only by a console command:** `php artisan access:super-admin:revoke {email}` takes the
-  power away; with no role, the account is disabled (with every link and code it had) until an
-  admin enables it together with a role (amendment 27). An invited Super Admin who never accepted
-  is cancelled instead, and freed (amendment 30). **The last
+  power away and **closes the account** with it (amendment 45(b)): `CANCELLED`, no password, every
+  link, code and session gone, and the email and phone free at once for a new account. Someone who
+  is to stay is invited again like anyone else. An invited Super Admin who never accepted is
+  cancelled the same way, and freed (amendment 30). **The last
   active Super Admin cannot be revoked** — one who has accepted their invitation must remain — so
   the business is never locked out (amendment 18).
 - **A lost phone:** `php artisan access:super-admin:reset-phone {email}` removes the phone and
@@ -501,7 +513,7 @@ which are stored in the database.
 
 | DTO | Fields |
 |---|---|
-| `CustomerDto` | `id`, `accountType`, `status`, `firstName`, `lastName`, `email`, `phone`, `emailVerified`, `phoneVerified`, `locale`, `deletionScheduledFor` |
+| `CustomerDto` | `id`, `accountType`, `status`, `firstName`, `lastName`, `email`, `phone`, `emailVerified`, `phoneVerified`, `locale`, `deletionScheduledFor`, `anonymized` (amendment 46) |
 | `StaffDto` | `id`, `firstName`, `lastName`, `email`, `phone`, `locale`, `status`, `isSuperAdmin` |
 | `AddressDto` | `id`, `customerId`, `storeId`, `label`, `recipientName`, `phone`, `fields`, `latitude`, `longitude`, `isDefault`, `isComplete` (it still satisfies the store's format, amendment 41), `formatted` (the store's display template applied) |
 | `PermissionDefinitionDto` | `name`, `audience` (`ROLE`, `EVERY_STAFF`, `EVERY_CUSTOMER`, `EVERY_GUEST`), `reserved`, `kind` (`PER_STORE`, `GLOBAL` — store-free, amendment 4); its names in Arabic and English are the module's translations at `labelKey()` — `{module}::permissions.{resource}.{action}` (amendment 1, §9.4) |
@@ -538,7 +550,7 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | Use case | Audience | Permission | Scope |
 |---|---|---|---|
 | `RegisterCustomer` — email, password, names, account type, locale | every guest | `access.account.register` | Global |
-| `SendEmailVerification` / `VerifyEmail` | every customer | `access.account.verify` | Global |
+| `SendEmailVerification` (`access.account.verify`, every customer) / `VerifyEmail` (`access.account.verify_email`, **every guest**: the link sent to the address is the proof, amendment 38) | | | Global |
 | `RequestPhoneCode` — first phone or a change | every customer | `access.account.verify` | Global |
 | `VerifyPhone` — completes adding or changing | every customer | `access.account.verify` | Global |
 | `SignIn` — cancels a pending deletion | every guest | `access.session.sign_in` | Global |
@@ -569,7 +581,7 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `RefreshStaffPermissions` / `RefreshRolePermissions` — rebuild the cached permissions of one staff member, or of a role's holders (amendment 10) | role | `access.staff.assign_role` / `access.role.manage` | As for changing that staff member's role / editing that role |
 | `RoleEditorPermissions` — what the author may put in a role, with names, kinds and their own stores (amendment 8) | role | `access.role.manage` or `access.staff.assign_role` | The author's own permissions |
 | `MyPermissions` — what I may do, and where; the admin menu is built from it (amendment 8) | every staff | none: it shows only the reader's own permissions | Own data |
-| `UpdateOwnStaffProfile` / `ChangeOwnStaffPassword` / `ChangeOwnStaffPhone` / notification preferences | every staff | `access.own_account.update` | Global |
+| `UpdateOwnStaffProfile` / `ChangeOwnStaffPassword` / the own phone change (`RequestOwnPhoneChange` + `VerifyOwnPhoneChange`, the current password first) / `UpdateOwnNotificationPreferences` | every staff | `access.own_account.update` | Global |
 | `SignOutStaff` | every staff | `access.own_account.update` | Global |
 | `CreateSuperAdmin` / `RevokeSuperAdmin` — never the last active one; create promotes an existing staff member / `ResetSuperAdminPhone` (amendments 14, 18) / `ResendSuperAdminInvitation` / `CancelSuperAdminInvitation` (amendment 30) | system (console) | `access.super_admin.manage` (reserved) | Global |
 | `CancelExpiredSuperAdminInvitations` — a scheduled job (amendment 30) | system | `access.super_admin.manage` (reserved) | Global |
@@ -580,11 +592,12 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | Use case | Audience | Permission | Scope |
 |---|---|---|---|
 | `ListCustomers` / `ViewCustomer` — the account, contacts and addresses (amendment 43) | role | `access.customer.view` | The customer's home store |
-| `ListStaff` / `ViewStaff` — an admin as a name and a role only; a Super Admin not at all (amendment 43) | role | `access.staff.view` | Every store of the staff member |
+| `ListStaff` / `ViewStaff` — an admin as a name and a role only, with no contact details, stores, joining date or status (amendments 43, 44(e), 46(d)); a Super Admin not at all (amendment 43) | role | `access.staff.view` | Every store of the staff member |
 | `BlockCustomer` / `UnblockCustomer` — with a reason | role, **admin-only** (amendment 43) | `access.customer.block` | The customer's home store |
 | `DeleteCustomerOnRequest` / `CancelCustomerDeletion` — the same 14-day deletion, with a reason | role, **admin-only** (amendment 43) | `access.customer.delete` | The customer's home store |
 | `UpdateStoreAddressFormat` | role | `access.address_format.update` | That store |
-| `UpdateAccessSettings` — lockout, OTP and session numbers | role | `access.settings.update` | That store (customer settings); all stores (staff settings) |
+| A **store's** settings — terms version, addresses per store, its verification and OTP numbers (Platform's `UpdateSetting`, under Access's permission) | role | `access.settings.update` | That store |
+| The **staff security** settings — password length, lockouts, session limits, code length | role, **admin-only** (amendment 46(a)) | `access.staff_settings.update` | All stores (they are global) |
 | `AnonymizeDueAccounts` — daily | system (scheduled job) | `access.account.anonymize` (reserved) | Global |
 
 **Who sees whom [DECIDED 2026-09-19].** A KSA-only admin sees only KSA customers — those whose home
@@ -698,7 +711,7 @@ All in the `access` PostgreSQL schema (added to `search_path`). ULIDs are `char(
 
 | Table | Columns |
 |---|---|
-| `access.phone_codes` | `id`, `customer_id` FK, `phone`, `code_hash`, `purpose` (`ADD`, `CHANGE`), `attempts`, `expires_at`, `created_at` — one live code per customer |
+| `access.phone_codes` | `customer_id` PK/FK, `purpose` (`ADD`, `CHANGE`), `phone`, `code_hash`, `attempts`, `expires_at`, `sent_at` — one live code per customer |
 | `access.customer_password_resets` | `customer_id` PK/FK, `token_hash`, `expires_at` |
 
 The verification link is a signed URL, so it needs no table. `pending_phone_changes` from handoff
@@ -724,9 +737,9 @@ The verification link is a signed URL, so it needs no table. `pending_phone_chan
 | `access.roles` | `id`, `name` jsonb (ar, en), `kind` (`SAVED`, `PERSONAL`), `level` (`ADMIN`, `STAFF`, amendment 9), `personal_to` FK → staff NULL (set exactly when `PERSONAL`; at most one personal role per staff member), timestamps — saved role names unique in each language, ignoring case (amendment 7) |
 | `access.role_permissions` | (`role_id`, `permission`) PK — `permission` must be a declared, non-reserved permission of audience `ROLE` (code rule) |
 | `access.role_assignments` | `staff_user_id` PK/FK (one role each), `role_id` FK RESTRICT, `access_level` (`ALL_STORES`, `SELECTED_STORES`) — the stores for every action — `assigned_by`, `assigned_at` |
-| `access.role_assignment_stores` | (`staff_user_id`, `store_id`) PK, FK → `platform.stores` — rows exist exactly when `SELECTED_STORES` |
+| `access.role_assignment_stores` | (`staff_user_id`, `store_id`) PK, FK → `platform.stores` — rows exist exactly when `SELECTED_STORES` (code rule: `RoleAssignment` refuses any other shape; the database holds the keys only) |
 | `access.role_assignment_exceptions` | (`staff_user_id`, `permission`) PK, `access_level` — one action with its own stores for that person; the permission must be in their role |
-| `access.role_assignment_exception_stores` | (`staff_user_id`, `permission`, `store_id`) PK, FK → `platform.stores` — rows exist exactly when the exception is `SELECTED_STORES` |
+| `access.role_assignment_exception_stores` | (`staff_user_id`, `permission`, `store_id`) PK, FK → `platform.stores` — rows exist exactly when the exception is `SELECTED_STORES` (code rule, as above) |
 
 An action's stores for a staff member: its exception if there is one, otherwise the assignment's
 stores. Removing an action from a role removes its exceptions. The handoff's `store_ids[]` is a
@@ -783,13 +796,13 @@ The security messages of §2.3, sent by Access until Ops exists. No other notifi
 ```
 AccessError
 ├── EmailAlreadyRegistered        CONFLICT     "You already have an account — please sign in"
-├── StaffEmailInUse               CONFLICT     another staff account has this email (amendment 21)
+├── StaffEmailInUse               CONFLICT     another account already has this email — staff or customer, and it never says which (amendment 46(f)) (amendment 21)
 ├── PhoneAlreadyInUse             CONFLICT
 ├── InvalidStaffStatus            CONFLICT     a change the account's status does not allow (amendment 21)
 ├── InvalidCustomerStatus         CONFLICT     blocking one that is blocked, or anything on a deleted account (amendment 43)
 ├── InvalidCredentials            FORBIDDEN    never says which part was wrong
 ├── AccountLocked                 FORBIDDEN    too many wrong passwords; says when to retry
-├── SignInRefused                 FORBIDDEN    a staff account disabled, cancelled or anonymized
+├── SignInRefused                 FORBIDDEN    a staff account disabled or cancelled (an anonymized customer is answered InvalidCredentials)
 ├── CustomerBlocked               FORBIDDEN    a blocked customer, told only after the right password
 ├── TooManyRequests               FORBIDDEN    too many registrations or reset requests from one address (amendment 40)
 ├── InvalidOrExpiredLink          INVALID
@@ -809,7 +822,6 @@ AccessError
 ├── AddressFormatMissing          CONFLICT     the store has no address format yet
 ├── InvalidAddress                INVALID      a field fails the store's format, or is not in it (amendment 41)
 ├── TooManyAddresses              CONFLICT     more than the store allows for one customer (amendment 41)
-├── DeletionPending               CONFLICT
 └── InvalidAccessAttribute        INVALID      malformed email, name, phone, locale…
 ```
 
@@ -932,8 +944,8 @@ AccessError
 None.
 
 Answered: #35, who manages a staff member with no role — any admin holding the action somewhere, or
-a Super Admin; and such an account is disabled until enabled together with a role (owner,
-2026-09-19; amendment 27). #36, whether staff holding `access.staff.view` see admins — they see an
+a Super Admin; and since amendment 45(b) the case no longer arises for a revoked Super Admin, whose
+account is closed outright (owner, 2026-09-19 and 2026-09-20; amendments 27 and 45). #36, whether staff holding `access.staff.view` see admins — they see an
 admin's name and role only, and a Super Admin not at all (owner, 2026-09-20; amendment 43).
 
 ### 9.4 Amendments during the build — each needs the owner's agreement
@@ -973,7 +985,7 @@ admin's name and role only, and a Super Admin not at all (owner, 2026-09-20; ame
 | 31 | §1.8 | **Staff sign-in numbers:** 10 wrong passwords from one IP address in 15 minutes make that address wait 15 minutes; a staff password reset link works **30 minutes**; signing out keeps the browser trusted; opening an email link (invitation, email change) in a browser signed in to the admin panel signs that session out first, then continues. | The spec named no number for the IP limit or the staff reset link. | Owner, 2026-09-19 |
 | 32 | §3.2 | Audited: each staff sign-in, sign-out, lockout, and browser marked trusted. Wrong passwords are counted for the lockout, not logged one by one. | A record of who got in, and of attacks, without flooding the log. | Owner, 2026-09-19 |
 | 33 | (handoff §5.3) | A failed database query is logged without its values (`mask_bindings_in_exception_messages`), so no password hash or personal data reaches the log file. | Personal data stays out of the logs, as it stays out of the audit log. | Owner, 2026-09-19 |
-| 34 | §1.8, §2.3, §4.4 | **Choices made while building step 3b:** (a) the new sign-in settings take only these ranges: account lockout 3–20 wrong passwords over 1–1,440 minutes; address limit 3–100 over 1–1,440 minutes; idle 5–720 minutes; longest session 1–72 hours; trusted browser 1–90 days; staff reset link 5–1,440 minutes; (b) a reset email goes to one account at most **3 times an hour** (a setting, 1–20), and the page answers the same every time; (c) after the right password, the code step must be finished within **15 minutes** (fixed); (d) a sign-in code has its own message, `SecurityMessages::staffSignInCode(phone, locale, code)`, warning that the password was just used; it takes the number, because a Super Admin's code after a phone reset goes to a number not yet on the account; (e) until customer accounts (step 4), a guest gets a new id on every request. | The spec named no numbers for these; (d) lets a staff member learn that someone else has their password; (e) follows from how the code works. | Owner, 2026-09-19 |
+| 34 | §1.8, §2.3, §4.4 | **Choices made while building step 3b:** (a) the new sign-in settings take only these ranges: account lockout 3–20 wrong passwords over 1–1,440 minutes; address limit 3–100 over 1–1,440 minutes; idle 5–720 minutes; longest session 1–72 hours; trusted browser 1–90 days; staff reset link 5–1,440 minutes; (b) a reset email goes to one account at most **3 times an hour** (a setting, 1–20), and the page answers the same every time; (c) after the right password, the code step must be finished within **15 minutes** (fixed); (d) a sign-in code has its own message, `SecurityMessages::staffSignInCode(phone, locale, code)`, warning that the password was just used; it takes the number, because a Super Admin's code after a phone reset goes to a number not yet on the account; (e) until customer accounts (step 4), a guest gets a new id on every request — **superseded by amendment 39(b)**, where the guest id lives in a cookie for a year. | The spec named no numbers for these; (d) lets a staff member learn that someone else has their password; (e) follows from how the code works. | Owner, 2026-09-19 |
 | 35 | §1.4, §1.8 | **From the independent review of step 3b:** (a) a wrong current password, when changing one's own password, counts towards the account lockout like a wrong password at sign-in; (b) a password reset link dies when the account is disabled or revoked, or its email changes; (c) a staff member with no phone who is not a Super Admin cannot sign in until an admin gives them one — only a Super Admin whose phone was reset chooses a number at sign-in (amendment 14); (d) a sign-in code counts only for the number the account has now, and changing the number drops a code already sent; a half-finished sign-in ends if the password changes. Also fixed, with no visible change: attempts sent at the same moment are counted before the password is checked; disabling ends every session for good, even once enabled again; staff links are built on `APP_URL`, never on the request's host; the reset email goes out after the answer, so its timing tells nothing; failed queries lose the values PostgreSQL puts in its error line and CONTEXT line too. | Security findings: a stolen session could guess the current password without limit; an old mailbox could keep a live reset link; the password alone could pick a phone; a code on its way could bring back a replaced number. | Owner, 2026-09-19 |
 | 36 | §1.6, §1.8, §3.2, handoff §5.3 | (a) Accepting an invitation signs in **only a Super Admin** at once; a staff member is sent to the sign-in page and signs in as always, password and SMS code. (b) An address made to wait after 10 wrong passwords is audited (`access.staff_sign_in.address_locked`), once per lock; Platform keeps IP addresses only for staff actions (Platform spec §1.5), so the entry names the address by a keyed fingerprint — repeats show, the address cannot be read back. (c) "Change my own password" keeps its endpoint in this stage. (d) In production the application refuses to start while `MAIL_MAILER` is `log`, `array` or unset, which would write invitation and reset links to the log. (e) Trusted proxies and HTTPS-only cookies wait for the hosting choice (handoff §15). | The console names a Super Admin, so their acceptance is enough; staff prove themselves at the sign-in page. An attack on many accounts should leave a trace. Links must never sit in a log file. | Owner, 2026-09-19 |
 | 37 | §1.2, §1.8, §3.1, §3.3, handoff §17 | **Step 4, planned 2026-09-20:** it splits into **4a** (customer accounts: registration, email verification, phone, profile) and **4b** (customer sign-in, sessions, password reset, guests) — nine build steps in all. (a) A customer's sign-in limit per IP address is **10 wrong passwords in 15 minutes**, as for staff; it is a per-store setting, so a store whose customers share one mobile address can raise it without a deploy. (b) The **terms and privacy version is per store** (each store is its own market and law); the accepted version recorded at registration is that store's. (c) A customer's own **account events are audited** — registration, email and phone verification, phone and password changes, blocking, deletion — with personal fields only as "changed" and no IP address (Platform keeps those for staff only); sign-ins and browsing are not audited. | Step 3b grew too large to review in one piece. The spec named no customer IP number. Three countries cannot share one legal text. Support must be able to answer "when did this change?" without the log growing with shopping traffic. | Owner, 2026-09-20 |
@@ -983,5 +995,6 @@ admin's name and role only, and a Super Admin not at all (owner, 2026-09-20; ame
 | 41 | §1.9, §2.1, §2.4, §5.5, §7 | **Step 5, planned 2026-09-20** (owner's answers before any code): (a) every store gets a **starting address format** — the thirteen fields §1.9 lists that are kept as values (the country is the store itself, and the map pin has its own columns), named in both languages, each with its maximum length, plus a display template — written when the `access` schema is migrated and, for a store opened later, when Platform publishes `StoreCreated`; staff change any store's copy afterwards, as data, with no deploy; (b) a customer keeps at most **10 addresses in one store** (a per-store setting, new error `TooManyAddresses`); (c) the **first address saved in a store becomes its default**, and deleting the default moves the flag to the newest remaining address, so a store that has any address always has a default; (d) **field lengths**: label 50, recipient name 100, phone 16 (E.164), administrative area, city and district 100, street 200, building, unit, floor, postal code, additional number, PO box and short address 50, landmark 200, additional information 500; (e) a value whose **key the store's format does not define is refused** (`InvalidAddress`) — a mistyped key would otherwise store what nothing can display; (f) the **display template** is plain text with `{field}` placeholders, where a placeholder with nothing in it disappears and a line left empty is dropped; nothing in it is executed; (g) when a store's format changes, addresses already saved **keep their values but cannot be used for an order until they satisfy it again** — `AddressDto` carries `isComplete`, and the customer completes the address by editing it; (h) step 5 builds the handlers, the reads other modules need and the audit, and **no HTTP endpoints**: the address book and checkout call them from the frontend stage and Sales (as amendment 12 decided for the staff screens). | The spec left every number and the starting data open, and a store with no format refuses addresses — nobody could add one before the staff screen exists. An address that no longer fits its country's rules would otherwise reach a shipping label. | Owner, 2026-09-20 |
 | 42 | §1.9, §2.4 | **From the independent reviews of step 5** (2026-09-20, no rule of §1.9 changed): (a) an address value is **text on one line** — bytes that are not UTF-8, and control characters inside a value, are refused (a newline would otherwise add a line to a shipping label nobody wrote), while a line pasted with a newline at its end is simply trimmed; (b) a form holds at most **60 fields** and one address at most **4,000 characters in all**, so a form nobody could fill in cannot be made; (c) **`isComplete` means the whole format**, not only its required fields: an address also stops being complete when a field it uses is shortened or dropped; (d) the starting layout prints the **region** as well, since it is required and a parcel is delivered by it. Also fixed, with no visible change: the store id is read into one shape before it reaches the permission check, the cache key and the row; the customer's own row is held while their addresses change, so two tabs cannot both take a store's default or both count the last address allowed; a store opened later writes its format inside one transaction; a format row nothing here could have written reads as "no format" instead of throwing on a read; and the audit entry for a deleted address names the same fields as the one for an added address. | A value a customer types reaches a shipping label and an order document; a form is staff data, and staff data must not be able to make the shop slow or the column refuse a row. | Reviews of step 5, 2026-09-20 |
 | 43 | §1.10, §2.3, §3.1, §3.3, §9.3 | **Step 6, planned 2026-09-20** (the owner's answers before any code): (a) **§9.3 #36 answered** — a staff member holding `access.staff.view` sees an **admin** as a name and a role only, with no contact details or profile, and a **Super Admin is invisible to everyone but another Super Admin**: not in a list, not in a count, and asked for by id the answer is the same as for an id that never existed; (b) **deleting and blocking a customer are admin-only actions** (`AdminOnlyPermission`, as the staff-management actions already are, amendment 9), so an ordinary staff role can never hold either; (c) staff deleting a customer **on their request record a reason**, kept only in the audit log, and staff may also **cancel** a pending deletion under the same permission, with a reason — a customer who cannot sign in is not left waiting to be deleted; (d) anonymizing replaces the email with `deleted-{id}@deleted.invalid`, which keeps nothing of the old address and frees it for a new account; (e) the customer gets **one email when the deletion is scheduled**, saying the date and that signing in cancels it, and none afterwards (`SecurityMessages::customerDeletionScheduled`); (f) anonymizing keeps the id, the account type, the home store and the dates — nothing that names a person — so counts by store and by account type stay honest and the foreign keys orders and reviews point at still resolve; (g) the job runs **daily at 03:00 in Riyadh** (00:00 UTC: the application runs in UTC); (h) a staff member who may see a customer sees the account, their contacts and their addresses; (i) step 6 builds the handlers, the reads and the job, and **no HTTP endpoints** — the account page and the staff screens call them from the frontend stage. | The spec left every one of these open. Blocking and deleting reach a person's account, so they belong with the other actions an ordinary role cannot hold. An address a hijacker deleted must still be recoverable by its owner for fourteen days, and they must be told. | Owner, 2026-09-20 |
-| 44 | §1.10, §3.1, §3.3 | **From the independent reviews of step 6** (2026-09-20; no rule of §1.10 or amendment 43 changed): (a) an account that was deleted may no longer be **sent a reset link, or have a password set on it** — the placeholder address is guessable from the id, and the reset flow only looked at the status; (b) **who a staff member may see is part of the query**, not a filter afterwards: a total that counted people outside their stores was a headcount of stores they do not cover, and the pages came back short; (c) a customer who is not theirs is answered as **no customer at all**, as the read side already did, so the panel never confirms which ids are real; (d) the **reason** staff record must be one line of real text, like every value that reaches the audit log (amendment 42a); (e) an **admin's stores and joining date** are part of "a name and a role only", so an ordinary staff member does not learn which stores each admin covers; (f) the sweep goes round again while any account is still due, and one account that fails is logged and left for tomorrow instead of stopping the rest. | The deleted account's "can never sign in again" rested on one check; a count is as revealing as a list; and a sweep that stops at the first failure quietly misses the fourteen-day promise for everyone behind it. | Reviews of step 6, 2026-09-20 |
+| 44 | §1.10, §3.1, §3.3 | **From the independent reviews of step 6** (2026-09-20; no rule of §1.10 or amendment 43 changed): (a) an account that was deleted may no longer be **sent a reset link, or have a password set on it** — the placeholder address is guessable from the id, and the reset flow only looked at the status; (b) **who a staff member may see is part of the query**, not a filter afterwards: a total that counted people outside their stores was a headcount of stores they do not cover, and the pages came back short; (c) a customer who is not theirs is answered as **no customer at all**, as the read side already did, so the panel never confirms which ids are real; (d) the **reason** staff record must be one line of real text, like every value that reaches the audit log (amendment 42a); (e) an **admin's stores and joining date** are part of "a name and a role only" (and their status too, amendment 46(d)), so an ordinary staff member does not learn which stores each admin covers; (f) the sweep goes round again while any account is still due, and one account that fails is logged and left for tomorrow instead of stopping the rest. | The deleted account's "can never sign in again" rested on one check; a count is as revealing as a list; and a sweep that stops at the first failure quietly misses the fourteen-day promise for everyone behind it. | Reviews of step 6, 2026-09-20 |
 | 45 | §1.6, §1.10, §3.1, §5.1, §9.4 (amendment 27) | **The owner's answers to the step 6 review questions** (2026-09-20): (a) **confirming a deletion signs the customer out of every device at once** — the session version moves on — so nothing of the account can be used while it waits; signing in again is both the way back and what calls the deletion off, and the "cancel from the account page while still signed in" that step 6 had added is therefore **removed**; (b) **there is no such thing as a staff member with no role**: revoking a Super Admin is a console action, so the account is **closed and its email and phone are free at once** (`CANCELLED`, with no password and every session ended), and a former Super Admin who is to stay is **invited again** like anyone else — this replaces amendment 27's "disabled until enabled together with a role" for that case, while deleting a role someone holds still needs a replacement or leaves them disabled; (c) `customers.remember_token`, which nothing ever wrote, is **dropped**. | A deletion that leaves the browser signed in invites the very mistake the fourteen days exist to undo. An account without a role is a state nobody can act on; closing it frees the person's email immediately, which is what the console revoke is for. | Owner, 2026-09-20 |
+| 46 | §1.4, §1.5, §1.10, §3.3, §5.6 | **From the three independent reviews of the whole module, and the owner's answers** (2026-09-21): (a) the settings permission is **split in two**: the staff security numbers — password length, lockouts, session limits, code length — move to `access.staff_settings.update`, which is **admin-only** like the other actions that reach every account, while a store's own settings (terms version, addresses per store, verification numbers) stay `access.settings.update`, an ordinary action a staff role may hold; (b) a staff member changing **their own phone gives their current password first**, counted like a wrong one at sign-in: the number is where the sign-in code goes, so a stolen session alone must not move the second factor; (c) **anonymizing takes the account's session rows with it** — each row holds the person's id, address and browser for up to a year — so the storefront's session rows now carry the customer they belong to; (d) an **admin's status** is not part of "a name and a role" either (amendments 43(a), 44(e)): an ordinary staff member does not learn whether a colleague's account is active; (e) the admin "forgot password" page keeps **no per-address limit**: the reset is already capped at 3 an hour per account and the case is rare; (f) the rule that one email belongs to one account is now enforced **both ways** — inviting a staff member, changing a staff email, or creating a Super Admin from the console, onto an address a customer holds, is refused in the same words as a colleague's; (g) the SMS limiter keys hold a **hash** of the number, never the number; the sweep runs only from the console or the queue and stops when a round moves nothing; `CustomerDto` says whether an account was anonymized; a staff sign-in leaves no session behind a rolled-back transaction; the map pin is audited as personal. | The module's last pass before it merges. (a)–(d) are the owner's answers to what the reviews raised; the rest are defects the reviews found in the code, not changes of rule. | Owner and the reviews of step 7, 2026-09-21 |

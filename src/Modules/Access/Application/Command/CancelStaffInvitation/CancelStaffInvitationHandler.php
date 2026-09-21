@@ -53,6 +53,6 @@ final readonly class CancelStaffInvitationHandler
             $this->tokens->deleteInvitation($target->id());
             $this->tokens->deletePhoneCode($target->id());
             $this->platform->recordAudit(StaffAudit::event('access.staff_user.invitation_cancelled', $target));
-        });
+        }, 3);
     }
 }

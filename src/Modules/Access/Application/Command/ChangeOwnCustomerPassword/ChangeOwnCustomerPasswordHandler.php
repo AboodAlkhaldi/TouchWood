@@ -46,7 +46,7 @@ final readonly class ChangeOwnCustomerPasswordHandler
     public function handle(ChangeOwnCustomerPassword $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $customerId = $this->current->id();
+        $customerId = $this->current->id(self::PERMISSION);
         $customer = $this->customers->find($customerId) ?? throw new CustomerNotFound($customerId);
         $email = $customer->email()->value;
 

@@ -7,10 +7,15 @@ namespace Modules\Access\Application\Command\RequestOwnPhoneChange;
 /**
  * A staff member's own new phone: a code goes to it, and the old number stays in use until the
  * code is entered (spec §1.4). Sending it again asks for a new code.
+ *
+ * The current password is asked for first: the number is where the sign-in code goes, so a stolen
+ * session must not be able to move it on its own (owner, 2026-09-21).
  */
 final readonly class RequestOwnPhoneChange
 {
     public function __construct(
         public string $phone,
+        public string $currentPassword,
+        public string $ip,
     ) {}
 }

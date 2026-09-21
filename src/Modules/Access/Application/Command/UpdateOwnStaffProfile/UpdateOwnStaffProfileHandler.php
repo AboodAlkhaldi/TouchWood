@@ -58,6 +58,6 @@ final readonly class UpdateOwnStaffProfileHandler
 
             $this->staff->update($staff);
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.own_profile_updated', $before, $staff, $changed));
-        });
+        }, 3);
     }
 }

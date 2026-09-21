@@ -68,6 +68,6 @@ final readonly class CloneRoleHandler
             $this->platform->recordAudit(RoleAudit::created($clone, clonedFrom: $source->id()));
 
             return $clone->id();
-        });
+        }, 3);
     }
 }
