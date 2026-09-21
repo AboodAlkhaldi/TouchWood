@@ -26,6 +26,7 @@ use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
+use Throwable;
 
 /**
  * Spec §1.8, §4.4: the password, then — unless this browser is trusted — an SMS code. A wrong
@@ -85,20 +86,48 @@ final readonly class SignInStaffHandler
             throw new SignInRefused;
         }
 
-        $trustedBrowser = $this->db->transaction(function () use ($staff, $command): bool {
-            if (! $this->trusted->trusts($staff->id(), $command->trustToken)) {
-                return false;
+        $started = false;
+
+        try {
+            $trustedBrowser = $this->db->transaction(function () use ($staff, $command, &$started): bool {
+                if (! $this->trusted->trusts($staff->id(), $command->trustToken)) {
+                    return false;
+                }
+
+                // Read again under the row's lock: checking the password takes long enough for an
+                // admin to disable the account, or a reset to raise the version, in between — the
+                // read above was for the password and the id only (review of step 7).
+                $current = $this->staff->byId($staff->id());
+
+                if ($current === null || $current->status() !== StaffStatus::Active) {
+                    throw new SignInRefused;
+                }
+
+                // Signed in first, so the entry names them as the actor, with their address.
+                $this->sessions->start($current->id(), $current->sessionVersion());
+                $started = true;
+                $this->platform->recordAudit(StaffAudit::event('access.staff_user.signed_in', $current, ['trusted_browser' => true]));
+
+                return true;
+            }, 3);
+        } catch (Throwable $failure) {
+            // The session is started inside the transaction so the entry names them as the actor;
+            // a transaction that then rolls back must leave no session behind (review of step 7).
+            if ($started) {
+                $this->sessions->end();
             }
 
-            // Signed in first, so the entry names them as the actor, with their address.
-            $this->sessions->start($staff->id(), $staff->sessionVersion());
-            $this->platform->recordAudit(StaffAudit::event('access.staff_user.signed_in', $staff, ['trusted_browser' => true]));
-
-            return true;
-        });
+            throw $failure;
+        }
 
         if ($trustedBrowser) {
             return SignInResult::SignedIn;
+        }
+
+        // An attempt that deadlocked after signing them in, and then found the browser untrusted
+        // when it ran again, must not leave that session behind: the code step follows (step 7).
+        if ($started) {
+            $this->sessions->end();
         }
 
         $phone = $staff->phone();

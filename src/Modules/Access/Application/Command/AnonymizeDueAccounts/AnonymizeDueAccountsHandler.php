@@ -9,7 +9,9 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Str;
 use Modules\Access\Application\Audit\CustomerAudit;
+use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Session\CustomerSessions;
 use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\CustomerTokenRepository;
@@ -29,7 +31,7 @@ use Throwable;
  * tomorrow: it never keeps the others waiting.
  *
  * What goes: the names, the email — replaced by a placeholder that keeps nothing of the old address and
- * frees it for a new account — the phone, every address, and any live code or reset link. What
+ * frees it for a new account — the phone, every address, any live code or reset link, and every session row they left behind. What
  * stays: the id, the account type, the home store and the dates, so counts stay honest and the keys
  * other modules hold still resolve.
  */
@@ -51,9 +53,11 @@ final readonly class AnonymizeDueAccountsHandler
 
     public function __construct(
         private Authorizer $authorizer,
+        private GrantRules $rules,
         private CustomerRepository $customers,
         private AddressRepository $addresses,
         private CustomerTokenRepository $tokens,
+        private CustomerSessions $sessions,
         private PlatformApi $platform,
         private LoggerInterface $log,
         private Dispatcher $events,
@@ -66,6 +70,10 @@ final readonly class AnonymizeDueAccountsHandler
     public function handle(AnonymizeDueAccounts $command): int
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+
+        // The sweep is the system's own work, never a button: the permission is reserved, so a
+        // Super Admin holds it too, and only the console or the queue may run it (review of step 7).
+        $this->rules->requireConsole(self::PERMISSION);
         $done = 0;
 
         // A batch at a time until nothing is due, so a backlog is cleared tonight and not fourteen
@@ -77,6 +85,8 @@ final readonly class AnonymizeDueAccountsHandler
                 break;
             }
 
+            $before = $done;
+
             foreach ($due as $customerId) {
                 try {
                     $done += $this->anonymize($customerId);
@@ -84,6 +94,12 @@ final readonly class AnonymizeDueAccountsHandler
                     // One account that cannot be anonymized must not keep the others waiting a day.
                     $this->log->error('An account could not be anonymized.', ['customer' => $customerId, 'exception' => $failure]);
                 }
+            }
+
+            // A round that moved nothing would read the same accounts again for the rest of the
+            // night: the ones still due cannot be anonymized, and the log already says so.
+            if ($done === $before) {
+                break;
             }
         }
 
@@ -112,6 +128,9 @@ final readonly class AnonymizeDueAccountsHandler
             $this->addresses->deleteForCustomer($customerId);
             $this->tokens->deletePasswordReset($customerId);
             $this->tokens->deletePhoneCode($customerId);
+            // The session rows themselves, not only the version that makes them useless: each
+            // holds the person's id, address and browser (owner, 2026-09-21).
+            $this->sessions->endEveryDeviceOf($customerId);
             $this->platform->recordAudit(CustomerAudit::anonymized($customer));
             $this->events->dispatch(new CustomerAnonymized((string) Str::uuid(), $customerId, CarbonImmutable::now()));
 

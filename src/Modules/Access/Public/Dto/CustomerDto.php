@@ -25,5 +25,7 @@ final readonly class CustomerDto
         public bool $phoneVerified,
         public string $locale,
         public ?string $deletionScheduledFor = null,
+        /** True once the fourteen days passed and the account was emptied: the name and email are placeholders. */
+        public bool $anonymized = false,
     ) {}
 }

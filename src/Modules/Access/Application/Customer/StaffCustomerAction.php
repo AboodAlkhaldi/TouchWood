@@ -9,6 +9,7 @@ use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
+use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -35,7 +36,7 @@ final readonly class StaffCustomerAction
     /**
      * @return array{PermissionScope, string} the store to check in, and the reason, trimmed
      *
-     * @throws CustomerNotFound|InvalidAccessAttribute
+     * @throws CustomerNotFound|InvalidAccessAttribute|Unauthorized
      */
     public function about(string $permission, string $customerId, string $reason): array
     {
@@ -58,10 +59,11 @@ final readonly class StaffCustomerAction
         $stores = $this->authorizer->storesWith($permission);
         $customer = $stores === [] ? null : $this->customers->find($customerId);
 
-        // Nothing is read for someone who may not act on customers anywhere: their own handler's
-        // check refuses them in a moment, and it names the action they lack.
+        // Nothing is read for someone who may not act on customers anywhere: they are refused here,
+        // by the name of the action they lack, exactly as their handler's own check would refuse
+        // them a moment later (review of step 7).
         if ($stores === []) {
-            return [PermissionScope::store(StoreId::fromString('00000000000000000000000000')), $reason];
+            throw new Unauthorized($permission);
         }
 
         if ($customer === null) {

@@ -299,6 +299,13 @@ describe('the deletion sweep (spec §1.10, amendment 43)', function () {
             ->and(Fx::audits('access.customer.anonymized', $due))->toBe(1);
 
         Event::assertDispatched(CustomerAnonymized::class, fn (CustomerAnonymized $event): bool => $event->customerId === $due);
+
+        // Other modules must be able to see that this is nobody: the name and the address are
+        // placeholders, so a module reading the DTO would otherwise write to them (review of step 7).
+        $dto = app(AccessApi::class)->customer($due);
+
+        expect($dto?->anonymized)->toBeTrue()
+            ->and(app(AccessApi::class)->customer($waiting)?->anonymized)->toBeFalse();
     });
 
     it('purges the addresses and anything that could still let them in', function () {
@@ -424,5 +431,44 @@ describe('the deletion sweep (spec §1.10, amendment 43)', function () {
 
         expect(fn () => app(AnonymizeDueAccountsHandler::class)->handle(new AnonymizeDueAccounts))
             ->toThrow(Unauthorized::class);
+    });
+
+    it('runs only from the console or the queue: never for a Super Admin, nor a job queued for one', function (Closure $actor) {
+        // The permission is reserved, so a Super Admin holds it; the sweep is still the system's
+        // own work, and a button in the panel must not empty every due account (review of step 7).
+        Fx::actAs($actor(Fx::staff(superAdmin: true)));
+
+        expect(fn () => app(AnonymizeDueAccountsHandler::class)->handle(new AnonymizeDueAccounts))
+            ->toThrow(Unauthorized::class);
+    })->with([
+        'a Super Admin' => fn (string $superAdmin) => Actor::staff($superAdmin),
+        'their queued job' => fn (string $superAdmin) => Actor::system(Actor::staff($superAdmin)),
+    ]);
+
+    it('stops for the night when a round anonymizes nothing, instead of reading the same accounts again', function () {
+        $customerId = Fx::customer();
+        customerAdmin();
+        app(DeleteCustomerOnRequestHandler::class)->handle(new DeleteCustomerOnRequest($customerId, 'Asked'));
+        DB::table('access.customers')->where('id', $customerId)->update(['deletion_scheduled_for' => CarbonImmutable::now()->subMinute()]);
+
+        // An account that cannot be anonymized stays due: without the stop it would be read, and
+        // logged, a hundred times a night (review of step 7).
+        $real = app(CustomerRepository::class);
+        $rounds = 0;
+        $customers = Mockery::mock(CustomerRepository::class);
+        $customers->shouldReceive('dueForAnonymizing')->andReturnUsing(function () use ($real, &$rounds): array {
+            $rounds++;
+
+            return $real->dueForAnonymizing(CarbonImmutable::now(), 500);
+        });
+        $customers->shouldReceive('byId')->andReturnUsing(fn (string $id) => $real->byId($id));
+        $customers->shouldReceive('update')->andThrow(new RuntimeException('the row would not save'));
+
+        $done = Fx::asSystem(fn (): int => app()->make(AnonymizeDueAccountsHandler::class, ['customers' => $customers])
+            ->handle(new AnonymizeDueAccounts));
+
+        expect($done)->toBe(0)
+            ->and($rounds)->toBe(1)
+            ->and(deletionRow($customerId)?->anonymized_at)->toBeNull();
     });
 });

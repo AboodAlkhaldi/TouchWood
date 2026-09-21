@@ -46,7 +46,7 @@ final readonly class VerifyCustomerPhoneHandler
     public function handle(VerifyCustomerPhone $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $customerId = $this->current->id();
+        $customerId = $this->current->id(self::PERMISSION);
 
         // A wrong code is counted and committed before it is refused: a rolled-back count would let
         // a code be guessed without limit.

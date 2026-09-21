@@ -220,6 +220,24 @@ describe('changing a staff email', function () {
         expect(fn () => app(ConfirmStaffEmailChangeHandler::class)->handle(new ConfirmStaffEmailChange(received()->lastEmailChangeToken())))->toThrow(StaffEmailInUse::class);
     });
 
+    it('refuses an email a customer holds, when entered and when the link is used', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
+        Fx::customer('shared@example.test');
+        Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
+
+        // One email, one account (amendment 13): a customer's address is taken as surely as a
+        // colleague's, and answered the same way.
+        expect(fn () => app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($staffId, 'SHARED@example.test')))->toThrow(StaffEmailInUse::class);
+
+        // A customer may also take the address between the link being sent and being used.
+        app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($staffId, 'later@example.test'));
+        Fx::customer('later@example.test', accountType: 'company');
+        Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+
+        expect(fn () => app(ConfirmStaffEmailChangeHandler::class)->handle(new ConfirmStaffEmailChange(received()->lastEmailChangeToken())))->toThrow(StaffEmailInUse::class)
+            ->and(column($staffId, 'email'))->not->toBe('later@example.test');
+    });
+
     it('refuses the link after 72 hours, keeping the current email', function () {
         $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
         $old = column($staffId, 'email');
@@ -260,7 +278,7 @@ describe('a staff member\'s own account', function () {
         $old = column($staffId, 'phone');
         Fx::actAsStaff($staffId);
 
-        app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550000'));
+        app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550000', Fx::STAFF_PASSWORD, '10.0.0.1'));
 
         expect(column($staffId, 'phone'))->toBe($old)
             ->and(received()->codes[0]['phone'])->toBe('+966505550000')
@@ -272,13 +290,28 @@ describe('a staff member\'s own account', function () {
             ->and(column($staffId, 'phone_verified_at'))->not->toBeNull();
     });
 
+    it('asks for the current password first, and sends no code without it', function () {
+        $staffId = Fx::staff();
+        Fx::actAsStaff($staffId);
+
+        // The number is where the sign-in code goes, so a stolen session alone must not move it
+        // (owner, 2026-09-21). A wrong password is counted, like a wrong one at sign-in.
+        expect(fn () => app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550000', 'not their password', '10.0.0.5')))
+            ->toThrow(InvalidAccessAttribute::class, 'current_password')
+            ->and(received()->codes)->toBe([]);
+
+        app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550000', Fx::STAFF_PASSWORD, '10.0.0.5'));
+
+        expect(received()->codes)->toHaveCount(1);
+    });
+
     it('refuses a phone another staff member uses when it is entered', function () {
         $staffId = Fx::staff();
         $taken = (string) column(Fx::staff(), 'phone');
         Fx::actAsStaff($staffId);
         Fx::withoutStaffUniqueIndexes();
 
-        expect(fn () => app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange($taken)))->toThrow(PhoneAlreadyInUse::class)
+        expect(fn () => app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange($taken, Fx::STAFF_PASSWORD, '10.0.0.1')))->toThrow(PhoneAlreadyInUse::class)
             ->and(received()->codes)->toBe([]);
     });
 
@@ -286,7 +319,7 @@ describe('a staff member\'s own account', function () {
         $staffId = Fx::staff();
         $old = column($staffId, 'phone');
         Fx::actAsStaff($staffId);
-        app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550000'));
+        app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+966505550000', Fx::STAFF_PASSWORD, '10.0.0.1'));
         Fx::withoutStaffUniqueIndexes();
         DB::table('access.staff_users')->where('id', Fx::staff())->update(['phone' => '+966505550000']);
 
@@ -548,10 +581,10 @@ describe('what each change leaves behind (review of step 3a)', function () {
         $phone = (string) column($staffId, 'phone');
         Fx::actAsStaff($staffId);
 
-        expect(fn () => app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange($phone)))->toThrow(InvalidAccessAttribute::class);
+        expect(fn () => app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange($phone, Fx::STAFF_PASSWORD, '10.0.0.1')))->toThrow(InvalidAccessAttribute::class);
 
         DB::table('access.staff_users')->where('id', $staffId)->update(['phone_verified_at' => null]);
-        app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange($phone));
+        app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange($phone, Fx::STAFF_PASSWORD, '10.0.0.1'));
         app(VerifyOwnPhoneChangeHandler::class)->handle(new VerifyOwnPhoneChange(received()->lastCode()));
 
         expect(column($staffId, 'phone_verified_at'))->not->toBeNull()

@@ -101,6 +101,9 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-20 | §7.8 | Access step 5 (addresses): every store starts with the standard scheme, written at migrate and when a store is opened; at most 10 addresses per customer per store (a per-store setting); the first address in a store is its default and deleting the default moves the flag; field lengths fixed; a key the format does not define is refused; the display template is `{field}` placeholders with empty ones dropped; a format that changes later leaves saved addresses alone but one that no longer fits cannot be used for an order; no HTTP endpoints in this step | Access step 5 plan, owner decision |
 | 2026-09-20 | §7.7 | From the step 4b reviews: the admin panel keeps its sessions in its own table, so neither side's housekeeping ends the other's sessions; a customer signed in who opens their reset link is signed out of that browser first (they change a password they remember in their account settings); registrations and reset requests are limited to 10 an hour per address; asking for a verification link again keeps sharing the reset link's hourly limit | Access step 4b review, owner decision |
 | 2026-09-20 | §7.2, §7.7 | Registering a customer signs them in at once; the guest cookie lasts a year; an email belonging to a staff account is refused at registration in the same words as a customer's; the storefront session keeps its own cookie, wide enough (a year) that only Access's own limits end a session; customer and staff lockouts count on separate keys | Access step 4b, owner decision |
+| 2026-09-20 | §7.9, §7.5 | From the step 6 reviews: a deleted account can no longer be sent a reset link or have a password set on it; who a staff member may see is part of the query, not a filter after it, so counts and pages are right; an admin's stores and joining date are part of "a name and a role only"; the nightly sweep goes round again while accounts are due and logs the one that fails | Access step 6 review, owner decision |
+| 2026-09-20 | §7.5, §7.9 | Confirming a deletion signs the customer out of every device (signing in again is the only way back, and cancels it); revoking a Super Admin closes the account and frees its email and phone at once, so no staff member is ever left without a role; `customers.remember_token` dropped | Access step 6, owner decision |
+| 2026-09-21 | §7.5, §7.6, §7.9 | From the reviews of the whole Access module: the settings permission is split — the staff security numbers are admin-only (`access.staff_settings.update`), a store's own settings stay ordinary; a staff member changing their own phone gives their current password first; anonymizing deletes the account's session rows, so the storefront's rows now carry the customer they belong to; an admin's status is not shown to ordinary staff either; one email belongs to one account in both directions (a staff account cannot take a customer's address) | Access step 7, owner decision |
 
 ---
 
@@ -603,7 +606,9 @@ store scope.
 
 **Three levels: Super Admin → admins → staff** (owner, 2026-09-19). A role is an admin role or a
 staff role. The management actions (inviting, editing and disabling staff, assigning roles,
-managing roles) go only into admin roles; staff manage no roles and no people. Only a Super Admin
+managing roles) go only into admin roles, and so do blocking and deleting a customer (owner,
+2026-09-20) and changing the staff security settings (owner, 2026-09-21): staff manage no roles and
+no people, and change no rule of signing in. A store's own settings stay an ordinary action. Only a Super Admin
 manages admins and admin roles; no admin manages another admin or themselves. An admin manages a
 staff member only when the admin covers **all** of that person's stores: a KSA-only admin manages
 KSA-only staff, and a KSA+UAE staff member needs a KSA+UAE admin (or larger) or a Super Admin.
@@ -643,9 +648,11 @@ not even another Super Admin — creates, changes or removes one (owner, 2026-09
 invitation works 24 hours (a setting); left unaccepted, the system cancels it and frees the email
 and phone. The console can resend or cancel one, and revoking an invited Super Admin cancels it.
 
-**Nobody works without a role** (owner, 2026-09-19): an account left with none — a revoked Super
-Admin — is disabled until any admin, or a Super Admin, enables it together with a role; deleting a
-role its holders still hold needs a replacement. **Redirecting an account** — a new email or phone,
+**Nobody works without a role** (owner, 2026-09-19, as settled 2026-09-20): there is no account
+without one. Revoking a Super Admin is a console action, so it closes the account outright —
+`CANCELLED`, no password, every session ended, the email and phone free at once — and someone who
+is to stay is invited again; deleting a role its holders still hold needs a replacement, and
+without one the delete is refused. **Redirecting an account** — a new email or phone,
 a resent invitation — needs every action of the person's role, like giving them that role, so no
 admin can take over an account holding more than they do.
 
@@ -1441,7 +1448,13 @@ Decide these when the owning module is reached; do not design them now.
   address, and 10 wrong passwords from anyone would make every staff member wait 15 minutes (owner,
   2026-09-19: settled with the hosting).
 - **HTTPS-only cookies** (`SESSION_SECURE_COOKIE=true`) for the admin session and trusted-browser
-  cookies (owner, 2026-09-19: settled with the hosting).
+  cookies (owner, 2026-09-19: settled with the hosting). Until it is set, the trusted-browser cookie
+  follows `config('session.secure')`, which Symfony only forces on a request it can see is secure —
+  behind an untrusted TLS proxy it cannot, and the 30-day cookie may leave without `Secure`.
+- Both of the above are **hardening today and a broken flow tomorrow**: Laravel checks a signed URL
+  against the scheme and host of the request, while Access signs its links on `APP_URL`. Behind a
+  TLS-terminating proxy that is not trusted, every request looks like `http`, so every customer
+  email-verification link would fail its signature and answer 403 (review of Access step 7).
 - **CDN purge** of a deleted public image's sizes.
 
 ---

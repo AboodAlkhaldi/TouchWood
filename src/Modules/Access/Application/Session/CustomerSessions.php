@@ -34,4 +34,12 @@ interface CustomerSessions
      * Signed out: the session ends and the request acts as a guest again.
      */
     public function end(): void;
+
+    /**
+     * Every session this account has, anywhere, is removed — not only this browser's.
+     * Anonymizing a deleted account calls it, so nothing of the person is left in a session
+     * row (owner, 2026-09-21). Raising the session version already makes them useless; this
+     * takes the rows themselves, with the id, address and browser they hold.
+     */
+    public function endEveryDeviceOf(string $customerId): void;
 }

@@ -7,9 +7,9 @@ namespace Modules\Access\Application\Query\ListStaff;
 use Modules\Access\Public\Enums\StaffStatus;
 
 /**
- * One row of the staff list. For an **admin** seen by anyone but a Super Admin, only the name, the
- * role and the status are filled in: the job title, email, phone, stores and joining date are null
- * or empty (amendment 43).
+ * One row of the staff list. For an **admin** seen by anyone but a Super Admin, only the name and
+ * the role are filled in: the job title, email, phone, stores, joining date and status are null or
+ * empty (amendment 43; the status joined them, owner, 2026-09-21).
  */
 final readonly class StaffSummary
 {
@@ -24,7 +24,8 @@ final readonly class StaffSummary
         public ?string $jobTitle,
         public ?string $email,
         public ?string $phone,
-        public StaffStatus $status,
+        /** Null for an admin the reader may not see in full: a colleague's account is not theirs to follow. */
+        public ?StaffStatus $status,
         public ?string $roleId,
         public string $roleNameAr,
         public string $roleNameEn,

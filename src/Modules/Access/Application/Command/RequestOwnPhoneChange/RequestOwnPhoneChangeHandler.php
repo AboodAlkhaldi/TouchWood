@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\OwnPasswordCheck;
 use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
@@ -26,6 +27,7 @@ final readonly class RequestOwnPhoneChangeHandler
         private Authorizer $authorizer,
         private GrantRules $rules,
         private StaffUserRepository $staff,
+        private OwnPasswordCheck $confirmation,
         private PhoneVerification $verification,
         private Connection $db,
     ) {}
@@ -35,6 +37,14 @@ final readonly class RequestOwnPhoneChangeHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $staffId = $this->rules->currentStaffId();
         $phone = PhoneNumber::of($command->phone);
+
+        // The number is where the sign-in code goes, so it is a change of the second factor:
+        // the current password is proved first, and a wrong one is counted (owner, 2026-09-21).
+        $this->confirmation->confirm(
+            $this->staff->find($staffId) ?? throw new StaffNotFound($staffId),
+            $command->currentPassword,
+            $command->ip,
+        );
 
         $this->db->transaction(function () use ($staffId, $phone): void {
             $staff = $this->staff->byId($staffId) ?? throw new StaffNotFound($staffId);

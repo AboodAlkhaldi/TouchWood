@@ -26,6 +26,7 @@ final readonly class CustomerMapper
             $customer->phoneVerifiedAt() !== null,
             $customer->language()->value,
             $customer->deletionScheduledFor()?->format(DATE_ATOM),
+            $customer->isAnonymized(),
         );
     }
 }
