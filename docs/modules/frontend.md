@@ -77,7 +77,8 @@ the next one starts.
 | **3** | Platform's screens: stores, currencies, settings, the media library, the audit log (§3.5) | One module's screens, one permission model, no dependency on step 2 |
 | **4** | The storefront and the customer's account (§2.3, §3.6), and the customer screens staff see (§3.7) | The public side, which needs the layouts of step 1 and the read models Access already has |
 
-**Step 0 in detail** — each needs an amendment to the named module's spec before it is built:
+**Step 0 in detail** — written out in [frontend-step-0.md](frontend-step-0.md), which the owner
+approves before any of it is built. Each becomes an amendment to the named module's spec:
 
 | # | Module | What is built |
 |---|---|---|
