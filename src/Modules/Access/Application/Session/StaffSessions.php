@@ -20,7 +20,11 @@ interface StaffSessions
     /**
      * After the right password: who is signing in, under which session version, until the code step.
      */
-    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone): void;
+    /**
+     * @param  string|null  $maskedPhone  the number the code went to, masked to its last three
+     *                                    digits, for the code screen to name it (stage 2b, P4)
+     */
+    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone, ?string $maskedPhone = null): void;
 
     /**
      * The sign-in this browser started with the right password, while still fresh.

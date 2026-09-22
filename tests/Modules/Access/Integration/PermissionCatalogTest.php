@@ -170,10 +170,21 @@ it('gives every action a role can hold a business area, and names every area in 
     // A moved folder or a renamed provider must not make this pass over nothing.
     expect(count($offered))->toBeGreaterThan(15);
 
+    $without = [];
+
     foreach ($offered as $permission) {
-        expect($permission->group)->not->toBeNull("{$permission->name} is offered in the role editor with no business area");
-        $used[$permission->group->value] = $permission->group;
+        $group = $permission->group;
+
+        if ($group === null) {
+            $without[] = $permission->name;
+
+            continue;
+        }
+
+        $used[$group->value] = true;
     }
+
+    expect($without)->toBe([]);
 
     // Every area in the list is named, not only the ones in use: a module built later picks one.
     foreach (PermissionGroup::cases() as $group) {

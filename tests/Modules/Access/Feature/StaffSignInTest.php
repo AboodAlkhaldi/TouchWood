@@ -35,6 +35,7 @@ use Modules\Access\Application\Command\UpdateStaffProfile\UpdateStaffProfileHand
 use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChange;
 use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChangeHandler;
 use Modules\Access\Application\Security\Codes;
+use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
 use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
@@ -66,6 +67,12 @@ beforeEach(function () {
     // Who a request acts as, to look at from a test: the pages come with the frontend stage.
     Route::middleware([UseAdminSession::ALIAS, 'web', IdentifyStaff::ALIAS])
         ->get('/admin/_who', fn (ActorContext $actors) => response()->json(['type' => $actors->current()->type->value, 'id' => $actors->current()->id]));
+
+    // What the code screen will be handed (stage 2b, P4); the screen itself comes in step 1.
+    Route::middleware([UseAdminSession::ALIAS, 'web'])
+        ->get('/admin/_pending', fn (StaffSessions $sessions) => response()->json([
+            'masked' => $sessions->pendingSignIn()?->maskedPhone,
+        ]));
 });
 
 /**
@@ -148,6 +155,25 @@ describe('signing in (spec §1.8, §4.4)', function () {
         signInPassword($browser, $staffId)->assertStatus(500);
 
         expect(signInWho($browser))->toBeNull();
+    });
+
+    it('tells the code page which number the code went to, masked, and never the number itself', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser('10.1.2.30');
+        $phone = (string) DB::table('access.staff_users')->where('id', $staffId)->value('phone');
+
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+
+        // The screen has to name the number - a person may have two - without putting it where
+        // whoever holds the browser can read it (stage 2b, P4). The session belongs to the
+        // browser, so it is read from inside a request of its own.
+        $shown = $browser->get('/admin/_pending')->json('masked');
+
+        expect($shown)->toBeString()
+            ->and($shown)->toEndWith(substr($phone, -3))
+            ->and($shown)->not->toContain(substr($phone, 1, 6))
+            // Counted in characters: the mask is a bullet, three bytes each.
+            ->and(mb_strlen((string) $shown))->toBe(mb_strlen($phone) - 1);
     });
 
     it('leaves no session behind when the transaction that signed them in rolls back', function () {
