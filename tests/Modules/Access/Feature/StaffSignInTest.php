@@ -169,11 +169,12 @@ describe('signing in (spec §1.8, §4.4)', function () {
         // browser, so it is read from inside a request of its own.
         $shown = $browser->get('/admin/_pending')->json('masked');
 
-        expect($shown)->toBeString()
-            ->and($shown)->toEndWith(substr($phone, -3))
-            ->and($shown)->not->toContain(substr($phone, 1, 6))
+        $shown = is_string($shown) ? $shown : '';
+
+        expect(str_ends_with($shown, mb_substr($phone, -3)))->toBeTrue()
+            ->and(str_contains($shown, mb_substr($phone, 1, 6)))->toBeFalse()
             // Counted in characters: the mask is a bullet, three bytes each.
-            ->and(mb_strlen((string) $shown))->toBe(mb_strlen($phone) - 1);
+            ->and(mb_strlen($shown))->toBe(mb_strlen($phone) - 1);
     });
 
     it('leaves no session behind when the transaction that signed them in rolls back', function () {

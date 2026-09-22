@@ -150,6 +150,27 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
         ]));
     }
 
+    public function currentStore(string $staffId): ?string
+    {
+        if (! Ulids::valid($staffId)) {
+            return null;
+        }
+
+        $store = $this->db->table(self::TABLE)->where('id', strtolower($staffId))->value('current_store_id');
+
+        return is_string($store) ? $store : null;
+    }
+
+    /**
+     * A preference, so it is written on its own: it touches no field StaffUser holds, raises no
+     * session version and is not audited (owner, 2026-09-22). `updated_at` stays as it was, because
+     * choosing which store to look at is not a change to the account.
+     */
+    public function rememberCurrentStore(string $staffId, string $storeId): void
+    {
+        $this->db->table(self::TABLE)->where('id', strtolower($staffId))->update(['current_store_id' => strtolower($storeId)]);
+    }
+
     /**
      * The code checks both first (emailInUse, phoneInUse); the unique indexes only catch two
      * changes at the same moment.
