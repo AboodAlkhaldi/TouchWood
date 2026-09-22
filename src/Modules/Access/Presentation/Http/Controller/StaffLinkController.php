@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Controller;
 
+use App\Http\FormErrors;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Modules\Access\Application\Command\AcceptStaffInvitation\AcceptStaffInvitation;
@@ -14,7 +15,6 @@ use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvita
 use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitationHandler;
 use Modules\Access\Application\Command\SignOutStaff\SignOutStaff;
 use Modules\Access\Application\Command\SignOutStaff\SignOutStaffHandler;
-use Modules\Access\Presentation\Http\FormErrors;
 use Modules\Access\Presentation\Http\Request\StaffCodeRequest;
 use Modules\Access\Presentation\Http\Request\StaffInvitationRequest;
 use Shared\Application\ActorContext;

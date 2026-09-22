@@ -38,6 +38,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.7, §1.8 | Fonts, colours, digits and the first currency-sign check filled in from the design | The design arrived after §1 was approved; the digits rule is the owner's answer |
 | §2.2 | The EN/AR toggle changes only the display; remembered per browser | Access amendment 16; the question asked before §2's approval had it wrong. Owner's answer, 2026-09-19 |
 | §0 | Everything Access changed between 2026-09-19 and its merge, and the step list | Owner, 2026-09-22 |
+| §1.8, §2.3, §8.3 | The design of record is the handoff of 2026-09-22, which includes a storefront | Owner, 2026-09-22 |
 
 ---
 
@@ -212,9 +213,14 @@ admin screens need the same thing; where the shared version lives is decided wit
 
 ### 1.8 Look: fonts, colours, digits
 
-**[DECIDED 2026-09-19]** The owner's design decides fonts, colours, spacing and layouts:
-`docs/design/admin-panel-v1.html`, the admin panel's first version. It shows look and behaviour
-only. Where it shows something the specs do not have, or contradicts a decided rule, the rule
+**[DECIDED 2026-09-19, design of record replaced 2026-09-22]** The owner's design decides fonts,
+colours, spacing and layouts. The design of record is now the handoff of 2026-09-22 in
+`docs/design/v2/`: **`TouchWood Admin.dc.html`** for the panel, `TouchWood Foundations.dc.html` for
+the shared parts, and `TouchWood Home.dc.html` with `SysStore`/`SysHome` for the storefront.
+`docs/design/admin-panel-v1.html` stays as history. It is the same line as v1 — navy, cream, IBM
+Plex Sans Arabic with IBM Plex Mono for figures — so nothing already decided about the look
+changes. The four alternative design systems in the handoff's `_ds/` folder are explorations and
+are **not** followed (owner, 2026-09-22). It shows look and behaviour only. Where it shows something the specs do not have, or contradicts a decided rule, the rule
 wins (§2.7). Screens the design does not show are derived from its look (§2.1).
 
 - **Fonts:** IBM Plex Sans Arabic for text in both languages, IBM Plex Mono for figures (amounts,
@@ -307,8 +313,10 @@ From the design, with the decided rules applied:
 
 ### 2.3 Storefront
 
-The design has no storefront. Until the owner's storefront design exists, the storefront is built
-from the admin design's look **[DECIDED 2026-09-19]**:
+**[Superseded 2026-09-22]** The storefront now has a design of its own — `TouchWood Home.dc.html`,
+`SysStore.dc.html` and `SysHome.dc.html` in `docs/design/v2/` — and step 4 follows it, reviewed
+screen by screen as the admin's were (owner, 2026-09-22). What follows was written when there was
+no storefront design and still holds for anything those files do not show:
 
 - A header with the logo, the country (store) switch and the language switch (`/sa/ar` ↔ `/sa/en`,
   staying on the same page), the theme toggle, and "Sign in" or the customer's name. Search and
@@ -697,7 +705,7 @@ None. The one question here — which module keeps the admin menu registry — w
 
 | # | Item | Waiting for |
 |---|---|---|
-| 5 | The storefront's look (§2.3, §3.6) is derived from the admin design | The owner's storefront design, if one is made |
+| ~~5~~ | ~~The storefront's look is derived from the admin design~~ | **Closed 2026-09-22:** the storefront design arrived (§2.3) |
 | 6 | The map pin on an address (§3.6 F9) stays empty | A maps provider being chosen (handoff §15.1 keeps such items) |
 | 7 | The changes other modules must make (§4.3 P1–P7) | Each module's owner agreeing, as an amendment to that module's spec |
 | 8 | Where the SSR process runs, and on which Node version (§1.3) | Hosting (handoff §15.4) |

@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style id="tw-theme-tokens">:root{--kTrack:#F5F6F7;--k9A3A32:#9A3A32;--kE8D2CE:#E8D2CE;--kHeaderBg:rgba(255,255,255,.92);--kWellBg:#F5F6F7;--kGlass:rgba(255,255,255,.94);--kHeroBg:#F5EFE9;--kBarBg:#0B3B63;--kBarInk:#FFF;--kBarSub:#DCE6EE;--kIOA:#fff;--kFFF:#FFF;--k0B3B63:#0B3B63;--k8A5130:#8A5130;--k14293A:#14293A;--k07273E:#07273E;--kAFC4D6:#AFC4D6;--kE3E6E7:#E3E6E7;--kFBFBFA:#FBFBFA;--k64737C:#64737C;--k9AA6AC:#9AA6AC;--k3F5462:#3F5462;--kF5F6F7:#F5F6F7;--kC2CBD0:#C2CBD0;--kF1F5F8:#F1F5F8;--kF0F2F3:#F0F2F3;--kD7DCDF:#D7DCDF;--kFAF4EF:#FAF4EF;--kDFC0A6:#DFC0A6;--k5C3522:#5C3522;--kC9A78F:#C9A78F;--kFEFCFA:#FEFCFA;--kEEF2F5:#EEF2F5;--kEEF1F2:#EEF1F2;--kEAF5F0:#EAF5F0;--k1F7A5C:#1F7A5C;--kDCE6EE:#DCE6EE;--k7FD1AE:#7FD1AE;--k2B2B2B:#2B2B2B;--kC7CCD1:#C7CCD1;--kB7791F:#B7791F;--kEFF1F2:#EFF1F2;--kAAB4BA:#AAB4BA;--kC3D2DE:#C3D2DE;--kFEFAF6:#FEFAF6;--kF8FAFC:#F8FAFC}
+html[data-theme="dark"]{--kTrack:#111D27;--k9A3A32:#E08A80;--kE8D2CE:#4A2A26;--kHeaderBg:rgba(13,24,33,.92);--kWellBg:radial-gradient(circle at 50% 42%,#1F2C37,#121C25 70%);--kGlass:rgba(14,25,34,.88);--kHeroBg:radial-gradient(900px 520px at 85% 28%,rgba(107,163,214,.16),transparent 62%),radial-gradient(620px 420px at 8% 95%,rgba(209,156,114,.09),transparent 62%),#0C1821;--kBarBg:#0B2839;--kBarInk:#EAF2F8;--kBarSub:#A9C0D1;--kDFC0A6:#5C4130;--kIOA:#0C1A26;--kFFF:#16222E;--k0B3B63:#6BA3D6;--k8A5130:#D19C72;--k14293A:#EDF2F6;--k07273E:#0A151E;--kAFC4D6:#B0C3D2;--kE3E6E7:#2A3742;--kFBFBFA:#1A2632;--k64737C:#A8B6C0;--k9AA6AC:#8E9CA6;--k3F5462:#C9D5DE;--kF5F6F7:#1E2A35;--kC2CBD0:#46545F;--kF1F5F8:#1E2A35;--kF0F2F3:#142029;--kD7DCDF:#33414C;--kFAF4EF:#1C1713;--k5C3522:#C08A60;--kFEFCFA:#1A2632;--kEEF2F5:#142230;--kEEF1F2:#18242E;--kEAF5F0:#16302A;--k1F7A5C:#52C49A;--kDCE6EE:#24384A;--k2B2B2B:#D8DEE3;--kC7CCD1:#3C4A55;--kB7791F:#E0B055;--kEFF1F2:#18242E;--kAAB4BA:#64737E;--kC3D2DE:#3A5164;--kFEFAF6:#1A2632;--kF8FAFC:#1A2632}
+html[data-theme="dark"] body{-webkit-font-smoothing:auto;-moz-osx-font-smoothing:auto}
+html[data-theme="dark"]{text-rendering:optimizeLegibility}
+</style>
+<script>(function(){try{var t=localStorage.getItem("tw-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.twToggleTheme=function(){var d=document.documentElement,n=d.getAttribute("data-theme")==="dark"?"light":"dark";d.setAttribute("data-theme",n);try{localStorage.setItem("tw-theme",n)}catch(e){}document.dispatchEvent(new CustomEvent("tw-theme",{detail:n}));return n};})();</script>
+<style id="tw-theme-btn">
+#tw-theme-fab{position:fixed;bottom:16px;right:16px;z-index:99999;display:flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:99px;background:var(--kFFF);color:var(--k3F5462);font:500 12px/1 'IBM Plex Sans Arabic',system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px -10px rgba(0,0,0,.45);transition:background .15s,color .15s,border-color .15s}
+#tw-theme-fab:hover{border-color:var(--k0B3B63);color:var(--k0B3B63)}
+#tw-theme-fab:focus-visible{outline:2px solid var(--k0B3B63);outline-offset:2px}
+#tw-theme-fab svg{width:15px;height:15px;flex:0 0 auto}
+</style>
+<script>(function(){
+function icon(d){return d
+?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.2 8.2 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>'
+:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg>';}
+function paint(b){var d=document.documentElement.getAttribute('data-theme')==='dark';b.innerHTML=icon(d)+'<span>'+(d?'Light':'Dark')+'</span>';b.title=d?'Switch to light mode':'Switch to dark mode';}
+function mount(){
+  if(document.getElementById('tw-theme-fab'))return;
+  var b=document.createElement('button');b.id='tw-theme-fab';b.type='button';
+  b.onclick=function(){window.twToggleTheme();paint(b)};
+  document.body.appendChild(b);paint(b);
+  document.addEventListener("tw-theme",function(){paint(b)});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
+})();</script>
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+body{margin:0;background:var(--kFFF);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:var(--k0B3B63);text-decoration:none}
+a:hover{color:var(--k8A5130)}
+::selection{background:rgba(11,59,99,.14)}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--k0B3B63);outline-offset:2px}
+@keyframes twRise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+
+<div dir="rtl" style="font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;color:var(--k14293A);background:var(--kFFF);min-height:100vh">
+
+<div style="position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 22px;background:var(--k07273E);--kFFF:#F2F6FA;--kDCE6EE:#C6D8E6;--kAFC4D6:#AFC4D6;--kC6D8E6:#C6D8E6;--k7FA3C0:#7FA3C0;--k8FB0CA:#8FB0CA;--k9AA6AC:#8FA7BA;--k64737C:#9DB2C4;--k3F5462:#C6D8E6;--k14293A:#F2F6FA;--kE8EBED:rgba(255,255,255,.14);--kE3E6E7:rgba(255,255,255,.14);color:var(--kFFF)">
+<span style="font-size:10.5px;font-weight:600;letter-spacing:.14em;color:var(--kAFC4D6)">لوحة المراجعة</span>
+<div style="display:flex;padding:3px;background:rgba(255,255,255,.09);border-radius:8px;gap:3px">
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ sCatBg }};color:{{ sCatC }}" onClick="{{ goCat }}">صفحة الفئة</button>
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ sPdpBg }};color:{{ sPdpC }}" onClick="{{ goPdp }}">صفحة المنتج</button>
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ sCartBg }};color:{{ sCartC }}" onClick="{{ goCart }}">السلة</button>
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ sOrderBg }};color:{{ sOrderC }}" onClick="{{ goOrder }}">تأكيد الطلب</button>
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ sB2BBg }};color:{{ sB2BC }}" onClick="{{ goB2B }}">حساب شركة</button>
+</div>
+<div style="display:flex;padding:3px;background:rgba(255,255,255,.09);border-radius:8px;gap:3px">
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ aGuestBg }};color:{{ aGuestC }}" onClick="{{ setGuest }}">فرد</button>
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ aPendBg }};color:{{ aPendC }}" onClick="{{ setPending }}">شركة معلّقة</button>
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ aAppBg }};color:{{ aAppC }}" onClick="{{ setApproved }}">شركة معتمدة</button>
+</div>
+<span style="font-size:12px;color:var(--kAFC4D6);margin-inline-start:auto">{{ accountNote }}</span>
+</div>
+
+<header style="position:sticky;top:0;z-index:50;background:var(--kHeaderBg);backdrop-filter:blur(12px);border-bottom:1px solid var(--kE3E6E7)">
+<div style="max-width:1400px;margin:0 auto;padding:0 40px;height:74px;display:flex;align-items:center;gap:32px">
+<a href="TouchWood%20Home.dc.html" style="display:flex;align-items:center;gap:9px;flex:0 0 auto;color:var(--k14293A)">
+<img src="brand/touchwood-logo.png" alt="تاتش وود" style="width:52px;height:52px;object-fit:contain;display:block;margin-inline-start:-6px" />
+<span style="font-size:15px;font-weight:600;letter-spacing:.01em">TOUCHWOOD</span>
+</a>
+<div style="flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;height:44px;padding:0 15px;border:1px solid var(--kE3E6E7);border-radius:10px;background:var(--kFBFBFA)">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--k64737C)" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+<span style="font-size:14px;color:var(--k9AA6AC)">ابحث عن مقبض، مجرى، مفصلة، أو رمز منتج…</span>
+</div>
+<button style="font-family:inherit;display:flex;align-items:center;gap:9px;height:42px;padding:0 16px;border:0;border-radius:9px;background:var(--k0B3B63);color:var(--kIOA);cursor:pointer;font-size:13.5px;font-weight:500;flex:0 0 auto" onClick="{{ goCart }}">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--kFFF)" stroke-width="1.7" stroke-linecap="round"><path d="M6 7h12l-1 12H7L6 7Z"></path><path d="M9.5 7V5.5a2.5 2.5 0 0 1 5 0V7"></path></svg>
+السلة
+<span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:12px;background:rgba(255,255,255,.2);border-radius:5px;padding:2px 7px" dir="ltr">{{ cartCount }}</span>
+</button>
+<button onClick="{{ toggleTheme }}" title="{{ themeLabel }}" aria-label="{{ themeLabel }}" style="font-family:inherit;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid var(--kE3E6E7);border-radius:8px;background:transparent;color:var(--k3F5462);cursor:pointer;flex:0 0 auto;transition:background .15s,color .15s" style-hover="background:var(--kF5F6F7);color:var(--k0B3B63)">
+<sc-if value="{{ isDark }}" hint-placeholder-val="{{ false }}">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"></path></svg>
+</sc-if>
+<sc-if value="{{ isLightTheme }}" hint-placeholder-val="{{ true }}">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.2 8.2 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"></path></svg>
+</sc-if>
+</button>
+<a href="TouchWood%20Admin.dc.html" title="لوحة التحكم" style="display:flex;align-items:center;gap:7px;height:36px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:8px;background:var(--kFFF);font-size:12.5px;font-weight:500;color:var(--k3F5462);text-decoration:none;flex:0 0 auto;transition:background .15s" style-hover="background:var(--kF5F6F7);color:var(--k0B3B63)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"></rect><path d="M9.5 4.5v15"></path></svg>
+لوحة التحكم
+</a>
+</div>
+</header>
+
+<sc-if value="{{ isCat }}" hint-placeholder-val="{{ true }}">
+<div style="max-width:1400px;margin:0 auto;padding:22px 40px 90px">
+<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--k64737C);margin-bottom:18px">
+<a href="TouchWood%20Home.dc.html" style="color:var(--k64737C)">الرئيسية</a><span style="color:var(--kC2CBD0)">/</span><span>مستلزمات المطابخ</span><span style="color:var(--kC2CBD0)">/</span><span style="color:var(--k14293A);font-weight:500">المجاري والمفصلات</span>
+</div>
+
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding-bottom:20px;border-bottom:1px solid var(--kE3E6E7)">
+<div style="display:flex;flex-direction:column;gap:9px">
+<h1 style="margin:0;font-size:34px;font-weight:600;letter-spacing:-.025em">المجاري والمفصلات</h1>
+<p style="margin:0;font-size:14.5px;line-height:1.75;color:var(--k3F5462);max-width:56ch">مجاري سحاب سوفت كلوز، مجاري سفلية، ومفصلات باكم بجميع الركبات. الطول والتشطيب يحدّدان السعر والتوفّر، فاختر التركيبة داخل المنتج.</p>
+</div>
+<span style="font-size:13.5px;color:var(--k64737C)">عرض <b style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k14293A);font-weight:500" dir="ltr">1–6</b> من <b style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k14293A);font-weight:500" dir="ltr">918</b> قطعة</span>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,248px) minmax(0,1fr);gap:34px;padding-top:26px">
+
+<aside style="display:flex;flex-direction:column;gap:22px;align-self:start;position:sticky;top:96px">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<span style="font-size:14px;font-weight:600">تصفية</span>
+<button onClick="{{ clearFilters }}" style="font-family:inherit;font-size:12.5px;color:var(--k8A5130);background:transparent;border:0;cursor:pointer;padding:0;font-weight:500">مسح الكل</button>
+</div>
+<sc-if value="{{ hasFilters }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-wrap:wrap;gap:7px">
+<sc-for list="{{ activeFilters }}" as="fl" hint-placeholder-count="2">
+<button onClick="{{ fl.onRemove }}" style="font-family:inherit;display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;padding:6px 10px;border-radius:7px;border:1px solid var(--kAFC4D6);background:var(--kF1F5F8);color:var(--k0B3B63);cursor:pointer">{{ fl.label }}<span style="font-size:13px;line-height:1">×</span></button>
+</sc-for>
+</div>
+</sc-if>
+
+<div style="display:flex;flex-direction:column;gap:11px;padding-bottom:20px;border-bottom:1px solid var(--kF0F2F3)">
+<span style="font-size:12.5px;font-weight:600;color:var(--k3F5462)">وضع البيع</span>
+<sc-for list="{{ modeFilters }}" as="mf" hint-placeholder-count="3">
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13.5px;color:var(--k3F5462)">
+<span style="width:16px;height:16px;border-radius:5px;border:1.5px solid {{ mf.bd }};background:{{ mf.bg }};display:grid;place-items:center;flex:0 0 auto">
+<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--kFFF)" stroke-width="3.4" stroke-linecap="round" style="opacity:{{ mf.tick }}"><path d="m5 13 4 4 10-10"></path></svg>
+</span>
+<input type="checkbox" onChange="{{ mf.onToggle }}" style="position:absolute;opacity:0;width:0;height:0" />
+{{ mf.label }}
+<span style="margin-inline-start:auto;font-size:12px;color:var(--k9AA6AC);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ mf.count }}</span>
+</label>
+</sc-for>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:11px;padding-bottom:20px;border-bottom:1px solid var(--kF0F2F3)">
+<span style="font-size:12.5px;font-weight:600;color:var(--k3F5462)">العلامة</span>
+<sc-for list="{{ brandFilters }}" as="bf" hint-placeholder-count="4">
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13.5px;color:var(--k3F5462)">
+<span style="width:16px;height:16px;border-radius:5px;border:1.5px solid {{ bf.bd }};background:{{ bf.bg }};display:grid;place-items:center;flex:0 0 auto">
+<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--kFFF)" stroke-width="3.4" stroke-linecap="round" style="opacity:{{ bf.tick }}"><path d="m5 13 4 4 10-10"></path></svg>
+</span>
+<input type="checkbox" onChange="{{ bf.onToggle }}" style="position:absolute;opacity:0;width:0;height:0" />
+{{ bf.label }}
+<span style="margin-inline-start:auto;font-size:12px;color:var(--k9AA6AC);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ bf.count }}</span>
+</label>
+</sc-for>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px;padding-bottom:20px;border-bottom:1px solid var(--kF0F2F3)">
+<span style="font-size:12.5px;font-weight:600;color:var(--k3F5462)">الطول</span>
+<div style="display:flex;flex-wrap:wrap;gap:7px">
+<sc-for list="{{ lengthFilters }}" as="lf" hint-placeholder-count="5">
+<button onClick="{{ lf.onToggle }}" style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:13px;padding:7px 11px;border-radius:8px;cursor:pointer;border:1px solid {{ lf.bd }};background:{{ lf.bg }};color:{{ lf.fg }}" dir="ltr">{{ lf.label }}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:14px;padding-bottom:20px;border-bottom:1px solid var(--kF0F2F3)">
+<span style="font-size:12.5px;font-weight:600;color:var(--k3F5462)">السعر · ر.س</span>
+<div style="position:relative;height:4px;border-radius:99px;background:var(--kE3E6E7)">
+<div style="position:absolute;inset-inline-end:0;width:62%;height:4px;border-radius:99px;background:var(--k0B3B63)"></div>
+<div style="position:absolute;inset-inline-end:calc(62% - 7px);top:-5px;width:14px;height:14px;border-radius:99px;background:var(--kFFF);border:2px solid var(--k0B3B63)"></div>
+<div style="position:absolute;inset-inline-end:-7px;top:-5px;width:14px;height:14px;border-radius:99px;background:var(--kFFF);border:2px solid var(--k0B3B63)"></div>
+</div>
+<div style="display:flex;align-items:center;gap:9px">
+<span style="flex:1;font-size:13px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;padding:8px 11px;border:1px solid var(--kE3E6E7);border-radius:8px;color:var(--k3F5462)" dir="ltr">0.50</span>
+<span style="font-size:12px;color:var(--k9AA6AC)">إلى</span>
+<span style="flex:1;font-size:13px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;padding:8px 11px;border:1px solid var(--kE3E6E7);border-radius:8px;color:var(--k3F5462)" dir="ltr">260.00</span>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:11px">
+<span style="font-size:12.5px;font-weight:600;color:var(--k3F5462)">التوفّر</span>
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13.5px;color:var(--k3F5462)"><span style="width:16px;height:16px;border-radius:5px;border:1.5px solid var(--kD7DCDF);flex:0 0 auto"></span>المتوفر فقط</label>
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13.5px;color:var(--k3F5462)"><span style="width:16px;height:16px;border-radius:5px;border:1.5px solid var(--kD7DCDF);flex:0 0 auto"></span>يشمل الطلب المسبق</label>
+</div>
+</aside>
+
+<div style="min-width:0;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+<span style="font-size:13.5px;color:var(--k64737C)">{{ modeNote }}</span>
+<div style="display:flex;align-items:center;gap:10px">
+<div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border:1px solid var(--kE3E6E7);border-radius:9px;font-size:13px;color:var(--k3F5462);cursor:pointer">
+<span>الترتيب: الأكثر مبيعاً</span>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--k64737C)" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"></path></svg>
+</div>
+<div style="display:flex;padding:3px;background:var(--kTrack);border-radius:9px;gap:3px">
+<button onClick="{{ setGrid }}" style="font-family:inherit;font-size:12.5px;font-weight:500;padding:7px 14px;border:0;border-radius:6px;cursor:pointer;background:{{ gridBtnBg }};color:{{ gridBtnC }};box-shadow:{{ gridBtnSh }}">شبكة</button>
+<button onClick="{{ setList }}" style="font-family:inherit;font-size:12.5px;font-weight:500;padding:7px 14px;border:0;border-radius:6px;cursor:pointer;background:{{ listBtnBg }};color:{{ listBtnC }};box-shadow:{{ listBtnSh }}">قائمة تقنية</button>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ blocked }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:11px;padding:13px 16px;background:var(--kFAF4EF);border:1px solid var(--kDFC0A6);border-radius:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--k8A5130)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 8v5M12 16h.01"></path></svg><span style="font-size:13px;color:var(--k5C3522);font-weight:500">حسابك تحت المراجعة — التصفّح وتحضير السلة متاح، والطلب يُفتح بعد الاعتماد.</span></div>
+</sc-if>
+
+<sc-if value="{{ isGrid }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:18px;align-items:stretch">
+<sc-for list="{{ products }}" as="p" hint-placeholder-count="6">
+<div style="border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden;background:var(--kFFF);display:flex;flex-direction:column;transition:border-color .18s,box-shadow .18s" style-hover="border-color:var(--kAFC4D6);box-shadow:0 14px 30px -22px rgba(20,41,58,.45)">
+<div onMouseMove="{{ p.onMove }}" style="position:relative;aspect-ratio:1;background:var(--kWellBg);cursor:pointer;overflow:hidden;flex:0 0 auto">
+<image-slot id="{{ p.slotId }}" src="{{ p.art }}" shape="rect" fit="contain" placeholder="{{ p.slotLabel }}" style="position:absolute;inset:0;width:100%;height:100%"></image-slot>
+<sc-if value="{{ p.multiImage }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;gap:5px;pointer-events:none">
+<i style="width:17px;height:3px;border-radius:2px;display:block;background:{{ p.dot1Bg }};transition:background .2s"></i>
+<i style="width:17px;height:3px;border-radius:2px;display:block;background:{{ p.dot2Bg }};transition:background .2s"></i>
+<sc-if value="{{ p.hasThird }}" hint-placeholder-val="{{ true }}"><i style="width:17px;height:3px;border-radius:2px;display:block;background:{{ p.dot3Bg }};transition:background .2s"></i></sc-if>
+</div>
+</sc-if>
+</div>
+<div style="padding:14px 15px 16px;display:flex;flex-direction:column;gap:6px;flex:1">
+<span style="font-size:11.5px;font-weight:500;color:var(--k64737C)">{{ p.brand }}</span>
+<span style="font-size:14px;font-weight:500;line-height:1.5;min-height:42px;display:block;overflow:hidden">{{ p.name }}</span>
+<div style="display:flex;align-items:baseline;gap:5px;margin-top:2px"><span style="font-size:19px;font-weight:600;color:var(--k0B3B63);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ p.shownPrice }}</span><span style="font-size:12px;color:var(--k64737C)">ر.س / {{ p.unit }}</span></div>
+<span style="font-size:12px;line-height:1.5;color:{{ p.wholesaleC }};min-height:36px">{{ p.wholesaleLine }}</span>
+<div style="display:flex;align-items:center;gap:6px"><i style="width:6px;height:6px;border-radius:99px;display:block;background:{{ p.stockDot }}"></i><span style="font-size:12px;color:var(--k64737C)">{{ p.stockLine }}</span></div>
+<button onClick="{{ p.onCta }}" style="font-family:inherit;margin-top:auto;font-size:13.5px;font-weight:500;height:40px;border:{{ p.ctaBorder }};border-radius:9px;background:{{ p.ctaBg }};color:{{ p.ctaC }};cursor:pointer;transition:background .15s">{{ p.cta }}</button>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="margin-top:10px;padding:20px 22px;border:1px dashed var(--kC9A78F);border-radius:12px;display:flex;flex-direction:column;gap:12px;background:var(--kFEFCFA)">
+<span style="font-size:11.5px;font-weight:600;letter-spacing:.12em;color:var(--k8A5130)">قاعدة الصف · لماذا تبدو البطاقات مستوية</span>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:500">الصورة مربّعة دائماً</span><span style="font-size:12.5px;line-height:1.7;color:var(--k64737C)">نسبة 1:1 مع احتواء الصورة داخلها، فلا يهم إن كانت صورة المورّد طويلة أو عريضة.</span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:500">الاسم بارتفاع سطرين</span><span style="font-size:12.5px;line-height:1.7;color:var(--k64737C)">ارتفاع محجوز مسبقاً، فاسم من سطر واحد لا يرفع سعره فوق جاره.</span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:500">سطر الجملة محجوز</span><span style="font-size:12.5px;line-height:1.7;color:var(--k64737C)">مساحته ثابتة سواء وُجد سعر جملة أو لا — وهذا سبب استواء الأزرار.</span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:500">الزر يُدفع للأسفل</span><span style="font-size:12.5px;line-height:1.7;color:var(--k64737C)">البطاقة عمود مرن والزر آخره، فيلتقي كل الأزرار على خط واحد.</span></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isList }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px solid var(--kE3E6E7);border-radius:12px;overflow-x:auto;overflow-y:hidden">
+<div style="min-width:880px">
+<div style="display:grid;grid-template-columns:52px minmax(150px,2fr) minmax(104px,1fr) minmax(78px,.8fr) minmax(84px,.8fr) minmax(86px,.9fr) minmax(96px,1fr) 130px;gap:12px;padding:12px 16px;background:var(--kF5F6F7);border-bottom:1px solid var(--kE3E6E7)">
+<span></span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">المنتج</span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">الرمز</span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">القياس</span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">التشطيب</span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">التوفّر</span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">{{ listPriceHead }}</span>
+<span></span>
+</div>
+<sc-for list="{{ products }}" as="p" hint-placeholder-count="6">
+<div style="display:grid;grid-template-columns:52px minmax(150px,2fr) minmax(104px,1fr) minmax(78px,.8fr) minmax(84px,.8fr) minmax(86px,.9fr) minmax(96px,1fr) 130px;gap:12px;padding:12px 16px;border-bottom:1px solid var(--kF0F2F3);align-items:center;transition:background .14s" style-hover="background:var(--kFBFBFA)">
+<div style="width:40px;height:40px;border-radius:7px;background:var(--kF5F6F7);overflow:hidden;flex:0 0 auto"><img src="{{ p.art }}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" /></div>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:13.5px;font-weight:500;line-height:1.45">{{ p.name }}</span><span style="font-size:11.5px;color:var(--k64737C)">{{ p.brand }}</span></div>
+<span style="font-size:12.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k3F5462)" dir="ltr">{{ p.sku }}</span>
+<span style="font-size:12.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k3F5462)" dir="ltr">{{ p.spec }}</span>
+<span style="font-size:12.5px;color:var(--k3F5462)">{{ p.finish }}</span>
+<div style="display:flex;align-items:center;gap:6px;min-width:0"><i style="width:6px;height:6px;border-radius:99px;display:block;flex:0 0 auto;background:{{ p.stockDot }}"></i><span style="font-size:12.5px;color:var(--k3F5462);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ p.stockShort }}</span></div>
+<div style="display:flex;flex-direction:column;gap:1px"><span style="font-size:14.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:{{ p.listPriceC }}" dir="ltr">{{ p.listPrice }}</span><span style="font-size:11.5px;color:var(--k64737C)">{{ p.listPriceNote }}</span></div>
+<button onClick="{{ p.onCta }}" style="font-family:inherit;font-size:12.5px;font-weight:500;height:34px;border:{{ p.ctaBorder }};border-radius:8px;background:{{ p.ctaBg }};color:{{ p.ctaC }};cursor:pointer">{{ p.ctaShort }}</button>
+</div>
+</sc-for>
+</div>
+</div>
+<span style="font-size:12.5px;color:var(--k64737C);line-height:1.7">القائمة التقنية تضيف عمودَي الرمز والتشطيب وتحذف الصورة الكبيرة — نفس المنتجات، كثافة مختلفة. تُحفظ آخر حالة اختارها المستخدم.</span>
+</sc-if>
+
+<div style="display:flex;align-items:center;justify-content:center;gap:7px;padding-top:22px">
+<span style="font-size:13px;font-weight:500;width:36px;height:36px;display:grid;place-items:center;border-radius:8px;background:var(--k0B3B63);color:var(--kIOA);font-family:'IBM Plex Mono',monospace" dir="ltr">1</span>
+<span style="font-size:13px;width:36px;height:36px;display:grid;place-items:center;border-radius:8px;border:1px solid var(--kE3E6E7);color:var(--k3F5462);cursor:pointer;font-family:'IBM Plex Mono',monospace" dir="ltr">2</span>
+<span style="font-size:13px;width:36px;height:36px;display:grid;place-items:center;border-radius:8px;border:1px solid var(--kE3E6E7);color:var(--k3F5462);cursor:pointer;font-family:'IBM Plex Mono',monospace" dir="ltr">3</span>
+<span style="font-size:13px;color:var(--k9AA6AC);padding:0 4px">…</span>
+<span style="font-size:13px;width:36px;height:36px;display:grid;place-items:center;border-radius:8px;border:1px solid var(--kE3E6E7);color:var(--k3F5462);cursor:pointer;font-family:'IBM Plex Mono',monospace" dir="ltr">77</span>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isPdp }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:1400px;margin:0 auto;padding:22px 40px 90px">
+<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--k64737C);margin-bottom:22px">
+<a href="TouchWood%20Home.dc.html" style="color:var(--k64737C)">الرئيسية</a><span style="color:var(--kC2CBD0)">/</span><span onClick="{{ goCat }}" style="cursor:pointer">المجاري والمفصلات</span><span style="color:var(--kC2CBD0)">/</span><span style="color:var(--k14293A);font-weight:500">مجرى درج سوفت كلوز</span>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,460px);gap:44px;align-items:start">
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="position:relative;aspect-ratio:4/3;background:var(--kWellBg);border-radius:14px;overflow:hidden">
+<image-slot id="{{ galleryId }}" src="{{ galleryArt }}" shape="rect" fit="contain" placeholder="{{ galleryLabel }}" style="position:absolute;inset:0;width:100%;height:100%"></image-slot>
+</div>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+<sc-for list="{{ gallery }}" as="g" hint-placeholder-count="4">
+<button onClick="{{ g.onPick }}" style="font-family:inherit;position:relative;aspect-ratio:1;background:{{ g.bg }};border-radius:10px;overflow:hidden;cursor:pointer;padding:0;border:1.5px solid {{ g.bd }};transition:border-color .15s">
+<img src="{{ g.art }}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;opacity:{{ g.op }}" />
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="font-size:11.5px;font-weight:600;letter-spacing:.1em;color:var(--k64737C)">TOUCHWOOD</span>
+<span style="font-size:11px;font-weight:600;padding:4px 9px;border-radius:6px;background:var(--kEEF2F5);color:var(--k0B3B63)">الأكثر مبيعاً</span>
+</div>
+<h1 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.3">مجرى درج سوفت كلوز</h1>
+<div style="display:flex;align-items:center;gap:12px">
+<span style="font-size:13px;color:var(--k64737C)">الرمز <b style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k14293A);font-weight:500" dir="ltr">{{ sku }}</b></span>
+<span style="width:1px;height:13px;background:var(--kE3E6E7);display:block"></span>
+<span style="font-size:13px;color:var(--k64737C)">4.6 · <span style="color:var(--k0B3B63);font-weight:500">128 تقييماً</span></span>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px;padding:20px;border:1px solid {{ priceBoxBd }};border-radius:12px;background:{{ priceBoxBg }}">
+<sc-if value="{{ showModePicker }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;padding:3px;background:var(--kEEF1F2);border-radius:9px;gap:3px">
+<button onClick="{{ pickRetail }}" style="font-family:inherit;flex:1;font-size:13px;font-weight:500;padding:9px 0;border:0;border-radius:7px;cursor:pointer;background:{{ retailTabBg }};color:{{ retailTabC }};box-shadow:{{ retailTabSh }}">شراء بالتجزئة</button>
+<button onClick="{{ pickWholesale }}" style="font-family:inherit;flex:1;font-size:13px;font-weight:500;padding:9px 0;border:0;border-radius:7px;cursor:pointer;background:{{ wholeTabBg }};color:{{ wholeTabC }};box-shadow:{{ wholeTabSh }}">شراء بالجملة</button>
+</div>
+</sc-if>
+<div style="display:flex;align-items:baseline;gap:8px">
+<span style="font-size:36px;font-weight:600;color:{{ priceColor }};font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;letter-spacing:-.01em" dir="ltr">{{ activePrice }}</span>
+<span style="font-size:14px;color:var(--k64737C)">ر.س / للحبة</span>
+</div>
+<span style="font-size:13.5px;line-height:1.7;color:{{ priceNoteC }}">{{ priceNote }}</span>
+<sc-if value="{{ wholesaleHint }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:9px;padding-top:12px;border-top:1px dashed var(--kDFC0A6)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--k8A5130)" stroke-width="1.9" stroke-linecap="round"><path d="M3 8h11v8H3zM14 11h4l3 3v2h-7z"></path><circle cx="7" cy="18" r="1.5"></circle><circle cx="17" cy="18" r="1.5"></circle></svg>
+<span style="font-size:13px;color:var(--k5C3522)">{{ wholesaleHint }}</span>
+</div>
+</sc-if>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:13.5px;font-weight:500;color:var(--k3F5462)">الطول</span><span style="font-size:12.5px;color:var(--k64737C)">{{ lengthNote }}</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:8px">
+<sc-for list="{{ lengths }}" as="l" hint-placeholder-count="4">
+<button onClick="{{ l.onPick }}" style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:14px;padding:10px 16px;border-radius:9px;cursor:{{ l.cursor }};border:{{ l.bd }};background:{{ l.bg }};color:{{ l.fg }};text-decoration:{{ l.deco }};transition:border-color .15s,background .15s" dir="ltr">{{ l.label }}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:13.5px;font-weight:500;color:var(--k3F5462)">التشطيب</span><span style="font-size:12.5px;color:var(--k64737C)">{{ finishNote }}</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:8px">
+<sc-for list="{{ finishes }}" as="fn" hint-placeholder-count="2">
+<button onClick="{{ fn.onPick }}" style="font-family:inherit;display:flex;align-items:center;gap:9px;font-size:14px;padding:10px 16px;border-radius:9px;cursor:{{ fn.cursor }};border:{{ fn.bd }};background:{{ fn.bg }};color:{{ fn.fg }};text-decoration:{{ fn.deco }};transition:border-color .15s,background .15s">
+<i style="width:14px;height:14px;border-radius:5px;display:block;background:{{ fn.swatch }};border:1px solid rgba(20,41,58,.18)"></i>{{ fn.label }}
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:11px;padding-top:6px">
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;border:1px solid var(--kE3E6E7);border-radius:10px;overflow:hidden;height:48px">
+<button onClick="{{ decQty }}" style="font-family:inherit;width:44px;height:48px;border:0;background:var(--kFFF);cursor:pointer;font-size:19px;color:var(--k3F5462);transition:background .15s" style-hover="background:var(--kF5F6F7)">−</button>
+<span style="width:62px;text-align:center;font-size:15px;font-weight:500;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ qty }}</span>
+<button onClick="{{ incQty }}" style="font-family:inherit;width:44px;height:48px;border:0;background:var(--kFFF);cursor:pointer;font-size:19px;color:var(--k3F5462);transition:background .15s" style-hover="background:var(--kF5F6F7)">+</button>
+</div>
+<button onClick="{{ addToCart }}" style="font-family:inherit;flex:1;min-width:180px;height:48px;font-size:14.5px;font-weight:500;border:{{ addBorder }};border-radius:10px;background:{{ addBg }};color:{{ addC }};cursor:pointer;transition:background .15s">{{ addLabel }}</button>
+<button style="font-family:inherit;width:48px;height:48px;border:1px solid var(--kE3E6E7);border-radius:10px;background:var(--kFFF);cursor:pointer;display:grid;place-items:center;transition:border-color .15s" style-hover="border-color:var(--kAFC4D6)">
+<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--k64737C)" stroke-width="1.8" stroke-linecap="round"><path d="M12 20s-7-4.5-7-9.5A4 4 0 0 1 12 8a4 4 0 0 1 7 2.5C19 15.5 12 20 12 20Z"></path></svg>
+</button>
+</div>
+<span style="font-size:12.5px;color:{{ qtyNoteC }}">{{ qtyNote }}</span>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px;padding-top:16px;border-top:1px solid var(--kE3E6E7)">
+<div style="display:flex;align-items:center;gap:9px"><i style="width:7px;height:7px;border-radius:99px;display:block;background:{{ stockDot }}"></i><span style="font-size:13.5px;color:var(--k3F5462)">{{ stockLine }}</span></div>
+<div style="display:flex;align-items:center;gap:9px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--k64737C)" stroke-width="1.7" stroke-linecap="round"><path d="M3 8h11v8H3zM14 11h4l3 3v2h-7z"></path><circle cx="7" cy="18" r="1.5"></circle><circle cx="17" cy="18" r="1.5"></circle></svg><span style="font-size:13.5px;color:var(--k3F5462)">التوصيل خلال 2–4 أيام عمل · مجاناً فوق 1,000 ر.س</span></div>
+<div style="display:flex;align-items:center;gap:9px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--k64737C)" stroke-width="1.7" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"></path><path d="M21 4v5h-5"></path></svg><span style="font-size:13.5px;color:var(--k3F5462)">إرجاع خلال 14 يوماً بالفاتورة</span></div>
+</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,460px);gap:44px;margin-top:54px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:0;border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden">
+<div style="display:flex;border-bottom:1px solid var(--kE3E6E7);background:var(--kFBFBFA)">
+<span style="font-size:13.5px;font-weight:500;padding:15px 20px;color:var(--k0B3B63);box-shadow:inset 0 -2px 0 var(--k0B3B63)">المواصفات</span>
+<span style="font-size:13.5px;padding:15px 20px;color:var(--k64737C);cursor:pointer">التركيب</span>
+<span style="font-size:13.5px;padding:15px 20px;color:var(--k64737C);cursor:pointer">الإرجاع والضمان</span>
+</div>
+<sc-for list="{{ specs }}" as="sp" hint-placeholder-count="7">
+<div style="display:grid;grid-template-columns:minmax(92px,.62fr) minmax(0,1fr);gap:18px;padding:13px 20px;border-bottom:1px solid var(--kF0F2F3);align-items:baseline">
+<span style="font-size:13px;color:var(--k64737C);line-height:1.6">{{ sp.k }}</span>
+<span style="font-size:13.5px;color:var(--k14293A);line-height:1.6;font-family:{{ sp.font }};unicode-bidi:isolate" dir="{{ sp.dir }}">{{ sp.v }}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:14px">
+<span style="font-size:11.5px;font-weight:600;letter-spacing:.12em;color:var(--k8A5130)">أكمل التركيبة</span>
+<sc-for list="{{ addons }}" as="ad" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--kE3E6E7);border-radius:11px;transition:border-color .15s" style-hover="border-color:var(--kAFC4D6)">
+<div style="width:44px;height:44px;border-radius:8px;background:var(--kF5F6F7);overflow:hidden;flex:0 0 auto"><img src="{{ ad.art }}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" /></div>
+<div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0"><span style="font-size:13.5px;font-weight:500;line-height:1.45">{{ ad.name }}</span><span style="font-size:12.5px;color:var(--k0B3B63);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ ad.price }}</span></div>
+<button onClick="{{ ad.onAdd }}" style="font-family:inherit;font-size:12.5px;font-weight:500;height:34px;padding:0 14px;border:1px solid var(--kE3E6E7);border-radius:8px;background:var(--kFFF);color:var(--k14293A);cursor:pointer;flex:0 0 auto;transition:background .15s" style-hover="background:var(--kF1F5F8)">أضف</button>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="margin-top:54px;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:20px;flex-wrap:wrap">
+<h2 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em">تقييمات المشترين</h2>
+<span style="font-size:13.5px;color:var(--k64737C)">4.6 من 5 · 128 تقييماً</span>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+<sc-for list="{{ reviews }}" as="rv" hint-placeholder-count="2">
+<div style="border:1px solid var(--kE3E6E7);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+<span style="font-size:13.5px;font-weight:500">{{ rv.author }}</span>
+<span style="font-size:11px;font-weight:600;padding:4px 8px;border-radius:6px;background:var(--kEAF5F0);color:var(--k1F7A5C)">شراء موثّق</span>
+<span style="font-size:12px;color:var(--k64737C);margin-inline-start:auto;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ rv.date }}</span>
+</div>
+<span style="font-size:12.5px;color:var(--k64737C)">التركيبة المشتراة: <b style="color:var(--k3F5462);font-weight:500">{{ rv.config }}</b></span>
+<p style="margin:0;font-size:14px;line-height:1.8;color:var(--k3F5462)" dir="{{ rv.dir }}">{{ rv.body }}</p>
+<sc-if value="{{ rv.showTranslate }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ rv.onTranslate }}" style="font-family:inherit;align-self:flex-start;font-size:12.5px;font-weight:500;color:var(--k0B3B63);background:transparent;border:0;padding:0;cursor:pointer">{{ rv.translateLabel }}</button>
+</sc-if>
+</div>
+</sc-for>
+</div>
+<span style="font-size:12.5px;color:var(--k64737C);line-height:1.7">زر الترجمة يظهر فقط حين تختلف لغة التقييم عن لغة الواجهة، وبعد الترجمة يتحوّل إلى «عرض النص الأصلي».</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isB2B }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:1400px;margin:0 auto;padding:26px 40px 90px">
+<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--k64737C);margin-bottom:18px"><span>الرئيسية</span><span>›</span><span>حسابي</span><span>›</span><span style="color:var(--k14293A)">حساب شركة</span></div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,352px);gap:28px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:18px;min-width:0">
+
+<div style="display:flex;align-items:flex-start;gap:14px;padding:18px 20px;border:1px solid {{ b2bBannerBorder }};background:{{ b2bBannerBg }};border-radius:12px">
+<i style="width:9px;height:9px;border-radius:99px;margin-top:6px;flex:0 0 auto;display:block;background:{{ b2bBannerDot }}"></i>
+<div style="display:flex;flex-direction:column;gap:5px;min-width:0">
+<span style="font-size:15px;font-weight:600;color:{{ b2bBannerC }}">{{ b2bBannerTitle }}</span>
+<span style="font-size:13.5px;line-height:1.75;color:var(--k3F5462)">{{ b2bBannerBody }}</span>
+</div>
+</div>
+
+<sc-if value="{{ b2bShowForm }}" hint-placeholder-val="{{ true }}">
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;padding:26px 24px;display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;flex-direction:column;gap:5px">
+<h2 style="margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em">بيانات المنشأة</h2>
+<span style="font-size:12.5px;color:var(--k64737C)">كما هي في السجل التجاري</span>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+<label style="display:flex;flex-direction:column;gap:7px"><span style="font-size:12.5px;font-weight:500;color:var(--k3F5462)">اسم الشركة</span><input placeholder="مؤسسة النجارة الحديثة" style="height:44px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:9px;background:var(--kFBFBFA);font-family:inherit;font-size:14px;color:var(--k14293A);outline:none" /></label>
+<label style="display:flex;flex-direction:column;gap:7px"><span style="font-size:12.5px;font-weight:500;color:var(--k3F5462)">نوع المنشأة</span>
+<select style="height:44px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:9px;background:var(--kFBFBFA);font-family:inherit;font-size:14px;color:var(--k14293A);outline:none">
+<option>ورشة نجارة</option><option>مقاول تشطيبات</option><option>مكتب تصميم داخلي</option><option>معرض / موزّع</option><option>مصنع أثاث</option>
+</select></label>
+<label style="display:flex;flex-direction:column;gap:7px"><span style="font-size:12.5px;font-weight:500;color:var(--k3F5462)">رقم السجل التجاري</span><input placeholder="1010XXXXXX" dir="ltr" style="height:44px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:9px;background:var(--kFBFBFA);font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--k14293A);outline:none" /></label>
+<label style="display:flex;flex-direction:column;gap:7px"><span style="font-size:12.5px;font-weight:500;color:var(--k3F5462)">الرقم الضريبي</span><input placeholder="3000XXXXXXXXXX3" dir="ltr" style="height:44px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:9px;background:var(--kFBFBFA);font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--k14293A);outline:none" /></label>
+</div>
+
+<div style="height:1px;background:var(--kE3E6E7)"></div>
+
+<div style="display:flex;flex-direction:column;gap:5px">
+<h2 style="margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em">الشخص المسؤول</h2>
+<span style="font-size:12.5px;color:var(--k64737C)">من يتواصل معه فريق المبيعات ويستلم التحديثات</span>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+<label style="display:flex;flex-direction:column;gap:7px"><span style="font-size:12.5px;font-weight:500;color:var(--k3F5462)">الاسم</span><input placeholder="الاسم الكامل" style="height:44px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:9px;background:var(--kFBFBFA);font-family:inherit;font-size:14px;color:var(--k14293A);outline:none" /></label>
+<label style="display:flex;flex-direction:column;gap:7px"><span style="font-size:12.5px;font-weight:500;color:var(--k3F5462)">جوال المسؤول</span><input placeholder="05XXXXXXXX" dir="ltr" style="height:44px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:9px;background:var(--kFBFBFA);font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--k14293A);outline:none" /></label>
+</div>
+
+<div style="height:1px;background:var(--kE3E6E7)"></div>
+
+<div style="display:flex;flex-direction:column;gap:5px">
+<h2 style="margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em">العنوان الوطني</h2>
+<span style="font-size:12.5px;color:var(--k64737C)">يُستخدم في الفاتورة الضريبية وبوليصة الشحن</span>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+<sc-for list="{{ addressFields }}" as="f" hint-placeholder-count="6">
+<label style="display:flex;flex-direction:column;gap:7px"><span style="font-size:12.5px;font-weight:500;color:var(--k3F5462)">{{ f.label }}</span><input placeholder="{{ f.hint }}" style="height:44px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:9px;background:var(--kFBFBFA);font-family:inherit;font-size:14px;color:var(--k14293A);outline:none" /></label>
+</sc-for>
+</div>
+
+<div style="height:1px;background:var(--kE3E6E7)"></div>
+
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap">
+<div style="display:flex;flex-direction:column;gap:5px">
+<h2 style="margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em">المستندات</h2>
+<span style="font-size:12.5px;color:var(--k64737C)">PDF أو JPEG أو PNG · حتى 10 ميجابايت للملف</span>
+</div>
+<span style="font-size:12px;color:var(--k64737C)">{{ docsDone }}</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ docs }}" as="d" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid {{ d.border }};border-radius:11px;background:{{ d.bg }}">
+<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="{{ d.iconC }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"></path><path d="M14 3v5h5"></path></svg>
+<div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+<span style="font-size:13.5px;font-weight:500">{{ d.name }}</span>
+<span style="font-size:12px;color:var(--k64737C)">{{ d.hint }}</span>
+</div>
+<span style="font-size:12px;font-weight:500;color:{{ d.stateC }}">{{ d.stateLabel }}</span>
+<button onClick="{{ d.onPick }}" style="font-family:inherit;font-size:12.5px;font-weight:500;height:34px;padding:0 15px;border:1px solid var(--kE3E6E7);border-radius:8px;background:var(--kFFF);color:var(--k0B3B63);cursor:pointer;flex:0 0 auto;transition:background .15s" style-hover="background:var(--kF5F6F7)">{{ d.action }}</button>
+</div>
+</sc-for>
+</div>
+
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-top:6px">
+<button onClick="{{ submitB2B }}" style="font-family:inherit;font-size:14.5px;font-weight:500;height:48px;padding:0 26px;border:0;border-radius:10px;background:var(--k0B3B63);color:var(--kIOA);cursor:pointer;transition:background .15s" style-hover="background:var(--k082C4B)">{{ b2bSubmitLabel }}</button>
+<span style="font-size:12.5px;color:var(--k64737C);line-height:1.7;max-width:46ch">المراجعة عادة خلال يومَي عمل. تصلك رسالة على بريد الحساب وجوال المسؤول.</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ b2bShowSummary }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;overflow:hidden">
+<div style="padding:18px 22px;border-bottom:1px solid var(--kE3E6E7);background:var(--kFBFBFA);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+<span style="font-size:15px;font-weight:600">الطلب المقدَّم</span>
+<span style="font-size:12.5px;color:var(--k64737C);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ b2bRef }}</span>
+</div>
+<sc-for list="{{ b2bSummary }}" as="r" hint-placeholder-count="6">
+<div style="display:grid;grid-template-columns:minmax(0,180px) minmax(0,1fr);gap:16px;padding:13px 22px;border-bottom:1px solid var(--kF0F2F3)">
+<span style="font-size:12.5px;color:var(--k64737C)">{{ r.k }}</span>
+<span style="font-size:13.5px;font-family:{{ r.font }};unicode-bidi:isolate" dir="{{ r.dir }}">{{ r.v }}</span>
+</div>
+</sc-for>
+<div style="padding:16px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<sc-for list="{{ b2bDocChips }}" as="c" hint-placeholder-count="3">
+<span style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:7px 12px;border-radius:8px;background:var(--kEAF5F0);color:var(--k1F7A5C);font-weight:500"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m5 13 4 4 10-10"></path></svg>{{ c.name }}</span>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+</div>
+
+<div style="display:flex;flex-direction:column;gap:14px;position:sticky;top:96px">
+<div style="border:1px solid var(--kE3E6E7);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px">
+<span style="font-size:14px;font-weight:600">ماذا يحدث بعد التقديم</span>
+<sc-for list="{{ b2bSteps }}" as="s" hint-placeholder-count="4">
+<div style="display:flex;align-items:flex-start;gap:11px">
+<span style="width:22px;height:22px;border-radius:99px;display:grid;place-items:center;flex:0 0 auto;font-size:11.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;background:{{ s.bg }};color:{{ s.c }}" dir="ltr">{{ s.n }}</span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:13px;font-weight:500">{{ s.t }}</span><span style="font-size:12px;color:var(--k64737C);line-height:1.6">{{ s.d }}</span></div>
+</div>
+</sc-for>
+</div>
+
+<div style="border:1px solid var(--kDFC0A6);background:var(--kFAF4EF);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:10px">
+<span style="font-size:13.5px;font-weight:600;color:var(--k5C3522)">الدفع لحسابات الشركات</span>
+<span style="font-size:12.5px;line-height:1.75;color:var(--k5C3522)">طلبات الشركات تُسدَّد بالتحويل البنكي فقط — لا دفع إلكتروني ولا تقسيط ولا آجل. يظهر الآيبان بعد اعتماد الحساب.</span>
+<sc-if value="{{ b2bShowIban }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--kDFC0A6);border-radius:9px;background:var(--kFFF)">
+<span style="font-size:13px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">SA03 8000 0000 6080 1016 7519</span>
+<button onClick="{{ copyIban }}" style="font-family:inherit;font-size:12px;font-weight:500;height:30px;padding:0 11px;border:1px solid var(--kDFC0A6);border-radius:7px;background:transparent;color:var(--k5C3522);cursor:pointer">نسخ</button>
+</div>
+</sc-if>
+</div>
+
+<div style="border:1px solid var(--kE3E6E7);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:9px">
+<span style="font-size:13.5px;font-weight:600">قبل الاعتماد</span>
+<span style="font-size:12.5px;line-height:1.75;color:var(--k3F5462)">تقدر تتصفّح وتجهّز السلة وتشوف أسعار الشركات — لكن إتمام الطلب يُفتح بعد الاعتماد.</span>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isOrder }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:1400px;margin:0 auto;padding:26px 40px 90px">
+
+<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:26px 28px;border:1px solid var(--kE3E6E7);border-radius:14px;margin-bottom:20px">
+<span style="width:46px;height:46px;border-radius:99px;display:grid;place-items:center;flex:0 0 auto;background:var(--kEAF5F0)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--k1F7A5C)" stroke-width="2.2" stroke-linecap="round"><path d="m5 13 4 4 10-10"></path></svg></span>
+<div style="display:flex;flex-direction:column;gap:5px;min-width:0;flex:1">
+<h1 style="margin:0;font-size:26px;font-weight:600;letter-spacing:-.02em">تم استلام طلبك</h1>
+<span style="font-size:13.5px;color:var(--k3F5462);line-height:1.7">كل الطلبات تمر بمراجعة يدوية من فريقنا قبل التجهيز. تصلك رسالة بكل تغيّر في الحالة.</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+<span style="font-size:11.5px;color:var(--k64737C)">رقم الطلب</span>
+<span style="font-size:20px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k0B3B63)" dir="ltr">TW-10428</span>
+</div>
+</div>
+
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+<span style="font-size:11.5px;font-weight:600;letter-spacing:.1em;color:var(--k64737C)">عرض المراجعة · حالة الطلب</span>
+<div style="display:flex;padding:3px;background:var(--kTrack);border-radius:9px;gap:3px">
+<sc-for list="{{ statusTabs }}" as="t" hint-placeholder-count="4">
+<button onClick="{{ t.onPick }}" style="font-family:inherit;font-size:12.5px;font-weight:500;padding:7px 14px;border:0;border-radius:6px;cursor:pointer;background:{{ t.bg }};color:{{ t.c }}">{{ t.label }}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;padding:26px 28px;margin-bottom:20px">
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0">
+<sc-for list="{{ steps }}" as="st" hint-placeholder-count="4">
+<div style="display:flex;flex-direction:column;gap:11px;position:relative;padding-inline-end:12px">
+<div style="display:flex;align-items:center;gap:0">
+<span style="width:26px;height:26px;border-radius:99px;display:grid;place-items:center;flex:0 0 auto;background:{{ st.dotBg }};color:{{ st.dotC }};font-size:12px;font-weight:600;font-family:'IBM Plex Mono',monospace" dir="ltr">{{ st.n }}</span>
+<i style="flex:1;height:2px;display:block;background:{{ st.lineBg }}"></i>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="font-size:13.5px;font-weight:500;color:{{ st.labelC }}">{{ st.label }}</span>
+<span style="font-size:12px;color:var(--k64737C);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ st.when }}</span>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,372px);gap:22px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:18px;min-width:0">
+
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;overflow:hidden">
+<div style="padding:16px 20px;border-bottom:1px solid var(--kE3E6E7);background:var(--kFBFBFA);display:flex;align-items:center;justify-content:space-between">
+<span style="font-size:14.5px;font-weight:600">أصناف الطلب</span>
+<span style="font-size:12.5px;color:var(--k64737C)">{{ orderLineCount }}</span>
+</div>
+<sc-for list="{{ orderLines }}" as="l" hint-placeholder-count="3">
+<div style="display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:16px;padding:16px 20px;border-bottom:1px solid var(--kF0F2F3);align-items:center">
+<div style="width:64px;height:64px;border-radius:9px;background:var(--kWellBg);overflow:hidden;flex:0 0 auto;position:relative"><image-slot id="{{ l.slotId }}" src="{{ l.art }}" shape="rect" fit="cover" placeholder="{{ l.name }}" style="position:absolute;inset:0;width:100%;height:100%"></image-slot></div>
+<div style="display:flex;flex-direction:column;gap:5px;min-width:0">
+<span style="font-size:14px;font-weight:500;line-height:1.5">{{ l.name }}</span>
+<div style="display:flex;gap:7px;flex-wrap:wrap">
+<span style="font-size:11.5px;padding:4px 9px;border-radius:6px;background:var(--kF5F6F7);color:var(--k3F5462);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ l.sku }}</span>
+<span style="font-size:11.5px;padding:4px 9px;border-radius:6px;background:var(--kF5F6F7);color:var(--k3F5462)">{{ l.variant }}</span>
+<span style="font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:6px;background:{{ l.modeBg }};color:{{ l.modeC }}">{{ l.modeLabel }}</span>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end">
+<span style="font-size:14.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ l.total }}</span>
+<span style="font-size:11.5px;color:var(--k64737C)">{{ l.unitNote }}</span>
+</div>
+</div>
+</sc-for>
+<div style="padding:18px 20px;display:flex;flex-direction:column;gap:9px">
+<sc-for list="{{ orderTotals }}" as="t" hint-placeholder-count="5">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+<span style="font-size:{{ t.size }};font-weight:{{ t.weight }};color:{{ t.labelC }}">{{ t.k }}</span>
+<span style="font-size:{{ t.size }};font-weight:{{ t.weight }};color:{{ t.valueC }};font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ t.v }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;padding:22px 24px;display:flex;flex-direction:column;gap:14px">
+<span style="font-size:14.5px;font-weight:600">عنوان التسليم</span>
+<div style="display:flex;flex-direction:column;gap:5px">
+<span style="font-size:13.5px;font-weight:500">{{ shipName }}</span>
+<span style="font-size:13px;color:var(--k3F5462);line-height:1.8">{{ shipAddress }}</span>
+<span style="font-size:13px;color:var(--k3F5462);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ shipPhone }}</span>
+</div>
+<span style="font-size:12px;color:var(--k64737C);line-height:1.7">العنوان محفوظ كنسخة داخل الطلب — تعديله في دفتر العناوين لا يغيّر هذا الطلب.</span>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:14px;position:sticky;top:96px">
+
+<div style="border:1px solid {{ trackBorder }};border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:13px;background:{{ trackBg }}">
+<span style="font-size:14px;font-weight:600">{{ trackTitle }}</span>
+<sc-if value="{{ hasTracking }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="font-size:12.5px;color:var(--k64737C)">شركة الشحن</span><span style="font-size:13px;font-weight:500">{{ carrier }}</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="font-size:12.5px;color:var(--k64737C)">رقم التتبع</span><span style="font-size:13px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ trackingNo }}</span></div>
+<button onClick="{{ openTracking }}" style="font-family:inherit;font-size:13.5px;font-weight:500;height:42px;border:0;border-radius:9px;background:var(--k0B3B63);color:var(--kIOA);cursor:pointer;margin-top:4px;transition:background .15s" style-hover="background:var(--k082C4B)">تتبّع الشحنة</button>
+</div>
+</sc-if>
+<sc-if value="{{ noTracking }}" hint-placeholder-val="{{ true }}">
+<span style="font-size:12.5px;color:var(--k3F5462);line-height:1.75">{{ trackNote }}</span>
+</sc-if>
+</div>
+
+<div style="border:1px solid {{ payBorder }};background:{{ payBg }};border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px">
+<span style="font-size:14px;font-weight:600;color:{{ payTitleC }}">{{ payTitle }}</span>
+<span style="font-size:12.5px;line-height:1.75;color:{{ payBodyC }}">{{ payBody }}</span>
+<sc-if value="{{ payShowIban }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--kDFC0A6);border-radius:9px;background:var(--kFFF)">
+<span style="font-size:13px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">SA03 8000 0000 6080 1016 7519</span>
+<button onClick="{{ copyIban }}" style="font-family:inherit;font-size:12px;font-weight:500;height:30px;padding:0 11px;border:1px solid var(--kDFC0A6);border-radius:7px;background:transparent;color:var(--k5C3522);cursor:pointer">نسخ</button>
+</div>
+<button onClick="{{ uploadReceipt }}" style="font-family:inherit;font-size:13.5px;font-weight:500;height:42px;border:1px solid var(--kDFC0A6);border-radius:9px;background:var(--kFFF);color:var(--k5C3522);cursor:pointer">إرفاق إيصال التحويل</button>
+</sc-if>
+</div>
+
+<div style="border:1px solid var(--kE3E6E7);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:11px">
+<span style="font-size:14px;font-weight:600">نقاط هذا الطلب</span>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:24px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k0B3B63)" dir="ltr">{{ orderPoints }}</span><span style="font-size:12.5px;color:var(--k64737C)">نقطة</span></div>
+<span style="font-size:12px;color:var(--k64737C);line-height:1.7">{{ pointsNote }}</span>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:9px">
+<button onClick="{{ cancelOrder }}" style="font-family:inherit;font-size:13.5px;font-weight:500;height:44px;border:1px solid {{ cancelBorder }};border-radius:9px;background:transparent;color:{{ cancelC }};cursor:{{ cancelCursor }}">{{ cancelLabel }}</button>
+<span style="font-size:12px;color:var(--k64737C);line-height:1.7">{{ cancelNote }}</span>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isCartScreen }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:1400px;margin:0 auto;padding:30px 40px 90px">
+<h1 style="margin:0 0 6px;font-size:34px;font-weight:600;letter-spacing:-.025em">سلة التسوّق</h1>
+<span style="font-size:14px;color:var(--k64737C)">{{ cartSummaryLine }}</span>
+
+<sc-if value="{{ cartEmpty }}" hint-placeholder-val="{{ false }}">
+<div style="margin-top:34px;border:1px solid var(--kE3E6E7);border-radius:14px;padding:70px 40px;display:flex;flex-direction:column;align-items:center;gap:14px">
+<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--kC2CBD0)" stroke-width="1.5" stroke-linecap="round"><path d="M6 7h12l-1 12H7L6 7Z"></path><path d="M9.5 7V5.5a2.5 2.5 0 0 1 5 0V7"></path></svg>
+<span style="font-size:17px;font-weight:600">سلتك فارغة</span>
+<span style="font-size:14px;color:var(--k64737C);text-align:center;max-width:40ch;line-height:1.75">ابدأ من المجاري والمفصلات — أكثر ما يُشترى في التجزئة والجملة.</span>
+<button onClick="{{ goCat }}" style="font-family:inherit;margin-top:6px;font-size:14px;font-weight:500;padding:0 24px;height:46px;border:0;border-radius:10px;background:var(--k0B3B63);color:var(--kIOA);cursor:pointer">تصفّح الفئة</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ cartHasItems }}" hint-placeholder-val="{{ true }}">
+<div style="margin-top:28px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,392px);gap:32px;align-items:start">
+
+<div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+<sc-if value="{{ blocked }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:flex-start;gap:12px;padding:16px 18px;background:var(--kFAF4EF);border:1px solid var(--kDFC0A6);border-radius:12px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--k8A5130)" stroke-width="2" stroke-linecap="round" style="flex:0 0 auto;margin-top:1px"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13.5px;font-weight:600;color:var(--k5C3522)">حساب الشركة تحت المراجعة</span><span style="font-size:13px;line-height:1.7;color:var(--k5C3522)">سلتك محفوظة كما هي. إتمام الطلب يُفتح بعد الاعتماد — عادة خلال يومَي عمل — ولن تحتاج إلى إعادة إضافة أي قطعة.</span></div>
+</div>
+</sc-if>
+
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;overflow:hidden">
+<sc-for list="{{ cartItems }}" as="it" hint-placeholder-count="3">
+<div style="display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:18px;padding:20px;border-bottom:1px solid var(--kF0F2F3);align-items:start">
+<div style="width:96px;height:96px;border-radius:10px;background:var(--kF5F6F7);overflow:hidden;flex:0 0 auto"><img src="{{ it.art }}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" /></div>
+<div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+<span style="font-size:11.5px;font-weight:500;color:var(--k64737C)">{{ it.brand }}</span>
+<span style="font-size:15px;font-weight:500;line-height:1.5">{{ it.name }}</span>
+<div style="display:flex;flex-wrap:wrap;gap:7px">
+<span style="font-size:11.5px;padding:4px 9px;border-radius:6px;background:var(--kF5F6F7);color:var(--k3F5462);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ it.sku }}</span>
+<sc-for list="{{ it.attrs }}" as="at" hint-placeholder-count="2">
+<span style="font-size:11.5px;padding:4px 9px;border-radius:6px;background:var(--kF5F6F7);color:var(--k3F5462)">{{ at.v }}</span>
+</sc-for>
+<span style="font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:6px;background:{{ it.modeBg }};color:{{ it.modeC }}">{{ it.modeLabel }}</span>
+</div>
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:2px">
+<div style="display:flex;align-items:center;border:1px solid var(--kE3E6E7);border-radius:9px;overflow:hidden;height:38px">
+<button onClick="{{ it.onDec }}" style="font-family:inherit;width:36px;height:38px;border:0;background:var(--kFFF);cursor:pointer;font-size:17px;color:var(--k3F5462);transition:background .15s" style-hover="background:var(--kF5F6F7)">−</button>
+<span style="width:54px;text-align:center;font-size:14px;font-weight:500;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ it.qty }}</span>
+<button onClick="{{ it.onInc }}" style="font-family:inherit;width:36px;height:38px;border:0;background:var(--kFFF);cursor:pointer;font-size:17px;color:var(--k3F5462);transition:background .15s" style-hover="background:var(--kF5F6F7)">+</button>
+</div>
+<button onClick="{{ it.onRemove }}" style="font-family:inherit;font-size:12.5px;color:var(--k64737C);background:transparent;border:0;cursor:pointer;padding:0">إزالة</button>
+<button style="font-family:inherit;font-size:12.5px;color:var(--k0B3B63);background:transparent;border:0;cursor:pointer;padding:0;font-weight:500">حفظ لاحقاً</button>
+</div>
+<sc-if value="{{ it.warn }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:8px;background:var(--kFAF4EF);margin-top:2px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--k8A5130)" stroke-width="2" stroke-linecap="round" style="flex:0 0 auto"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 8v5M12 16h.01"></path></svg><span style="font-size:12px;color:var(--k5C3522);font-weight:500;line-height:1.5">{{ it.warn }}</span></div>
+</sc-if>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex:0 0 auto">
+<span style="font-size:17px;font-weight:600;color:var(--k0B3B63);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ it.lineTotal }}</span>
+<span style="font-size:12px;color:var(--k64737C)" dir="rtl">{{ it.unitNote }}</span>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:0 4px">
+<button onClick="{{ goCat }}" style="font-family:inherit;font-size:13.5px;font-weight:500;color:var(--k0B3B63);background:transparent;border:0;cursor:pointer;padding:0">← متابعة التسوّق</button>
+<button onClick="{{ clearCart }}" style="font-family:inherit;font-size:13px;color:var(--k64737C);background:transparent;border:0;cursor:pointer;padding:0">إفراغ السلة</button>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:14px;position:sticky;top:96px">
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:14px">
+<span style="font-size:16px;font-weight:600">ملخّص الطلب</span>
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:13.5px;color:var(--k3F5462)">المجموع الفرعي</span><span style="font-size:14px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-weight:500" dir="ltr">{{ subtotal }}</span></div>
+<sc-if value="{{ pointsApplied }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:13.5px;color:var(--k1F7A5C)">خصم النقاط</span><span style="font-size:14px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-weight:500;color:var(--k1F7A5C)" dir="ltr">−{{ pointsValue }}</span></div>
+</sc-if>
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:13.5px;color:var(--k3F5462)">الشحن</span><span style="font-size:14px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-weight:500;color:{{ shipC }}" dir="{{ shipDir }}">{{ shipping }}</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:13.5px;color:var(--k3F5462)">ضريبة القيمة المضافة 15%</span><span style="font-size:14px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-weight:500" dir="ltr">{{ vat }}</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding-top:14px;border-top:1px solid var(--kE3E6E7)"><span style="font-size:15px;font-weight:600">الإجمالي</span><div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:25px;font-weight:600;color:var(--k0B3B63);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ total }}</span><span style="font-size:13px;color:var(--k64737C)">ر.س</span></div></div>
+<sc-if value="{{ freeShipHint }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:7px;padding:12px 14px;border-radius:10px;background:var(--kF1F5F8)">
+<span style="font-size:12.5px;color:var(--k0B3B63);font-weight:500">{{ freeShipHint }}</span>
+<div style="height:4px;border-radius:99px;background:var(--kDCE6EE);overflow:hidden"><div style="height:4px;border-radius:99px;background:var(--k0B3B63);width:{{ freeShipPct }}"></div></div>
+</div>
+</sc-if>
+<button onClick="{{ checkout }}" style="font-family:inherit;margin-top:4px;height:50px;font-size:14.5px;font-weight:500;border:{{ coBorder }};border-radius:10px;background:{{ coBg }};color:{{ coC }};cursor:{{ coCursor }};transition:background .15s">{{ checkoutLabel }}</button>
+<span style="font-size:12px;color:var(--k64737C);text-align:center;line-height:1.65">{{ checkoutNote }}</span>
+</div>
+
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+<div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">نقاط تاتش وود</span><span style="font-size:12.5px;color:var(--k64737C)">لديك <b style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k14293A);font-weight:500" dir="ltr">340</b> نقطة · تساوي <b style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k14293A);font-weight:500" dir="ltr">15.00</b> ر.س</span></div>
+<button onClick="{{ togglePoints }}" style="font-family:inherit;font-size:12.5px;font-weight:500;height:34px;padding:0 14px;border:1px solid {{ ptsBd }};border-radius:8px;background:{{ ptsBg }};color:{{ ptsC }};cursor:pointer;flex:0 0 auto">{{ ptsLabel }}</button>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:9px;padding:0 4px">
+<div style="display:flex;align-items:center;gap:9px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--k64737C)" stroke-width="1.7" stroke-linecap="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"></path><path d="m9 12 2 2 4-4"></path></svg><span style="font-size:12.5px;color:var(--k64737C)">دفع آمن · مدى، فيزا، تحويل بنكي</span></div>
+<div style="display:flex;align-items:center;gap:9px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--k64737C)" stroke-width="1.7" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"></path><path d="M21 4v5h-5"></path></svg><span style="font-size:12.5px;color:var(--k64737C)">إرجاع خلال 14 يوماً بالفاتورة</span></div>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;bottom:26px;inset-inline-start:26px;z-index:80;display:flex;align-items:center;gap:12px;padding:13px 18px;background:var(--k14293A);color:var(--kFFF);border-radius:11px;box-shadow:0 18px 40px -20px rgba(20,41,58,.6);animation:twRise .2s ease-out">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--k7FD1AE)" stroke-width="2" stroke-linecap="round"><path d="m5 13 4 4 10-10"></path></svg>
+<span style="font-size:13.5px;font-weight:500">{{ toast }}</span>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const GALLERY = ['art/slide.png','art/guide-slide.png','art/tandem.png','art/fixings.png'];
+const LENGTHS = ['350','450','500','600'];
+const FINISHES = [{k:'أسود مطفي', sw:'var(--k2B2B2B)'},{k:'سلفر', sw:'var(--kC7CCD1)'}];
+// length × finish → the purchasable variant. Missing pair = no such SKU.
+const MATRIX = {
+  '350|أسود مطفي': {price:'12.65', wholesale:'10.10', stock:420},
+  '350|سلفر':      {price:'12.65', wholesale:'10.10', stock:180},
+  '450|أسود مطفي': {price:'13.80', wholesale:'11.20', stock:1400},
+  '450|سلفر':      {price:'13.80', wholesale:'11.20', stock:260},
+  '500|أسود مطفي': {price:'15.50', wholesale:'12.40', stock:0},
+  '600|سلفر':      {price:'17.25', wholesale:'13.90', stock:95}
+};
+const MIN_WHOLESALE = 50;
+const PRODUCTS = [
+  {id:'q1', art:'art/slide.png', brand:'TOUCHWOOD', name:'مجرى درج سوفت كلوز', sku:'TW-MGR-SC45', spec:'450mm', finish:'أسود / سلفر', price:'13.80', wholesale:'11.20', minQty:50, mode:'both', unit:'للحبة', images:3, variants:true, stock:'in', stockLine:'متوفر · 1,400 حبة', stockShort:'1,400'},
+  {id:'q2', art:'art/hinge.png', brand:'باكم — BAKM', name:'مفصلة باكم 2D — ركبة كاملة، نصف، داخلية', sku:'TW-MFS-2D', spec:'2D', finish:'نيكل', price:'2.30', wholesale:'1.84', minQty:100, mode:'both', unit:'للحبة', images:3, variants:true, stock:'in', stockLine:'متوفر · 8,600 حبة', stockShort:'8,600'},
+  {id:'q3', art:'art/slide.png', brand:'TOUCHWOOD', name:'مجرى درج جانبي سوفت كلوز مع بوش أوبن', sku:'TW-MGR-PO', spec:'450mm', finish:'سلفر', price:'17.25', wholesale:'14.00', minQty:50, mode:'both', unit:'للحبة', images:2, variants:true, stock:'in', stockLine:'متوفر · 640 حبة', stockShort:'640'},
+  {id:'q4', art:'art/tandem.png', brand:'TOUCHWOOD', name:'مجرى درج سفلي', sku:'TW-MGR-SF', spec:'500mm', finish:'أسود مطفي', price:'31.05', wholesale:null, minQty:0, mode:'retail', unit:'للحبة', images:2, variants:false, stock:'low', stockLine:'كمية محدودة · 34 حبة', stockShort:'34'},
+  {id:'q5', art:'art/organizer.png', brand:'تـالسن — TALLSEN', name:'اكسسوار درج تخزين متعدد الوظائف SH8122', sku:'TW-SH8122', spec:'600mm', finish:'رمادي', price:'260.00', wholesale:'232.00', minQty:10, mode:'both', unit:'للقطعة', images:1, variants:false, stock:'in', stockLine:'متوفر · 120 قطعة', stockShort:'120'},
+  {id:'q6', art:'art/piston.png', brand:'TOUCHWOOD', name:'طقم هيدرولك زجاج — كرتون 25 طقم', sku:'TW-HYD-25', spec:'25 طقم', finish:'—', price:'74.75', wholesale:'74.75', minQty:25, mode:'wholesale', unit:'للطقم', images:1, variants:false, stock:'order', stockLine:'بالطلب · 5 أيام', stockShort:'5'}
+];
+const SPECS = [
+  {k:'النوع', v:'مجرى درج تلسكوبي بإغلاق ناعم', font:'inherit', dir:'rtl'},
+  {k:'الطول المتاح', v:'350 · 450 · 500 · 600 mm', font:"'IBM Plex Mono',monospace", dir:'ltr'},
+  {k:'قدرة التحميل', v:'35 kg', font:"'IBM Plex Mono',monospace", dir:'ltr'},
+  {k:'الخامة', v:'فولاذ مطلي إلكتروستاتيك', font:'inherit', dir:'rtl'},
+  {k:'نوع التركيب', v:'جانبي على الخزانة', font:'inherit', dir:'rtl'},
+  {k:'الإغلاق', v:'سوفت كلوز هيدروليكي', font:'inherit', dir:'rtl'},
+  {k:'الكمية في الكرتون', v:'50 حبة', font:'inherit', dir:'rtl'}
+];
+const ADDONS = [
+  {art:'art/hinge.png', name:'مفصلة باكم 2D — ركبة كاملة', price:'2.30'},
+  {art:'art/handle.png', name:'مقبض لطش حرف L أسود سلفر 3م', price:'31.05'},
+  {art:'art/fixings.png', name:'مسمار تجميع وحدات 6مم سلفر', price:'0.58'}
+];
+const REVIEWS = [
+  {author:'عبدالله ا.', date:'2026-08-21', config:'450mm · أسود مطفي', body:'استخدمتها في أربعة مطابخ هذا الموسم. الإغلاق ناعم فعلاً ولا يرتد، والتركيب يطابق القياس المكتوب بالمليمتر. الكرتون وصل كامل بدون خدوش.', lang:'ar'},
+  {author:'Marwan K.', date:'2026-07-04', config:'600mm · سلفر', body:'Solid rails for the price. The 600mm only comes in silver, which the page told me before I ordered — that saved a return.', lang:'en'}
+];
+class Component extends DCLogic {
+  state = {
+    screen:'cat', account:'guest', mode:'grid', img:{},
+    len:'450', fin:'أسود مطفي', sellMode:'retail', qty:1, gal:1,
+    brandF:{}, modeF:{}, lenF:{}, translated:{}, points:false, toast:'',
+    b2bDocs:{}, orderStatus:'processing',
+    cart:[
+      {id:'c1', art:'art/slide.png', brand:'TOUCHWOOD', name:'مجرى درج سوفت كلوز', sku:'TW-MGR-SC45-BLK', attrs:[{v:'450mm'},{v:'أسود مطفي'}], unit:11.20, retailUnit:13.80, qty:50, mode:'wholesale', min:50},
+      {id:'c2', art:'art/hinge.png', brand:'باكم — BAKM', name:'مفصلة باكم 2D — ركبة كاملة', sku:'TW-MFS-2D-FULL', attrs:[{v:'2D'},{v:'نيكل'}], unit:2.30, qty:40, mode:'retail', min:0, wholesaleAt:100, wholesalePrice:1.84},
+      {id:'c3', art:'art/organizer.png', brand:'تـالسن — TALLSEN', name:'اكسسوار درج تخزين متعدد الوظائف SH8122', sku:'TW-SH8122-GRY', attrs:[{v:'600mm'},{v:'رمادي'}], unit:260.00, qty:2, mode:'retail', min:0}
+    ]
+  };
+  componentDidMount(){ const sync = () => this.setState({dark: document.documentElement.getAttribute('data-theme') === 'dark'}); sync(); this._sync = sync; document.addEventListener('tw-theme', sync); }
+  componentWillUnmount(){ document.removeEventListener('tw-theme', this._sync); }
+  ping(t){ clearTimeout(this._t); this.setState({toast:t}); this._t = setTimeout(()=>this.setState({toast:''}), 2600); }
+  fmt(n){ return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+  b2bVals(){
+    const s = this.state;
+    const status = s.account === 'approved' ? 'approved' : (s.account === 'pending' ? 'pending' : 'new');
+    const DOCS = [
+      {id:'vat', name:'شهادة ضريبة القيمة المضافة', hint:'صادرة من هيئة الزكاة والضريبة والجمارك'},
+      {id:'cr',  name:'شهادة السجل التجاري',        hint:'سارية وغير منتهية'},
+      {id:'id',  name:'هوية المفوّض بالتوقيع',       hint:'هوية وطنية أو إقامة'}
+    ];
+    const uploaded = (id) => status !== 'new' || !!s.b2bDocs[id];
+    const docs = DOCS.map(d => {
+      const up = uploaded(d.id);
+      return { ...d,
+        border: up ? 'var(--k1F7A5C)' : 'var(--kE3E6E7)',
+        bg: up ? 'var(--kEAF5F0)' : 'transparent',
+        iconC: up ? 'var(--k1F7A5C)' : 'var(--k64737C)',
+        stateLabel: up ? 'مرفوع' : 'مطلوب',
+        stateC: up ? 'var(--k1F7A5C)' : 'var(--k64737C)',
+        action: up ? 'استبدال' : 'اختر ملفاً',
+        onPick: () => { this.setState(st => ({b2bDocs: {...st.b2bDocs, [d.id]: !st.b2bDocs[d.id]}})); }
+      };
+    });
+    const done = DOCS.filter(d => uploaded(d.id)).length;
+    const banner = {
+      new:      {t:'لم يُقدَّم طلب بعد', b:'عبّي البيانات وارفع المستندات الثلاثة. تقدر تتصفّح وتجهّز سلتك أثناء المراجعة.', c:'var(--k14293A)', bg:'transparent', bd:'var(--kE3E6E7)', dot:'var(--k64737C)'},
+      pending:  {t:'الطلب قيد المراجعة', b:'لا يمكن تقديم طلب جديد أثناء وجود طلب قيد المراجعة. أسعار الشركات ظاهرة لك الآن، وإتمام الطلب يُفتح بعد الاعتماد.', c:'var(--k5C3522)', bg:'var(--kFAF4EF)', bd:'var(--kDFC0A6)', dot:'var(--kB7791F)'},
+      approved: {t:'الحساب معتمد', b:'تقدر تطلب الآن بأسعار الشركات، والآيبان ظاهر للتحويل.', c:'var(--k1F7A5C)', bg:'var(--kEAF5F0)', bd:'var(--k1F7A5C)', dot:'var(--k1F7A5C)'}
+    }[status];
+    const stepState = {new:0, pending:1, approved:3}[status];
+    const STEPS = [
+      {n:'1', t:'تقديم الطلب', d:'البيانات والمستندات الثلاثة'},
+      {n:'2', t:'مراجعة الفريق', d:'عادة خلال يومَي عمل'},
+      {n:'3', t:'قرار الاعتماد', d:'تصلك رسالة على البريد والجوال'},
+      {n:'4', t:'أسعار الشركات', d:'الطلب بالجملة والفاتورة الضريبية'}
+    ];
+    return {
+      b2bBannerTitle: banner.t, b2bBannerBody: banner.b, b2bBannerC: banner.c,
+      b2bBannerBg: banner.bg, b2bBannerBorder: banner.bd, b2bBannerDot: banner.dot,
+      b2bShowForm: status === 'new', b2bShowSummary: status !== 'new', b2bShowIban: status === 'approved',
+      b2bSubmitLabel: done === 3 ? 'تقديم الطلب' : 'أكمل المستندات (' + done + '/3)',
+      docs, docsDone: done + ' من 3 مرفوعة',
+      b2bRef: 'TW-CO-2291',
+      b2bSummary: [
+        {k:'اسم الشركة', v:'مؤسسة النجارة الحديثة', font:'inherit', dir:'rtl'},
+        {k:'نوع المنشأة', v:'ورشة نجارة', font:'inherit', dir:'rtl'},
+        {k:'السجل التجاري', v:'1010482913', font:"'IBM Plex Mono',monospace", dir:'ltr'},
+        {k:'الرقم الضريبي', v:'300048291300003', font:"'IBM Plex Mono',monospace", dir:'ltr'},
+        {k:'المسؤول', v:'عبدالله الخالدي · 0545920426', font:'inherit', dir:'rtl'},
+        {k:'العنوان', v:'3184 طريق الملك عبدالعزيز، حي الخمرة، جدة 23617', font:'inherit', dir:'rtl'}
+      ],
+      b2bDocChips: DOCS,
+      b2bSteps: STEPS.map((st, i) => ({...st,
+        bg: i <= stepState ? 'var(--k0B3B63)' : 'var(--kF5F6F7)',
+        c:  i <= stepState ? 'var(--kIOA)' : 'var(--k64737C)'
+      })),
+      addressFields: [
+        {label:'رقم المبنى', hint:'3184'}, {label:'الشارع', hint:'طريق الملك عبدالعزيز'},
+        {label:'الحي', hint:'الخمرة'}, {label:'المدينة', hint:'جدة'},
+        {label:'الرمز البريدي', hint:'23617'}, {label:'الرقم الإضافي', hint:'7291'}
+      ],
+      submitB2B: () => this.ping(done === 3 ? 'أُرسل الطلب — المراجعة خلال يومَي عمل' : 'ارفع المستندات الثلاثة قبل التقديم'),
+      copyIban: () => this.ping('نُسخ الآيبان')
+    };
+  }
+
+  orderVals(){
+    const s = this.state;
+    const st = s.orderStatus || 'processing';
+    const idx = {new:0, processing:1, shipped:2, delivered:3}[st];
+    const isCompany = s.account === 'pending' || s.account === 'approved';
+    const LINES = [
+      {art:'art/slide.png', name:'مجرى درج سوفت كلوز', sku:'TW-MGR-SC45-BLK', variant:'450mm · أسود مطفي', qty:50, unit:11.20, mode:'wholesale'},
+      {art:'art/hinge.png', name:'مفصلة باكم 2D — ركبة كاملة', sku:'TW-MFS-2D-FULL', variant:'2D · نيكل', qty:40, unit:2.30, mode:'retail'},
+      {art:'art/organizer.png', name:'اكسسوار درج تخزين تالسن SH8122', sku:'TW-SH8122-GRY', variant:'600mm · رمادي', qty:2, unit:260.00, mode:'retail'}
+    ];
+    const netSubtotal = LINES.reduce((a, l) => a + l.unit * l.qty, 0);
+    const shipping = 0, coupon = 0;
+    const goodsTotal = netSubtotal - coupon;
+    const taxableBase = goodsTotal + shipping;
+    const vat = taxableBase * 0.15;
+    const total = taxableBase + vat;
+    const row = (k, v, big) => ({k, v, size: big ? '16px' : '13.5px', weight: big ? '600' : '400',
+      labelC: big ? 'var(--k14293A)' : 'var(--k64737C)', valueC: big ? 'var(--k0B3B63)' : 'var(--k14293A)'});
+    const STEPS = ['جديد', 'قيد المعالجة', 'تم الشحن', 'تم التسليم'];
+    const WHEN = ['19 Sep · 10:24', '19 Sep · 14:02', '20 Sep · 09:10', '22 Sep · 12:35'];
+    const TABS = [{id:'new', label:'جديد'}, {id:'processing', label:'قيد المعالجة'}, {id:'shipped', label:'تم الشحن'}, {id:'delivered', label:'تم التسليم'}];
+    const shipped = idx >= 2;
+    return {
+      statusTabs: TABS.map(t => ({...t,
+        bg: st === t.id ? 'var(--kFFF)' : 'transparent',
+        c:  st === t.id ? 'var(--k0B3B63)' : 'var(--k64737C)',
+        onPick: () => this.setState({orderStatus: t.id})
+      })),
+      steps: STEPS.map((label, i) => ({
+        n: String(i + 1), label,
+        when: i <= idx ? WHEN[i] : '—',
+        dotBg: i <= idx ? 'var(--k0B3B63)' : 'var(--kF5F6F7)',
+        dotC:  i <= idx ? 'var(--kIOA)' : 'var(--k64737C)',
+        lineBg: i === STEPS.length - 1 ? 'transparent' : (i < idx ? 'var(--k0B3B63)' : 'var(--kE3E6E7)'),
+        labelC: i <= idx ? 'var(--k14293A)' : 'var(--k64737C)'
+      })),
+      orderLines: LINES.map((l, i) => ({...l,
+        slotId: 'tw-order-line-' + i,
+        total: this.fmt(l.unit * l.qty),
+        unitNote: this.fmt(l.unit) + ' ر.س × ' + l.qty,
+        modeLabel: l.mode === 'wholesale' ? 'جملة' : 'تجزئة',
+        modeBg: l.mode === 'wholesale' ? 'var(--kFAF4EF)' : 'var(--kEEF2F5)',
+        modeC: l.mode === 'wholesale' ? 'var(--k5C3522)' : 'var(--k0B3B63)'
+      })),
+      orderLineCount: LINES.length + ' أصناف · ' + LINES.reduce((a, l) => a + l.qty, 0) + ' قطعة',
+      orderTotals: [
+        row('المجموع الصافي', this.fmt(netSubtotal)),
+        row('الشحن', 'مجاني'),
+        row('الوعاء الخاضع للضريبة', this.fmt(taxableBase)),
+        row('ضريبة القيمة المضافة 15%', this.fmt(vat)),
+        row('الإجمالي', this.fmt(total) + ' ر.س', true)
+      ],
+      hasTracking: shipped, noTracking: !shipped,
+      trackTitle: shipped ? 'تتبّع الشحنة' : 'الشحن',
+      trackBorder: shipped ? 'var(--k0B3B63)' : 'var(--kE3E6E7)',
+      trackBg: shipped ? 'var(--kEEF2F5)' : 'transparent',
+      trackNote: idx === 0 ? 'الطلب في انتظار مراجعة الفريق. يظهر رقم التتبع بعد تسليم الشحنة لشركة الشحن.' : 'جارٍ التجهيز في مستودع الخمرة. يظهر رقم التتبع بعد تسليم الشحنة لشركة الشحن.',
+      carrier: 'سمسا — SMSA',
+      trackingNo: '1234567890123',
+      openTracking: () => this.ping('يفتح رابط شركة الشحن في تبويب جديد'),
+      payTitle: isCompany ? 'الدفع بالتحويل البنكي' : 'الدفع',
+      payBody: isCompany
+        ? (s.account === 'approved'
+            ? 'طلبات الشركات تُسدَّد بالتحويل البنكي فقط. حوّل الإجمالي على الآيبان وأرفق الإيصال ليُعتمد الطلب.'
+            : 'طلبات الشركات تُسدَّد بالتحويل البنكي فقط. يظهر الآيبان بعد اعتماد الحساب.')
+        : 'مدفوع · فيزا تنتهي بـ 4219. الاسترجاع إن حصل يتم يدوياً من فريقنا على نفس الوسيلة.',
+      payShowIban: s.account === 'approved',
+      payBorder: isCompany ? 'var(--kDFC0A6)' : 'var(--kE3E6E7)',
+      payBg: isCompany ? 'var(--kFAF4EF)' : 'transparent',
+      payTitleC: isCompany ? 'var(--k5C3522)' : 'var(--k14293A)',
+      payBodyC: isCompany ? 'var(--k5C3522)' : 'var(--k3F5462)',
+      uploadReceipt: () => this.ping('أُرفق إيصال التحويل — بانتظار تأكيد المحاسبة'),
+      orderPoints: Math.round(goodsTotal),
+      pointsNote: st === 'delivered' ? 'أُضيفت النقاط إلى رصيدك عند التسليم.' : 'تُضاف النقاط إلى رصيدك عند تسليم الطلب، وتُسحب عند الإلغاء أو الإرجاع.',
+      shipName: 'عبدالله الخالدي',
+      shipAddress: '3184 طريق الملك عبدالعزيز، حي الخمرة، جدة 23617، السعودية',
+      shipPhone: '+966 54 592 0426',
+      cancelLabel: shipped ? 'لا يمكن الإلغاء بعد الشحن' : 'إلغاء الطلب',
+      cancelBorder: shipped ? 'var(--kE3E6E7)' : 'var(--kE8D2CE)',
+      cancelC: shipped ? 'var(--k9AA6AC)' : 'var(--k9A3A32)',
+      cancelCursor: shipped ? 'not-allowed' : 'pointer',
+      cancelNote: shipped
+        ? 'بعد تسليم الشحنة لشركة الشحن يتحوّل الطلب إلى إرجاع، لا إلغاء.'
+        : 'الإلغاء الذاتي متاح حتى شحن الطلب. بعدها يُفتح طلب إرجاع.',
+      cancelOrder: () => shipped ? this.ping('الطلب شُحن — افتح طلب إرجاع بدل الإلغاء') : this.ping('اختر سبب الإلغاء ثم أكّد')
+    };
+  }
+  key(len, fin){ return len + '|' + fin; }
+  // Compatibility runs both ways: a value is offered only if some variant pairs it
+  // with the current selection on the other axis.
+  pickLength(len){
+    const s = this.state;
+    if (MATRIX[this.key(len, s.fin)]) return this.setState({len});
+    const fits = FINISHES.filter(f => MATRIX[this.key(len, f.k)]);
+    if (!fits.length) return;
+    this.setState({len, fin: fits[0].k});
+    if (fits.length === 1) this.ping('التشطيب المتوافق الوحيد مع ' + len + ' مم هو ' + fits[0].k);
+  }
+  pickFinish(fin){
+    const s = this.state;
+    if (MATRIX[this.key(s.len, fin)]) return this.setState({fin});
+    const fits = LENGTHS.filter(l => MATRIX[this.key(l, fin)]);
+    if (!fits.length) return;
+    this.setState({fin, len: fits[0]});
+    if (fits.length === 1) this.ping('الطول المتوافق الوحيد مع ' + fin + ' هو ' + fits[0] + ' مم');
+  }
+  renderVals(){
+    const s = this.state;
+    const blocked = s.account === 'pending';
+    const isCompany = s.account === 'pending' || s.account === 'approved';
+    const showWholesale = isCompany;
+    const seg = on => on ? 'var(--kFFF)' : 'transparent';
+    const segSh = on => on ? '0 1px 2px rgba(20,41,58,.08)' : 'none';
+
+    // ---- listing ----
+    const products = PRODUCTS.map(p => {
+      const shown = s.img[p.id] || 1;
+      const zones = Math.min(p.images, 3);
+      const wholesaleAvailable = p.mode !== 'retail';
+      let cta = 'أضف إلى السلة', ctaShort = 'أضف', ctaBg = 'var(--k0B3B63)', ctaC = 'var(--kFFF)', ctaBorder = '0';
+      if (p.mode === 'wholesale' && !showWholesale) { cta = 'السعر للشركات'; ctaShort = 'للشركات'; ctaBg = 'var(--kFAF4EF)'; ctaC = 'var(--k5C3522)'; ctaBorder = '1px solid var(--kDFC0A6)'; }
+      else if (p.variants) { cta = 'اختر الخيارات'; ctaShort = 'الخيارات'; ctaBg = 'var(--kFFF)'; ctaC = 'var(--k14293A)'; ctaBorder = '1px solid var(--kE3E6E7)'; }
+      else if (blocked) { ctaBg = 'var(--kFFF)'; ctaC = 'var(--k0B3B63)'; ctaBorder = '1px solid var(--kAFC4D6)'; }
+      let wholesaleLine = '', wholesaleC = 'var(--k5C3522)';
+      if (wholesaleAvailable && showWholesale) wholesaleLine = 'جملة ' + p.wholesale + ' ر.س من ' + p.minQty + ' ' + (p.unit === 'للطقم' ? 'طقم' : 'حبة');
+      else if (wholesaleAvailable) { wholesaleLine = 'متاح بالجملة لحسابات الشركات'; wholesaleC = 'var(--k64737C)'; }
+      return {
+        ...p, slotId: 'tw-s-' + p.id + '-' + shown, slotLabel: p.name + ' · صورة ' + shown,
+        multiImage: zones > 1, hasThird: zones > 2,
+        dot1Bg: shown === 1 ? 'var(--k0B3B63)' : 'var(--kD7DCDF)',
+        dot2Bg: shown === 2 ? 'var(--k0B3B63)' : 'var(--kD7DCDF)',
+        dot3Bg: shown === 3 ? 'var(--k0B3B63)' : 'var(--kD7DCDF)',
+        shownPrice: p.mode === 'wholesale' && !showWholesale ? '—' : p.price,
+        wholesaleLine, wholesaleC,
+        stockDot: p.stock === 'in' ? 'var(--k1F7A5C)' : (p.stock === 'low' ? 'var(--kB7791F)' : 'var(--k64737C)'),
+        cta, ctaShort, ctaBg, ctaC, ctaBorder,
+        listPrice: showWholesale && wholesaleAvailable ? p.wholesale : (p.mode === 'wholesale' ? '—' : p.price),
+        listPriceC: showWholesale && wholesaleAvailable ? 'var(--k8A5130)' : 'var(--k0B3B63)',
+        listPriceNote: showWholesale && wholesaleAvailable ? 'من ' + p.minQty : (p.mode === 'wholesale' ? 'جملة فقط' : p.unit),
+        onMove: (e) => {
+          if (zones < 2) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          if (e.clientY > r.bottom - 24) return;
+          const z = Math.min(zones, Math.floor(((r.right - e.clientX) / r.width) * zones) + 1);
+          if (z !== shown) this.setState(st => ({img: {...st.img, [p.id]: z}}));
+        },
+        onCta: () => {
+          if (p.mode === 'wholesale' && !showWholesale) return this.ping('سعر الجملة يظهر لحسابات الشركات المعتمدة');
+          if (p.variants) return this.setState({screen:'pdp'});
+          this.ping('أُضيف إلى السلة · ' + p.name);
+        }
+      };
+    });
+
+    const bf = (obj, k) => ({bd: obj[k] ? 'var(--k0B3B63)' : 'var(--kD7DCDF)', bg: obj[k] ? 'var(--k0B3B63)' : 'var(--kFFF)', tick: obj[k] ? 1 : 0});
+    const brandRows = [['TOUCHWOOD',412],['باكم — BAKM',238],['تـالسن — TALLSEN',96],['HETTICH',64]].map(([label, count]) => ({
+      label, count, ...bf(s.brandF, label),
+      onToggle: () => this.setState(st => ({brandF: {...st.brandF, [label]: !st.brandF[label]}}))
+    }));
+    const modeRows = [['تجزئة',690],['جملة',402],['تجزئة وجملة',318]].map(([label, count]) => ({
+      label, count, ...bf(s.modeF, label),
+      onToggle: () => this.setState(st => ({modeF: {...st.modeF, [label]: !st.modeF[label]}}))
+    }));
+    const lenRows = ['350','400','450','500','600'].map(label => ({
+      label,
+      bd: s.lenF[label] ? 'var(--k0B3B63)' : 'var(--kE3E6E7)',
+      bg: s.lenF[label] ? 'var(--k0B3B63)' : 'var(--kFFF)',
+      fg: s.lenF[label] ? 'var(--kFFF)' : 'var(--k14293A)',
+      onToggle: () => this.setState(st => ({lenF: {...st.lenF, [label]: !st.lenF[label]}}))
+    }));
+    const active = [];
+    Object.keys(s.brandF).forEach(k => s.brandF[k] && active.push({label:k, onRemove:() => this.setState(st => ({brandF:{...st.brandF,[k]:false}}))}));
+    Object.keys(s.modeF).forEach(k => s.modeF[k] && active.push({label:k, onRemove:() => this.setState(st => ({modeF:{...st.modeF,[k]:false}}))}));
+    Object.keys(s.lenF).forEach(k => s.lenF[k] && active.push({label:k + ' مم', onRemove:() => this.setState(st => ({lenF:{...st.lenF,[k]:false}}))}));
+
+    // ---- pdp ----
+    const v = MATRIX[this.key(s.len, s.fin)] || {price:'—', wholesale:'—', stock:0};
+    const wholesaleMode = s.sellMode === 'wholesale' && showWholesale;
+    const lengths = LENGTHS.map(l => {
+      const exists = FINISHES.some(f => MATRIX[this.key(l, f.k)]);
+      const compatible = !!MATRIX[this.key(l, s.fin)];
+      const on = l === s.len;
+      return {
+        label: l, onPick: () => exists && this.pickLength(l),
+        cursor: exists ? 'pointer' : 'not-allowed',
+        bd: on ? '1.5px solid var(--k0B3B63)' : (compatible ? '1px solid var(--kE3E6E7)' : '1px solid var(--kEFF1F2)'),
+        bg: on ? 'var(--k0B3B63)' : (compatible ? 'var(--kFFF)' : 'var(--kFBFBFA)'),
+        fg: on ? 'var(--kFFF)' : (compatible ? 'var(--k14293A)' : 'var(--kAAB4BA)'),
+        deco: compatible ? 'none' : 'line-through'
+      };
+    });
+    const finishes = FINISHES.map(f => {
+      const compatible = !!MATRIX[this.key(s.len, f.k)];
+      const on = f.k === s.fin;
+      return {
+        label: f.k, swatch: f.sw, onPick: () => this.pickFinish(f.k),
+        cursor: 'pointer',
+        bd: on ? '1.5px solid var(--k0B3B63)' : (compatible ? '1px solid var(--kE3E6E7)' : '1px solid var(--kEFF1F2)'),
+        bg: on ? 'var(--k0B3B63)' : (compatible ? 'var(--kFFF)' : 'var(--kFBFBFA)'),
+        fg: on ? 'var(--kFFF)' : (compatible ? 'var(--k14293A)' : 'var(--kAAB4BA)'),
+        deco: compatible ? 'none' : 'line-through'
+      };
+    });
+    const minQty = wholesaleMode ? MIN_WHOLESALE : 1;
+    const effQty = Math.max(s.qty, minQty);
+    const soldOut = v.stock === 0;
+
+    // ---- cart ----
+    const items = s.cart.map(it => {
+      const upgraded = showWholesale && it.wholesaleAt && it.qty >= it.wholesaleAt;
+      const wholesaleLine = it.mode === 'wholesale';
+      const unit = showWholesale ? (upgraded ? it.wholesalePrice : it.unit) : (it.retailUnit || it.unit);
+      const line = unit * it.qty;
+      let warn = '';
+      if (!showWholesale && wholesaleLine) warn = 'هذه الكمية مؤهّلة لسعر الجملة — يظهر بعد اعتماد حساب الشركة.';
+      else if (wholesaleLine && it.qty < it.min) warn = 'الحد الأدنى للجملة ' + it.min + ' حبة — أكمل الكمية أو حوّل الشراء إلى تجزئة.';
+      else if (showWholesale && it.wholesaleAt && !upgraded) warn = 'أضف ' + (it.wholesaleAt - it.qty) + ' حبة أخرى ليصبح السعر ' + this.fmt(it.wholesalePrice) + ' ر.س للحبة.';
+      else if (upgraded) warn = 'تم تطبيق سعر الجملة تلقائياً عند ' + it.wholesaleAt + ' حبة.';
+      return {
+        ...it, lineTotal: this.fmt(line),
+        unitNote: this.fmt(unit) + ' ر.س × ' + it.qty,
+        modeLabel: showWholesale && (wholesaleLine || upgraded) ? 'جملة' : 'تجزئة',
+        modeBg: showWholesale && (wholesaleLine || upgraded) ? 'var(--kFAF4EF)' : 'var(--kF1F5F8)',
+        modeC: showWholesale && (wholesaleLine || upgraded) ? 'var(--k5C3522)' : 'var(--k0B3B63)',
+        warn,
+        onInc: () => this.setState(st => ({cart: st.cart.map(c => c.id === it.id ? {...c, qty: c.qty + 1} : c)})),
+        onDec: () => this.setState(st => ({cart: st.cart.map(c => c.id === it.id ? {...c, qty: Math.max(1, c.qty - 1)} : c)})),
+        onRemove: () => this.setState(st => ({cart: st.cart.filter(c => c.id !== it.id)}))
+      };
+    });
+    const sub = s.cart.reduce((a, it) => {
+      const u = showWholesale ? ((it.wholesaleAt && it.qty >= it.wholesaleAt) ? it.wholesalePrice : it.unit) : (it.retailUnit || it.unit);
+      return a + u * it.qty;
+    }, 0);
+    const disc = s.points ? 15 : 0;
+    const freeShip = sub >= 1000;
+    const ship = freeShip ? 0 : 35;
+    const vat = (sub - disc + ship) * 0.15;
+    const total = sub - disc + ship + vat;
+    const remain = Math.max(0, 1000 - sub);
+
+    return {
+      // nav
+      isCat: s.screen === 'cat', isPdp: s.screen === 'pdp', isCartScreen: s.screen === 'cart',
+      isOrder: s.screen === 'order', isB2B: s.screen === 'b2b',
+      goCat: () => this.setState({screen:'cat'}), goPdp: () => this.setState({screen:'pdp'}), goCart: () => this.setState({screen:'cart'}),
+      goOrder: () => this.setState({screen:'order'}), goB2B: () => this.setState({screen:'b2b'}),
+      sOrderBg: seg(s.screen==='order'), sOrderC: s.screen==='order' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      sB2BBg: seg(s.screen==='b2b'), sB2BC: s.screen==='b2b' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      ...this.b2bVals(), ...this.orderVals(),
+      sCatBg: seg(s.screen==='cat'), sCatC: s.screen==='cat' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      sPdpBg: seg(s.screen==='pdp'), sPdpC: s.screen==='pdp' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      sCartBg: seg(s.screen==='cart'), sCartC: s.screen==='cart' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      setGuest: () => this.setState({account:'guest', mode:'grid', sellMode:'retail'}),
+      setPending: () => this.setState({account:'pending', mode:'list'}),
+      setApproved: () => this.setState({account:'approved', mode:'list'}),
+      aGuestBg: seg(s.account==='guest'), aGuestC: s.account==='guest' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      aPendBg: seg(s.account==='pending'), aPendC: s.account==='pending' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      aAppBg: seg(s.account==='approved'), aAppC: s.account==='approved' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      accountNote: s.account==='guest' ? 'أسعار التجزئة · شبكة افتراضية'
+        : (blocked ? 'تحت المراجعة · الطلب موقوف' : 'معتمدة · أسعار جملة وقائمة تقنية'),
+      blocked, cartCount: s.cart.length, toast: s.toast,
+      isDark: !!s.dark, isLightTheme: !s.dark,
+      themeLabel: s.dark ? 'الوضع الفاتح' : 'الوضع الداكن',
+      toggleTheme: () => { const n = window.twToggleTheme(); this.setState({dark: n === 'dark'}); },
+
+      // listing
+      products, isGrid: s.mode === 'grid', isList: s.mode === 'list',
+      setGrid: () => this.setState({mode:'grid'}), setList: () => this.setState({mode:'list'}),
+      gridBtnBg: seg(s.mode==='grid'), gridBtnC: s.mode==='grid' ? 'var(--k0B3B63)' : 'var(--k64737C)', gridBtnSh: segSh(s.mode==='grid'),
+      listBtnBg: seg(s.mode==='list'), listBtnC: s.mode==='list' ? 'var(--k0B3B63)' : 'var(--k64737C)', listBtnSh: segSh(s.mode==='list'),
+      modeNote: s.mode === 'grid' ? 'عرض الشبكة — الافتراضي للزوار والأفراد' : 'القائمة التقنية — الافتراضي لحسابات الشركات',
+      listPriceHead: isCompany ? 'سعر الجملة' : 'السعر',
+      brandFilters: brandRows, modeFilters: modeRows, lengthFilters: lenRows,
+      activeFilters: active, hasFilters: active.length > 0,
+      clearFilters: () => this.setState({brandF:{}, modeF:{}, lenF:{}}),
+
+      // pdp
+      sku: 'TW-MGR-SC' + s.len + (s.fin === 'سلفر' ? '-SLV' : '-BLK'),
+      galleryId: 'tw-pdp-' + s.gal, galleryLabel: 'مجرى درج سوفت كلوز · صورة ' + s.gal,
+      galleryArt: GALLERY[s.gal - 1],
+      gallery: [1,2,3,4].map(n => ({
+        art: GALLERY[n - 1], bd: n === s.gal ? 'var(--k0B3B63)' : 'var(--kE3E6E7)',
+        bg: n === s.gal ? 'var(--kF1F5F8)' : 'var(--kF5F6F7)', op: n === s.gal ? 1 : .62,
+        onPick: () => this.setState({gal:n})
+      })),
+      lengths, finishes,
+      lengthNote: 'مم · القيم غير المتوافقة معطّلة',
+      finishNote: soldOut ? 'هذه التركيبة غير متوفرة حالياً' : 'التركيبة متاحة',
+      showModePicker: showWholesale && !soldOut,
+      pickRetail: () => this.setState({sellMode:'retail', qty:1}),
+      pickWholesale: () => this.setState({sellMode:'wholesale', qty:MIN_WHOLESALE}),
+      retailTabBg: seg(s.sellMode==='retail'), retailTabC: s.sellMode==='retail' ? 'var(--k0B3B63)' : 'var(--k64737C)', retailTabSh: segSh(s.sellMode==='retail'),
+      wholeTabBg: seg(s.sellMode==='wholesale'), wholeTabC: s.sellMode==='wholesale' ? 'var(--k8A5130)' : 'var(--k64737C)', wholeTabSh: segSh(s.sellMode==='wholesale'),
+      activePrice: wholesaleMode ? v.wholesale : v.price,
+      priceColor: wholesaleMode ? 'var(--k8A5130)' : 'var(--k0B3B63)',
+      priceBoxBd: wholesaleMode ? 'var(--kDFC0A6)' : 'var(--kAFC4D6)',
+      priceBoxBg: wholesaleMode ? 'var(--kFEFAF6)' : 'var(--kF8FAFC)',
+      priceNote: soldOut ? 'التركيبة المختارة غير متوفرة — اختر طولاً أو تشطيباً آخر.'
+        : (wholesaleMode ? 'سعر الجملة للحبة عند شراء ' + MIN_WHOLESALE + ' حبة أو أكثر. السعر شامل الضريبة عند الدفع.'
+        : 'السعر لكل حبة. الضريبة تُحسب في الخطوة الأخيرة.'),
+      priceNoteC: soldOut ? 'var(--k8A5130)' : 'var(--k3F5462)',
+      wholesaleHint: !showWholesale && !soldOut ? 'متاح بالجملة من ' + MIN_WHOLESALE + ' حبة — سعر الجملة يظهر لحسابات الشركات المعتمدة.' : '',
+      qty: effQty, incQty: () => this.setState({qty: effQty + 1}), decQty: () => this.setState({qty: Math.max(minQty, effQty - 1)}),
+      qtyNote: soldOut ? 'اختر تركيبة متوفرة لتحديد الكمية'
+        : (wholesaleMode ? 'الحد الأدنى ' + MIN_WHOLESALE + ' حبة لهذه التركيبة · الكرتون 50 حبة' : 'المجموع ' + this.fmt(parseFloat(v.price) * effQty) + ' ر.س قبل الضريبة'),
+      qtyNoteC: wholesaleMode ? 'var(--k5C3522)' : 'var(--k64737C)',
+      addLabel: soldOut ? 'غير متوفر بهذه التركيبة' : (blocked ? 'أضف إلى السلة · الطلب موقوف حتى الاعتماد' : 'أضف إلى السلة'),
+      addBg: soldOut ? 'var(--kF5F6F7)' : (blocked ? 'var(--kFFF)' : 'var(--k0B3B63)'),
+      addC: soldOut ? 'var(--k9AA6AC)' : (blocked ? 'var(--k0B3B63)' : 'var(--kFFF)'),
+      addBorder: soldOut ? '1px solid var(--kE3E6E7)' : (blocked ? '1px solid var(--kAFC4D6)' : '0'),
+      addToCart: () => {
+        if (soldOut) return this.ping('اختر تركيبة متوفرة أولاً');
+        this.setState(st => ({cart: [...st.cart, {id:'n'+Date.now(), art:'art/slide.png', brand:'TOUCHWOOD', name:'مجرى درج سوفت كلوز', sku:'TW-MGR-SC'+st.len, attrs:[{v:st.len+'mm'},{v:st.fin}], unit: parseFloat(wholesaleMode ? v.wholesale : v.price), qty: effQty, mode: wholesaleMode ? 'wholesale' : 'retail', min: wholesaleMode ? MIN_WHOLESALE : 0}]}));
+        this.ping(blocked ? 'أُضيف إلى السلة — الطلب موقوف حتى الاعتماد' : 'أُضيف إلى السلة · ' + s.len + ' مم · ' + s.fin);
+      },
+      stockDot: soldOut ? 'var(--k64737C)' : (v.stock < 150 ? 'var(--kB7791F)' : 'var(--k1F7A5C)'),
+      stockLine: soldOut ? 'غير متوفر بهذه التركيبة' : 'متوفر · ' + v.stock.toLocaleString('en-US') + ' حبة في مستودع جدة',
+      specs: SPECS,
+      addons: ADDONS.map(a => ({...a, onAdd: () => this.ping('أُضيف · ' + a.name)})),
+      reviews: REVIEWS.map((r, i) => ({
+        ...r, dir: r.lang === 'ar' ? 'rtl' : 'ltr',
+        showTranslate: r.lang !== 'ar',
+        translateLabel: s.translated[i] ? 'عرض النص الأصلي' : 'ترجمة',
+        body: s.translated[i] ? 'مجاري متينة مقابل سعرها. مقاس 600 مم يأتي بالسلفر فقط، وهذا ما أخبرتني به الصفحة قبل الطلب — وفّر عليّ عملية إرجاع.' : r.body,
+        onTranslate: () => this.setState(st => ({translated: {...st.translated, [i]: !st.translated[i]}}))
+      })),
+
+      // cart
+      cartItems: items, cartEmpty: s.cart.length === 0, cartHasItems: s.cart.length > 0,
+      cartSummaryLine: s.cart.length === 0 ? 'لا توجد قطع بعد' : s.cart.length + ' قطع · التركيبة والكمية والسعر كما اخترتها بالضبط',
+      subtotal: this.fmt(sub), vat: this.fmt(vat), total: this.fmt(total),
+      shipping: freeShip ? 'مجاناً' : this.fmt(ship), shipC: freeShip ? 'var(--k1F7A5C)' : 'var(--k14293A)', shipDir: freeShip ? 'rtl' : 'ltr',
+      freeShipHint: freeShip ? '' : 'أضف ' + this.fmt(remain) + ' ر.س للحصول على شحن مجاني',
+      freeShipPct: Math.min(100, (sub / 1000) * 100) + '%',
+      pointsApplied: s.points, pointsValue: this.fmt(disc),
+      togglePoints: () => this.setState(st => ({points: !st.points})),
+      ptsLabel: s.points ? 'إلغاء' : 'استخدم النقاط',
+      ptsBd: s.points ? 'var(--k0B3B63)' : 'var(--kE3E6E7)', ptsBg: s.points ? 'var(--k0B3B63)' : 'var(--kFFF)', ptsC: s.points ? 'var(--kFFF)' : 'var(--k14293A)',
+      checkoutLabel: blocked ? 'الطلب موقوف حتى الاعتماد' : 'إتمام الطلب',
+      checkoutBg: null,
+      coBg: blocked ? 'var(--kF5F6F7)' : 'var(--k0B3B63)', coC: blocked ? 'var(--k9AA6AC)' : 'var(--kFFF)',
+      coBorder: blocked ? '1px solid var(--kE3E6E7)' : '0', coCursor: blocked ? 'not-allowed' : 'pointer',
+      checkoutNote: blocked ? 'سلتك محفوظة — سنبلغك عند اعتماد الحساب' : 'الدفع في الخطوة التالية · مدى، فيزا، تحويل بنكي',
+      checkout: () => this.ping(blocked ? 'الطلب موقوف حتى اعتماد حساب الشركة' : 'الانتقال إلى الدفع — غير مبني في هذه المرحلة'),
+      clearCart: () => this.setState({cart: []})
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,312 @@
+
+TouchWood system and prototype handoff
+Prepared for Abood Alkhaldi and the next developer or designer • 14 September 2026
+We are creating a modern TouchWood ecommerce experience for individuals and professional buyers. This handoff records the agreed system behavior and separates it from the choices I made when building Prototype 01. It is a development reference, not a claim that the production store is complete.
+Reading guide: Section 1 describes the system and requirements. Section 2 records my design decisions, the current implementation, its limitations and the remaining work. “Agreed” means supported by the conversation; “implemented” means present in the prototype; “provisional” means open to review; “planned” means production work remains.
+1 The system itself
+Purpose and scope
+TouchWood sells hardware, fittings, equipment and accessories used in kitchens, furniture, storage and related projects. It is broader than a shop for kitchen utensils. The experience should combine premium architectural presentation with practical commerce: spacious discovery on the homepage, clear shopping cards and a denser technical catalog for businesses.
+The wider project is a rebuild of the existing store at https://touchwoodksa.com/. Recorded production scope includes retail and wholesale purchasing, company accounts, catalog management, inventory, orders, tax, shipping and payments. Multi-country stores were discussed for Saudi Arabia, Egypt and the UAE, with store-specific currency, availability, prices and inventory. Prototype 01 demonstrates Saudi Arabia and SAR only.
+People using the system
+User
+Expected experience
+Guest
+Browse and search public products; default grid view.
+Individual customer
+Retail shopping, favorites, cart and checkout; default grid view.
+Pending company
+Browse, save and prepare a cart; ordering blocked until approval.
+Approved company
+Ordering available; default technical list with optional grid view.
+Company staff
+Company purchasing access governed by assigned permissions; production flow remains.
+Admin
+Manage catalog, accounts, approvals, orders and campaigns through nontechnical controls.
+
+Catalog and pricing rules
+A product represents a family of purchasable configurations. Every production product should have at least one variant; a simple product is a product with exactly one variant. Where length, measurements or finish affect price or stock, those values belong to the selected variant. The prototype uses a simplified product array and one variant example, rather than this complete production model.
+Selling mode
+What the customer sees
+Retail only
+Price per piece and a normal purchasing action.
+Wholesale only
+Wholesale price per piece, minimum quantity and a restrained wholesale marker.
+Retail and wholesale
+Retail price with a secondary wholesale price and quantity threshold; the product detail allows the purchasing mode to be chosen.
+
+Pricing should explain the commercial model without a large stack of badges. Exceptional restrictions can receive a small badge. A mixed-selling product may carry a subtle indicator, but its price block must still explain both ways to buy. Catalog cards show summaries; the selected product configuration provides the exact price, stock and eligibility.
+Variant selection behavior
+Keep unavailable attribute values visible but disabled and muted, with a restrained strike-through or equivalent clear treatment. Do not hide them.
+Apply compatibility in both directions. Choosing a measurement limits available colors; choosing a color limits available measurements.
+If a choice leaves only one compatible value for the other attribute, select it automatically and show the resolved price immediately.
+Clear an incompatible previous selection rather than retain a combination that does not exist.
+Update selected SKU, price, wholesale availability, minimum quantity, stock and relevant images when the configuration changes.
+Products requiring a choice show “Choose options” on the card. Direct add-to-cart is for already resolved simple products.
+Quantity and wholesale purchasing
+Wholesale purchasing must respect the minimum quantity for the selected configuration. Quantity and stock rules ultimately need server enforcement. A variant can support both selling modes, retail only or wholesale only; product summaries must not imply that every configuration supports a mode merely because one does.
+A purchase matrix for ordering several size and color combinations was discussed as a possible future B2B feature. It is optional, was not implemented, and should be added only for product families that need it.
+Product discovery and card interactions
+The homepage establishes the brand, categories and buying paths, then provides real product discovery. The intended hierarchy includes header and search, hero, categories, product selections, concise retail and business communication, a Tallsen entry, service information and footer. Exact ordering and visual weight can be refined while building. Best-seller, top-rated and other collections remain production content work.
+Product image preview
+Images available
+Card preview behavior
+One image
+Static image, no hover movement and no dots.
+Two images
+Two invisible horizontal hover zones and two state dots.
+Three or more
+Three horizontal zones; preview the first three images only. The full product gallery contains all images.
+
+Desktop hover changes the photo according to the pointer zone. Exclude the bottom dot area and the favorite control from hover movement. Clicking a dot selects its image; retain the selection until the user intentionally enters another image zone. On mobile use horizontal swiping and tappable dots. Do not auto-slide product-card photos or show permanent left and right arrows.
+Grid and technical list
+Guests and individuals start in grid view. Companies start in the technical list, including a pending company in the prototype. Everyone may switch views. Remember an expressed preference so the company default does not overwrite the user’s choice. The final technical view should surface category-relevant properties, SKU, availability, pricing and an appropriate purchase action.
+Language and reviews
+Support Arabic with right-to-left layout and English with left-to-right layout. Mirror directional placement where needed while keeping prices, product codes and measurements understandable. The same navigation, purchasing and variant rules apply in both languages.
+Show a review translation action only when the review language differs from the interface language. The action label uses the interface language: Arabic UI shows “ترجمة”; English UI shows “Translate”. After translation offer “عرض النص الأصلي” or “Show original”. Verified-purchase status and purchased configuration should come from order data in production.
+Accessibility and responsive behavior
+Design desktop and mobile together. Navigation, filters, galleries, variant controls and commerce actions must work with keyboard and touch, have understandable labels and communicate selected or disabled states. Typography and contrast need validation in both languages and at enlarged text sizes. Radix primitives are the planned foundation for the React interface; styling should express TouchWood rather than a default component-library theme.
+Campaign catalog
+The agreed catalog contains twelve campaign presets plus the normal TouchWood theme. Campaigns should influence the whole store experience through curated colors, surfaces, decorative treatments, promotional components and copy. They must retain predictable navigation and purchasing behavior. The historical dates supplied describe existing campaigns; they are not a future schedule for the rebuilt store.
+Campaign preset
+Arabic name
+Intended visual direction
+Jeddah branch opening
+عروض الإفتتاح فرع مدينة البناء جدة
+Warm bronze and stone; local opening emphasis.
+Saudi National Day
+عروض اليوم الوطني
+Saudi green, white and restrained national accents.
+Summer
+عروض الصيف
+Fresh blue surfaces with warm energetic accents.
+Eid
+عروض العيد
+Light celebratory surfaces with blue and metallic warmth.
+15 SAR offers
+عرض الـ 15 ريال
+Clear price-led promotions with warm copper accents.
+Limited-time offers
+عروض لفترة محدودة
+Controlled urgency with brown and neutral surfaces.
+Eid Al-Fitr
+عروض عيد الفطر
+Cream, blue and warm gold; joyful, restrained treatment.
+Wholesale offers
+عروض أطلب بالجملة
+Technical blue surfaces and volume-purchasing emphasis.
+Flash Sale
+عروض الفلاش سيل
+High contrast and stronger promotional typography.
+Founding Day
+عروض يوم التأسيس
+Heritage beige and brown, separate from National Day.
+Ramadan
+عروض شهر رمضان
+Deep night blue with warm gold or copper.
+New Year
+عروض رأس السنة الجديدة
+Deep blue or charcoal with restrained gold accents.
+
+One campaign at a time
+Allow a single current campaign configuration. The admin edits, extends, replaces or ends that configuration; the interface must not permit two simultaneous campaigns. Ending a campaign restores standard TouchWood. Changing campaign type is an update or replacement of the current campaign, not an overlapping extra campaign.
+Scheduled start and end times were accepted as part of the intended lifecycle. Production scheduling should activate the selected campaign at its start time and restore the standard theme at expiry. The same one-campaign rule must be enforced by the backend, including scheduled intervals and concurrent admin changes.
+Administration and production journeys
+The admin should choose a named campaign preset rather than design a page or edit CSS. Curated presets protect brand consistency. Content inputs can include bilingual title and description, offer text, targeted products or categories, images, destination and start/end times. Desktop and mobile previews should make the result reviewable before activation.
+Planned campaign positions include announcement bar, hero, homepage promotion, category and listing banners, product offer badges and relevant cart messaging. Not every position needs content for every campaign. Changing a visual theme must not silently create discounts: real promotional pricing and eligibility require their own validated rules.
+Company application journey
+A company creates an account and submits its documents. Pending status permits public browsing, favorites and cart preparation. Checkout explains the review state and blocks ordering. Approval unlocks ordering. The production implementation must preserve the prepared cart and enforce approval server-side; a client-side account selector is only a demonstration.
+The broader admin scope includes company review, staff permissions and invitations, products and variants, categories and brands, inventory, pricing, orders and reporting. A two-business-day company review target was discussed as an operational target, not a technical guarantee. Invite-based staff onboarding was recommended but is not an implemented prototype flow.
+Retail and wholesale ordering journey
+A shopper searches or browses, opens a product where needed, resolves the variant, chooses a selling mode if supported and sets quantity. The cart summarizes the exact configuration, quantity and price. Production checkout then collects address, delivery and payment details and applies the selected store’s tax, shipping, payment and stock rules.
+Items not yet locked down
+Final typography, full accessible color scales and container width are still open to comparison.
+The exact placement and depth of Tallsen’s sub-brand experience remain provisional; green should stay contained to Tallsen rather than become a global TouchWood brand color.
+Wholesale price visibility by account status, tax-inclusive display, discount stacking rules, shipping rates and payment providers require final production definitions.
+The complete category hierarchy, real attribute sets, product media, marketing copy, best-seller and top-rated data need business input.
+React with Radix is the planned frontend direction. The production backend stack and integrations are not fixed by the static prototype.
+Authentication screens, full product routes, category filters, search suggestions, pagination, checkout and the admin interface still need production design and implementation.
+The document records system behavior and prototype decisions. Contract terms, payments and project timing remain governed by the separately agreed commercial documents.
+2 The things I made myself
+Implementation approach
+I built one responsive browser prototype using index.html, styles.css and prototype.js. The output is editable code, as requested, rather than an image mockup. It has no frontend framework, package dependency or backend API. This makes initial visual changes quick; the accepted components will later need to be implemented properly in React and Radix.
+The private preview published in this conversation is https://touchwood-design-lab.aboodalkhaldi05.chatgpt.site. The local project is /workspace/sites/touchwood-prototype and its public assets are under dist/. This handoff reflects the local files available on 14 September 2026; it does not independently revalidate the current live page.
+Homepage composition I chose
+A compact design-lab toolbar sits above the store to compare open choices and simulate account states.
+A thin announcement bar is followed by utility links, the logo, a large search field and account, favorite and cart controls.
+A separate navigation row contains categories, a category mega-menu, a Tallsen entry and a collections action.
+The hero pairs a large typographic message with installed-storage photography. Its normal headline is “Details make the difference.”
+A narrow service row leads into four category cards, followed by an optional campaign promotion and the product catalog.
+A combined retail and business section explains the two buying paths, followed by a contained Tallsen brand section and a compact footer.
+The structure is my concrete interpretation of the agreed premium and B2B hybrid. Its section order, headlines, artwork choice and exact proportions are provisional design choices. Only one header architecture was implemented; the toolbar does not currently switch between two alternative header structures.
+Temporary comparison controls
+Control
+Options currently provided
+Campaign
+Standard plus all twelve campaign presets.
+Typography
+Manrope with Tajawal; DM Sans with Noto Sans Arabic.
+Color balance
+Blue with warm brown; blue-led standard theme.
+Container width
+Spacious 1400 px or focused 1240 px maximum.
+Account preview
+Guest, individual, pending company or approved company.
+
+These are small select controls rather than separate page variants. They allow acceptable alternatives to be compared while building. The toolbar is for prototype review and should disappear from the customer-facing production site.
+Visual tokens and responsive choices
+I kept the agreed brand blue and used a provisional brown. The brown value is my approximation of the logo’s warmth, not a formally sampled or approved brand specification. Most surfaces remain white, with warmer areas used deliberately for the hero and business section.
+Token
+Default value
+Role I assigned
+Blue
+#083C63
+Brand, navigation, primary buttons and prices.
+Brown
+#885330
+Brand warmth, secondary emphasis and wholesale information.
+Main text
+#172C3B
+Headings and body text.
+Muted text
+#66747C
+Supporting labels and metadata.
+Borders
+#E2E5E5
+Separation and component boundaries.
+Soft surface
+#F6F7F7
+Category and product media backgrounds.
+Warm surface
+#F4EEE8
+Business section and related warm accents.
+Standard hero
+#EEE7DF
+Normal hero background.
+
+Typography and density
+I used Manrope and Tajawal as the default pairing and provided DM Sans and Noto Sans Arabic as a second comparison. The English design uses large, lightly weighted hero type and compact metadata. Arabic applies its own font, line height and right-to-left direction. Brand lettering stays left-to-right. Fonts currently load from Google Fonts.
+Desktop categories and products use four columns; product cards become two columns on smaller screens. The hero stays split on tablet and stacks on narrow mobile screens. The technical list preserves specifications and purchasing information in a denser row layout. Responsive rules are defined at 1600, 1150, 800 and 520 px. The standard desktop container leaves 48 px on either side before its maximum width.
+Campaign treatments I created
+Each preset changes shared CSS variables and bilingual campaign copy. I applied theme effects beyond the hero: announcement colors, surfaces, product border accents, the promotional strip and footer warmth. Some presets also change hero typography, texture or photo saturation. The installed-storage hero photograph remains the same across campaigns.
+Ramadan uses a deep-blue hero and warm gold; National Day uses green and pale green surfaces; Founding Day uses heritage beige and brown; Flash Sale uses a dark hero, warm promotional accents and heavier type. The other presets have their own palette and text but share the core structure. These are first-pass themes, not twelve fully art-directed, independently approved seasonal designs.
+Demo data and configuration choices
+I created eight illustrative catalog records across furniture hardware, drawer systems, kitchen systems and storage solutions. They cover retail-only, wholesale-only and mixed-selling states. Names, SKU labels, price amounts, minimum quantities and specifications are demonstration data. They should not be treated as TouchWood’s verified commercial catalog.
+Illustrative product
+Retail SAR
+Wholesale SAR
+Minimum
+Hydraulic cabinet hinge
+18.00
+13.50
+50
+Undermount drawer slide
+89.00 base
+72.00 base
+20
+Tall pantry system
+Not offered
+1049.00
+5
+Glass corner organizer
+899.00
+Not offered
+—
+Pull-out cabinet basket
+349.00
+289.00
+10
+Adjustable cabinet hinge
+24.00
+Not offered
+—
+Concealed hydraulic hinge
+15.00
+12.00
+100
+Project drawer slide pack
+Not offered
+65.00
+30
+
+Variant example I invented
+The drawer-slide example uses four combinations so we can test unavailable choices, automatic resolution, different prices and a retail-only configuration. These measurements, prices and stock figures are synthetic.
+Length
+Finish
+Retail SAR
+Wholesale SAR
+MOQ
+Stock
+400 mm
+Silver
+79.00
+64.00
+20
+45
+500 mm
+Silver
+89.00
+72.00
+20
+80
+500 mm
+Black
+96.00
+78.00
+20
+35
+600 mm
+Black
+109.00
+Not offered
+—
+7
+
+400 mm automatically resolves to Silver. Black disables 400 mm. Selecting 600 mm resolves to Black and shows retail-only purchasing. Selecting 500 mm leaves two compatible finishes, so the user must choose. An explicit reset action lets the user start again.
+Images and reviews
+I paired the supplied square-and-fingerprint logo with a typographic TouchWood wordmark. Externally hosted Tallsen imagery illustrates the demo, with attribution in the footer. Some galleries show different models or related systems, rather than verified photos of one SKU. Replace these with approved product and variant media in production.
+The review and “Verified purchase” label are invented demo content. Translation swaps hard-coded Arabic and English strings; no language detection or translation service is connected.
+What works in the prototype
+Category navigation and the mega-menu; search across the local bilingual names, categories and SKU strings.
+All-products, retail and wholesale tabs; mixed-selling products appear in both purchase-type filters.
+Featured and ascending or descending price ordering over the demo array.
+Grid and technical list switching, with per-account-type remembered preferences.
+Card hover zones, selected-state dots, mobile image swiping and favorites.
+A modal product detail with gallery controls, compatible variants, buying-mode controls, quantity validation and demo specifications.
+A local cart with merged matching lines, item removal and subtotal calculation; pending-company checkout messaging.
+Arabic and English switching, demo review translation, all campaign presets and design comparison controls.
+Simplifications I made
+I used native HTML dialogs for product detail, cart and informational panels. Account, support and business actions provide explanations or switch demo states rather than perform authenticated actions. The cart counter represents total quantity of pieces, not distinct product lines. Clicking a simple wholesale-only card action adds its minimum quantity automatically.
+View preferences are remembered by preview account type rather than a real user identity. Local storage also remembers language, theme, typography, color balance and width. The cart and favorite set are kept in memory and reset on reload. A selected variant is retained in its cart line. There is no durable customer cart or server-backed favorites store.
+Important implementation limits
+Campaign selection changes presentation and text only. It does not apply discounts, schedule timestamps, restrict eligibility or choose a campaign-specific product list. Campaign links currently browse the general demo catalog. Even the 15 SAR campaign does not make every displayed product cost 15 SAR. Only one theme can be selected, but there is no admin campaign record or backend concurrency enforcement.
+Several normal shopping actions remain informational placeholders. There is no sign-in, registration form, document upload, company review, real stock reservation, tax calculation, delivery pricing, payment processing or order placement. Search is local substring matching; there are no suggestions, search engine, pagination or full filter sidebar. Tallsen’s link currently opens the general catalog rather than a dedicated branded store.
+The prototype uses product-level prices plus a separate variant demonstration. It does not yet implement the agreed uniform production variant model. The gallery example, review labels, services copy and sample catalog need verification before customer-facing use. External photos and fonts remain dependencies; loading in every customer environment was not verified.
+Validation and next handoff steps
+Checks performed during the initial build covered JavaScript syntax, referenced local files, unique static element IDs and the deployment package. Script-level smoke checks covered the standard theme plus twelve campaign presets, demo product rendering, compatible variant resolution, automatic single-option selection, wholesale minimum quantities and cart rendering. The private deployment returned a successful status.
+These checks are not a substitute for browser testing. No complete visual, keyboard, touch, contrast or cross-browser acceptance pass was performed. Review the live prototype on desktop and mobile before treating its layout as approved. The intended interactions in Section 1 remain the acceptance reference when the current implementation falls short.
+Work to complete next
+Review the base design and compare the available font, color-balance and width choices. Decide whether another header architecture is worth adding.
+Review all campaign states and develop approved seasonal artwork and store-wide component treatments. Define final campaign content fields and scheduling behavior.
+Replace illustrative products, media, SKUs, measurements and prices with real business data. Confirm wholesale visibility, tax display and stock rules.
+Complete product pages, catalog filters, suggestions and pagination, followed by authentication, company application and checkout design.
+Build a nontechnical admin experience for catalog, approvals, orders, campaign scheduling and campaign replacement.
+Translate accepted patterns into React components with Radix interaction primitives and a shared token system. Preserve separate catalog, navigation, purchase and business components.
+Connect the chosen backend and store configuration. Enforce permissions, approval, prices, minimum quantities, campaign intervals and inventory server-side.
+Complete browser, responsive, accessibility, integration and order-flow testing before production launch.
+Files and continuation reference
+Reference
+Location or purpose
+Project checkout
+/workspace/sites/touchwood-prototype
+Homepage structure
+dist/index.html
+Design tokens and themes
+dist/styles.css
+Interactions and demo data
+dist/prototype.js
+Supplied logo asset
+dist/assets/logo.png
+Published prototype
+https://touchwood-design-lab.aboodalkhaldi05.chatgpt.site
+
+Continuation instruction: preserve the agreed behavior in Section 1; treat the exact layout, palette, copy and demo defaults in Section 2 as reviewable implementation choices. Do not interpret the static prototype as a finished production store. Make proposed changes visible in editable components and explain any change to agreed business behavior before replacing it.

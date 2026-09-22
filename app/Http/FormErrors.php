@@ -2,15 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Modules\Access\Presentation\Http;
+namespace App\Http;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Shared\Domain\Error\DomainError;
 
 /**
- * The sign-in endpoints answer with redirects (amendment 12): a refused form goes back with its
- * error, in the person's language. A client asking for JSON gets the usual problem response.
+ * A refused form goes back with its error, in the person's language; a client asking for JSON gets
+ * the usual problem response instead (beside ProblemDetails, which answers the same errors on a
+ * page). Access's endpoints answer with redirects (its amendment 12) and every module's screens
+ * answer the same way, so this is framework glue rather than one module's (stage 2b, P5).
  */
 final class FormErrors
 {

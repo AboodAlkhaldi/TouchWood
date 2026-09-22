@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style id="tw-theme-tokens">:root{--kTrack:#F5F6F7;--kHeaderBg:rgba(255,255,255,.92);--kWellBg:#F5F6F7;--kGlass:rgba(255,255,255,.94);--kHeroBg:#F5EFE9;--kBarBg:#0B3B63;--kBarInk:#FFF;--kBarSub:#DCE6EE;--kIOA:#fff;--kFFF:#FFF;--k0B3B63:#0B3B63;--k8A5130:#8A5130;--k14293A:#14293A;--k07273E:#07273E;--kAFC4D6:#AFC4D6;--kDCE6EE:#DCE6EE;--kE3E6E7:#E3E6E7;--k64737C:#64737C;--kFBFBFA:#FBFBFA;--k9AA6AC:#9AA6AC;--kF5F6F7:#F5F6F7;--k3F5462:#3F5462;--k093250:#093250;--kF0F2F3:#F0F2F3;--k1F7A5C:#1F7A5C;--kFAF4EF:#FAF4EF;--kF5EFE9:#F5EFE9;--k5C3522:#5C3522;--kDFC0A6:#DFC0A6;--kF0E2D6:#F0E2D6;--kE7D6C6:#E7D6C6;--kEDE3DA:#EDE3DA;--kC3D2DE:#C3D2DE;--k74432A:#74432A;--k000:#000;--k8FA9BE:#8FA9BE;--k7FD1AE:#7FD1AE;--kEEF2F5:#EEF2F5;--kD7DCDF:#D7DCDF;--kB7791F:#B7791F}
+html[data-theme="dark"]{--kTrack:#111D27;--kHeaderBg:rgba(13,24,33,.92);--kWellBg:radial-gradient(circle at 50% 42%,#1F2C37,#121C25 70%);--kGlass:rgba(14,25,34,.88);--kHeroBg:radial-gradient(900px 520px at 85% 28%,rgba(107,163,214,.16),transparent 62%),radial-gradient(620px 420px at 8% 95%,rgba(209,156,114,.09),transparent 62%),#0C1821;--kBarBg:#0B2839;--kBarInk:#EAF2F8;--kBarSub:#A9C0D1;--kDFC0A6:#5C4130;--kIOA:#0C1A26;--kFFF:#16222E;--k0B3B63:#6BA3D6;--k8A5130:#D19C72;--k14293A:#E8EEF3;--k07273E:#0A151E;--kAFC4D6:#9DB2C4;--kDCE6EE:#24384A;--kE3E6E7:#2A3742;--k64737C:#93A1AB;--kFBFBFA:#1A2632;--k9AA6AC:#74838D;--kF5F6F7:#1E2A35;--k3F5462:#B8C5CE;--k093250:#8FBBE4;--kF0F2F3:#142029;--k1F7A5C:#52C49A;--kFAF4EF:#1C1713;--kF5EFE9:#131E27;--k5C3522:#C08A60;--kF0E2D6:#2A211A;--kE7D6C6:#33404B;--kEDE3DA:#12202A;--kC3D2DE:#3A5164;--k74432A:#C89468;--k8FA9BE:#7E9AB0;--kEEF2F5:#142230;--kD7DCDF:#33414C;--kB7791F:#E0B055}
+</style>
+<script>(function(){try{var t=localStorage.getItem("tw-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.twToggleTheme=function(){var d=document.documentElement,n=d.getAttribute("data-theme")==="dark"?"light":"dark";d.setAttribute("data-theme",n);try{localStorage.setItem("tw-theme",n)}catch(e){}document.dispatchEvent(new CustomEvent("tw-theme",{detail:n}));return n};})();</script>
+<style id="tw-theme-btn">
+#tw-theme-fab{position:fixed;bottom:16px;right:16px;z-index:99999;display:flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:99px;background:var(--kFFF);color:var(--k3F5462);font:500 12px/1 'IBM Plex Sans Arabic',system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px -10px rgba(0,0,0,.45);transition:background .15s,color .15s,border-color .15s}
+#tw-theme-fab:hover{border-color:var(--k0B3B63);color:var(--k0B3B63)}
+#tw-theme-fab:focus-visible{outline:2px solid var(--k0B3B63);outline-offset:2px}
+#tw-theme-fab svg{width:15px;height:15px;flex:0 0 auto}
+</style>
+<script>(function(){
+function icon(d){return d
+?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.2 8.2 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>'
+:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg>';}
+function paint(b){var d=document.documentElement.getAttribute('data-theme')==='dark';b.innerHTML=icon(d)+'<span>'+(d?'Light':'Dark')+'</span>';b.title=d?'Switch to light mode':'Switch to dark mode';}
+function mount(){
+  if(document.getElementById('tw-theme-fab'))return;
+  var b=document.createElement('button');b.id='tw-theme-fab';b.type='button';
+  b.onclick=function(){window.twToggleTheme();paint(b)};
+  document.body.appendChild(b);paint(b);
+  document.addEventListener("tw-theme",function(){paint(b)});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
+})();</script>
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:var(--kFFF);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:var(--k0B3B63);text-decoration:none}
+a:hover{color:var(--k8A5130)}
+::selection{background:rgba(11,59,99,.14)}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--k0B3B63);outline-offset:2px}
+@keyframes twRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+image-slot.tw-client-logo[data-filled]{filter:grayscale(1);opacity:.72;transition:filter .25s,opacity .25s}
+image-slot.tw-client-logo[data-filled]:hover{filter:none;opacity:1}
+@keyframes twMarquee{from{transform:translateX(0)}to{transform:translateX(calc(198px * 7))}}
+@media (prefers-reduced-motion:reduce){[style*="twMarquee"]{animation:none !important}}
+</style>
+</helmet>
+
+<div dir="rtl" style="font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;color:var(--k14293A);background:var(--kFFF);min-height:100vh;position:relative">
+
+<div style="position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 22px;background:var(--k07273E);--kFFF:#F2F6FA;--kDCE6EE:#C6D8E6;--kAFC4D6:#AFC4D6;--kC6D8E6:#C6D8E6;--k7FA3C0:#7FA3C0;--k8FB0CA:#8FB0CA;--k9AA6AC:#8FA7BA;--k64737C:#9DB2C4;--k3F5462:#C6D8E6;--k14293A:#F2F6FA;--kE8EBED:rgba(255,255,255,.14);--kE3E6E7:rgba(255,255,255,.14);color:var(--kFFF)">
+<span style="font-size:10.5px;font-weight:600;letter-spacing:.14em;color:var(--kAFC4D6)">لوحة المراجعة · تُحذف من الموقع النهائي</span>
+<div style="display:flex;padding:3px;background:rgba(255,255,255,.09);border-radius:8px;gap:3px">
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ tabGuest }};color:{{ tabGuestC }}" onClick="{{ setGuest }}">زائر / فرد</button>
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ tabPending }};color:{{ tabPendingC }}" onClick="{{ setPending }}">شركة معلّقة</button>
+<button style="font-family:inherit;font-size:12.5px;font-weight:500;padding:6px 13px;border:0;border-radius:6px;cursor:pointer;background:{{ tabApproved }};color:{{ tabApprovedC }}" onClick="{{ setApproved }}">شركة معتمدة</button>
+</div>
+<span style="font-size:12px;color:var(--kAFC4D6);margin-inline-start:auto">{{ accountNote }}</span>
+</div>
+
+<div style="background:var(--kBarBg);color:var(--kBarInk)">
+<div style="max-width:1400px;margin:0 auto;padding:0 40px;height:38px;display:flex;align-items:center;justify-content:space-between">
+<span style="font-size:12.5px;color:var(--kBarSub)">توصيل لكل مناطق المملكة · إرجاع خلال 14 يوماً</span>
+<div style="display:flex;align-items:center;gap:20px">
+<span style="font-size:12.5px;color:var(--kBarSub)">تتبّع طلبك</span>
+<span style="font-size:12.5px;color:var(--kBarSub)">فروعنا</span>
+<span style="font-size:12.5px;color:var(--kBarInk);font-weight:500">EN</span>
+</div>
+</div>
+</div>
+
+<header style="position:sticky;top:0;z-index:50;background:var(--kHeaderBg);backdrop-filter:blur(12px);border-bottom:1px solid var(--kE3E6E7)">
+<div style="max-width:1400px;margin:0 auto;padding:0 40px;height:78px;display:flex;align-items:center;gap:36px">
+<div style="display:flex;align-items:center;gap:11px;flex:0 0 auto">
+<img src="{{ logoSrc }}" alt="تاتش وود" style="width:56px;height:56px;object-fit:contain;display:block;margin-inline-start:-6px" />
+<div style="display:flex;flex-direction:column;gap:1px"><span style="font-size:15.5px;font-weight:600;letter-spacing:.01em;line-height:1">TOUCHWOOD</span><span style="font-size:10.5px;color:var(--k64737C);line-height:1.4">تاتش وود</span></div>
+</div>
+<div style="flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;height:46px;padding:0 16px;border:1px solid var(--kE3E6E7);border-radius:10px;background:var(--kFBFBFA);transition:border-color .15s,background .15s" style-hover="border-color:var(--kAFC4D6);background:var(--kFFF)">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--k64737C)" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+<input placeholder="ابحث عن مقبض، مجرى، مفصلة، أو رمز منتج…" style="flex:1;min-width:0;border:0;background:transparent;outline:none;font-family:inherit;font-size:14.5px;color:var(--k14293A)" />
+<span style="font-size:11px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k9AA6AC);border:1px solid var(--kE3E6E7);border-radius:5px;padding:3px 7px" dir="ltr">⌘K</span>
+</div>
+<div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
+<button style="font-family:inherit;display:flex;align-items:center;gap:8px;height:42px;padding:0 13px;border:0;border-radius:9px;background:transparent;color:var(--k14293A);cursor:pointer;font-size:13.5px;font-weight:500;transition:background .15s" style-hover="background:var(--kF5F6F7)">
+<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--k3F5462)" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="3.6"></circle><path d="M5 20c0-3.6 3.1-5.6 7-5.6s7 2 7 5.6"></path></svg>
+حسابي
+</button>
+<button style="font-family:inherit;position:relative;display:flex;align-items:center;gap:8px;height:42px;padding:0 13px;border:0;border-radius:9px;background:transparent;color:var(--k14293A);cursor:pointer;font-size:13.5px;font-weight:500;transition:background .15s" style-hover="background:var(--kF5F6F7)">
+<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--k3F5462)" stroke-width="1.7" stroke-linecap="round"><path d="M12 20s-7-4.5-7-9.5A4 4 0 0 1 12 8a4 4 0 0 1 7 2.5C19 15.5 12 20 12 20Z"></path></svg>
+<span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:12.5px;color:var(--k64737C)" dir="ltr">{{ favCount }}</span>
+</button>
+<button onClick="{{ goCart }}" style="font-family:inherit;display:flex;align-items:center;gap:9px;height:42px;padding:0 16px;border:0;border-radius:9px;background:var(--k0B3B63);color:var(--kIOA);cursor:pointer;font-size:13.5px;font-weight:500;transition:background .15s" style-hover="background:var(--k093250)">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--kFFF)" stroke-width="1.7" stroke-linecap="round"><path d="M6 7h12l-1 12H7L6 7Z"></path><path d="M9.5 7V5.5a2.5 2.5 0 0 1 5 0V7"></path></svg>
+السلة
+<span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:12px;background:rgba(255,255,255,.2);border-radius:5px;padding:2px 7px" dir="ltr">{{ cartCount }}</span>
+</button>
+</div>
+</div>
+<div style="max-width:1400px;margin:0 auto;padding:0 40px;height:50px;display:flex;align-items:center;gap:4px;border-top:1px solid var(--kF0F2F3)">
+<div onMouseEnter="{{ openMega }}" onMouseLeave="{{ closeMega }}" style="position:relative">
+<button style="font-family:inherit;display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;border:0;border-radius:8px;background:{{ megaBtnBg }};color:var(--k14293A);cursor:pointer;font-size:13.5px;font-weight:500">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--k0B3B63)" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+كل الفئات
+</button>
+</div>
+<a href="TouchWood%20Screens.dc.html" style="font-size:13.5px;color:var(--k3F5462);padding:0 13px;height:36px;display:flex;align-items:center;border-radius:8px;cursor:pointer;transition:background .15s" style-hover="background:var(--kF5F6F7);color:var(--k0B3B63)">المقابض</a>
+<a href="TouchWood%20Screens.dc.html" style="font-size:13.5px;color:var(--k3F5462);padding:0 13px;height:36px;display:flex;align-items:center;border-radius:8px;cursor:pointer;transition:background .15s" style-hover="background:var(--kF5F6F7);color:var(--k0B3B63)">المجاري والمفصلات</a>
+<a href="TouchWood%20Screens.dc.html" style="font-size:13.5px;color:var(--k3F5462);padding:0 13px;height:36px;display:flex;align-items:center;border-radius:8px;cursor:pointer;transition:background .15s" style-hover="background:var(--kF5F6F7);color:var(--k0B3B63)">خزائن الملابس</a>
+<span style="font-size:13.5px;color:var(--k3F5462);padding:0 13px;height:36px;display:flex;align-items:center;border-radius:8px;cursor:pointer;transition:background .15s" style-hover="background:var(--kF5F6F7)">الإضاءة</span>
+<span style="font-size:13.5px;color:var(--k3F5462);padding:0 13px;height:36px;display:flex;align-items:center;border-radius:8px;cursor:pointer;transition:background .15s" style-hover="background:var(--kF5F6F7)">التجميع والمثبّتات</span>
+<span style="display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--k3F5462);padding:0 13px;height:36px;border-radius:8px;cursor:pointer;transition:background .15s;margin-inline-start:auto" style-hover="background:var(--kF5F6F7)"><i style="width:7px;height:7px;border-radius:99px;background:var(--k1F7A5C);display:block"></i>Tallsen</span>
+<span style="font-size:13.5px;font-weight:500;color:var(--k8A5130);padding:0 13px;height:36px;display:flex;align-items:center;border-radius:8px;cursor:pointer;transition:background .15s" style-hover="background:var(--kFAF4EF)">اطلب بالجملة</span>
+<a href="TouchWood%20Admin.dc.html" title="لوحة التحكم" style="display:flex;align-items:center;gap:7px;height:36px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:8px;background:var(--kFFF);font-size:12.5px;font-weight:500;color:var(--k3F5462);text-decoration:none;flex:0 0 auto;transition:background .15s" style-hover="background:var(--kF5F6F7);color:var(--k0B3B63)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"></rect><path d="M9.5 4.5v15"></path></svg>
+لوحة التحكم
+</a>
+</div>
+<sc-if value="{{ megaOpen }}" hint-placeholder-val="{{ false }}">
+<div onMouseEnter="{{ openMega }}" onMouseLeave="{{ closeMega }}" style="position:absolute;inset-inline:0;top:100%;background:var(--kFFF);border-bottom:1px solid var(--kE3E6E7);box-shadow:0 18px 40px -24px rgba(20,41,58,.35);animation:twRise .18s ease-out">
+<div style="max-width:1400px;margin:0 auto;padding:30px 40px 34px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,260px);gap:34px">
+<div style="display:flex;flex-direction:column;gap:11px"><span style="font-size:12.5px;font-weight:600;color:var(--k0B3B63)">المقابض</span><span style="font-size:13.5px;color:var(--k3F5462)">مقابض قضيب</span><span style="font-size:13.5px;color:var(--k3F5462)">مقابض مخفية</span><span style="font-size:13.5px;color:var(--k3F5462)">أزرار دائرية</span><span style="font-size:13.5px;color:var(--k3F5462)">مقابض جلدية</span></div>
+<div style="display:flex;flex-direction:column;gap:11px"><span style="font-size:12.5px;font-weight:600;color:var(--k0B3B63)">المجاري والمفصلات</span><span style="font-size:13.5px;color:var(--k3F5462)">مجاري تلسكوبية</span><span style="font-size:13.5px;color:var(--k3F5462)">إغلاق ناعم</span><span style="font-size:13.5px;color:var(--k3F5462)">مفصلات مخفية</span><span style="font-size:13.5px;color:var(--k3F5462)">مكابس هوائية</span></div>
+<div style="display:flex;flex-direction:column;gap:11px"><span style="font-size:12.5px;font-weight:600;color:var(--k0B3B63)">خزائن الملابس</span><span style="font-size:13.5px;color:var(--k3F5462)">سلات منظّمة</span><span style="font-size:13.5px;color:var(--k3F5462)">أدراج داخلية</span><span style="font-size:13.5px;color:var(--k3F5462)">وحدات زاوية</span><span style="font-size:13.5px;color:var(--k3F5462)">حلول النفايات</span></div>
+<div style="display:flex;flex-direction:column;gap:11px"><span style="font-size:12.5px;font-weight:600;color:var(--k0B3B63)">الإضاءة والكهرباء</span><span style="font-size:13.5px;color:var(--k3F5462)">إضاءة خزائن</span><span style="font-size:13.5px;color:var(--k3F5462)">مفاتيح حساسة</span><span style="font-size:13.5px;color:var(--k3F5462)">مقابس مدمجة</span><span style="font-size:13.5px;color:var(--k3F5462)">محوّلات</span></div>
+<div style="background:var(--kF5EFE9);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:10px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--k8A5130)">للمقاولين</span>
+<span style="font-size:15px;font-weight:600;line-height:1.5">كتالوج فني كامل بالأرقام والقياسات</span>
+<span style="font-size:13px;color:var(--k5C3522);line-height:1.65">قائمة تقنية، تسعير جملة، وحد أدنى لكل تركيبة.</span>
+<span style="font-size:13px;font-weight:500;color:var(--k8A5130);margin-top:2px">افتح الكتالوج ←</span>
+</div>
+</div>
+</div>
+</sc-if>
+</header>
+
+<section style="background:var(--kHeroBg)">
+<div style="max-width:1400px;margin:0 auto;padding:0 40px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:56px;align-items:center;min-height:520px">
+<div style="display:flex;flex-direction:column;gap:24px;padding:72px 0">
+<span style="font-size:11.5px;font-weight:600;letter-spacing:.14em;color:var(--k8A5130)">إكسسوارات المطابخ والخزائن · وكيل تالسن في السعودية</span>
+<h1 style="margin:0;font-size:60px;line-height:1.12;font-weight:600;letter-spacing:-.03em;max-width:15ch;text-wrap:pretty">التفاصيل تصنع الفرق</h1>
+<p style="margin:0;max-width:46ch;font-size:16.5px;line-height:1.8;color:var(--k3F5462);text-wrap:pretty">مفصلات هيدروليك، مجاري سحاب، مقابض، ومنظمات خزائن الملابس. للأفراد الذين يجهّزون مطبخاً واحداً، ولورش النجارة التي تجهّز عشرة في الشهر.</p>
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:6px">
+<button onClick="{{ goCat }}" style="font-family:inherit;font-size:14.5px;font-weight:500;padding:0 26px;height:50px;border:0;border-radius:10px;background:var(--k0B3B63);color:var(--kIOA);cursor:pointer;transition:background .15s,transform .15s" style-hover="background:var(--k093250);transform:translateY(-1px)">ابدأ التسوّق</button>
+<button style="font-family:inherit;font-size:14.5px;font-weight:500;padding:0 24px;height:50px;border:1px solid var(--kDFC0A6);border-radius:10px;background:transparent;color:var(--k5C3522);cursor:pointer;transition:background .15s" style-hover="background:var(--kF0E2D6)">حساب المقاولين والشركات</button>
+</div>
+<div style="display:flex;gap:34px;margin-top:14px;padding-top:22px;border-top:1px solid var(--kE7D6C6)">
+<div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:22px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k0B3B63)" dir="ltr">TALLSEN</span><span style="font-size:12.5px;color:var(--k64737C)">وكيل معتمد في السعودية</span></div>
+<div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:22px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k0B3B63)" dir="ltr">0.52–1,257</span><span style="font-size:12.5px;color:var(--k64737C)">ر.س · من المسمار إلى الوحدة</span></div>
+<div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:22px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k0B3B63)" dir="ltr">جدة</span><span style="font-size:12.5px;color:var(--k64737C)">مستودع الخمرة</span></div>
+</div>
+</div>
+<div style="position:relative;align-self:stretch;min-height:420px;margin:40px 0;border-radius:14px;background:var(--kWellBg);display:grid;place-items:center;overflow:hidden">
+<image-slot id="tw-hero" src="{{ artKitchen }}" shape="rect" fit="cover" placeholder="صورة الواجهة" style="position:absolute;inset:0;width:100%;height:100%"></image-slot>
+<div style="position:absolute;bottom:18px;inset-inline-start:18px;background:var(--kGlass);border-radius:10px;padding:11px 14px;display:flex;flex-direction:column;gap:3px">
+<span style="font-size:12.5px;font-weight:600;color:var(--k14293A)">سحاب تاندم بوكس مع إضاءة</span>
+<span style="font-size:12px;color:var(--k5C3522)">140.00 ر.س · متوفر</span>
+</div>
+</div>
+</div>
+</section>
+
+<section style="border-bottom:1px solid var(--kE3E6E7)">
+<div style="max-width:1400px;margin:0 auto;padding:0 40px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr))">
+<div style="display:flex;align-items:center;gap:13px;padding:22px 0"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--k0B3B63)" stroke-width="1.6" stroke-linecap="round"><path d="M3 8h11v8H3zM14 11h4l3 3v2h-7z"></path><circle cx="7" cy="18" r="1.6"></circle><circle cx="17" cy="18" r="1.6"></circle></svg><div style="display:flex;flex-direction:column"><span style="font-size:13.5px;font-weight:500">توصيل لكل المملكة</span><span style="font-size:12px;color:var(--k64737C)">مجاناً فوق 1,000 ر.س</span></div></div>
+<div style="display:flex;align-items:center;gap:13px;padding:22px 0"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--k0B3B63)" stroke-width="1.6" stroke-linecap="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"></path><path d="m9 12 2 2 4-4"></path></svg><div style="display:flex;flex-direction:column"><span style="font-size:13.5px;font-weight:500">ضمان المصنّع</span><span style="font-size:12px;color:var(--k64737C)">على كل القطع الميكانيكية</span></div></div>
+<div style="display:flex;align-items:center;gap:13px;padding:22px 0"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--k0B3B63)" stroke-width="1.6" stroke-linecap="round"><path d="M4 6h16v12H4z"></path><path d="M4 10h16"></path><path d="M8 15h3"></path></svg><div style="display:flex;flex-direction:column"><span style="font-size:13.5px;font-weight:500">دفع آمن</span><span style="font-size:12px;color:var(--k64737C)">مدى، فيزا، تحويل بنكي</span></div></div>
+<div style="display:flex;align-items:center;gap:13px;padding:22px 0"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--k0B3B63)" stroke-width="1.6" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"></path><path d="M21 4v5h-5"></path></svg><div style="display:flex;flex-direction:column"><span style="font-size:13.5px;font-weight:500">إرجاع خلال 14 يوماً</span><span style="font-size:12px;color:var(--k64737C)">بالفاتورة وبحالتها الأصلية</span></div></div>
+</div>
+</section>
+
+<section style="max-width:1400px;margin:0 auto;padding:70px 40px 0">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:20px;margin-bottom:24px">
+<h2 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em">تسوّق حسب الفئة</h2>
+<a href="TouchWood%20Screens.dc.html" style="font-size:13.5px;font-weight:500;color:var(--k0B3B63);cursor:pointer">كل الفئات ←</a>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+<sc-for list="{{ categories }}" as="c" hint-placeholder-count="6">
+<div onClick="{{ goCat }}" style="border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden;cursor:pointer;transition:border-color .18s,transform .18s,box-shadow .18s" style-hover="border-color:var(--kAFC4D6);transform:translateY(-2px);box-shadow:0 12px 26px -18px rgba(20,41,58,.4)">
+<div style="aspect-ratio:4/3;background:var(--kWellBg);position:relative;overflow:hidden"><image-slot id="{{ c.slotId }}" src="{{ c.art }}" shape="rect" fit="contain" placeholder="{{ c.name }}" style="position:absolute;inset:0;width:100%;height:100%"></image-slot></div>
+<div style="padding:14px 15px;display:flex;flex-direction:column;gap:4px"><span style="font-size:14.5px;font-weight:500">{{ c.name }}</span><span style="font-size:12.5px;color:var(--k64737C)">{{ c.hint }}</span></div>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section style="max-width:1400px;margin:0 auto;padding:64px 40px 0">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:22px">
+<div style="display:flex;flex-direction:column;gap:7px">
+<h2 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em">الأكثر طلباً هذا الشهر</h2>
+<span style="font-size:13.5px;color:var(--k64737C)">{{ modeNote }}</span>
+</div>
+<div style="display:flex;padding:3px;background:var(--kTrack);border-radius:10px;gap:3px">
+<button style="font-family:inherit;font-size:13px;font-weight:500;padding:8px 17px;border:0;border-radius:7px;cursor:pointer;background:{{ gridBtnBg }};color:{{ gridBtnC }};box-shadow:{{ gridBtnSh }};transition:background .15s" onClick="{{ setGrid }}">شبكة</button>
+<button style="font-family:inherit;font-size:13px;font-weight:500;padding:8px 17px;border:0;border-radius:7px;cursor:pointer;background:{{ listBtnBg }};color:{{ listBtnC }};box-shadow:{{ listBtnSh }};transition:background .15s" onClick="{{ setList }}">قائمة تقنية</button>
+</div>
+</div>
+
+<sc-if value="{{ isGrid }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:18px">
+<sc-for list="{{ products }}" as="p" hint-placeholder-count="5">
+<div style="border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden;background:var(--kFFF);display:flex;flex-direction:column;transition:border-color .18s,box-shadow .18s" style-hover="border-color:var(--kAFC4D6);box-shadow:0 14px 30px -22px rgba(20,41,58,.45)">
+<div onMouseMove="{{ p.onMove }}" onMouseLeave="{{ p.onLeave }}" style="position:relative;aspect-ratio:1;background:var(--kWellBg);display:grid;place-items:center;cursor:pointer;overflow:hidden">
+<image-slot id="{{ p.slotId }}" src="{{ p.art }}" shape="rect" fit="contain" placeholder="{{ p.slotLabel }}" style="position:absolute;inset:0;width:100%;height:100%"></image-slot>
+<sc-if value="{{ p.multiImage }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;bottom:11px;left:0;right:0;display:flex;justify-content:center;gap:5px">
+<i style="width:17px;height:3px;border-radius:2px;display:block;transition:background .2s;background:{{ p.dot1Bg }}"></i>
+<i style="width:17px;height:3px;border-radius:2px;display:block;transition:background .2s;background:{{ p.dot2Bg }}"></i>
+<sc-if value="{{ p.hasThird }}" hint-placeholder-val="{{ true }}">
+<i style="width:17px;height:3px;border-radius:2px;display:block;transition:background .2s;background:{{ p.dot3Bg }}"></i>
+</sc-if>
+</div>
+</sc-if>
+<button onClick="{{ p.onFav }}" style="position:absolute;top:11px;inset-inline-start:11px;width:31px;height:31px;border:0;border-radius:9px;background:var(--kGlass);cursor:pointer;display:grid;place-items:center;transition:background .15s" style-hover="background:var(--kFFF)">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="{{ p.favFill }}" stroke="{{ p.favStroke }}" stroke-width="1.8" stroke-linecap="round"><path d="M12 20s-7-4.5-7-9.5A4 4 0 0 1 12 8a4 4 0 0 1 7 2.5C19 15.5 12 20 12 20Z"></path></svg>
+</button>
+<sc-if value="{{ p.badge }}" hint-placeholder-val="{{ false }}">
+<span style="position:absolute;top:11px;inset-inline-end:11px;font-size:11px;font-weight:600;padding:5px 9px;border-radius:6px;background:{{ p.badgeBg }};color:{{ p.badgeC }}">{{ p.badge }}</span>
+</sc-if>
+</div>
+<div style="padding:14px 15px 16px;display:flex;flex-direction:column;gap:7px;flex:1">
+<span style="font-size:11.5px;font-weight:500;color:var(--k64737C)">{{ p.brand }}</span>
+<span style="font-size:14.5px;font-weight:500;line-height:1.5">{{ p.name }}</span>
+<div style="display:flex;align-items:baseline;gap:5px;margin-top:2px"><span style="font-size:19px;font-weight:600;color:var(--k0B3B63);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ p.price }}</span><span style="font-size:12px;color:var(--k64737C)">ر.س / للحبة</span></div>
+<span style="font-size:12px;line-height:1.5;color:{{ p.wholesaleC }};min-height:36px">{{ p.wholesaleLine }}</span>
+<div style="display:flex;align-items:center;gap:6px;margin-top:2px"><i style="width:6px;height:6px;border-radius:99px;display:block;background:{{ p.stockDot }}"></i><span style="font-size:12px;color:var(--k64737C)">{{ p.stockLine }}</span></div>
+<sc-if value="{{ p.restrictLine }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:7px;background:var(--kFAF4EF)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--k8A5130)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 8v5M12 16h.01"></path></svg><span style="font-size:11.5px;color:var(--k5C3522);font-weight:500">{{ p.restrictLine }}</span></div>
+</sc-if>
+<button onClick="{{ p.onAdd }}" style="font-family:inherit;margin-top:auto;font-size:13.5px;font-weight:500;height:40px;border:{{ p.ctaBorder }};border-radius:9px;background:{{ p.ctaBg }};color:{{ p.ctaC }};cursor:{{ p.ctaCursor }};transition:background .15s,border-color .15s">{{ p.cta }}</button>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isList }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden">
+<sc-if value="{{ restrictBanner }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--kFAF4EF);border-bottom:1px solid var(--kDFC0A6)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--k8A5130)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 8v5M12 16h.01"></path></svg><span style="font-size:12.5px;color:var(--k5C3522);font-weight:500">{{ restrictBanner }}</span></div>
+</sc-if>
+<div style="display:grid;grid-template-columns:56px minmax(0,2.1fr) minmax(0,1.1fr) minmax(0,.85fr) minmax(0,.95fr) minmax(0,1fr) 148px;gap:14px;padding:12px 16px;background:var(--kF5F6F7);border-bottom:1px solid var(--kE3E6E7)">
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)"></span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">المنتج</span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">الرمز</span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">القياس</span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">التوفّر</span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)">{{ listPriceHead }}</span>
+<span style="font-size:11.5px;font-weight:600;color:var(--k64737C)"></span>
+</div>
+<sc-for list="{{ products }}" as="p" hint-placeholder-count="5">
+<div style="display:grid;grid-template-columns:56px minmax(0,2.1fr) minmax(0,1.1fr) minmax(0,.85fr) minmax(0,.95fr) minmax(0,1fr) 148px;gap:14px;padding:13px 16px;border-bottom:1px solid var(--kF0F2F3);align-items:center;transition:background .14s" style-hover="background:var(--kFBFBFA)">
+<div style="width:44px;height:44px;border-radius:8px;background:var(--kF5F6F7);overflow:hidden;flex:0 0 auto"><img src="{{ p.art }}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" /></div>
+<div style="display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font-size:13.5px;font-weight:500;line-height:1.45">{{ p.name }}</span><span style="font-size:11.5px;color:var(--k64737C)">{{ p.brand }}</span></div>
+<span style="font-size:12.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k3F5462)" dir="ltr">{{ p.sku }}</span>
+<span style="font-size:12.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k3F5462)" dir="ltr">{{ p.spec }}</span>
+<div style="display:flex;align-items:center;gap:6px;min-width:0"><i style="width:6px;height:6px;border-radius:99px;display:block;flex:0 0 auto;background:{{ p.stockDot }}"></i><span style="font-size:12.5px;color:var(--k3F5462);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">{{ p.stockShort }}</span><span style="font-size:12px;color:var(--k64737C)">{{ p.stockUnit }}</span></div>
+<div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:{{ p.listPriceC }}" dir="ltr">{{ p.listPrice }}</span><span style="font-size:11.5px;color:var(--k64737C)">{{ p.listPriceNote }}</span></div>
+<button onClick="{{ p.onAdd }}" style="font-family:inherit;font-size:13px;font-weight:500;height:36px;border:{{ p.ctaBorder }};border-radius:8px;background:{{ p.ctaBg }};color:{{ p.ctaC }};cursor:{{ p.ctaCursor }}">{{ p.ctaShort }}</button>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</section>
+
+<section style="max-width:1400px;margin:0 auto;padding:64px 40px 0">
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)">
+<div style="padding:38px 36px;display:flex;flex-direction:column;gap:20px">
+<span style="font-size:11.5px;font-weight:600;letter-spacing:.13em;color:var(--k8A5130)">أكمل التركيبة</span>
+<h2 style="margin:0;font-size:27px;font-weight:600;letter-spacing:-.02em;max-width:22ch;line-height:1.3">درج واحد يحتاج أربع قطع. اشترِها مرة واحدة.</h2>
+<p style="margin:0;font-size:14.5px;line-height:1.8;color:var(--k3F5462);max-width:44ch">طقم الدرج القياسي: مجرى سوفت كلوز، مفصلة باكم، مقبض لطش، ومنظّم تالسن. مختار ليعمل مع بعضه، بسعر أقل من شرائه مفرّقاً.</p>
+<div style="display:flex;flex-direction:column;gap:9px">
+<sc-for list="{{ bundle }}" as="b" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:12px;padding:11px 13px;border:1px solid var(--kE3E6E7);border-radius:10px">
+<div style="width:38px;height:38px;border-radius:7px;background:var(--kF5F6F7);overflow:hidden;flex:0 0 auto"><img src="{{ b.art }}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" /></div>
+<span style="font-size:13.5px;font-weight:500;flex:1;min-width:0">{{ b.name }}</span>
+<span style="font-size:13px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k64737C)" dir="ltr">{{ b.price }}</span>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:18px;border-top:1px solid var(--kE3E6E7)">
+<div style="display:flex;flex-direction:column;gap:2px"><div style="display:flex;align-items:baseline;gap:7px"><span style="font-size:24px;font-weight:600;color:var(--k0B3B63);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">276.00</span><span style="font-size:13px;color:var(--kC3D2DE)">ر.س</span><span style="font-size:13px;color:var(--k9AA6AC);text-decoration:line-through;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">307.15</span></div><span style="font-size:12px;color:var(--k1F7A5C);font-weight:500">توفّر 31.15 ر.س على الطقم</span></div>
+<button onClick="{{ addBundle }}" style="font-family:inherit;font-size:14px;font-weight:500;padding:0 22px;height:46px;border:0;border-radius:10px;background:var(--k0B3B63);color:var(--kIOA);cursor:pointer;margin-inline-start:auto;transition:background .15s" style-hover="background:var(--k093250)">أضف الطقم كاملاً</button>
+</div>
+</div>
+<div style="background:var(--kF5F6F7);border-inline-start:1px solid var(--kE3E6E7);position:relative;min-height:380px;overflow:hidden">
+<image-slot id="tw-bundle" src="{{ artOrganizer }}" shape="rect" fit="cover" placeholder="صورة الطقم" style="position:absolute;inset:0;width:100%;height:100%"></image-slot>
+</div>
+</div>
+</section>
+
+<section style="max-width:1400px;margin:0 auto;padding:64px 40px 0">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:20px;margin-bottom:22px">
+<h2 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em">مشاريع نُفّذت بقطعنا</h2>
+<span style="font-size:13.5px;font-weight:500;color:var(--k0B3B63);cursor:pointer">كل المشاريع ←</span>
+</div>
+<div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px">
+<div style="position:relative;border-radius:14px;overflow:hidden;background:var(--kWellBg);min-height:400px;display:flex;flex-direction:column;justify-content:flex-end;padding:32px;cursor:pointer">
+<image-slot id="tw-proj-1" src="{{ artWardrobe }}" shape="rect" fit="cover" placeholder="صورة مشروع" style="position:absolute;inset:0;width:100%;height:100%"></image-slot>
+<div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,rgba(44,25,17,.82),rgba(44,25,17,.06) 62%)"></div>
+<div style="position:relative;display:flex;flex-direction:column;gap:9px;max-width:34ch"><span style="font-size:11.5px;font-weight:600;letter-spacing:.12em;color:var(--kDFC0A6)">مشروع · جدة</span><span style="font-size:24px;font-weight:600;letter-spacing:-.015em;line-height:1.35;color:var(--kFFF)">غرفة ملابس كاملة: أدراج أحذية، علاقات هيدروليك، وإضاءة داخلية</span><span style="font-size:13.5px;color:var(--kEDE3DA)">القائمة كاملة قابلة للتسوّق</span></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="flex:1;position:relative;border-radius:14px;overflow:hidden;background:var(--kWellBg);min-height:190px;display:flex;align-items:flex-end;padding:22px;cursor:pointer"><image-slot id="tw-guide-1" src="{{ artGuideSlide }}" shape="rect" fit="cover" placeholder="صورة مقال" style="position:absolute;inset:0;width:100%;height:100%"></image-slot><div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,rgba(20,41,58,.85),rgba(20,41,58,.05) 62%)"></div><span style="position:relative;font-size:16px;font-weight:600;line-height:1.45;max-width:22ch;color:var(--kFFF)">كيف تختار مجرى الدرج الصحيح</span></div>
+<div style="flex:1;position:relative;border-radius:14px;overflow:hidden;background:var(--kWellBg);min-height:190px;display:flex;align-items:flex-end;padding:22px;cursor:pointer"><image-slot id="tw-guide-2" src="{{ artGuideHandles }}" shape="rect" fit="cover" placeholder="صورة مقال" style="position:absolute;inset:0;width:100%;height:100%"></image-slot><div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,rgba(20,41,58,.85),rgba(20,41,58,.05) 62%)"></div><span style="position:relative;font-size:16px;font-weight:600;line-height:1.45;max-width:22ch;color:var(--kFFF)">الأسود المطفي واللطش: أي مقبض لأي واجهة</span></div>
+</div>
+</div>
+</section>
+
+<section style="max-width:1400px;margin:0 auto;padding:64px 40px 0">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px">
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;padding:34px;display:flex;flex-direction:column;gap:16px">
+<span style="font-size:11.5px;font-weight:600;letter-spacing:.13em;color:var(--k0B3B63)">للأفراد</span>
+<h3 style="margin:0;font-size:23px;font-weight:600;letter-spacing:-.015em;line-height:1.35;max-width:20ch">تبني مطبخك؟ اشترِ بالحبة</h3>
+<p style="margin:0;font-size:14.5px;line-height:1.8;color:var(--k3F5462);max-width:40ch">سعر واضح للحبة، صور حقيقية، وقياسات مكتوبة بالمليمتر. لا حد أدنى ولا حساب شركة.</p>
+<button onClick="{{ goCat }}" style="font-family:inherit;font-size:14px;font-weight:500;padding:0 22px;height:46px;border:0;border-radius:10px;background:var(--k0B3B63);color:var(--kIOA);cursor:pointer;align-self:flex-start;margin-top:6px;transition:background .15s" style-hover="background:var(--k093250)">تسوّق بالتجزئة</button>
+</div>
+<div style="border:1px solid var(--kDFC0A6);background:var(--kFAF4EF);border-radius:14px;padding:34px;display:flex;flex-direction:column;gap:16px">
+<span style="font-size:11.5px;font-weight:600;letter-spacing:.13em;color:var(--k8A5130)">للشركات والمقاولين</span>
+<h3 style="margin:0;font-size:23px;font-weight:600;letter-spacing:-.015em;line-height:1.35;max-width:20ch">تشتري بالكمية؟ افتح حساب شركة</h3>
+<p style="margin:0;font-size:14.5px;line-height:1.8;color:var(--k5C3522);max-width:40ch">تسعير جملة، كراتين وأطقم بالكميات، قائمة تقنية بالأرقام، صلاحيات لفريق الشراء، وفواتير ضريبية. المراجعة عادة خلال يومَي عمل.</p>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+<button style="font-family:inherit;font-size:14px;font-weight:500;padding:0 22px;height:46px;border:0;border-radius:10px;background:var(--k8A5130);color:var(--kIOA);cursor:pointer;transition:background .15s" style-hover="background:var(--k74432A)">قدّم طلب حساب</button>
+<button style="font-family:inherit;font-size:14px;font-weight:500;padding:0 20px;height:46px;border:1px solid var(--kDFC0A6);border-radius:10px;background:transparent;color:var(--k5C3522);cursor:pointer;transition:background .15s" style-hover="background:var(--kF0E2D6)">اعرف الشروط</button>
+</div>
+</div>
+</div>
+</section>
+
+<section style="max-width:1400px;margin:0 auto;padding:64px 40px 0">
+<div style="border-radius:14px;background:var(--kF5EFE9);color:var(--k14293A);padding:44px 40px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:48px;align-items:center">
+<div style="display:flex;flex-direction:column;gap:14px">
+<span style="font-size:11.5px;font-weight:600;letter-spacing:.13em;color:var(--k8A5130)">نقاط تاتش وود</span>
+<h2 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.3;max-width:20ch">كل ريال تشتريه يرجع لك جزء منه</h2>
+<p style="margin:0;font-size:14.5px;line-height:1.8;color:var(--k5C3522);max-width:42ch">نقطة لكل ريال، و100 نقطة = 5 ر.س على أي طلب قادم. تُصرف من السلة مباشرة دون كود.</p>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+<div style="background:var(--kFFF);border:1px solid var(--kE7D6C6);border-radius:11px;padding:20px;display:flex;flex-direction:column;gap:7px"><span style="font-size:26px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k0B3B63)" dir="ltr">1×</span><span style="font-size:12.5px;color:var(--k64737C);line-height:1.6">نقطة لكل ريال على كل طلب</span></div>
+<div style="background:var(--kFFF);border:1px solid var(--kE7D6C6);border-radius:11px;padding:20px;display:flex;flex-direction:column;gap:7px"><span style="font-size:26px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">2×</span><span style="font-size:12.5px;color:var(--k64737C);line-height:1.6">على طلبات الجملة المعتمدة</span></div>
+<div style="background:var(--kFFF);border:1px solid var(--kE7D6C6);border-radius:11px;padding:20px;display:flex;flex-direction:column;gap:7px"><span style="font-size:26px;font-weight:600;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k0B3B63)" dir="ltr">{{ points }}</span><span style="font-size:12.5px;color:var(--k64737C);line-height:1.6">نقاطك الآن · تكفي {{ pointsValue }} ر.س</span></div>
+</div>
+</div>
+</section>
+
+<section style="margin:76px 0 64px;border-top:1px solid var(--kE3E6E7);border-bottom:1px solid var(--kE3E6E7);background:var(--kFBFBFA);overflow:hidden">
+<div style="max-width:1400px;margin:0 auto;padding:34px 40px 12px;display:flex;align-items:baseline;justify-content:space-between;gap:20px;flex-wrap:wrap">
+<h2 style="margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em">ورش ومصانع ومقاولون يشترون منّا</h2>
+<span style="font-size:13px;color:var(--k64737C)">مرّر المؤشر لإيقاف الحركة</span>
+</div>
+<div style="padding:14px 0 36px;mask-image:linear-gradient(to left,transparent,var(--k000) 90px,var(--k000) calc(100% - 90px),transparent);-webkit-mask-image:linear-gradient(to left,transparent,var(--k000) 90px,var(--k000) calc(100% - 90px),transparent)">
+<div style="display:flex;gap:18px;width:max-content;animation:twMarquee 46s linear infinite" style-hover="animation-play-state:paused">
+<sc-for list="{{ clients }}" as="cl" hint-placeholder-count="14">
+<div style="flex:0 0 auto;width:180px;height:78px;border:1px solid var(--kE3E6E7);border-radius:11px;background:var(--kFFF);position:relative;overflow:hidden;transition:border-color .25s" style-hover="border-color:var(--kAFC4D6)">
+<image-slot class="tw-client-logo" id="{{ cl.slotId }}" shape="rect" fit="contain" placeholder="{{ cl.label }}" style="position:absolute;inset:0;width:100%;height:100%"></image-slot>
+</div>
+</sc-for>
+</div>
+</div>
+</section>
+
+<footer style="background:var(--k07273E);--kFFF:#F2F6FA;--kDCE6EE:#C6D8E6;--kAFC4D6:#AFC4D6;--kC6D8E6:#C6D8E6;--k7FA3C0:#7FA3C0;--k8FB0CA:#8FB0CA;--k9AA6AC:#8FA7BA;--k64737C:#9DB2C4;--k3F5462:#C6D8E6;--k14293A:#F2F6FA;--kE8EBED:rgba(255,255,255,.14);--kE3E6E7:rgba(255,255,255,.14);color:var(--kFFF)">
+<div style="max-width:1400px;margin:0 auto;padding:52px 40px;display:grid;grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr));gap:40px">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:center;gap:11px"><img src="{{ logoSrc }}" alt="تاتش وود" style="width:38px;height:38px;object-fit:contain;display:block" /><span style="font-size:14.5px;font-weight:600;color:var(--kFFF)">TOUCHWOOD</span></div>
+<p style="margin:0;font-size:13.5px;line-height:1.8;color:var(--kC3D2DE);max-width:34ch">إكسسوارات المطابخ والخزائن في السعودية، ووكيل تالسن. للأفراد والورش، بالتجزئة وبالجملة.</p>
+<span style="font-size:12.5px;color:var(--kFFF);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">+966 54 592 0426</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:11px"><span style="font-size:12.5px;font-weight:600;color:var(--kFFF)">المتجر</span><span style="font-size:13px;color:var(--kC3D2DE)">كل الفئات</span><span style="font-size:13px;color:var(--kC3D2DE)">العلامات</span><span style="font-size:13px;color:var(--kC3D2DE)">الجديد</span><span style="font-size:13px;color:var(--kC3D2DE)">العروض</span></div>
+<div style="display:flex;flex-direction:column;gap:11px"><span style="font-size:12.5px;font-weight:600;color:var(--kFFF)">للشركات</span><span style="font-size:13px;color:var(--kC3D2DE)">حساب شركة</span><span style="font-size:13px;color:var(--kC3D2DE)">تسعير الجملة</span><span style="font-size:13px;color:var(--kC3D2DE)">الكتالوج الفني</span><span style="font-size:13px;color:var(--kC3D2DE)">Tallsen</span></div>
+<div style="display:flex;flex-direction:column;gap:11px"><span style="font-size:12.5px;font-weight:600;color:var(--kFFF)">المساعدة</span><span style="font-size:13px;color:var(--kC3D2DE)">تتبّع الطلب</span><span style="font-size:13px;color:var(--kC3D2DE)">الشحن والتوصيل</span><span style="font-size:13px;color:var(--kC3D2DE)">الإرجاع</span><span style="font-size:13px;color:var(--kC3D2DE)">تواصل معنا</span></div>
+</div>
+<div style="border-top:1px solid rgba(255,255,255,.14)"><div style="max-width:1400px;margin:0 auto;padding:18px 40px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap"><span style="font-size:12.5px;color:var(--k8FA9BE)">© 2026 تاتش وود · جميع الحقوق محفوظة</span><span style="font-size:12.5px;color:var(--k8FA9BE)">مستودع الخمرة، جدة · <span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">support@touchwoodksa.com</span></span></div></div>
+</footer>
+
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;bottom:26px;inset-inline-start:26px;z-index:80;display:flex;align-items:center;gap:12px;padding:13px 18px;background:var(--k14293A);color:var(--kFFF);border-radius:11px;box-shadow:0 18px 40px -20px rgba(20,41,58,.6);animation:twRise .2s ease-out">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--k7FD1AE)" stroke-width="2" stroke-linecap="round"><path d="m5 13 4 4 10-10"></path></svg>
+<span style="font-size:13.5px;font-weight:500">{{ toast }}</span>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+
+const RES = (p) => { const r = window.__resources || {}; if (r[p]) return r[p]; const m = /([^/]+)\.(png|jpg|jpeg|webp|svg)$/i.exec(p); if (m) { const k = 'art_' + m[1].replace(/-/g, '_'); if (r[k]) return r[k]; } if (/touchwood-logo/.test(p) && r.brandLogo) return r.brandLogo; if (/admin-sections/.test(p) && r.sectionsMod) return r.sectionsMod; return p; };
+
+const CATS = [
+  {art:RES('art/slide.png'), name:'مستلزمات المطابخ', hint:'مجاري · مفصلات · أرجل · نعلات'},
+  {art:RES('art/organizer.png'), name:'مستلزمات خزائن الملابس', hint:'علاقات · بسكت · أدراج أحذية'},
+  {art:RES('art/handle.png'), name:'مقابض', hint:'لطش · حرف L · قطاعات 3م'},
+  {art:RES('art/led.png'), name:'اكسسوارات اضاءة', hint:'قطاعات · ماسورة مضاءة'},
+  {art:RES('art/fixings.png'), name:'اكسسوارت تجميع', hint:'زوايا · مسامير · كفرات'},
+  {art:RES('art/led.png'), name:'مستلزمات الاخشاب', hint:'شرائح PVC · أعمدة أرفف'},
+  {art:RES('art/tandem.png'), name:'تـالسن — TALLSEN', hint:'منظمات ووحدات متعددة الوظائف'},
+  {art:RES('art/piston.png'), name:'ركن اكسسوارات الابواب', hint:'ردادات · أذرع قلاب · هيدرولك'}
+];
+const BUNDLE = [
+  {art:RES('art/slide.png'), name:'مجرى درج سوفت كلوز', price:'13.80'},
+  {art:RES('art/hinge.png'), name:'مفصلة باكم 2D — ركبة كاملة', price:'2.30'},
+  {art:RES('art/handle.png'), name:'مقبض لطش حرف L أسود سلفر 3م', price:'31.05'},
+  {art:RES('art/organizer.png'), name:'اكسسوار درج تخزين تالسن SH8122', price:'260.00'}
+];
+const RAW = [
+  {id:'p1', art:RES('art/slide.png'), brand:'TOUCHWOOD', name:'مجرى درج سوفت كلوز', sku:'TW-MGR-SC45', spec:'450mm', price:'13.80', wholesale:'11.20', minQty:50, mode:'both', stock:'in', stockLine:'متوفر · 1,400 حبة', stockShort:'1,400', stockUnit:'حبة', images:3, variants:true, badge:'الأكثر مبيعاً', badgeBg:'var(--kEEF2F5)', badgeC:'var(--k0B3B63)'},
+  {id:'p2', art:RES('art/hinge.png'), brand:'باكم — BAKM', name:'مفصلة باكم 2D — ركبة كاملة، نصف، داخلية', sku:'TW-MFS-2D', spec:'2D', price:'2.30', wholesale:'1.84', minQty:100, mode:'both', stock:'in', stockLine:'متوفر · 8,600 حبة', stockShort:'8,600', stockUnit:'حبة', images:3, variants:true, badge:null},
+  {id:'p3', art:RES('art/handle.png'), brand:'TOUCHWOOD', name:'مقبض لطش حرف L أسود سلفر 3م', sku:'TW-MQB-L3M', spec:'3m', price:'31.05', wholesale:null, minQty:0, mode:'retail', stock:'in', stockLine:'متوفر · 320 قطعة', stockShort:'320', stockUnit:'قطعة', images:2, variants:true, badge:null},
+  {id:'p4', art:RES('art/organizer.png'), brand:'تـالسن — TALLSEN', name:'اكسسوار درج تخزين متعدد الوظائف SH8122', sku:'TW-SH8122', spec:'600mm', price:'260.00', wholesale:'232.00', minQty:10, mode:'both', stock:'low', stockLine:'كمية محدودة · 18 قطعة', stockShort:'18', stockUnit:'قطعة', images:1, variants:false, badge:'تالسن', badgeBg:'var(--kFAF4EF)', badgeC:'var(--k5C3522)'},
+  {id:'p5', art:RES('art/tandem.png'), brand:'TOUCHWOOD', name:'سحاب درج سفلي مع أجناب زجاج تاندم بوكس مع إضاءة', sku:'TW-TNDM-LED', spec:'500mm', price:'140.00', wholesale:'118.00', minQty:10, mode:'both', stock:'in', stockLine:'متوفر · 240 طقم', stockShort:'240', stockUnit:'طقم', images:2, variants:true, badge:null},
+  {id:'p6', art:RES('art/piston.png'), brand:'TOUCHWOOD', name:'طقم هيدرولك زجاج — كرتون 25 طقم', sku:'TW-HYD-25', spec:'25 طقم', price:'74.75', wholesale:'74.75', minQty:25, mode:'wholesale', stock:'order', stockLine:'بالطلب · 5 أيام', stockShort:'5', stockUnit:'أيام بالطلب', images:1, variants:false, badge:'جملة', badgeBg:'var(--kFAF4EF)', badgeC:'var(--k5C3522)'}
+];
+class Component extends DCLogic {
+  state = { mode:'grid', account:'guest', img:{}, fav:{}, cart:0, points:340, megaOpen:false, toast:'' };
+  ping(t){ clearTimeout(this._t); this.setState({toast:t}); this._t = setTimeout(()=>this.setState({toast:''}), 2600); }
+  renderVals(){
+    const s = this.state;
+    const isCompany = s.account === 'pending' || s.account === 'approved';
+    const showWholesale = isCompany;
+    const blocked = s.account === 'pending';
+    const seg = (on) => on ? 'var(--kFFF)' : 'transparent';
+    const products = RAW.map(p => {
+      const shown = s.img[p.id] || 1;
+      const zones = Math.min(p.images, 3);
+      const wholesaleAvailable = p.mode !== 'retail';
+let cta = 'أضف إلى السلة', ctaShort = 'أضف', ctaBg = 'var(--k0B3B63)', ctaC = 'var(--kFFF)', ctaBorder = '0', ctaCursor = 'pointer';
+      if (p.mode === 'wholesale' && !showWholesale) {
+        cta = 'السعر للشركات'; ctaShort = 'للشركات'; ctaBg = 'var(--kFAF4EF)'; ctaC = 'var(--k5C3522)'; ctaBorder = '1px solid var(--kDFC0A6)';
+      } else if (p.variants) {
+        cta = 'اختر الخيارات'; ctaShort = 'الخيارات'; ctaBg = 'var(--kFFF)'; ctaC = 'var(--k14293A)'; ctaBorder = '1px solid var(--kE3E6E7)';
+      } else if (blocked) {
+        cta = 'أضف إلى السلة'; ctaShort = 'أضف'; ctaBg = 'var(--kFFF)'; ctaC = 'var(--k0B3B63)'; ctaBorder = '1px solid var(--kAFC4D6)';
+      }
+      const restrictLine = blocked ? 'الطلب موقوف حتى اعتماد الحساب' : '';
+      let wholesaleLine = '', wholesaleC = 'var(--k5C3522)';
+      if (wholesaleAvailable && showWholesale) wholesaleLine = 'جملة ' + p.wholesale + ' ر.س من ' + p.minQty + ' حبة';
+      else if (wholesaleAvailable) { wholesaleLine = 'متاح بالجملة لحسابات الشركات'; wholesaleC = 'var(--k64737C)'; }
+      const listRetail = p.mode === 'wholesale' ? '—' : p.price;
+      return {
+        ...p, shownImage: shown, imageCount: p.images, restrictLine,
+        slotId: 'tw-' + p.id + '-' + shown, slotLabel: p.name + ' · صورة ' + shown,
+        multiImage: zones > 1, hasThird: zones > 2,
+        dot1Bg: shown === 1 ? 'var(--k0B3B63)' : 'var(--kD7DCDF)',
+        dot2Bg: shown === 2 ? 'var(--k0B3B63)' : 'var(--kD7DCDF)',
+        dot3Bg: shown === 3 ? 'var(--k0B3B63)' : 'var(--kD7DCDF)',
+        favFill: s.fav[p.id] ? 'var(--k8A5130)' : 'none', favStroke: s.fav[p.id] ? 'var(--k8A5130)' : 'var(--k64737C)',
+        wholesaleLine, wholesaleC,
+        stockDot: p.stock === 'in' ? 'var(--k1F7A5C)' : (p.stock === 'low' ? 'var(--kB7791F)' : 'var(--k64737C)'),
+        cta, ctaShort, ctaBg, ctaC, ctaBorder, ctaCursor,
+        listPrice: showWholesale && wholesaleAvailable ? p.wholesale : listRetail,
+        listPriceC: showWholesale && wholesaleAvailable ? 'var(--k8A5130)' : 'var(--k0B3B63)',
+        listPriceNote: showWholesale && wholesaleAvailable ? 'من ' + p.minQty + ' حبة' : (p.mode === 'wholesale' ? 'جملة فقط' : 'للحبة'),
+        badgeBg: p.badgeBg || 'var(--kEEF2F5)', badgeC: p.badgeC || 'var(--k0B3B63)',
+        onMove: (e) => {
+          if (zones < 2) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          if (e.clientY > r.bottom - 26 || e.clientY < r.top + 44) return;
+          const fromRight = r.right - e.clientX;
+          const z = Math.min(zones, Math.floor((fromRight / r.width) * zones) + 1);
+          if (z !== shown) this.setState(st => ({ img: { ...st.img, [p.id]: z } }));
+        },
+        onLeave: () => {},
+        onFav: () => this.setState(st => ({ fav: { ...st.fav, [p.id]: !st.fav[p.id] } })),
+        onAdd: () => {
+          if (p.mode === 'wholesale' && !showWholesale) return this.ping('سعر الجملة يظهر لحسابات الشركات المعتمدة');
+          if (p.variants) return this.ping('انتقل إلى صفحة المنتج لحسم القياس والتشطيب');
+          if (blocked) return this.ping('أُضيف إلى السلة — الطلب موقوف حتى اعتماد حساب الشركة');
+          this.setState(st => ({ cart: st.cart + 1, points: st.points + 40 }));
+          this.ping('أُضيف إلى السلة · ' + p.name);
+        }
+      };
+    });
+    return {
+      clients: [0,1].flatMap(pass => Array.from({length:7},(_,i)=>({slotId:'tw-client-'+i, label:'شعار عميل '+(i+1), key:pass+'-'+i}))),
+      categories: CATS.map((c, i) => ({...c, slotId: 'tw-cat-' + i})),
+      bundle: BUNDLE,
+      products,
+      isGrid: s.mode === 'grid', isList: s.mode === 'list',
+      setGrid: () => this.setState({mode:'grid'}), setList: () => this.setState({mode:'list'}),
+      gridBtnBg: seg(s.mode==='grid'), gridBtnC: s.mode==='grid' ? 'var(--k0B3B63)' : 'var(--k64737C)',
+      gridBtnSh: s.mode==='grid' ? '0 1px 2px rgba(20,41,58,.08)' : 'none',
+      listBtnBg: seg(s.mode==='list'), listBtnC: s.mode==='list' ? 'var(--k0B3B63)' : 'var(--k64737C)',
+      listBtnSh: s.mode==='list' ? '0 1px 2px rgba(20,41,58,.08)' : 'none',
+      modeNote: s.mode === 'grid'
+        ? 'عرض الشبكة — الافتراضي للزوار والأفراد'
+        : 'القائمة التقنية — الافتراضي لحسابات الشركات، بالرمز والقياس والتوفّر',
+      listPriceHead: isCompany ? 'سعر الجملة' : 'السعر',
+      setGuest: () => this.setState({account:'guest', mode:'grid'}),
+      setPending: () => this.setState({account:'pending', mode:'list'}),
+      setApproved: () => this.setState({account:'approved', mode:'list'}),
+      tabGuest: s.account==='guest' ? 'var(--kFFF)' : 'transparent', tabGuestC: s.account==='guest' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      tabPending: s.account==='pending' ? 'var(--kFFF)' : 'transparent', tabPendingC: s.account==='pending' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      tabApproved: s.account==='approved' ? 'var(--kFFF)' : 'transparent', tabApprovedC: s.account==='approved' ? 'var(--k0B3B63)' : 'var(--kC3D2DE)',
+      accountNote: s.account==='guest' ? 'أسعار التجزئة · شبكة افتراضية'
+        : (s.account==='pending' ? 'تحت المراجعة · تصفّح وتحضير سلة، الطلب موقوف' : 'معتمدة · أسعار جملة وقائمة تقنية'),
+      restrictBanner: blocked ? 'حسابك تحت المراجعة — يمكنك التصفّح وتحضير السلة، والطلب يُفتح بعد الاعتماد.' : '',
+      megaOpen: s.megaOpen, megaBtnBg: s.megaOpen ? 'var(--kF5F6F7)' : 'transparent',
+      openMega: () => this.setState({megaOpen:true}), closeMega: () => this.setState({megaOpen:false}),
+      favCount: Object.values(s.fav).filter(Boolean).length,
+      logoSrc: RES('brand/touchwood-logo.png'),
+      artKitchen: RES('art/kitchen.png'), artOrganizer: RES('art/organizer.png'), artWardrobe: RES('art/wardrobe.png'),
+      artGuideSlide: RES('art/guide-slide.png'), artGuideHandles: RES('art/guide-handles.png'),
+      cartCount: s.cart, points: s.points, pointsValue: Math.floor(s.points / 100) * 5,
+      addBundle: () => { this.setState(st => ({cart: st.cart + 4, points: st.points + 284})); this.ping('أُضيف طقم الدرج · ٤ قطع'); },
+      goCat: () => { window.dispatchEvent(new CustomEvent('tw-nav', { detail: 'store' })); },
+      goCart: () => { window.dispatchEvent(new CustomEvent('tw-nav', { detail: 'store' })); },
+      toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>
