@@ -36,19 +36,34 @@ jobs:
         with:
           php-version: '8.4'
           # gd (with AVIF and WebP), exif and fileinfo are needed for media uploads and image variants.
-          extensions: pdo_pgsql, pgsql, intl, bcmath, mbstring, gd, exif, fileinfo
+          # sockets is for the browser tests (pest-plugin-browser).
+          extensions: pdo_pgsql, pgsql, intl, bcmath, mbstring, gd, exif, fileinfo, sockets
           coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19'
+          cache: npm
 
       # --no-scripts: composer's post-autoload-dump boots Laravel (package:discover), and there is
       # no .env yet. The environment comes first, then the packages are discovered.
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress --no-scripts
 
+      - name: Install front-end dependencies
+        run: npm ci
+
       - name: Prepare environment
         run: |
           cp .env.example .env
           php artisan key:generate --force
           php artisan package:discover --ansi
+
+      # Every page is an Inertia page, and the shell asks Vite for the built assets. Without a
+      # manifest, @vite throws and a page is not a page at all - which is why ten feature tests
+      # failed here while passing on a machine that had already run a build (2026-09-22).
+      - name: Build assets
+        run: npm run build
 
       # Order matters: style, then types, then BOUNDARIES, then tests.
       # Deptrac is blocking. A boundary violation fails the build even if
@@ -59,6 +74,8 @@ jobs:
         run: vendor/bin/phpstan analyse --memory-limit=2G --no-progress
       - name: Module boundaries (BLOCKING)
         run: vendor/bin/deptrac analyse --fail-on-uncovered --report-uncovered --no-progress
+      - name: TypeScript
+        run: npm run types
       - name: Tests
         # --ci makes a committed ->only() fail the run instead of silently skipping every other test.
         run: vendor/bin/pest --ci
