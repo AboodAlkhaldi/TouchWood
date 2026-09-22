@@ -30,7 +30,8 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Module | Spec | Blocked by |
 |---|---|---|
 | Platform | [approved](platform.md) — **Stage 1 delivery implemented** (spec §3); admin view use cases come with Access. See [its README](../../src/Modules/Platform/README.md) | — |
-| Access | [approved](access.md), amendments 1–36 agreed — being built, steps 1–3b of 8 (permission catalog; roles and the real permission check; staff accounts; staff lifecycle and sign-in). See [its README](../../src/Modules/Access/README.md) | — |
+| Access | [approved](access.md), amendments 1–46 — **built and merged** (2026-09-21): all seven steps. See [its README](../../src/Modules/Access/README.md) | — |
+| Frontend foundation (stage 2b, not a module) | [approved](frontend.md) — revised 2026-09-22 against the merged Access; builds in the five steps of its §0.2 | — |
 | B2B | not started | — |
 | Feedback | not started | Catalog, Sales — built with Sales (stage 6) |
 | Catalog | not started | external provider schema + real product sample |

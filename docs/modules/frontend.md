@@ -1,0 +1,708 @@
+# Frontend foundation — Stage Specification
+
+> **Read this first.** The body of this file was written with the owner on 2026-09-19, while Access
+> was still being built. On **2026-09-22**, with Access finished and merged, it was checked against
+> the merged code and the owner settled everything that had changed underneath it (§0). Sections the
+> owner approved on 2026-09-19 and that nothing has invalidated stand as they are; they are not
+> re-opened here.
+>
+> Facts recorded on 2026-09-19 that still carry a date — package versions, font coverage — were true
+> then and are **verified again when the build starts**. Where this file and a module's own approved
+> spec disagree, the module's spec wins.
+
+**Status:** APPROVED for building, in the steps of §0.2. Written section by section with the owner
+on 2026-09-19; revised with the owner on 2026-09-22 against the merged code.
+**Stage:** 2b (handoff §17), after Access, before B2B. **Depends on:** Platform, Access.
+**Source:** `docs/HANDOFF.md` §3, §4.1, §5.2, §14, §17; `docs/STRUCTURE.md`; `docs/modules/platform.md`
+§3, §5.1, §9.3; `docs/modules/access.md` (header, §3); the owner's answers of 2026-09-19 (§8).
+
+This stage is not one of the 15 modules, so it does not use the nine-section module template
+(handoff §18). Its outline was agreed with the owner on 2026-09-19:
+
+1. Foundation · 2. Layouts · 3. Screens · 4. New backend endpoints · 5. Performance budgets ·
+6. Accessibility and RTL · 7. Test scenarios · 8. Questions
+
+**What it delivers** (handoff §17, access.md header, platform.md §3 and §9.3): Inertia + React +
+shadcn with SSR; the storefront's sign-in, registration and verification pages; the admin sign-in
+with its SMS code; staff and role management, with their endpoints; Platform's admin screens
+(stores, currencies, settings, media library, audit log); error pages for 409, 413, 415 and 422;
+and the check that the Riyal and Dirham signs render in the chosen font.
+
+Items marked **[DECIDED date]** are the owner's answers in the planning conversation of that date —
+not final acceptance (see the notice above); each is confirmed again before it is built.
+
+**Changes to a section after its approval** — each shown to the owner:
+
+| Section | Change | Why |
+|---|---|---|
+| §1.7, §1.8 | Fonts, colours, digits and the first currency-sign check filled in from the design | The design arrived after §1 was approved; the digits rule is the owner's answer |
+| §2.2 | The EN/AR toggle changes only the display; remembered per browser | Access amendment 16; the question asked before §2's approval had it wrong. Owner's answer, 2026-09-19 |
+| §0 | Everything Access changed between 2026-09-19 and its merge, and the step list | Owner, 2026-09-22 |
+
+---
+
+## 0 · Revised with the owner, 2026-09-22
+
+Access was finished after this file was written: steps 5 (addresses), 6 (deletion, blocking, the
+staff views) and 7 (the module's own pass) landed, with amendments 41–46. This section records what
+that changed here, and the step list the build follows. Nothing else in the file was re-opened.
+
+### 0.1 What Access changed underneath this spec
+
+| # | Section | It said | It now says | Source |
+|---|---|---|---|---|
+| R1 | §3.3 C1 | The staff list shows picture, name, email, role, status and the joined date for everyone | An **admin** seen by anyone but a Super Admin shows a **name and a role only**. They appear in a **separate short section** of the list, above the ordinary colleagues, with those two columns and nothing else — no empty cells pretending there is data (owner, 2026-09-22). The list is ordered **by name**, not by joining date, for a reader who is not a Super Admin | access.md amendments 43(a), 44(e), 46(d); the list's own ordering rule |
+| R2 | §3.2 B2 | Changing your own phone asks for the new number and a code | It asks for the **current password first**, then the code. A wrong password is counted like a wrong one at sign-in, so the screen must show the lockout message too | access.md amendment 46(b) |
+| R3 | §3.3 C7 | Enabling someone with no role asks for the role in the same step | Still true, but the case it was written for is gone: revoking a Super Admin now **closes the account** (`CANCELLED`, email and phone freed). Nobody is left role-less by a revoke, and the screen never shows one | access.md amendment 45(b) |
+| R4 | §3.5 E4 | Access's numbers are settings on the settings screen | They are, in **one Access section** (owner, 2026-09-22), but under **two permissions**: a store's own settings are ordinary, the staff sign-in and security numbers are **admin-only**. Each row checks its own permission, so a staff member simply does not see the rows they may not change | access.md amendment 46(a) |
+| R5 | §3.6 F10 | Closing the account: locked at once, anonymized after 14 days, signing in cancels it | Confirming it also **signs them out of every device immediately**, and the "cancel from the account page" is gone — signing in again is the only way back. They land on the **store home, signed out**, with a message giving the deletion date and saying that signing in before then cancels it (owner, 2026-09-22) | access.md amendment 45(a) |
+| R6 | §3.7 G2 | Staff may block, unblock, and start the 14-day deletion | All three are **admin-only** actions, and staff may also **cancel** a pending deletion, with a reason. As everywhere, a button appears only for someone who may use it | access.md amendment 43(b), 43(c) |
+| R7 | §4.3 P7 | Read models for the customer screens are missing | **Done.** `ListCustomers`, `ViewCustomer`, `ListStaff` and `ViewStaff` shipped with Access step 6 | access.md §3.3 |
+| R8 | §8.1 | Open: which module keeps the admin menu registry | **Platform keeps it** (owner, 2026-09-22), like the permission catalog and the settings registry: every module, Platform included, declares its own entries with the permission each needs. Filtering asks the Shared `Authorizer`, so Platform never reaches into Access | §4.3 P6 |
+
+Checked and **not** stale: the address fields of §3.6 F9 (five required of thirteen, exactly as
+`StartingAddressFormat` writes them), the route names of §3.1, and the customer rules of §3.6 F5.
+
+### 0.2 The steps this stage is built in
+
+Agreed with the owner, 2026-09-22. Each step ends the way every step of Access ended: `composer
+check` green, an independent review, a mutation run over what it added, and the owner's word before
+the next one starts.
+
+| Step | What | Why it is one step |
+|---|---|---|
+| **0** | The six changes other modules must make (§4.3 P1–P6), each an amendment to its own module's spec | No screen can be built well without them, and three of them change a module's public contract that later stages depend on |
+| **1** | The foundation: Inertia, SSR, the four layouts, fonts, colours, RTL, the `t()` helper, Ziggy groups, generated types, the added checks — **proved end to end by the admin sign-in pages** (A1–A9) | Every decision in §1 and §2 is exercised by real screens before anything is built on top of them |
+| **2** | The admin: my account, staff, roles (§3.2, §3.3, §3.4) | The screens with the most rules behind them, all of them Access's, all already built and tested underneath |
+| **3** | Platform's screens: stores, currencies, settings, the media library, the audit log (§3.5) | One module's screens, one permission model, no dependency on step 2 |
+| **4** | The storefront and the customer's account (§2.3, §3.6), and the customer screens staff see (§3.7) | The public side, which needs the layouts of step 1 and the read models Access already has |
+
+**Step 0 in detail** — written out in [frontend-step-0.md](frontend-step-0.md), which the owner
+approves before any of it is built. Each becomes an amendment to the named module's spec:
+
+| # | Module | What is built |
+|---|---|---|
+| P1 | Platform | A contract method by which a module uploads a file **for its own use**, Platform checking that module's permission for the change. Without it, a staff member with no media permission cannot set their own picture, and B2B cannot take company documents in stage 3 |
+| P2 | Platform + Access | Every declared permission carries a **group** (business area), named in Arabic and English, so the role editor and the comparison table group actions the way staff think |
+| P3 | Access | The staff account remembers **which store the person is working in**, with the fallback of §2.2 when that store leaves their scope |
+| P4 | Access | The sign-in code page receives the **masked phone** — the last 3 digits, masked by Access, never the whole number. Verified 2026-09-22: nothing exposes it today |
+| P5 | Access → `app/Http` | `FormErrors` moves beside `ProblemDetails`, so Platform's screens answer forms the same way without importing Access |
+| P6 | Platform | The **menu registry** (R8): entries with their permissions, declared by each module |
+
+---
+
+## 1 · Foundation
+
+### 1.1 Packages
+
+Latest versions checked on 2026-09-19. The build pins exact versions when it starts and records
+them here.
+
+| Package | Checked | Role |
+|---|---|---|
+| `inertiajs/inertia-laravel` | v3.3.4 (supports Laravel 13) | Server side of Inertia |
+| `@inertiajs/react` | 3.7.1 | Client side of Inertia |
+| `react` | 19.3.0 | UI |
+| `typescript` | 7.0.2 | **[DECIDED 2026-09-19]** TypeScript, not JavaScript |
+| `tailwindcss`, `@tailwindcss/vite` | ^4 (already in `package.json`) | Styling |
+| `shadcn` (CLI) | 4.21.0 | Components, copied into the repository |
+| `tightenco/ziggy` | v2.6.4 | **[DECIDED 2026-09-19]** Links to named routes, with TypeScript types |
+| `spatie/laravel-typescript-transformer` | 3.3.0 (supports Laravel 13) | **[DECIDED 2026-09-19]** TypeScript types generated from page data |
+| `spatie/laravel-data` | 4.23 (already installed) | Page data classes (presentation layer only, handoff §3) |
+| `pestphp/pest-plugin-browser` | v5.0.1 (needs Pest ^5.0.4, PHP ^8.4, `ext-sockets`) | **[DECIDED 2026-09-19]** Browser tests |
+
+Local machine, checked 2026-09-19: Node 20.19.6, npm 11.6.4, PHP 8.4.25 with `sockets` loaded.
+There is no `package-lock.json` yet. The build commits one.
+
+**To check when the build starts** (not verified yet): that TypeScript 7 works with the Vite
+and Inertia tooling of the day, and which Node version Vite 8 needs.
+
+### 1.2 Where the code lives
+
+`docs/STRUCTURE.md` already places the React code in `resources/js/` and each module's page data
+in `Presentation/Http/Resource/`. **[DECIDED 2026-09-19] Pages are grouped by module**, mirroring
+`src/Modules`. Inside `resources/js/`:
+
+```
+resources/js/
+├── app.tsx              Client entry
+├── ssr.tsx              SSR entry
+├── pages/{Module}/      One folder per module: pages/Access/Admin/SignIn.tsx
+├── layouts/             Storefront, account and admin shells (§2)
+├── components/ui/       shadcn components, generated by its CLI
+├── components/          Our own shared components
+├── lib/                 t(), route helpers, formatting
+└── types/generated/     Generated types, never edited by hand
+```
+
+A module's controllers stay in its own `Presentation/Http/Controller/`, and its page data classes
+in `Presentation/Http/Resource/`. Only the React files live outside the module.
+
+### 1.3 Server-side rendering
+
+**[DECIDED 2026-09-19] Every page is rendered on the server, admin included.** Inertia v3 runs
+SSR as a Node process started by `php artisan inertia:start-ssr` (Inertia v3 docs). In production
+it must run all the time, like the queue worker and the scheduler. Hosting is not chosen yet
+(handoff §15.4).
+
+Consequences:
+- Every component, including admin-only ones (charts, editors, the media uploader), must render
+  without a browser: no `window` or `document` while rendering.
+- **[DECIDED 2026-09-19]** If the SSR process is down, or a page fails to render on the server,
+  the page is rendered in the browser instead and the failure is logged. Nobody sees an error
+  because of SSR. The test list covers this (§7).
+
+### 1.4 Links
+
+**[DECIDED 2026-09-19] Ziggy, with TypeScript types** (`php artisan ziggy:generate --types`, Ziggy
+README).
+
+**[DECIDED 2026-09-19] Routes are sent per area.** Ziggy's `groups` split the routes: storefront
+pages receive only the `storefront` group, admin pages only the `admin` group. A shopper's page
+never contains the admin URLs. Ziggy's README says hiding a route is not protection, and
+nothing here relies on it: every admin route still checks the person's permission in its handler.
+
+- Every route has a name, and every name belongs to exactly one group. A test fails otherwise,
+  and it also asserts that it found routes to check.
+- Storefront links always carry the store and the language (`/sa/ar/...`), as generated links do
+  today (project rules, "Stores").
+- *Assumption, to verify when the build starts:* Blade's `@routes` directive does not reach the
+  SSR renderer, so the route list goes to the page with the rest of the shared page data.
+
+### 1.5 Text in two languages
+
+**[DECIDED 2026-09-19, owner's delegation]** The screens' text lives in the **Laravel lang files**,
+where the backend's text already is: `lang/ar`, `lang/en`, and each module's
+`Presentation/lang/{ar,en}` (for example `access::auth`). There are no separate frontend
+translation files.
+
+- Each page names the translation files it needs, and receives only those, in the page's language.
+  React reads them through one `t('access::auth.sign_in')` helper.
+- A test fails if a key used by a page is missing in either language.
+- Why this and not frontend files: there is one source for every text, and one missing-translation
+  check. With SSR, the text arrives with the page, so nothing loads separately. The cost is the
+  `t()` helper and each page's list of files.
+- The page's language: the storefront's comes from the URL (`/sa/ar`); the admin panel's from the
+  staff member's own `locale` (handoff §4.1). Arabic pages set `<html lang="ar" dir="rtl">`.
+
+### 1.6 Page data
+
+**[DECIDED 2026-09-19]** Each page's data is a `spatie/laravel-data` class in the module's
+`Presentation/Http/Resource/`. `spatie/laravel-typescript-transformer` generates its TypeScript
+type into `resources/js/types/generated/`. A renamed field then breaks the TypeScript check, not
+the live page. `composer check` fails if the generated types are older than the PHP classes.
+
+Page data classes are presentation only: they are built from a module's DTOs and never cross a
+module boundary (handoff §4.3).
+
+### 1.7 Forms and errors
+
+Access's sign-in endpoints, being built now (step 3b, not yet merged), already answer forms with
+**redirects** (Access amendment 12). The frontend builds on that pattern:
+
+- A field that fails validation (a Form Request) comes back in Inertia's usual `errors`, next to
+  its field.
+- A business error (a `DomainError`, for example a wrong code) comes back as one form-level message,
+  `errors.form`, translated into the person's language. Access's `FormErrors` does this today.
+- A success message comes back as the flash `status`.
+- A request asking for JSON still gets the RFC 7807 problem document (`app/Http/ProblemDetails.php`).
+
+How these messages look is in §2.1. *Open (§4):* `FormErrors` is inside Access, and Platform's
+admin screens need the same thing; where the shared version lives is decided with the owner.
+
+### 1.8 Look: fonts, colours, digits
+
+**[DECIDED 2026-09-19]** The owner's design decides fonts, colours, spacing and layouts:
+`docs/design/admin-panel-v1.html`, the admin panel's first version. It shows look and behaviour
+only. Where it shows something the specs do not have, or contradicts a decided rule, the rule
+wins (§2.7). Screens the design does not show are derived from its look (§2.1).
+
+- **Fonts:** IBM Plex Sans Arabic for text in both languages, IBM Plex Mono for figures (amounts,
+  counts, codes), as in the design.
+- **Colours:** the design's palette, light and dark (§2.1), becomes the shadcn colour tokens.
+- **[DECIDED 2026-09-19] Digits:** Arabic pages show Arabic-Indic digits (٠–٩), except in codes
+  (SKU, order number) and phone numbers, which keep 0–9. Every number input accepts both kinds of
+  digits. This replaces the design's mix (figures in 0–9, numbers inside sentences in ٠–٩).
+- **Checked in the design's own font files, 2026-09-19:** IBM Plex Mono covers Latin only, with no
+  Arabic-Indic digits. On Arabic pages, figures therefore use IBM Plex Sans Arabic, which has them.
+
+- shadcn is set up for right-to-left (`rtl: true` in `components.json`, with its `DirectionProvider`).
+  Its docs say the automatic conversion only works for projects created with `shadcn create` using
+  its new styles. The project starts that way.
+- **The currency signs** (platform.md §5.1): before this stage merges, the Riyal sign (`U+20C1`) and
+  the Dirham sign (`U+20C3`) are checked on a real price in the chosen font. A sign the font cannot
+  draw is cleared, and that currency shows its letters until the font supports it. **First check,
+  2026-09-19:** neither IBM Plex Sans Arabic nor IBM Plex Mono, as embedded in the design, covers
+  either sign (their declared Unicode ranges stop short of them, and a test render fell back to
+  another font). Unless the released fonts differ, both signs are cleared and SAR and AED show their
+  letters (ر.س / SAR, د.إ / AED). The check is repeated on the fonts the build installs.
+
+### 1.9 Checks
+
+`composer check` grows beyond config:clear → pint → phpstan → deptrac → pest. The steps added:
+generating the TypeScript types (page data and Ziggy) and failing if they changed, the TypeScript
+check, and the browser tests, which Pest runs with the rest.
+
+CI needs Node, the `sockets` PHP extension (not in `ci.yml`'s extension list today) and
+Playwright's browsers.
+
+---
+
+## 2 · Layouts
+
+Four layouts: admin, storefront, account (inside the storefront) and sign-in. Error pages use the
+layout of the area they occur in.
+
+### 2.1 What every layout shares
+
+- **Look:** the design's fonts, colours, radius and spacing (§1.8). Screens the design does not show
+  are built from its parts: cards, filled inputs with the label above, pill filters, tables with
+  small upper-case headings, toasts **[DECIDED 2026-09-19]**.
+- **Direction:** Arabic pages mirror the whole layout, sidebar included, as the design does.
+- **[DECIDED 2026-09-19] Light and dark themes, admin and storefront**, chosen with a toggle and
+  remembered **per browser** in a cookie, so the server renders the right theme with no flash.
+  **Light until the person chooses.** The design's dark palette (`html[data-theme="dark"]`) is used
+  as it is. Every screen is checked in both themes.
+- **[DECIDED 2026-09-19] Fonts are served from our own domain**, not a font service.
+- **[DECIDED 2026-09-19] Phones are supported, admin and storefront.** The design has no phone
+  version. Below tablet width the admin sidebar becomes a slide-in menu, and tables scroll
+  sideways inside their card (as the design already does on narrow screens).
+- **Success** shows as a toast at the bottom centre (the design: "Invitation sent.",
+  "Settings saved."). It is the flash `status` of §1.7.
+- **[DECIDED 2026-09-19] A business error shows twice:** as a red toast, and as a red message next
+  to what it concerns — under the field it names, otherwise at the top of the form. The message
+  stays until the person changes the form; the toast fades. Validation errors (§1.7) show under
+  their fields.
+
+### 2.2 Admin
+
+From the design, with the decided rules applied:
+
+- **Sidebar:** the logo with "Admin panel"; groups that open one at a time; count badges; at the
+  bottom, the person's avatar, name and role, and the language toggle (ع / EN). The language is not
+  in the URL **[DECIDED 2026-09-19]**. The toggle changes **only what is displayed**, at once; the
+  staff member's saved `locale` is their communication language (emails, SMS codes) and changes
+  only in their own settings (Access amendment 16). **[DECIDED 2026-09-19]** The display choice is
+  remembered **per browser**, in a cookie, like the theme. With no cookie, the panel shows the
+  person's saved language.
+- **The menu shows only what the person may do** (handoff §14), read from Access's `MyPermissions`.
+  A group with nothing the person may use is not shown.
+- **[DECIDED 2026-09-19] Modules not built yet appear as "coming soon"** entries with a placeholder
+  page (the design's "This screen is next in the build queue"), **to Super Admins only**. Their
+  permissions do not exist yet, so they cannot be checked; everyone else sees only screens they
+  can use. A module's entries become real, permission-checked items when its screens ship.
+- **Header:** the sidebar toggle, breadcrumbs, the store picker, and "View store". **[DECIDED
+  2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a module gives them
+  content: search with Catalog and Sales, the bell with Ops.
+- **[DECIDED 2026-09-19] The store picker** is **remembered on the staff account**. URLs carry no
+  store (`/admin/...`). Store-free screens (media, roles) ignore it.
+  - It never shows a store outside the person's stores.
+  - One store: the header shows that store's name, with no menu.
+  - Two or more: a picker of exactly those stores.
+  - If the remembered store is no longer one of theirs (an admin removed it), the panel opens in
+    their first remaining store (by store position) and a toast says so: "You no longer have
+    access to Egypt — showing KSA." If the store is given back later, it returns to the picker.
+  - This needs a new field on the staff account: an Access amendment, listed in §4.
+- **Page frame:** a title and a one-line subtitle, with the main action at the top right.
+
+### 2.3 Storefront
+
+The design has no storefront. Until the owner's storefront design exists, the storefront is built
+from the admin design's look **[DECIDED 2026-09-19]**:
+
+- A header with the logo, the country (store) switch and the language switch (`/sa/ar` ↔ `/sa/en`,
+  staying on the same page), the theme toggle, and "Sign in" or the customer's name. Search and
+  the cart come with Catalog and Sales.
+- A small footer.
+- **[DECIDED 2026-09-19] Platform's two Blade pages are rebuilt in React:** the country page at
+  `brand.com/` and the placeholder store home (platform.md §3). Their tests move with them.
+
+### 2.4 Customer account
+
+Inside the storefront layout: tabs like the design's "Account & settings" (Account · Security ·
+…). Which tabs, and what each holds, is section 3.
+
+### 2.5 Sign-in pages
+
+The design has the admin sign-in's text but no screen for it. Built from its look: a card with the
+form, next to a brand panel with the design's line "One panel for catalog, orders, companies and
+campaigns." and "Saudi Arabia · Egypt · United Arab Emirates". The brand panel is hidden on phones.
+The same layout serves the SMS code, accepting an invitation, and password reset, for staff and
+customers (the storefront's with its own text).
+
+### 2.6 Error pages
+
+Each area's error pages use its own layout (admin or storefront), in the page's language, with a
+way back (the dashboard or the store home). They show the translated title that
+`ProblemDetails` already produces, never a developer message. Stage 2b adds the missing pages
+for 409, 413, 415 and 422 (platform.md §9.3).
+
+### 2.7 What the design shows that the system does differently
+
+The owner's direction, 2026-09-19: the design is look and behaviour only.
+
+| In the design | In the system | Rule |
+|---|---|---|
+| "Keep me signed in" on the staff sign-in | Not offered: staff sessions end after 30 minutes idle and 12 hours at most | access.md §1.8 |
+| A two-factor on/off switch | No switch: every staff member signs in with an SMS code | access.md §1.8 |
+| Amounts in Arabic written "SAR" | The sign where one is set, else the letters in the page's language (ر.س) | platform.md §5.1 |
+| Every menu item and all three stores shown | Only what the person may do, and only their stores | handoff §14 |
+| Digits mixed on Arabic pages | Arabic-Indic, except codes and phones | §1.8 |
+| Out-of-scope entries (cashback, wallet top-ups, profit report, tickets, warehouse pickup…) | Not built, and not listed as "coming soon" either | handoff §14, §16 |
+
+---
+
+## 3 · Screens
+
+Written group by group with the owner. For each screen: the page's URL (a `GET` route added in this
+stage), the endpoint its form posts to, what it shows, and its states. Screens the design does not
+show are derived from its look (§2.1) and reviewed here by the owner.
+
+Refusals are the owning module's errors, shown as §2.1 says; a screen never invents its own
+wording for them.
+
+### 3.1 Admin sign-in and emailed links
+
+Access §1.4, §1.6, §1.8, §4.4. The endpoints are Access's (amendment 12), built in its step 3b; the
+route names below are those of that work in progress and are rechecked when it merges. Every page
+here uses the sign-in layout (§2.5). A staff member already signed in who opens one of them goes
+to the dashboard.
+
+- **[DECIDED 2026-09-19] After signing in, always the dashboard**, as Access's endpoints do today,
+  including after a session timeout.
+- **[DECIDED 2026-09-19] Language before anyone is signed in:** the display cookie if the browser
+  has one (§2.2), otherwise **Arabic**, with the ع / EN toggle on the page. The invitation pages (A6,
+  A7) use the communication language the admin chose for that person.
+
+| # | Screen | Page | Posts to | Shows |
+|---|---|---|---|---|
+| A1 | Sign in | `/admin/sign-in` | `access.staff.sign-in` | Work email, password, "Forgot password?". No "keep me signed in" (§2.7). |
+| A2 | New phone | `/admin/sign-in/phone` | `access.staff.sign-in.phone` | Only after a correct password, for an account with no phone (a Super Admin whose phone was reset by console, access.md §1.6). A phone number with its country code. |
+| A3 | SMS code | `/admin/sign-in/code` | `access.staff.sign-in.code`; resend: `access.staff.sign-in.resend` | "Code sent to •••••••180": **[DECIDED 2026-09-19]** the last 3 digits of the number, passed masked by Access (§4). One box per digit (the length is a setting, 4–8, Access amendment 22); "Trust this browser for 30 days" (the number of days from the setting); "Resend code", disabled with a countdown until a resend is allowed. |
+| A4 | Forgot password | `/admin/password/forgot` | `access.staff.password.forgot` | Email. The answer is always the same, whether or not the account exists. |
+| A5 | New password | `/admin/password/reset/{token}` | `access.staff.password.reset` | New password and its confirmation, with the rule in words (at least 12 characters, from the setting). Afterwards: the sign-in page, where the SMS code is still asked. |
+| A6 | Accept invitation | `/admin/invitation/{token}` | `access.staff.invitation.accept` | The person's name and email (read only), a password and its confirmation, and the phone the admin entered, which they may correct (Access amendment 15). |
+| A7 | Invitation code | `/admin/invitation/{token}/code` | `access.staff.invitation.confirm` | The code, as on A3. Afterwards: signed in, on the dashboard. |
+| A8 | Confirm new email | `/admin/email-change/{token}` | `access.staff.email-change.confirm` | The new address and a "Confirm" button. Afterwards: the sign-in page. |
+| A9 | Sign out | In the sidebar's person block | `access.staff.sign-out` | Afterwards: the sign-in page, "You signed out." |
+
+- **A2, A3 and A7 open only in their place in the flow** (after a correct password; after A6). Opened
+  any other way, they send the person back to A1 or A6.
+- **Opening a link never changes anything.** A6, A7 and A8 act only when the person presses the
+  button: mail scanners open links on their own.
+- **A dead link** (expired, already used, or replaced by a newer one) shows one page: the link no
+  longer works, and what to do — ask an admin for a new invitation, or request a new reset link.
+- **A3's refusals:** a wrong code (the code dies after the allowed wrong tries), an expired code,
+  and the hourly limit (3 an hour, Access amendment 28), each with Access's own message.
+- **The person block** (the design's name, role and avatar at the bottom of the sidebar) opens a
+  small menu: "Account & settings" and "Sign out". The design has no such menu.
+- **Session ended** (30 minutes idle or 12 hours): the next click shows A1 with a message that the
+  session ended.
+
+### 3.2 My account (staff)
+
+`/admin/account`, from the person block's menu (§3.1). The design's "Account & settings", with its
+three tabs. Every staff member has it (`access.own_account.update`, automatic). What each tab
+edits is what Access already allows (`UpdateOwnStaffProfile`, `ChangeOwnStaffPhone`,
+`ChangeOwnStaffPassword`, notification preferences; access.md §1.4, §3.2).
+
+| # | Tab | Shows and edits |
+|---|---|---|
+| B1 | Account | Picture; first and last name, job title, date of birth, country, address; the **communication language** (emails and SMS codes, Access amendment 16), labelled so it is not confused with the display toggle. The email is read only, with "Ask an admin to change it"; a Super Admin instead has "Change email", which sends a link to the new address (Access amendment 17) and shows the change as pending until it is used. |
+| B2 | Account → phone | The phone, with "Change": a dialog asks for the **current password** (R2) and the new number, sends a code to it, and takes the code. The old number stays in use until the new one is confirmed (access.md §1.4). A wrong password is counted like a wrong one at sign-in, so the dialog shows the lockout message too. |
+| B3 | Security | Change password: current, new, confirmation, with the rule in words. Afterwards: "Every other session was signed out." (Access's message). No two-factor switch (§2.7). |
+| B4 | Notifications | For each topic — new orders, company applications, low stock, campaign expiry — an email switch and an in-panel switch (access.md §1.4). **[DECIDED 2026-09-19]** Each switch saves as it is flipped, with a small "Saved" toast. |
+
+- What a change ends is Access's rule, not the screen's (a new password or phone ends every trusted
+  browser, access.md §1.8); the screens only show Access's result.
+- A Super Admin's phone changes here too, confirmed by a code (access.md §1.6).
+- **[DECIDED 2026-09-19] The picture is uploaded through a new Platform contract method**: a module
+  uploads a file for its own use, and Platform checks that module's permission for the change —
+  here `access.own_account.update`. `PlatformApi` has no upload method today, so every staff member
+  without `platform.media.upload` could not set a picture. B2B needs the same method for company
+  documents in stage 3. A Platform amendment, built in this stage (§4).
+- **[DECIDED 2026-09-19] No list of active sessions** (the design shows one). A new password already
+  ends every other session. If it is wanted later, it is an Access change.
+
+### 3.3 Staff
+
+access.md §1.4, §1.5, §3.2. Everything here is shown only to someone allowed to do it: the list to
+`access.staff.view`, each action to its own permission, and only for people the viewer's stores
+cover (access.md §1.5, amendments 9 and 11). A Super Admin sees and manages everyone, and no admin
+manages another admin or themselves.
+
+| # | Screen | Page | Shows |
+|---|---|---|---|
+| C1 | Staff | `/admin/staff` | The design's list — picture, name, email, role — **grouped by store, with a "Centralized" section** for people working in two or more stores (access.md §1.5). **[DECIDED 2026-09-19]** In place of the design's "last seen": the status (Active, Invited, Disabled) and the date they were invited or joined; nothing new is written on ordinary page loads. Filters by status, and a search by name or email. "Invite member" appears with `access.staff.invite` (which also needs `access.staff.assign_role` in the new person's stores, Access amendment 23). **Admins are a separate short section** above the rest, showing a **name and a role only** — no picture, email, status or date — for anyone but a Super Admin (R1). The list is ordered **by name** for such a reader, because ordering by the joining date would give an admin's away. |
+| C2 | One staff member | `/admin/staff/{id}` | Profile, status, communication language; their role, what it allows, their stores and each action's exceptions; the actions they may be given, each as a button. |
+| C3 | Invite | `/admin/staff/invite` | **[DECIDED 2026-09-19] Three steps** with a progress line — profile, then role, then stores — sent at the end. The profile is what Access requires (email, first and last name, job title, date of birth, country, phone, communication language; address and picture optional — amendment 15). Leaving before the last step sends nothing. |
+| C4 | Edit profile | On C2 | The same fields, except the email and the role. Changing the phone also needs every action of the person's role (Access amendment 26). |
+| C5 | Change email | On C2 | The new address; the change happens when the link sent there is used (Access amendment 17). Someone who never accepted their invitation gets a new invitation at the new address instead (amendment 25). |
+| C6 | Role and stores | On C2 | Access's screen (§1.5): every action ticked or not, one row of store boxes that fills every action, and store boxes per action for exceptions. Store-free actions show their boxes ticked and disabled (amendment 4). Actions the admin does not hold cannot be ticked. Saving an edited saved role here makes it that person's **personal role**. |
+| C7 | Disable / Enable | On C2 | Disabling ends their sessions and trusted browsers at once (Access). Enabling someone with no role asks for the role in the same step (amendment 27) — a case a revoke no longer creates, since revoking a Super Admin closes the account outright (R3). |
+| C8 | Invitation | On C2, while `INVITED` | Resend (a new link; the old one dies) or cancel. Resending also needs every action of their role (amendment 26). |
+| C9 | Refresh permissions | On C2 | Rebuilds this person's cached permissions (`RefreshStaffPermissions`, amendment 10), for an admin who wants the change to take effect at once. |
+
+- **Refusals are Access's**: `PermissionEscalation`, `AdminOnlyPermission`, `SuperAdminOnly`,
+  `StaffEmailInUse`, `InvalidStaffStatus` (amendment 21), each shown as §2.1 says.
+- **A Super Admin** appears in the list as one, and shows no management buttons at all: they are
+  created and removed only by console command (access.md §1.6).
+
+### 3.4 Roles
+
+access.md §1.5, §3.2 (`ListRoles`, `ViewRole`, `RoleEditorPermissions`, `CreateRole`, `CloneRole`,
+`UpdateRole`, `DeleteRole`, `RefreshRolePermissions`). The design's "Employee permissions". Seen by
+someone with `access.role.manage` or `access.staff.assign_role`; `access.role.manage` is store-free
+(amendment 4). **Only a Super Admin** creates, clones, edits or deletes an **admin** role; admins
+see admin roles in the list but cannot open them for editing (amendment 9 and the step 2 round).
+
+| # | Screen | Page | Shows |
+|---|---|---|---|
+| D1 | Roles | `/admin/roles` | Saved roles with their name in the display language, their level (admin or staff), and how many hold each. "New role" and, on a row, "Clone". Personal roles never appear here (access.md §1.5). |
+| D2 | One role | `/admin/roles/{id}` | Its actions, and its holders — only those the viewer manages, plus the total count (amendment 8). Buttons: edit, clone, delete, refresh. |
+| D3 | New / edit role | `/admin/roles/new`, `/admin/roles/{id}/edit` | The name in Arabic and English (each unique among saved roles, ignoring case — amendment 7), the level, and the actions: everything the author holds, with the rest not offered. At least one action (amendment 7). Store-free actions are marked as such; stores are not part of a role, they are chosen per staff member (§3.3 C6). |
+| D4 | Delete a role | On D2 | If anyone holds it, a saved role of the same level must be picked as the replacement, and every holder moves to it (amendment 7). Without one the delete is refused, listing the holders. |
+| D5 | Refresh | On D2 | Rebuilds the cached permissions of the role's holders (`RefreshRolePermissions`, amendment 10). |
+
+- **[DECIDED 2026-09-19] Actions are grouped by business area** on every screen that lists them
+  (D3 and §3.3 C6): "Catalog and variants", "Pricing and campaigns", "Orders and fulfilment",
+  "Company approvals", "Staff and permissions", "Store settings and tax" — the design's groups,
+  which handoff §14 also names. Each permission therefore carries a group, named in Arabic and
+  English, when its module declares it: a change to the permission catalog and to Platform's own
+  list, listed in §4. Modules built later pick a group for each permission they declare.
+- **[DECIDED 2026-09-19] The design's "Permissions by role" table is kept**, on D1: groups down the
+  side, saved roles across the top, scrolling sideways as roles are added.
+- A role's Arabic and English names are both asked for on one screen, whichever language the panel
+  is being read in.
+- Editing a saved role changes it for everyone holding it; the screen says so before saving, with
+  the number of holders.
+
+### 3.5 Platform's admin screens
+
+platform.md §1 and §3. These are the "view" use cases Platform left until Access and the frontend
+existed (platform.md §3, §9.2 #19). Each screen shows only the stores in the person's scope.
+
+| # | Screen | Page | Shows |
+|---|---|---|---|
+| E1 | Stores | `/admin/stores` | The design's card per store: name, currency, tax rate, timezone. `platform.store.view`. |
+| E2 | Edit a store | On E1 | Name in both languages, tax rate as a percentage (kept as basis points, platform.md §1.1), timezone, position. The code, country and currency are shown but cannot be changed — they are immutable. `platform.store.update`, that store. |
+| E3 | Currencies | `/admin/currencies` | **[DECIDED 2026-09-19]** Currencies are created and edited **in the panel**, by a Super Admin only (reserved permissions, platform.md §3): name and abbreviation in both languages, the sign, and the exponent — which is locked once any store uses the currency (platform.md §1.2). The sign field shows the sign as the site's font draws it, so a sign the font cannot draw is seen before it is saved (platform.md §5.1). |
+| E4 | Settings | `/admin/settings` | Every declared setting the person may change, grouped by the module that declares it, each with the input its type asks for and its default shown. Store settings apply to the store in the header; global keys need All stores (Access amendment 5). A setting marked sensitive never shows its value (platform.md §1.3). Each setting's permission comes from its own definition, and a row a person may not change is not shown to them. Access's settings sit in **one Access section** (owner, 2026-09-22) although they carry two permissions: a store's own settings are ordinary, the staff sign-in and security numbers are admin-only (R4). |
+| E5 | Media library | `/admin/media` | **[DECIDED 2026-09-19]** The design's table, with a switch to a grid of thumbnails. The table: file, type, size, used in, uploaded. Plus the state of an image's variants (pending, ready, failed), upload (`platform.media.upload`), alt text (`platform.media.update`), retry (a failed image, or one pending for 15 minutes), and delete (`platform.media.delete`), which first shows where the file is used and refuses when a use blocks it (platform.md §1.4). Paged by keyset, newest first. |
+| E6 | Audit log | `/admin/audit` | **[DECIDED 2026-09-19]** Built in this stage. Who changed what and when: time, actor, action, subject, source, and the staff member's IP where there is one. Entries for the stores in scope; entries belonging to no store need All stores. Personal fields show only as "changed", never their values (platform.md §1.5). Filters: date range, actor, action, source. `platform.audit.view`. |
+
+- **[DECIDED 2026-09-19] No store is created here:** opening a country stays a console command, so a
+  store is created complete, in one command, and can never exist half-configured (platform.md §1.1).
+
+### 3.6 Storefront and the customer's account
+
+access.md §1.1, §1.2, §1.3, §1.8, §1.9, §1.10, §3.1; platform.md §3. Every page sits under the
+store and language (`/sa/ar/...`).
+
+| # | Screen | Page | Shows |
+|---|---|---|---|
+| F1 | Choose a country | `/` | The three stores. The choice is remembered for a year; a visitor with the cookie is sent straight to their store (platform.md §3). Rebuilt in React (§2.3). |
+| F2 | Store home | `/{store}/{lang}` | The placeholder with the store's name, until Content builds the real one (platform.md §3). |
+| F3 | Register | `/{store}/{lang}/register` | First **individual or company** — it can never change later (access.md §1.1). Then email, password, first and last name, and accepting the terms, whose version is recorded. A company account is registered the same way and told that its company details and documents come next; until B2B exists it can sign in but cannot order (access.md §1.1). When B2B exists, the two parts are one wizard. |
+| F4 | Verify your email | `/{store}/{lang}/verify-email` and the link `…/verify-email/{token}` | What to do next, and "send it again" (limited). The link is good for 24 hours. Until it is used the customer can browse and build a cart, but not order. |
+| F5 | Sign in | `/{store}/{lang}/sign-in` | Email, password, "keep me signed in" (30 days — customers do have this, access.md §1.8) and "forgot password". Afterwards: the store they last used (access.md §1.1). A blocked account is told so after the right password; a pending deletion is cancelled by signing in, and the page says so (access.md §1.10). |
+| F6 | Forgot / new password | `…/password/forgot`, `…/password/reset/{token}` | As the admin's (§3.1 A4, A5), with the customer's own rule (at least 8 characters). |
+| F7 | Phone | In the account | Add the first number, or change it: a code goes to the number, and the old one stays in use until the new one is confirmed (access.md §1.3). While there is no verified phone, the account pages show what is still missing before ordering. |
+| F8 | My account | `/{store}/{lang}/account` | Tabs like the admin's: profile (names, language), security (password), phone, addresses, and closing the account. |
+| F9 | Addresses | In the account | Grouped by store, one default in each. Adding one asks the **country first** (only our stores' countries), then that store's fields: administrative area, city, district, street and building are required, the rest optional, with the map pin either both coordinates or neither (access.md §1.9). **[DECIDED 2026-09-19] No map in this stage:** the pin is simply left empty, because a map needs a paid maps provider that is not chosen. The written fields are what the courier receives. A store with no format yet refuses addresses with a clear message. |
+| F10 | Close my account | In the account | Confirmed with the password. It says plainly: the account is locked at once and anonymized after 14 days, and signing in during those days cancels it (access.md §1.10). Confirming **signs them out of every device at once** (R5), so the screen they land on is the **store home, as a visitor**, with a message giving the deletion date and saying that signing in before then cancels it. There is no cancel button on the account pages: they cannot reach them. |
+
+- The email address is never editable (access.md §1.1); the screen says so.
+- An account's home store is the store it registered in and never changes; the customer may shop
+  in any store (access.md §1.1).
+
+### 3.7 Customers, seen by staff
+
+access.md §3.3. Staff see the customers of their own stores — those whose home store is one of
+theirs — and a Super Admin sees everyone.
+
+| # | Screen | Page | Shows |
+|---|---|---|---|
+| G1 | Customers | `/admin/customers` | The design's table, with the columns this stage can fill: name, email, individual or company, whether the email and phone are verified, home store, registered on, and status (active, blocked, deletion pending). The design's order count and lifetime spend come with Sales, in stage 6. Filters by type and status, and a search by name, email or phone. `access.customer.view`. |
+| G2 | One customer | `/admin/customers/{id}` | Their profile, verification, addresses per store, and status. Actions, all **admin-only** (R6) and each shown only to someone who holds it: block or unblock with a reason (`access.customer.block`), starting the same 14-day deletion at the customer's request, and **cancelling a pending one** with a reason — for a customer who cannot sign in to cancel it themselves (`access.customer.delete`). |
+
+- **[DECIDED 2026-09-19] The store address format has its own editor** (`access.address_format.update`,
+  access.md §1.9): a store's fields with their labels in both languages, which are required, their
+  order and the display template. It is built in this stage rather than seeded once.
+- **Access's own numbers** — lockout, code and session settings (access.md §3.3
+  `UpdateAccessSettings`) — are settings, so they appear on the settings screen (§3.5 E4) under
+  Access, with the ranges Access allows (amendment 22). They are not a screen of their own.
+- A customer is never edited by staff beyond blocking and deletion: their profile is their own.
+
+---
+
+## 4 · New backend endpoints and what other modules must change
+
+### 4.1 Where this stage's code lives
+
+Screens are React files under `resources/js/pages/{Module}/` (§1.2). Everything else belongs to the
+module that owns the data: its `Presentation/Http/Controller` (the page and the form endpoints), its
+`Presentation/Http/Request` (shape and type validation) and its `Presentation/Http/Resource` (the
+page's data as a `spatie/laravel-data` class, §1.6). This stage adds no module and no domain code.
+
+- **Every page is one `GET` route** named `{module}.{area}.{screen}`, in the module's own
+  `routes.php`, inside the admin group (`UseAdminSession`, `web`, `IdentifyStaff`, and
+  `RequireStaff` for anything behind the sign-in) or the storefront group (`{store}/{locale}`).
+- **Every form posts to a `POST` route** that calls one Application handler and answers with a
+  redirect (Access amendment 12), as Access's sign-in endpoints already do.
+- **A controller checks nothing itself**: the handler asserts the permission (handoff §19). A page
+  that must not appear at all for someone without the permission asks the module's read model,
+  which answers for the person's own stores, and shows the error page when there is nothing.
+- **Listings use read models** (`Application/Query`), never Eloquent (`docs/STRUCTURE.md`), and the
+  keyset paging Platform already indexes for (platform.md §5.4).
+
+### 4.2 Endpoints by group
+
+| Group | Pages | Form endpoints |
+|---|---|---|
+| §3.1 admin sign-in | 8 pages for A1–A8 | Already built in Access step 3b |
+| §3.2 my account | `/admin/account` | Own profile, phone (request code, confirm), password, each notification switch, own email for a Super Admin |
+| §3.3 staff | list, one person, invite | Invite, update profile, change email, change role and stores, disable, enable, resend and cancel invitation, refresh permissions |
+| §3.4 roles | list, one role, new, edit | Create, clone, update, delete with a replacement, refresh |
+| §3.5 Platform | stores, currencies, settings, media, audit | Update store, create and update currency, update setting, upload media, update alt text, delete media, retry variants |
+| §3.6 storefront | country page, home, register, verify, sign in, password, account, addresses | Register, resend verification, sign in, sign out, password reset, request and confirm a phone code, update profile, save, delete and default an address, ask for deletion |
+
+Each one calls the use case of the same name in access.md §3 or platform.md §3. Where a use case is
+missing, it is listed below.
+
+### 4.3 What other modules must change — each needs the owner's agreement
+
+| # | Module | Change | Why |
+|---|---|---|---|
+| P1 | Platform | A contract method by which a module uploads a file **for its own use**, with Platform checking that module's permission for the change | A staff member without `platform.media.upload` cannot set their own picture (§3.2); B2B needs the same for company documents in stage 3. **[DECIDED 2026-09-19]** |
+| P2 | Platform + Access | Every declared permission carries a **group** (business area), named in Arabic and English | The role editor and the comparison table group actions the way staff think, as the design and handoff §14 do (§3.4). **[DECIDED 2026-09-19]** |
+| P3 | Access | The staff account remembers **which store the person is working in**, with the fallback rule of §2.2 | The admin has no store in its URLs (§2.2). **[DECIDED 2026-09-19]** |
+| P4 | Access | The sign-in code page receives the **masked phone** (last 3 digits) | §3.1 A3. **[DECIDED 2026-09-19]** |
+| P5 | Access → `app/Http` | Turning a business error into a message on the form (Access's `FormErrors`) moves to `app/Http`, beside `ProblemDetails` | Platform's admin screens answer forms the same way (§1.7), and this is framework glue, so the Shared kernel keeps its class limit. **[DECIDED 2026-09-19]** |
+| P6 | Platform | An **admin menu registry**: each module, Platform included, declares its menu entries with the permission each needs | The menu is built from what the person may do, and grows module by module; "coming soon" entries are shown to Super Admins (§2.2). **[DECIDED 2026-09-22]** Platform keeps it, like the permission catalog and the settings registry; filtering asks the Shared `Authorizer`, so Platform never reaches into Access (R8). |
+| P7 | Access | ~~Read models for the customer screens~~ | **Done** in Access step 6: `ListCustomers`, `ViewCustomer`, `ListStaff`, `ViewStaff` (R7) |
+
+---
+
+## 5 · Performance budgets
+
+Handoff §5.4: "the five-second page is the enemy", and a CI test that fails the build on query count
+is "the single highest-value guard in the project". The owner left these numbers to me on
+2026-09-19; they are a starting point to confirm before the build.
+
+| What | Budget | How it is checked |
+|---|---|---|
+| Queries, storefront page | **8** | A feature test per page, counted **warm** (the store already resolved from the cache table, 2 small reads — `docs/STRUCTURE.md`) |
+| Queries, admin list or form | **15** | The same, per page |
+| Every page's real count | **Recorded** | The test asserts the recorded number, so a page that grows from 5 to 9 fails even under its ceiling; raising it is a deliberate edit |
+| JavaScript, shared | **200 KB gzipped** | Measured in the build: React, Inertia and everything every page uses, cached once |
+| JavaScript, one page | **60 KB gzipped** | The same. Anything heavy (charts, a rich editor) loads only on the page that needs it |
+| Fonts | **The two families, subset** | Latin and Arabic ranges only, served from our own domain (§2.1), preloaded so the first paint has them |
+
+- **A breach fails the build**, as handoff §5.4 asks. A warning that stays green is ignored, which is
+  how the slow system happened.
+- Listings use keyset paging and read models, never Eloquent hydration (handoff §5.4,
+  `docs/STRUCTURE.md`).
+- SSR renders every page (§1.3); when the SSR process is down the page still works, rendered in the
+  browser, and the failure is logged.
+
+---
+
+## 6 · Accessibility and right-to-left
+
+**[DECIDED 2026-09-19, the owner left it to me] WCAG 2.2 AA** for every screen in this stage.
+shadcn's components already carry much of it; what this adds is that it is checked, not assumed.
+
+- Everything works with a keyboard alone: menus, the store picker, dialogs, the code boxes, the
+  role editor's ticks. Focus is always visible, and a dialog returns focus where it came from.
+- Every field has a real label, not a placeholder standing in for one. An error is tied to its
+  field, so a screen reader announces it, and the toast (§2.1) is announced politely.
+- Colour never carries meaning on its own: a status is a word as well as a colour.
+- Contrast is checked in **both themes**, light and dark.
+- Touch targets are at least 24 by 24 CSS pixels, with spacing.
+- **Right-to-left:** layouts use logical properties (start and end, never left and right), so Arabic
+  mirrors correctly, as shadcn's RTL support expects (§1.8). Directional icons flip; a clock or a
+  logo does not. Arabic pages set `lang="ar"` and `dir="rtl"`, English pages `lang="en"` and `ltr`.
+- Numbers, dates and currencies are formatted for the page's language (§1.8), including the
+  Arabic-Indic digits and the currency's sign or letters.
+- An automated pass runs over every page in the browser tests (§7), and the main flows — signing in,
+  inviting a staff member, registering, adding an address — are also walked with the keyboard alone.
+
+---
+
+## 7 · Test scenarios
+
+Pest, as the rest of the project (§1.1). Browser tests run with the suite (`composer check`).
+
+**In a browser**
+
+- Admin sign-in: password → code → dashboard; the trusted browser skips the code for 30 days; a new
+  browser asks again; a wrong code, an expired code and the hourly limit each show their message.
+- Accepting an invitation: set a password, correct a mistyped phone, confirm the code, land signed
+  in. An expired link shows the "link no longer works" page.
+- A staff member is invited in three steps, appears in the list under their store, and a person with
+  two stores appears under "Centralized".
+- The role editor: ticking actions, filling every action's stores in one row, giving one action its
+  own stores, and saving an edit from a person's page as a personal role.
+- The store picker: two stores switch; one store shows a name and no menu; a removed store falls
+  back with its message.
+- A customer registers, verifies the email, adds a phone with its code, saves an address, and asks
+  to close the account.
+- The theme and display-language toggles survive a reload, and the pages come back in that theme
+  with no flash.
+- Arabic mirrors the layout, the sidebar sits on the right, and figures show Arabic-Indic digits.
+- Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card.
+- With SSR turned off, every page still renders in the browser.
+- The accessibility pass and the keyboard walk-throughs of §6.
+
+**On the server**
+
+- Every page route: who may open it, what its data contains, and 403 or 404 where it must not open.
+- Every form endpoint: validation errors land on their fields; a business error comes back as the
+  form's message; success flashes its status and redirects.
+- The query budgets of §5, warm, per page.
+- The menu contains only what the person may do, and "coming soon" entries appear for a Super Admin
+  only.
+- Ziggy: every named route belongs to exactly one group, and a storefront page's data carries no
+  admin route (the test also asserts it found routes to check).
+- The generated TypeScript types match the PHP page-data classes; a stale file fails.
+- Every translation key a page uses exists in Arabic and English.
+- Uploading a picture works for a staff member who holds no media permission (§3.2, P1).
+
+**Architecture**
+
+- No controller asserts a permission itself; the handlers do (handoff §19).
+- Every page component lives under `resources/js/pages/{Module}/`, and the test asserts it found
+  pages, so a moved folder cannot make it pass over nothing.
+- No listing hydrates Eloquent (handoff §5.4).
+
+---
+
+## 8 · Questions
+
+### 8.1 Open — the owner has not answered
+
+None. The one question here — which module keeps the admin menu registry — was answered on
+2026-09-22: Platform keeps it (R8).
+
+### 8.2 Left to me by the owner, to confirm before building
+
+| # | Item | What I chose |
+|---|---|---|
+| 2 | Where the screens' text lives (§1.5) | The Laravel lang files, one source with the backend's text |
+| 3 | The budgets of §5 | Storefront 8 queries, admin 15, each page's count recorded; 200 KB + 60 KB of JavaScript; a breach fails the build |
+| 4 | The accessibility target (§6) | WCAG 2.2 AA, checked automatically and by keyboard |
+
+### 8.3 Waiting on something outside this stage
+
+| # | Item | Waiting for |
+|---|---|---|
+| 5 | The storefront's look (§2.3, §3.6) is derived from the admin design | The owner's storefront design, if one is made |
+| 6 | The map pin on an address (§3.6 F9) stays empty | A maps provider being chosen (handoff §15.1 keeps such items) |
+| 7 | The changes other modules must make (§4.3 P1–P7) | Each module's owner agreeing, as an amendment to that module's spec |
+| 8 | Where the SSR process runs, and on which Node version (§1.3) | Hosting (handoff §15.4) |
+| 9 | The currency signs (§1.8) | Rechecking the fonts the build installs; on today's evidence both signs stay cleared |
+| 10 | Registration continuing into the company wizard (§3.6 F3) | B2B, stage 3 |
+- Uploading gives the same answer for an image already stored: Platform returns the existing one
+  (platform.md §1.4), and the library simply shows it.
+
