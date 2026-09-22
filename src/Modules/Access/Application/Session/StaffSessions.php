@@ -19,8 +19,21 @@ interface StaffSessions
 
     /**
      * After the right password: who is signing in, under which session version, until the code step.
+     *
+     * @param  string|null  $maskedPhone  the number the code went to, masked to its last three
+     *                                    digits, for the code screen to name it (stage 2b, P4)
      */
-    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone): void;
+    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone, ?string $maskedPhone = null): void;
+
+    /**
+     * The code has just gone to this number, masked (stage 2b, P4): a Super Admin who entered a new
+     * one after their phone was reset. Only the masked number is written - nothing else about the
+     * pending sign-in changes, and in particular the clock that limits how long the password step is
+     * trusted keeps running from the password, not from this (review of step 0).
+     *
+     * Does nothing when there is no pending sign-in to name a number on.
+     */
+    public function noteCodeSentTo(string $maskedPhone): void;
 
     /**
      * The sign-in this browser started with the right password, while still fresh.

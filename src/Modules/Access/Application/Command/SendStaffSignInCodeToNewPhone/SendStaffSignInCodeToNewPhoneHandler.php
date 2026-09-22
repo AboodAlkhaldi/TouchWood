@@ -61,6 +61,9 @@ final readonly class SendStaffSignInCodeToNewPhoneHandler
             }
 
             $this->verification->send($staff->id(), $phone, PhoneCodePurpose::SignIn, $staff->language(), CarbonImmutable::now());
+            // The code screen names the number it went to, masked, here as everywhere else the
+            // screen appears (stage 2b, P4).
+            $this->sessions->noteCodeSentTo($phone->masked());
         });
     }
 }

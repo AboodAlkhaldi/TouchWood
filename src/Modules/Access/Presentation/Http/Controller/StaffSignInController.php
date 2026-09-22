@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Controller;
 
+use App\Http\FormErrors;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,6 @@ use Modules\Access\Application\Command\SignInStaff\SignInStaff;
 use Modules\Access\Application\Command\SignInStaff\SignInStaffHandler;
 use Modules\Access\Application\Command\VerifyStaffSignInCode\VerifyStaffSignInCode;
 use Modules\Access\Application\Command\VerifyStaffSignInCode\VerifyStaffSignInCodeHandler;
-use Modules\Access\Presentation\Http\FormErrors;
 use Modules\Access\Presentation\Http\Request\SignInRequest;
 use Modules\Access\Presentation\Http\Request\StaffCodeRequest;
 use Modules\Access\Presentation\Http\Request\StaffPhoneRequest;

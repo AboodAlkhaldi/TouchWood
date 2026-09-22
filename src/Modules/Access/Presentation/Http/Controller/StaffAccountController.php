@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Controller;
 
+use App\Http\FormErrors;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Modules\Access\Application\Command\ChangeOwnStaffPassword\ChangeOwnStaffPassword;
@@ -14,7 +15,6 @@ use Modules\Access\Application\Command\ResetStaffPassword\ResetStaffPassword;
 use Modules\Access\Application\Command\ResetStaffPassword\ResetStaffPasswordHandler;
 use Modules\Access\Application\Command\SignOutStaff\SignOutStaff;
 use Modules\Access\Application\Command\SignOutStaff\SignOutStaffHandler;
-use Modules\Access\Presentation\Http\FormErrors;
 use Modules\Access\Presentation\Http\Request\EmailRequest;
 use Modules\Access\Presentation\Http\Request\NewPasswordRequest;
 use Modules\Access\Presentation\Http\Request\OwnPasswordRequest;

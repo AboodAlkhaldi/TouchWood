@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style id="tw-theme-tokens">:root{--kHeaderBg:rgba(255,255,255,.92);--kWellBg:#F5F6F7;--kGlass:rgba(255,255,255,.94);--kHeroBg:#F5EFE9;--kBarBg:#0B3B63;--kBarInk:#FFF;--kBarSub:#DCE6EE;--kIOA:#fff;--kFBFBFA:#FBFBFA;--k0B3B63:#0B3B63;--k8A5130:#8A5130;--k14293A:#14293A;--kE3E6E7:#E3E6E7;--kFFF:#FFF;--k64737C:#64737C;--k3F5462:#3F5462;--kEEF2F5:#EEF2F5;--kF5EFE9:#F5EFE9;--k6E3F24:#6E3F24;--kC9A78F:#C9A78F;--kFFFFFF:#FFFFFF;--kF1F5F8:#F1F5F8;--kDCE6EE:#DCE6EE;--kAFC4D6:#AFC4D6;--k6C90AF:#6C90AF;--k093250:#093250;--k07273E:#07273E;--k051C2C:#051C2C;--k03131E:#03131E;--kFAF4EF:#FAF4EF;--kF0E2D6:#F0E2D6;--kDFC0A6:#DFC0A6;--kBC8863:#BC8863;--k74432A:#74432A;--k5C3522:#5C3522;--k43261A:#43261A;--k2C1911:#2C1911;--kF5F6F7:#F5F6F7;--k1F7A5C:#1F7A5C;--kF0F2F3:#F0F2F3;--kF8FAFC:#F8FAFC;--kEFF1F2:#EFF1F2;--kAAB4BA:#AAB4BA;--k9AA6AC:#9AA6AC;--kEAF5F0:#EAF5F0;--kD7DCDF:#D7DCDF;--kE8D9B8:#E8D9B8;--kF3F1EA:#F3F1EA;--k7A5A21:#7A5A21;--kEDE3CB:#EDE3CB;--k0E5C3A:#0E5C3A;--kEFF5F1:#EFF5F1;--kDDEBE3:#DDEBE3;--kF2EAE1:#F2EAE1;--kE7D6C6:#E7D6C6;--kFFD166:#FFD166;--kFFF0CC:#FFF0CC}
+html[data-theme="dark"]{--kHeaderBg:rgba(13,24,33,.92);--kWellBg:radial-gradient(circle at 50% 42%,#1F2C37,#121C25 70%);--kGlass:rgba(14,25,34,.88);--kHeroBg:radial-gradient(900px 520px at 85% 28%,rgba(107,163,214,.16),transparent 62%),radial-gradient(620px 420px at 8% 95%,rgba(209,156,114,.09),transparent 62%),#0C1821;--kBarBg:#0B2839;--kBarInk:#EAF2F8;--kBarSub:#A9C0D1;--kDFC0A6:#5C4130;--kIOA:#0C1A26;--kFBFBFA:#1A2632;--k0B3B63:#6BA3D6;--k8A5130:#D19C72;--k14293A:#E8EEF3;--kE3E6E7:#2A3742;--kFFF:#16222E;--k64737C:#93A1AB;--k3F5462:#B8C5CE;--kEEF2F5:#142230;--kF5EFE9:#131E27;--k6E3F24:#C89468;--kFFFFFF:#16222E;--kF1F5F8:#1E2A35;--kDCE6EE:#24384A;--kAFC4D6:#9DB2C4;--k6C90AF:#85A8C6;--k093250:#8FBBE4;--k07273E:#0A151E;--k051C2C:#07111A;--k03131E:#050C13;--kFAF4EF:#1C1713;--kF0E2D6:#2A211A;--k74432A:#C89468;--k5C3522:#C08A60;--k43261A:#D8AE8C;--k2C1911:#E2BFA1;--kF5F6F7:#1E2A35;--k1F7A5C:#52C49A;--kF0F2F3:#142029;--kF8FAFC:#1A2632;--kEFF1F2:#18242E;--kAAB4BA:#64737E;--k9AA6AC:#74838D;--kEAF5F0:#16302A;--kD7DCDF:#33414C;--kE8D9B8:#3D3728;--kF3F1EA:#2C2B25;--k7A5A21:#D4B872;--kEDE3CB:#3A3527;--k0E5C3A:#4FBF8E;--kEFF5F1:#16302A;--kDDEBE3:#1E3A32;--kF2EAE1:#2E2823;--kE7D6C6:#33404B;--kFFF0CC:#3A3221}
+</style>
+<script>(function(){try{var t=localStorage.getItem("tw-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}window.twToggleTheme=function(){var d=document.documentElement,n=d.getAttribute("data-theme")==="dark"?"light":"dark";d.setAttribute("data-theme",n);try{localStorage.setItem("tw-theme",n)}catch(e){}document.dispatchEvent(new CustomEvent("tw-theme",{detail:n}));return n};})();</script>
+<style id="tw-theme-btn">
+#tw-theme-fab{position:fixed;bottom:16px;right:16px;z-index:99999;display:flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid var(--kE3E6E7);border-radius:99px;background:var(--kFFF);color:var(--k3F5462);font:500 12px/1 'IBM Plex Sans Arabic',system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px -10px rgba(0,0,0,.45);transition:background .15s,color .15s,border-color .15s}
+#tw-theme-fab:hover{border-color:var(--k0B3B63);color:var(--k0B3B63)}
+#tw-theme-fab:focus-visible{outline:2px solid var(--k0B3B63);outline-offset:2px}
+#tw-theme-fab svg{width:15px;height:15px;flex:0 0 auto}
+</style>
+<script>(function(){
+function icon(d){return d
+?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.2 8.2 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>'
+:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg>';}
+function paint(b){var d=document.documentElement.getAttribute('data-theme')==='dark';b.innerHTML=icon(d)+'<span>'+(d?'Light':'Dark')+'</span>';b.title=d?'Switch to light mode':'Switch to dark mode';}
+function mount(){
+  if(document.getElementById('tw-theme-fab'))return;
+  var b=document.createElement('button');b.id='tw-theme-fab';b.type='button';
+  b.onclick=function(){window.twToggleTheme();paint(b)};
+  document.body.appendChild(b);paint(b);
+  document.addEventListener("tw-theme",function(){paint(b)});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
+})();</script>
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:var(--kFBFBFA);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:var(--k0B3B63);text-decoration:none}
+a:hover{color:var(--k8A5130)}
+::selection{background:rgba(11,59,99,.14)}
+</style>
+</helmet>
+
+<div dir="rtl" style="font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;color:var(--k14293A);background:var(--kFBFBFA);padding:56px 48px 120px;display:flex;flex-direction:column;gap:0;align-items:center">
+
+<div style="width:100%;max-width:1080px;display:flex;flex-direction:column;gap:72px">
+
+<header style="display:flex;flex-direction:column;gap:20px;padding-bottom:36px;border-bottom:1px solid var(--kE3E6E7)">
+<div style="display:flex;align-items:center;gap:14px">
+<div style="width:34px;height:34px;border-radius:8px;background:var(--k0B3B63);display:grid;place-items:center;color:var(--kFFF);font-size:13px;font-weight:600;letter-spacing:.04em">TW</div>
+<span style="font-size:12px;font-weight:500;letter-spacing:.14em;color:var(--k64737C)">TOUCHWOOD · نظام التصميم</span>
+</div>
+<h1 style="margin:0;font-size:46px;line-height:1.15;font-weight:600;letter-spacing:-.02em;max-width:16ch">الأساسات قبل الشاشات</h1>
+<p style="margin:0;max-width:62ch;font-size:16px;line-height:1.75;color:var(--k3F5462);text-wrap:pretty">هذه الورقة ليست تصميماً نهائياً، بل طبقة القرارات التي ستُبنى عليها كل شاشة: الألوان المسحوبة من الشعار نفسه، عائلة خط واحدة تخدم العربية والإنجليزية، مقاس مسافات واحد، ثم المكوّنات الأساسية بصيغة shadcn. اعتمد هذه الطبقة أولاً — تعديلها الآن يكلّف دقيقة، وتعديلها بعد خمس شاشات يكلّف يوماً.</p>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+<span style="font-size:12px;font-weight:500;padding:6px 12px;border-radius:999px;background:var(--kEEF2F5);color:var(--k0B3B63)">عربي أولاً · RTL</span>
+<span style="font-size:12px;font-weight:500;padding:6px 12px;border-radius:999px;background:var(--kEEF2F5);color:var(--k0B3B63)">سطح المكتب أولاً · ١٤٤٠</span>
+<span style="font-size:12px;font-weight:500;padding:6px 12px;border-radius:999px;background:var(--kF5EFE9);color:var(--k6E3F24)">تجزئة + جملة بوزن متساوٍ</span>
+<span style="font-size:12px;font-weight:500;padding:6px 12px;border-radius:999px;background:var(--kF5EFE9);color:var(--k6E3F24)">Radix / shadcn كأساس</span>
+</div>
+</header>
+
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:40px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.14em;color:var(--k8A5130)">٠١</span>
+<h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em">ما افترضته</h2>
+</div>
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;gap:14px;padding:18px 20px;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px">
+<span style="font-size:12px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130);padding-top:2px" dir="ltr">A1</span>
+<p style="margin:0;font-size:14.5px;line-height:1.7;color:var(--k3F5462)">الأزرق والبني مسحوبان من ملف الشعار بالقياس، لا بالتقدير: <b style="color:var(--k14293A);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-weight:500" dir="ltr">var(--k0B3B63)</b> و<b style="color:var(--k14293A);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-weight:500" dir="ltr">var(--k8A5130)</b>. هذا يُلغي «البني التقريبي» المذكور في ملف التسليم.</p>
+</div>
+<div style="display:flex;gap:14px;padding:18px 20px;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px">
+<span style="font-size:12px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130);padding-top:2px" dir="ltr">A2</span>
+<p style="margin:0;font-size:14.5px;line-height:1.7;color:var(--k3F5462)">الأزرق يحمل الواجهة كلها: التنقّل، الأزرار الأساسية، الأسعار، الحالات المختارة. البني نادر ومقصود: الجملة، الدفء التحريري، وأقسام العلامة. لا يظهر البني في زرٍّ أساسي أبداً.</p>
+</div>
+<div style="display:flex;gap:14px;padding:18px 20px;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px">
+<span style="font-size:12px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130);padding-top:2px" dir="ltr">A3</span>
+<p style="margin:0;font-size:14.5px;line-height:1.7;color:var(--k3F5462)">الهدوء يأتي من الأبيض ومن المسافة، لا من درجات رمادية كثيرة. سطحان فقط خلف الأبيض: رمادي بارد للصور والفلاتر، ورملي دافئ للمساحات التحريرية.</p>
+</div>
+<div style="display:flex;gap:14px;padding:18px 20px;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px">
+<span style="font-size:12px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130);padding-top:2px" dir="ltr">A4</span>
+<p style="margin:0;font-size:14.5px;line-height:1.7;color:var(--k3F5462)">لا صور منتجات حقيقية بعد، فكل صورة في الشاشات القادمة ستكون حاوية بديلة واضحة بنسبة ثابتة — لا رسومات SVG تحاول تقليد المنتج.</p>
+</div>
+<div style="display:flex;gap:14px;padding:18px 20px;background:var(--kFFF);border:1px dashed var(--kC9A78F);border-radius:12px">
+<span style="font-size:12px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130);padding-top:2px" dir="ltr">A5</span>
+<p style="margin:0;font-size:14.5px;line-height:1.7;color:var(--k3F5462)">تجاهلتُ قرارات التصميم في القسم الثاني من ملف التسليم كما طلبت، واحتفظتُ بقواعد النظام في القسم الأول: سلوك الفيرنتس، وضع البيع، شبكة/قائمة تقنية، حالة الشركة المعلّقة، وقاعدة حملة واحدة فقط.</p>
+</div>
+</div>
+</section>
+
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:40px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.14em;color:var(--k8A5130)">٠٢</span>
+<h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em">اللون</h2>
+<p style="margin:6px 0 0;font-size:13px;line-height:1.65;color:var(--k64737C)">كل درجة مولّدة في OKLCH من اللونين، فلا توجد قيمة مخترعة.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:28px">
+
+<div style="display:flex;flex-wrap:wrap;gap:16px">
+<div style="flex:1 1 220px;min-width:0;background:var(--k0B3B63);border-radius:14px;padding:22px;color:var(--kFFF);display:flex;flex-direction:column;gap:40px">
+<span style="font-size:12px;font-weight:500;opacity:.75">Primary · أزرق العلامة</span>
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:18px" dir="ltr">var(--k0B3B63)</span><span style="font-size:11.5px;opacity:.7">التنقّل · الأزرار · الأسعار</span></div>
+</div>
+<div style="flex:1 1 220px;min-width:0;background:var(--k8A5130);border-radius:14px;padding:22px;color:var(--kFFF);display:flex;flex-direction:column;gap:40px">
+<span style="font-size:12px;font-weight:500;opacity:.75">Accent · بني العلامة</span>
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:18px" dir="ltr">var(--k8A5130)</span><span style="font-size:11.5px;opacity:.7">الجملة · الدفء · نادر</span></div>
+</div>
+<div style="flex:1 1 220px;min-width:0;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:40px">
+<span style="font-size:12px;font-weight:500;color:var(--k64737C)">Background · الأرضية</span>
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:18px;color:var(--k14293A)" dir="ltr">var(--kFFFFFF)</span><span style="font-size:11.5px;color:var(--k64737C)">٨٠٪ من كل شاشة</span></div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<span style="font-size:12px;font-weight:600;color:var(--k64737C);letter-spacing:.02em">سلّم الأزرق</span>
+<div style="display:flex;border-radius:10px;overflow:hidden;border:1px solid var(--kE3E6E7)">
+<div style="flex:1;height:56px;background:var(--kF1F5F8);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k64737C)" dir="ltr">100</span></div>
+<div style="flex:1;height:56px;background:var(--kDCE6EE);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k64737C)" dir="ltr">200</span></div>
+<div style="flex:1;height:56px;background:var(--kAFC4D6);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k3F5462)" dir="ltr">300</span></div>
+<div style="flex:1;height:56px;background:var(--k6C90AF);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">400</span></div>
+<div style="flex:1;height:56px;background:var(--k0B3B63);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">500</span></div>
+<div style="flex:1;height:56px;background:var(--k093250);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">600</span></div>
+<div style="flex:1;height:56px;background:var(--k07273E);--kFFF:#F2F6FA;--kDCE6EE:#C6D8E6;--kAFC4D6:#AFC4D6;--kC6D8E6:#C6D8E6;--k7FA3C0:#7FA3C0;--k8FB0CA:#8FB0CA;--k9AA6AC:#8FA7BA;--k64737C:#9DB2C4;--k3F5462:#C6D8E6;--k14293A:#F2F6FA;--kE8EBED:rgba(255,255,255,.14);--kE3E6E7:rgba(255,255,255,.14);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">700</span></div>
+<div style="flex:1;height:56px;background:var(--k051C2C);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">800</span></div>
+<div style="flex:1;height:56px;background:var(--k03131E);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">900</span></div>
+</div>
+<span style="font-size:12px;font-weight:600;color:var(--k64737C);letter-spacing:.02em;margin-top:10px">سلّم البني</span>
+<div style="display:flex;border-radius:10px;overflow:hidden;border:1px solid var(--kE3E6E7)">
+<div style="flex:1;height:56px;background:var(--kFAF4EF);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k64737C)" dir="ltr">100</span></div>
+<div style="flex:1;height:56px;background:var(--kF0E2D6);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k64737C)" dir="ltr">200</span></div>
+<div style="flex:1;height:56px;background:var(--kDFC0A6);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k3F5462)" dir="ltr">300</span></div>
+<div style="flex:1;height:56px;background:var(--kBC8863);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">400</span></div>
+<div style="flex:1;height:56px;background:var(--k8A5130);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">500</span></div>
+<div style="flex:1;height:56px;background:var(--k74432A);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">600</span></div>
+<div style="flex:1;height:56px;background:var(--k5C3522);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">700</span></div>
+<div style="flex:1;height:56px;background:var(--k43261A);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">800</span></div>
+<div style="flex:1;height:56px;background:var(--k2C1911);display:grid;place-items:end center;padding-bottom:6px"><span style="font-size:9.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--kFFF)" dir="ltr">900</span></div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden"><div style="height:44px;background:var(--kF5F6F7)"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:600">muted</span><span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:11px;color:var(--k64737C)" dir="ltr">var(--kF5F6F7)</span><span style="font-size:11px;color:var(--k64737C)">خلفيات الصور والفلاتر</span></div></div>
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden"><div style="height:44px;background:var(--kF5EFE9)"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:600">warm</span><span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:11px;color:var(--k64737C)" dir="ltr">var(--kF5EFE9)</span><span style="font-size:11px;color:var(--k64737C)">الأقسام التحريرية</span></div></div>
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden"><div style="height:44px;background:var(--kE3E6E7)"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:600">border</span><span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:11px;color:var(--k64737C)" dir="ltr">var(--kE3E6E7)</span><span style="font-size:11px;color:var(--k64737C)">كل الحدود بسماكة ١px</span></div></div>
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden"><div style="height:44px;background:var(--k64737C)"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:600">muted-fg</span><span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:11px;color:var(--k64737C)" dir="ltr">var(--k64737C)</span><span style="font-size:11px;color:var(--k64737C)">البيانات الثانوية</span></div></div>
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden"><div style="height:44px;background:var(--k14293A)"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:600">foreground</span><span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:11px;color:var(--k64737C)" dir="ltr">var(--k14293A)</span><span style="font-size:11px;color:var(--k64737C)">العناوين والمتن</span></div></div>
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden"><div style="height:44px;background:var(--k1F7A5C)"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:12.5px;font-weight:600">success</span><span style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-size:11px;color:var(--k64737C)" dir="ltr">var(--k1F7A5C)</span><span style="font-size:11px;color:var(--k64737C)">التوفّر فقط — ليس لوناً للعلامة</span></div></div>
+</div>
+</div>
+</section>
+
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:40px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.14em;color:var(--k8A5130)">٠٣</span>
+<h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em">الخط</h2>
+<p style="margin:6px 0 0;font-size:13px;line-height:1.65;color:var(--k64737C)">عائلة واحدة للعربية والإنجليزية: IBM Plex Sans Arabic.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:24px">
+<div style="padding:20px 22px;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px">
+<p style="margin:0;font-size:14.5px;line-height:1.75;color:var(--k3F5462)">ملف التسليم طرح اختيارين لكل منهما خط لاتيني وخط عربي منفصل. اخترتُ عائلة واحدة تغطّي الاثنين بنفس الهيكل والأوزان، لأن المتجر ثنائي اللغة ويعرض أرقاماً ورموز SKU وقياسات جنباً إلى جنب — عائلتان تعني ارتفاعَي سطر مختلفَين وثقلاً بصرياً غير متساوٍ في كل صف تقني. وهي عائلة هندسية هادئة، لا تحمل نبرة «قالب جاهز».</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:0;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden">
+<div style="display:flex;align-items:baseline;gap:24px;padding:20px 22px;border-bottom:1px solid var(--kF0F2F3)"><span style="flex:0 0 96px;font-size:11px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">48 / 600</span><span style="font-size:48px;font-weight:600;letter-spacing:-.025em;line-height:1.1">التفاصيل تصنع الفرق</span></div>
+<div style="display:flex;align-items:baseline;gap:24px;padding:20px 22px;border-bottom:1px solid var(--kF0F2F3)"><span style="flex:0 0 96px;font-size:11px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">30 / 600</span><span style="font-size:30px;font-weight:600;letter-spacing:-.015em">مقابض وأنظمة تخزين</span></div>
+<div style="display:flex;align-items:baseline;gap:24px;padding:20px 22px;border-bottom:1px solid var(--kF0F2F3)"><span style="flex:0 0 96px;font-size:11px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">20 / 600</span><span style="font-size:20px;font-weight:600">مجرى تلسكوبي ٤٥٠ مم</span></div>
+<div style="display:flex;align-items:baseline;gap:24px;padding:20px 22px;border-bottom:1px solid var(--kF0F2F3)"><span style="flex:0 0 96px;font-size:11px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">15 / 400</span><span style="font-size:15px;line-height:1.75;color:var(--k3F5462);max-width:52ch">متن عادي بمقاس ١٥ وارتفاع سطر ١٫٧٥ — مساحة كافية للعربية دون أن يتفكك النص. هذا هو المقاس الافتراضي لكل وصف منتج.</span></div>
+<div style="display:flex;align-items:baseline;gap:24px;padding:20px 22px;border-bottom:1px solid var(--kF0F2F3)"><span style="flex:0 0 96px;font-size:11px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">13 / 500</span><span style="font-size:13px;font-weight:500;color:var(--k64737C)">بيانات ثانوية · العلامة · التوفّر · الفئة</span></div>
+<div style="display:flex;align-items:baseline;gap:24px;padding:20px 22px"><span style="flex:0 0 96px;font-size:11px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">Mono</span><span style="font-size:14px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k14293A)" dir="ltr">TW-4512-450-BLK · 1,240.00 SAR · 450mm</span></div>
+</div>
+<p style="margin:0;font-size:13.5px;line-height:1.7;color:var(--k64737C)">الأرقام ورموز المنتجات والقياسات تُكتب دائماً بخط أحادي المسافة واتجاه LTR داخل النص العربي — تبقى قابلة للقراءة والنسخ، ولا تتشوّه عند انعكاس الاتجاه.</p>
+</div>
+</section>
+
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:40px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.14em;color:var(--k8A5130)">٠٤</span>
+<h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em">المكوّنات</h2>
+<p style="margin:6px 0 0;font-size:13px;line-height:1.65;color:var(--k64737C)">أسماء وأدوار shadcn، بهوية TouchWood لا بثيمها الافتراضي.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:18px">
+
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:18px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--k64737C)" dir="ltr">BUTTON</span>
+<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+<button style="font-family:inherit;font-size:14px;font-weight:500;padding:0 20px;height:42px;border:0;border-radius:8px;background:var(--k0B3B63);color:var(--kIOA);cursor:pointer;transition:background .15s" style-hover="background:var(--k093250)">أضف إلى السلة</button>
+<button style="font-family:inherit;font-size:14px;font-weight:500;padding:0 20px;height:42px;border:1px solid var(--kE3E6E7);border-radius:8px;background:var(--kFFF);color:var(--k14293A);cursor:pointer;transition:border-color .15s,background .15s" style-hover="border-color:var(--kAFC4D6);background:var(--kF1F5F8)">اختر الخيارات</button>
+<button style="font-family:inherit;font-size:14px;font-weight:500;padding:0 20px;height:42px;border:1px solid var(--kDFC0A6);border-radius:8px;background:var(--kFAF4EF);color:var(--k5C3522);cursor:pointer;transition:background .15s" style-hover="background:var(--kF0E2D6)">اطلب بالجملة</button>
+<button style="font-family:inherit;font-size:14px;font-weight:500;padding:0 14px;height:42px;border:0;border-radius:8px;background:transparent;color:var(--k3F5462);cursor:pointer;transition:background .15s" style-hover="background:var(--kF5F6F7)">التفاصيل</button>
+<button disabled="disabled" style="font-family:inherit;font-size:14px;font-weight:500;padding:0 20px;height:42px;border:0;border-radius:8px;background:var(--k0B3B63);color:var(--kIOA);opacity:.45;cursor:not-allowed">غير متوفر</button>
+</div>
+<p style="margin:0;font-size:13px;line-height:1.7;color:var(--k64737C)">زر واحد أساسي أزرق في كل شاشة. زر الجملة يأخذ البني لأنه مسار شراء مختلف، لا لأنه أهم.</p>
+</div>
+
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:18px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--k64737C)">PRICE BLOCK · وضع البيع</span>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+<div style="border:1px solid var(--kE3E6E7);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--k64737C)">تجزئة فقط</span>
+<div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:26px;font-weight:600;color:var(--k0B3B63);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">86.00</span><span style="font-size:13px;color:var(--k64737C)">ر.س / للحبة</span></div>
+</div>
+<div style="border:1px solid var(--kE3E6E7);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--k8A5130)">جملة فقط</span>
+<div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:26px;font-weight:600;color:var(--k8A5130);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">62.00</span><span style="font-size:13px;color:var(--k64737C)">ر.س / للحبة</span></div>
+<span style="font-size:12.5px;color:var(--k64737C)">الحد الأدنى <b style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-weight:500;color:var(--k14293A)" dir="ltr">24</b> حبة</span>
+</div>
+<div style="border:1px solid var(--kAFC4D6);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px;background:var(--kF8FAFC)">
+<span style="font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--k64737C)">تجزئة وجملة</span>
+<div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:26px;font-weight:600;color:var(--k0B3B63);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">86.00</span><span style="font-size:13px;color:var(--k64737C)">ر.س / للحبة</span></div>
+<div style="display:flex;align-items:baseline;gap:6px;padding-top:8px;border-top:1px dashed var(--kDFC0A6)"><span style="font-size:12.5px;color:var(--k5C3522)">أو <b style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-weight:500" dir="ltr">62.00</b> ر.س من <b style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-weight:500" dir="ltr">24</b> حبة</span></div>
+</div>
+</div>
+<p style="margin:0;font-size:13px;line-height:1.7;color:var(--k64737C)">كتلة السعر تشرح النموذج التجاري بنفسها، بدل كومة شارات فوق البطاقة. الشارة تبقى للاستثناء فقط.</p>
+</div>
+
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:18px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--k64737C)">VARIANT · التوافق في الاتجاهين</span>
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:13px;font-weight:500;color:var(--k3F5462)">الطول</span><div style="display:flex;flex-wrap:wrap;gap:8px">
+<span style="font-size:13.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;padding:8px 14px;border-radius:8px;border:1px solid var(--kE3E6E7);color:var(--k14293A)" dir="ltr">350</span>
+<span style="font-size:13.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;padding:8px 14px;border-radius:8px;border:1.5px solid var(--k0B3B63);background:var(--k0B3B63);color:var(--kIOA)" dir="ltr">450</span>
+<span style="font-size:13.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;padding:8px 14px;border-radius:8px;border:1px solid var(--kE3E6E7);color:var(--k14293A)" dir="ltr">500</span>
+<span style="font-size:13.5px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;padding:8px 14px;border-radius:8px;border:1px solid var(--kEFF1F2);color:var(--kAAB4BA);text-decoration:line-through;background:var(--kFBFBFA)" dir="ltr">600</span>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:13px;font-weight:500;color:var(--k3F5462)">التشطيب</span><div style="display:flex;flex-wrap:wrap;gap:8px">
+<span style="font-size:13.5px;padding:8px 14px;border-radius:8px;border:1.5px solid var(--k0B3B63);background:var(--k0B3B63);color:var(--kIOA)">أسود مطفي</span>
+<span style="font-size:13.5px;padding:8px 14px;border-radius:8px;border:1px solid var(--kE3E6E7);color:var(--k14293A)">نيكل</span>
+<span style="font-size:13.5px;padding:8px 14px;border-radius:8px;border:1px solid var(--kEFF1F2);color:var(--kAAB4BA);text-decoration:line-through;background:var(--kFBFBFA)">نحاسي</span>
+</div></div>
+</div>
+<p style="margin:0;font-size:13px;line-height:1.7;color:var(--k64737C)">القيم غير المتوفرة تبقى ظاهرة ومعطّلة بشطب خفيف، لا تُخفى — المستخدم يحتاج أن يعرف أن المقاس موجود لكنه غير متاح بهذا التشطيب.</p>
+</div>
+
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:18px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--k64737C)">INPUT · TAG · SEGMENTED</span>
+<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+<div style="flex:1 1 260px;min-width:0;display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border:1px solid var(--kE3E6E7);border-radius:10px;background:var(--kFFF)">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--k64737C)" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+<span style="font-size:14px;color:var(--k9AA6AC)">ابحث عن مقبض، مجرى، مفصلة…</span>
+</div>
+<div style="display:flex;padding:3px;background:var(--kF5F6F7);border-radius:10px;gap:3px">
+<span style="font-size:13px;font-weight:500;padding:7px 16px;border-radius:7px;background:var(--kFFF);color:var(--k0B3B63);box-shadow:0 1px 2px rgba(20,41,58,.08)">شبكة</span>
+<span style="font-size:13px;font-weight:500;padding:7px 16px;border-radius:7px;color:var(--k64737C)">قائمة تقنية</span>
+</div>
+<span style="font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:6px;background:var(--kEEF2F5);color:var(--k0B3B63)">جديد</span>
+<span style="font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:6px;background:var(--kFAF4EF);color:var(--k5C3522)">متاح بالجملة</span>
+<span style="font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:6px;background:var(--kEAF5F0);color:var(--k1F7A5C)">متوفر</span>
+<span style="font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:6px;border:1px solid var(--kE3E6E7);color:var(--k64737C)">بالطلب</span>
+</div>
+</div>
+
+<div style="background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:18px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--k64737C)">PRODUCT CARD · مناطق التمرير الثلاث</span>
+<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+<div style="width:244px;border:1px solid var(--kE3E6E7);border-radius:12px;overflow:hidden;background:var(--kFFF)">
+<div style="position:relative;aspect-ratio:1;background:var(--kWellBg);display:grid;place-items:center">
+<span style="font-size:11.5px;color:var(--kAAB4BA)">صورة المنتج</span>
+<div style="position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;gap:5px"><i style="width:16px;height:3px;border-radius:2px;background:var(--k0B3B63);display:block"></i><i style="width:16px;height:3px;border-radius:2px;background:var(--kD7DCDF);display:block"></i><i style="width:16px;height:3px;border-radius:2px;background:var(--kD7DCDF);display:block"></i></div>
+<div style="position:absolute;top:10px;left:10px;width:30px;height:30px;border-radius:8px;background:var(--kGlass);display:grid;place-items:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--k64737C)" stroke-width="1.8" stroke-linecap="round"><path d="M12 20s-7-4.5-7-9.5A4 4 0 0 1 12 8a4 4 0 0 1 7 2.5C19 15.5 12 20 12 20Z"></path></svg></div>
+</div>
+<div style="padding:14px;display:flex;flex-direction:column;gap:7px">
+<span style="font-size:11.5px;font-weight:500;color:var(--k64737C)">HAFELE</span>
+<span style="font-size:14.5px;font-weight:500;line-height:1.5">مجرى تلسكوبي بإغلاق ناعم</span>
+<div style="display:flex;align-items:baseline;gap:5px"><span style="font-size:18px;font-weight:600;color:var(--k0B3B63);font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate" dir="ltr">86.00</span><span style="font-size:12px;color:var(--k64737C)">ر.س</span></div>
+<span style="font-size:12px;color:var(--k5C3522)">جملة <b style="font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;font-weight:500" dir="ltr">62.00</b> من ٢٤ حبة</span>
+<button style="font-family:inherit;margin-top:5px;font-size:13.5px;font-weight:500;height:38px;border:1px solid var(--kE3E6E7);border-radius:8px;background:var(--kFFF);color:var(--k14293A);cursor:pointer;transition:border-color .15s,background .15s" style-hover="border-color:var(--kAFC4D6);background:var(--kF1F5F8)">اختر الخيارات</button>
+</div>
+</div>
+<div style="flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:12px">
+<p style="margin:0;font-size:13.5px;line-height:1.75;color:var(--k3F5462)">ثلاث مناطق تمرير أفقية غير مرئية فوق الصورة تُبدّل أول ثلاث صور، وثلاث شرطات تدل على الموضع. منطقة الشرطات وزر المفضلة مستثناة من التمرير، ولا يوجد تقليب تلقائي ولا أسهم دائمة.</p>
+<p style="margin:0;font-size:13.5px;line-height:1.75;color:var(--k3F5462)">البطاقة تعرض ملخصاً فقط. زر «اختر الخيارات» يظهر حين يوجد أكثر من فيرنت، و«أضف إلى السلة» يظهر للمنتج البسيط المحسوم.</p>
+<p style="margin:0;font-size:13px;line-height:1.7;color:var(--k64737C)">الشرطات بدل النقاط: أوضح على شاشة المكتب وأسهل للنقر.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:40px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.14em;color:var(--k8A5130)">٠٥</span>
+<h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em">الحملات</h2>
+<p style="margin:6px 0 0;font-size:13px;line-height:1.65;color:var(--k64737C)">الحملة تغيّر طبقة الرموز، لا الصفحة.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="padding:20px 22px;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:12px">
+<p style="margin:0;font-size:14.5px;line-height:1.75;color:var(--k3F5462)">كما قلت: الحملة ليست صورة في الواجهة الرئيسية. لذلك بُنيت كأربعة رموز فقط — لون الحملة، أرضية القسم، السطح الدافئ، ولون النص على أرضية الحملة — تُبدَّل مرة واحدة فتتبعها كل الشاشات. الأزرق يبقى لون الشراء في كل الحملات كي لا يتعلّم العميل زرّاً جديداً كل موسم، والأخضر يبقى محصوراً في Tallsen.</p>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px">
+<button style="font-family:inherit;font-size:13px;font-weight:500;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--kE3E6E7);background:var(--kFFF);color:var(--k14293A)" style-hover="border-color:var(--kAFC4D6)" onClick="{{ pickStandard }}">TouchWood القياسي</button>
+<button style="font-family:inherit;font-size:13px;font-weight:500;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--kE3E6E7);background:var(--kFFF);color:var(--k14293A)" style-hover="border-color:var(--kAFC4D6)" onClick="{{ pickRamadan }}">شهر رمضان</button>
+<button style="font-family:inherit;font-size:13px;font-weight:500;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--kE3E6E7);background:var(--kFFF);color:var(--k14293A)" style-hover="border-color:var(--kAFC4D6)" onClick="{{ pickNational }}">اليوم الوطني</button>
+<button style="font-family:inherit;font-size:13px;font-weight:500;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--kE3E6E7);background:var(--kFFF);color:var(--k14293A)" style-hover="border-color:var(--kAFC4D6)" onClick="{{ pickFounding }}">يوم التأسيس</button>
+<button style="font-family:inherit;font-size:13px;font-weight:500;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--kE3E6E7);background:var(--kFFF);color:var(--k14293A)" style-hover="border-color:var(--kAFC4D6)" onClick="{{ pickFlash }}">فلاش سيل</button>
+</div>
+<div style="border:1px solid var(--kE3E6E7);border-radius:14px;overflow:hidden;background:var(--kFFF)">
+<div style="height:38px;display:flex;align-items:center;justify-content:center;background:{{ campBand }};color:{{ campBandText }};font-size:12.5px;font-weight:500;transition:background .3s">{{ campNote }}</div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:60px;border-bottom:1px solid var(--kE3E6E7)">
+<div style="display:flex;align-items:center;gap:26px"><span style="font-size:15px;font-weight:600;color:var(--k0B3B63)">TOUCHWOOD</span><span style="font-size:13px;color:var(--k3F5462)">المقابض</span><span style="font-size:13px;color:var(--k3F5462)">المجاري</span><span style="font-size:13px;color:var(--k3F5462)">الإضاءة</span></div>
+<span style="font-size:13px;color:var(--k64737C)">السلة</span>
+</div>
+<div style="padding:34px 28px;background:{{ campSurface }};transition:background .3s;display:flex;flex-direction:column;gap:18px">
+<span style="font-size:11.5px;font-weight:600;letter-spacing:.12em;color:{{ campInk }};transition:color .3s">{{ campKicker }}</span>
+<span style="font-size:30px;font-weight:600;letter-spacing:-.02em;max-width:22ch;line-height:1.25">التفاصيل تصنع الفرق</span>
+<div style="display:flex;gap:10px;align-items:center">
+<button style="font-family:inherit;font-size:13.5px;font-weight:500;padding:0 18px;height:40px;border:0;border-radius:8px;background:var(--k0B3B63);color:var(--kIOA);cursor:pointer">تسوّق الآن</button>
+<span style="font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:6px;background:{{ campChip }};color:{{ campInk }};transition:background .3s,color .3s">{{ campBadge }}</span>
+</div>
+</div>
+</div>
+<p style="margin:0;font-size:13px;line-height:1.7;color:var(--k64737C)">لاحظ أن الزر الأساسي لم يتغيّر لونه ولا موضعه بين الحملات. هذا مقصود: تغيير الثيم لا يُنشئ خصماً حقيقياً، والتسعير له قواعده الخاصة.</p>
+<div style="display:flex;gap:14px;padding:18px 20px;background:var(--kFFF);border:1px dashed var(--kC9A78F);border-radius:12px">
+<span style="font-size:12px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130);padding-top:2px" dir="ltr">→</span>
+<p style="margin:0;font-size:14.5px;line-height:1.7;color:var(--k3F5462)">مؤجَّل بقرارك: لكل حملة طبقة خلفية متحرّكة خاصة بها — عناصر طائفة وحركة هادئة خلف المحتوى، لا مجرد تبديل ألوان. تُصمَّم حملة بحملة بعد اعتماد الصفحة الرئيسية. طبقة الرموز هنا هي الأساس الذي ستُركَّب عليه تلك الحركة.</p>
+</div>
+</div>
+</section>
+
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:40px;padding-top:20px;border-top:1px solid var(--kE3E6E7)">
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.14em;color:var(--k8A5130)">٠٦</span>
+<h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em">الخطوة القادمة</h2>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:center;gap:14px;padding:16px 18px;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:10px"><span style="font-size:12px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">01</span><span style="font-size:14.5px;font-weight:500">الرئيسية</span><span style="font-size:13px;color:var(--k64737C);margin-inline-start:auto">هوية، فئات، مسارَا الشراء، اكتشاف حقيقي</span></div>
+<div style="display:flex;align-items:center;gap:14px;padding:16px 18px;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:10px"><span style="font-size:12px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">02</span><span style="font-size:14.5px;font-weight:500">صفحة الفئة</span><span style="font-size:13px;color:var(--k64737C);margin-inline-start:auto">شبكة + قائمة تقنية، فلاتر، حالة الشركة المعلّقة</span></div>
+<div style="display:flex;align-items:center;gap:14px;padding:16px 18px;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:10px"><span style="font-size:12px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">03</span><span style="font-size:14.5px;font-weight:500">صفحة المنتج</span><span style="font-size:13px;color:var(--k64737C);margin-inline-start:auto">حسم الفيرنت، اختيار وضع البيع، أكمل التركيبة</span></div>
+<div style="display:flex;align-items:center;gap:14px;padding:16px 18px;background:var(--kFFF);border:1px solid var(--kE3E6E7);border-radius:10px"><span style="font-size:12px;font-family:'IBM Plex Mono',monospace;unicode-bidi:isolate;color:var(--k8A5130)" dir="ltr">04</span><span style="font-size:14.5px;font-weight:500">البحث والسلة</span><span style="font-size:13px;color:var(--k64737C);margin-inline-start:auto">بحث فوري بالرمز والقياس، سلة تشرح التركيبة بدقة</span></div>
+<p style="margin:8px 0 0;font-size:13.5px;line-height:1.75;color:var(--k64737C);max-width:64ch">أبنيها في ملف واحد قابل للتفاعل مع مبدّل بين الشاشات وبين وضع التجزئة والقائمة التقنية. ما يحتاج قرارك الآن: القيم أعلاه — لون، خط، سلّم مسافات. بعد موافقتك لن أعود إليها.</p>
+</div>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const PRESETS = {
+  standard: {band:'var(--k0B3B63)',bandText:'var(--kFFFFFF)',surface:'var(--kF5EFE9)',ink:'var(--k5C3522)',chip:'var(--kF0E2D6)',kicker:'TOUCHWOOD',badge:'أدوات ومستلزمات المطابخ',note:'توصيل لكل مناطق المملكة · إرجاع خلال ١٤ يوماً'},
+  ramadan: {band:'var(--k07273E)',bandText:'var(--kE8D9B8)',surface:'var(--kF3F1EA)',ink:'var(--k7A5A21)',chip:'var(--kEDE3CB)',kicker:'عروض شهر رمضان',badge:'حتى ٣٠٪ على أنظمة التخزين',note:'عروض شهر رمضان · تنتهي ليلة العيد'},
+  national: {band:'var(--k0E5C3A)',bandText:'var(--kFFFFFF)',surface:'var(--kEFF5F1)',ink:'var(--k0E5C3A)',chip:'var(--kDDEBE3)',kicker:'عروض اليوم الوطني',badge:'خصومات اليوم الوطني',note:'عروض اليوم الوطني · ٢٣ سبتمبر'},
+  founding: {band:'var(--k5C3522)',bandText:'var(--kF0E2D6)',surface:'var(--kF2EAE1)',ink:'var(--k5C3522)',chip:'var(--kE7D6C6)',kicker:'عروض يوم التأسيس',badge:'مجموعة التراث',note:'يوم التأسيس · تصاميم مستوحاة من الحرف السعودي'},
+  flash: {band:'var(--k14293A)',bandText:'var(--kFFD166)',surface:'var(--kF5F6F7)',ink:'var(--k8A5130)',chip:'var(--kFFF0CC)',kicker:'الفلاش سيل',badge:'٤٨ ساعة فقط',note:'الفلاش سيل · ينتهي بعد ٤٨ ساعة'}
+};
+class Component extends DCLogic {
+  state = { preset: 'standard' };
+  pick(p){ return () => this.setState({preset:p}); }
+  renderVals(){
+    const c = PRESETS[this.state.preset];
+    return {
+      pickStandard:this.pick('standard'), pickRamadan:this.pick('ramadan'),
+      pickNational:this.pick('national'), pickFounding:this.pick('founding'), pickFlash:this.pick('flash'),
+      campBand:c.band, campBandText:c.bandText, campSurface:c.surface, campInk:c.ink,
+      campChip:c.chip, campKicker:c.kicker, campBadge:c.badge, campNote:c.note
+    };
+  }
+}
+</script>
+</body>
+</html>

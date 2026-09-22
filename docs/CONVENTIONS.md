@@ -14,6 +14,50 @@
    comes with Sales.
 3. `composer check` must pass before a commit: config:clear → pint → phpstan → deptrac → pest.
 
+## How a step is done here
+
+Settled with the owner on 2026-09-22, after Access. The spec is agreed **whole, first**; the steps
+are cut from it; each step is then built without re-opening decisions. Questions during a build are
+allowed but rare, and batched.
+
+**Before any code — the specification.**
+
+1. Read the merged code, not the older spec. A spec written against what a module was supposed to be
+   is wrong by the time the module is merged. Record what actually changed as a numbered list at the
+   top of the phase spec.
+2. Write the phase spec to `docs/modules/{phase}.md`, in the nine sections of handoff §18.
+3. Every open question goes to the owner **before** the spec is finished, in batches, each with its
+   options and **what each option costs later** — never a bare question. An answer that is not clear
+   enough to build on is asked again; a guess is never built on.
+4. Write the owner's answers into the spec in their own words, dated. The spec, not the chat, is what
+   the next person reads.
+5. The owner approves the spec, then the step list cut from it. Nothing is built before both.
+
+**Each step.**
+
+6. A branch per step off the phase branch; the phase branch off `main`. A step is one PR.
+7. Build the whole step: code, tests, translations in both languages, and the doc updates the step
+   makes true.
+8. `composer check` must pass — all of it, read, not skimmed. A run that "passes" in seconds passed
+   over nothing: check the tool actually ran.
+9. **An independent review of the step**, reading the diff against the spec, with no memory of having
+   written it. Every finding is then **verified in the code before it is acted on** — a review that
+   is wrong about the code is common, and fixing what is not broken is worse than the finding.
+10. **A mutation run** over what the step changed: break one line at a time, run the tests that cover
+    it, put it back. A mutant that survives means the tests do not hold that line — fix the tests, or
+    write down why the line cannot be tested. Equivalent mutants (a line that cannot change
+    behaviour) are a signal the line is dead: delete it.
+11. The owner is told what the step did, what the review found, and what the mutation run showed.
+    **The owner's go is needed to merge.**
+
+**What is written down, always.**
+
+- A decision the owner took, in the spec, dated and in their words.
+- An assumption, marked `My assumption, stated for the owner to reject:`.
+- Something a guard **cannot** prove, said plainly where the guard is — a claim that overstates a
+  check is worse than no check, because the next person trusts it.
+- Anything left open, in the step's doc under **Left open**, with who it waits on.
+
 ## Layout
 
 - Domain code lives in `src/`, never `app/`. `app/` is Laravel bootstrap only.

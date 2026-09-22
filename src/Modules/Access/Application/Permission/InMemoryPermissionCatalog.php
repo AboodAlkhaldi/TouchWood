@@ -45,6 +45,18 @@ final class InMemoryPermissionCatalog implements PermissionCatalog
                 throw new InvalidPermissionDefinition("The permission \"{$name}\" cannot be both reserved and held automatically by everyone of its kind.");
             }
 
+            // The role editor and the menu show an action under its business area (stage 2b, P2).
+            // Only an action a role can hold is ever shown, so only those carry a group.
+            $offered = $permission->audience === PermissionAudience::Role && ! $permission->reserved;
+
+            if ($offered && $permission->group === null) {
+                throw new InvalidPermissionDefinition("The permission \"{$name}\" is offered in the role editor, so it needs a group.");
+            }
+
+            if (! $offered && $permission->group !== null) {
+                throw new InvalidPermissionDefinition("The permission \"{$name}\" is never offered in the role editor, so it must have no group.");
+            }
+
             $this->definitions[$name] = $permission;
         }
     }

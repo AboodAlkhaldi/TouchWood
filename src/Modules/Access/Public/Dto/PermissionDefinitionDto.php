@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Public\Dto;
 
 use Modules\Access\Public\Enums\PermissionAudience;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 
 /**
@@ -20,12 +21,17 @@ final readonly class PermissionDefinitionDto
      * @param  bool  $reserved  Super Admins only; never offered in the role editor
      * @param  PermissionKind  $kind  per store, or store-free (it concerns nothing that belongs to
      *                                one store, such as media)
+     * @param  PermissionGroup|null  $group  the business area it is shown under in the role editor
+     *                                       and the menu (stage 2b, P2). Required for a permission
+     *                                       a role can hold; null for a reserved or automatic one,
+     *                                       which is never offered
      */
     public function __construct(
         public string $name,
         public PermissionAudience $audience = PermissionAudience::Role,
         public bool $reserved = false,
         public PermissionKind $kind = PermissionKind::PerStore,
+        public ?PermissionGroup $group = null,
     ) {}
 
     /**

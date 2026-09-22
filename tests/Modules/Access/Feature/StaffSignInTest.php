@@ -35,6 +35,7 @@ use Modules\Access\Application\Command\UpdateStaffProfile\UpdateStaffProfileHand
 use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChange;
 use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChangeHandler;
 use Modules\Access\Application\Security\Codes;
+use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
 use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
@@ -66,6 +67,12 @@ beforeEach(function () {
     // Who a request acts as, to look at from a test: the pages come with the frontend stage.
     Route::middleware([UseAdminSession::ALIAS, 'web', IdentifyStaff::ALIAS])
         ->get('/admin/_who', fn (ActorContext $actors) => response()->json(['type' => $actors->current()->type->value, 'id' => $actors->current()->id]));
+
+    // What the code screen will be handed (stage 2b, P4); the screen itself comes in step 1.
+    Route::middleware([UseAdminSession::ALIAS, 'web'])
+        ->get('/admin/_pending', fn (StaffSessions $sessions) => response()->json([
+            'masked' => $sessions->pendingSignIn()?->maskedPhone,
+        ]));
 });
 
 /**
@@ -148,6 +155,28 @@ describe('signing in (spec §1.8, §4.4)', function () {
         signInPassword($browser, $staffId)->assertStatus(500);
 
         expect(signInWho($browser))->toBeNull();
+    });
+
+    it('tells the code page which number the code went to, masked, and never the number itself', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser('10.1.2.30');
+        $phone = (string) DB::table('access.staff_users')->where('id', $staffId)->value('phone');
+
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+
+        // The screen has to name the number - a person may have two - without putting it where
+        // whoever holds the browser can read it (stage 2b, P4). The session belongs to the
+        // browser, so it is read from inside a request of its own.
+        $shown = $browser->get('/admin/_pending')->json('masked');
+
+        $shown = is_string($shown) ? $shown : '';
+
+        expect(str_ends_with($shown, mb_substr($phone, -3)))->toBeTrue()
+            ->and(str_contains($shown, mb_substr($phone, 1, 6)))->toBeFalse()
+            // Exactly three digits, no more: the rest must all be mask.
+            ->and(preg_match_all('/\d/', $shown))->toBe(3)
+            // Counted in characters: the mask is a bullet, three bytes each.
+            ->and(mb_strlen($shown))->toBe(mb_strlen($phone) - 1);
     });
 
     it('leaves no session behind when the transaction that signed them in rolls back', function () {
@@ -882,6 +911,33 @@ describe('email links while signed in (amendment 31)', function () {
 });
 
 describe('phones at sign-in', function () {
+    it('names the new number on the code page too, masked, and does not restart the password clock', function () {
+        // The code screen appears twice: after a password, and after a Super Admin enters a new
+        // number. It has to name the number both times (stage 2b, P4, review of step 0) - and
+        // naming it must not extend the window the password opened.
+        $superAdmin = Fx::staff(superAdmin: true);
+        app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(signInEmail($superAdmin)));
+        $browser = new AdminBrowser;
+
+        signInPassword($browser, $superAdmin)->assertRedirect('/admin/sign-in/phone');
+
+        expect($browser->get('/admin/_pending')->json('masked'))->toBeNull();
+
+        $browser->post('/admin/sign-in/phone', ['phone' => '+966 50 777 7777'])->assertRedirect('/admin/sign-in/code');
+        $shown = $browser->get('/admin/_pending')->json('masked');
+        $shown = is_string($shown) ? $shown : '';
+
+        expect(str_ends_with($shown, '777'))->toBeTrue()
+            ->and(str_contains($shown, '966'))->toBeFalse()
+            ->and(preg_match_all('/\d/', $shown))->toBe(3);
+
+        // The clock still runs from the password: a minute past the window, the pending sign-in is
+        // gone whatever number was named.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(16));
+
+        expect($browser->get('/admin/_pending')->json('masked'))->toBeNull();
+    });
+
     it('asks a Super Admin whose phone was reset for a new number, and verifies it with the code (amendment 14)', function () {
         $superAdmin = Fx::staff(superAdmin: true);
         app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(signInEmail($superAdmin)));
