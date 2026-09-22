@@ -6,13 +6,14 @@ use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Application\Permission\InvalidPermissionDefinition;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionAudience;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 
 it('keeps each declared permission with its audience and reserved flag', function () {
     $catalog = new InMemoryPermissionCatalog;
     $catalog->declare(
         'catalog',
-        new PermissionDefinitionDto('catalog.product.update'),
+        new PermissionDefinitionDto('catalog.product.update', group: PermissionGroup::Catalog),
         new PermissionDefinitionDto('catalog.brand.delete', reserved: true),
         new PermissionDefinitionDto('catalog.review.write', PermissionAudience::EveryCustomer),
     );
@@ -26,7 +27,7 @@ it('keeps each declared permission with its audience and reserved flag', functio
 });
 
 it('refuses a malformed name', function (string $name) {
-    (new InMemoryPermissionCatalog)->declare('catalog', new PermissionDefinitionDto($name));
+    (new InMemoryPermissionCatalog)->declare('catalog', new PermissionDefinitionDto($name, group: PermissionGroup::Catalog));
 })->throws(InvalidPermissionDefinition::class, 'must look like')->with([
     'only two parts' => ['catalog.update'],
     'capitals' => ['Catalog.Product.Update'],
@@ -36,19 +37,29 @@ it('refuses a malformed name', function (string $name) {
 
 it('accepts a resource with several parts', function () {
     $catalog = new InMemoryPermissionCatalog;
-    $catalog->declare('platform', new PermissionDefinitionDto('platform.media.variants.generate'));
+    $catalog->declare('platform', new PermissionDefinitionDto('platform.media.variants.generate', group: PermissionGroup::Media));
 
     expect($catalog->definition('platform.media.variants.generate'))->not->toBeNull();
 });
 
 it('refuses a permission outside the declaring module', function () {
-    (new InMemoryPermissionCatalog)->declare('catalog', new PermissionDefinitionDto('sales.order.cancel'));
+    (new InMemoryPermissionCatalog)->declare('catalog', new PermissionDefinitionDto('sales.order.cancel', group: PermissionGroup::Orders));
 })->throws(InvalidPermissionDefinition::class, 'must start with "catalog."');
+
+it('refuses an action a role can hold with no business area, and an area on one nobody is offered', function (PermissionDefinitionDto $permission, string $message) {
+    // The role editor and the menu show every offered action under an area (stage 2b, P2).
+    expect(fn () => (new InMemoryPermissionCatalog)->declare('catalog', $permission))
+        ->toThrow(InvalidPermissionDefinition::class, $message);
+})->with([
+    'a role action with no area' => [new PermissionDefinitionDto('catalog.product.update'), 'needs a group'],
+    'an area on a reserved action' => [new PermissionDefinitionDto('catalog.brand.delete', reserved: true, group: PermissionGroup::Catalog), 'must have no group'],
+    'an area on an automatic action' => [new PermissionDefinitionDto('catalog.review.write', PermissionAudience::EveryCustomer, group: PermissionGroup::Catalog), 'must have no group'],
+]);
 
 it('refuses a permission declared twice', function () {
     $catalog = new InMemoryPermissionCatalog;
-    $catalog->declare('catalog', new PermissionDefinitionDto('catalog.product.update'));
-    $catalog->declare('catalog', new PermissionDefinitionDto('catalog.product.update'));
+    $catalog->declare('catalog', new PermissionDefinitionDto('catalog.product.update', group: PermissionGroup::Catalog));
+    $catalog->declare('catalog', new PermissionDefinitionDto('catalog.product.update', group: PermissionGroup::Catalog));
 })->throws(InvalidPermissionDefinition::class, 'already declared');
 
 it('refuses an automatic permission marked reserved', function (PermissionAudience $audience) {
@@ -63,7 +74,7 @@ it('offers the role editor only role permissions that are not reserved', functio
     $catalog = new InMemoryPermissionCatalog;
     $catalog->declare(
         'catalog',
-        new PermissionDefinitionDto('catalog.product.update'),
+        new PermissionDefinitionDto('catalog.product.update', group: PermissionGroup::Catalog),
         new PermissionDefinitionDto('catalog.brand.delete', reserved: true),
         new PermissionDefinitionDto('catalog.review.write', PermissionAudience::EveryCustomer),
     );
@@ -76,7 +87,7 @@ it('lists the permissions everyone of a kind holds automatically, and none for r
     $catalog = new InMemoryPermissionCatalog;
     $catalog->declare(
         'catalog',
-        new PermissionDefinitionDto('catalog.product.update'),
+        new PermissionDefinitionDto('catalog.product.update', group: PermissionGroup::Catalog),
         new PermissionDefinitionDto('catalog.review.write', PermissionAudience::EveryCustomer),
         new PermissionDefinitionDto('catalog.product.browse', PermissionAudience::EveryGuest),
     );
@@ -95,8 +106,8 @@ it('declares a permission per store unless it is marked store-free', function ()
     $catalog = new InMemoryPermissionCatalog;
     $catalog->declare(
         'catalog',
-        new PermissionDefinitionDto('catalog.product.update'),
-        new PermissionDefinitionDto('catalog.image.upload', kind: PermissionKind::Global),
+        new PermissionDefinitionDto('catalog.product.update', group: PermissionGroup::Catalog),
+        new PermissionDefinitionDto('catalog.image.upload', kind: PermissionKind::Global, group: PermissionGroup::Catalog),
     );
 
     expect($catalog->definition('catalog.product.update')?->kind)->toBe(PermissionKind::PerStore)
@@ -104,7 +115,7 @@ it('declares a permission per store unless it is marked store-free', function ()
 });
 
 it('refuses a name longer than the database column', function () {
-    (new InMemoryPermissionCatalog)->declare('catalog', new PermissionDefinitionDto('catalog.product.'.str_repeat('a', 120)));
+    (new InMemoryPermissionCatalog)->declare('catalog', new PermissionDefinitionDto('catalog.product.'.str_repeat('a', 120), group: PermissionGroup::Catalog));
 })->throws(InvalidPermissionDefinition::class, 'longer than 128');
 
 /**
@@ -113,7 +124,7 @@ it('refuses a name longer than the database column', function () {
 function catalogWithProductUpdate(): InMemoryPermissionCatalog
 {
     $catalog = new InMemoryPermissionCatalog;
-    $catalog->declare('catalog', new PermissionDefinitionDto('catalog.product.update'));
+    $catalog->declare('catalog', new PermissionDefinitionDto('catalog.product.update', group: PermissionGroup::Catalog));
 
     return $catalog;
 }

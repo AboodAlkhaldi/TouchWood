@@ -39,6 +39,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §2.2 | The EN/AR toggle changes only the display; remembered per browser | Access amendment 16; the question asked before §2's approval had it wrong. Owner's answer, 2026-09-19 |
 | §0 | Everything Access changed between 2026-09-19 and its merge, and the step list | Owner, 2026-09-22 |
 | §1.8, §2.3, §8.3 | The design of record is the handoff of 2026-09-22, which includes a storefront | Owner, 2026-09-22 |
+| §1.8 | A theme is data: campaign themes must be possible without touching a component | Owner, 2026-09-22 |
 
 ---
 
@@ -232,6 +233,19 @@ wins (§2.7). Screens the design does not show are derived from its look (§2.1)
 - **Checked in the design's own font files, 2026-09-19:** IBM Plex Mono covers Latin only, with no
   Arabic-Indic digits. On Arabic pages, figures therefore use IBM Plex Sans Arabic, which has them.
 
+- **[DECIDED 2026-09-22] A theme is data, not code.** Every colour, radius, font, spacing value and
+  shadow is a CSS custom property on `:root`, overridden by `[data-theme="..."]`. Light and dark are
+  simply the first two themes. The owner intends **campaign themes** — the whole system dressed for
+  National Day, Ramadan, a sale — each a named set of values, and the admin design already treats
+  campaigns as a first-class thing. So:
+  - No component ever carries a colour, a font or a radius of its own. A guard test fails the build
+    when a hex colour, an `rgb()` or a hardcoded font size appears anywhere under
+    `resources/js/pages/` or `resources/js/components/` (outside the token file).
+  - The theme is chosen **on the server** and rendered into the page, as light and dark already are
+    (§2.1), so a campaign theme arrives with no flash and SSR is unaffected.
+  - Where a campaign's values will come from — a record in Promotions (stage 6), with dates — is not
+    this stage's business. What this stage guarantees is that adding one later is **data and a
+    stylesheet, never a change to a component**. Nothing here assumes only two themes exist.
 - shadcn is set up for right-to-left (`rtl: true` in `components.json`, with its `DirectionProvider`).
   Its docs say the automatic conversion only works for projects created with `shadcn create` using
   its new styles. The project starts that way.

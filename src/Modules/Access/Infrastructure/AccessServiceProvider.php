@@ -97,6 +97,7 @@ use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
@@ -268,6 +269,9 @@ final class AccessServiceProvider extends ServiceProvider
                 $name,
                 reserved: $permission['reserved'],
                 kind: $permission['storeFree'] ? PermissionKind::Global : PermissionKind::PerStore,
+                // Platform names its business area as a string, having no sight of Access's types
+                // (stage 2b, P2); an area Access does not know throws here, at boot.
+                group: $permission['group'] === null ? null : PermissionGroup::from($permission['group']),
             ),
             array_keys(PlatformPermissions::all()),
             PlatformPermissions::all(),

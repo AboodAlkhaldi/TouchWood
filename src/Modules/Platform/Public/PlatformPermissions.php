@@ -43,22 +43,30 @@ final class PlatformPermissions
      *
      * @return array<string, array{reserved: bool, storeFree: bool}>
      */
+    /**
+     * The business area each action is shown under in the role editor and the admin menu (stage 2b,
+     * P2). Access turns it into its own PermissionGroup; Platform names it as a string, because
+     * Platform sits below Access and cannot see its types. A reserved action is never offered, so
+     * it has none.
+     *
+     * @return array<string, array{reserved: bool, storeFree: bool, group: string|null}>
+     */
     public static function all(): array
     {
         return [
-            self::STORE_CREATE => ['reserved' => true, 'storeFree' => true],
-            self::STORE_UPDATE => ['reserved' => false, 'storeFree' => false],
-            self::STORE_VIEW => ['reserved' => false, 'storeFree' => false],
-            self::CURRENCY_CREATE => ['reserved' => true, 'storeFree' => true],
-            self::CURRENCY_UPDATE => ['reserved' => true, 'storeFree' => true],
-            self::SETTINGS_VIEW => ['reserved' => false, 'storeFree' => false],
+            self::STORE_CREATE => ['reserved' => true, 'storeFree' => true, 'group' => null],
+            self::STORE_UPDATE => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings'],
+            self::STORE_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings'],
+            self::CURRENCY_CREATE => ['reserved' => true, 'storeFree' => true, 'group' => null],
+            self::CURRENCY_UPDATE => ['reserved' => true, 'storeFree' => true, 'group' => null],
+            self::SETTINGS_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings'],
             // A global setting is checked with PermissionScope::allStores().
-            self::SETTINGS_UPDATE => ['reserved' => false, 'storeFree' => false],
-            self::MEDIA_UPLOAD => ['reserved' => false, 'storeFree' => true],
-            self::MEDIA_UPDATE => ['reserved' => false, 'storeFree' => true],
-            self::MEDIA_DELETE => ['reserved' => false, 'storeFree' => true],
-            self::MEDIA_VARIANTS_GENERATE => ['reserved' => true, 'storeFree' => true],
-            self::AUDIT_VIEW => ['reserved' => false, 'storeFree' => false],
+            self::SETTINGS_UPDATE => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings'],
+            self::MEDIA_UPLOAD => ['reserved' => false, 'storeFree' => true, 'group' => 'media'],
+            self::MEDIA_UPDATE => ['reserved' => false, 'storeFree' => true, 'group' => 'media'],
+            self::MEDIA_DELETE => ['reserved' => false, 'storeFree' => true, 'group' => 'media'],
+            self::MEDIA_VARIANTS_GENERATE => ['reserved' => true, 'storeFree' => true, 'group' => null],
+            self::AUDIT_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'audit'],
         ];
     }
 }

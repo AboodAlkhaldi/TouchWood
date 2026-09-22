@@ -6,6 +6,7 @@ namespace Modules\Access\Application\Permission;
 
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionAudience;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 
 /**
@@ -86,6 +87,10 @@ final class AccessPermissions
         $staff = PermissionAudience::EveryStaff;
         // A person's own account belongs to no store (spec §3: "Global").
         $storeFree = PermissionKind::Global;
+        // The business area each action is shown under (stage 2b, P2).
+        $staffArea = PermissionGroup::StaffAndPermissions;
+        $customerArea = PermissionGroup::Customers;
+        $storeArea = PermissionGroup::StoreSettings;
 
         return [
             new PermissionDefinitionDto(self::ACCOUNT_REGISTER, $guest, kind: $storeFree),
@@ -103,19 +108,19 @@ final class AccessPermissions
 
             new PermissionDefinitionDto(self::OWN_ACCOUNT_UPDATE, $staff, kind: $storeFree),
 
-            new PermissionDefinitionDto(self::STAFF_INVITE),
-            new PermissionDefinitionDto(self::STAFF_UPDATE),
-            new PermissionDefinitionDto(self::STAFF_ASSIGN_ROLE),
-            new PermissionDefinitionDto(self::STAFF_DISABLE),
-            new PermissionDefinitionDto(self::STAFF_VIEW),
+            new PermissionDefinitionDto(self::STAFF_INVITE, group: $staffArea),
+            new PermissionDefinitionDto(self::STAFF_UPDATE, group: $staffArea),
+            new PermissionDefinitionDto(self::STAFF_ASSIGN_ROLE, group: $staffArea),
+            new PermissionDefinitionDto(self::STAFF_DISABLE, group: $staffArea),
+            new PermissionDefinitionDto(self::STAFF_VIEW, group: $staffArea),
             // Roles are store-neutral; editing a held role still needs every holder's stores (§1.5).
-            new PermissionDefinitionDto(self::ROLE_MANAGE, kind: $storeFree),
-            new PermissionDefinitionDto(self::CUSTOMER_VIEW),
-            new PermissionDefinitionDto(self::CUSTOMER_BLOCK),
-            new PermissionDefinitionDto(self::CUSTOMER_DELETE),
-            new PermissionDefinitionDto(self::ADDRESS_FORMAT_UPDATE),
-            new PermissionDefinitionDto(self::SETTINGS_UPDATE),
-            new PermissionDefinitionDto(self::STAFF_SETTINGS_UPDATE),
+            new PermissionDefinitionDto(self::ROLE_MANAGE, kind: $storeFree, group: $staffArea),
+            new PermissionDefinitionDto(self::CUSTOMER_VIEW, group: $customerArea),
+            new PermissionDefinitionDto(self::CUSTOMER_BLOCK, group: $customerArea),
+            new PermissionDefinitionDto(self::CUSTOMER_DELETE, group: $customerArea),
+            new PermissionDefinitionDto(self::ADDRESS_FORMAT_UPDATE, group: $storeArea),
+            new PermissionDefinitionDto(self::SETTINGS_UPDATE, group: $storeArea),
+            new PermissionDefinitionDto(self::STAFF_SETTINGS_UPDATE, group: $staffArea),
 
             new PermissionDefinitionDto(self::SUPER_ADMIN_MANAGE, reserved: true, kind: $storeFree),
             new PermissionDefinitionDto(self::ACCOUNT_ANONYMIZE, reserved: true, kind: $storeFree),

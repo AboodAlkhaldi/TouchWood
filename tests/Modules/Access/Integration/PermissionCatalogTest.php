@@ -8,6 +8,7 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionAudience;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Public\PlatformPermissions;
@@ -159,6 +160,34 @@ it('declares the permission of every setting, as a per-store one: a global setti
     foreach ($settings as $setting) {
         expect($catalog->definition($setting->permission)?->kind)->toBe(PermissionKind::PerStore, "{$setting->key} is changed under \"{$setting->permission}\"");
     }
+});
+
+it('gives every action a role can hold a business area, and names every area in both languages', function () {
+    $catalog = app(InMemoryPermissionCatalog::class);
+    $offered = $catalog->assignable();
+    $used = [];
+
+    // A moved folder or a renamed provider must not make this pass over nothing.
+    expect(count($offered))->toBeGreaterThan(15);
+
+    foreach ($offered as $permission) {
+        expect($permission->group)->not->toBeNull("{$permission->name} is offered in the role editor with no business area");
+        $used[$permission->group->value] = $permission->group;
+    }
+
+    // Every area in the list is named, not only the ones in use: a module built later picks one.
+    foreach (PermissionGroup::cases() as $group) {
+        foreach (['ar', 'en'] as $locale) {
+            $label = trans($group->labelKey(), [], $locale);
+
+            expect(is_string($label) && $label !== '' && $label !== $group->labelKey())
+                ->toBeTrue("{$group->value} has no {$locale} name at {$group->labelKey()}");
+        }
+    }
+
+    // The areas Access and Platform actually use today (owner, 2026-09-19 and 2026-09-22).
+    ksort($used);
+    expect(array_keys($used))->toBe(['audit', 'customers', 'media', 'staff_and_permissions', 'store_settings']);
 });
 
 it('names every permission in Arabic and English', function () {
