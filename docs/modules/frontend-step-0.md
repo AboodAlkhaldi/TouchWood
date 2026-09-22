@@ -1,6 +1,7 @@
 # Stage 2b, step 0 — the six changes other modules must make
 
-**Status:** for the owner's approval. Nothing here is built until he agrees to it.
+**Status:** APPROVED to build — the owner agreed to all six and answered the four decisions on
+2026-09-22.
 **Source:** `docs/modules/frontend.md` §0.2 and §4.3 (P1–P6); `docs/modules/platform.md`;
 `docs/modules/access.md`; the code as merged on 2026-09-22.
 **Scope:** no screen, no React, no page. Six changes to Platform and Access, each of which the
@@ -92,16 +93,16 @@ test asserts every *role* permission has a group.
 
 ### The groups, and where today's permissions fall
 
-Six of these are the owner's, approved 2026-09-19 (handoff §14 and the design). Three are new,
-because Platform's own permissions have nowhere to go — **they need the owner's answer (D2)**.
+Six of these are the owner's, approved 2026-09-19 (handoff §14 and the design). Three were added
+on 2026-09-22 (D2), because Platform's own permissions had nowhere to go.
 
 | Group | Approved | Permissions today |
 |---|---|---|
 | `staff_and_permissions` — Staff and permissions | yes | `access.staff.invite`, `access.staff.update`, `access.staff.assign_role`, `access.staff.disable`, `access.staff.view`, `access.role.manage`, `access.staff_settings.update` |
 | `store_settings` — Store settings and tax | yes | `platform.store.view`, `platform.store.update`, `platform.settings.view`, `platform.settings.update`, `access.settings.update`, `access.address_format.update` |
-| `customers` — Customers | **new** | `access.customer.view`, `access.customer.block`, `access.customer.delete` |
-| `media` — Media library | **new** | `platform.media.upload`, `platform.media.update`, `platform.media.delete`, `platform.media.variants.generate` |
-| `audit` — Audit log | **new** | `platform.audit.view` |
+| `customers` — Customers | 2026-09-22 | `access.customer.view`, `access.customer.block`, `access.customer.delete` |
+| `media` — Media library | 2026-09-22 | `platform.media.upload`, `platform.media.update`, `platform.media.delete`, `platform.media.variants.generate` |
+| `audit` — Audit log | 2026-09-22 | `platform.audit.view` |
 | `catalog` — Catalog and variants | yes | none yet |
 | `pricing` — Pricing and campaigns | yes | none yet |
 | `orders` — Orders and fulfilment | yes | none yet |
@@ -137,8 +138,8 @@ the browser (2026-09-19) so it follows the person between machines.
 
 ### Rules
 
-- **Not audited** (*decision D3*): it changes many times a day, reveals nothing, and would bury the
-  audit log. My recommendation is not to audit it; the owner decides.
+- **Not audited** (owner, 2026-09-22): it changes many times a day, reveals nothing, and would bury
+  the audit log.
 - Store-free screens (media, roles) ignore it entirely.
 - It is a preference, not permission: it never widens what the person may see. Every read still
   filters by the person's own stores.
@@ -196,7 +197,7 @@ No module imports `App\` today — I checked, there is not one. So moving the he
 and having Access's controllers import it would either fail the dependency check or require the
 rule to be widened. The earlier answer skipped that consequence.
 
-### The three ways out — **the owner decides (D1)**
+### The three ways out — **the owner chose 1 (D1, 2026-09-22)**
 
 1. **`app/Http`, with a narrow rule change.** The helper joins `ProblemDetails` as framework glue,
    and deptrac gains one rule: a module's **`Presentation/`** layer — and only that layer — may use
@@ -209,8 +210,8 @@ rule to be widened. The earlier answer skipped that consequence.
    middleware were deliberately moved *out* of Shared into `app/Http` on 2026-09-18 as framework
    glue, and the kernel holds a ~20-class ceiling.
 
-My recommendation is **1**, with the rule written as narrowly as it can be expressed and a test
-that no layer but `Presentation` uses `App\`.
+**Decided: 1.** The rule is written as narrowly as deptrac can express it, and a test asserts that
+no layer but `Presentation` uses `App\`.
 
 ### Tests
 
@@ -247,8 +248,8 @@ $menu->register(new MenuEntryDto(
 ```
 
 - **Label:** `{module}::menu.{key}`, in Arabic and English. A test fails if either is missing.
-- **Group:** the same list as P2, so the menu and the role editor group things identically
-  (*decision D4 — my recommendation is yes, one list*).
+- **Group:** the same list as P2, so the menu and the role editor group things identically (owner,
+  2026-09-22).
 - **Permission:** the one that entry needs. An entry with **no** permission is a "coming soon"
   entry, shown to Super Admins only (§2.2), for a module whose permissions do not exist yet.
 - **Reading it:** `for(Actor)` returns the entries that person may use — each permission asked of
@@ -269,14 +270,18 @@ exists. An entry whose permission is undeclared is refused at boot.
 
 ---
 
-## Decisions the owner must make before this is built
+## Decisions — answered by the owner, 2026-09-22
 
-| # | Question | My recommendation |
+All four as recommended.
+
+| # | Question | Decided |
 |---|---|---|
-| **D1** | Where the shared form-error helper lives (P5), now that moving it to `app/Http` needs the dependency rule widened | `app/Http`, with deptrac allowing only a module's `Presentation/` layer to use `App\Http` |
-| **D2** | The three new permission groups — Customers, Media library, Audit log — added to the six approved on 2026-09-19 (P2) | Add them; Platform's own permissions have nowhere else to go |
-| **D3** | Whether choosing the current store is written to the audit log (P3) | No: it changes many times a day and reveals nothing |
-| **D4** | Whether the menu uses the same group list as the role editor (P6) | Yes, one list — the same words in both places |
+| **D1** | Where the shared form-error helper lives (P5), now that moving it to `app/Http` needs the dependency rule widened | **`app/Http`**, beside `ProblemDetails`, and deptrac gains one rule: a module's **`Presentation/`** layer, and only that layer, may use `App\Http`. A test asserts no other layer uses `App\` |
+| **D2** | The three new permission groups — Customers, Media library, Audit log — added to the six approved on 2026-09-19 (P2) | **Added.** Nine groups in all, and Platform's own permissions have homes |
+| **D3** | Whether choosing the current store is written to the audit log (P3) | **Not audited.** It is a preference that changes many times a day and reveals nothing |
+| **D4** | Whether the menu uses the same group list as the role editor (P6) | **One list.** The same nine groups, the same words, in the menu and in the role editor |
+
+Nothing in this document is open. It is ready to build.
 
 ---
 
