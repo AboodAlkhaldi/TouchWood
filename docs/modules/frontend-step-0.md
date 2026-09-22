@@ -309,19 +309,30 @@ Nothing in this document is open. It is ready to build.
 
 ---
 
-## Left open — for the owner, found while building
+## Found while building, and answered — 2026-09-22
 
-**A queued job's two answers about who it is.** Access's authorizer answers "is this actor
+**A queued job's two answers about who it is.** Access's authorizer answered "is this actor
 unlimited?" and "which stores does this actor hold X in?" differently inside a job a *person*
-queued: `isUnlimited()` says no — correctly, since such a job may only do what its requester may —
-while `storesWith()` still answers as the system, granting every store. It is Access's behaviour as
-merged in stage 2, not something step 0 introduced, and nothing today is harmed by it: the menu is
-the first caller of `isUnlimited()`, and menus are not built inside jobs.
+queued: the first said no, correctly, while the second still answered as the system and granted
+every store. **The owner's decision, 2026-09-22: fix it now.**
 
-It is written down rather than changed because changing how a queued job is authorized is an Access
-decision, not a frontend one, and it would land in a step whose subject is something else. **It
-needs the owner's word on when to fix it** — before the first job that reads permissions per store,
-at the latest.
+Looking at it properly showed the disagreement was wider than the review said, and that the obvious
+fix would have broken uploads:
+
+- `authorize()` — "may this proceed?" — also answers for the system inside such a job. That one is
+  **deliberate and stays**: the person's permission is checked when they *start* the action, and the
+  job then does work they often cannot do directly. Generating image variants is reserved to Super
+  Admins, yet every upload queues it. Restricting this would have stopped images being resized for
+  everyone but a Super Admin.
+- `storesWith()` — "which stores does this actor hold X in?" — is the scoping question, and it is
+  what decides which **rows** a screen or a report shows. It now answers with the **requester's**
+  stores. This is where rows would have leaked: `ListStaff`, `ListCustomers`, `ViewStaff`,
+  `ViewCustomer` all scope themselves with it.
+- `isUnlimited()` now shares that definition, so the two agree. A job queued by a Super Admin is
+  unlimited, which it was not before.
+
+Three tests hold it, including one pinning the deliberate exception so that it is not "fixed" by
+somebody later and uploads break quietly.
 
 ---
 

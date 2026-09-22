@@ -156,7 +156,13 @@ allowed but rare, and batched.
 - Actor types: staff, customer, guest, integration, system. Every actor id is a ULID, and an id is
   never a secret: whatever proves a guest's cart is theirs is kept apart from the guest id.
 - Check a person's permission when they start an action; the queued job then acts as the system,
-  and the audit log records the requester (`requested_by_*`).
+  and the audit log records the requester (`requested_by_*`). A job therefore may finish work its
+  requester could not have started — generating image variants is reserved to Super Admins, and
+  every upload queues it.
+- **But scope still follows the requester** (owner, 2026-09-22). `Authorizer::storesWith()` and
+  `isUnlimited()` answer for whoever queued the job, not for the system, because they decide which
+  **rows** are shown. A report queued by someone who works in one store lists that store. Only
+  `authorize()` — "may this proceed" — answers for the system.
 - Secrets (API keys, passwords, credentials) live only in server environment variables — never in a
   setting, a table or code. A setting whose value must not reach the audit log is declared with
   `sensitive: true`.

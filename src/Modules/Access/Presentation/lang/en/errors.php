@@ -96,9 +96,15 @@ return [
         'title' => 'Wrong code',
         'detail' => 'The code is wrong or has expired.',
     ],
+    // Said to somebody who is trying to get in, not to somebody pressing "send another code": a
+    // sign-in straight after a password reset meets the same limit. So it names the way forward -
+    // the code already sent - rather than only the wait (owner, 2026-09-22).
+    // It has to stay true for both limits behind it: the gap between codes, where the earlier code
+    // is certainly still alive, and the hourly limit, where it may have expired. Hence "if you
+    // still have it".
     'code_request_too_soon' => [
-        'title' => 'Please wait',
-        'detail' => 'A new code can be sent in :seconds seconds.',
+        'title' => 'You already have a code',
+        'detail' => 'A code was already sent to your phone - enter it if you still have it. A new one can be sent in :seconds seconds.',
     ],
     'password_too_weak' => [
         'title' => 'Choose another password',

@@ -3,15 +3,18 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
+use Modules\Access\Presentation\Http\Controller\AdminPanelController;
 use Modules\Access\Presentation\Http\Controller\CustomerAccountController;
 use Modules\Access\Presentation\Http\Controller\CustomerSessionController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
+use Modules\Access\Presentation\Http\Controller\StaffAuthPageController;
 use Modules\Access\Presentation\Http\Controller\StaffLinkController;
 use Modules\Access\Presentation\Http\Controller\StaffSignInController;
 use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
 use Modules\Access\Presentation\Http\Middleware\RequireCustomer;
 use Modules\Access\Presentation\Http\Middleware\RequireStaff;
+use Modules\Access\Presentation\Http\Middleware\ShareAdminPage;
 use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
 use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 
@@ -22,8 +25,22 @@ use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 */
 
 Route::prefix('admin')
-    ->middleware([UseAdminSession::ALIAS, 'web', IdentifyStaff::ALIAS])
+    ->middleware([UseAdminSession::ALIAS, 'web', IdentifyStaff::ALIAS, ShareAdminPage::ALIAS])
     ->group(function (): void {
+        /*
+        | The pages themselves (stage 2b step 1, frontend.md 3.1 A1-A9). Each is a plain GET that
+        | changes nothing: opening a link from an email never acts, it only shows the form that
+        | does. The posts below them are Access step 3b's, unchanged.
+        */
+        Route::get('sign-in', [StaffAuthPageController::class, 'signIn'])->name('access.staff.sign-in.page');
+        Route::get('sign-in/phone', [StaffAuthPageController::class, 'phone'])->name('access.staff.sign-in.phone.page');
+        Route::get('sign-in/code', [StaffAuthPageController::class, 'code'])->name('access.staff.sign-in.code.page');
+        Route::get('password/forgot', [StaffAuthPageController::class, 'forgotPassword'])->name('access.staff.password.forgot.page');
+        Route::get('password/reset/{token}', [StaffAuthPageController::class, 'resetPassword'])->name('access.staff.password.reset.page');
+        Route::get('invitation/{token}', [StaffAuthPageController::class, 'acceptInvitation'])->name('access.staff.invitation.page');
+        Route::get('invitation/{token}/code', [StaffAuthPageController::class, 'invitationCode'])->name('access.staff.invitation.code.page');
+        Route::get('email-change/{token}', [StaffAuthPageController::class, 'confirmEmailChange'])->name('access.staff.email-change.page');
+
         Route::post('sign-in', [StaffSignInController::class, 'password'])->name('access.staff.sign-in');
         Route::post('sign-in/phone', [StaffSignInController::class, 'phone'])->name('access.staff.sign-in.phone');
         Route::post('sign-in/code', [StaffSignInController::class, 'code'])->name('access.staff.sign-in.code');
@@ -37,9 +54,16 @@ Route::prefix('admin')
         Route::post('email-change/{token}', [StaffLinkController::class, 'confirmEmailChange'])->name('access.staff.email-change.confirm');
 
         Route::middleware(RequireStaff::ALIAS)->group(function (): void {
+            Route::get('/', [AdminPanelController::class, 'home'])->name('access.staff.home');
+            Route::post('current-store', [AdminPanelController::class, 'chooseStore'])->name('access.staff.current-store');
+
             Route::post('sign-out', [StaffAccountController::class, 'signOut'])->name('access.staff.sign-out');
             Route::post('account/password', [StaffAccountController::class, 'changePassword'])->name('access.staff.password.change');
         });
+
+        // The theme and the displayed language, chosen before anybody signs in as well as after:
+        // somebody who cannot read the interface has to be able to change it on the sign-in page.
+        Route::post('preferences', [AdminPanelController::class, 'preferences'])->name('access.staff.preferences');
     });
 
 /*

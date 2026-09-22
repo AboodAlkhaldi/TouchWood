@@ -92,6 +92,7 @@ use Modules\Access\Presentation\Http\Middleware\IdentifyRequestActor;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
 use Modules\Access\Presentation\Http\Middleware\RequireCustomer;
 use Modules\Access\Presentation\Http\Middleware\RequireStaff;
+use Modules\Access\Presentation\Http\Middleware\ShareAdminPage;
 use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
 use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 use Modules\Access\Public\Contracts\AccessApi;
@@ -221,6 +222,7 @@ final class AccessServiceProvider extends ServiceProvider
         $router->aliasMiddleware(UseAdminSession::ALIAS, UseAdminSession::class);
         $router->aliasMiddleware(IdentifyStaff::ALIAS, IdentifyStaff::class);
         $router->aliasMiddleware(RequireStaff::ALIAS, RequireStaff::class);
+        $router->aliasMiddleware(ShareAdminPage::ALIAS, ShareAdminPage::class);
         $router->aliasMiddleware(UseStorefrontSession::ALIAS, UseStorefrontSession::class);
         $router->aliasMiddleware(IdentifyCustomer::ALIAS, IdentifyCustomer::class);
         $router->aliasMiddleware(RequireCustomer::ALIAS, RequireCustomer::class);

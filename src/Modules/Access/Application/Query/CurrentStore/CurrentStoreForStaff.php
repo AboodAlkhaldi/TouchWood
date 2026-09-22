@@ -8,6 +8,8 @@ use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Shared\Application\ActorContext;
+use Shared\Application\ActorType;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -24,15 +26,26 @@ use Shared\Domain\ValueObject\StoreId;
 final readonly class CurrentStoreForStaff
 {
     public function __construct(
+        private ActorContext $actors,
         private GrantRules $rules,
         private StaffUserRepository $staff,
         private RoleAssignmentRepository $assignments,
         private PlatformApi $platform,
     ) {}
 
-    public function forCurrentStaff(): CurrentStoreDto
+    /**
+     * Null when nobody is signed in: the admin shell asks this on every page, the sign-in page
+     * included, and "nobody, so no store" is the honest answer there rather than a refusal.
+     */
+    public function forCurrentStaff(): ?CurrentStoreDto
     {
-        $staffId = $this->rules->currentStaffId();
+        $actor = $this->actors->current();
+
+        if ($actor->type !== ActorType::Staff || $actor->id === null) {
+            return null;
+        }
+
+        $staffId = $actor->id;
         $theirs = $this->storesOf($staffId);
 
         if ($theirs === []) {
@@ -42,12 +55,12 @@ final readonly class CurrentStoreForStaff
         $remembered = $this->staff->currentStore($staffId);
 
         if ($remembered !== null && in_array($remembered, $theirs, true)) {
-            return new CurrentStoreDto($remembered, false);
+            return new CurrentStoreDto($remembered, false, $theirs);
         }
 
         // Falling back: their first store by position. It is only announced when they had chosen
         // one and lost it — a person who has never chosen has nothing to be told about.
-        return new CurrentStoreDto($theirs[0], $remembered !== null);
+        return new CurrentStoreDto($theirs[0], $remembered !== null, $theirs);
     }
 
     /**
