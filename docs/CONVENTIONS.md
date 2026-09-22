@@ -12,7 +12,13 @@
    and reviewed by the owner **before** its first line of code.
 2. Build order is handoff §17. Platform, then Access, then the frontend foundation, then B2B; Feedback
    comes with Sales.
-3. `composer check` must pass before a commit: config:clear → pint → phpstan → deptrac → pest.
+3. `composer check` must pass before a commit: config:clear → pint → phpstan → deptrac → the
+   TypeScript check → pest.
+4. `composer check:browser` runs the browser tests, in a real Chromium, and must pass too. It is a
+   command of its own because it needs a browser (`npx playwright install chromium`) and because a
+   Playwright server left over from another run reports its browsers as outdated when the two share
+   a process. Every other suite asks the server what it would send; only this one asks whether a
+   person can use the answer, which is the question step 1 got wrong six times over.
 
 ## How a step is done here
 

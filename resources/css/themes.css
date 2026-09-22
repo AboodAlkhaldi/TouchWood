@@ -17,10 +17,32 @@
 | The values are the design handoff of 2026-09-22 (docs/design/v2), read from its own token block.
 | Its names there are the hex digits themselves (--k0B3B63); here they say what they are for, so a
 | campaign can change what navy means without every component having to know it changed.
+|
+| ## A campaign and a mode are two different things (owner, 2026-09-22)
+|
+| A **mode** is light or dark. A **campaign** is a dress - National Day, Ramadan, a sale - and each
+| campaign has its own light and its own dark. What is written here is the campaign every store
+| wears until it is told otherwise; the owner calls it the base one, and it is a campaign like any
+| other rather than a special case.
+|
+|     <html data-campaign="national-day" data-mode="dark">
+|
+| So a campaign is written as a pair of blocks and nothing else:
+|
+|     [data-campaign='national-day'] { ...its light values... }
+|     [data-campaign='national-day'][data-mode='dark'] { ...its dark ones... }
+|
+| Campaigns are made by an admin, with their own colours and poster, so most of them will never
+| appear in this file at all: their values arrive as data and are written into the page as the same
+| custom properties. This file is the one campaign that ships with the system, and the shape every
+| other one follows.
+|
+| Only colour, radius and shadow are a campaign's to change (owner, 2026-09-22). Fonts and spacing
+| stay as they are, in app.css, for every campaign.
 */
 
 :root,
-[data-theme='light'] {
+[data-mode='light'] {
     /* Surfaces, from the page backwards to what sits on top of it. */
     --tw-page: #f7f8f9;
     --tw-surface: #ffffff;
@@ -70,9 +92,24 @@
     --tw-shadow-card: 0 1px 2px rgba(11, 59, 99, 0.05);
     --tw-shadow-pop: 0 18px 38px -22px rgba(7, 39, 62, 0.45);
     --tw-ring: rgba(11, 59, 99, 0.14);
+
+    /*
+    | What the shop sits on (owner, 2026-09-22).
+    |
+    | Held as a whole `background` value rather than a colour, because a campaign may want a colour,
+    | a gradient, a photograph, or several things layered over one another - lanterns, a pattern, a
+    | flag - and CSS already lets one property carry all of that:
+    |
+    |     --tw-backdrop: url('/storage/campaigns/national-day/lanterns.png') center / cover no-repeat,
+    |                    linear-gradient(#0b3b63, #07273e);
+    |
+    | The admin panel sets it; nothing in a component knows or cares which of those it turned out
+    | to be.
+    */
+    --tw-backdrop: var(--tw-page);
 }
 
-[data-theme='dark'] {
+[data-mode='dark'] {
     --tw-page: #121c25;
     --tw-surface: #16222e;
     --tw-surface-sunken: #1e2b38;
@@ -115,4 +152,6 @@
     --tw-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
     --tw-shadow-pop: 0 18px 38px -22px rgba(0, 0, 0, 0.7);
     --tw-ring: rgba(143, 187, 228, 0.22);
+
+    --tw-backdrop: var(--tw-page);
 }

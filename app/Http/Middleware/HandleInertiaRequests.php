@@ -21,10 +21,20 @@ final class HandleInertiaRequests extends Middleware
     protected $rootView = 'app';
 
     /**
-     * The theme this browser chose, remembered per browser in a cookie so the server renders the
-     * right one and nothing flashes (decision of 2026-09-19). Light until the person chooses.
+     * Light or dark, remembered per browser in a cookie so the server renders the right one and
+     * nothing flashes (decision of 2026-09-19). Light until the person chooses.
+     *
+     * This is the **mode**, not the whole look. Which campaign the system is wearing - the base
+     * one, National Day, Ramadan - is not a browser's choice at all: it belongs to the store, is
+     * set by an admin, and each campaign brings its own light and dark (owner, 2026-09-22).
      */
     public const string THEME_COOKIE = 'tw_theme';
+
+    /**
+     * The campaign every store wears until an admin says otherwise. A campaign like any other -
+     * the one that ships with the system, and the shape the rest follow.
+     */
+    public const string BASE_CAMPAIGN = 'base';
 
     /** The language the panel is *displayed* in, which is not the person's communication language. */
     public const string LOCALE_COOKIE = 'tw_locale';
@@ -43,7 +53,12 @@ final class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'locale' => $locale,
             'direction' => $locale === 'ar' ? 'rtl' : 'ltr',
-            'theme' => $this->theme($request),
+            'theme' => [
+                // Which dress, and whether the lights are on. Two separate things: a campaign has
+                // its own light and its own dark (owner, 2026-09-22).
+                'campaign' => $this->campaign(),
+                'mode' => $this->mode($request),
+            ],
             // Each page adds the files it needs; a page that names none carries no words, which is
             // a mistake a test catches rather than a blank screen nobody explains.
             'translations' => [],
@@ -77,9 +92,23 @@ final class HandleInertiaRequests extends Middleware
         return parent::version($request);
     }
 
-    private function theme(Request $request): string
+    private function mode(Request $request): string
     {
         return $request->cookie(self::THEME_COOKIE) === 'dark' ? 'dark' : 'light';
+    }
+
+    /**
+     * The campaign the system is wearing.
+     *
+     * The base one for now. Campaigns are made by an admin, with their own colours and poster, and
+     * run between dates - which is Promotions' business (stage 6), not this middleware's. What is
+     * settled here is the shape: everything below this line already asks "which campaign?" rather
+     * than assuming there is only one, so switching it on later adds a lookup and changes no
+     * screen (owner, 2026-09-22).
+     */
+    private function campaign(): string
+    {
+        return self::BASE_CAMPAIGN;
     }
 
     /**
