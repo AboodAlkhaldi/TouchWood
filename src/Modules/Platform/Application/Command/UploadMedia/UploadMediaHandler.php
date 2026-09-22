@@ -13,6 +13,7 @@ use Modules\Platform\Application\Media\MediaSettings;
 use Modules\Platform\Application\Media\MediaStorage;
 use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Application\Settings\ReadSetting;
+use Modules\Platform\Domain\Exception\InvalidMediaAttribute;
 use Modules\Platform\Domain\Model\Media;
 use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Public\Enums\MediaVisibility;
@@ -49,11 +50,36 @@ final readonly class UploadMediaHandler
     ) {}
 
     /**
+     * Ordinarily the media permission; for a module uploading for its own use, that module's own
+     * permission in its own scope (stage 2b, P1).
+     *
+     * The permission must belong to the module that names it — Platform checks the prefix, which is
+     * all it can do without reading Access's catalog it sits below. An undeclared name is refused
+     * by the authorizer itself, so nothing reaches storage under a permission no module declared.
+     */
+    private function authorizeUpload(UploadMedia $command): void
+    {
+        $upload = $command->forModule;
+
+        if ($upload === null) {
+            $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+
+            return;
+        }
+
+        if (! str_starts_with($upload->permission, $upload->module.'.')) {
+            throw new InvalidMediaAttribute('permission', "\"{$upload->permission}\" does not belong to the \"{$upload->module}\" module");
+        }
+
+        $this->authorizer->authorize($upload->permission, $upload->scope);
+    }
+
+    /**
      * @return string the media id — of the existing media when the same public image was uploaded before
      */
     public function handle(UploadMedia $command): string
     {
-        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+        $this->authorizeUpload($command);
 
         $file = $this->inspector->inspect($command->path);
         $isPublic = $command->visibility === MediaVisibility::Public;

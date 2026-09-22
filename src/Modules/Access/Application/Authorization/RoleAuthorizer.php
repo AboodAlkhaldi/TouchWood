@@ -83,6 +83,25 @@ final readonly class RoleAuthorizer implements Authorizer
         return $definition->kind === PermissionKind::Global ? null : $stores->stores();
     }
 
+    public function isUnlimited(): bool
+    {
+        $actor = $this->actors->current();
+
+        // The system on nobody's behalf: a console command or a scheduled job. A job queued by a
+        // person carries them in requestedBy and is limited to what they hold.
+        if ($actor->type === ActorType::System) {
+            return $actor->requestedBy === null;
+        }
+
+        if ($actor->type !== ActorType::Staff) {
+            return false;
+        }
+
+        $staff = $this->grants->forStaff((string) $actor->id);
+
+        return $staff !== null && $staff->isActive() && $staff->superAdmin;
+    }
+
     private function allows(Actor $actor, PermissionDefinitionDto $definition, PermissionScope $scope): bool
     {
         if ($actor->type !== ActorType::Staff) {

@@ -9,6 +9,7 @@ use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Dto\CurrencyDto;
 use Modules\Platform\Public\Dto\MediaDto;
 use Modules\Platform\Public\Dto\MediaUrlsDto;
+use Modules\Platform\Public\Dto\ModuleUploadDto;
 use Modules\Platform\Public\Dto\SettingValueDto;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Actor;
@@ -43,6 +44,20 @@ interface PlatformApi
      * @throws DomainError for an undeclared key or the wrong scope
      */
     public function setting(string $key, ?StoreId $store = null): SettingValueDto;
+
+    /**
+     * A module uploads a file for its own use (stage 2b, P1). Platform checks the permission that
+     * module names for the change — not `platform.media.upload`, which a staff member setting their
+     * own picture, or a customer sending a company document, should never need to hold.
+     *
+     * The file is stored, deduplicated, limited, audited and deletable exactly as any other media.
+     *
+     * @return string the media id — of the existing media when the same public image was uploaded before
+     *
+     * @throws DomainError when the permission does not belong to that module, when nobody declared
+     *                     it, or when the file is not one the settings allow
+     */
+    public function uploadMediaFor(ModuleUploadDto $upload): string;
 
     public function media(string $mediaId): ?MediaDto;
 

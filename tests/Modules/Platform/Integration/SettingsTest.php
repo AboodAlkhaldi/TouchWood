@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Application\Settings\InvalidSettingDefinition;
@@ -44,6 +45,12 @@ final class RecordingAuthorizer implements Authorizer
     {
         return null;
     }
+
+    public function isUnlimited(): bool
+    {
+        // A double for the tests: nothing here stands in for a Super Admin.
+        return false;
+    }
 }
 
 function defineTestSettings(): void
@@ -73,8 +80,9 @@ beforeEach(function () {
     // module does in its provider (Access spec §2.2).
     app(PermissionCatalog::class)->declare(
         'testing',
-        new PermissionDefinitionDto('testing.settings.update'),
-        new PermissionDefinitionDto('testing.maintenance.update'),
+        // Every action a role can hold names the business area it is shown under (stage 2b, P2).
+        new PermissionDefinitionDto('testing.settings.update', group: PermissionGroup::StoreSettings),
+        new PermissionDefinitionDto('testing.maintenance.update', group: PermissionGroup::StoreSettings),
     );
     defineTestSettings();
 });
