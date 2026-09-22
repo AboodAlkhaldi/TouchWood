@@ -43,14 +43,14 @@ final readonly class PhoneNumber
      * (stage 2b, P4). The code page has to say which number a code went to — a person may have two
      * — without putting the number into a page anyone holding the browser can read.
      *
-     * Three digits is the owner's decision of 2026-09-19. A number too short to keep three back is
-     * masked whole rather than revealing more of itself.
+     * Three digits is the owner's decision of 2026-09-19. Every number here has at least seven, so
+     * there is always something to mask: of() refuses anything shorter.
      */
     public function masked(): string
     {
         $digits = substr($this->value, 1);
-        $shown = mb_strlen($digits) > 3 ? mb_substr($digits, -3) : '';
+        $shown = mb_substr($digits, -3);
 
-        return str_repeat("\u{2022}", mb_strlen($digits) - mb_strlen($shown)).$shown;
+        return str_repeat("\u{2022}", mb_strlen($digits) - 3).$shown;
     }
 }

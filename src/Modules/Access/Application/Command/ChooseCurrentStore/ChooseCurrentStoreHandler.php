@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Command\ChooseCurrentStore;
 
+use InvalidArgumentException;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
@@ -42,7 +43,13 @@ final readonly class ChooseCurrentStoreHandler
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $staffId = $this->rules->currentStaffId();
-        $store = StoreId::fromString($command->storeId);
+        // A malformed id is a refusal, not a crash: this arrives from a form. StoreChoice does the
+        // same with the stores of a role (review of step 0).
+        try {
+            $store = StoreId::fromString($command->storeId);
+        } catch (InvalidArgumentException) {
+            throw new InvalidAccessAttribute('store', 'not one of your stores');
+        }
 
         // A store that does not exist is refused like one that is not theirs: the panel never
         // confirms which ids are real.

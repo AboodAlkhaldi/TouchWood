@@ -17,8 +17,14 @@ use Modules\Platform\Public\Dto\MenuEntryDto;
 interface AdminMenu
 {
     /**
-     * @throws \LogicException for two entries with the same module and key, or a group that is not
-     *                         one the role editor uses
+     * Registering checks what Platform can see for itself while providers boot: the group, and that
+     * neither the module/key pair nor the route name is taken. It cannot check that the permission
+     * is declared - the catalog belongs to Access, above it - nor that the route or label exists,
+     * since neither is registered yet. An undeclared permission is refused by the authorizer the
+     * first time a menu is built; routes and labels are covered by a test over the real entries.
+     *
+     * @throws \LogicException for two entries with the same module and key, two entries claiming
+     *                         one route, or a group that is not one the role editor uses
      */
     public function register(MenuEntryDto ...$entries): void;
 

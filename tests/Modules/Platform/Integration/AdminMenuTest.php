@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Access\Application\Authorization\InvalidPermissionCheck;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Public\Enums\StaffStatus;
+use Modules\Platform\Infrastructure\Queue\JobActorState;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\PlatformPermissions;
@@ -86,6 +90,33 @@ describe('the admin menu', function () {
             ->and(offeredMenu())->toHaveCount(4);
     });
 
+    it('does not treat a job queued by a person as unlimited', function () {
+        registerTestMenu();
+        $staffId = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']);
+
+        // Inside a job, Platform makes the actor the system on behalf of whoever queued it. Acting
+        // for a person is not acting unlimited, so the entries of a module not built yet - the ones
+        // no permission can gate - stay hidden.
+        $jobs = app(JobActorState::class);
+        $jobs->enter(1, Actor::system(Actor::staff($staffId)));
+
+        try {
+            expect(offeredMenu())->not->toContain('catalog/products');
+        } finally {
+            $jobs->leave(1);
+        }
+    });
+
+    it('does not treat a Super Admin whose account is disabled as unlimited', function () {
+        registerTestMenu();
+        $superAdminId = Fx::staff(superAdmin: true);
+        DB::table('access.staff_users')->where('id', $superAdminId)->update(['status' => StaffStatus::Disabled->value]);
+        Fx::actAsStaff($superAdminId);
+
+        // Being a Super Admin is not enough: the account has to be a working one.
+        expect(offeredMenu())->toBe([]);
+    });
+
     it('offers nothing at all to a guest', function () {
         registerTestMenu();
         Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
@@ -100,14 +131,33 @@ describe('the admin menu', function () {
         expect(array_keys(app(AdminMenu::class)->forCurrentActor()))->toBe(['audit']);
     });
 
-    it('orders entries by their position, then by key', function () {
+    it('refuses an entry whose permission no module declares, the moment the menu is built', function () {
+        // Platform cannot check this when the entry is registered: the catalog belongs to Access,
+        // which sits above it, and not every provider has booted yet. It is caught instead by the
+        // authorizer the first time anyone asks for a menu, which is the first request - including
+        // a Super Admin's, who is checked through the same door (review of step 0).
         app(AdminMenu::class)->register(
-            new MenuEntryDto('access', 'second', 'staff_and_permissions', 'test.b', AccessPermissions::STAFF_VIEW, 20),
+            new MenuEntryDto('access', 'ghost', 'staff_and_permissions', 'test.ghost', 'access.ghost.view', 10),
+        );
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(fn () => offeredMenu())->toThrow(InvalidPermissionCheck::class, 'no module declares it');
+    });
+
+    it('orders entries by their position, then by key when two share one', function () {
+        app(AdminMenu::class)->register(
+            new MenuEntryDto('access', 'later', 'staff_and_permissions', 'test.b', AccessPermissions::STAFF_VIEW, 20),
             new MenuEntryDto('access', 'first', 'staff_and_permissions', 'test.a', AccessPermissions::STAFF_VIEW, 10),
+            // Two at the same position: the key decides, so a menu never shuffles between requests.
+            new MenuEntryDto('access', 'beta', 'staff_and_permissions', 'test.d', AccessPermissions::STAFF_VIEW, 20),
         );
         Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']));
 
-        expect(offeredMenu())->toBe(['staff_and_permissions/first', 'staff_and_permissions/second']);
+        expect(offeredMenu())->toBe([
+            'staff_and_permissions/first',
+            'staff_and_permissions/beta',
+            'staff_and_permissions/later',
+        ]);
     });
 
     it('refuses a business area the role editor does not use, an entry twice, and two entries on one route', function (Closure $register, string $message) {

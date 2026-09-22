@@ -48,9 +48,15 @@ public function uploadMediaFor(ModuleUploadDto $upload): string;
 
 ### Rules
 
-- The permission must be **declared** and must **belong to the calling module**: its name starts
-  with `{module}.` and the permission catalog knows it. Anything else is refused
-  (`UnknownPermission`), so no module can borrow another's permission or invent one.
+- The permission must be **declared** and must **start with the calling module's name**. An
+  undeclared name is refused by the authorizer (`InvalidPermissionCheck`, "no module declares it" —
+  a programming error, not a refusal); a name belonging to another module is refused by Platform
+  (`InvalidMediaAttribute`, "does not belong").
+- **What this does and does not prove.** The module names itself, so the check catches a mistake,
+  not a lie: nothing stops a caller passing another module's name together with that module's
+  permission. What keeps modules apart is deptrac and the review, as everywhere else in this
+  codebase — this rule's job is to stop `platform.media.upload` from being the only key to the
+  media table, not to be a security boundary between modules.
 - Everything else is what `UploadMedia` already does: the checksum dedupe for public images,
   variants queued, the same size and type limits, the same audit entry — with the module and the
   permission named in it.
@@ -62,8 +68,9 @@ public function uploadMediaFor(ModuleUploadDto $upload): string;
 ### Tests
 
 A staff member holding no media permission uploads an avatar and it works. A module naming a
-permission that is not its own is refused; so is an undeclared name. The audit entry names the
-module. Nothing about `platform.media.upload` changes for the media library screen.
+permission that is not its own is refused; so is an undeclared name; so is a staff member who does
+not hold the named permission. The audit entry names the module and the permission it went under.
+Nothing about `platform.media.upload` changes for the media library screen.
 
 ---
 
@@ -96,12 +103,17 @@ test asserts every *role* permission has a group.
 Six of these are the owner's, approved 2026-09-19 (handoff §14 and the design). Three were added
 on 2026-09-22 (D2), because Platform's own permissions had nowhere to go.
 
+Only the actions a role can be given appear here. A **reserved** action — `platform.store.create`,
+`platform.currency.create`, `platform.currency.update`, `platform.media.variants.generate` — belongs
+to Super Admins alone, is never offered on the role screen, and therefore has no group: the catalog
+refuses one that carries a group.
+
 | Group | Approved | Permissions today |
 |---|---|---|
 | `staff_and_permissions` — Staff and permissions | yes | `access.staff.invite`, `access.staff.update`, `access.staff.assign_role`, `access.staff.disable`, `access.staff.view`, `access.role.manage`, `access.staff_settings.update` |
 | `store_settings` — Store settings and tax | yes | `platform.store.view`, `platform.store.update`, `platform.settings.view`, `platform.settings.update`, `access.settings.update`, `access.address_format.update` |
 | `customers` — Customers | 2026-09-22 | `access.customer.view`, `access.customer.block`, `access.customer.delete` |
-| `media` — Media library | 2026-09-22 | `platform.media.upload`, `platform.media.update`, `platform.media.delete`, `platform.media.variants.generate` |
+| `media` — Media library | 2026-09-22 | `platform.media.upload`, `platform.media.update`, `platform.media.delete` |
 | `audit` — Audit log | 2026-09-22 | `platform.audit.view` |
 | `catalog` — Catalog and variants | yes | none yet |
 | `pricing` — Pricing and campaigns | yes | none yet |
@@ -261,12 +273,24 @@ $menu->register(new MenuEntryDto(
 - The registry decides **what is offered**, never what is allowed: every screen behind an entry
   still checks its own permission in its handler. Hiding a link is not protection.
 - Entry keys are unique per module; two modules may not claim the same route.
+- **What `register()` can check, and what it cannot.** It runs while providers are booting, from
+  Platform, which sits below every module. So it checks what it can see for itself: the group is one
+  the role editor uses, the module/key pair is not taken, the route name is not taken. It cannot
+  check that the permission is declared (the catalog is Access's, above it, and not every module has
+  declared yet), nor that the route or the label exists (neither is registered yet).
+  - An **undeclared permission** is caught instead the first time anyone asks for a menu — the
+    authorizer refuses a name no module declares — so it fails on the first request, for everyone
+    including a Super Admin, rather than silently hiding a screen. There is a test for it.
+  - A **missing route or label** is not caught by the registry at all. It is caught by a test over
+    the real entries, which arrives in step 1 with the first real entries — there are none in step
+    0, and a test over an empty list proves nothing.
 
 ### Tests
 
 A staff member with one permission sees exactly one entry. A Super Admin sees the "coming soon"
-ones; nobody else does. Every entry's label exists in both languages. Every entry's route name
-exists. An entry whose permission is undeclared is refused at boot.
+ones; nobody else does. Two entries sharing a position are ordered by key, so a menu never shuffles
+between requests. An entry whose permission no module declares makes the menu throw the first time
+it is built. Labels and route names are tested in step 1, against the real entries.
 
 ---
 
@@ -282,6 +306,22 @@ All four as recommended.
 | **D4** | Whether the menu uses the same group list as the role editor (P6) | **One list.** The same nine groups, the same words, in the menu and in the role editor |
 
 Nothing in this document is open. It is ready to build.
+
+---
+
+## Left open — for the owner, found while building
+
+**A queued job's two answers about who it is.** Access's authorizer answers "is this actor
+unlimited?" and "which stores does this actor hold X in?" differently inside a job a *person*
+queued: `isUnlimited()` says no — correctly, since such a job may only do what its requester may —
+while `storesWith()` still answers as the system, granting every store. It is Access's behaviour as
+merged in stage 2, not something step 0 introduced, and nothing today is harmed by it: the menu is
+the first caller of `isUnlimited()`, and menus are not built inside jobs.
+
+It is written down rather than changed because changing how a queued job is authorized is an Access
+decision, not a frontend one, and it would land in a step whose subject is something else. **It
+needs the owner's word on when to fix it** — before the first job that reads permissions per store,
+at the latest.
 
 ---
 

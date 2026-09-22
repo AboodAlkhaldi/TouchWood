@@ -19,14 +19,27 @@ final class MediaAudit
 {
     private const string SUBJECT = 'platform.media';
 
-    public static function uploaded(Media $media): AuditEntryDto
+    /**
+     * @param  string|null  $forModule  the module that uploaded it for its own use, and the
+     *                                  permission that allowed it (stage 2b, P1). Null for an
+     *                                  ordinary upload through the media library
+     */
+    public static function uploaded(Media $media, ?string $forModule = null, ?string $underPermission = null): AuditEntryDto
     {
-        return new AuditEntryDto('platform.media.uploaded', self::SUBJECT, $media->id(), null, AuditChanges::none()
+        $changes = AuditChanges::none()
             ->changed('visibility', null, $media->visibility()->value)
             ->changed('mime', null, $media->mime())
             ->changed('bytes', null, $media->bytes())
             ->changed('checksum', null, $media->checksum())
-            ->personal('original_filename'));
+            ->personal('original_filename');
+
+        // Who asked for it and under what: an upload allowed by a module's own permission is not
+        // the same event as one through the media library, and the log must say which it was.
+        if ($forModule !== null) {
+            $changes = $changes->changed('for_module', null, $forModule)->changed('under_permission', null, $underPermission);
+        }
+
+        return new AuditEntryDto('platform.media.uploaded', self::SUBJECT, $media->id(), null, $changes);
     }
 
     /**

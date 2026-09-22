@@ -17,6 +17,7 @@ use Illuminate\Session\SessionManager;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
+use LogicException;
 use Modules\Access\Application\AccessApiImpl;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Authorization\RoleAuthorizer;
@@ -271,7 +272,7 @@ final class AccessServiceProvider extends ServiceProvider
                 kind: $permission['storeFree'] ? PermissionKind::Global : PermissionKind::PerStore,
                 // Platform names its business area as a string, having no sight of Access's types
                 // (stage 2b, P2); an area Access does not know throws here, at boot.
-                group: $permission['group'] === null ? null : PermissionGroup::from($permission['group']),
+                group: self::businessArea($name, $permission['group']),
             ),
             array_keys(PlatformPermissions::all()),
             PlatformPermissions::all(),
@@ -282,6 +283,24 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->booted(fn () => $catalog->verify());
 
         $this->carryPermissionChangesOnMigrate();
+    }
+
+    /**
+     * The business area Platform named, as the type Access holds (stage 2b, P2). Platform publishes
+     * a plain string because it sits below Access and cannot see its enums, so a typo there would
+     * otherwise surface at boot as a bare ValueError naming the enum rather than the mistake
+     * (review of step 0).
+     */
+    private static function businessArea(string $permission, ?string $group): ?PermissionGroup
+    {
+        if ($group === null) {
+            return null;
+        }
+
+        return PermissionGroup::tryFrom($group) ?? throw new LogicException(
+            "Platform puts \"{$permission}\" in the business area \"{$group}\", which Access does not know. The areas are: "
+            .implode(', ', array_map(static fn (PermissionGroup $area): string => $area->value, PermissionGroup::cases())).'.'
+        );
     }
 
     /**

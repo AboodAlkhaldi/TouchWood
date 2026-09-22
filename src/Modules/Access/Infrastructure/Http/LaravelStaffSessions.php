@@ -80,6 +80,21 @@ final readonly class LaravelStaffSessions implements StaffSessions
         ]);
     }
 
+    public function noteCodeSentTo(string $maskedPhone): void
+    {
+        $session = $this->session();
+        $data = $session?->get(self::PENDING);
+
+        if ($session === null || ! is_array($data)) {
+            return;
+        }
+
+        // 'at' is deliberately untouched: naming the number must not extend the window the password
+        // opened, or a new number could be entered over and over to keep it open.
+        $data['masked_phone'] = $maskedPhone;
+        $session->put(self::PENDING, $data);
+    }
+
     public function pendingSignIn(): ?PendingSignIn
     {
         $session = $this->session();

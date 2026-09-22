@@ -100,12 +100,17 @@ final class InMemoryAdminMenu implements AdminMenu
 
     private function mayUse(Authorizer $authorizer, MenuEntryDto $entry, bool $unlimited): bool
     {
-        if ($entry->comingSoon()) {
+        $permission = $entry->permission;
+
+        // No permission means the module is not built yet - the entry is "coming soon", and only
+        // someone unlimited is shown it. Read from the property rather than through comingSoon() so
+        // that what is passed on below is provably a permission (review of step 0).
+        if ($permission === null) {
             return $unlimited;
         }
 
         // Held anywhere is enough to be offered the screen; the screen itself decides what is in it
         // for this person, store by store.
-        return $authorizer->storesWith($entry->permission ?? '') !== [];
+        return $authorizer->storesWith($permission) !== [];
     }
 }

@@ -111,12 +111,12 @@ final readonly class UploadMediaHandler
         $this->storage->putOriginal($media, $command->path);
 
         try {
-            $added = $this->db->transaction(function () use ($media): bool {
+            $added = $this->db->transaction(function () use ($media, $command): bool {
                 if (! $this->media->add($media)) {
                     return false;
                 }
 
-                $this->auditLog->record(MediaAudit::uploaded($media));
+                $this->auditLog->record(MediaAudit::uploaded($media, $command->forModule?->module, $command->forModule?->permission));
 
                 // A caller's own transaction may still roll back after this one commits.
                 $this->storage->deleteAfterRollBack($media);

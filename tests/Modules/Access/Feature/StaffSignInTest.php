@@ -173,6 +173,8 @@ describe('signing in (spec §1.8, §4.4)', function () {
 
         expect(str_ends_with($shown, mb_substr($phone, -3)))->toBeTrue()
             ->and(str_contains($shown, mb_substr($phone, 1, 6)))->toBeFalse()
+            // Exactly three digits, no more: the rest must all be mask.
+            ->and(preg_match_all('/\d/', $shown))->toBe(3)
             // Counted in characters: the mask is a bullet, three bytes each.
             ->and(mb_strlen($shown))->toBe(mb_strlen($phone) - 1);
     });
@@ -909,6 +911,33 @@ describe('email links while signed in (amendment 31)', function () {
 });
 
 describe('phones at sign-in', function () {
+    it('names the new number on the code page too, masked, and does not restart the password clock', function () {
+        // The code screen appears twice: after a password, and after a Super Admin enters a new
+        // number. It has to name the number both times (stage 2b, P4, review of step 0) - and
+        // naming it must not extend the window the password opened.
+        $superAdmin = Fx::staff(superAdmin: true);
+        app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(signInEmail($superAdmin)));
+        $browser = new AdminBrowser;
+
+        signInPassword($browser, $superAdmin)->assertRedirect('/admin/sign-in/phone');
+
+        expect($browser->get('/admin/_pending')->json('masked'))->toBeNull();
+
+        $browser->post('/admin/sign-in/phone', ['phone' => '+966 50 777 7777'])->assertRedirect('/admin/sign-in/code');
+        $shown = $browser->get('/admin/_pending')->json('masked');
+        $shown = is_string($shown) ? $shown : '';
+
+        expect(str_ends_with($shown, '777'))->toBeTrue()
+            ->and(str_contains($shown, '966'))->toBeFalse()
+            ->and(preg_match_all('/\d/', $shown))->toBe(3);
+
+        // The clock still runs from the password: a minute past the window, the pending sign-in is
+        // gone whatever number was named.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(16));
+
+        expect($browser->get('/admin/_pending')->json('masked'))->toBeNull();
+    });
+
     it('asks a Super Admin whose phone was reset for a new number, and verifies it with the code (amendment 14)', function () {
         $superAdmin = Fx::staff(superAdmin: true);
         app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone(signInEmail($superAdmin)));

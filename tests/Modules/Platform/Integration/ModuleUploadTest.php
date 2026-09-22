@@ -17,6 +17,7 @@ use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
 use function Pest\Laravel\seed;
@@ -115,6 +116,17 @@ describe('a module uploading a file for its own use', function () {
         expect(fn () => uploadForModule('access', AccessPermissions::OWN_ACCOUNT_UPDATE))->toThrow(Unauthorized::class);
     });
 
+    it('refuses a staff member who does not hold the named permission', function () {
+        // The one that matters: a real staff account, a real declared permission of the module,
+        // which this person simply does not hold. Naming your own permission is not holding it
+        // (review of step 0).
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']));
+
+        expect(fn () => uploadForModule('access', AccessPermissions::STAFF_INVITE, PermissionScope::store(StoreId::fromString(Fx::storeId('sa')))))
+            ->toThrow(Unauthorized::class)
+            ->and(DB::table('platform.media')->count())->toBe(0);
+    });
+
     it('gives back the same media for the same public image, as any other upload does', function () {
         $staffId = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']);
         Fx::actAsStaff($staffId);
@@ -139,6 +151,14 @@ describe('a module uploading a file for its own use', function () {
 
         $mediaId = uploadForModule('access', AccessPermissions::OWN_ACCOUNT_UPDATE);
 
-        expect(DB::table('platform.audit_entries')->where('subject_id', $mediaId)->where('action', 'platform.media.uploaded')->count())->toBe(1);
+        $changes = (string) DB::table('platform.audit_entries')->where('subject_id', $mediaId)
+            ->where('action', 'platform.media.uploaded')->value('changes');
+
+        // An upload a module asked for is not the same event as one through the media library, and
+        // the log has to say which it was, and under what (review of step 0).
+        expect(DB::table('platform.audit_entries')->where('subject_id', $mediaId)->where('action', 'platform.media.uploaded')->count())->toBe(1)
+            ->and($changes)->toContain('for_module')
+            ->and($changes)->toContain('access')
+            ->and($changes)->toContain(AccessPermissions::OWN_ACCOUNT_UPDATE);
     });
 });
