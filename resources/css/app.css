@@ -13,6 +13,8 @@
     --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
     --color-page: var(--tw-page);
+    /* The shop's background: a colour, a gradient, a photograph, or several layered together. */
+    --color-backdrop: var(--tw-backdrop);
     --color-surface: var(--tw-surface);
     --color-surface-sunken: var(--tw-surface-sunken);
     --color-surface-raised: var(--tw-surface-raised);

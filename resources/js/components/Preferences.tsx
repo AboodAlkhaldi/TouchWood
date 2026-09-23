@@ -27,7 +27,9 @@ function choose(preference: 'theme' | 'locale', value: string) {
 export function ThemeToggle({ className = '' }: { className?: string }) {
     const { theme } = usePage<SharedProps>().props;
     const t = useTranslator();
-    const next = theme === 'dark' ? 'light' : 'dark';
+    // Only the mode is a person's to choose. Which campaign the system is wearing belongs to the
+    // store, and every campaign has both (owner, 2026-09-22).
+    const next = theme.mode === 'dark' ? 'light' : 'dark';
 
     return (
         <button
@@ -36,7 +38,7 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
             className={`inline-flex items-center gap-2 rounded-pill border border-line px-3 py-1.5 text-xs text-ink-muted transition-colors hover:border-brand hover:text-brand ${className}`}
             title={t(`admin.theme.switch_to_${next}`)}
         >
-            {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            {theme.mode === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
             <span>{t(`admin.theme.${next}`)}</span>
         </button>
     );

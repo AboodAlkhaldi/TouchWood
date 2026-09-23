@@ -8,7 +8,21 @@
 
 export type Locale = 'ar' | 'en';
 export type Direction = 'rtl' | 'ltr';
-export type Theme = 'light' | 'dark';
+/** Light or dark. A campaign has one of each. */
+export type Mode = 'light' | 'dark';
+
+/**
+ * What the system is wearing: which campaign, and whether the lights are on.
+ *
+ * `campaign` is a name, not a list of two - the base one today, and whatever an admin makes later.
+ * Nothing in a screen may assume there are only two looks (owner, 2026-09-22).
+ */
+export type Theme = {
+    campaign: string;
+    mode: Mode;
+    /** Custom properties for a campaign an admin made; absent for the one that ships with us. */
+    style?: string;
+};
 
 /** A menu entry the person may use, as Platform's registry answered for them. */
 export type MenuEntry = {

@@ -82,8 +82,10 @@ describe('the admin sign-in screens', function () {
                 ->component('Access/Admin/SignIn')
                 ->where('locale', 'ar')
                 ->where('direction', 'rtl')
-                // Arabic until this browser says otherwise, and the theme is light until chosen.
-                ->where('theme', 'light')
+                // Arabic until this browser says otherwise, and light until chosen. The campaign
+                // is the base one - a campaign like any other, with its own light and dark.
+                ->where('theme.mode', 'light')
+                ->where('theme.campaign', 'base')
             );
 
         // The words travel with the page: there are no separate frontend translation files. Read
@@ -104,7 +106,8 @@ describe('the admin sign-in screens', function () {
         // first paint is right and nothing flips (frontend.md §1.3).
         $page->assertSee('lang="ar"', false)
             ->assertSee('dir="rtl"', false)
-            ->assertSee('data-theme="light"', false);
+            ->assertSee('data-mode="light"', false)
+            ->assertSee('data-campaign="base"', false);
     });
 
     it('sends only the admin routes to an admin page, never the storefront\'s', function () {
@@ -226,12 +229,12 @@ describe('the admin panel itself', function () {
 
         $browser->get('/admin/sign-in')
             ->assertInertia(fn (AssertableInertia $inertia) => $inertia
-                ->where('theme', 'dark')
+                ->where('theme.mode', 'dark')
                 ->where('locale', 'en')
                 ->where('direction', 'ltr')
             )
             // Written into the shell, so the very first paint is dark and in English.
-            ->assertSee('data-theme="dark"', false)
+            ->assertSee('data-mode="dark"', false)
             ->assertSee('lang="en"', false)
             ->assertInertia(function (AssertableInertia $inertia) {
                 /** @var array<string, string> $words */
@@ -247,7 +250,7 @@ describe('the admin panel itself', function () {
 
         $browser->post('/admin/preferences', ['preference' => 'theme', 'value' => 'neon'])->assertRedirect();
 
-        $browser->get('/admin/sign-in')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('theme', 'light'));
+        $browser->get('/admin/sign-in')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('theme.mode', 'light'));
     });
 
     it('still serves the page when the server renderer is down, and writes it down', function () {

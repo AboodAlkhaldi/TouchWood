@@ -67,7 +67,7 @@
             "@php vendor/bin/phpstan analyse --memory-limit=2G --no-progress",
             "@php vendor/bin/deptrac analyse --fail-on-uncovered --report-uncovered --no-progress",
             "npm run types",
-            "@php vendor/bin/pest --ci"
+            "@php vendor/bin/pest --ci --exclude-testsuite=Browser"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
@@ -81,6 +81,9 @@
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ],
+        "check:browser": [
+            "@php vendor/bin/pest --testsuite=Browser"
         ]
     },
     "extra": {
@@ -100,6 +103,7 @@
     "minimum-stability": "stable",
     "prefer-stable": true,
     "scripts-descriptions": {
-        "check": "Everything that must pass before a commit: formatting, static analysis, module boundaries, the TypeScript check, and the tests."
+        "check": "Everything that must pass before a commit: formatting, static analysis, module boundaries, the TypeScript check and the tests.",
+        "check:browser": "The browser tests, driven through a real Chromium. Their own command: they need a browser installed (npx playwright install chromium) and they are slow."
     }
 }

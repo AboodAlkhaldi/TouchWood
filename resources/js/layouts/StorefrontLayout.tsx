@@ -30,7 +30,9 @@ export function StorefrontLayout({ title, children }: Props) {
         <>
             <Head title={title} />
 
-            <div className="flex min-h-screen flex-col bg-page text-ink">
+            {/* The backdrop is a campaign's to decide: a colour today, a photograph or several
+                layered things tomorrow, without touching this file (owner, 2026-09-22). */}
+            <div className="flex min-h-screen flex-col bg-backdrop text-ink">
                 <header className="border-b border-line bg-surface">
                     <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4">
                         <div className="flex items-center gap-3">

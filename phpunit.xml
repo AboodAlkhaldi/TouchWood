@@ -22,6 +22,14 @@
             <directory>tests/Shared/Feature</directory>
             <directory>tests/Modules/*/Feature</directory>
         </testsuite>
+        <!--
+            A real browser, driven by Playwright. Every other suite asks the server what it would
+            send; only this one asks whether a person can actually use the answer. Step 1 shipped
+            six faults that every other suite called green (owner, 2026-09-22).
+        -->
+        <testsuite name="Browser">
+            <directory>tests/Browser</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

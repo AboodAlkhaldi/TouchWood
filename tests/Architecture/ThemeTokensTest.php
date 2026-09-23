@@ -102,8 +102,12 @@ it('allows colours in the theme files and nowhere else', function (string $path,
     'another css file' => ['resources/css/print.css', false],
 ]);
 
-it('gives every theme the same tokens, so a campaign can never forget one', function () {
+it('gives every mode and campaign the same tokens, so none can forget one', function () {
     $css = (string) file_get_contents(dirname(__DIR__, 2).'/resources/css/themes.css');
+
+    // Comments go first: they explain the shape of a campaign by showing one, braces and all, and
+    // a parser that cannot tell an example from a rule reads the whole preamble as a selector.
+    $css = (string) preg_replace('#/\*.*?\*/#s', '', $css);
 
     // Each block is "selector { ... }" at the top level of the file.
     preg_match_all('/(?<selector>[^{}]+)\{(?<body>[^{}]*)\}/s', $css, $blocks, PREG_SET_ORDER);
@@ -124,8 +128,8 @@ it('gives every theme the same tokens, so a campaign can never forget one', func
     foreach ($themes as $selector => $tokens) {
         sort($tokens);
 
-        // A theme missing a token silently inherits the first one's value, which is how a campaign
-        // ends up with one wrong button that nobody can explain.
-        expect($tokens)->toBe($expected, "The theme \"{$selector}\" does not define the same tokens as \"{$first}\".");
+        // A block missing a token silently inherits another's value, which is how a campaign ends
+        // up with one wrong button that nobody can explain.
+        expect($tokens)->toBe($expected, "The block \"{$selector}\" does not define the same tokens as \"{$first}\".");
     }
 });

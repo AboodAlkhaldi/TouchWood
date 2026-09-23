@@ -65,6 +65,11 @@ jobs:
       - name: Build assets
         run: npm run build
 
+      # The browser suite drives a real Chromium. Without it, those tests error rather than fail,
+      # which reads as a broken build instead of a missing dependency.
+      - name: Install Chromium for the browser tests
+        run: npx playwright install --with-deps chromium
+
       # Order matters: style, then types, then BOUNDARIES, then tests.
       # Deptrac is blocking. A boundary violation fails the build even if
       # every test passes — retrofitting boundaries is what kills these.
@@ -78,4 +83,10 @@ jobs:
         run: npm run types
       - name: Tests
         # --ci makes a committed ->only() fail the run instead of silently skipping every other test.
-        run: vendor/bin/pest --ci
+        run: vendor/bin/pest --ci --exclude-testsuite=Browser
+
+      # Their own step: they need a browser, they are slower than the rest put together, and a
+      # Playwright server left over from the other suites reports its browsers as outdated when the
+      # two run in one process (found by running it, 2026-09-22).
+      - name: Browser tests
+        run: vendor/bin/pest --testsuite=Browser

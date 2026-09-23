@@ -33,10 +33,14 @@ export function SyncDocument() {
             html.dir = direction;
         }
 
-        if (html.dataset.theme !== theme) {
-            html.dataset.theme = theme;
+        if (html.dataset.campaign !== theme.campaign) {
+            html.dataset.campaign = theme.campaign;
         }
-    }, [locale, direction, theme]);
+
+        if (html.dataset.mode !== theme.mode) {
+            html.dataset.mode = theme.mode;
+        }
+    }, [locale, direction, theme.campaign, theme.mode]);
 
     return null;
 }
