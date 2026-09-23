@@ -48,6 +48,7 @@ final readonly class RoleEditorPermissionsHandler
                 $permission->name,
                 (string) $this->translator->get($permission->labelKey(), [], 'ar'),
                 (string) $this->translator->get($permission->labelKey(), [], 'en'),
+                $permission->group,
                 $storeFree,
                 $adminOnly,
                 $stores !== null,

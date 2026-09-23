@@ -17,6 +17,11 @@ use function Pest\Laravel\seed;
 | So these are about what a person sees and does, not about what a handler returns.
 */
 
+// Deliberately no RefreshDatabase. The suite serves the application in this process, but a served
+// request opens its own connection, so it cannot see a transaction wrapped round the test - and the
+// two deadlock against each other instead (found by running it, 2026-09-23). These tests therefore
+// leave the database as they found it by making their own data unique, not by rolling it back.
+
 beforeEach(function () {
     // The browser tests serve the application inside this very process, so they inherit the
     // suite's session driver - and phpunit.xml forces "array", which keeps nothing between
