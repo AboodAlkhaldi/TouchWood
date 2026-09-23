@@ -181,8 +181,9 @@ describe('the admin sign-in screens', function () {
 
 describe('the admin panel itself', function () {
     it('opens on the home page with the menu of what this person may do', function () {
+        // Access registers its own staff entry at boot, so only the one this test needs on top of
+        // it is added here: something they do not hold, to prove its group disappears with it.
         app(AdminMenu::class)->register(
-            new MenuEntryDto('access', 'staff', 'staff_and_permissions', 'access.staff.home', AccessPermissions::STAFF_VIEW, 10),
             new MenuEntryDto('platform', 'audit', 'audit', 'platform.choose-store', PlatformPermissions::AUDIT_VIEW, 10),
         );
 

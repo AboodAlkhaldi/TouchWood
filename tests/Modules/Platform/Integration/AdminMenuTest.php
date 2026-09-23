@@ -46,9 +46,8 @@ function offeredMenu(): array
 function registerTestMenu(): void
 {
     app(AdminMenu::class)->register(
-        new MenuEntryDto('access', 'staff', 'staff_and_permissions', 'test.menu.staff', AccessPermissions::STAFF_VIEW, 10),
-        // Not "roles": Access registers that one for real now, and a module may not claim one key
-        // twice. These are this test's own inventions and are named so.
+        // Neither "staff" nor "roles": Access registers both for real now, and a module may not
+        // claim one key twice. What is left here is this test's own invention, and is named so.
         new MenuEntryDto('access', 'saved-roles', 'staff_and_permissions', 'test.menu.saved-roles', AccessPermissions::ROLE_MANAGE, 20),
         new MenuEntryDto('platform', 'media', 'media', 'test.menu.media', PlatformPermissions::MEDIA_UPLOAD),
         new MenuEntryDto('platform', 'audit', 'audit', 'test.menu.audit', PlatformPermissions::AUDIT_VIEW),
@@ -90,7 +89,8 @@ describe('the admin menu', function () {
         // Managing roles is admin-only, so this one has an admin role holding all four.
         Fx::actAsAdmin(['sa'], [AccessPermissions::STAFF_VIEW, AccessPermissions::ROLE_MANAGE, PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::AUDIT_VIEW]);
 
-        // Four of this test's own, plus Access's real roles entry, which they may use as well.
+        // Three of this test's own, plus Access's real staff and roles entries, which they may
+        // use as well.
         expect(offeredMenu())->not->toContain('catalog/products')
             ->and(offeredMenu())->toHaveCount(5);
     });
@@ -158,8 +158,10 @@ describe('the admin menu', function () {
         );
         Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']));
 
+        // Access's own staff entry sits at 10 as well, and "first" comes before "staff".
         expect(offeredMenu())->toBe([
             'staff_and_permissions/first',
+            'staff_and_permissions/staff',
             'staff_and_permissions/beta',
             'staff_and_permissions/later',
         ]);

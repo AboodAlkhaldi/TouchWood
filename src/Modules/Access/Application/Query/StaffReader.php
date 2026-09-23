@@ -27,4 +27,15 @@ interface StaffReader
      * @return array<string, mixed>|null
      */
     public function member(string $staffId): ?array;
+
+    /**
+     * Where one person's role reaches beyond - or short of - the stores of their assignment.
+     *
+     * An exception is one action given its own stores (access.md §1.5). The screen that shows a
+     * person's role has to show them, or an admin cannot tell why somebody can do one thing in a
+     * store the rest of their role never touches.
+     *
+     * @return array<string, list<string>> permission => the stores it reaches
+     */
+    public function exceptionsFor(string $staffId): array;
 }
