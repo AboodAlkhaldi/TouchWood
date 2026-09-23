@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Access\Application\Command\ChooseCurrentStore\ChooseCurrentStore;
 use Modules\Access\Application\Command\ChooseCurrentStore\ChooseCurrentStoreHandler;
+use Modules\Access\Application\Query\CurrentStore\CurrentStoreDto;
 use Modules\Access\Application\Query\CurrentStore\CurrentStoreForStaff;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Repository\StaffUserRepository;
@@ -32,6 +33,17 @@ function chooseStore(string $storeCode): void
 function rememberedStore(string $staffId): ?string
 {
     return app(StaffUserRepository::class)->currentStore($staffId);
+}
+
+/**
+ * The store the panel would open in for whoever is acting. The read answers null for anyone not
+ * signed in; every test below acts as a staff member, so a null here is the test's own mistake and
+ * is thrown rather than carried into an assertion that would then read confusingly.
+ */
+function openingStore(): CurrentStoreDto
+{
+    return app(CurrentStoreForStaff::class)->forCurrentStaff()
+        ?? throw new RuntimeException('Nobody is acting as staff in this test.');
 }
 
 /**
@@ -120,7 +132,7 @@ describe('the store a staff member is working in', function () {
         Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa', 'ae']));
         chooseStore('ae');
 
-        $opening = app(CurrentStoreForStaff::class)->forCurrentStaff();
+        $opening = openingStore();
 
         expect($opening->storeId)->toBe(Fx::storeId('ae'))
             ->and($opening->fellBack)->toBeFalse();
@@ -134,7 +146,7 @@ describe('the store a staff member is working in', function () {
         // An admin narrows their role afterwards. The preference is never trusted on the way out.
         Fx::assign($staffId, Fx::role([PlatformPermissions::STORE_UPDATE]), ['sa']);
         Fx::actAsStaff($staffId);
-        $opening = app(CurrentStoreForStaff::class)->forCurrentStaff();
+        $opening = openingStore();
 
         expect($opening->storeId)->toBe(Fx::storeId('sa'))
             ->and($opening->fellBack)->toBeTrue()
@@ -145,7 +157,7 @@ describe('the store a staff member is working in', function () {
     it('says nothing about falling back to someone who never chose a store', function () {
         Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']));
 
-        $opening = app(CurrentStoreForStaff::class)->forCurrentStaff();
+        $opening = openingStore();
 
         expect($opening->storeId)->toBe(Fx::storeId('sa'))
             ->and($opening->fellBack)->toBeFalse();
@@ -154,7 +166,7 @@ describe('the store a staff member is working in', function () {
     it('opens a Super Admin in the first store of all, having no role at all', function () {
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-        $opening = app(CurrentStoreForStaff::class)->forCurrentStaff();
+        $opening = openingStore();
 
         expect($opening->storeId)->toBe(Fx::storeId('sa'))
             ->and($opening->fellBack)->toBeFalse();

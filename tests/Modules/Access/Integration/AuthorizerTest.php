@@ -12,12 +12,14 @@ use Modules\Access\Application\Authorization\RoleAuthorizer;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Enums\StaffStatus;
+use Modules\Platform\Infrastructure\Queue\JobActorState;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Actor;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
+use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
@@ -250,4 +252,66 @@ it('gives an admin role\'s holder its actions like any role', function () {
 
     expect(Fx::allows(AccessPermissions::STAFF_ASSIGN_ROLE, Fx::inStore('sa')))->toBeTrue()
         ->and(Fx::allows(AccessPermissions::STAFF_ASSIGN_ROLE, Fx::inStore('ae')))->toBeFalse();
+});
+
+/*
+| A queued job acts as the system on behalf of whoever queued it. What that means was made explicit
+| on 2026-09-22 (owner), after the admin menu became the first thing to ask "is this actor
+| unlimited?" and got a different answer from the one scoping gives.
+*/
+describe('a job queued by a person', function () {
+    function inJobFor(Actor $requester, Closure $work): mixed
+    {
+        $jobs = app(JobActorState::class);
+        $jobs->enter(1, Actor::system($requester));
+
+        try {
+            return $work();
+        } finally {
+            $jobs->leave(1);
+        }
+    }
+
+    it('sees only the stores of the person who queued it, never every store', function () {
+        // The case this protects: a job that lists rows "for the stores this actor may see". Before
+        // this, it saw every store, because the actor is the system.
+        $staffId = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']);
+
+        $stores = inJobFor(Actor::staff($staffId), fn () => app(Authorizer::class)->storesWith(AccessPermissions::STAFF_VIEW));
+        $ids = array_map(static fn (StoreId $store): string => $store->value, $stores ?? []);
+
+        // null would mean "every store, and any store opened later" - the answer before this.
+        expect($stores)->not->toBeNull()
+            ->and($ids)->toBe([Fx::storeId('sa')]);
+    });
+
+    it('is unlimited when a Super Admin queued it, and not when anyone else did', function () {
+        $superAdmin = Fx::staff(superAdmin: true);
+        $limited = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']);
+
+        expect(inJobFor(Actor::staff($superAdmin), fn () => app(Authorizer::class)->isUnlimited()))->toBeTrue()
+            ->and(inJobFor(Actor::staff($limited), fn () => app(Authorizer::class)->isUnlimited()))->toBeFalse()
+            // The system on nobody's behalf - a console command, a scheduled job - still is.
+            ->and(Fx::asSystem(fn () => app(Authorizer::class)->isUnlimited()))->toBeTrue();
+    });
+
+    it('may still do the work it was queued for, even a reserved action its requester cannot do', function () {
+        // Deliberate, and pinned here so it is not "fixed" by accident: the person's permission was
+        // checked when they started the action. Generating image variants is reserved to Super
+        // Admins, yet every upload queues it - restricting this would stop images being resized for
+        // everyone but a Super Admin (docs/CONVENTIONS.md, "Actors").
+        $staffId = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']);
+
+        $refused = inJobFor(Actor::staff($staffId), function (): bool {
+            try {
+                app(Authorizer::class)->authorize(PlatformPermissions::MEDIA_VARIANTS_GENERATE, PermissionScope::global());
+
+                return false;
+            } catch (Unauthorized) {
+                return true;
+            }
+        });
+
+        expect($refused)->toBeFalse();
+    });
 });

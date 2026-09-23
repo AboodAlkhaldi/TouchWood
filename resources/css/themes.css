@@ -1,0 +1,118 @@
+/*
+| A theme is data, not code (frontend.md §1.8, owner 2026-09-22).
+|
+| Every colour, radius and shadow the interface uses is a custom property here. Light and dark are
+| simply the first two themes; the owner intends campaign themes - the whole system dressed for
+| National Day, Ramadan, a sale - and each of those is another block in this file plus a row in a
+| table one day. It is never a change to a component.
+|
+| Rules that keep that true:
+|   - No component carries a colour, a font or a radius of its own. A test fails the build when a
+|     hex colour, rgb() or hsl() appears under resources/js (tests/Architecture/ThemeTokensTest).
+|   - Every theme defines every token. A theme that forgets one inherits light's value silently,
+|     which is how a campaign ends up with one wrong button; a test fails instead.
+|   - The theme is chosen on the server and written into <html data-theme>, so there is no flash and
+|     SSR renders the same thing the browser would.
+|
+| The values are the design handoff of 2026-09-22 (docs/design/v2), read from its own token block.
+| Its names there are the hex digits themselves (--k0B3B63); here they say what they are for, so a
+| campaign can change what navy means without every component having to know it changed.
+*/
+
+:root,
+[data-theme='light'] {
+    /* Surfaces, from the page backwards to what sits on top of it. */
+    --tw-page: #f7f8f9;
+    --tw-surface: #ffffff;
+    --tw-surface-sunken: #f2f4f5;
+    --tw-surface-raised: #fbfbfa;
+    --tw-overlay: rgba(255, 255, 255, 0.94);
+
+    /* Text. */
+    --tw-ink: #14293a;
+    --tw-ink-muted: #64737c;
+    --tw-ink-subtle: #9aa6ac;
+    --tw-ink-on-brand: #ffffff;
+
+    /* Lines. */
+    --tw-line: #e3e6e7;
+    --tw-line-strong: #d3d9dd;
+
+    /* The brand: navy, and the copper it is answered with. */
+    --tw-brand: #0b3b63;
+    --tw-brand-strong: #082c4b;
+    --tw-brand-soft: #e8f0f7;
+    --tw-accent: #8a5130;
+    --tw-accent-soft: #f5efe9;
+
+    /* The admin sidebar, which is dark in both themes by design. */
+    --tw-sidebar: #07273e;
+    --tw-sidebar-ink: #ffffff;
+    --tw-sidebar-ink-muted: #8fb0ca;
+    --tw-sidebar-line: rgba(255, 255, 255, 0.12);
+    --tw-sidebar-active: #124f7f;
+
+    /* What the interface says about an outcome. */
+    --tw-good: #2f6b4f;
+    --tw-good-soft: #e9f1ee;
+    --tw-bad: #9a3a32;
+    --tw-bad-soft: #fbecea;
+    --tw-warn: #a8814f;
+    --tw-warn-soft: #fdf4e6;
+    --tw-info: #2e7fa3;
+    --tw-info-soft: #f4f8fb;
+
+    /* Shape and depth. */
+    --tw-radius-sm: 6px;
+    --tw-radius: 10px;
+    --tw-radius-lg: 16px;
+    --tw-radius-pill: 999px;
+    --tw-shadow-card: 0 1px 2px rgba(11, 59, 99, 0.05);
+    --tw-shadow-pop: 0 18px 38px -22px rgba(7, 39, 62, 0.45);
+    --tw-ring: rgba(11, 59, 99, 0.14);
+}
+
+[data-theme='dark'] {
+    --tw-page: #121c25;
+    --tw-surface: #16222e;
+    --tw-surface-sunken: #1e2b38;
+    --tw-surface-raised: #1a2632;
+    --tw-overlay: rgba(14, 25, 34, 0.88);
+
+    --tw-ink: #e8eef3;
+    --tw-ink-muted: #93a1ab;
+    --tw-ink-subtle: #74838d;
+    --tw-ink-on-brand: #0c1a26;
+
+    --tw-line: #2a3742;
+    --tw-line-strong: #33414c;
+
+    --tw-brand: #6ba3d6;
+    --tw-brand-strong: #8fbbe4;
+    --tw-brand-soft: #17293a;
+    --tw-accent: #d19c72;
+    --tw-accent-soft: #131e27;
+
+    --tw-sidebar: #0a151e;
+    --tw-sidebar-ink: #eaf2f8;
+    --tw-sidebar-ink-muted: #7e9eb8;
+    --tw-sidebar-line: rgba(255, 255, 255, 0.1);
+    --tw-sidebar-active: #5c97cc;
+
+    --tw-good: #63b894;
+    --tw-good-soft: #16302a;
+    --tw-bad: #e08a80;
+    --tw-bad-soft: #3a201d;
+    --tw-warn: #c9a472;
+    --tw-warn-soft: #33291b;
+    --tw-info: #6fb4d2;
+    --tw-info-soft: #1d2e3d;
+
+    --tw-radius-sm: 6px;
+    --tw-radius: 10px;
+    --tw-radius-lg: 16px;
+    --tw-radius-pill: 999px;
+    --tw-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --tw-shadow-pop: 0 18px 38px -22px rgba(0, 0, 0, 0.7);
+    --tw-ring: rgba(143, 187, 228, 0.22);
+}
