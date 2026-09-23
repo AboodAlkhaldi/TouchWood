@@ -38,6 +38,13 @@ interface StaffTokenRepository
      */
     public function emailChangeByToken(string $tokenHash): ?StaffEmailChange;
 
+    /**
+     * The change this staff member has waiting, if any — the account screen shows it as pending
+     * until the link is used (frontend.md §3.2, B1). It locks nothing and it is never acted on:
+     * only the link itself, which proves the new address, can finish the change.
+     */
+    public function pendingEmailChange(string $staffId): ?StaffEmailChange;
+
     public function deleteEmailChange(string $staffId): void;
 
     public function putPhoneCode(PhoneCode $code): void;

@@ -93,6 +93,20 @@ final readonly class DatabaseStaffTokenRepository implements StaffTokenRepositor
         ) : null;
     }
 
+    public function pendingEmailChange(string $staffId): ?StaffEmailChange
+    {
+        // No lock: this one is read to be shown on a screen, never to be acted on. Only the link
+        // sent to the new address finishes the change, and that path locks by token above.
+        $row = $this->db->table(self::EMAIL_CHANGES)->where('staff_user_id', $staffId)->first();
+
+        return $row instanceof stdClass ? new StaffEmailChange(
+            (string) $row->staff_user_id,
+            EmailAddress::of((string) $row->new_email),
+            CarbonImmutable::parse((string) $row->expires_at),
+            $row->requested_by === null ? null : (string) $row->requested_by,
+        ) : null;
+    }
+
     public function deleteEmailChange(string $staffId): void
     {
         $this->db->table(self::EMAIL_CHANGES)->where('staff_user_id', $staffId)->delete();

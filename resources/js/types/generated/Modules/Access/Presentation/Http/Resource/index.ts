@@ -1,5 +1,27 @@
+export type AccountPage = {
+email: string,
+pendingEmail: string | null,
+firstName: string,
+lastName: string,
+jobTitle: string,
+dateOfBirth: string,
+country: string,
+address: string | null,
+locale: string,
+avatarUrl: string | null,
+phone: string | null,
+canChangeEmail: boolean,
+notifications: NotificationSetting[],
+countries: CountryOption[],
+passwordMinLength: number,
+tab: string,
+};
 export type ComingSoonPage = {
 label: string,
+};
+export type CountryOption = {
+code: string,
+name: string,
 };
 export type EditorPermissionRow = {
 name: string,
@@ -18,6 +40,11 @@ name: string,
 email: string,
 phone: string,
 minimumLength: number,
+};
+export type NotificationSetting = {
+topic: string,
+email: boolean,
+panel: boolean,
 };
 export type PermissionGroupRow = {
 key: string,

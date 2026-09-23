@@ -31,4 +31,11 @@ return [
         'subtitle' => 'The admin panel.',
         'empty' => 'The screens arrive with their modules. What you may open is in the menu.',
     ],
+
+    // The person block at the foot of the sidebar (frontend.md §3.1): their own account, and the
+    // way out. It belongs to the frame rather than to any one module's screens.
+    'account_settings' => 'Account & settings',
+
+    // Shared components may read the frame's words, because every admin page ships this file.
+    'close' => 'Close',
 ];
