@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Access\Presentation\Http\Controller\AdminPanelController;
 use Modules\Access\Presentation\Http\Controller\CustomerAccountController;
 use Modules\Access\Presentation\Http\Controller\CustomerSessionController;
+use Modules\Access\Presentation\Http\Controller\RolesController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffAuthPageController;
 use Modules\Access\Presentation\Http\Controller\StaffLinkController;
@@ -59,6 +60,21 @@ Route::prefix('admin')
 
             Route::post('sign-out', [StaffAccountController::class, 'signOut'])->name('access.staff.sign-out');
             Route::post('account/password', [StaffAccountController::class, 'changePassword'])->name('access.staff.password.change');
+
+            /*
+            | Roles (stage 2b step 2, frontend.md 3.4). Who may open any of these is Access's
+            | answer, not the routing's: every handler behind them asks, and refuses in its own
+            | words. A person without the permission gets the refusal, not a missing page.
+            */
+            Route::get('roles', [RolesController::class, 'index'])->name('access.staff.roles');
+            Route::get('roles/new', [RolesController::class, 'create'])->name('access.staff.roles.new');
+            Route::post('roles', [RolesController::class, 'store'])->name('access.staff.roles.store');
+            Route::get('roles/{role}', [RolesController::class, 'show'])->name('access.staff.roles.show');
+            Route::get('roles/{role}/edit', [RolesController::class, 'edit'])->name('access.staff.roles.edit');
+            Route::post('roles/{role}', [RolesController::class, 'update'])->name('access.staff.roles.update');
+            Route::post('roles/{role}/clone', [RolesController::class, 'clone'])->name('access.staff.roles.clone');
+            Route::post('roles/{role}/delete', [RolesController::class, 'destroy'])->name('access.staff.roles.delete');
+            Route::post('roles/{role}/refresh', [RolesController::class, 'refresh'])->name('access.staff.roles.refresh');
         });
 
         // The theme and the displayed language, chosen before anybody signs in as well as after:

@@ -101,8 +101,10 @@ use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Platform\Public\PlatformPermissions;
 use Psr\Log\LoggerInterface;
@@ -283,6 +285,18 @@ final class AccessServiceProvider extends ServiceProvider
         // Renames and removals name permissions every module declares, so they are checked once
         // every provider has booted.
         $this->app->booted(fn () => $catalog->verify());
+
+        /*
+        | What Access puts in the admin menu (stage 2b, P6). Registered at boot like the settings
+        | and the media usages; who is offered each entry is decided per request, by asking the
+        | authorizer about the permission named here.
+        |
+        | Offering is never allowing: the screen behind each of these checks the same permission
+        | again in its own handler (handoff §19).
+        */
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('access', 'roles', PermissionGroup::StaffAndPermissions->value, 'access.staff.roles', AccessPermissions::ROLE_MANAGE, 20),
+        );
 
         $this->carryPermissionChangesOnMigrate();
     }

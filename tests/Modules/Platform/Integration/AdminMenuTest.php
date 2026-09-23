@@ -47,7 +47,9 @@ function registerTestMenu(): void
 {
     app(AdminMenu::class)->register(
         new MenuEntryDto('access', 'staff', 'staff_and_permissions', 'test.menu.staff', AccessPermissions::STAFF_VIEW, 10),
-        new MenuEntryDto('access', 'roles', 'staff_and_permissions', 'test.menu.roles', AccessPermissions::ROLE_MANAGE, 20),
+        // Not "roles": Access registers that one for real now, and a module may not claim one key
+        // twice. These are this test's own inventions and are named so.
+        new MenuEntryDto('access', 'saved-roles', 'staff_and_permissions', 'test.menu.saved-roles', AccessPermissions::ROLE_MANAGE, 20),
         new MenuEntryDto('platform', 'media', 'media', 'test.menu.media', PlatformPermissions::MEDIA_UPLOAD),
         new MenuEntryDto('platform', 'audit', 'audit', 'test.menu.audit', PlatformPermissions::AUDIT_VIEW),
         // A module not built yet: its permissions do not exist, so it names none (§2.2).
@@ -72,10 +74,12 @@ describe('the admin menu', function () {
         registerTestMenu();
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
+        // "roles" is Access's own entry, registered at boot: the first real one in the system.
         expect(offeredMenu())->toBe([
             'catalog/products',
             'staff_and_permissions/staff',
             'staff_and_permissions/roles',
+            'staff_and_permissions/saved-roles',
             'media/media',
             'audit/audit',
         ]);
@@ -86,8 +90,9 @@ describe('the admin menu', function () {
         // Managing roles is admin-only, so this one has an admin role holding all four.
         Fx::actAsAdmin(['sa'], [AccessPermissions::STAFF_VIEW, AccessPermissions::ROLE_MANAGE, PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::AUDIT_VIEW]);
 
+        // Four of this test's own, plus Access's real roles entry, which they may use as well.
         expect(offeredMenu())->not->toContain('catalog/products')
-            ->and(offeredMenu())->toHaveCount(4);
+            ->and(offeredMenu())->toHaveCount(5);
     });
 
     it('does not treat a job queued by a person as unlimited', function () {

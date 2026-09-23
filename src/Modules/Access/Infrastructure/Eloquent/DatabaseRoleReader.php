@@ -42,6 +42,23 @@ final readonly class DatabaseRoleReader implements RoleReader
         return ['role' => $this->toRow($row), 'permissions' => $permissions];
     }
 
+    public function savedRolePermissions(): array
+    {
+        $rows = $this->db->table('access.role_permissions as p')
+            ->join('access.roles as r', 'r.id', '=', 'p.role_id')
+            ->where('r.kind', RoleKind::Saved->value)
+            ->orderBy('p.permission')
+            ->get(['p.role_id', 'p.permission']);
+
+        $byRole = [];
+
+        foreach ($rows as $row) {
+            $byRole[(string) $row->role_id][] = (string) $row->permission;
+        }
+
+        return $byRole;
+    }
+
     public function holders(string $roleId): array
     {
         $rows = $this->db->table('access.role_assignments as a')
