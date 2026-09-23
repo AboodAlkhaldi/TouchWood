@@ -109,6 +109,34 @@ final readonly class DatabaseStaffReader implements StaffReader
         return $row instanceof stdClass ? $this->toRow($row) : null;
     }
 
+    public function exceptionsFor(string $staffId): array
+    {
+        if (! Ulids::valid($staffId)) {
+            return [];
+        }
+
+        $rows = $this->db->table('access.role_assignment_exceptions as e')
+            ->leftJoin('access.role_assignment_exception_stores as s', function ($join): void {
+                $join->on('s.staff_user_id', '=', 'e.staff_user_id')->on('s.permission', '=', 'e.permission');
+            })
+            ->where('e.staff_user_id', strtolower($staffId))
+            ->orderBy('e.permission')
+            ->get(['e.permission', 's.store_id']);
+
+        $byPermission = [];
+
+        foreach ($rows as $row) {
+            $permission = (string) $row->permission;
+            $byPermission[$permission] ??= [];
+
+            if ($row->store_id !== null) {
+                $byPermission[$permission][] = (string) $row->store_id;
+            }
+        }
+
+        return $byPermission;
+    }
+
     /**
      * The backslash first: it is PostgreSQL's own escape inside LIKE, so escaping only % and _
      * would let a trailing one swallow the wildcard after it.
@@ -122,7 +150,8 @@ final readonly class DatabaseStaffReader implements StaffReader
     {
         return <<<'SQL'
             SELECT s.id, s.first_name, s.last_name, s.job_title, s.email, s.phone, s.status,
-                   s.locale, s.is_super_admin, s.created_at,
+                   s.locale, s.is_super_admin, s.created_at, s.avatar_media_id,
+                   s.date_of_birth, s.country, s.address,
                    a.role_id, a.access_level, r.level AS role_level,
                    r.name AS role_name,
                    (SELECT coalesce(json_agg(st.store_id ORDER BY st.store_id), '[]')
@@ -158,6 +187,10 @@ final readonly class DatabaseStaffReader implements StaffReader
             'access_level' => $row->access_level === null ? null : (string) $row->access_level,
             'stores' => is_array($stores) ? array_values(array_filter($stores, is_string(...))) : [],
             'joined_at' => (string) $row->created_at,
+            'avatar_media_id' => $row->avatar_media_id === null ? null : (string) $row->avatar_media_id,
+            'date_of_birth' => (string) $row->date_of_birth,
+            'country' => (string) $row->country,
+            'address' => $row->address === null ? null : (string) $row->address,
         ];
     }
 }

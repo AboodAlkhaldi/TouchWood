@@ -6,12 +6,10 @@ namespace Modules\Access\Presentation\Http\Controller;
 
 use App\Http\FormErrors;
 use App\Http\Page;
-use Collator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Inertia\Response;
-use Locale;
 use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmail;
 use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmailHandler;
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChange;
@@ -26,13 +24,13 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\MyAccount\MyAccountDto;
 use Modules\Access\Application\Query\MyAccount\MyAccountForStaff;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
-use Modules\Access\Domain\ValueObject\CountryCode;
 use Modules\Access\Presentation\Http\Request\EmailRequest;
 use Modules\Access\Presentation\Http\Request\NotificationSwitchRequest;
 use Modules\Access\Presentation\Http\Request\OwnPhoneChangeRequest;
 use Modules\Access\Presentation\Http\Request\OwnProfileRequest;
 use Modules\Access\Presentation\Http\Request\StaffCodeRequest;
 use Modules\Access\Presentation\Http\Resource\AccountPage;
+use Modules\Access\Presentation\Http\Resource\Countries;
 use Modules\Access\Presentation\Http\Resource\CountryOption;
 use Modules\Access\Presentation\Http\Resource\NotificationSetting;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
@@ -228,31 +226,11 @@ final readonly class StaffOwnAccountController
     }
 
     /**
-     * Every country, named in the language the panel is being read in and sorted the way that
-     * language sorts — `strcmp` would put the Arabic list in an order no Arabic reader recognises.
-     *
      * @return list<CountryOption>
      */
     private function countries(): array
     {
-        $locale = app()->getLocale();
-        $options = [];
-
-        foreach (CountryCode::all() as $code) {
-            // ICU is where the codes came from, so it has a name for every one of them. If it ever
-            // does not, the code itself is shown: a list with "ZZ" in it is odd, and a list with a
-            // blank row in it is a country nobody can choose.
-            $name = Locale::getDisplayRegion('-'.$code, $locale);
-            $options[] = new CountryOption($code, $name === false ? $code : $name);
-        }
-
-        $collator = Collator::create($locale);
-
-        usort($options, $collator instanceof Collator
-            ? fn (CountryOption $a, CountryOption $b): int => (int) $collator->compare($a->name, $b->name)
-            : fn (CountryOption $a, CountryOption $b): int => strcmp($a->name, $b->name));
-
-        return $options;
+        return Countries::in(app()->getLocale());
     }
 
     /**

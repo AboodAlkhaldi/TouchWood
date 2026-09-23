@@ -9,6 +9,7 @@ use Modules\Access\Presentation\Http\Controller\CustomerSessionController;
 use Modules\Access\Presentation\Http\Controller\RolesController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffAuthPageController;
+use Modules\Access\Presentation\Http\Controller\StaffController;
 use Modules\Access\Presentation\Http\Controller\StaffLinkController;
 use Modules\Access\Presentation\Http\Controller\StaffOwnAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffSignInController;
@@ -67,6 +68,27 @@ Route::prefix('admin')
             | answer, not the routing's: every handler behind them asks, and refuses in its own
             | words. A person without the permission gets the refusal, not a missing page.
             */
+            /*
+            | Staff (stage 2b step 2, frontend.md 3.3). Every screen and every button behind them
+            | is offered only to somebody Access says may use it, and each handler asks again with
+            | the stores in hand. A Super Admin is made and unmade by console command alone, so no
+            | screen here offers either.
+            */
+            Route::get('staff', [StaffController::class, 'index'])->name('access.staff.list');
+            // Before staff/{staff}, or "invite" is read as somebody's id.
+            Route::get('staff/invite', [StaffController::class, 'invite'])->name('access.staff.invite.page');
+            Route::post('staff/invite', [StaffController::class, 'sendInvitation'])->name('access.staff.invite');
+            Route::get('staff/{staff}', [StaffController::class, 'show'])->name('access.staff.show');
+            Route::get('staff/{staff}/role', [StaffController::class, 'role'])->name('access.staff.role.page');
+            Route::post('staff/{staff}/role', [StaffController::class, 'changeRole'])->name('access.staff.role');
+            Route::post('staff/{staff}/profile', [StaffController::class, 'updateProfile'])->name('access.staff.profile');
+            Route::post('staff/{staff}/email', [StaffController::class, 'changeEmail'])->name('access.staff.email');
+            Route::post('staff/{staff}/disable', [StaffController::class, 'disable'])->name('access.staff.disable');
+            Route::post('staff/{staff}/enable', [StaffController::class, 'enable'])->name('access.staff.enable');
+            Route::post('staff/{staff}/invitation/resend', [StaffController::class, 'resendInvitation'])->name('access.staff.invitation.resend');
+            Route::post('staff/{staff}/invitation/cancel', [StaffController::class, 'cancelInvitation'])->name('access.staff.invitation.cancel');
+            Route::post('staff/{staff}/refresh', [StaffController::class, 'refresh'])->name('access.staff.refresh');
+
             Route::get('roles', [RolesController::class, 'index'])->name('access.staff.roles');
             Route::get('roles/new', [RolesController::class, 'create'])->name('access.staff.roles.new');
             Route::post('roles', [RolesController::class, 'store'])->name('access.staff.roles.store');

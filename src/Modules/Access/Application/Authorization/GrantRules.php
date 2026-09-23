@@ -242,6 +242,19 @@ final readonly class GrantRules
     }
 
     /**
+     * Whether to offer this person the invite button at all.
+     *
+     * Holding the action anywhere is enough to be offered it. Whether a *particular* invitation is
+     * allowed is a larger question - it also needs the power to assign roles in the new person's
+     * stores (amendment 23) - and that is answered when the invitation is actually sent, by the
+     * handler, with the stores in hand.
+     */
+    public function mayInviteStaff(): bool
+    {
+        return $this->authorizer->storesWith(AccessPermissions::STAFF_INVITE) !== [];
+    }
+
+    /**
      * A staff member with no stores at all (no role yet) is managed by anyone who holds the
      * management action in some store.
      */
