@@ -120,11 +120,22 @@ export function AdminLayout({ title, subtitle, action, children }: Props) {
                             <ThemeToggle className="border-sidebar-line text-sidebar-ink-muted hover:border-sidebar-ink hover:text-sidebar-ink" />
                         </div>
 
+                        {/* The two things the person block offers (§3.1): their own account, and
+                            the way out. Both are here rather than behind a popup - a menu that
+                            has to be opened to find two items costs a click and, on a phone, a
+                            second place for focus to get lost. */}
+                        <Link
+                            href="/admin/account"
+                            className="mt-3 block w-full rounded-md border border-sidebar-line px-3 py-2 text-center text-xs text-sidebar-ink-muted transition-colors hover:border-sidebar-ink hover:text-sidebar-ink"
+                        >
+                            {t('admin.account_settings')}
+                        </Link>
+
                         {/* A9. A sign-out must change something, so it is a post, never a link. */}
                         <button
                             type="button"
                             onClick={() => router.post('/admin/sign-out')}
-                            className="mt-3 w-full rounded-md border border-sidebar-line px-3 py-2 text-xs text-sidebar-ink-muted transition-colors hover:border-sidebar-ink hover:text-sidebar-ink"
+                            className="mt-2 w-full rounded-md border border-sidebar-line px-3 py-2 text-xs text-sidebar-ink-muted transition-colors hover:border-sidebar-ink hover:text-sidebar-ink"
                         >
                             {t('access::auth.sign_out')}
                         </button>

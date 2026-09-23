@@ -10,6 +10,7 @@ use Modules\Access\Presentation\Http\Controller\RolesController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffAuthPageController;
 use Modules\Access\Presentation\Http\Controller\StaffLinkController;
+use Modules\Access\Presentation\Http\Controller\StaffOwnAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffSignInController;
 use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
@@ -75,6 +76,20 @@ Route::prefix('admin')
             Route::post('roles/{role}/clone', [RolesController::class, 'clone'])->name('access.staff.roles.clone');
             Route::post('roles/{role}/delete', [RolesController::class, 'destroy'])->name('access.staff.roles.delete');
             Route::post('roles/{role}/refresh', [RolesController::class, 'refresh'])->name('access.staff.roles.refresh');
+
+            /*
+            | "Account & settings" — a staff member's own account (stage 2b step 2, frontend.md
+            | §3.2, B1-B4). One page with three tabs, and one POST per thing it can change. No
+            | route here carries an id: each handler reads who is asking from the session, so
+            | there is nothing to spell somebody else's account with. Changing the password is
+            | the endpoint just above, which already exists and already says the right thing.
+            */
+            Route::get('account', [StaffOwnAccountController::class, 'show'])->name('access.staff.account.page');
+            Route::post('account/profile', [StaffOwnAccountController::class, 'updateProfile'])->name('access.staff.account.profile');
+            Route::post('account/email', [StaffOwnAccountController::class, 'changeEmail'])->name('access.staff.account.email');
+            Route::post('account/phone', [StaffOwnAccountController::class, 'requestPhoneChange'])->name('access.staff.account.phone');
+            Route::post('account/phone/code', [StaffOwnAccountController::class, 'confirmPhoneChange'])->name('access.staff.account.phone.confirm');
+            Route::post('account/notifications', [StaffOwnAccountController::class, 'updateNotifications'])->name('access.staff.account.notifications');
         });
 
         // The theme and the displayed language, chosen before anybody signs in as well as after:
