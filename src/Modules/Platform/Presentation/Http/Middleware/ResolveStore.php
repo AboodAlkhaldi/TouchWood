@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Presentation\Http\Middleware;
 
+use App\Http\StorefrontArea;
 use Closure;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\Request;
@@ -26,7 +27,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class ResolveStore
 {
-    public const string ALIAS = 'store';
+    public const string ALIAS = StorefrontArea::STORE;
 
     public const string COOKIE = 'tw_store';
 
@@ -69,12 +70,23 @@ final readonly class ResolveStore
 
     public static function current(Request $request): StoreDto
     {
-        $store = $request->attributes->get(self::REQUEST_ATTRIBUTE);
+        $store = self::currentOrNull($request);
 
-        if (! $store instanceof StoreDto) {
+        if ($store === null) {
             abort(404);
         }
 
         return $store;
+    }
+
+    /**
+     * The store, or nothing, for the one page of the shop that may be read without one: the
+     * country page, where asking is how we learn the visitor has not chosen yet.
+     */
+    public static function currentOrNull(Request $request): ?StoreDto
+    {
+        $store = $request->attributes->get(self::REQUEST_ATTRIBUTE);
+
+        return $store instanceof StoreDto ? $store : null;
     }
 }

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Access\Presentation\Http\Controller\AdminPanelController;
 use Modules\Access\Presentation\Http\Controller\CustomerAccountController;
@@ -138,7 +139,7 @@ Route::prefix('{store}/{locale}')
 */
 
 Route::prefix('{store}/{locale}')
-    ->middleware([UseStorefrontSession::ALIAS, 'web', 'store', IdentifyCustomer::ALIAS])
+    ->middleware(StorefrontArea::MIDDLEWARE)
     ->group(function (): void {
         Route::post('account/register', [CustomerSessionController::class, 'register'])->name('storefront.account.register');
         Route::post('account/sign-in', [CustomerSessionController::class, 'signIn'])->name('storefront.account.sign-in');

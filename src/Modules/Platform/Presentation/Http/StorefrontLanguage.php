@@ -36,6 +36,16 @@ final readonly class StorefrontLanguage
         }
     }
 
+    /**
+     * Every language the shop can be read in, for the switch in its header (frontend.md 2.3).
+     *
+     * @return list<string>
+     */
+    public function all(): array
+    {
+        return $this->supported;
+    }
+
     public function isSupported(string $locale): bool
     {
         return in_array($locale, $this->supported, true);

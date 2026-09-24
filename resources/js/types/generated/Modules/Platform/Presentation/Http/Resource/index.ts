@@ -29,6 +29,9 @@ storeName: string | null,
 ipAddress: string | null,
 changes: AuditChangeRow[],
 };
+export type ChooseStorePage = {
+stores: StoreChoiceRow[],
+};
 export type CurrenciesPage = {
 currencies: CurrencyRow[],
 exponents: number[],
@@ -91,6 +94,19 @@ max: number | null,
 export type SettingsPage = {
 groups: SettingGroup[],
 storeName: string | null,
+};
+export type StoreChoiceRow = {
+code: string,
+name: string,
+countryCode: string,
+currency: string,
+symbol: string,
+href: string,
+};
+export type StoreHomePage = {
+name: string,
+currency: string,
+symbol: string,
 };
 export type StoreRow = {
 id: string,

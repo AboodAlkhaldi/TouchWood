@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Middleware;
 
+use App\Http\StorefrontArea;
 use Closure;
 use Illuminate\Http\Request;
 use Shared\Application\ActorContext;
@@ -16,7 +17,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class RequireCustomer
 {
-    public const string ALIAS = 'access.customer';
+    public const string ALIAS = StorefrontArea::SIGNED_IN;
 
     public function __construct(
         private ActorContext $actors,

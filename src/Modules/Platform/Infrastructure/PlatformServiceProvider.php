@@ -55,6 +55,7 @@ use Modules\Platform\Presentation\Console\CreateCurrencyCommand;
 use Modules\Platform\Presentation\Console\CreateStoreCommand;
 use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
+use Modules\Platform\Presentation\Http\Middleware\ShareStorefront;
 use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
 use Modules\Platform\Presentation\Http\StorefrontLanguage;
 use Modules\Platform\Public\Contracts\AdminMenu;
@@ -166,10 +167,10 @@ final class PlatformServiceProvider extends ServiceProvider
         $presentation = dirname(__DIR__).'/Presentation';
 
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
-        $this->loadViewsFrom($presentation.'/views', 'platform');
         $this->loadTranslationsFrom($presentation.'/lang', 'platform');
 
         $router->aliasMiddleware(ResolveStore::ALIAS, ResolveStore::class);
+        $router->aliasMiddleware(ShareStorefront::ALIAS, ShareStorefront::class);
 
         // On every request, so the audit log can tell a web change from a console or queued one.
         $this->app->make(HttpKernel::class)->pushMiddleware(TrackHttpRequest::class);
@@ -207,7 +208,10 @@ final class PlatformServiceProvider extends ServiceProvider
         });
 
         if (! $this->app->routesAreCached()) {
-            Route::middleware('web')->group($presentation.'/routes.php');
+            // Not wrapped in "web" from here: the shop's routes bring their own list, because
+            // its session cookie has to be set before "web" opens a session - the same reason the
+            // panel's file below is loaded on its own (frontend.md 2.3).
+            Route::group([], $presentation.'/routes.php');
 
             // The panel's own file, and deliberately not inside that group: the admin session
             // cookie has to be set *before* "web" opens a session, and a second "web" around it

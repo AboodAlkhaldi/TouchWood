@@ -42,6 +42,23 @@ export type MenuGroup = {
     entries: MenuEntry[];
 };
 
+/** The shop a page belongs to, and the ones somebody may switch to (frontend.md 2.3). */
+export type Shop = {
+    code: string;
+    name: string;
+    currency: string;
+    symbol: string;
+    available: { code: string; name: string; current: boolean }[];
+    languages: string[];
+};
+
+/** Whoever is signed in to the shop, as its header names them. */
+export type Shopper = {
+    id: string;
+    name: string;
+    emailVerified: boolean;
+};
+
 export type Store = {
     id: string;
     name: string;
@@ -92,6 +109,9 @@ export type SharedProps = {
     };
     viewer: Viewer | null;
     menu: MenuGroup[];
+    /** Shop pages only; the panel shares its own "store", which is a different thing. */
+    shop?: Shop | null;
+    shopper?: Shopper | null;
     /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */
     sidebarOpen: boolean;
     store: CurrentStore | null;

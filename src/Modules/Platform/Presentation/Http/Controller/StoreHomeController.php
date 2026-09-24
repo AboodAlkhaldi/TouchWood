@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Presentation\Http\Controller;
 
+use App\Http\Page;
 use Illuminate\Http\Request;
+use Inertia\Response;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
-use Symfony\Component\HttpFoundation\Response;
+use Modules\Platform\Presentation\Http\Resource\StoreHomePage;
 
 /**
  * Placeholder for brand.com/{store} until the Content module builds the real homepage.
@@ -14,11 +16,22 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class StoreHomeController
 {
+    /** @var list<string> */
+    private const array WORDS = ['platform::stores', 'admin'];
+
+    public function __construct(
+        private Page $page,
+    ) {}
+
     public function __invoke(Request $request): Response
     {
-        return response()->view('platform::store-home', [
-            'store' => ResolveStore::current($request),
-            'locale' => app()->getLocale(),
-        ]);
+        $store = ResolveStore::current($request);
+        $locale = app()->getLocale();
+
+        return $this->page->render('Platform/Storefront/Home', (new StoreHomePage(
+            $store->name->in($locale),
+            $store->currencyCode,
+            $store->currencySymbol($locale),
+        ))->toArray(), self::WORDS);
     }
 }
