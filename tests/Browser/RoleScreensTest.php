@@ -190,6 +190,20 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
     expect($narrowed)->toBeLessThan($areas)
         ->and(strtolower($shown))->toContain('media');
 
+    // The area's name stays at the start edge while the table is scrolled sideways, or somebody
+    // ten roles across no longer knows which area they are reading (owner, 2026-09-24).
+    $before = (float) $page->script(
+        'document.querySelector("table tbody tr span.sticky").getBoundingClientRect().x',
+    );
+
+    $page->script('document.querySelector("table").parentElement.scrollLeft = 400');
+
+    $after = (float) $page->script(
+        'document.querySelector("table tbody tr span.sticky").getBoundingClientRect().x',
+    );
+
+    expect(abs($after - $before))->toBeLessThan(2.0);
+
     // And the columns menu opens with a row per role, so ten roles can become two.
     $page->click('[data-test="columns"]')
         ->assertSee('Roles to show')

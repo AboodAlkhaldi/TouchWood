@@ -239,9 +239,18 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
                                             <TableRow className="border-y border-brand-soft bg-brand-soft/60 hover:bg-brand-soft/60">
                                                 <TableCell
                                                     colSpan={row.getVisibleCells().length}
-                                                    className="sticky start-0 py-2 text-xs font-semibold tracking-wide text-brand uppercase"
+                                                    className="py-2 text-xs font-semibold tracking-wide text-brand uppercase"
                                                 >
-                                                    {row.original.groupLabel}
+                                                    {/* The name sticks, not the cell: a cell that
+                                                        spans the whole table never leaves the
+                                                        screen, so sticking it does nothing and the
+                                                        name inside it scrolls away regardless
+                                                        (owner, 2026-09-24). Held at the cell's own
+                                                        padding, so it does not jump on the first
+                                                        pixel of scrolling. */}
+                                                    <span className="sticky start-2 inline-block">
+                                                        {row.original.groupLabel}
+                                                    </span>
                                                 </TableCell>
                                             </TableRow>
                                         )}
