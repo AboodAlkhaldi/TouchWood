@@ -25,6 +25,25 @@ interface StoreDirectory
     public function currency(string $code): ?CurrencyDto;
 
     /**
+     * Every currency, for the screen that manages them (frontend.md 3.5, E3).
+     *
+     * @return list<CurrencyDto> ordered by code
+     */
+    public function currencies(): array;
+
+    /**
+     * How many stores charge in each currency, keyed by currency code.
+     *
+     * A currency any store uses has its exponent locked (platform.md 1.2): changing the number of
+     * decimal places under a store would reinterpret every amount ever written in it. The screen
+     * shows the lock, and the handler enforces it against the table - this only answers what to
+     * draw.
+     *
+     * @return array<string, int>
+     */
+    public function storeCountByCurrency(): array;
+
+    /**
      * Call inside the transaction that changes a store or currency. Readers see the new data
      * once it commits, before any event dispatched after commit reaches its listeners.
      */

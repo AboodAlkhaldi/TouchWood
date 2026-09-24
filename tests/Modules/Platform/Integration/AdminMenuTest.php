@@ -73,14 +73,15 @@ describe('the admin menu', function () {
         registerTestMenu();
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-        // "staff", "roles" and "stores" are registered at boot by the modules that own them; the
-        // rest are this test's own.
+        // "staff", "roles", "stores" and "currencies" are registered at boot by the modules that
+        // own them; the rest are this test's own.
         expect(offeredMenu())->toBe([
             'catalog/products',
             'staff_and_permissions/staff',
             'staff_and_permissions/roles',
             'staff_and_permissions/saved-roles',
             'store_settings/stores',
+            'store_settings/currencies',
             'media/media',
             'audit/audit',
         ]);

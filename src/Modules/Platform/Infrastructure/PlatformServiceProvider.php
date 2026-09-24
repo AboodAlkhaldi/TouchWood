@@ -181,6 +181,7 @@ final class PlatformServiceProvider extends ServiceProvider
         */
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('platform', 'stores', 'store_settings', 'platform.admin.stores', PlatformPermissions::STORE_VIEW, 10, icon: 'stores'),
+            new MenuEntryDto('platform', 'currencies', 'store_settings', 'platform.admin.currencies', PlatformPermissions::CURRENCY_UPDATE, 20, icon: 'billing'),
         );
 
         // Images whose variant job was lost are queued again (owner's decision, 2026-09-16). Scheduled

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
+use Modules\Platform\Presentation\Http\Controller\CurrenciesController;
 use Modules\Platform\Presentation\Http\Controller\StoresController;
 
 /*
@@ -20,4 +21,10 @@ Route::prefix(AdminArea::PREFIX)
     ->group(function (): void {
         Route::get('stores', [StoresController::class, 'index'])->name('platform.admin.stores');
         Route::post('stores/{store}', [StoresController::class, 'update'])->name('platform.admin.stores.update');
+
+        // Currencies belong to no store, and both permissions are reserved, so only a Super Admin
+        // ever sees this screen [DECIDED 2026-09-19].
+        Route::get('currencies', [CurrenciesController::class, 'index'])->name('platform.admin.currencies');
+        Route::post('currencies', [CurrenciesController::class, 'store'])->name('platform.admin.currencies.store');
+        Route::post('currencies/{currency}', [CurrenciesController::class, 'update'])->name('platform.admin.currencies.update');
     });
