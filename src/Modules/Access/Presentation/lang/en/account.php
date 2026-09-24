@@ -94,4 +94,40 @@ return [
         'LOW_STOCK' => 'Low stock',
         'CAMPAIGN_EXPIRY' => 'Campaigns about to end',
     ],
+
+    /*
+    | The customer's own account in the shop (F7-F10). Its own keys, because the words differ: a
+    | shopper has an email rather than a work email, their number is for a delivery rather than for
+    | a sign-in code, and there is no panel and no trusted browser to speak of.
+    */
+    'shop_title' => 'My account',
+    'shop_subtitle' => 'Your details, how you sign in, and where we reach you.',
+    'shop_tab' => [
+        'profile' => 'Details',
+        'security' => 'Password',
+        'phone' => 'Phone',
+    ],
+
+    'shop_email' => 'Email',
+    'shop_email_locked' => 'Your email address cannot be changed.',
+    'shop_communication_language_hint' => 'Every email and message we send you comes in this language. It is not the language the shop is shown in - that is in the address of the page, and you can change it in the header.',
+
+    'account_kind' => 'Kind of account',
+    'account_kind_locked' => 'Chosen when you registered, and it cannot be changed.',
+    'home_store' => 'Your store',
+    'home_store_hint' => 'The country you registered in. You can shop in any of our countries whichever one this is.',
+
+    'shop_phone_hint' => 'Where we reach you about an order and a delivery.',
+    'shop_no_phone' => 'No number yet.',
+    'shop_add_phone' => 'Add a number',
+    'shop_change_phone' => 'Change the number',
+    'shop_phone_dialog_title' => 'Your phone number',
+    'shop_phone_dialog_body' => 'We send a code to the number you enter. The number you have now keeps working until that code is entered, so a mistyped number changes nothing.',
+    'shop_phone_changed' => 'Your number is confirmed.',
+    'shop_password_note' => 'Changing it signs out every other browser you are signed in on.',
+
+    'before_ordering' => 'Before you can order',
+    'missing_email' => 'Confirm your email address.',
+    'missing_phone' => 'Add a phone number and confirm it.',
+    'may_order' => 'Your account is ready to order with.',
 ];
