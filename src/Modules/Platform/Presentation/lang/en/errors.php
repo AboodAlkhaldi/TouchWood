@@ -83,4 +83,16 @@ return [
         'title' => 'Translation missing',
         'detail' => 'The :attribute needs both an Arabic and an English value.',
     ],
+    /* Field names, for the refusals that name one. */
+    'fields' => [
+        'bytes' => 'size',
+        'checksum' => 'checksum',
+        'code' => 'code',
+        'country' => 'country',
+        'exponent' => 'decimal places',
+        'original_filename' => 'file name',
+        'permission' => 'permission',
+        'position' => 'position',
+        'sign' => 'symbol',
+    ],
 ];

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Middleware;
 
+use App\Http\StorefrontArea;
 use Closure;
 use Illuminate\Http\Request;
 use Modules\Access\Application\Session\CustomerSessions;
@@ -16,7 +17,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class IdentifyCustomer
 {
-    public const string ALIAS = 'access.identify-customer';
+    public const string ALIAS = StorefrontArea::IDENTIFY;
 
     public function __construct(
         private CustomerSessions $sessions,

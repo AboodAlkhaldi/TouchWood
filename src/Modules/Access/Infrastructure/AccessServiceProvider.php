@@ -17,6 +17,7 @@ use Illuminate\Session\SessionManager;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
+use LogicException;
 use Modules\Access\Application\AccessApiImpl;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Authorization\RoleAuthorizer;
@@ -91,15 +92,20 @@ use Modules\Access\Presentation\Http\Middleware\IdentifyRequestActor;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
 use Modules\Access\Presentation\Http\Middleware\RequireCustomer;
 use Modules\Access\Presentation\Http\Middleware\RequireStaff;
+use Modules\Access\Presentation\Http\Middleware\ShareAdminPage;
+use Modules\Access\Presentation\Http\Middleware\ShareStorefrontPage;
 use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
 use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Platform\Public\PlatformPermissions;
 use Psr\Log\LoggerInterface;
@@ -219,8 +225,10 @@ final class AccessServiceProvider extends ServiceProvider
         $router->aliasMiddleware(UseAdminSession::ALIAS, UseAdminSession::class);
         $router->aliasMiddleware(IdentifyStaff::ALIAS, IdentifyStaff::class);
         $router->aliasMiddleware(RequireStaff::ALIAS, RequireStaff::class);
+        $router->aliasMiddleware(ShareAdminPage::ALIAS, ShareAdminPage::class);
         $router->aliasMiddleware(UseStorefrontSession::ALIAS, UseStorefrontSession::class);
         $router->aliasMiddleware(IdentifyCustomer::ALIAS, IdentifyCustomer::class);
+        $router->aliasMiddleware(ShareStorefrontPage::ALIAS, ShareStorefrontPage::class);
         $router->aliasMiddleware(RequireCustomer::ALIAS, RequireCustomer::class);
 
         if (! $this->app->routesAreCached()) {
@@ -268,6 +276,9 @@ final class AccessServiceProvider extends ServiceProvider
                 $name,
                 reserved: $permission['reserved'],
                 kind: $permission['storeFree'] ? PermissionKind::Global : PermissionKind::PerStore,
+                // Platform names its business area as a string, having no sight of Access's types
+                // (stage 2b, P2); an area Access does not know throws here, at boot.
+                group: self::businessArea($name, $permission['group']),
             ),
             array_keys(PlatformPermissions::all()),
             PlatformPermissions::all(),
@@ -277,7 +288,38 @@ final class AccessServiceProvider extends ServiceProvider
         // every provider has booted.
         $this->app->booted(fn () => $catalog->verify());
 
+        /*
+        | What Access puts in the admin menu (stage 2b, P6). Registered at boot like the settings
+        | and the media usages; who is offered each entry is decided per request, by asking the
+        | authorizer about the permission named here.
+        |
+        | Offering is never allowing: the screen behind each of these checks the same permission
+        | again in its own handler (handoff §19).
+        */
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('access', 'staff', PermissionGroup::StaffAndPermissions->value, 'access.staff.list', AccessPermissions::STAFF_VIEW, 10, icon: 'staff'),
+            new MenuEntryDto('access', 'roles', PermissionGroup::StaffAndPermissions->value, 'access.staff.roles', AccessPermissions::ROLE_MANAGE, 20, icon: 'roles'),
+        );
+
         $this->carryPermissionChangesOnMigrate();
+    }
+
+    /**
+     * The business area Platform named, as the type Access holds (stage 2b, P2). Platform publishes
+     * a plain string because it sits below Access and cannot see its enums, so a typo there would
+     * otherwise surface at boot as a bare ValueError naming the enum rather than the mistake
+     * (review of step 0).
+     */
+    private static function businessArea(string $permission, ?string $group): ?PermissionGroup
+    {
+        if ($group === null) {
+            return null;
+        }
+
+        return PermissionGroup::tryFrom($group) ?? throw new LogicException(
+            "Platform puts \"{$permission}\" in the business area \"{$group}\", which Access does not know. The areas are: "
+            .implode(', ', array_map(static fn (PermissionGroup $area): string => $area->value, PermissionGroup::cases())).'.'
+        );
     }
 
     /**

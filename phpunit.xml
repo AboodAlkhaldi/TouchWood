@@ -22,6 +22,14 @@
             <directory>tests/Shared/Feature</directory>
             <directory>tests/Modules/*/Feature</directory>
         </testsuite>
+        <!--
+            A real browser, driven by Playwright. Every other suite asks the server what it would
+            send; only this one asks whether a person can actually use the answer. Step 1 shipped
+            six faults that every other suite called green (owner, 2026-09-22).
+        -->
+        <testsuite name="Browser">
+            <directory>tests/Browser</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
@@ -46,6 +54,15 @@
         <env name="DB_DATABASE" value="touchwood_test" force="true"/>
         <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array" force="true"/>
+        <!--
+            A log of its own. The suite and the development server share a machine, and a test run
+            writing into laravel.log buries whatever the person using the application actually hit
+            (found while watching for exactly that, 2026-09-24).
+        -->
+        <env name="LOG_CHANNEL" value="testing" force="true"/>
+        <!-- The server renderer is a Node process; a test suite cannot depend on one being up.
+             The fallback when it is down is tested on purpose in AdminPagesTest. -->
+        <env name="INERTIA_SSR_ENABLED" value="false" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
         <env name="SESSION_DRIVER" value="array" force="true"/>
         <env name="PULSE_ENABLED" value="false"/>

@@ -61,6 +61,12 @@ final class PermissionLog implements Authorizer
     {
         return $this->deny ? [] : null;
     }
+
+    public function isUnlimited(): bool
+    {
+        // A double for the tests: nothing here stands in for a Super Admin.
+        return false;
+    }
 }
 
 function permissionLog(): PermissionLog

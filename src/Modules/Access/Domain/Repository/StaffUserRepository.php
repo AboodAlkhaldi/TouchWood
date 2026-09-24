@@ -74,4 +74,16 @@ interface StaffUserRepository
      * @throws StaffEmailInUse|PhoneAlreadyInUse when another account took it at the same moment
      */
     public function update(StaffUser $staff): void;
+
+    /**
+     * The store this person is working in, or null when they have chosen none or the one they chose
+     * has since been closed (stage 2b, P3).
+     *
+     * It is a preference, not permission: it is kept beside the account rather than inside
+     * StaffUser, because it carries no rule of its own - who may choose which store is the
+     * authorizer's answer, and every read still filters by the person's own stores.
+     */
+    public function currentStore(string $staffId): ?string;
+
+    public function rememberCurrentStore(string $staffId, string $storeId): void;
 }

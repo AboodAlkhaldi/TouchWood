@@ -1,9 +1,137 @@
 @import 'tailwindcss';
+@import './themes.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
-@theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+/*
+| Tailwind's own names are pointed at the theme tokens, so a utility class and a custom property can
+| never drift apart: bg-surface is --tw-surface, whatever theme is on. Nothing here holds a colour.
+*/
+@theme inline {
+    --font-sans: 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+    --color-page: var(--tw-page);
+    /* The shop's background: a colour, a gradient, a photograph, or several layered together. */
+    --color-backdrop: var(--tw-backdrop);
+    --color-surface: var(--tw-surface);
+    --color-surface-sunken: var(--tw-surface-sunken);
+    --color-surface-raised: var(--tw-surface-raised);
+    --color-overlay: var(--tw-overlay);
+
+    --color-ink: var(--tw-ink);
+    --color-ink-muted: var(--tw-ink-muted);
+    --color-ink-subtle: var(--tw-ink-subtle);
+    --color-ink-on-brand: var(--tw-ink-on-brand);
+
+    --color-line: var(--tw-line);
+    --color-line-strong: var(--tw-line-strong);
+
+    --color-brand: var(--tw-brand);
+    --color-brand-strong: var(--tw-brand-strong);
+    --color-brand-soft: var(--tw-brand-soft);
+    --color-accent: var(--tw-accent);
+    --color-accent-soft: var(--tw-accent-soft);
+
+    --color-sidebar: var(--tw-sidebar);
+    --color-sidebar-ink: var(--tw-sidebar-ink);
+    --color-sidebar-ink-muted: var(--tw-sidebar-ink-muted);
+    --color-sidebar-line: var(--tw-sidebar-line);
+    --color-sidebar-active: var(--tw-sidebar-active);
+
+    --color-good: var(--tw-good);
+    --color-good-soft: var(--tw-good-soft);
+    --color-bad: var(--tw-bad);
+    --color-bad-soft: var(--tw-bad-soft);
+    --color-warn: var(--tw-warn);
+    --color-warn-soft: var(--tw-warn-soft);
+    --color-info: var(--tw-info);
+    --color-info-soft: var(--tw-info-soft);
+
+    --radius-sm: var(--tw-radius-sm);
+    --radius: var(--tw-radius);
+    --radius-lg: var(--tw-radius-lg);
+    --radius-pill: var(--tw-radius-pill);
+
+    --shadow-card: var(--tw-shadow-card);
+    --shadow-pop: var(--tw-shadow-pop);
+
+    /*
+    | shadcn's own names, pointed at the same tokens. Its components are copied into this repository
+    | and speak bg-primary, text-muted-foreground, border-input and so on; rather than rewrite every
+    | one of them - which would make each update a merge - its vocabulary is defined here as an alias
+    | over ours. A campaign theme therefore moves shadcn's components with everything else, because
+    | there is still only one set of values underneath (frontend.md 1.8).
+    */
+    --color-background: var(--tw-surface);
+    --color-foreground: var(--tw-ink);
+    --color-card: var(--tw-surface);
+    --color-card-foreground: var(--tw-ink);
+    --color-popover: var(--tw-surface);
+    --color-popover-foreground: var(--tw-ink);
+    --color-primary: var(--tw-brand);
+    --color-primary-foreground: var(--tw-ink-on-brand);
+    --color-secondary: var(--tw-surface-sunken);
+    --color-secondary-foreground: var(--tw-ink);
+    --color-muted: var(--tw-surface-sunken);
+    --color-muted-foreground: var(--tw-ink-muted);
+    --color-accent-foreground: var(--tw-ink);
+    --color-destructive: var(--tw-bad);
+    --color-destructive-foreground: var(--tw-ink-on-brand);
+    --color-border: var(--tw-line);
+    --color-input: var(--tw-line-strong);
+    --color-ring: var(--tw-brand);
+
+    /*
+    | The sidebar's own vocabulary, which shadcn's sidebar component speaks throughout. Its installer
+    | writes a palette of its own into this file - a :root block of hsl() values and a .dark class -
+    | which was removed: it would hold colour outside themes.css, and it would answer to a class our
+    | pages never set, since dark is data-mode on <html>. Pointed here instead, the sidebar moves
+    | with the campaign like everything else.
+    |
+    | The panel's sidebar is dark in both themes by design, so these follow the sidebar tokens rather
+    | than the page's.
+    */
+    --color-sidebar-foreground: var(--tw-sidebar-ink);
+    --color-sidebar-primary: var(--tw-brand);
+    --color-sidebar-primary-foreground: var(--tw-ink-on-brand);
+    --color-sidebar-accent: var(--tw-sidebar-active);
+    --color-sidebar-accent-foreground: var(--tw-sidebar-ink);
+    --color-sidebar-border: var(--tw-sidebar-line);
+    --color-sidebar-ring: var(--tw-brand);
+}
+
+@layer base {
+    html {
+        background: var(--tw-page);
+        color: var(--tw-ink);
+    }
+
+    body {
+        margin: 0;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection {
+        background: var(--tw-ring);
+    }
+
+    /* One focus ring for the whole system, from the design. Keyboard only, never on a mouse click. */
+    :focus-visible {
+        outline: 2px solid var(--tw-brand);
+        outline-offset: 2px;
+    }
+
+    /* Figures - amounts, counts, codes - are set in the mono face (frontend.md 1.8). On Arabic
+    | pages the mono face has no Arabic-Indic digits at all (checked in its own unicode ranges,
+    | 2026-09-22), so Arabic pages set figures in the Arabic face, which has them. */
+    [lang='ar'] .tw-figure {
+        font-family: var(--font-sans);
+    }
+
+    .tw-figure {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+    }
 }

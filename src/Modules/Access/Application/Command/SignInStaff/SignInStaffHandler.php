@@ -145,7 +145,8 @@ final readonly class SignInStaffHandler
         }
 
         $this->db->transaction(fn () => $this->verification->send($staff->id(), $phone, PhoneCodePurpose::SignIn, $staff->language(), CarbonImmutable::now()));
-        $this->sessions->beginSignIn($staff->id(), $staff->sessionVersion(), false);
+        // The code screen names the number it went to, masked (stage 2b, P4).
+        $this->sessions->beginSignIn($staff->id(), $staff->sessionVersion(), false, $phone->masked());
 
         return SignInResult::CodeSent;
     }

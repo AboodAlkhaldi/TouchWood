@@ -32,7 +32,15 @@ deptrac:
     - name: Vendor
       collectors:
         - type: classNameRegex
-          value: '#^(Illuminate|Laravel|Symfony|Psr|Carbon|Brick|Spatie|Inertia|Intervention)\\#'
+          value: '#^(Illuminate|Laravel|Symfony|Psr|Carbon|Brick|Spatie|Inertia|Intervention|Tighten)\\#'
+
+    # Framework glue that belongs to no module: the error renderer, the form-error helper and the
+    # correlation-id middleware (handoff, 2026-09-18). Only a module's Presentation/ may use it —
+    # which deptrac cannot say without splitting every module into a third layer, so that half of
+    # the rule is a test, exactly as a framework-free Domain/ already is (see the note above):
+    # tests/Architecture/AppHttpTest.php. Stage 2b, P5.
+    - name: AppHttp
+      collectors: [{ type: classNameRegex, value: '#^App\\Http\\#' }]
 
     # ---- Tier 3 — foundation ------------------------------------------------
     - name: PlatformPublic
@@ -162,11 +170,11 @@ deptrac:
 
     # Platform → nothing
     PlatformPublic: [Shared, Vendor]
-    Platform: [+PlatformPublic]
+    Platform: [+PlatformPublic, AppHttp]
 
     # Access → Platform
     AccessPublic: [Shared, Vendor, PlatformPublic]
-    Access: [+AccessPublic]
+    Access: [+AccessPublic, AppHttp]
 
     # B2B → Platform, Access
     B2BPublic: [Shared, Vendor, PlatformPublic, AccessPublic]

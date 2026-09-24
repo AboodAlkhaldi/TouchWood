@@ -96,9 +96,15 @@ return [
         'title' => 'Wrong code',
         'detail' => 'The code is wrong or has expired.',
     ],
+    // Said to somebody who is trying to get in, not to somebody pressing "send another code": a
+    // sign-in straight after a password reset meets the same limit. So it names the way forward -
+    // the code already sent - rather than only the wait (owner, 2026-09-22).
+    // It has to stay true for both limits behind it: the gap between codes, where the earlier code
+    // is certainly still alive, and the hourly limit, where it may have expired. Hence "if you
+    // still have it".
     'code_request_too_soon' => [
-        'title' => 'Please wait',
-        'detail' => 'A new code can be sent in :seconds seconds.',
+        'title' => 'You already have a code',
+        'detail' => 'A code was already sent to your phone - enter it if you still have it. A new one can be sent in :seconds seconds.',
     ],
     'password_too_weak' => [
         'title' => 'Choose another password',
@@ -127,5 +133,40 @@ return [
     'sign_in_refused' => [
         'title' => 'Could not sign in',
         'detail' => 'This account cannot sign in. Please contact an administrator.',
+    ],
+    /*
+    | Field names, for the refusals that name one (":attribute", ":field").
+    |
+    | A refusal carries the field's key, because that is what the domain calls it and what the form
+    | posted. These are the same names written for a person to read.
+    */
+    'fields' => [
+        'account_type' => 'account type',
+        'address' => 'address',
+        'avatar' => 'picture',
+        'country' => 'country',
+        'current_password' => 'current password',
+        'date_of_birth' => 'date of birth',
+        'email' => 'email address',
+        'exceptions' => 'actions with stores of their own',
+        'invited_by' => 'inviter',
+        'latitude' => 'latitude',
+        'level' => 'level',
+        'locale' => 'communication language',
+        'longitude' => 'longitude',
+        'map_pin' => 'map pin',
+        'name' => 'name',
+        'password' => 'password',
+        'permissions' => 'actions',
+        'phone' => 'mobile number',
+        'reason' => 'reason',
+        'replacement' => 'replacement role',
+        'role' => 'role',
+        'session_version' => 'session',
+        'status' => 'status',
+        'store' => 'store',
+        'stores' => 'stores',
+        'terms' => 'terms',
+        'topic' => 'topic',
     ],
 ];

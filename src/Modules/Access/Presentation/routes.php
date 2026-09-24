@@ -2,16 +2,23 @@
 
 declare(strict_types=1);
 
+use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
+use Modules\Access\Presentation\Http\Controller\AdminPanelController;
 use Modules\Access\Presentation\Http\Controller\CustomerAccountController;
 use Modules\Access\Presentation\Http\Controller\CustomerSessionController;
+use Modules\Access\Presentation\Http\Controller\RolesController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
+use Modules\Access\Presentation\Http\Controller\StaffAuthPageController;
+use Modules\Access\Presentation\Http\Controller\StaffController;
 use Modules\Access\Presentation\Http\Controller\StaffLinkController;
+use Modules\Access\Presentation\Http\Controller\StaffOwnAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffSignInController;
 use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
 use Modules\Access\Presentation\Http\Middleware\RequireCustomer;
 use Modules\Access\Presentation\Http\Middleware\RequireStaff;
+use Modules\Access\Presentation\Http\Middleware\ShareAdminPage;
 use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
 use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 
@@ -22,8 +29,22 @@ use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 */
 
 Route::prefix('admin')
-    ->middleware([UseAdminSession::ALIAS, 'web', IdentifyStaff::ALIAS])
+    ->middleware([UseAdminSession::ALIAS, 'web', IdentifyStaff::ALIAS, ShareAdminPage::ALIAS])
     ->group(function (): void {
+        /*
+        | The pages themselves (stage 2b step 1, frontend.md 3.1 A1-A9). Each is a plain GET that
+        | changes nothing: opening a link from an email never acts, it only shows the form that
+        | does. The posts below them are Access step 3b's, unchanged.
+        */
+        Route::get('sign-in', [StaffAuthPageController::class, 'signIn'])->name('access.staff.sign-in.page');
+        Route::get('sign-in/phone', [StaffAuthPageController::class, 'phone'])->name('access.staff.sign-in.phone.page');
+        Route::get('sign-in/code', [StaffAuthPageController::class, 'code'])->name('access.staff.sign-in.code.page');
+        Route::get('password/forgot', [StaffAuthPageController::class, 'forgotPassword'])->name('access.staff.password.forgot.page');
+        Route::get('password/reset/{token}', [StaffAuthPageController::class, 'resetPassword'])->name('access.staff.password.reset.page');
+        Route::get('invitation/{token}', [StaffAuthPageController::class, 'acceptInvitation'])->name('access.staff.invitation.page');
+        Route::get('invitation/{token}/code', [StaffAuthPageController::class, 'invitationCode'])->name('access.staff.invitation.code.page');
+        Route::get('email-change/{token}', [StaffAuthPageController::class, 'confirmEmailChange'])->name('access.staff.email-change.page');
+
         Route::post('sign-in', [StaffSignInController::class, 'password'])->name('access.staff.sign-in');
         Route::post('sign-in/phone', [StaffSignInController::class, 'phone'])->name('access.staff.sign-in.phone');
         Route::post('sign-in/code', [StaffSignInController::class, 'code'])->name('access.staff.sign-in.code');
@@ -37,9 +58,66 @@ Route::prefix('admin')
         Route::post('email-change/{token}', [StaffLinkController::class, 'confirmEmailChange'])->name('access.staff.email-change.confirm');
 
         Route::middleware(RequireStaff::ALIAS)->group(function (): void {
+            Route::get('/', [AdminPanelController::class, 'home'])->name('access.staff.home');
+            Route::post('current-store', [AdminPanelController::class, 'chooseStore'])->name('access.staff.current-store');
+
             Route::post('sign-out', [StaffAccountController::class, 'signOut'])->name('access.staff.sign-out');
             Route::post('account/password', [StaffAccountController::class, 'changePassword'])->name('access.staff.password.change');
+
+            /*
+            | Roles (stage 2b step 2, frontend.md 3.4). Who may open any of these is Access's
+            | answer, not the routing's: every handler behind them asks, and refuses in its own
+            | words. A person without the permission gets the refusal, not a missing page.
+            */
+            /*
+            | Staff (stage 2b step 2, frontend.md 3.3). Every screen and every button behind them
+            | is offered only to somebody Access says may use it, and each handler asks again with
+            | the stores in hand. A Super Admin is made and unmade by console command alone, so no
+            | screen here offers either.
+            */
+            Route::get('staff', [StaffController::class, 'index'])->name('access.staff.list');
+            // Before staff/{staff}, or "invite" is read as somebody's id.
+            Route::get('staff/invite', [StaffController::class, 'invite'])->name('access.staff.invite.page');
+            Route::post('staff/invite', [StaffController::class, 'sendInvitation'])->name('access.staff.invite');
+            Route::get('staff/{staff}', [StaffController::class, 'show'])->name('access.staff.show');
+            Route::get('staff/{staff}/role', [StaffController::class, 'role'])->name('access.staff.role.page');
+            Route::post('staff/{staff}/role', [StaffController::class, 'changeRole'])->name('access.staff.role');
+            Route::post('staff/{staff}/profile', [StaffController::class, 'updateProfile'])->name('access.staff.profile');
+            Route::post('staff/{staff}/email', [StaffController::class, 'changeEmail'])->name('access.staff.email');
+            Route::post('staff/{staff}/disable', [StaffController::class, 'disable'])->name('access.staff.disable');
+            Route::post('staff/{staff}/enable', [StaffController::class, 'enable'])->name('access.staff.enable');
+            Route::post('staff/{staff}/invitation/resend', [StaffController::class, 'resendInvitation'])->name('access.staff.invitation.resend');
+            Route::post('staff/{staff}/invitation/cancel', [StaffController::class, 'cancelInvitation'])->name('access.staff.invitation.cancel');
+            Route::post('staff/{staff}/refresh', [StaffController::class, 'refresh'])->name('access.staff.refresh');
+
+            Route::get('roles', [RolesController::class, 'index'])->name('access.staff.roles');
+            Route::get('roles/new', [RolesController::class, 'create'])->name('access.staff.roles.new');
+            Route::post('roles', [RolesController::class, 'store'])->name('access.staff.roles.store');
+            Route::get('roles/{role}', [RolesController::class, 'show'])->name('access.staff.roles.show');
+            Route::get('roles/{role}/edit', [RolesController::class, 'edit'])->name('access.staff.roles.edit');
+            Route::post('roles/{role}', [RolesController::class, 'update'])->name('access.staff.roles.update');
+            Route::post('roles/{role}/clone', [RolesController::class, 'clone'])->name('access.staff.roles.clone');
+            Route::post('roles/{role}/delete', [RolesController::class, 'destroy'])->name('access.staff.roles.delete');
+            Route::post('roles/{role}/refresh', [RolesController::class, 'refresh'])->name('access.staff.roles.refresh');
+
+            /*
+            | "Account & settings" — a staff member's own account (stage 2b step 2, frontend.md
+            | §3.2, B1-B4). One page with three tabs, and one POST per thing it can change. No
+            | route here carries an id: each handler reads who is asking from the session, so
+            | there is nothing to spell somebody else's account with. Changing the password is
+            | the endpoint just above, which already exists and already says the right thing.
+            */
+            Route::get('account', [StaffOwnAccountController::class, 'show'])->name('access.staff.account.page');
+            Route::post('account/profile', [StaffOwnAccountController::class, 'updateProfile'])->name('access.staff.account.profile');
+            Route::post('account/email', [StaffOwnAccountController::class, 'changeEmail'])->name('access.staff.account.email');
+            Route::post('account/phone', [StaffOwnAccountController::class, 'requestPhoneChange'])->name('access.staff.account.phone');
+            Route::post('account/phone/code', [StaffOwnAccountController::class, 'confirmPhoneChange'])->name('access.staff.account.phone.confirm');
+            Route::post('account/notifications', [StaffOwnAccountController::class, 'updateNotifications'])->name('access.staff.account.notifications');
         });
+
+        // The theme and the displayed language, chosen before anybody signs in as well as after:
+        // somebody who cannot read the interface has to be able to change it on the sign-in page.
+        Route::post('preferences', [AdminPanelController::class, 'preferences'])->name('access.staff.preferences');
     });
 
 /*
@@ -61,7 +139,7 @@ Route::prefix('{store}/{locale}')
 */
 
 Route::prefix('{store}/{locale}')
-    ->middleware([UseStorefrontSession::ALIAS, 'web', 'store', IdentifyCustomer::ALIAS])
+    ->middleware(StorefrontArea::MIDDLEWARE)
     ->group(function (): void {
         Route::post('account/register', [CustomerSessionController::class, 'register'])->name('storefront.account.register');
         Route::post('account/sign-in', [CustomerSessionController::class, 'signIn'])->name('storefront.account.sign-in');

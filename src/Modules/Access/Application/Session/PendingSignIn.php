@@ -17,6 +17,12 @@ final readonly class PendingSignIn
         public string $staffId,
         public int $sessionVersion,
         public bool $needsPhone,
+        /**
+         * The number the code went to, masked to its last three digits (stage 2b, P4), so the code
+         * screen can name it. Null when there is no number yet: a Super Admin whose phone was reset
+         * enters a new one first.
+         */
+        public ?string $maskedPhone = null,
     ) {}
 
     /**

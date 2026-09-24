@@ -67,6 +67,20 @@ return [
             'replace_placeholders' => true,
         ],
 
+        /*
+        | The test suite's own log (phpunit.xml forces it).
+        |
+        | Tests and the development server share a machine, so a run of the suite would otherwise
+        | write hundreds of expected failures into the same file as the application's real ones -
+        | and the real one is the one somebody is looking for.
+        */
+        'testing' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/testing.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

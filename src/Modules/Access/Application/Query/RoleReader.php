@@ -24,6 +24,17 @@ interface RoleReader
     public function savedRole(string $roleId): ?array;
 
     /**
+     * Every saved role's actions, in one read.
+     *
+     * The roles screen shows which business areas each role reaches into, side by side (frontend.md
+     * 3.4, D1). Asking role by role would be one query per row on a list screen, which is the kind
+     * of thing that is invisible with five roles and painful with fifty.
+     *
+     * @return array<string, list<string>> role id => the actions it holds
+     */
+    public function savedRolePermissions(): array;
+
+    /**
      * @return list<HolderRow> by name
      */
     public function holders(string $roleId): array;

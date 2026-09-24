@@ -6,6 +6,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Inertia\Testing\AssertableInertia;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Domain\Exception\StoreNotFound;
 
@@ -23,21 +24,27 @@ beforeEach(function () {
 
 describe('a store and its language', function () {
     it('resolves the store from the first segment and the language from the second', function () {
+        // The page is Inertia's now, so what it says is in its props rather than in the HTML
+        // (frontend.md 2.3: Platform's two Blade pages are rebuilt in React, and their tests
+        // move with them).
         get('/sa/ar')
             ->assertOk()
             ->assertSee('lang="ar"', false)
-            ->assertSee('السعودية')
-            ->assertSee("\u{20C1}");
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Platform/Storefront/Home')
+                ->where('name', 'السعودية')
+                ->where('symbol', "\u{20C1}")
+            );
 
         get('/sa/en')
             ->assertOk()
             ->assertSee('lang="en"', false)
-            ->assertSee('Saudi Arabia');
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('name', 'Saudi Arabia'));
     });
 
     it('shows the letters for a currency that has no sign, in the page language', function () {
-        get('/eg/ar')->assertOk()->assertSee('ج.م');
-        get('/eg/en')->assertOk()->assertSee('EGP');
+        get('/eg/ar')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('symbol', 'ج.م'));
+        get('/eg/en')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('symbol', 'EGP'));
     });
 
     it('remembers the store and the language in cookies', function () {
@@ -120,19 +127,31 @@ describe('the country page at brand.com/', function () {
     it('shows the country page in Arabic to a new visitor, linking to the Arabic stores', function () {
         get('/')
             ->assertOk()
-            ->assertSeeInOrder(['السعودية', 'مصر', 'الإمارات'])
-            ->assertSee('/sa/ar');
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Platform/Storefront/ChooseStore')
+                // In Platform's own order, which is the order a visitor chooses from.
+                ->where('stores.0.name', 'السعودية')
+                ->where('stores.1.name', 'مصر')
+                ->where('stores.2.name', 'الإمارات')
+                ->where('stores.0.href', '/sa/ar')
+            );
     });
 
     it('shows the country page in the remembered language', function () {
         withCookie('tw_locale', 'en')->get('/')
             ->assertOk()
-            ->assertSeeInOrder(['Saudi Arabia', 'Egypt', 'United Arab Emirates'])
-            ->assertSee('/sa/en');
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('stores.0.name', 'Saudi Arabia')
+                ->where('stores.1.name', 'Egypt')
+                ->where('stores.2.name', 'United Arab Emirates')
+                ->where('stores.0.href', '/sa/en')
+            );
     });
 
     it('shows the country page when the remembered store no longer exists', function () {
-        withCookie('tw_store', 'zz')->get('/')->assertOk()->assertSee('اختر دولتك');
+        withCookie('tw_store', 'zz')->get('/')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('Platform/Storefront/ChooseStore'));
     });
 });
 
@@ -170,16 +189,20 @@ describe('reserved paths', function () {
     });
 });
 
-it('resolves the store from the cache alone once warm: two tiny cache reads, never the store tables', function () {
+it('resolves the store from the cache alone once warm: tiny cache reads, never the store tables', function () {
     // The cache lives in PostgreSQL (owner, 2026-09-18), so a warm request reads the version and
     // the snapshot from the cache table. It must never fall back to loading stores and currencies.
+    //
+    // Two reads each for two askers: ResolveStore, for the store the address names, and
+    // ShareStorefront, for the list behind the header's country switch. The directory memoises
+    // nothing on purpose - a copy held in a queue worker would go stale (CachedStoreDirectory).
     get('/sa/ar')->assertOk();
 
     DB::enableQueryLog();
     get('/sa/ar')->assertOk();
     $queries = array_column(DB::getQueryLog(), 'query');
 
-    expect($queries)->toHaveCount(2);
+    expect($queries)->toHaveCount(4);
 
     foreach ($queries as $query) {
         expect($query)->toContain('"cache"');

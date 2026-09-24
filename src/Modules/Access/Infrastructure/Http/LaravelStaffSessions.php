@@ -68,14 +68,31 @@ final readonly class LaravelStaffSessions implements StaffSessions
         return $data['id'];
     }
 
-    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone): void
+    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone, ?string $maskedPhone = null): void
     {
         $this->session()?->put(self::PENDING, [
             'id' => $staffId,
             'version' => $sessionVersion,
             'needs_phone' => $needsPhone,
+            // Masked by Access before it reaches the session: the full number never goes to a page.
+            'masked_phone' => $maskedPhone,
             'at' => CarbonImmutable::now()->getTimestamp(),
         ]);
+    }
+
+    public function noteCodeSentTo(string $maskedPhone): void
+    {
+        $session = $this->session();
+        $data = $session?->get(self::PENDING);
+
+        if ($session === null || ! is_array($data)) {
+            return;
+        }
+
+        // 'at' is deliberately untouched: naming the number must not extend the window the password
+        // opened, or a new number could be entered over and over to keep it open.
+        $data['masked_phone'] = $maskedPhone;
+        $session->put(self::PENDING, $data);
     }
 
     public function pendingSignIn(): ?PendingSignIn
@@ -94,7 +111,14 @@ final readonly class LaravelStaffSessions implements StaffSessions
             return null;
         }
 
-        return new PendingSignIn($data['id'], $data['version'], ($data['needs_phone'] ?? false) === true);
+        $masked = $data['masked_phone'] ?? null;
+
+        return new PendingSignIn(
+            $data['id'],
+            $data['version'],
+            ($data['needs_phone'] ?? false) === true,
+            is_string($masked) ? $masked : null,
+        );
     }
 
     public function start(string $staffId, int $sessionVersion): void

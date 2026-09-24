@@ -57,7 +57,7 @@ final readonly class RoleAuthorizer implements Authorizer
     public function storesWith(string $permission): ?array
     {
         $definition = $this->definition($permission);
-        $actor = $this->actors->current();
+        $actor = $this->scopedTo();
 
         if ($actor->type !== ActorType::Staff) {
             return $this->allowsWithoutRole($actor, $definition) ? null : [];
@@ -81,6 +81,46 @@ final readonly class RoleAuthorizer implements Authorizer
 
         // A store-free action is held in full, whatever the person's stores.
         return $definition->kind === PermissionKind::Global ? null : $stores->stores();
+    }
+
+    public function isUnlimited(): bool
+    {
+        $actor = $this->scopedTo();
+
+        // The system on nobody's behalf: a console command or a scheduled job.
+        if ($actor->type === ActorType::System) {
+            return true;
+        }
+
+        if ($actor->type !== ActorType::Staff) {
+            return false;
+        }
+
+        $staff = $this->grants->forStaff((string) $actor->id);
+
+        return $staff !== null && $staff->isActive() && $staff->superAdmin;
+    }
+
+    /**
+     * Whose permissions answer a question about **scope** - which stores, which rows, what to offer.
+     *
+     * The system on nobody's behalf is the system: a console command, a scheduled job. The system on
+     * someone's behalf is a job that person queued, and it answers with **their** stores, because a
+     * job must never show more than the person who asked for it could see. A report queued by
+     * someone who works in one store lists that store, not every store (owner, 2026-09-22).
+     *
+     * This is deliberately not what authorize() does. "May this proceed?" is answered for the system
+     * itself, because the person's permission was checked when they started the action and the job
+     * then does work they may not be able to do directly - generating image variants is reserved to
+     * Super Admins, yet any upload queues it (docs/CONVENTIONS.md, "Actors").
+     */
+    private function scopedTo(): Actor
+    {
+        $actor = $this->actors->current();
+
+        return $actor->type === ActorType::System && $actor->requestedBy !== null
+            ? $actor->requestedBy
+            : $actor;
     }
 
     private function allows(Actor $actor, PermissionDefinitionDto $definition, PermissionScope $scope): bool

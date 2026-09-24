@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Middleware;
 
+use App\Http\StorefrontArea;
 use Closure;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Container\Container;
@@ -22,7 +23,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class UseStorefrontSession
 {
-    public const string ALIAS = 'access.storefront-session';
+    public const string ALIAS = StorefrontArea::SESSION;
 
     /** The storefront's own session driver, which writes the customer each row belongs to. */
     public const string DRIVER = 'access-storefront';

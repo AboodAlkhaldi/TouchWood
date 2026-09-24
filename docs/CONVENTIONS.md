@@ -12,7 +12,57 @@
    and reviewed by the owner **before** its first line of code.
 2. Build order is handoff §17. Platform, then Access, then the frontend foundation, then B2B; Feedback
    comes with Sales.
-3. `composer check` must pass before a commit: config:clear → pint → phpstan → deptrac → pest.
+3. `composer check` must pass before a commit: config:clear → pint → phpstan → deptrac → the
+   TypeScript check → pest.
+4. `composer check:browser` runs the browser tests, in a real Chromium, and must pass too. It is a
+   command of its own because it needs a browser (`npx playwright install chromium`) and because a
+   Playwright server left over from another run reports its browsers as outdated when the two share
+   a process. Every other suite asks the server what it would send; only this one asks whether a
+   person can use the answer, which is the question step 1 got wrong six times over.
+
+## How a step is done here
+
+Settled with the owner on 2026-09-22, after Access. The spec is agreed **whole, first**; the steps
+are cut from it; each step is then built without re-opening decisions. Questions during a build are
+allowed but rare, and batched.
+
+**Before any code — the specification.**
+
+1. Read the merged code, not the older spec. A spec written against what a module was supposed to be
+   is wrong by the time the module is merged. Record what actually changed as a numbered list at the
+   top of the phase spec.
+2. Write the phase spec to `docs/modules/{phase}.md`, in the nine sections of handoff §18.
+3. Every open question goes to the owner **before** the spec is finished, in batches, each with its
+   options and **what each option costs later** — never a bare question. An answer that is not clear
+   enough to build on is asked again; a guess is never built on.
+4. Write the owner's answers into the spec in their own words, dated. The spec, not the chat, is what
+   the next person reads.
+5. The owner approves the spec, then the step list cut from it. Nothing is built before both.
+
+**Each step.**
+
+6. A branch per step off the phase branch; the phase branch off `main`. A step is one PR.
+7. Build the whole step: code, tests, translations in both languages, and the doc updates the step
+   makes true.
+8. `composer check` must pass — all of it, read, not skimmed. A run that "passes" in seconds passed
+   over nothing: check the tool actually ran.
+9. **An independent review of the step**, reading the diff against the spec, with no memory of having
+   written it. Every finding is then **verified in the code before it is acted on** — a review that
+   is wrong about the code is common, and fixing what is not broken is worse than the finding.
+10. **A mutation run** over what the step changed: break one line at a time, run the tests that cover
+    it, put it back. A mutant that survives means the tests do not hold that line — fix the tests, or
+    write down why the line cannot be tested. Equivalent mutants (a line that cannot change
+    behaviour) are a signal the line is dead: delete it.
+11. The owner is told what the step did, what the review found, and what the mutation run showed.
+    **The owner's go is needed to merge.**
+
+**What is written down, always.**
+
+- A decision the owner took, in the spec, dated and in their words.
+- An assumption, marked `My assumption, stated for the owner to reject:`.
+- Something a guard **cannot** prove, said plainly where the guard is — a claim that overstates a
+  check is worse than no check, because the next person trusts it.
+- Anything left open, in the step's doc under **Left open**, with who it waits on.
 
 ## Layout
 
@@ -112,7 +162,13 @@
 - Actor types: staff, customer, guest, integration, system. Every actor id is a ULID, and an id is
   never a secret: whatever proves a guest's cart is theirs is kept apart from the guest id.
 - Check a person's permission when they start an action; the queued job then acts as the system,
-  and the audit log records the requester (`requested_by_*`).
+  and the audit log records the requester (`requested_by_*`). A job therefore may finish work its
+  requester could not have started — generating image variants is reserved to Super Admins, and
+  every upload queues it.
+- **But scope still follows the requester** (owner, 2026-09-22). `Authorizer::storesWith()` and
+  `isUnlimited()` answer for whoever queued the job, not for the system, because they decide which
+  **rows** are shown. A report queued by someone who works in one store lists that store. Only
+  `authorize()` — "may this proceed" — answers for the system.
 - Secrets (API keys, passwords, credentials) live only in server environment variables — never in a
   setting, a table or code. A setting whose value must not reach the audit log is declared with
   `sensitive: true`.

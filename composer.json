@@ -10,10 +10,13 @@
         "ext-fileinfo": "*",
         "ext-gd": "*",
         "brick/math": "^0.19.1",
+        "inertiajs/inertia-laravel": "^3.3",
         "intervention/image": "^4.3",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
-        "spatie/laravel-data": "^4.23"
+        "spatie/laravel-data": "^4.23",
+        "spatie/laravel-typescript-transformer": "^3.3",
+        "tightenco/ziggy": "^2.6"
     },
     "require-dev": {
         "deptrac/deptrac": "^4.7",
@@ -25,6 +28,7 @@
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
         "pestphp/pest": "^5.2",
+        "pestphp/pest-plugin-browser": "^5.0",
         "pestphp/pest-plugin-laravel": "^5.0"
     },
     "autoload": {
@@ -46,6 +50,7 @@
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
             "@php artisan migrate --force",
+            "@php artisan storage:link",
             "npm install --ignore-scripts",
             "npm run build"
         ],
@@ -62,7 +67,8 @@
             "@php vendor/bin/pint --test",
             "@php vendor/bin/phpstan analyse --memory-limit=2G --no-progress",
             "@php vendor/bin/deptrac analyse --fail-on-uncovered --report-uncovered --no-progress",
-            "@php vendor/bin/pest --ci"
+            "npm run types",
+            "@php vendor/bin/pest --ci --exclude-testsuite=Browser"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
@@ -76,6 +82,15 @@
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ],
+        "check:browser": [
+            "@php vendor/bin/pest --testsuite=Browser"
+        ],
+        "check:mutation": [
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Platform/Integration/ListStoresTest.php --mutate --covered-only --path=src/Modules/Platform/Application/Query",
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Access/Integration/AuthorizerTest.php --mutate --covered-only --path=src/Modules/Access/Application/Authorization",
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Access/Integration/ChangeStaffRoleTest.php --mutate --covered-only --path=src/Modules/Access/Application/Command/ChangeStaffRole",
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Access/Integration/StaffPagesTest.php --mutate --covered-only --path=src/Modules/Access/Presentation/Http/Resource"
         ]
     },
     "extra": {
@@ -93,5 +108,9 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "scripts-descriptions": {
+        "check": "Everything that must pass before a commit: formatting, static analysis, module boundaries, the TypeScript check and the tests.",
+        "check:browser": "The browser tests, driven through a real Chromium. Their own command: they need a browser installed (npx playwright install chromium) and they are slow."
+    }
 }
