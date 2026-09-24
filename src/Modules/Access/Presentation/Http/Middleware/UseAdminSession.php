@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Middleware;
 
+use App\Http\AdminArea;
 use Closure;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Container\Container;
@@ -20,7 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class UseAdminSession
 {
-    public const string ALIAS = 'access.admin-session';
+    public const string ALIAS = AdminArea::SESSION;
 
     public function __construct(
         private Config $config,

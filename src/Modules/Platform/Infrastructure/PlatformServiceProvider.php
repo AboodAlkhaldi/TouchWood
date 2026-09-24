@@ -59,6 +59,8 @@ use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\MenuEntryDto;
+use Modules\Platform\Public\PlatformPermissions;
 use Psr\Log\LoggerInterface;
 use Shared\Application\ActorContext;
 use Shared\Application\StoreContext;
@@ -169,6 +171,18 @@ final class PlatformServiceProvider extends ServiceProvider
 
         $this->app->make(SettingsRegistry::class)->define('platform', ...MediaSettings::definitions());
 
+        /*
+        | What Platform puts in the admin menu (stage 2b, P6). Registered at boot like the settings;
+        | who is offered each entry is decided per request, by asking the authorizer about the
+        | permission named here.
+        |
+        | Offering is never allowing: the screen behind each of these checks the same permission
+        | again in its own read model or handler (handoff 19).
+        */
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('platform', 'stores', 'store_settings', 'platform.admin.stores', PlatformPermissions::STORE_VIEW, 10, icon: 'stores'),
+        );
+
         // Images whose variant job was lost are queued again (owner's decision, 2026-09-16). Scheduled
         // work runs as a queued job, so its audit source is JOB (owner's decision, 2026-09-18).
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
@@ -185,6 +199,11 @@ final class PlatformServiceProvider extends ServiceProvider
 
         if (! $this->app->routesAreCached()) {
             Route::middleware('web')->group($presentation.'/routes.php');
+
+            // The panel's own file, and deliberately not inside that group: the admin session
+            // cookie has to be set *before* "web" opens a session, and a second "web" around it
+            // would open one first (frontend.md 4.1, and Access's own routes for the same reason).
+            Route::group([], $presentation.'/admin-routes.php');
         }
 
         if ($this->app->runningInConsole()) {

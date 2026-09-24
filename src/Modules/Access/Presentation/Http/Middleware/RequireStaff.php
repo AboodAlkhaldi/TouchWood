@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Middleware;
 
+use App\Http\AdminArea;
 use Closure;
 use Illuminate\Http\Request;
 use Shared\Application\ActorContext;
@@ -15,7 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class RequireStaff
 {
-    public const string ALIAS = 'access.staff';
+    public const string ALIAS = AdminArea::SIGNED_IN;
 
     public function __construct(
         private ActorContext $actors,
