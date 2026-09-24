@@ -19,8 +19,13 @@ final readonly class StoreAddressFormat
 {
     private const int TEMPLATE_MAX = 2000;
 
-    /** A country's form, however detailed, is a form a person fills in (review of step 5). */
-    private const int FIELDS_MAX = 60;
+    /**
+     * A country's form, however detailed, is a form a person fills in (review of step 5).
+     *
+     * Public because the screen that edits a format says the rule in words before anybody types,
+     * and a number written into a page is a number that drifts from the one enforced here.
+     */
+    public const int FIELDS_MAX = 60;
 
     /** Everything one address holds, so a form of long fields cannot fill the table. */
     private const int VALUES_MAX = 4000;

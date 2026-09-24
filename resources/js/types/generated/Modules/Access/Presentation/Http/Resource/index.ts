@@ -32,6 +32,28 @@ label: string,
 required: boolean,
 maxLength: number,
 };
+export type AddressFormatField = {
+key: string,
+labelAr: string,
+labelEn: string,
+required: boolean,
+maxLength: number,
+};
+export type AddressFormatPage = {
+stores: AddressFormatStore[],
+storeId: string,
+exists: boolean,
+fields: AddressFormatField[],
+displayTemplate: string,
+maxFields: number,
+maxLength: number,
+};
+export type AddressFormatStore = {
+id: string,
+code: string,
+name: string,
+hasFormat: boolean,
+};
 export type AddressRow = {
 id: string,
 label: string,

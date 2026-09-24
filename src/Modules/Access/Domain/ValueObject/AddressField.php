@@ -17,7 +17,8 @@ final readonly class AddressField
 
     private const int LABEL_MAX = 60;
 
-    private const int LENGTH_MAX = 1000;
+    /** Public for the editor, which says the rule before anybody types (see StoreAddressFormat). */
+    public const int LENGTH_MAX = 1000;
 
     private function __construct(
         public string $key,
