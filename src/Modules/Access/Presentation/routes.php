@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
+use Modules\Access\Presentation\Http\Controller\AddressFormatController;
 use Modules\Access\Presentation\Http\Controller\AdminPanelController;
 use Modules\Access\Presentation\Http\Controller\CustomerAccountController;
 use Modules\Access\Presentation\Http\Controller\CustomerAuthPageController;
@@ -106,6 +107,17 @@ Route::prefix('admin')
             Route::post('customers/{customer}/unblock', [CustomersController::class, 'unblock'])->name('access.staff.customers.unblock');
             Route::post('customers/{customer}/delete', [CustomersController::class, 'requestDeletion'])->name('access.staff.customers.delete');
             Route::post('customers/{customer}/delete/cancel', [CustomersController::class, 'cancelDeletion'])->name('access.staff.customers.delete.cancel');
+
+            /*
+            | The store address format editor (stage 2b, frontend.md 3.7, decided 2026-09-19). A
+            | country's address form is data: a store that asks for a district today and a postal
+            | code tomorrow is a row changed here, not a deploy.
+            */
+            Route::get('address-formats', [AddressFormatController::class, 'index'])->name('access.staff.address-formats');
+            // Not "{store}": Platform sets a global pattern for that name - the shop's two-to-
+            // eight-letter country code - and a store's id would never match it, so the route
+            // answered 404 and nothing said why (found by running it, 2026-09-25).
+            Route::post('address-formats/{storeId}', [AddressFormatController::class, 'save'])->name('access.staff.address-formats.save');
 
             Route::get('roles', [RolesController::class, 'index'])->name('access.staff.roles');
             Route::get('roles/new', [RolesController::class, 'create'])->name('access.staff.roles.new');

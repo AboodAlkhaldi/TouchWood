@@ -1,6 +1,7 @@
 import {
     Boxes,
     CircleDot,
+    Contact,
     Image,
     UserRound,
     LayoutDashboard,
@@ -29,6 +30,7 @@ const ICONS = {
     staff: Users,
     roles: ShieldCheck,
     customers: UserRound,
+    address: Contact,
     stores: Store,
     catalog: Boxes,
     orders: ShoppingCart,

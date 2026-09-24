@@ -205,15 +205,24 @@ it('saves a new name and comes back to the tab it was sent from', function () {
 it('adds a phone number in two steps', function () {
     [, $page] = shopSignedIn();
 
+    // A number nobody has used before. Nothing here is rolled back, and a number another customer
+    // already holds is refused before any code goes out - so a fixed one works once and fails on
+    // every run after it (found by running the whole suite, 2026-09-25).
+    $phone = '+9665'.random_int(10000000, 99999999);
+
     $page->navigate('/sa/en/account')
         ->click('[data-test="tab-phone"]')
         ->assertSee('No number yet.')
-        ->type('#phone', '+966512345678')
+        ->type('#phone', $phone)
         ->click('[data-test="send-phone-code"]')
-        // The second step only appears once the server says a code went out.
-        ->type('#phone_code', RecordingSecurityMessages::installed()->lastCode())
+        // Waiting for the second step before reading the code: the click only dispatches the
+        // submit, and the code is not recorded until the server has answered it. Reading it in the
+        // same chain raced, and lost (2026-09-25) - the same lesson the panel's sign-in learned.
+        ->assertSee('The code we sent');
+
+    $page->type('#phone_code', RecordingSecurityMessages::installed()->lastCode())
         ->click('[data-test="confirm-phone"]')
-        ->assertSee('+966512345678')
+        ->assertSee($phone)
         ->assertNoJavaScriptErrors();
 });
 

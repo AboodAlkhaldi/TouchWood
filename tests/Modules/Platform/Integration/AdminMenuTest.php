@@ -84,6 +84,7 @@ describe('the admin menu', function () {
             'store_settings/stores',
             'store_settings/currencies',
             'store_settings/settings',
+            'store_settings/address-formats',
             'media/media',
             'audit/audit',
         ]);

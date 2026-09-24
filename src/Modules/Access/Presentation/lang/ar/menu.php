@@ -8,4 +8,5 @@ return [
     'staff' => 'الموظفون',
     'roles' => 'الأدوار',
     'customers' => 'العملاء',
+    'address-formats' => 'نماذج العناوين',
 ];
