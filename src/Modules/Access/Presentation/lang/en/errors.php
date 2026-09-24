@@ -134,4 +134,39 @@ return [
         'title' => 'Could not sign in',
         'detail' => 'This account cannot sign in. Please contact an administrator.',
     ],
+    /*
+    | Field names, for the refusals that name one (":attribute", ":field").
+    |
+    | A refusal carries the field's key, because that is what the domain calls it and what the form
+    | posted. These are the same names written for a person to read.
+    */
+    'fields' => [
+        'account_type' => 'account type',
+        'address' => 'address',
+        'avatar' => 'picture',
+        'country' => 'country',
+        'current_password' => 'current password',
+        'date_of_birth' => 'date of birth',
+        'email' => 'email address',
+        'exceptions' => 'actions with stores of their own',
+        'invited_by' => 'inviter',
+        'latitude' => 'latitude',
+        'level' => 'level',
+        'locale' => 'communication language',
+        'longitude' => 'longitude',
+        'map_pin' => 'map pin',
+        'name' => 'name',
+        'password' => 'password',
+        'permissions' => 'actions',
+        'phone' => 'mobile number',
+        'reason' => 'reason',
+        'replacement' => 'replacement role',
+        'role' => 'role',
+        'session_version' => 'session',
+        'status' => 'status',
+        'store' => 'store',
+        'stores' => 'stores',
+        'terms' => 'terms',
+        'topic' => 'topic',
+    ],
 ];

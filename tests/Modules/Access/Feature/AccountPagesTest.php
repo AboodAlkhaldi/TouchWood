@@ -362,8 +362,12 @@ describe('B1 - the email', function () {
 
         $response = $browser->post('/admin/account/email', ['email' => 'somewhere.else@touchwood.test']);
 
-        $response->assertForbidden();
-        expect(RecordingSecurityMessages::installed()->emailChanges)->toBe([]);
+        // Answered in the page rather than with the 403 page: the 403 belongs to navigation, and
+        // this is an action taken on a screen they are already reading (owner, 2026-09-24). What
+        // matters either way is that nothing happened.
+        $response->assertRedirect();
+        expect(accountFieldError($response, 'form'))->toBe('You do not have permission to do this.')
+            ->and(RecordingSecurityMessages::installed()->emailChanges)->toBe([]);
     });
 });
 

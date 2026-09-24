@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Support\Facades\DB;
+use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Access\Support\FakeBreachList;
+use Tests\Modules\Access\Support\RecordingSecurityMessages;
 
 use function Pest\Laravel\seed;
 
@@ -29,6 +33,8 @@ beforeEach(function () {
     // and the screen looked as though nothing had happened (found by running it, 2026-09-22).
     config(['session.driver' => 'database']);
     seed(PlatformSeeder::class);
+    FakeBreachList::install();
+    RecordingSecurityMessages::install();
 });
 
 it('draws the sign-in screen, rather than merely answering 200', function () {
@@ -70,4 +76,29 @@ it('lets a person see the password they are typing', function () {
     $page->click('button[aria-pressed]');
 
     expect($page->script('document.querySelector("#password").type'))->toBe('text');
+});
+
+it('takes a code typed on an Arabic keyboard, and signs the person in', function () {
+    // The boxes accepted ٠١٢ and sent them on unchanged, so a person who typed their code
+    // correctly on an Arabic keyboard was refused for it: a code is compared as a hash, and a hash
+    // of ٠٥٩ is not a hash of 059 (frontend.md 1.8).
+    $staffId = Fx::staff();
+    $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', $email)
+        ->type('#password', 'a long enough password')
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code');
+
+    $code = RecordingSecurityMessages::installed()->lastCode();
+    $arabic = strtr($code, ['0' => '٠', '1' => '١', '2' => '٢', '3' => '٣', '4' => '٤', '5' => '٥', '6' => '٦', '7' => '٧', '8' => '٨', '9' => '٩']);
+
+    expect($arabic)->not->toBe($code);
+
+    $page->type('input[autocomplete="one-time-code"]', $arabic)
+        ->click('button[type="submit"]')
+        // Signed in: the panel, not the code screen saying the code was wrong.
+        ->assertPathIs('/admin')
+        ->assertNoJavaScriptErrors();
 });
