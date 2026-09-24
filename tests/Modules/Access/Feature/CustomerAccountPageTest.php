@@ -90,7 +90,8 @@ describe('the page itself', function () {
     })->with([
         'no tab' => ['', 'profile'],
         'the phone tab' => ['?tab=phone', 'phone'],
-        'a tab nobody has' => ['?tab=addresses', 'profile'],
+        'the addresses tab' => ['?tab=addresses', 'addresses'],
+        'a tab nobody has' => ['?tab=orders', 'profile'],
     ]);
 
     it('has nothing to show a visitor', function () {

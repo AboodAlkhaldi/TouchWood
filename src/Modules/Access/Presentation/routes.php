@@ -171,6 +171,14 @@ Route::prefix('{store}/{locale}')
             Route::post('account/phone', [CustomerOwnAccountController::class, 'requestPhoneCode'])->name('storefront.account.phone');
             Route::post('account/phone/code', [CustomerOwnAccountController::class, 'confirmPhone'])->name('storefront.account.phone.confirm');
 
+            // F9 and F10. A delete and a close are posts like any other change; the address id is
+            // in the path because it names one of the customer's own rows, and the handler checks
+            // it belongs to whoever is asking.
+            Route::post('account/addresses', [CustomerOwnAccountController::class, 'saveAddress'])->name('storefront.account.addresses.save');
+            Route::post('account/addresses/{address}/default', [CustomerOwnAccountController::class, 'setDefaultAddress'])->name('storefront.account.addresses.default');
+            Route::post('account/addresses/{address}/delete', [CustomerOwnAccountController::class, 'deleteAddress'])->name('storefront.account.addresses.delete');
+            Route::post('account/close', [CustomerOwnAccountController::class, 'close'])->name('storefront.account.close');
+
             Route::post('account/sign-out', [CustomerSessionController::class, 'signOut'])->name('storefront.account.sign-out');
             Route::post('account/password', [CustomerSessionController::class, 'changePassword'])->name('storefront.account.password.change');
             Route::post('account/verify-email/resend', [CustomerSessionController::class, 'resendVerification'])->name('storefront.account.verify-email.resend');

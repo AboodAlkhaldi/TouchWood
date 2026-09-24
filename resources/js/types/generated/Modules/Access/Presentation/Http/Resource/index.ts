@@ -16,6 +16,32 @@ countries: CountryOption[],
 passwordMinLength: number,
 tab: string,
 };
+export type AddressBookStore = {
+storeId: string,
+storeCode: string,
+storeName: string,
+hasFormat: boolean,
+fields: AddressFieldRow[],
+addresses: AddressRow[],
+limit: number,
+full: boolean,
+};
+export type AddressFieldRow = {
+key: string,
+label: string,
+required: boolean,
+maxLength: number,
+};
+export type AddressRow = {
+id: string,
+label: string,
+recipientName: string,
+phone: string,
+fields: Record<string, string>,
+formatted: string,
+isDefault: boolean,
+isComplete: boolean,
+};
 export type ComingSoonPage = {
 label: string,
 };
@@ -37,6 +63,8 @@ phoneVerified: boolean,
 mayOrder: boolean,
 homeStore: string,
 passwordMinimumLength: number,
+addresses: AddressBookStore[],
+deletionDays: number,
 };
 export type CustomerRegisterPage = {
 minimumLength: number,

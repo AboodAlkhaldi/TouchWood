@@ -216,3 +216,43 @@ it('adds a phone number in two steps', function () {
         ->assertSee('+966512345678')
         ->assertNoJavaScriptErrors();
 });
+
+it('adds an address in the country it belongs to, and marks it as the usual one', function () {
+    [, $page] = shopSignedIn();
+
+    $page->navigate('/sa/en/account?tab=addresses')
+        ->assertSee('Saudi Arabia')
+        ->assertSee('No address here yet.')
+        ->click('[data-test="add-address-sa"]')
+        ->type('#label-sa', 'Home')
+        ->type('#recipient-sa', 'Noura Saleh')
+        ->type('#phone-sa', '+966512345678')
+        // The fields under those three are the store's own, drawn from its format rather than
+        // written into the page: these are the ones Saudi Arabia asks for.
+        ->type('#sa-administrative_area', 'Riyadh Region')
+        ->type('#sa-city', 'Riyadh')
+        ->type('#sa-district', 'Al Olaya')
+        ->type('#sa-street', 'King Fahd Road')
+        ->type('#sa-building', '7')
+        ->click('[data-test="save-address-sa"]')
+        // The first address in a country becomes its usual one on its own.
+        ->assertSee('Usual address')
+        ->assertSee('King Fahd Road')
+        ->assertNoJavaScriptErrors();
+});
+
+it('closes the account, and the shop forgets them at once', function () {
+    [, $page] = shopSignedIn();
+
+    $page->navigate('/sa/en/account?tab=close')
+        ->assertSee('Close my account')
+        ->click('[data-test="close-account"]')
+        ->type('#close_password', 'a long enough password')
+        ->click('[data-test="confirm-close-account"]')
+        // Back in the shop as a visitor: confirming ends every session of theirs at once, which
+        // is why there is no cancel button anywhere in the account.
+        ->assertPathIs('/sa/en')
+        ->assertDontSee('Noura Saleh')
+        ->assertSee('Sign in')
+        ->assertNoJavaScriptErrors();
+});
