@@ -22,6 +22,7 @@ label: string,
 export type CountryOption = {
 code: string,
 name: string,
+ours: boolean,
 };
 export type EditorPermissionRow = {
 name: string,

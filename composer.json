@@ -84,6 +84,12 @@
         ],
         "check:browser": [
             "@php vendor/bin/pest --testsuite=Browser"
+        ],
+        "check:mutation": [
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Platform/Integration/ListStoresTest.php --mutate --covered-only --path=src/Modules/Platform/Application/Query",
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Access/Integration/AuthorizerTest.php --mutate --covered-only --path=src/Modules/Access/Application/Authorization",
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Access/Integration/ChangeStaffRoleTest.php --mutate --covered-only --path=src/Modules/Access/Application/Command/ChangeStaffRole",
+            "@php -d pcov.enabled=1 vendor/bin/pest tests/Modules/Access/Integration/StaffPagesTest.php --mutate --covered-only --path=src/Modules/Access/Presentation/Http/Resource"
         ]
     },
     "extra": {

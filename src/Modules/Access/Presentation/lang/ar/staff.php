@@ -17,6 +17,8 @@ return [
     'status_active' => 'نشط',
     'status_invited' => 'مدعو',
     'status_disabled' => 'معطّل',
+    // Final: an invitation that was cancelled is not sent again (access.md amendment 29).
+    'status_cancelled' => 'ملغى',
     'since' => 'منذ :date',
     'invited_on' => 'دُعي في :date',
     'no_staff' => 'لا أحد هنا بعد.',
@@ -30,6 +32,8 @@ return [
     'phone' => 'الجوال',
     'date_of_birth' => 'تاريخ الميلاد',
     'country' => 'الدولة',
+    'countries_ours' => 'حيث لنا متاجر',
+    'countries_all' => 'كل الدول',
     'address' => 'العنوان',
     'communication_language' => 'لغة المراسلة',
     'communication_language_hint' => 'اللغة التي تُكتب بها رسائله ورموزه.',

@@ -231,10 +231,28 @@ final readonly class StaffPages
             adminPermissions: $unlimited ? $this->offered($editor, RoleLevel::Admin) : [],
             groups: $this->groups(),
             stores: $this->givableStores(),
-            countries: Countries::in($this->locale()),
+            // The countries our own stores are in, first: those are what an admin picks nearly
+            // every time (owner, 2026-09-24).
+            countries: Countries::in($this->locale(), $this->ourCountries()),
             maySetAdmin: $unlimited,
             locale: $this->locale(),
         );
+    }
+
+    /**
+     * The countries we have a store in, for the top of a country list.
+     *
+     * @return list<string>
+     */
+    private function ourCountries(): array
+    {
+        $codes = [];
+
+        foreach ($this->platform->stores() as $store) {
+            $codes[$store->countryCode] = $store->countryCode;
+        }
+
+        return array_values($codes);
     }
 
     /**

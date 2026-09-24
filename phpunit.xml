@@ -54,6 +54,12 @@
         <env name="DB_DATABASE" value="touchwood_test" force="true"/>
         <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array" force="true"/>
+        <!--
+            A log of its own. The suite and the development server share a machine, and a test run
+            writing into laravel.log buries whatever the person using the application actually hit
+            (found while watching for exactly that, 2026-09-24).
+        -->
+        <env name="LOG_CHANNEL" value="testing" force="true"/>
         <!-- The server renderer is a Node process; a test suite cannot depend on one being up.
              The fallback when it is down is tested on purpose in AdminPagesTest. -->
         <env name="INERTIA_SSR_ENABLED" value="false" force="true"/>

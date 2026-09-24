@@ -1,0 +1,228 @@
+import { useMemo, useState } from 'react';
+import {
+    columnFilteringFeature,
+    columnVisibilityFeature,
+    createFilteredRowModel,
+    filterFn_includesString,
+    flexRender,
+    tableFeatures,
+    useTable,
+    type ColumnDef,
+} from '@tanstack/react-table';
+import { Check, Columns3, Minus } from 'lucide-react';
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useTranslator } from '@/lib/t';
+
+/*
+| "Permissions by role" (frontend.md §3.4, D1): business areas down the side, roles across the top.
+|
+| Built on TanStack Table, as the owner asked (2026-09-24), for the two things a plain table could
+| not do once there are more than a handful of roles:
+|
+| - **It scrolls in both directions with the labels kept.** The area column is stuck to the start
+|   edge and the header row to the top, so the tenth role across is still readable as a row about
+|   "Store settings and tax" rather than as an anonymous column of dots.
+| - **Roles can be filtered and hidden.** A person comparing two roles hides the other eight rather
+|   than scrolling past them, and the area filter narrows the rows to the ones they care about.
+|
+| Only the features used are registered: anything not listed here is left out of the bundle, which
+| is what TanStack's v9 feature list is for.
+*/
+
+const features = tableFeatures({
+    columnFilteringFeature,
+    columnVisibilityFeature,
+    filteredRowModel: createFilteredRowModel(),
+    filterFns: { includesString: filterFn_includesString },
+});
+
+type Features = typeof features;
+
+export type ComparisonRole = {
+    id: string;
+    name: string;
+    /** The business areas this role reaches into. */
+    groups: string[];
+};
+
+export type ComparisonGroup = {
+    key: string;
+    label: string;
+};
+
+/** One row: a business area, and whether each role reaches into it. */
+type AreaRow = {
+    key: string;
+    label: string;
+    reach: Record<string, boolean>;
+};
+
+type Props = {
+    roles: ComparisonRole[];
+    groups: ComparisonGroup[];
+};
+
+export function PermissionsByRole({ roles, groups }: Props) {
+    const t = useTranslator();
+    const [hidden, setHidden] = useState<Record<string, boolean>>({});
+    const [filter, setFilter] = useState('');
+
+    const data = useMemo<AreaRow[]>(
+        () =>
+            groups.map((group) => ({
+                key: group.key,
+                label: group.label,
+                reach: Object.fromEntries(roles.map((role) => [role.id, role.groups.includes(group.key)])),
+            })),
+        [groups, roles],
+    );
+
+    const columns = useMemo<ColumnDef<Features, AreaRow>[]>(
+        () => [
+            {
+                id: 'area',
+                accessorKey: 'label',
+                header: t('access::roles.comparison'),
+                filterFn: 'includesString',
+                enableHiding: false,
+                cell: ({ row }) => <span className="text-ink">{row.original.label}</span>,
+            },
+            ...roles.map(
+                (role): ColumnDef<Features, AreaRow> => ({
+                    id: role.id,
+                    header: role.name,
+                    enableColumnFilter: false,
+                    cell: ({ row }) =>
+                        row.original.reach[role.id] === true ? (
+                            // A mark rather than a bare dot: a dot and a dash differ only in shape,
+                            // and somebody who cannot tell them apart learns nothing from the table.
+                            <Check className="size-4 text-good" aria-label={t('access::roles.reaches')} />
+                        ) : (
+                            <Minus className="size-4 text-ink-subtle" aria-label={t('access::roles.does_not_reach')} />
+                        ),
+                }),
+            ),
+        ],
+        [roles, t],
+    );
+
+    // The two generics are given rather than inferred: the column list is typed against this
+    // table's own feature set, and without them TypeScript widens the table to "any features" and
+    // the two no longer line up.
+    const table = useTable<Features, AreaRow>({
+        features,
+        data,
+        columns,
+        state: { columnVisibility: hidden, columnFilters: filter === '' ? [] : [{ id: 'area', value: filter }] },
+        onColumnVisibilityChange: setHidden,
+    });
+
+    const hideable = table.getAllColumns().filter((column) => column.getCanHide());
+    const shown = hideable.filter((column) => column.getIsVisible()).length;
+
+    return (
+        <div className="grid gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+                <Input
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value)}
+                    placeholder={t('access::roles.filter_areas')}
+                    aria-label={t('access::roles.filter_areas')}
+                    className="w-64"
+                />
+
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" data-test="columns">
+                            <Columns3 />
+                            {t('access::roles.columns', { shown, total: hideable.length })}
+                        </Button>
+                    </DropdownMenuTrigger>
+
+                    <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
+                        <DropdownMenuLabel>{t('access::roles.columns_hint')}</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+
+                        {hideable.map((column) => (
+                            <DropdownMenuCheckboxItem
+                                key={column.id}
+                                checked={column.getIsVisible()}
+                                // Kept open: hiding six of ten roles one at a time is the whole
+                                // point, and a menu that shuts after each is six trips.
+                                onSelect={(event) => event.preventDefault()}
+                                onCheckedChange={(on) => column.toggleVisibility(on === true)}
+                            >
+                                {roles.find((role) => role.id === column.id)?.name ?? column.id}
+                            </DropdownMenuCheckboxItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+
+            {/* Both directions, with the labels kept: the header row sticks to the top and the area
+                column to the start edge - which is the left in English and the right in Arabic,
+                because it is written as a logical offset. */}
+            <div className="max-h-[32rem] overflow-auto rounded-lg border border-line bg-surface">
+                <Table className="min-w-max">
+                    <TableHeader className="sticky top-0 z-20 bg-surface">
+                        {table.getHeaderGroups().map((headerGroup) => (
+                            <TableRow key={headerGroup.id}>
+                                {headerGroup.headers.map((header) => (
+                                    <TableHead
+                                        key={header.id}
+                                        className={
+                                            header.column.id === 'area'
+                                                ? 'sticky start-0 z-30 bg-surface text-xs font-semibold text-ink-muted uppercase'
+                                                : 'text-xs font-semibold whitespace-nowrap text-ink-muted'
+                                        }
+                                    >
+                                        {header.isPlaceholder
+                                            ? null
+                                            : flexRender(header.column.columnDef.header, header.getContext())}
+                                    </TableHead>
+                                ))}
+                            </TableRow>
+                        ))}
+                    </TableHeader>
+
+                    <TableBody>
+                        {table.getRowModel().rows.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={columns.length} className="text-sm text-ink-muted">
+                                    {t('access::roles.no_areas')}
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            table.getRowModel().rows.map((row) => (
+                                <TableRow key={row.id}>
+                                    {row.getVisibleCells().map((cell) => (
+                                        <TableCell
+                                            key={cell.id}
+                                            className={
+                                                cell.column.id === 'area'
+                                                    ? 'sticky start-0 z-10 bg-surface whitespace-nowrap'
+                                                    : ''
+                                            }
+                                        >
+                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
+    );
+}

@@ -245,11 +245,26 @@ export default function Invite(page: Props) {
                                 onChange={(event) => form.setData('country', event.target.value)}
                                 className="h-9 w-full rounded-md border border-line-strong bg-surface px-3 text-sm text-ink"
                             >
-                                {page.countries.map((country) => (
-                                    <option key={country.code} value={country.code}>
-                                        {country.name}
-                                    </option>
-                                ))}
+                                {/* The countries our stores are in come first, under their own
+                                    heading; they appear in the long list too, so somebody looking
+                                    for Saudi Arabia under S still finds it (owner, 2026-09-24). */}
+                                <optgroup label={t('access::staff.countries_ours')}>
+                                    {page.countries
+                                        .filter((country) => country.ours)
+                                        .map((country) => (
+                                            <option key={`ours-${country.code}`} value={country.code}>
+                                                {country.name}
+                                            </option>
+                                        ))}
+                                </optgroup>
+
+                                <optgroup label={t('access::staff.countries_all')}>
+                                    {page.countries.map((country) => (
+                                        <option key={country.code} value={country.code}>
+                                            {country.name}
+                                        </option>
+                                    ))}
+                                </optgroup>
                             </select>
                         </Field>
 
