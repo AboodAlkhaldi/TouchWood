@@ -94,6 +94,20 @@ describe('the media library screen', function () {
         $browser->get('/admin/media')->assertForbidden();
     });
 
+    it('deletes a file, and detaches it from whatever was using it', function () {
+        $mediaId = libraryScreenFile();
+        $staffId = Fx::staff(superAdmin: true);
+        DB::table('access.staff_users')->where('id', $staffId)->update(['avatar_media_id' => $mediaId]);
+
+        $browser = libraryScreenSignIn($staffId);
+        $browser->post("/admin/media/{$mediaId}/delete")->assertRedirect();
+
+        // Gone, and the staff member who wore it no longer points at it: an avatar does not block
+        // a delete, so the use is detached rather than refusing (platform.md 1.4).
+        expect(DB::table('platform.media')->where('id', $mediaId)->exists())->toBeFalse()
+            ->and(DB::table('access.staff_users')->where('id', $staffId)->value('avatar_media_id'))->toBeNull();
+    });
+
     it('saves a description', function () {
         $mediaId = libraryScreenFile();
         $browser = libraryScreenSignIn(Fx::staffWith([PlatformPermissions::MEDIA_UPDATE], ['sa']));

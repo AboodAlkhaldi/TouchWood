@@ -95,6 +95,35 @@ it('draws the media library and switches between the table and the grid', functi
         ->assertNoJavaScriptErrors();
 });
 
+it('asks before deleting a file, in the page, and then deletes it', function () {
+    $filename = 'doomed-'.Str::random(6).'.jpg';
+    $id = libraryScreenFileNamed($filename, 'READY');
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', libraryScreenEmail())
+        ->type('#password', LIBRARY_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        ->navigate('/admin/media');
+
+    // Asked in the page, so a test can answer it. The browser's own confirm box could not be
+    // driven at all, which is why this went uncovered and then went wrong (owner, 2026-09-24).
+    $page->click("[data-test=\"delete-{$id}\"]")
+        ->assertSee('Nothing uses it')
+        ->assertNoJavaScriptErrors();
+
+    expect(DB::table('platform.media')->where('id', $id)->exists())->toBeTrue();
+
+    $page->click("[data-test=\"delete-confirm-{$id}\"]")
+        ->assertDontSee($filename)
+        ->assertNoJavaScriptErrors();
+
+    expect(DB::table('platform.media')->where('id', $id)->exists())->toBeFalse();
+});
+
 it('draws the audit log with its filters', function () {
     $page = visit('/admin/sign-in')
         ->type('#email', libraryScreenEmail())

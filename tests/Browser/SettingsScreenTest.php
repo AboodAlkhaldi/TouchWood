@@ -62,7 +62,10 @@ it('saves one setting on its own, leaving the rest of the screen alone', functio
     //
     // Addressed by attribute rather than by "#id": a setting's key has dots in it, and
     // "#access.customer.lockout_minutes" is a CSS selector for an id with two classes on it.
-    $page->type("[id=\"{$key}\"]", '27')
+    // Read until somebody says otherwise (owner, 2026-09-24): Edit opens the one box, saving
+    // closes it again.
+    $page->click("[data-test=\"edit-{$key}\"]")
+        ->type("[id=\"{$key}\"]", '27')
         ->click("[data-test=\"save-{$key}\"]")
         ->assertNoJavaScriptErrors();
 

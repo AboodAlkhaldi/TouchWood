@@ -163,17 +163,7 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
     const t = useTranslator();
 
     const alt = useForm({ alt_ar: file.altAr ?? '', alt_en: file.altEn ?? '' });
-
-    function remove() {
-        const message =
-            file.usedIn.length === 0
-                ? t('platform::admin_media.delete_confirm_unused')
-                : t('platform::admin_media.delete_confirm', { count: file.usedIn.length });
-
-        if (window.confirm(message)) {
-            router.post(`/admin/media/${file.id}/delete`);
-        }
-    }
+    const [confirming, setConfirming] = useState(false);
 
     return (
         <>
@@ -213,7 +203,12 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
                         {/* Not offered while a use blocks it: a button that always refuses is worse
                             than no button, and the reason is said instead. */}
                         {mayDelete && ! file.deleteBlocked ? (
-                            <Button variant="destructive" size="sm" onClick={remove}>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                data-test={`delete-${file.id}`}
+                                onClick={() => setConfirming((open) => !open)}
+                            >
                                 {t('platform::admin_media.delete')}
                             </Button>
                         ) : null}
@@ -265,6 +260,52 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
                                 </Button>
                             </div>
                         </form>
+                    </td>
+                </tr>
+            ) : null}
+
+            {/* Asked in the page rather than with the browser's own confirm box (owner,
+                2026-09-24). The spec asks a delete to say where the file is used first, and a
+                native box can only carry a sentence - it cannot list them. It also cannot be
+                driven by a test, which is why nothing here covered this before. */}
+            {confirming ? (
+                <tr>
+                    <td colSpan={6} className="bg-bad-soft px-4 py-4">
+                        <div className="grid gap-3">
+                            <p className="text-sm text-ink">
+                                {t(
+                                    file.usedIn.length === 0
+                                        ? 'platform::admin_media.delete_confirm_unused'
+                                        : 'platform::admin_media.delete_confirm',
+                                    { count: file.usedIn.length },
+                                )}
+                            </p>
+
+                            {file.usedIn.length === 0 ? null : (
+                                <ul className="grid gap-0.5 text-xs text-ink-muted">
+                                    {file.usedIn.map((use) => (
+                                        <li key={use} className="tw-figure">
+                                            {use}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    data-test={`delete-confirm-${file.id}`}
+                                    onClick={() => router.post(`/admin/media/${file.id}/delete`)}
+                                >
+                                    {t('platform::admin_media.delete')}
+                                </Button>
+
+                                <Button variant="outline" size="sm" onClick={() => setConfirming(false)}>
+                                    {t('platform::admin_media.cancel')}
+                                </Button>
+                            </div>
+                        </div>
                     </td>
                 </tr>
             ) : null}

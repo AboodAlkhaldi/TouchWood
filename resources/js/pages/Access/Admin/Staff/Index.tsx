@@ -104,9 +104,13 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
 
                             <ul className="grid gap-2">
                                 {group.staff.map((person) => (
+                                    /* The whole card opens the person, not just their name, by
+                                       stretching the link that is already there over it (owner,
+                                       2026-09-24). Same as a role's card, and for the same
+                                       reason: a link inside a link is invalid. */
                                     <li
                                         key={person.id}
-                                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3 shadow-card"
+                                        className="relative flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3 shadow-card transition-colors hover:border-brand"
                                     >
                                         <div className="flex items-center gap-3">
                                             {/* Initials, not a picture: resolving one per row would
@@ -119,7 +123,7 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
                                             <div className="grid gap-0.5">
                                                 <Link
                                                     href={`/admin/staff/${person.id}`}
-                                                    className="text-sm font-medium text-ink hover:text-brand"
+                                                    className="text-sm font-medium text-ink after:absolute after:inset-0 hover:text-brand"
                                                 >
                                                     {person.name}
                                                 </Link>
