@@ -24,6 +24,12 @@ code: string,
 name: string,
 ours: boolean,
 };
+export type CustomerRegisterPage = {
+minimumLength: number,
+};
+export type CustomerSignInPage = {
+rememberDays: number,
+};
 export type EditorPermissionRow = {
 name: string,
 label: string,
@@ -204,4 +210,8 @@ since: string | null,
 export type StoreOption = {
 id: string,
 name: string,
+};
+export type VerifyEmailPage = {
+email: string,
+linkHours: number,
 };

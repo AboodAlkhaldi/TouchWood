@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Platform\Presentation\Http\Controller;
 
 use App\Http\Page;
+use App\Http\StorefrontArea;
 use Illuminate\Http\Request;
 use Inertia\Response;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
@@ -17,7 +18,7 @@ use Modules\Platform\Presentation\Http\Resource\StoreHomePage;
 final readonly class StoreHomeController
 {
     /** @var list<string> */
-    private const array WORDS = ['platform::stores', 'admin'];
+    private const array WORDS = [...StorefrontArea::WORDS];
 
     public function __construct(
         private Page $page,

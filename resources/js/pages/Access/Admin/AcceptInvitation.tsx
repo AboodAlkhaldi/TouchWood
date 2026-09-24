@@ -5,6 +5,7 @@ import { FormError } from '@/components/FormError';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/PasswordInput';
+import { useRepeatedPassword } from '@/lib/passwords';
 import { useTranslator } from '@/lib/t';
 import type { InvitationPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -22,7 +23,11 @@ type Props = InvitationPage;
 
 export default function AcceptInvitation({ token, name, email, phone, minimumLength }: Props) {
     const t = useTranslator();
-    const form = useForm({ phone, password: '', password_confirmation: '' });
+    const form = useForm({ phone, password: '' });
+    // The second box is this page's to check (see lib/passwords): the endpoint takes `password`
+    // alone, so a typo in the box nobody can read would set a password they did not mean - on an
+    // account they have not signed in to yet.
+    const repeat = useRepeatedPassword(form.data.password);
 
     return (
         <SignInLayout
@@ -32,6 +37,13 @@ export default function AcceptInvitation({ token, name, email, phone, minimumLen
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
+
+                    // The button is already out of reach while the two differ; this is the same
+                    // rule again for a form sent by pressing Enter in a field.
+                    if (repeat.differs) {
+                        return;
+                    }
+
                     form.post(`/admin/invitation/${token}`);
                 }}
                 className="grid gap-5"
@@ -78,23 +90,26 @@ export default function AcceptInvitation({ token, name, email, phone, minimumLen
                 </Field>
 
                 <Field
-                    id="password_confirmation"
+                    id="password_repeat"
                     label={t('access::auth.confirm_password')}
-                    error={form.errors.password_confirmation}
+                    error={repeat.differs ? t('access::auth.passwords_differ') : undefined}
                 >
                     <PasswordInput
-                        id="password_confirmation"
-                        name="password_confirmation"
+                        id="password_repeat"
+                        name="password_repeat"
                         autoComplete="new-password"
                         required
-                        value={form.data.password_confirmation}
-                        onChange={(event) =>
-                            form.setData('password_confirmation', event.target.value)
-                        }
+                        value={repeat.value}
+                        onChange={(event) => repeat.setValue(event.target.value)}
                     />
                 </Field>
 
-                <Button type="submit" disabled={form.processing} className="w-full">
+                <Button
+                    type="submit"
+                    data-test="accept-invitation"
+                    disabled={form.processing || repeat.differs}
+                    className="w-full"
+                >
                     {t('access::auth.accept_invitation')}
                 </Button>
             </form>

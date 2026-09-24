@@ -102,3 +102,23 @@ it('takes a code typed on an Arabic keyboard, and signs the person in', function
         ->assertPathIs('/admin')
         ->assertNoJavaScriptErrors();
 });
+
+it('will not send a new password while the two boxes differ', function () {
+    // The same rule as the shop's reset page, and for the same reason: the endpoint takes
+    // `password` alone, so the second box is the page's to check or nobody's (owner, 2026-09-24).
+    // The token is not read by the page, so any token draws it. The panel is read in Arabic with
+    // no cookie to say otherwise, and the words are asked for in that language rather than in
+    // whichever one the last served request left on the application.
+    $page = visit('/admin/password/reset/a-token-this-page-never-reads');
+
+    $page->type('#password', 'a long enough password')
+        ->type('#password_repeat', 'a long enough passwerd')
+        ->assertSee((string) __('access::auth.passwords_differ', [], 'ar'))
+        ->assertDisabled('[data-test="save-password"]');
+
+    $page->clear('#password_repeat')
+        ->type('#password_repeat', 'a long enough password')
+        ->assertDontSee((string) __('access::auth.passwords_differ', [], 'ar'))
+        ->assertEnabled('[data-test="save-password"]')
+        ->assertNoJavaScriptErrors();
+});

@@ -6,6 +6,7 @@ use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Access\Presentation\Http\Controller\AdminPanelController;
 use Modules\Access\Presentation\Http\Controller\CustomerAccountController;
+use Modules\Access\Presentation\Http\Controller\CustomerAuthPageController;
 use Modules\Access\Presentation\Http\Controller\CustomerSessionController;
 use Modules\Access\Presentation\Http\Controller\RolesController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
@@ -141,6 +142,17 @@ Route::prefix('{store}/{locale}')
 Route::prefix('{store}/{locale}')
     ->middleware(StorefrontArea::MIDDLEWARE)
     ->group(function (): void {
+        /*
+        | The pages themselves (stage 2b step 4, frontend.md 3.6, F3-F6), at the addresses the spec
+        | names: /{store}/{lang}/register, not under "account/". The posts below keep the addresses
+        | they were published at - nothing already in the world is renamed to match a page.
+        */
+        Route::get('register', [CustomerAuthPageController::class, 'register'])->name('storefront.register');
+        Route::get('sign-in', [CustomerAuthPageController::class, 'signIn'])->name('storefront.sign-in');
+        Route::get('verify-email', [CustomerAuthPageController::class, 'verifyEmail'])->name('storefront.verify-email');
+        Route::get('password/forgot', [CustomerAuthPageController::class, 'forgotPassword'])->name('storefront.password.forgot');
+        Route::get('password/reset/{token}', [CustomerAuthPageController::class, 'resetPassword'])->name('storefront.password.reset');
+
         Route::post('account/register', [CustomerSessionController::class, 'register'])->name('storefront.account.register');
         Route::post('account/sign-in', [CustomerSessionController::class, 'signIn'])->name('storefront.account.sign-in');
         Route::post('account/password/forgot', [CustomerSessionController::class, 'forgotPassword'])->name('storefront.account.password.forgot');
