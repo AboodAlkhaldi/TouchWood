@@ -32,6 +32,8 @@ export type MenuEntry = {
     href: string;
     /** No permission means the module is not built yet: it opens the "coming soon" page. */
     comingSoon: boolean;
+    /** Named from the panel's own short list; see MenuIcon. Null draws the fallback. */
+    icon: string | null;
 };
 
 export type MenuGroup = {
@@ -90,6 +92,8 @@ export type SharedProps = {
     };
     viewer: Viewer | null;
     menu: MenuGroup[];
+    /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */
+    sidebarOpen: boolean;
     store: CurrentStore | null;
     flash: Flash;
     errors: PageErrors;

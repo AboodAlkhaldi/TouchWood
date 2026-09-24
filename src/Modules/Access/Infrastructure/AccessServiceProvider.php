@@ -295,8 +295,8 @@ final class AccessServiceProvider extends ServiceProvider
         | again in its own handler (handoff §19).
         */
         $this->app->make(AdminMenu::class)->register(
-            new MenuEntryDto('access', 'staff', PermissionGroup::StaffAndPermissions->value, 'access.staff.list', AccessPermissions::STAFF_VIEW, 10),
-            new MenuEntryDto('access', 'roles', PermissionGroup::StaffAndPermissions->value, 'access.staff.roles', AccessPermissions::ROLE_MANAGE, 20),
+            new MenuEntryDto('access', 'staff', PermissionGroup::StaffAndPermissions->value, 'access.staff.list', AccessPermissions::STAFF_VIEW, 10, icon: 'staff'),
+            new MenuEntryDto('access', 'roles', PermissionGroup::StaffAndPermissions->value, 'access.staff.roles', AccessPermissions::ROLE_MANAGE, 20, icon: 'roles'),
         );
 
         $this->carryPermissionChangesOnMigrate();

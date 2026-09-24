@@ -123,9 +123,13 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
                                                 >
                                                     {person.name}
                                                 </Link>
+                                                {/* A dot joins two things; with nothing before it,
+                                                    it only looks like something went missing. An
+                                                    admin with no role yet has neither. */}
                                                 <span className="text-xs text-ink-muted">
-                                                    {person.roleName}
-                                                    {person.email ? ` · ${person.email}` : ''}
+                                                    {[person.roleName, person.email]
+                                                        .filter((part) => part !== null && part !== '')
+                                                        .join(' · ')}
                                                 </span>
                                             </div>
                                         </div>

@@ -70,7 +70,11 @@ function accountScreenSignedIn(): PendingAwaitablePage
 
     // The whole code goes into the first box, the one marked one-time-code: the screen spreads it
     // across the rest, exactly as it does when a browser fills it in from the message.
-    $page->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+    // The click above only dispatches the submit; the code is not recorded until the server has
+    // answered it. Waiting for the code screen first is what makes reading it reliable (this
+    // raced, and lost, 2026-09-24).
+    $page->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]');
 
     return $page;

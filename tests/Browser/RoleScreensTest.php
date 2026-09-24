@@ -60,6 +60,10 @@ it('draws the roles screen, and offers it from the menu', function () {
         ->type('#email', newSuperAdminEmail())
         ->type('#password', ROLE_SCREEN_PASSWORD)
         ->click('button[type="submit"]')
+        // The click only dispatches the submit; the code is not recorded until the server has
+        // answered it. Waiting for the code screen first is what makes reading it reliable
+        // (this raced, and lost, 2026-09-24).
+        ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]')
         ->navigate('/admin/roles');
@@ -80,6 +84,10 @@ it('groups the actions by business area in the editor, rather than by declaratio
         ->type('#email', newSuperAdminEmail())
         ->type('#password', ROLE_SCREEN_PASSWORD)
         ->click('button[type="submit"]')
+        // The click only dispatches the submit; the code is not recorded until the server has
+        // answered it. Waiting for the code screen first is what makes reading it reliable
+        // (this raced, and lost, 2026-09-24).
+        ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]')
         ->navigate('/admin/roles/new');
@@ -96,6 +104,10 @@ it('creates a role from the screen, ticking an action and saving it', function (
         ->type('#email', newSuperAdminEmail())
         ->type('#password', ROLE_SCREEN_PASSWORD)
         ->click('button[type="submit"]')
+        // The click only dispatches the submit; the code is not recorded until the server has
+        // answered it. Waiting for the code screen first is what makes reading it reliable
+        // (this raced, and lost, 2026-09-24).
+        ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]')
         ->navigate('/admin/roles/new');
@@ -129,7 +141,11 @@ it('shows an admin no way into a role that is not theirs to change', function ()
         ->type('#password', ROLE_SCREEN_PASSWORD)
         ->click('button[type="submit"]');
 
-    $page->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+    // The click above only dispatches the submit; the code is not recorded until the server has
+    // answered it. Waiting for the code screen first is what makes reading it reliable (this
+    // raced, and lost, 2026-09-24).
+    $page->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]')
         ->navigate('/admin/roles')
         ->assertSee($name)

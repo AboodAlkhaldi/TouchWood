@@ -43,6 +43,7 @@ export default function Show(person: Props) {
         <AdminLayout
             title={person.name}
             subtitle={person.roleName}
+            breadcrumbs={[{ label: t('access::staff.title'), href: '/admin/staff' }]}
             action={
                 <div className="flex flex-wrap gap-2">
                     {person.mayEditProfile ? (
