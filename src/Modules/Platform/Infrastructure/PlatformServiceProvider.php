@@ -8,6 +8,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Factory as Filesystems;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Queue\Events\JobAttempted;
 use Illuminate\Queue\Events\JobProcessing;
@@ -25,6 +26,7 @@ use Modules\Platform\Application\Media\MediaStorage;
 use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Application\Menu\InMemoryAdminMenu;
 use Modules\Platform\Application\PlatformApiImpl;
+use Modules\Platform\Application\Query\ListAudit\AuditReader;
 use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
@@ -35,6 +37,7 @@ use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Domain\Repository\StoreRepository;
 use Modules\Platform\Infrastructure\Eloquent\CachedStoreDirectory;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditLog;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditReader;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseMediaReader;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseMediaRepository;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseSettings;
@@ -77,6 +80,7 @@ final class PlatformServiceProvider extends ServiceProvider
         InMemorySettingsRegistry::class => InMemorySettingsRegistry::class,
         SettingValues::class => DatabaseSettings::class,
         StoreDirectory::class => CachedStoreDirectory::class,
+        AuditReader::class => DatabaseAuditReader::class,
         StoreRepository::class => EloquentStoreRepository::class,
         CurrencyRepository::class => EloquentCurrencyRepository::class,
         LaravelStoreContext::class => LaravelStoreContext::class,
@@ -153,6 +157,7 @@ final class PlatformServiceProvider extends ServiceProvider
             $app->make(MediaRepository::class),
             $app->make(MediaStorage::class),
             (int) config('platform.media.private_link_minutes'),
+            $app->make(ConnectionInterface::class),
         ));
     }
 
@@ -183,6 +188,8 @@ final class PlatformServiceProvider extends ServiceProvider
             new MenuEntryDto('platform', 'stores', 'store_settings', 'platform.admin.stores', PlatformPermissions::STORE_VIEW, 10, icon: 'stores'),
             new MenuEntryDto('platform', 'currencies', 'store_settings', 'platform.admin.currencies', PlatformPermissions::CURRENCY_UPDATE, 20, icon: 'billing'),
             new MenuEntryDto('platform', 'settings', 'store_settings', 'platform.admin.settings', PlatformPermissions::SETTINGS_VIEW, 30, icon: 'dashboard'),
+            new MenuEntryDto('platform', 'media', 'media', 'platform.admin.media', PlatformPermissions::MEDIA_UPLOAD, 10, icon: 'media'),
+            new MenuEntryDto('platform', 'audit', 'audit', 'platform.admin.audit', PlatformPermissions::AUDIT_VIEW, 10, icon: 'audit'),
         );
 
         // Images whose variant job was lost are queued again (owner's decision, 2026-09-16). Scheduled
