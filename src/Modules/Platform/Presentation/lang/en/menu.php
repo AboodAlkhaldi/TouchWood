@@ -7,4 +7,6 @@ return [
     'stores' => 'Stores',
     'currencies' => 'Currencies',
     'settings' => 'Settings',
+    'media' => 'Media library',
+    'audit' => 'Audit log',
 ];

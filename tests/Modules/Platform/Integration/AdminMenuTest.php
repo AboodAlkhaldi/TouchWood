@@ -46,11 +46,10 @@ function offeredMenu(): array
 function registerTestMenu(): void
 {
     app(AdminMenu::class)->register(
-        // Neither "staff" nor "roles": Access registers both for real now, and a module may not
-        // claim one key twice. What is left here is this test's own invention, and is named so.
+        // Only what no module registers for real. Staff, roles, stores, currencies, settings,
+        // media and audit are all real entries now, and a module may not claim one key twice - so
+        // what is left here is this test's own invention, and is named so.
         new MenuEntryDto('access', 'saved-roles', 'staff_and_permissions', 'test.menu.saved-roles', AccessPermissions::ROLE_MANAGE, 20),
-        new MenuEntryDto('platform', 'media', 'media', 'test.menu.media', PlatformPermissions::MEDIA_UPLOAD),
-        new MenuEntryDto('platform', 'audit', 'audit', 'test.menu.audit', PlatformPermissions::AUDIT_VIEW),
         // A module not built yet: its permissions do not exist, so it names none (§2.2).
         new MenuEntryDto('catalog', 'products', 'catalog', 'test.menu.products'),
     );

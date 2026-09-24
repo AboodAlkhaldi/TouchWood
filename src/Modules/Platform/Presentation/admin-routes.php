@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
+use Modules\Platform\Presentation\Http\Controller\AuditController;
 use Modules\Platform\Presentation\Http\Controller\CurrenciesController;
+use Modules\Platform\Presentation\Http\Controller\MediaController;
 use Modules\Platform\Presentation\Http\Controller\SettingsController;
 use Modules\Platform\Presentation\Http\Controller\StoresController;
 
@@ -33,4 +35,14 @@ Route::prefix(AdminArea::PREFIX)
         // setting applies to the store in the header, which is where the store comes from.
         Route::get('settings', [SettingsController::class, 'index'])->name('platform.admin.settings');
         Route::post('settings/{setting}', [SettingsController::class, 'update'])->name('platform.admin.settings.update');
+
+        // The media library. Media belongs to no store, so every question here is global.
+        Route::get('media', [MediaController::class, 'index'])->name('platform.admin.media');
+        Route::post('media', [MediaController::class, 'upload'])->name('platform.admin.media.upload');
+        Route::post('media/{media}/alt', [MediaController::class, 'describe'])->name('platform.admin.media.alt');
+        Route::post('media/{media}/retry', [MediaController::class, 'retry'])->name('platform.admin.media.retry');
+        Route::post('media/{media}/delete', [MediaController::class, 'delete'])->name('platform.admin.media.delete');
+
+        // The audit log, which is read and never written: the table refuses anything else.
+        Route::get('audit', [AuditController::class, 'index'])->name('platform.admin.audit');
     });

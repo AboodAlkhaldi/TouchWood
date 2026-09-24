@@ -14,8 +14,6 @@ use Illuminate\Testing\TestResponse;
 use Inertia\Ssr\SsrRenderFailed;
 use Inertia\Testing\AssertableInertia;
 use Modules\Access\Application\Permission\AccessPermissions;
-use Modules\Platform\Public\Contracts\AdminMenu;
-use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\PlatformPermissions;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -181,12 +179,9 @@ describe('the admin sign-in screens', function () {
 
 describe('the admin panel itself', function () {
     it('opens on the home page with the menu of what this person may do', function () {
-        // Access registers its own staff entry at boot, so only the one this test needs on top of
-        // it is added here: something they do not hold, to prove its group disappears with it.
-        app(AdminMenu::class)->register(
-            new MenuEntryDto('platform', 'audit', 'audit', 'platform.choose-store', PlatformPermissions::AUDIT_VIEW, 10),
-        );
-
+        // Nothing is registered here any more: every entry this test needs is a real one now.
+        // They hold staff.view alone, so the staff entry is offered and Platform's - stores,
+        // currencies, settings, media, audit - are not, which takes their groups with them.
         $browser = signedInBrowser([AccessPermissions::STAFF_VIEW]);
 
         $browser->get('/admin')

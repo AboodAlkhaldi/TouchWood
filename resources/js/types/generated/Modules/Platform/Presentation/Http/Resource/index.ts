@@ -1,3 +1,34 @@
+export type AuditChangeRow = {
+attribute: string,
+from: string | null,
+to: string | null,
+personal: boolean,
+};
+export type AuditLogPage = {
+entries: AuditRow[],
+actions: string[],
+sources: string[],
+filters: Record<string, string | null>,
+nextOccurredAt: string | null,
+nextId: number | null,
+};
+export type AuditRow = {
+id: string,
+occurredAt: string,
+action: string,
+actionLabel: string,
+subjectType: string,
+subjectId: string,
+source: string,
+actorType: string,
+actorId: string | null,
+actorName: string | null,
+requestedByType: string | null,
+requestedById: string | null,
+storeName: string | null,
+ipAddress: string | null,
+changes: AuditChangeRow[],
+};
 export type CurrenciesPage = {
 currencies: CurrencyRow[],
 exponents: number[],
@@ -13,6 +44,32 @@ sign: string | null,
 exponent: number,
 storeCount: number,
 exponentLocked: boolean,
+};
+export type MediaFileRow = {
+id: string,
+filename: string,
+mime: string,
+bytes: number,
+size: string,
+width: number | null,
+height: number | null,
+visibility: string,
+variantsStatus: string | null,
+retryable: boolean,
+uploadedAt: string,
+altAr: string | null,
+altEn: string | null,
+thumbnailUrl: string | null,
+usedIn: string[],
+deleteBlocked: boolean,
+};
+export type MediaPage = {
+media: MediaFileRow[],
+nextCreatedAt: string | null,
+nextId: string | null,
+mayUpload: boolean,
+mayUpdate: boolean,
+mayDelete: boolean,
 };
 export type SettingGroup = {
 module: string,
