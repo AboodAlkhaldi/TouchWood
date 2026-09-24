@@ -7,22 +7,39 @@ namespace Modules\Access\Presentation\Http\Controller;
 use App\Http\FormErrors;
 use App\Http\Page;
 use App\Http\StorefrontArea;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Response;
+use Modules\Access\Application\Command\DeleteAddress\DeleteAddress;
+use Modules\Access\Application\Command\DeleteAddress\DeleteAddressHandler;
+use Modules\Access\Application\Command\RequestAccountDeletion\RequestAccountDeletion;
+use Modules\Access\Application\Command\RequestAccountDeletion\RequestAccountDeletionHandler;
 use Modules\Access\Application\Command\RequestCustomerPhoneCode\RequestCustomerPhoneCode;
 use Modules\Access\Application\Command\RequestCustomerPhoneCode\RequestCustomerPhoneCodeHandler;
+use Modules\Access\Application\Command\SaveAddress\SaveAddress;
+use Modules\Access\Application\Command\SaveAddress\SaveAddressHandler;
+use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddress;
+use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddressHandler;
 use Modules\Access\Application\Command\UpdateCustomerProfile\UpdateCustomerProfile;
 use Modules\Access\Application\Command\UpdateCustomerProfile\UpdateCustomerProfileHandler;
 use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhone;
 use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhoneHandler;
 use Modules\Access\Application\Query\MyAccount\MyAccountForCustomer;
+use Modules\Access\Application\Query\MyAccount\MyAddressesForCustomer;
+use Modules\Access\Application\Query\MyAccount\MyAddressesInStoreDto;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
+use Modules\Access\Presentation\Http\Request\CurrentPasswordRequest;
+use Modules\Access\Presentation\Http\Request\CustomerAddressRequest;
 use Modules\Access\Presentation\Http\Request\CustomerCodeRequest;
 use Modules\Access\Presentation\Http\Request\CustomerPhoneRequest;
 use Modules\Access\Presentation\Http\Request\CustomerProfileRequest;
+use Modules\Access\Presentation\Http\Resource\AddressBookStore;
+use Modules\Access\Presentation\Http\Resource\AddressFieldRow;
+use Modules\Access\Presentation\Http\Resource\AddressRow;
 use Modules\Access\Presentation\Http\Resource\CustomerAccountPage;
+use Modules\Access\Public\Dto\AddressDto;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
@@ -43,11 +60,12 @@ final readonly class CustomerOwnAccountController
     private const array WORDS = [...StorefrontArea::WORDS, 'access::account', 'access::errors'];
 
     /** The tabs this page has, and the one anybody arriving without asking gets. */
-    private const array TABS = ['profile', 'security', 'phone'];
+    private const array TABS = ['profile', 'security', 'phone', 'addresses', 'close'];
 
     public function __construct(
         private Page $page,
         private MyAccountForCustomer $accounts,
+        private MyAddressesForCustomer $addresses,
         private CustomerSecuritySettings $settings,
         private PlatformApi $platform,
         private Application $app,
@@ -104,6 +122,85 @@ final readonly class CustomerOwnAccountController
         return $this->backTo('phone', 'access::account.shop_phone_changed');
     }
 
+    /**
+     * F9 - one address saved, new or changed.
+     *
+     * Which fields it must carry is the store's format, not this controller's: staff change that
+     * as data, and the domain checks the values against it. An address never moves country - one
+     * in another store is a new address there (access.md §1.9).
+     */
+    public function saveAddress(CustomerAddressRequest $request, SaveAddressHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new SaveAddress(
+                storeId: $request->text('store_id'),
+                label: $request->text('label'),
+                recipientName: $request->text('recipient_name'),
+                phone: $request->text('phone'),
+                fields: $request->fields(),
+                // The map pin stays empty in this stage: no map provider is chosen, and a pin
+                // half-filled is worse than none (frontend.md §3.6, decided 2026-09-19).
+                isDefault: $request->boolean('is_default'),
+                addressId: $request->text('address_id') === '' ? null : $request->text('address_id'),
+            ));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'phone', 'fields']);
+        }
+
+        return $this->backTo('addresses', 'access::account.address_saved');
+    }
+
+    /** F9 - the one a courier is given unless the customer picks another at checkout. */
+    public function setDefaultAddress(Request $request, string $address, SetDefaultAddressHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new SetDefaultAddress($address));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        return $this->backTo('addresses', 'access::account.address_default_set');
+    }
+
+    /**
+     * F9 - removing one. A store that has any address always has a default, so removing the
+     * default moves the flag to the newest of the rest; that is the handler's to do.
+     */
+    public function deleteAddress(Request $request, string $address, DeleteAddressHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new DeleteAddress($address));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        return $this->backTo('addresses', 'access::account.address_deleted');
+    }
+
+    /**
+     * F10 - closing the account, confirmed with the password (access.md §1.10).
+     *
+     * The account is locked at once and anonymized after fourteen days, and **every session ends
+     * the moment it is confirmed** (amendment 45): the domain raises the session version, so this
+     * browser is a visitor again on its next request. Which is why they land on the store home
+     * rather than back on a page they can no longer open - with the date, and with the one way
+     * back said plainly: sign in before then and nothing is deleted.
+     *
+     * There is no cancel button anywhere in the account for the same reason: they cannot reach it.
+     */
+    public function close(CurrentPasswordRequest $request, RequestAccountDeletionHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new RequestAccountDeletion($request->text('current_password'), (string) $request->ip()));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error, ['current_password']);
+        }
+
+        return redirect()->route('storefront.home')->with('status', __('access::account.closed', [
+            'date' => CarbonImmutable::now()->addDays(RequestAccountDeletionHandler::DAYS)->format('Y-m-d'),
+        ]));
+    }
+
     private function props(Request $request): CustomerAccountPage
     {
         $account = $this->accounts->forCurrentCustomer();
@@ -126,7 +223,48 @@ final readonly class CustomerOwnAccountController
             // language we write to them in.
             homeStore: $store?->name->in($locale) ?? '',
             passwordMinimumLength: $this->settings->passwordMinLength(),
+            addresses: $this->addressBook($locale),
+            deletionDays: RequestAccountDeletionHandler::DAYS,
         );
+    }
+
+    /**
+     * Every country, with what the customer has in each (F9).
+     *
+     * The names are the page's language; the fields are the store's own, already in its order.
+     *
+     * @return list<AddressBookStore>
+     */
+    private function addressBook(string $locale): array
+    {
+        return array_map(function (MyAddressesInStoreDto $store) use ($locale): AddressBookStore {
+            $named = $this->platform->store(StoreId::fromString($store->storeId));
+
+            return new AddressBookStore(
+                storeId: $store->storeId,
+                storeCode: $store->storeCode,
+                storeName: $named?->name->in($locale) ?? $store->storeCode,
+                hasFormat: $store->hasFormat,
+                fields: array_map(fn ($field): AddressFieldRow => new AddressFieldRow(
+                    $field->key,
+                    $locale === 'ar' ? $field->labelAr : $field->labelEn,
+                    $field->required,
+                    $field->maxLength,
+                ), $store->fields),
+                addresses: array_map(fn (AddressDto $address): AddressRow => new AddressRow(
+                    $address->id,
+                    $address->label,
+                    $address->recipientName,
+                    $address->phone,
+                    $address->fields,
+                    $address->formatted,
+                    $address->isDefault,
+                    $address->isComplete,
+                ), $store->addresses),
+                limit: $store->limit,
+                full: count($store->addresses) >= $store->limit,
+            );
+        }, $this->addresses->forCurrentCustomer());
     }
 
     /**

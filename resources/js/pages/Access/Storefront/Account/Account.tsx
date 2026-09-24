@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AccountLayout } from '@/layouts/AccountLayout';
 import { useTranslator } from '@/lib/t';
+import { AddressesTab } from '@/pages/Access/Storefront/Account/AddressesTab';
+import { CloseTab } from '@/pages/Access/Storefront/Account/CloseTab';
 import { PhoneTab } from '@/pages/Access/Storefront/Account/PhoneTab';
 import { ProfileTab } from '@/pages/Access/Storefront/Account/ProfileTab';
 import { SecurityTab } from '@/pages/Access/Storefront/Account/SecurityTab';
@@ -10,11 +12,8 @@ import type { CustomerAccountPage } from '@/types/generated/Modules/Access/Prese
 | F7 and F8 - a customer's own account (frontend.md §3.6).
 |
 | One screen with tabs, as the panel's is, because it is one person's account: Details, Password,
-| Phone. It only ever shows the person looking at it - there is no id in any route behind it.
-|
-| Addresses and closing the account are tabs of this same screen and arrive with F9 and F10. They
-| are not listed here yet, because a heading that opens an empty panel is worse than one that is
-| not there.
+| Phone, Addresses, and closing it. It only ever shows the person looking at it - there is no id in
+| any route behind it.
 |
 | Which tab is open is this browser's business while the person is here, and the server's when they
 | arrive: a form that saved comes back to `?tab=phone` rather than dropping them at the top of the
@@ -23,7 +22,7 @@ import type { CustomerAccountPage } from '@/types/generated/Modules/Access/Prese
 
 type Props = CustomerAccountPage;
 
-const TABS = ['profile', 'security', 'phone'] as const;
+const TABS = ['profile', 'security', 'phone', 'addresses', 'close'] as const;
 
 type Tab = (typeof TABS)[number];
 
@@ -51,6 +50,8 @@ export default function Account(account: Props) {
             {open === 'profile' ? <ProfileTab account={account} /> : null}
             {open === 'security' ? <SecurityTab account={account} /> : null}
             {open === 'phone' ? <PhoneTab account={account} /> : null}
+            {open === 'addresses' ? <AddressesTab account={account} /> : null}
+            {open === 'close' ? <CloseTab account={account} /> : null}
         </AccountLayout>
     );
 }

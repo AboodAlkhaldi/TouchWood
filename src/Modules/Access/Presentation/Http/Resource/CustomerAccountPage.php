@@ -30,6 +30,9 @@ final class CustomerAccountPage extends Data
      *
      * The languages to choose between are not here: the shop already carries them on every page,
      * and they are Platform's to say, not Access's.
+     * @param  list<AddressBookStore>  $addresses  every country, with what they have in each (F9)
+     * @param  int  $deletionDays  how long a closed account waits before it is anonymized, which
+     *                             the screen says in words before anybody confirms (F10)
      */
     public function __construct(
         public string $tab,
@@ -45,5 +48,7 @@ final class CustomerAccountPage extends Data
         public bool $mayOrder,
         public string $homeStore,
         public int $passwordMinimumLength,
+        public array $addresses,
+        public int $deletionDays,
     ) {}
 }
