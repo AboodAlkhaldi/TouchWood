@@ -4,6 +4,7 @@ import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
 import { ThemeToggle } from '@/components/Preferences';
 import { Logo } from '@/components/Logo';
+import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
@@ -57,21 +58,11 @@ export function StorefrontLayout({ title, children }: Props) {
 
                             <ThemeToggle />
 
-                            {/* A shopper's name, and behind it their own account - the only thing
-                                there until Sales gives them orders to look at.
-
-                                Nothing at all when nobody is signed in: the way in is a page that
-                                does not exist yet, and a header that offers a door to a 404 is
-                                worse than one that offers none. It arrives with the account
-                                screens (frontend.md 3.6, F3-F5). */}
-                            {shop !== null && shop !== undefined && shopper !== null && shopper !== undefined ? (
-                                <Link
-                                    href={`/${shop.code}/${locale}/account`}
-                                    className="text-sm text-ink hover:text-brand"
-                                >
-                                    {shopper.name}
-                                </Link>
-                            ) : null}
+                            {/* Only under a store: the country page has none, and every address in
+                                the shop is written inside one. */}
+                            {shop === null || shop === undefined ? null : (
+                                <Shopper shopper={shopper ?? null} />
+                            )}
                         </div>
                     </div>
                 </header>
@@ -86,6 +77,53 @@ export function StorefrontLayout({ title, children }: Props) {
             <SyncDocument />
             <Toasts />
         </>
+    );
+}
+
+/**
+ * Whoever is in the shop: the way in, or their name and the way out (frontend.md §3.6).
+ *
+ * An address that has not been confirmed is said here rather than left for the moment somebody
+ * tries to order: until it is, they may look around and fill a basket and no more (F4).
+ *
+ * The name is not a link yet - the account screens are the next part of this step - and a sign-out
+ * is a post, because it changes something.
+ */
+function Shopper({ shopper }: { shopper: SharedProps['shopper'] }) {
+    const t = useTranslator();
+    const link = useLink();
+
+    if (shopper === null || shopper === undefined) {
+        return (
+            <Link href={link('storefront.sign-in')} className="text-sm text-ink hover:text-brand">
+                {t('access::auth.sign_in')}
+            </Link>
+        );
+    }
+
+    return (
+        <span className="flex items-center gap-3">
+            {shopper.emailVerified ? null : (
+                <Link
+                    href={link('storefront.verify-email')}
+                    data-test="verify-email"
+                    className="rounded-md bg-warn-soft px-2 py-1 text-xs text-warn hover:underline"
+                >
+                    {t('access::auth.verify_pending')}
+                </Link>
+            )}
+
+            <span className="text-sm text-ink">{shopper.name}</span>
+
+            <button
+                type="button"
+                data-test="sign-out"
+                onClick={() => router.post(link('storefront.account.sign-out'))}
+                className="text-sm text-ink-muted hover:text-brand"
+            >
+                {t('access::auth.sign_out')}
+            </button>
+        </span>
     );
 }
 

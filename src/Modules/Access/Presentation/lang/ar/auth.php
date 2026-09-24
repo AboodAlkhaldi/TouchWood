@@ -58,4 +58,35 @@ return [
 
     'email_change_title' => 'تأكيد بريدك الجديد',
     'email_change_subtitle' => 'لا يتغيّر شيء حتى تضغط الزر.',
+
+    /*
+    | شاشات المتجر نفسها (F3–F6). مفاتيح مستقلة عن مفاتيح اللوحة لأن العبارات تختلف: للمتسوّق بريد
+    | إلكتروني لا بريد عمل، وهو يدخل إلى حسابه هو لا إلى لوحة إدارة.
+    */
+    'shop_sign_in_subtitle' => 'حسابك وعناوينك وطلباتك.',
+    'customer_email' => 'البريد الإلكتروني',
+    'first_name' => 'الاسم الأول',
+    'last_name' => 'اسم العائلة',
+    'remember_me' => 'أبقني مسجّل الدخول :days يومًا',
+    'no_account' => 'ليس لديك حساب؟',
+    'create_account' => 'إنشاء حساب',
+    'have_account' => 'لديك حساب بالفعل؟',
+
+    'register_title' => 'إنشاء حساب',
+    'register_subtitle' => 'حساب واحد لكل الدول التي نبيع فيها.',
+    'account_type' => 'لمن هذا الحساب؟',
+    'account_type_individual' => 'لي',
+    'account_type_individual_hint' => 'تسوّق بصفة شخصية.',
+    'account_type_company' => 'لشركتي',
+    'account_type_company_hint' => 'بيانات الشركة ومستنداتها تأتي بعد ذلك.',
+    'account_type_permanent' => 'لا يمكن تغيير هذا الاختيار لاحقًا.',
+    'terms_accept' => 'أوافق على شروط البيع وسياسة الخصوصية.',
+
+    'verify_title' => 'تأكيد بريدك الإلكتروني',
+    'verify_subtitle' => 'أرسلنا الرابط إلى هذا العنوان:',
+    'verify_link_hours' => 'الرابط صالح :count ساعة.',
+    'verify_what_next' => 'إلى أن تؤكّده يمكنك التصفّح وملء السلة، لكن لا يمكنك الطلب.',
+    'verify_resend' => 'إعادة إرسال الرابط',
+    'verify_pending' => 'أكّد بريدك الإلكتروني',
+    'passwords_differ' => 'كلمتا المرور غير متطابقتين.',
 ];

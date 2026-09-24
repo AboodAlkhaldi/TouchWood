@@ -58,4 +58,36 @@ return [
 
     'email_change_title' => 'Confirm your new email',
     'email_change_subtitle' => 'Nothing changes until you press the button.',
+
+    /*
+    | The shop's own screens (F3-F6). Separate keys from the panel's, because the words differ:
+    | a shopper has an email, not a work email, and signs in to their own account rather than to
+    | an admin panel.
+    */
+    'shop_sign_in_subtitle' => 'Your account, your addresses and your orders.',
+    'customer_email' => 'Email',
+    'first_name' => 'First name',
+    'last_name' => 'Last name',
+    'remember_me' => 'Keep me signed in for :days days',
+    'no_account' => 'No account yet?',
+    'create_account' => 'Create an account',
+    'have_account' => 'Already have an account?',
+
+    'register_title' => 'Create an account',
+    'register_subtitle' => 'One account for every country we sell in.',
+    'account_type' => 'Who is this account for?',
+    'account_type_individual' => 'Myself',
+    'account_type_individual_hint' => 'Shopping as a person.',
+    'account_type_company' => 'My company',
+    'account_type_company_hint' => 'Your company details and documents come next.',
+    'account_type_permanent' => 'This choice can never be changed later.',
+    'terms_accept' => 'I accept the terms of sale and the privacy policy.',
+
+    'verify_title' => 'Confirm your email',
+    'verify_subtitle' => 'We sent the link to this address:',
+    'verify_link_hours' => 'The link is good for :count hours.',
+    'verify_what_next' => 'Until you confirm it you can look around and fill a basket, but not order.',
+    'verify_resend' => 'Send the link again',
+    'verify_pending' => 'Confirm your email',
+    'passwords_differ' => 'The two passwords are not the same.',
 ];

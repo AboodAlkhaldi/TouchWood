@@ -76,7 +76,10 @@ final readonly class ShareStorefrontPage
         return [
             'id' => $customerId,
             'name' => trim(($customer['first_name'] ?? '').' '.($customer['last_name'] ?? '')),
-            'emailVerified' => ($customer['email_verified_at'] ?? null) !== null,
+            // The reader answers 'email_verified', a boolean - asking it for a timestamp gets
+            // null every time, which reads as "never confirmed" for everybody (found by a test
+            // that asserted false and passed for the wrong reason, 2026-09-24).
+            'emailVerified' => ($customer['email_verified'] ?? false) === true,
         ];
     }
 }

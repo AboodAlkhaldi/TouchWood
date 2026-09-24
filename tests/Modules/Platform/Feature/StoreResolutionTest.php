@@ -42,6 +42,23 @@ describe('a store and its language', function () {
             ->assertInertia(fn (AssertableInertia $page) => $page->where('name', 'Saudi Arabia'));
     });
 
+    it('carries the words its own header reads', function () {
+        // A page names the files it uses and gets those and nothing else - including its layout's,
+        // which the layout cannot ask for. Without them the header draws "access::auth.sign_out"
+        // where a person reads it, and every other suite calls the page green (found in a browser,
+        // 2026-09-24).
+        get('/sa/en')->assertOk()->assertInertia(function (AssertableInertia $page) {
+            /** @var array<string, string> $words */
+            $words = $page->toArray()['props']['translations'];
+
+            expect($words)->toHaveKey('access::auth.sign_in')
+                ->and($words)->toHaveKey('admin.theme.dark')
+                ->and($words)->toHaveKey('platform::stores.placeholder')
+                // Still only the files the page named, never the system's whole dictionary.
+                ->and($words)->not->toHaveKey('access::permissions.access.staff.invite');
+        });
+    });
+
     it('shows the letters for a currency that has no sign, in the page language', function () {
         get('/eg/ar')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('symbol', 'ج.م'));
         get('/eg/en')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('symbol', 'EGP'));

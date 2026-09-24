@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Platform\Presentation\Http\Controller;
 
 use App\Http\Page;
+use App\Http\StorefrontArea;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ use Modules\Platform\Public\Dto\StoreDto;
 final readonly class ChooseStoreController
 {
     /** @var list<string> */
-    private const array WORDS = ['platform::stores', 'admin'];
+    private const array WORDS = [...StorefrontArea::WORDS];
 
     public function __construct(
         private PlatformApi $platform,

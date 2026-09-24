@@ -37,6 +37,20 @@ final class StorefrontArea
     public const string SIGNED_IN = 'access.customer';
 
     /**
+     * The words the shop's frame itself reads, which every page of it must carry.
+     *
+     * A page names the translation files it uses and gets those and nothing else (frontend.md
+     * §1.5) - **including its layout's**, because the layout has no way to ask for them. The
+     * header holds a country switch, a theme toggle and either a name or the way in, and a page
+     * that ships its own words but not these renders "access::auth.sign_out" on the screen, where
+     * somebody reads it (found by running it, 2026-09-24). Named here so a module adding a shop
+     * page spreads one list rather than remembering three.
+     *
+     * @var list<string>
+     */
+    public const array WORDS = ['access::auth', 'platform::stores', 'admin'];
+
+    /**
      * What every shop page under a store passes through, signed in or not, in this order.
      *
      * @var list<string>
