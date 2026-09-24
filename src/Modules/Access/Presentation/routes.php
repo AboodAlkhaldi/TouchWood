@@ -8,6 +8,7 @@ use Modules\Access\Presentation\Http\Controller\AdminPanelController;
 use Modules\Access\Presentation\Http\Controller\CustomerAccountController;
 use Modules\Access\Presentation\Http\Controller\CustomerAuthPageController;
 use Modules\Access\Presentation\Http\Controller\CustomerOwnAccountController;
+use Modules\Access\Presentation\Http\Controller\CustomersController;
 use Modules\Access\Presentation\Http\Controller\CustomerSessionController;
 use Modules\Access\Presentation\Http\Controller\RolesController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
@@ -91,6 +92,20 @@ Route::prefix('admin')
             Route::post('staff/{staff}/invitation/resend', [StaffController::class, 'resendInvitation'])->name('access.staff.invitation.resend');
             Route::post('staff/{staff}/invitation/cancel', [StaffController::class, 'cancelInvitation'])->name('access.staff.invitation.cancel');
             Route::post('staff/{staff}/refresh', [StaffController::class, 'refresh'])->name('access.staff.refresh');
+
+            /*
+            | Customers (stage 2b step 4, frontend.md 3.7). Staff see the customers of their own
+            | stores; a Super Admin sees everyone. Nothing here edits a customer: their profile is
+            | their own, and what staff may do is block, unblock, and start or stop the same
+            | fourteen-day deletion the customer can start themselves - each with a reason, and
+            | each admin-only.
+            */
+            Route::get('customers', [CustomersController::class, 'index'])->name('access.staff.customers');
+            Route::get('customers/{customer}', [CustomersController::class, 'show'])->name('access.staff.customers.show');
+            Route::post('customers/{customer}/block', [CustomersController::class, 'block'])->name('access.staff.customers.block');
+            Route::post('customers/{customer}/unblock', [CustomersController::class, 'unblock'])->name('access.staff.customers.unblock');
+            Route::post('customers/{customer}/delete', [CustomersController::class, 'requestDeletion'])->name('access.staff.customers.delete');
+            Route::post('customers/{customer}/delete/cancel', [CustomersController::class, 'cancelDeletion'])->name('access.staff.customers.delete.cancel');
 
             Route::get('roles', [RolesController::class, 'index'])->name('access.staff.roles');
             Route::get('roles/new', [RolesController::class, 'create'])->name('access.staff.roles.new');

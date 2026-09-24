@@ -48,10 +48,14 @@ final readonly class ListCustomersHandler
         $status = $query->status === null
             ? null
             : (CustomerStatus::tryFrom($query->status) ?? throw new InvalidAccessAttribute('status', 'not an account status'))->value;
+        // A caller's value again, and answered the same way.
+        $accountType = $query->accountType === null
+            ? null
+            : (AccountType::tryFrom(strtoupper($query->accountType)) ?? throw new InvalidAccessAttribute('account_type', 'individual or company'))->value;
         // null is what storesWith() answers for every store, now and for one opened later.
         $storeIds = $stores === null ? null : array_map(static fn (StoreId $store): string => $store->value, $stores);
 
-        $found = $this->customers->customers($storeIds, $query->search, $status, $page, $perPage);
+        $found = $this->customers->customers($storeIds, $query->search, $status, $accountType, $page, $perPage);
 
         return new CustomerPage(
             array_map($this->toSummary(...), $found['rows']),

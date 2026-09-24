@@ -77,6 +77,7 @@ describe('the admin menu', function () {
         // list grows as screens ship, and the order it grows in is the thing being asserted.
         expect(offeredMenu())->toBe([
             'catalog/products',
+            'customers/customers',
             'staff_and_permissions/staff',
             'staff_and_permissions/roles',
             'staff_and_permissions/saved-roles',

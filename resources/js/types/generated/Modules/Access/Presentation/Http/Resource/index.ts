@@ -66,8 +66,48 @@ passwordMinimumLength: number,
 addresses: AddressBookStore[],
 deletionDays: number,
 };
+export type CustomerAddressGroup = {
+storeId: string,
+storeName: string,
+addresses: AddressRow[],
+};
+export type CustomerDetailsPage = {
+customer: CustomerRow,
+locale: string,
+addresses: CustomerAddressGroup[],
+mayBlock: boolean,
+mayUnblock: boolean,
+mayStartDeletion: boolean,
+mayCancelDeletion: boolean,
+deletionDays: number,
+};
+export type CustomerListPage = {
+customers: CustomerRow[],
+total: number,
+page: number,
+perPage: number,
+search: string | null,
+status: string | null,
+accountType: string | null,
+statuses: string[],
+accountTypes: string[],
+};
 export type CustomerRegisterPage = {
 minimumLength: number,
+};
+export type CustomerRow = {
+id: string,
+name: string,
+email: string,
+phone: string | null,
+accountType: string,
+status: string,
+emailVerified: boolean,
+phoneVerified: boolean,
+deletionScheduledFor: string | null,
+anonymized: boolean,
+homeStore: string,
+registeredAt: string,
 };
 export type CustomerSignInPage = {
 rememberDays: number,

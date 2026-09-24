@@ -17,9 +17,9 @@ final readonly class DatabaseCustomerReader implements CustomerReader
         private ConnectionInterface $db,
     ) {}
 
-    public function customers(?array $homeStoreIds, ?string $search, ?string $status, int $page, int $perPage): array
+    public function customers(?array $homeStoreIds, ?string $search, ?string $status, ?string $accountType, int $page, int $perPage): array
     {
-        $query = $this->query($homeStoreIds, $search, $status);
+        $query = $this->query($homeStoreIds, $search, $status, $accountType);
         $total = (clone $query)->count();
 
         $rows = $query
@@ -45,7 +45,7 @@ final readonly class DatabaseCustomerReader implements CustomerReader
     /**
      * @param  list<string>|null  $homeStoreIds
      */
-    private function query(?array $homeStoreIds, ?string $search, ?string $status): Builder
+    private function query(?array $homeStoreIds, ?string $search, ?string $status, ?string $accountType = null): Builder
     {
         $query = $this->db->table(self::TABLE);
 
@@ -55,6 +55,11 @@ final readonly class DatabaseCustomerReader implements CustomerReader
 
         if ($status !== null) {
             $query->where('status', $status);
+        }
+
+        // Already one of the two the enum names by the time it reaches here.
+        if ($accountType !== null) {
+            $query->where('account_type', $accountType);
         }
 
         if ($search !== null && trim($search) !== '') {
