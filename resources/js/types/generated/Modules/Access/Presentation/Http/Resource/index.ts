@@ -24,6 +24,20 @@ code: string,
 name: string,
 ours: boolean,
 };
+export type CustomerAccountPage = {
+tab: string,
+firstName: string,
+lastName: string,
+email: string,
+accountType: string,
+locale: string,
+phone: string | null,
+emailVerified: boolean,
+phoneVerified: boolean,
+mayOrder: boolean,
+homeStore: string,
+passwordMinimumLength: number,
+};
 export type CustomerRegisterPage = {
 minimumLength: number,
 };

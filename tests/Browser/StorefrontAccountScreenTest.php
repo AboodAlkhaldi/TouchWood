@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Pest\Browser\Api\PendingAwaitablePage;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 
@@ -150,5 +151,68 @@ it('will not send a new password while the two boxes differ', function () {
         ->type('#password_repeat', 'a long enough password')
         ->assertDontSee((string) __('access::auth.passwords_differ', [], 'en'))
         ->assertEnabled('[data-test="save-password"]')
+        ->assertNoJavaScriptErrors();
+});
+
+/**
+ * A browser with a new account in it, signed in - which is what registering leaves behind.
+ *
+ * @return array{0: string, 1: PendingAwaitablePage}
+ */
+function shopSignedIn(): array
+{
+    $email = shopAddress();
+
+    $page = visit('/sa/en/register');
+    $page->type('#first_name', 'Noura')
+        ->type('#last_name', 'Saleh')
+        ->type('#email', $email)
+        ->type('#password', 'a long enough password')
+        ->click('[data-test="terms"]')
+        ->click('button[type="submit"]')
+        ->assertPathIs('/sa/en');
+
+    return [$email, $page];
+}
+
+it('opens the account from the header and shows what is still missing', function () {
+    [$email, $page] = shopSignedIn();
+
+    $page->click('[data-test="my-account"]')
+        ->assertPathIs('/sa/en/account')
+        ->assertSee('My account')
+        // Their own address, which they cannot change, said where it is rather than refused later.
+        ->assertSee($email)
+        ->assertSee('Your email address cannot be changed.')
+        // Nothing verified yet, so this is the page that says what ordering waits for.
+        ->assertSeeIn('[data-test="before-ordering"]', 'Before you can order')
+        ->assertNoJavaScriptErrors();
+});
+
+it('saves a new name and comes back to the tab it was sent from', function () {
+    [, $page] = shopSignedIn();
+
+    $page->navigate('/sa/en/account')
+        ->clear('#first_name')
+        ->type('#first_name', 'Maryam')
+        ->click('[data-test="save-profile"]')
+        // Back on the details tab, not at the top of the first one - and the header, which is on
+        // every page of the shop, is saying the new name.
+        ->assertSee('Maryam Saleh')
+        ->assertNoJavaScriptErrors();
+});
+
+it('adds a phone number in two steps', function () {
+    [, $page] = shopSignedIn();
+
+    $page->navigate('/sa/en/account')
+        ->click('[data-test="tab-phone"]')
+        ->assertSee('No number yet.')
+        ->type('#phone', '+966512345678')
+        ->click('[data-test="send-phone-code"]')
+        // The second step only appears once the server says a code went out.
+        ->type('#phone_code', RecordingSecurityMessages::installed()->lastCode())
+        ->click('[data-test="confirm-phone"]')
+        ->assertSee('+966512345678')
         ->assertNoJavaScriptErrors();
 });

@@ -86,8 +86,7 @@ export function StorefrontLayout({ title, children }: Props) {
  * An address that has not been confirmed is said here rather than left for the moment somebody
  * tries to order: until it is, they may look around and fill a basket and no more (F4).
  *
- * The name is not a link yet - the account screens are the next part of this step - and a sign-out
- * is a post, because it changes something.
+ * The name opens their account; a sign-out is a post, because it changes something.
  */
 function Shopper({ shopper }: { shopper: SharedProps['shopper'] }) {
     const t = useTranslator();
@@ -113,7 +112,13 @@ function Shopper({ shopper }: { shopper: SharedProps['shopper'] }) {
                 </Link>
             )}
 
-            <span className="text-sm text-ink">{shopper.name}</span>
+            <Link
+                href={link('storefront.account')}
+                data-test="my-account"
+                className="text-sm text-ink hover:text-brand"
+            >
+                {shopper.name}
+            </Link>
 
             <button
                 type="button"

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Access\Presentation\Http\Controller\AdminPanelController;
 use Modules\Access\Presentation\Http\Controller\CustomerAccountController;
 use Modules\Access\Presentation\Http\Controller\CustomerAuthPageController;
+use Modules\Access\Presentation\Http\Controller\CustomerOwnAccountController;
 use Modules\Access\Presentation\Http\Controller\CustomerSessionController;
 use Modules\Access\Presentation\Http\Controller\RolesController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
@@ -159,6 +160,17 @@ Route::prefix('{store}/{locale}')
         Route::post('account/password/reset/{token}', [CustomerSessionController::class, 'resetPassword'])->name('storefront.account.reset-password');
 
         Route::middleware(RequireCustomer::ALIAS)->group(function (): void {
+            /*
+            | The customer's own account (stage 2b step 4, frontend.md 3.6, F7 and F8). One page
+            | with tabs and one POST per thing it changes, and no route carrying an id: each
+            | handler reads who is asking from the session, so there is nothing to spell somebody
+            | else's account with.
+            */
+            Route::get('account', [CustomerOwnAccountController::class, 'show'])->name('storefront.account');
+            Route::post('account/profile', [CustomerOwnAccountController::class, 'updateProfile'])->name('storefront.account.profile');
+            Route::post('account/phone', [CustomerOwnAccountController::class, 'requestPhoneCode'])->name('storefront.account.phone');
+            Route::post('account/phone/code', [CustomerOwnAccountController::class, 'confirmPhone'])->name('storefront.account.phone.confirm');
+
             Route::post('account/sign-out', [CustomerSessionController::class, 'signOut'])->name('storefront.account.sign-out');
             Route::post('account/password', [CustomerSessionController::class, 'changePassword'])->name('storefront.account.password.change');
             Route::post('account/verify-email/resend', [CustomerSessionController::class, 'resendVerification'])->name('storefront.account.verify-email.resend');
