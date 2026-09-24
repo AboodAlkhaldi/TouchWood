@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useForm } from '@inertiajs/react';
+import { useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { PermissionPicker } from '@/components/PermissionPicker';
@@ -77,13 +77,11 @@ export default function Role(page: Props) {
         <AdminLayout
             title={t('access::staff.change_role')}
             subtitle={page.staffName}
-            action={
-                <Button variant="ghost" asChild>
-                    <Link href={`/admin/staff/${page.staffId}`}>
-                        {t('access::staff.back_to', { name: page.staffName })}
-                    </Link>
-                </Button>
-            }
+            // The way back, rather than a button saying the same thing twice.
+            breadcrumbs={[
+                { label: t('access::staff.title'), href: '/admin/staff' },
+                { label: page.staffName, href: `/admin/staff/${page.staffId}` },
+            ]}
         >
             <form
                 onSubmit={(event) => {

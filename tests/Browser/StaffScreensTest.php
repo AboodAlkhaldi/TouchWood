@@ -59,6 +59,10 @@ it('draws the staff list grouped by store, and opens one person', function () {
         ->type('#email', staffScreenSuperAdminEmail())
         ->type('#password', STAFF_SCREEN_PASSWORD)
         ->click('button[type="submit"]')
+        // The click only dispatches the submit; the code is not recorded until the server has
+        // answered it. Waiting for the code screen first is what makes reading it reliable
+        // (this raced, and lost, 2026-09-24).
+        ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]')
         ->navigate('/admin/staff');
@@ -86,6 +90,10 @@ it('saves a role and its stores from the editor', function () {
         ->type('#email', staffScreenSuperAdminEmail())
         ->type('#password', STAFF_SCREEN_PASSWORD)
         ->click('button[type="submit"]')
+        // The click only dispatches the submit; the code is not recorded until the server has
+        // answered it. Waiting for the code screen first is what makes reading it reliable
+        // (this raced, and lost, 2026-09-24).
+        ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]')
         ->navigate("/admin/staff/{$staffId}/role");
@@ -106,6 +114,10 @@ it('walks the invitation through its three steps, sending nothing before the las
         ->type('#email', staffScreenSuperAdminEmail())
         ->type('#password', STAFF_SCREEN_PASSWORD)
         ->click('button[type="submit"]')
+        // The click only dispatches the submit; the code is not recorded until the server has
+        // answered it. Waiting for the code screen first is what makes reading it reliable
+        // (this raced, and lost, 2026-09-24).
+        ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]')
         ->navigate('/admin/staff/invite');

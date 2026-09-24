@@ -82,6 +82,24 @@
     --color-border: var(--tw-line);
     --color-input: var(--tw-line-strong);
     --color-ring: var(--tw-brand);
+
+    /*
+    | The sidebar's own vocabulary, which shadcn's sidebar component speaks throughout. Its installer
+    | writes a palette of its own into this file - a :root block of hsl() values and a .dark class -
+    | which was removed: it would hold colour outside themes.css, and it would answer to a class our
+    | pages never set, since dark is data-mode on <html>. Pointed here instead, the sidebar moves
+    | with the campaign like everything else.
+    |
+    | The panel's sidebar is dark in both themes by design, so these follow the sidebar tokens rather
+    | than the page's.
+    */
+    --color-sidebar-foreground: var(--tw-sidebar-ink);
+    --color-sidebar-primary: var(--tw-brand);
+    --color-sidebar-primary-foreground: var(--tw-ink-on-brand);
+    --color-sidebar-accent: var(--tw-sidebar-active);
+    --color-sidebar-accent-foreground: var(--tw-sidebar-ink);
+    --color-sidebar-border: var(--tw-sidebar-line);
+    --color-sidebar-ring: var(--tw-brand);
 }
 
 @layer base {

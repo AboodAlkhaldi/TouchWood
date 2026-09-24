@@ -39,6 +39,14 @@ final class HandleInertiaRequests extends Middleware
     /** The language the panel is *displayed* in, which is not the person's communication language. */
     public const string LOCALE_COOKIE = 'tw_locale';
 
+    /**
+     * Whether the admin sidebar is open or shut down to its rail.
+     *
+     * Written in the browser by the sidebar component itself, so the name is that component's and
+     * not ours to choose, and it arrives unencrypted - which is why bootstrap/app.php exempts it.
+     */
+    public const string SIDEBAR_COOKIE = 'sidebar_state';
+
     /** A year: the choice is a preference, and re-choosing it every session would be a nuisance. */
     public const int COOKIE_MINUTES = 525600;
 

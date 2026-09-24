@@ -16,6 +16,16 @@ import type { SharedProps } from '@/types/page';
 | (Access amendment 16).
 */
 
+/**
+ * Make the choice and ask for the page again.
+ *
+ * Exported because the panel's person menu offers the same two choices as plain menu items rather
+ * than as the pill buttons below - the same action, worn differently, not a second way of doing it.
+ */
+export function choosePreference(preference: 'theme' | 'locale', value: string) {
+    choose(preference, value);
+}
+
 function choose(preference: 'theme' | 'locale', value: string) {
     router.post(
         '/admin/preferences',

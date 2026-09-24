@@ -51,6 +51,10 @@ final readonly class ShareAdminPage
             'direction' => $locale === 'ar' ? 'rtl' : 'ltr',
             'viewer' => fn (): ?array => $this->viewer($locale),
             'menu' => fn (): array => $this->menuFor($locale),
+            // Whether the sidebar is open or shut down to its rail. Remembered per browser by the
+            // sidebar component itself, and read back here so the server's first paint already has
+            // it right - worked out in the browser instead, the page would flicker on every load.
+            'sidebarOpen' => $request->cookie(HandleInertiaRequests::SIDEBAR_COOKIE) !== 'false',
             'store' => fn (): ?array => $this->store($locale),
             // Only the admin group: a page here never carries the storefront's URLs (§1.4). It
             // travels with the page because Blade's @routes never reaches the SSR renderer.
@@ -116,6 +120,7 @@ final readonly class ShareAdminPage
                     'label' => (string) __($entry->module.'::menu.'.$entry->key, [], $locale),
                     'href' => route($entry->routeName, [], false),
                     'comingSoon' => $entry->comingSoon(),
+                    'icon' => $entry->icon,
                 ], $entries),
             ];
         }

@@ -24,6 +24,10 @@ final readonly class MenuEntryDto
      *                                   "coming soon" entry**, for a module whose permissions do not
      *                                   exist yet: it is shown to Super Admins only (§2.2)
      * @param  int  $position  where it sits among the entries of its group, lowest first
+     * @param  string|null  $icon  the entry's icon, named from the panel's own short list (see
+     *                             `MenuIcon` in the frontend). The sidebar collapses to a rail of
+     *                             icons, so an entry without one is a blank square on that rail;
+     *                             an unknown name falls back rather than breaking the page
      */
     public function __construct(
         public string $module,
@@ -32,6 +36,7 @@ final readonly class MenuEntryDto
         public string $routeName,
         public ?string $permission = null,
         public int $position = 0,
+        public ?string $icon = null,
     ) {}
 
     public function labelKey(): string

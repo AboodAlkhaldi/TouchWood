@@ -119,6 +119,7 @@ export default function Invite(page: Props) {
         <AdminLayout
             title={t('access::staff.invite_title')}
             subtitle={t('access::staff.invite_subtitle')}
+            breadcrumbs={[{ label: t('access::staff.title'), href: '/admin/staff' }]}
             action={
                 <Button variant="ghost" asChild>
                     <Link href="/admin/staff">{t('access::staff.cancel')}</Link>
