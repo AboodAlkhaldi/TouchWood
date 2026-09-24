@@ -73,8 +73,9 @@ describe('the admin menu', function () {
         registerTestMenu();
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-        // "staff", "roles", "stores" and "currencies" are registered at boot by the modules that
-        // own them; the rest are this test's own.
+        // Everything under staff_and_permissions and store_settings but "saved-roles" is a real
+        // entry, registered at boot by the module that owns it; the rest are this test's own. The
+        // list grows as screens ship, and the order it grows in is the thing being asserted.
         expect(offeredMenu())->toBe([
             'catalog/products',
             'staff_and_permissions/staff',
@@ -82,6 +83,7 @@ describe('the admin menu', function () {
             'staff_and_permissions/saved-roles',
             'store_settings/stores',
             'store_settings/currencies',
+            'store_settings/settings',
             'media/media',
             'audit/audit',
         ]);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Http\PanelStore;
 use App\Listeners\LogSsrFailure;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -16,7 +17,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // One store per request: the middleware that works it out and the screen that asks for it
+        // must be holding the same one. Scoped rather than a singleton so nothing survives into
+        // the next request - a queue worker or Octane would otherwise serve one person's store to
+        // the next person (app/Http/PanelStore.php).
+        $this->app->scoped(PanelStore::class);
     }
 
     /**
