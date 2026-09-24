@@ -6,4 +6,5 @@ declare(strict_types=1);
 return [
     'stores' => 'Stores',
     'currencies' => 'Currencies',
+    'settings' => 'Settings',
 ];

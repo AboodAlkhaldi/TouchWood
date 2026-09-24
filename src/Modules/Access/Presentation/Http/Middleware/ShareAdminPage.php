@@ -6,11 +6,13 @@ namespace Modules\Access\Presentation\Http\Middleware;
 
 use App\Http\AdminArea;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\PanelStore;
 use Closure;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Modules\Access\Application\Query\AdminShell\AdminShellForStaff;
+use Modules\Access\Application\Query\CurrentStore\CurrentStoreDto;
 use Modules\Access\Application\Query\CurrentStore\CurrentStoreForStaff;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -38,6 +40,7 @@ final readonly class ShareAdminPage
         private Application $app,
         private AdminShellForStaff $shell,
         private CurrentStoreForStaff $stores,
+        private PanelStore $panelStore,
         private AdminMenu $menu,
         private PlatformApi $platform,
     ) {}
@@ -46,6 +49,12 @@ final readonly class ShareAdminPage
     {
         $locale = $this->locale($request);
         $this->app->setLocale($locale);
+
+        // Worked out now rather than when the props are resolved, because a screen asks for it
+        // while it is being built - and props are resolved after that (frontend.md 2.2). Asked
+        // once and used twice: the panel's header shows it, and a module's screen works in it.
+        $opening = $this->stores->forCurrentStaff();
+        $this->panelStore->set($opening?->storeId);
 
         Inertia::share([
             'locale' => $locale,
@@ -56,7 +65,7 @@ final readonly class ShareAdminPage
             // sidebar component itself, and read back here so the server's first paint already has
             // it right - worked out in the browser instead, the page would flicker on every load.
             'sidebarOpen' => $request->cookie(HandleInertiaRequests::SIDEBAR_COOKIE) !== 'false',
-            'store' => fn (): ?array => $this->store($locale),
+            'store' => fn (): ?array => $this->store($locale, $opening),
             // Only the admin group: a page here never carries the storefront's URLs (§1.4). It
             // travels with the page because Blade's @routes never reaches the SSR renderer.
             'routes' => fn (): array => (new Ziggy(group: 'admin'))->toArray(),
@@ -136,10 +145,8 @@ final readonly class ShareAdminPage
      *
      * @return array<string, mixed>|null
      */
-    private function store(string $locale): ?array
+    private function store(string $locale, ?CurrentStoreDto $opening): ?array
     {
-        $opening = $this->stores->forCurrentStaff();
-
         if ($opening === null) {
             return null;
         }

@@ -32,4 +32,46 @@ final readonly class SettingDefinitionDto
         public string $permission,
         public bool $sensitive = false,
     ) {}
+
+    /**
+     * Where the setting's name is written for a person to read, in the words of the module that
+     * declared it: "access.staff.lockout_minutes" is read from access::settings.staff.lockout_minutes.
+     *
+     * The same shape as a permission's label (PermissionDefinitionDto), because it answers the same
+     * question - what to call this thing on a screen.
+     */
+    public function labelKey(): string
+    {
+        [$module, $rest] = explode('.', $this->key, 2) + [1 => ''];
+
+        return "{$module}::settings.{$rest}";
+    }
+
+    /**
+     * The bounds the module allows, taken from its own rules, or null where it set none.
+     *
+     * A number the screen offers outside these would be refused on save (Access amendment 22 asks
+     * for the ranges to be shown), and reading them from the rules keeps the screen and the
+     * refusal saying the same thing.
+     *
+     * @return array{min: int|null, max: int|null}
+     */
+    public function bounds(): array
+    {
+        $bounds = ['min' => null, 'max' => null];
+
+        foreach ($this->rules as $rule) {
+            if (! is_string($rule)) {
+                continue;
+            }
+
+            foreach (['min', 'max'] as $edge) {
+                if (str_starts_with($rule, "{$edge}:") && ctype_digit(substr($rule, strlen($edge) + 1))) {
+                    $bounds[$edge] = (int) substr($rule, strlen($edge) + 1);
+                }
+            }
+        }
+
+        return $bounds;
+    }
 }

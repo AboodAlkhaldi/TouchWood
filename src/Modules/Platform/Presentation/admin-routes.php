@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Platform\Presentation\Http\Controller\CurrenciesController;
+use Modules\Platform\Presentation\Http\Controller\SettingsController;
 use Modules\Platform\Presentation\Http\Controller\StoresController;
 
 /*
@@ -27,4 +28,9 @@ Route::prefix(AdminArea::PREFIX)
         Route::get('currencies', [CurrenciesController::class, 'index'])->name('platform.admin.currencies');
         Route::post('currencies', [CurrenciesController::class, 'store'])->name('platform.admin.currencies.store');
         Route::post('currencies/{currency}', [CurrenciesController::class, 'update'])->name('platform.admin.currencies.update');
+
+        // Every declared setting this person may change, whichever module declared it. A store
+        // setting applies to the store in the header, which is where the store comes from.
+        Route::get('settings', [SettingsController::class, 'index'])->name('platform.admin.settings');
+        Route::post('settings/{setting}', [SettingsController::class, 'update'])->name('platform.admin.settings.update');
     });
