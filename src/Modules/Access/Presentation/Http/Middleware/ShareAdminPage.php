@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Middleware;
 
+use App\Http\AdminArea;
 use App\Http\Middleware\HandleInertiaRequests;
 use Closure;
 use Illuminate\Contracts\Foundation\Application;
@@ -31,7 +32,7 @@ use Tighten\Ziggy\Ziggy;
  */
 final readonly class ShareAdminPage
 {
-    public const string ALIAS = 'admin.page';
+    public const string ALIAS = AdminArea::PAGE;
 
     public function __construct(
         private Application $app,

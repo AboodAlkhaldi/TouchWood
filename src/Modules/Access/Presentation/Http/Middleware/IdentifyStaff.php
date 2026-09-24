@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Middleware;
 
+use App\Http\AdminArea;
 use Closure;
 use Illuminate\Http\Request;
 use Modules\Access\Application\Session\StaffSessions;
@@ -15,7 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class IdentifyStaff
 {
-    public const string ALIAS = 'access.identify-staff';
+    public const string ALIAS = AdminArea::IDENTIFY;
 
     public function __construct(
         private StaffSessions $sessions,

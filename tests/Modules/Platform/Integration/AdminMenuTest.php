@@ -73,12 +73,14 @@ describe('the admin menu', function () {
         registerTestMenu();
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-        // "roles" is Access's own entry, registered at boot: the first real one in the system.
+        // "staff", "roles" and "stores" are registered at boot by the modules that own them; the
+        // rest are this test's own.
         expect(offeredMenu())->toBe([
             'catalog/products',
             'staff_and_permissions/staff',
             'staff_and_permissions/roles',
             'staff_and_permissions/saved-roles',
+            'store_settings/stores',
             'media/media',
             'audit/audit',
         ]);
