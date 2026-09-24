@@ -129,7 +129,7 @@ function Thumbnail({ file }: { file: MediaFileRow }) {
 
     if (file.thumbnailUrl === null) {
         return (
-            <span className="grid aspect-square place-items-center rounded-md bg-surface-sunken text-center text-[10px] text-ink-muted">
+            <span className="grid aspect-square place-items-center rounded-md bg-surface-sunken p-1 text-center text-[10px] leading-tight text-ink-muted">
                 {file.variantsStatus === null ? file.mime : t(statusKey(file.variantsStatus))}
             </span>
         );
@@ -141,7 +141,8 @@ function Thumbnail({ file }: { file: MediaFileRow }) {
             // The description written for it, or nothing: an image with no description is better
             // announced as decorative than with a filename read out letter by letter.
             alt={file.altEn ?? file.altAr ?? ''}
-            className="aspect-square w-full rounded-md object-cover"
+            loading="lazy"
+            className="aspect-square w-full rounded-md border border-line object-cover"
         />
     );
 }
@@ -169,11 +170,20 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
         <>
             <tr>
                 <td className="px-4 py-3">
-                    <div className="grid gap-0.5">
-                        <span className="text-ink">{file.filename}</span>
-                        {file.variantsStatus === null ? null : (
-                            <span className="text-xs text-ink-muted">{t(statusKey(file.variantsStatus))}</span>
-                        )}
+                    {/* The picture belongs in the table too, not only in the grid (owner,
+                        2026-09-24): a library of file names is a list of strings, and the one
+                        question somebody has about a file is what it looks like. */}
+                    <div className="flex items-center gap-3">
+                        <span className="w-12 shrink-0">
+                            <Thumbnail file={file} />
+                        </span>
+
+                        <span className="grid gap-0.5">
+                            <span className="text-ink">{file.filename}</span>
+                            {file.variantsStatus === null ? null : (
+                                <span className="text-xs text-ink-muted">{t(statusKey(file.variantsStatus))}</span>
+                            )}
+                        </span>
                     </div>
                 </td>
                 <td className="px-4 py-3 text-xs text-ink-muted">{file.mime}</td>
@@ -181,7 +191,9 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
                 <td className="px-4 py-3 text-xs text-ink-muted">
                     {file.usedIn.length === 0 ? t('platform::admin_media.not_used') : file.usedIn.join('، ')}
                 </td>
-                <td className="tw-figure px-4 py-3 text-xs text-ink-muted">{file.uploadedAt.slice(0, 10)}</td>
+                <td className="tw-figure px-4 py-3 text-xs text-ink-muted" dir="ltr">
+                    {file.uploadedAt.slice(0, 10)}
+                </td>
                 <td className="px-4 py-3">
                     <div className="flex flex-wrap justify-end gap-2">
                         {file.retryable ? (

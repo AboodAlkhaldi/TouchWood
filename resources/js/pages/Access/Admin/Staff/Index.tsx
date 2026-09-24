@@ -3,6 +3,7 @@ import { Link, router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { isolate } from '@/lib/bidi';
 import { useTranslator } from '@/lib/t';
 import type { StaffListPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -129,11 +130,19 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
                                                 </Link>
                                                 {/* A dot joins two things; with nothing before it,
                                                     it only looks like something went missing. An
-                                                    admin with no role yet has neither. */}
+                                                    admin with no role yet has neither.
+
+                                                    The address is isolated, because an Arabic line
+                                                    with a Latin address in it is reordered by the
+                                                    browser otherwise: the pieces stay put but the
+                                                    line reads inside out (found by looking at it,
+                                                    2026-09-24). */}
                                                 <span className="text-xs text-ink-muted">
-                                                    {[person.roleName, person.email]
-                                                        .filter((part) => part !== null && part !== '')
-                                                        .join(' · ')}
+                                                    {person.roleName === '' ? null : person.roleName}
+                                                    {person.roleName !== '' && person.email ? ' · ' : ''}
+                                                    {person.email ? (
+                                                        <bdi dir="ltr">{person.email}</bdi>
+                                                    ) : null}
                                                 </span>
                                             </div>
                                         </div>
@@ -153,13 +162,15 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
                                                     {t(`access::staff.status_${person.status.toLowerCase()}`)}
                                                 </span>
 
+                                                {/* Isolated, or an Arabic line turns 2026-09-24
+                                                    around and shows 24-09-2026 (see lib/bidi). */}
                                                 {person.since ? (
                                                     <span className="text-ink-muted">
                                                         {t(
                                                             person.status === 'INVITED'
                                                                 ? 'access::staff.invited_on'
                                                                 : 'access::staff.since',
-                                                            { date: person.since.slice(0, 10) },
+                                                            { date: isolate(person.since.slice(0, 10)) },
                                                         )}
                                                     </span>
                                                 ) : null}

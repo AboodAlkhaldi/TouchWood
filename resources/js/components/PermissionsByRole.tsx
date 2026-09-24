@@ -118,12 +118,17 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
                     header: role.name,
                     enableColumnFilter: false,
                     cell: ({ row }) =>
+                        // In the same green box the system says "active" in, rather than a bare
+                        // tick floating in a cell (owner, 2026-09-24): a wall of marks reads as a
+                        // pattern when each one has a shape, and as noise when they do not.
                         row.original.reach[role.id] === true ? (
-                            // A mark rather than a bare dot: a dot and a dash differ only in shape,
-                            // and somebody who cannot tell them apart learns nothing from the table.
-                            <Check className="size-4 text-good" aria-label={t('access::roles.reaches')} />
+                            <span className="grid size-6 place-items-center rounded-md bg-good-soft text-good">
+                                <Check className="size-4" aria-label={t('access::roles.reaches')} />
+                            </span>
                         ) : (
-                            <Minus className="size-4 text-ink-subtle" aria-label={t('access::roles.does_not_reach')} />
+                            <span className="grid size-6 place-items-center text-ink-subtle">
+                                <Minus className="size-4" aria-label={t('access::roles.does_not_reach')} />
+                            </span>
                         ),
                 }),
             ),
@@ -226,18 +231,22 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
 
                                 return (
                                     <Fragment key={row.id}>
+                                        {/* A band, not a slightly greyer row: it was there before
+                                            and could not be seen (owner, 2026-09-24). It carries
+                                            the area's name at the start edge and stays legible
+                                            while the table is scrolled sideways. */}
                                         {previous === row.original.group ? null : (
-                                            <TableRow className="bg-surface-sunken hover:bg-surface-sunken">
+                                            <TableRow className="border-y border-brand-soft bg-brand-soft/60 hover:bg-brand-soft/60">
                                                 <TableCell
                                                     colSpan={row.getVisibleCells().length}
-                                                    className="sticky start-0 text-xs font-semibold tracking-wide text-ink-muted uppercase"
+                                                    className="sticky start-0 py-2 text-xs font-semibold tracking-wide text-brand uppercase"
                                                 >
                                                     {row.original.groupLabel}
                                                 </TableCell>
                                             </TableRow>
                                         )}
 
-                                        <TableRow>
+                                        <TableRow className="transition-colors hover:bg-surface-sunken">
                                             {row.getVisibleCells().map((cell) => (
                                                 <TableCell
                                                     key={cell.id}
