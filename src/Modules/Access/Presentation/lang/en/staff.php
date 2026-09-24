@@ -17,6 +17,8 @@ return [
     'status_active' => 'Active',
     'status_invited' => 'Invited',
     'status_disabled' => 'Disabled',
+    // Final: an invitation that was cancelled is not sent again (access.md amendment 29).
+    'status_cancelled' => 'Cancelled',
     'since' => 'Since :date',
     'invited_on' => 'Invited :date',
     'no_staff' => 'Nobody here yet.',
@@ -30,6 +32,8 @@ return [
     'phone' => 'Phone',
     'date_of_birth' => 'Date of birth',
     'country' => 'Country',
+    'countries_ours' => 'Where we have stores',
+    'countries_all' => 'Every country',
     'address' => 'Address',
     'communication_language' => 'Communication language',
     'communication_language_hint' => 'The language their emails and codes are written in.',

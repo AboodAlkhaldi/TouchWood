@@ -151,3 +151,62 @@ it('shows an admin no way into a role that is not theirs to change', function ()
         ->assertSee($name)
         ->assertNoJavaScriptErrors();
 });
+
+it('lets somebody narrow the permissions table by area, and hide the roles they are not comparing', function () {
+    // Two roles, so there is something to hide and something to keep.
+    $kept = 'Keeper '.Str::random(6);
+    $hidden = 'Hidden '.Str::random(6);
+    Fx::role([AccessPermissions::STAFF_VIEW], nameEn: $kept);
+    Fx::role([PlatformPermissions::STORE_UPDATE], nameEn: $hidden);
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', newSuperAdminEmail())
+        ->type('#password', ROLE_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->navigate('/admin/roles');
+
+    $page->assertSee('Permissions by role')->assertNoJavaScriptErrors();
+
+    // Counted in the table itself rather than asserted as page text: every business area is also
+    // a menu group, so each of these words is in the sidebar whatever the table is showing.
+    $areas = (int) $page->script('document.querySelectorAll("table tbody tr").length');
+    $columns = (int) $page->script('document.querySelectorAll("table thead th").length');
+
+    expect($areas)->toBeGreaterThan(1)
+        // One column per role, and the area column in front of them.
+        ->and($columns)->toBeGreaterThanOrEqual(3);
+
+    // The filter narrows the rows to the area somebody is actually looking at.
+    $page->type('input[placeholder="Filter the areas"]', 'Media')->assertNoJavaScriptErrors();
+
+    $narrowed = (int) $page->script('document.querySelectorAll("table tbody tr").length');
+    $shown = (string) $page->script('document.querySelector("table tbody tr td").innerText');
+
+    // The first row of a filtered table is the area's own heading, which the screen puts above
+    // each run of actions - and the stylesheet sets it in capitals.
+    expect($narrowed)->toBeLessThan($areas)
+        ->and(strtolower($shown))->toContain('media');
+
+    // The area's name stays at the start edge while the table is scrolled sideways, or somebody
+    // ten roles across no longer knows which area they are reading (owner, 2026-09-24).
+    $before = (float) $page->script(
+        'document.querySelector("table tbody tr span.sticky").getBoundingClientRect().x',
+    );
+
+    $page->script('document.querySelector("table").parentElement.scrollLeft = 400');
+
+    $after = (float) $page->script(
+        'document.querySelector("table tbody tr span.sticky").getBoundingClientRect().x',
+    );
+
+    expect(abs($after - $before))->toBeLessThan(2.0);
+
+    // And the columns menu opens with a row per role, so ten roles can become two.
+    $page->click('[data-test="columns"]')
+        ->assertSee('Roles to show')
+        ->assertSee($hidden)
+        ->assertNoJavaScriptErrors();
+});

@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { PermissionsByRole } from '@/components/PermissionsByRole';
 import { Button } from '@/components/ui/button';
 import { useTranslator } from '@/lib/t';
 import type { RolesPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
@@ -16,7 +17,7 @@ import type { RolesPage } from '@/types/generated/Modules/Access/Presentation/Ht
 
 type Props = RolesPage;
 
-export default function Index({ roles, groups, mayCreate }: Props) {
+export default function Index({ roles, groups, permissions, permissionsByRole, mayCreate }: Props) {
     const t = useTranslator();
 
     return (
@@ -39,14 +40,19 @@ export default function Index({ roles, groups, mayCreate }: Props) {
                 <div className="grid gap-8">
                     <ul className="grid gap-2">
                         {roles.map((role) => (
+                            /* The whole card opens the role, not just its name (owner,
+                               2026-09-24). Done by stretching the one link that is already
+                               there over the card, rather than wrapping the card in a second
+                               one: a link inside a link is invalid, and a card announced twice
+                               is worse to listen to than a card announced once. */
                             <li
                                 key={role.id}
-                                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3 shadow-card"
+                                className="relative flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3 shadow-card transition-colors hover:border-brand"
                             >
                                 <div className="grid gap-0.5">
                                     <Link
                                         href={`/admin/roles/${role.id}`}
-                                        className="text-sm font-medium text-ink hover:text-brand"
+                                        className="text-sm font-medium text-ink after:absolute after:inset-0 hover:text-brand"
                                     >
                                         {role.name}
                                     </Link>
@@ -57,8 +63,9 @@ export default function Index({ roles, groups, mayCreate }: Props) {
                                     </span>
                                 </div>
 
+                                {/* Above the stretched link, or the card would swallow it. */}
                                 {role.editable ? (
-                                    <Button variant="outline" size="sm" asChild>
+                                    <Button variant="outline" size="sm" className="relative" asChild>
                                         <Link href={`/admin/roles/${role.id}/edit`}>{t('access::roles.edit')}</Link>
                                     </Button>
                                 ) : null}
@@ -74,43 +81,12 @@ export default function Index({ roles, groups, mayCreate }: Props) {
                             <p className="text-xs text-ink-muted">{t('access::roles.comparison_hint')}</p>
                         </div>
 
-                        <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-                            <table className="w-full min-w-max text-sm">
-                                <thead>
-                                    <tr className="border-b border-line">
-                                        <th className="px-4 py-3 text-start text-xs font-semibold text-ink-muted uppercase">
-                                            {t('access::roles.comparison')}
-                                        </th>
-                                        {roles.map((role) => (
-                                            <th
-                                                key={role.id}
-                                                className="px-4 py-3 text-start text-xs font-semibold text-ink-muted"
-                                            >
-                                                {role.name}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {groups.map((group) => (
-                                        <tr key={group.key} className="border-b border-line last:border-0">
-                                            <th className="px-4 py-2 text-start font-normal text-ink">{group.label}</th>
-                                            {roles.map((role) => (
-                                                <td key={role.id} className="px-4 py-2 text-ink-muted">
-                                                    {role.groups.includes(group.key) ? (
-                                                        <span className="text-good" aria-label={group.label}>
-                                                            ●
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-ink-subtle">–</span>
-                                                    )}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <PermissionsByRole
+                            roles={roles}
+                            groups={groups}
+                            permissions={permissions}
+                            permissionsByRole={permissionsByRole}
+                        />
                     </section>
                 </div>
             )}

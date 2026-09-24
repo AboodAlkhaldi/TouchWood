@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
@@ -69,6 +70,15 @@ export default function Index({ groups, storeName }: Props) {
 function Row({ setting, storeName }: { setting: SettingRowData; storeName: string | null }) {
     const t = useTranslator();
 
+    /*
+    | A setting is read until somebody says otherwise (owner, 2026-09-24).
+    |
+    | These are the numbers a shop runs on - how long a code lasts, how many wrong passwords lock
+    | an account - and a screen of thirty open boxes invites a stray keystroke into one of them.
+    | Pressing Edit opens the one box; saving closes it again.
+    */
+    const [editing, setEditing] = useState(false);
+
     const form = useForm({
         // A sensitive setting is written, never read back, so its field starts empty whatever is
         // stored. A boolean travels as the string a checkbox posts.
@@ -82,7 +92,10 @@ function Row({ setting, storeName }: { setting: SettingRowData; storeName: strin
         <form
             onSubmit={(event) => {
                 event.preventDefault();
-                form.post(`/admin/settings/${setting.key}`, { preserveScroll: true });
+                form.post(`/admin/settings/${setting.key}`, {
+                    preserveScroll: true,
+                    onSuccess: () => setEditing(false),
+                });
             }}
             className="flex flex-wrap items-end justify-between gap-4"
         >
@@ -114,6 +127,7 @@ function Row({ setting, storeName }: { setting: SettingRowData; storeName: strin
                 {isBoolean ? (
                     <Checkbox
                         id={setting.key}
+                        disabled={! editing}
                         checked={form.data.value === 'true' || form.data.value === '1'}
                         onCheckedChange={(on) => form.setData('value', on === true ? 'true' : 'false')}
                     />
@@ -121,7 +135,12 @@ function Row({ setting, storeName }: { setting: SettingRowData; storeName: strin
                     <Input
                         id={setting.key}
                         dir="ltr"
-                        className={isNumber ? 'tw-figure w-40' : 'w-64'}
+                        readOnly={! editing}
+                        className={[
+                            isNumber ? 'tw-figure w-40' : 'w-64',
+                            // Plainly not typable, rather than looking typable and refusing.
+                            editing ? '' : 'border-transparent bg-surface-sunken text-ink-muted',
+                        ].join(' ')}
                         inputMode={isNumber ? 'numeric' : undefined}
                         // The bounds the module itself declared, so the field never offers a
                         // number the save would refuse.
@@ -135,15 +154,42 @@ function Row({ setting, storeName }: { setting: SettingRowData; storeName: strin
                     />
                 )}
 
-                <Button
-                    type="submit"
-                    variant="outline"
-                    size="sm"
-                    data-test={`save-${setting.key}`}
-                    disabled={form.processing}
-                >
-                    {t('platform::admin_settings.save')}
-                </Button>
+                {editing ? (
+                    <>
+                        <Button
+                            type="submit"
+                            variant="outline"
+                            size="sm"
+                            data-test={`save-${setting.key}`}
+                            disabled={form.processing}
+                        >
+                            {t('platform::admin_settings.save')}
+                        </Button>
+
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                // Back to what is stored, so leaving an edit changes nothing.
+                                form.reset();
+                                setEditing(false);
+                            }}
+                        >
+                            {t('platform::admin_settings.cancel')}
+                        </Button>
+                    </>
+                ) : (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        data-test={`edit-${setting.key}`}
+                        onClick={() => setEditing(true)}
+                    >
+                        {t('platform::admin_settings.edit')}
+                    </Button>
+                )}
             </div>
         </form>
     );

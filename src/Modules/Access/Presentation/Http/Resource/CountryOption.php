@@ -21,5 +21,14 @@ final class CountryOption extends Data
         /** ISO 3166-1 alpha-2. */
         public string $code,
         public string $name,
+        /**
+         * Whether this is a country we have a store in.
+         *
+         * Those few come first in the list, because they are what a person picks nearly every time
+         * and nobody should scroll past two hundred countries to reach one of three (owner,
+         * 2026-09-24). Taken from the stores themselves rather than written down, so opening a
+         * country puts it at the top without anybody remembering to.
+         */
+        public bool $ours = false,
     ) {}
 }

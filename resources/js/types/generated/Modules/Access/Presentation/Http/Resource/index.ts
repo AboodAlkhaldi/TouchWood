@@ -22,6 +22,7 @@ label: string,
 export type CountryOption = {
 code: string,
 name: string,
+ours: boolean,
 };
 export type EditorPermissionRow = {
 name: string,
@@ -111,6 +112,8 @@ groups: string[],
 export type RolesPage = {
 roles: RoleRow[],
 groups: PermissionGroupRow[],
+permissions: RolePermissionRow[],
+permissionsByRole: Record<string, string[]>,
 mayCreate: boolean,
 };
 export type SignInCodePage = {

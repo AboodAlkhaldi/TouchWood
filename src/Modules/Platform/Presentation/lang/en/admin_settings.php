@@ -12,7 +12,9 @@ return [
     'sensitive' => 'Never shown',
     'unchanged' => 'Leave empty to keep it',
     'is_default' => 'Not set; :value is in force',
+    'edit' => 'Edit',
     'save' => 'Save',
+    'cancel' => 'Cancel',
     'saved' => 'The setting was saved.',
     'none' => 'There is no setting here that is yours to change.',
 ];

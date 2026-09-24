@@ -27,6 +27,12 @@ return [
     'cancel' => 'Cancel',
 
     // D1's table: business areas down the side, roles across the top.
+    'reaches' => 'Reaches into it',
+    'does_not_reach' => 'Does not',
+    'filter_areas' => 'Filter the areas',
+    'columns' => 'Roles: :shown of :total',
+    'columns_hint' => 'Roles to show',
+    'no_areas' => 'No business area matches that.',
     'comparison' => 'Permissions by role',
     'comparison_hint' => 'Which areas each role reaches into.',
 

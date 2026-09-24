@@ -70,7 +70,51 @@ final readonly class RolePages
             );
         }, $handler->handle(new ListRoles));
 
-        return new RolesPage($rows, $this->groups(), $this->mayManage());
+        // Only the roles that are actually on the screen: a role nobody may see must not have its
+        // actions listed underneath the table that does not show it.
+        $held = [];
+
+        foreach ($rows as $row) {
+            $held[$row->id] = $actionsByRole[$row->id] ?? [];
+        }
+
+        return new RolesPage($rows, $this->groups(), $this->declaredActions(), $held, $this->mayManage());
+    }
+
+    /**
+     * Every declared action, in the order the table lists them: by business area, and by name
+     * within it (owner, 2026-09-24).
+     *
+     * An action no module declares any more is left out entirely. It grants nothing, and a row of
+     * empty cells under a name nobody recognises teaches somebody the wrong thing.
+     *
+     * @return list<RolePermissionRow>
+     */
+    private function declaredActions(): array
+    {
+        $rows = [];
+
+        foreach (PermissionGroup::cases() as $group) {
+            $inGroup = [];
+
+            foreach ($this->catalog->all() as $definition) {
+                if ($definition->group !== $group) {
+                    continue;
+                }
+
+                $inGroup[] = new RolePermissionRow(
+                    $definition->name,
+                    (string) $this->translator->get($definition->labelKey(), [], $this->locale()),
+                    $group->value,
+                    $definition->kind === PermissionKind::Global,
+                );
+            }
+
+            usort($inGroup, static fn (RolePermissionRow $a, RolePermissionRow $b): int => strcmp($a->label, $b->label));
+            $rows = [...$rows, ...$inGroup];
+        }
+
+        return $rows;
     }
 
     /** D2. */

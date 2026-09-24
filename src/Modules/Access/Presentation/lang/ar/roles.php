@@ -26,6 +26,12 @@ return [
     'save' => 'حفظ الدور',
     'cancel' => 'إلغاء',
 
+    'reaches' => 'يصل إليه',
+    'does_not_reach' => 'لا يصل',
+    'filter_areas' => 'تصفية المجالات',
+    'columns' => 'الأدوار: :shown من :total',
+    'columns_hint' => 'الأدوار المعروضة',
+    'no_areas' => 'لا مجال يطابق ذلك.',
     'comparison' => 'الصلاحيات حسب الدور',
     'comparison_hint' => 'المجالات التي يصل إليها كل دور.',
 

@@ -129,7 +129,7 @@ function Thumbnail({ file }: { file: MediaFileRow }) {
 
     if (file.thumbnailUrl === null) {
         return (
-            <span className="grid aspect-square place-items-center rounded-md bg-surface-sunken text-center text-[10px] text-ink-muted">
+            <span className="grid aspect-square place-items-center rounded-md bg-surface-sunken p-1 text-center text-[10px] leading-tight text-ink-muted">
                 {file.variantsStatus === null ? file.mime : t(statusKey(file.variantsStatus))}
             </span>
         );
@@ -141,7 +141,8 @@ function Thumbnail({ file }: { file: MediaFileRow }) {
             // The description written for it, or nothing: an image with no description is better
             // announced as decorative than with a filename read out letter by letter.
             alt={file.altEn ?? file.altAr ?? ''}
-            className="aspect-square w-full rounded-md object-cover"
+            loading="lazy"
+            className="aspect-square w-full rounded-md border border-line object-cover"
         />
     );
 }
@@ -163,27 +164,26 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
     const t = useTranslator();
 
     const alt = useForm({ alt_ar: file.altAr ?? '', alt_en: file.altEn ?? '' });
-
-    function remove() {
-        const message =
-            file.usedIn.length === 0
-                ? t('platform::admin_media.delete_confirm_unused')
-                : t('platform::admin_media.delete_confirm', { count: file.usedIn.length });
-
-        if (window.confirm(message)) {
-            router.post(`/admin/media/${file.id}/delete`);
-        }
-    }
+    const [confirming, setConfirming] = useState(false);
 
     return (
         <>
             <tr>
                 <td className="px-4 py-3">
-                    <div className="grid gap-0.5">
-                        <span className="text-ink">{file.filename}</span>
-                        {file.variantsStatus === null ? null : (
-                            <span className="text-xs text-ink-muted">{t(statusKey(file.variantsStatus))}</span>
-                        )}
+                    {/* The picture belongs in the table too, not only in the grid (owner,
+                        2026-09-24): a library of file names is a list of strings, and the one
+                        question somebody has about a file is what it looks like. */}
+                    <div className="flex items-center gap-3">
+                        <span className="w-12 shrink-0">
+                            <Thumbnail file={file} />
+                        </span>
+
+                        <span className="grid gap-0.5">
+                            <span className="text-ink">{file.filename}</span>
+                            {file.variantsStatus === null ? null : (
+                                <span className="text-xs text-ink-muted">{t(statusKey(file.variantsStatus))}</span>
+                            )}
+                        </span>
                     </div>
                 </td>
                 <td className="px-4 py-3 text-xs text-ink-muted">{file.mime}</td>
@@ -191,7 +191,9 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
                 <td className="px-4 py-3 text-xs text-ink-muted">
                     {file.usedIn.length === 0 ? t('platform::admin_media.not_used') : file.usedIn.join('، ')}
                 </td>
-                <td className="tw-figure px-4 py-3 text-xs text-ink-muted">{file.uploadedAt.slice(0, 10)}</td>
+                <td className="tw-figure px-4 py-3 text-xs text-ink-muted" dir="ltr">
+                    {file.uploadedAt.slice(0, 10)}
+                </td>
                 <td className="px-4 py-3">
                     <div className="flex flex-wrap justify-end gap-2">
                         {file.retryable ? (
@@ -213,7 +215,12 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
                         {/* Not offered while a use blocks it: a button that always refuses is worse
                             than no button, and the reason is said instead. */}
                         {mayDelete && ! file.deleteBlocked ? (
-                            <Button variant="destructive" size="sm" onClick={remove}>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                data-test={`delete-${file.id}`}
+                                onClick={() => setConfirming((open) => !open)}
+                            >
                                 {t('platform::admin_media.delete')}
                             </Button>
                         ) : null}
@@ -265,6 +272,52 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
                                 </Button>
                             </div>
                         </form>
+                    </td>
+                </tr>
+            ) : null}
+
+            {/* Asked in the page rather than with the browser's own confirm box (owner,
+                2026-09-24). The spec asks a delete to say where the file is used first, and a
+                native box can only carry a sentence - it cannot list them. It also cannot be
+                driven by a test, which is why nothing here covered this before. */}
+            {confirming ? (
+                <tr>
+                    <td colSpan={6} className="bg-bad-soft px-4 py-4">
+                        <div className="grid gap-3">
+                            <p className="text-sm text-ink">
+                                {t(
+                                    file.usedIn.length === 0
+                                        ? 'platform::admin_media.delete_confirm_unused'
+                                        : 'platform::admin_media.delete_confirm',
+                                    { count: file.usedIn.length },
+                                )}
+                            </p>
+
+                            {file.usedIn.length === 0 ? null : (
+                                <ul className="grid gap-0.5 text-xs text-ink-muted">
+                                    {file.usedIn.map((use) => (
+                                        <li key={use} className="tw-figure">
+                                            {use}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    data-test={`delete-confirm-${file.id}`}
+                                    onClick={() => router.post(`/admin/media/${file.id}/delete`)}
+                                >
+                                    {t('platform::admin_media.delete')}
+                                </Button>
+
+                                <Button variant="outline" size="sm" onClick={() => setConfirming(false)}>
+                                    {t('platform::admin_media.cancel')}
+                                </Button>
+                            </div>
+                        </div>
                     </td>
                 </tr>
             ) : null}
