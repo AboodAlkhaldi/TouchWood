@@ -112,6 +112,8 @@ groups: string[],
 export type RolesPage = {
 roles: RoleRow[],
 groups: PermissionGroupRow[],
+permissions: RolePermissionRow[],
+permissionsByRole: Record<string, string[]>,
 mayCreate: boolean,
 };
 export type SignInCodePage = {

@@ -20,11 +20,18 @@ final class RolesPage extends Data
      * @param  list<RoleRow>  $roles
      * @param  list<PermissionGroupRow>  $groups  the business areas, in the order the editor shows
      *                                            them, for the table of roles against areas
+     * @param  list<RolePermissionRow>  $permissions  every declared action, for the table's rows:
+     *                                                one row each, under the heading of its area
+     *                                                (owner, 2026-09-24)
+     * @param  array<string, list<string>>  $permissionsByRole  what each role holds, so a cell can
+     *                                                          be answered without asking again
      * @param  bool  $mayCreate  whether this reader may add a role at all
      */
     public function __construct(
         public array $roles,
         public array $groups,
+        public array $permissions,
+        public array $permissionsByRole,
         public bool $mayCreate,
     ) {}
 }

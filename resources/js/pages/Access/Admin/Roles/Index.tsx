@@ -17,7 +17,7 @@ import type { RolesPage } from '@/types/generated/Modules/Access/Presentation/Ht
 
 type Props = RolesPage;
 
-export default function Index({ roles, groups, mayCreate }: Props) {
+export default function Index({ roles, groups, permissions, permissionsByRole, mayCreate }: Props) {
     const t = useTranslator();
 
     return (
@@ -81,7 +81,12 @@ export default function Index({ roles, groups, mayCreate }: Props) {
                             <p className="text-xs text-ink-muted">{t('access::roles.comparison_hint')}</p>
                         </div>
 
-                        <PermissionsByRole roles={roles} groups={groups} />
+                        <PermissionsByRole
+                            roles={roles}
+                            groups={groups}
+                            permissions={permissions}
+                            permissionsByRole={permissionsByRole}
+                        />
                     </section>
                 </div>
             )}

@@ -185,8 +185,10 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
     $narrowed = (int) $page->script('document.querySelectorAll("table tbody tr").length');
     $shown = (string) $page->script('document.querySelector("table tbody tr td").innerText');
 
+    // The first row of a filtered table is the area's own heading, which the screen puts above
+    // each run of actions - and the stylesheet sets it in capitals.
     expect($narrowed)->toBeLessThan($areas)
-        ->and($shown)->toContain('Media');
+        ->and(strtolower($shown))->toContain('media');
 
     // And the columns menu opens with a row per role, so ten roles can become two.
     $page->click('[data-test="columns"]')

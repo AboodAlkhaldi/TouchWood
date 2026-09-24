@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import {
     columnFilteringFeature,
     columnVisibilityFeature,
@@ -24,7 +24,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useTranslator } from '@/lib/t';
 
 /*
-| "Permissions by role" (frontend.md §3.4, D1): business areas down the side, roles across the top.
+| "Permissions by role" (frontend.md §3.4, D1): every action down the side, under the heading of
+| its business area, and the roles across the top (owner, 2026-09-24).
 |
 | Built on TanStack Table, as the owner asked (2026-09-24), for the two things a plain table could
 | not do once there are more than a handful of roles:
@@ -51,8 +52,6 @@ type Features = typeof features;
 export type ComparisonRole = {
     id: string;
     name: string;
-    /** The business areas this role reaches into. */
-    groups: string[];
 };
 
 export type ComparisonGroup = {
@@ -60,38 +59,54 @@ export type ComparisonGroup = {
     label: string;
 };
 
-/** One row: a business area, and whether each role reaches into it. */
+export type ComparisonPermission = {
+    name: string;
+    label: string;
+    group: string;
+};
+
+/** One row: an action, and whether each role holds it. */
 type AreaRow = {
     key: string;
     label: string;
+    group: string;
+    groupLabel: string;
     reach: Record<string, boolean>;
 };
 
 type Props = {
     roles: ComparisonRole[];
     groups: ComparisonGroup[];
+    permissions: ComparisonPermission[];
+    permissionsByRole: Record<string, string[]>;
 };
 
-export function PermissionsByRole({ roles, groups }: Props) {
+export function PermissionsByRole({ roles, groups, permissions, permissionsByRole }: Props) {
     const t = useTranslator();
     const [hidden, setHidden] = useState<Record<string, boolean>>({});
     const [filter, setFilter] = useState('');
 
-    const data = useMemo<AreaRow[]>(
-        () =>
-            groups.map((group) => ({
-                key: group.key,
-                label: group.label,
-                reach: Object.fromEntries(roles.map((role) => [role.id, role.groups.includes(group.key)])),
-            })),
-        [groups, roles],
-    );
+    const data = useMemo<AreaRow[]>(() => {
+        const areaLabel = new Map(groups.map((group) => [group.key, group.label]));
+
+        return permissions.map((permission) => ({
+            key: permission.name,
+            label: permission.label,
+            group: permission.group,
+            groupLabel: areaLabel.get(permission.group) ?? permission.group,
+            reach: Object.fromEntries(
+                roles.map((role) => [role.id, (permissionsByRole[role.id] ?? []).includes(permission.name)]),
+            ),
+        }));
+    }, [groups, permissions, permissionsByRole, roles]);
 
     const columns = useMemo<ColumnDef<Features, AreaRow>[]>(
         () => [
             {
                 id: 'area',
-                accessorKey: 'label',
+                // The area's name is searched too, so typing "media" finds every media action
+                // rather than only the ones with "media" in their own name.
+                accessorFn: (row: AreaRow) => `${row.label} ${row.groupLabel}`,
                 header: t('access::roles.comparison'),
                 filterFn: 'includesString',
                 enableHiding: false,
@@ -203,22 +218,42 @@ export function PermissionsByRole({ roles, groups }: Props) {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            table.getRowModel().rows.map((row) => (
-                                <TableRow key={row.id}>
-                                    {row.getVisibleCells().map((cell) => (
-                                        <TableCell
-                                            key={cell.id}
-                                            className={
-                                                cell.column.id === 'area'
-                                                    ? 'sticky start-0 z-10 bg-surface whitespace-nowrap'
-                                                    : ''
-                                            }
-                                        >
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
-                            ))
+                            table.getRowModel().rows.map((row, index) => {
+                                // A heading each time the area changes, worked out from the rows
+                                // that survived the filter - so a heading never stands over
+                                // nothing (owner, 2026-09-24).
+                                const previous = table.getRowModel().rows[index - 1]?.original.group;
+
+                                return (
+                                    <Fragment key={row.id}>
+                                        {previous === row.original.group ? null : (
+                                            <TableRow className="bg-surface-sunken hover:bg-surface-sunken">
+                                                <TableCell
+                                                    colSpan={row.getVisibleCells().length}
+                                                    className="sticky start-0 text-xs font-semibold tracking-wide text-ink-muted uppercase"
+                                                >
+                                                    {row.original.groupLabel}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+
+                                        <TableRow>
+                                            {row.getVisibleCells().map((cell) => (
+                                                <TableCell
+                                                    key={cell.id}
+                                                    className={
+                                                        cell.column.id === 'area'
+                                                            ? 'sticky start-0 z-10 bg-surface whitespace-nowrap'
+                                                            : ''
+                                                    }
+                                                >
+                                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                </TableCell>
+                                            ))}
+                                        </TableRow>
+                                    </Fragment>
+                                );
+                            })
                         )}
                     </TableBody>
                 </Table>
