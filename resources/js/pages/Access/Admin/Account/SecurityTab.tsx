@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { Field } from '@/components/Field';
 import { FormError } from '@/components/FormError';
 import { PasswordInput } from '@/components/PasswordInput';
 import { Button } from '@/components/ui/button';
+import { useRepeatedPassword } from '@/lib/passwords';
 import { useTranslator } from '@/lib/t';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -27,13 +27,11 @@ type Props = {
 
 export function SecurityTab({ account }: Props) {
     const t = useTranslator();
-    const [repeated, setRepeated] = useState('');
     const form = useForm({ current_password: '', password: '' });
-
     // Caught here rather than on the server: the second box exists to catch a typo for the person
     // typing, and it has nothing to do with whether the password is acceptable. What makes a
-    // password acceptable is Access's, and Access answers that.
-    const differs = repeated !== '' && repeated !== form.data.password;
+    // password acceptable is Access's, and Access answers that (see lib/passwords).
+    const repeat = useRepeatedPassword(form.data.password);
 
     return (
         <div className="grid gap-6">
@@ -43,7 +41,7 @@ export function SecurityTab({ account }: Props) {
 
                     // The button is already disabled while the two differ; this is the same rule
                     // again for a form sent by pressing Enter in a field.
-                    if (differs) {
+                    if (repeat.differs) {
                         return;
                     }
 
@@ -51,7 +49,7 @@ export function SecurityTab({ account }: Props) {
                         preserveScroll: true,
                         onSuccess: () => {
                             form.reset();
-                            setRepeated('');
+                            repeat.clear();
                         },
                     });
                 }}
@@ -100,21 +98,21 @@ export function SecurityTab({ account }: Props) {
                 <Field
                     id="password_repeat"
                     label={t('access::account.confirm_password')}
-                    error={differs ? t('access::account.passwords_differ') : undefined}
+                    error={repeat.differs ? t('access::account.passwords_differ') : undefined}
                 >
                     <PasswordInput
                         id="password_repeat"
                         name="password_repeat"
                         autoComplete="new-password"
                         required
-                        value={repeated}
-                        onChange={(event) => setRepeated(event.target.value)}
+                        value={repeat.value}
+                        onChange={(event) => repeat.setValue(event.target.value)}
                     />
                 </Field>
 
                 <Button
                     type="submit"
-                    disabled={form.processing || differs}
+                    disabled={form.processing || repeat.differs}
                     className="w-fit"
                     data-test="save-password"
                 >

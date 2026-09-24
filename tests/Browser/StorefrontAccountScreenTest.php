@@ -76,7 +76,7 @@ it('shows an unconfirmed customer where their link went, and offers another', fu
         ->assertSee($email)
         ->click('[data-test="resend-verification"]')
         // Access's own words for a link on its way, never ones this screen invented.
-        ->assertSee((string) __('access::auth.verification_sent'))
+        ->assertSee((string) __('access::auth.verification_sent', [], 'en'))
         ->assertNoJavaScriptErrors();
 });
 
@@ -123,6 +123,32 @@ it('refuses a registration in the shop\'s own words, on the form', function () {
         ->click('[data-test="terms"]')
         ->click('button[type="submit"]')
         ->assertPathIs('/sa/en/register')
-        ->assertSee((string) __('access::errors.email_already_registered.detail'))
+        ->assertSee((string) __('access::errors.email_already_registered.detail', [], 'en'))
+        ->assertNoJavaScriptErrors();
+});
+
+it('will not send a new password while the two boxes differ', function () {
+    // The endpoint takes `password` alone, so a typo in the box nobody can read would have set a
+    // password they did not mean and told them nothing (owner, 2026-09-24). The page is the only
+    // place this is caught, so the page is where it is tested.
+    //
+    // The token is not read by the page - a spent link is refused when the form is sent, in the
+    // same words for every reason - so any token draws it.
+    //
+    // The words are asked for in the page's own language, not the test process's: these tests
+    // serve the application in this very process, so the locale a served request leaves behind is
+    // whatever ran last.
+    $page = visit('/sa/en/password/reset/a-token-this-page-never-reads');
+
+    $page->type('#password', 'a long enough password')
+        ->type('#password_repeat', 'a long enough passwerd')
+        ->assertSee((string) __('access::auth.passwords_differ', [], 'en'))
+        ->assertDisabled('[data-test="save-password"]');
+
+    // And it lets go the moment they agree.
+    $page->clear('#password_repeat')
+        ->type('#password_repeat', 'a long enough password')
+        ->assertDontSee((string) __('access::auth.passwords_differ', [], 'en'))
+        ->assertEnabled('[data-test="save-password"]')
         ->assertNoJavaScriptErrors();
 });
