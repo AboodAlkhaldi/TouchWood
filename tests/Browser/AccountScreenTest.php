@@ -127,10 +127,10 @@ it('says why a password change was refused, where the person is looking', functi
         ->type('#password', 'a considerably longer password')
         ->type('#password_repeat', 'a considerably longer password')
         ->click('[data-test="save-password"]')
-        // Access's own wording, never one this screen invented (§3.2). It reads badly - it names
-        // the field as `current_password` - and that is Access's message to improve, not a
-        // screen's to paper over. Reported to the owner.
-        ->assertSee('قيمة current_password غير صالحة.');
+        // Access's own wording, never one this screen invented (§3.2). It used to name the field
+        // as `current_password`, the key the code uses; the key is now looked up in the module's
+        // own words before it goes into the sentence (owner, 2026-09-24).
+        ->assertSee('قيمة كلمة المرور الحالية غير صالحة.');
 });
 
 it('asks for the code once the password behind a phone change is right', function () {
@@ -155,7 +155,7 @@ it('refuses a phone change behind a wrong password, inside the dialog', function
         ->type('#phone_current_password', 'not the right password at all')
         ->click('[data-test="send-phone-code"]')
         // Said inside the dialog the person is looking at, not only behind it.
-        ->assertSee('قيمة current_password غير صالحة.')
+        ->assertSee('قيمة كلمة المرور الحالية غير صالحة.')
         // And it has not moved on to asking for a code that was never sent.
         ->assertDontSee('الرمز الذي أرسلناه');
 });

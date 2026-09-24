@@ -38,7 +38,6 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\ModuleUploadDto;
 use Modules\Platform\Public\Enums\MediaVisibility;
 use Shared\Application\PermissionScope;
-use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 
 /**
@@ -234,23 +233,18 @@ final readonly class StaffOwnAccountController
     }
 
     /**
-     * A refused form, answered where the person is looking — except a refusal that is about
-     * permission, which is not the form's business at all.
+     * A refused form, answered where the person is looking - including a refusal about permission.
      *
-     * A person without the permission was never shown the control: nothing on their screen can
-     * send this. A red line on a form they do not have reads as "try again", when the honest
-     * answer is the 403 page, which is what ProblemDetails already renders for a Forbidden error.
+     * The 403 page belongs to navigation: somebody who followed a link to a screen that is not
+     * theirs is not *doing* anything, and the page is the whole answer. An action taken on a screen
+     * they are already reading is different - they pressed something, they are waiting, and
+     * throwing the page away under them loses whatever else they had typed. That answer belongs in
+     * the page (owner, 2026-09-24).
      *
-     * @param  list<string>  $keep  inputs to put back in the form — never a password or a code
-     *
-     * @throws Unauthorized
+     * @param  list<string>  $keep  inputs to put back in the form - never a password or a code
      */
     private function refused(Request $request, DomainError $error, array $keep = []): RedirectResponse
     {
-        if ($error instanceof Unauthorized) {
-            throw $error;
-        }
-
         return FormErrors::back($request, $error, $keep);
     }
 

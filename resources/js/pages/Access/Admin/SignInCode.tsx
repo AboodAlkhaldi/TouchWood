@@ -4,6 +4,7 @@ import { SignInLayout } from '@/layouts/SignInLayout';
 import { Button } from '@/components/ui/button';
 import { FormError } from '@/components/FormError';
 import { Checkbox } from '@/components/ui/checkbox';
+import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { SignInCodePage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -48,8 +49,11 @@ export default function SignInCode({
 
     function put(index: number, value: string) {
         // Arabic-Indic digits are accepted too: a person typing on an Arabic keyboard is entering
-        // the same number (frontend.md §1.8).
-        const typed = value.replace(/[^0-9٠-٩]/g, '');
+        // the same number (frontend.md §1.8). They are turned into Latin ones here, where they were
+        // typed - the code is compared as a hash, and a hash of ٠٥٩ is not a hash of 059. Keeping
+        // them only until they were sent was the bug: the box accepted them and the sign-in then
+        // refused the person for a code they had entered correctly.
+        const typed = toLatinDigits(value).replace(/\D/g, '');
 
         // More than one digit means the whole code arrived at once - pasted from the message, or
         // filled in by the browser, which puts the lot into the first box because that is the one
