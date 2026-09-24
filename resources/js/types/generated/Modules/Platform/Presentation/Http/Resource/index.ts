@@ -1,3 +1,19 @@
+export type CurrenciesPage = {
+currencies: CurrencyRow[],
+exponents: number[],
+};
+export type CurrencyRow = {
+code: string,
+name: string,
+nameAr: string,
+nameEn: string,
+abbreviationAr: string,
+abbreviationEn: string,
+sign: string | null,
+exponent: number,
+storeCount: number,
+exponentLocked: boolean,
+};
 export type StoreRow = {
 id: string,
 code: string,

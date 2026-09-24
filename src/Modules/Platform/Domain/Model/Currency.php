@@ -18,7 +18,14 @@ use Modules\Platform\Domain\ValueObject\TranslatedText;
  */
 final class Currency
 {
-    private const int MAX_EXPONENT = 6;
+    /**
+     * The most decimal places a currency may have.
+     *
+     * Public because the screen that creates one offers the choice (frontend.md 3.5, E3), and a
+     * list of options written out there would be a second copy of this rule, free to drift from
+     * the one that actually refuses.
+     */
+    public const int MAX_EXPONENT = 6;
 
     /** @var list<string> */
     private array $changed = [];

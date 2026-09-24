@@ -66,6 +66,40 @@ final readonly class CachedStoreDirectory implements StoreDirectory
         );
     }
 
+    /**
+     * @return list<CurrencyDto>
+     */
+    public function currencies(): array
+    {
+        $currencies = $this->snapshot()['currencies'];
+        ksort($currencies);
+
+        return array_values(array_map(fn (array $currency): CurrencyDto => new CurrencyDto(
+            $currency['code'],
+            $currency['exponent'],
+            $this->translated($currency['name']),
+            $this->translated($currency['abbreviation']),
+            $currency['sign'],
+        ), $currencies));
+    }
+
+    /**
+     * Counted from the same snapshot the stores come from, so it costs no query at all.
+     *
+     * @return array<string, int>
+     */
+    public function storeCountByCurrency(): array
+    {
+        $counts = [];
+
+        foreach ($this->snapshot()['stores'] as $store) {
+            $code = $store['currency_code'];
+            $counts[$code] = ($counts[$code] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
     public function invalidate(): void
     {
         $this->cache->invalidate();
