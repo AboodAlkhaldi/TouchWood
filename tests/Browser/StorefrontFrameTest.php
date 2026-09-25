@@ -63,3 +63,21 @@ it('moves to another country and keeps the language it was being read in', funct
         ->assertSee('Egypt')
         ->assertNoJavaScriptErrors();
 });
+
+it('turns the shop dark when the button is pressed', function () {
+    // The button posted to the panel's endpoint, behind the panel's session, so the shop's token
+    // was never the right one: every press was refused, and a refused press leaves the page
+    // exactly as it was - which is what a broken button looks like (owner, 2026-09-25).
+    $page = visit('/sa/ar');
+
+    expect($page->script('document.documentElement.dataset.mode'))->toBe('light');
+
+    // The button now offers the way back, which it can only do once the server has answered:
+    // pressing only dispatches the post, and reading the page in the same breath raced and lost.
+    $page->click('[data-test="theme"]')->assertSee('فاتح');
+
+    // Asked for again and answered dark by the server, which is why nothing flashes.
+    expect($page->script('document.documentElement.dataset.mode'))->toBe('dark');
+
+    $page->assertNoJavaScriptErrors();
+});

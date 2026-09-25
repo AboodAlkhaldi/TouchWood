@@ -162,7 +162,7 @@ export function AppSidebar() {
                                 </DropdownMenuItem>
 
                                 <DropdownMenuItem
-                                    onSelect={() => choosePreference('theme', theme.mode === 'dark' ? 'light' : 'dark')}
+                                    onSelect={() => choosePreference('theme', theme.mode === 'dark' ? 'light' : 'dark', '/admin/preferences')}
                                 >
                                     {theme.mode === 'dark' ? <Sun /> : <Moon />}
                                     {t(`admin.theme.${theme.mode === 'dark' ? 'light' : 'dark'}`)}
@@ -172,7 +172,7 @@ export function AppSidebar() {
                                     who cannot read the current language must still recognise it. */}
                                 <DropdownMenuItem
                                     lang={locale === 'ar' ? 'en' : 'ar'}
-                                    onSelect={() => choosePreference('locale', locale === 'ar' ? 'en' : 'ar')}
+                                    onSelect={() => choosePreference('locale', locale === 'ar' ? 'en' : 'ar', '/admin/preferences')}
                                 >
                                     {locale === 'ar' ? 'English' : 'العربية'}
                                 </DropdownMenuItem>

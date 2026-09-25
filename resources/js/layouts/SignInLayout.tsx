@@ -33,8 +33,8 @@ export function SignInLayout({ title, subtitle, children }: Props) {
                     <div className="flex items-center justify-between gap-4">
                         <Logo className="text-brand" />
                         <div className="flex items-center gap-2">
-                            <LanguageToggle />
-                            <ThemeToggle />
+                            <LanguageToggle to="/admin/preferences" />
+                            <ThemeToggle to="/admin/preferences" />
                         </div>
                     </div>
 

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\HandleInertiaRequests;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Context;
@@ -139,6 +140,37 @@ describe('the country page, which belongs to no store', function () {
         (new AdminBrowser)->get('/')
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page->component('Platform/Storefront/ChooseStore'));
+    });
+});
+
+describe('the theme, on the shop', function () {
+    it('remembers it from a shop page, where the panel\'s endpoint could never be reached', function () {
+        // The panel and the shop run separate sessions, so a shop page carries the shop's token.
+        // The shop's button posted to /admin/preferences and was refused on every press - silently,
+        // because a refused post leaves the page exactly as it was (owner, 2026-09-25).
+        $browser = new AdminBrowser;
+        $browser->get('/sa/en')->assertOk();
+
+        $browser->post('/preferences', ['preference' => 'theme', 'value' => 'dark'])->assertRedirect();
+
+        expect($browser->cookie(HandleInertiaRequests::THEME_COOKIE))->toBe('dark');
+
+        // And the next page comes back already dark, which is the whole point of doing it on the
+        // server: nothing flashes.
+        $browser->get('/sa/en')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('theme.mode', 'dark'));
+    });
+
+    it('works on the country page too, which belongs to no store', function () {
+        $browser = new AdminBrowser;
+
+        $browser->get('/')->assertOk();
+        $browser->post('/preferences', ['preference' => 'theme', 'value' => 'dark'])->assertRedirect();
+
+        $browser->get('/')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('theme.mode', 'dark'));
     });
 });
 

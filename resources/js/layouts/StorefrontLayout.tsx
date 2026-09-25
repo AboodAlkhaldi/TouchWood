@@ -56,7 +56,7 @@ export function StorefrontLayout({ title, children }: Props) {
                                 </>
                             )}
 
-                            <ThemeToggle />
+                            <ThemeToggle to="/preferences" />
 
                             {/* Only under a store: the country page has none, and every address in
                                 the shop is written inside one. */}

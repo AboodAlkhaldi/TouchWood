@@ -16,25 +16,31 @@ import type { SharedProps } from '@/types/page';
 | (Access amendment 16).
 */
 
+/*
+| **Where it posts is the caller's to say, and there is no default.**
+|
+| The panel and the shop run separate sessions, so each has its own endpoint and a page carries
+| only its own area's token. This used to post to /admin/preferences from wherever it was drawn,
+| which meant the shop's theme button failed on every press, silently, on every page of the shop
+| (found by the owner, 2026-09-25). A default would have been the same bug waiting again, so the
+| destination is required and every layout states its own.
+*/
+
 /**
  * Make the choice and ask for the page again.
  *
  * Exported because the panel's person menu offers the same two choices as plain menu items rather
  * than as the pill buttons below - the same action, worn differently, not a second way of doing it.
  */
-export function choosePreference(preference: 'theme' | 'locale', value: string) {
-    choose(preference, value);
+export function choosePreference(preference: 'theme' | 'locale', value: string, to: string) {
+    choose(preference, value, to);
 }
 
-function choose(preference: 'theme' | 'locale', value: string) {
-    router.post(
-        '/admin/preferences',
-        { preference, value },
-        { preserveScroll: true, preserveState: false },
-    );
+function choose(preference: 'theme' | 'locale', value: string, to: string) {
+    router.post(to, { preference, value }, { preserveScroll: true, preserveState: false });
 }
 
-export function ThemeToggle({ className = '' }: { className?: string }) {
+export function ThemeToggle({ to, className = '' }: { to: string; className?: string }) {
     const { theme } = usePage<SharedProps>().props;
     const t = useTranslator();
     // Only the mode is a person's to choose. Which campaign the system is wearing belongs to the
@@ -44,7 +50,8 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
     return (
         <button
             type="button"
-            onClick={() => choose('theme', next)}
+            data-test="theme"
+            onClick={() => choose('theme', next, to)}
             className={`inline-flex items-center gap-2 rounded-pill border border-line px-3 py-1.5 text-xs text-ink-muted transition-colors hover:border-brand hover:text-brand ${className}`}
             title={t(`admin.theme.switch_to_${next}`)}
         >
@@ -54,14 +61,14 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
     );
 }
 
-export function LanguageToggle({ className = '' }: { className?: string }) {
+export function LanguageToggle({ to, className = '' }: { to: string; className?: string }) {
     const { locale } = usePage<SharedProps>().props;
     const next = locale === 'ar' ? 'en' : 'ar';
 
     return (
         <button
             type="button"
-            onClick={() => choose('locale', next)}
+            onClick={() => choose('locale', next, to)}
             className={`inline-flex items-center rounded-pill border border-line px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-brand hover:text-brand ${className}`}
             // The label is the language being offered, written in that language - never translated,
             // because someone who cannot read the current language must still recognise it.
