@@ -51,8 +51,8 @@ country: an approved company orders in KSA, Egypt and UAE alike.
 | `company_type_id` | One of the types staff manage (§1.3). |
 | `cr_number` | Commercial Registration number, required (handoff §8.1). |
 | `tax_number` | Tax number, required (handoff §8.1). |
-| `address` | The registered address, in **Access's address scheme** **[DECIDED 2026-09-20]** (access.md §1.9), so there is one address shape in the system. *Open — §9: whether it is one of the customer's saved addresses or the company's own record using that scheme.* |
-| `contact_name`, `contact_phone` | The responsible person and their phone (handoff §8.1). E.164. Personal data. |
+| `address` | The registered address: **B2B's own record, in Access's address scheme** **[DECIDED 2026-09-25]** (access.md §1.9). It uses that country's field shapes, so it validates and prints like every other address in the system, but it is B2B's row and not one of the customer's saved addresses. A registered address is the company's and lives as long as the company; a delivery address is the person's and they may delete it. One row with two owners would have to refuse its own owner's delete. |
+| ~~`contact_name`, `contact_phone`~~ | **Not columns. The responsible person is the account holder** **[DECIDED 2026-09-25]**, read from Access (`AccessApi::customer`). Handoff §8.1 asks registration for "the responsible person and their phone"; the account already carries both, and the phone is **verified by SMS**, which a typed-in second number would not be. Two phone numbers that can disagree is a support case nobody can settle. |
 | `status` | `PENDING`, `APPROVED`, `REJECTED` or `SUSPENDED` — **these four only** (handoff §8.2). Controls ordering and pricing, never sign-in. |
 | `status_reason` | Why it was rejected or suspended. **Required for both** **[DECIDED 2026-09-19]**; shown to the customer and emailed. |
 | `status_changed_at`, `status_changed_by` | When, and which staff member. |
