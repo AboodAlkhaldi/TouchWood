@@ -11,6 +11,7 @@ use Modules\Access\Presentation\Http\Controller\CustomerAuthPageController;
 use Modules\Access\Presentation\Http\Controller\CustomerOwnAccountController;
 use Modules\Access\Presentation\Http\Controller\CustomersController;
 use Modules\Access\Presentation\Http\Controller\CustomerSessionController;
+use Modules\Access\Presentation\Http\Controller\PreferencesController;
 use Modules\Access\Presentation\Http\Controller\RolesController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffAuthPageController;
@@ -146,8 +147,22 @@ Route::prefix('admin')
 
         // The theme and the displayed language, chosen before anybody signs in as well as after:
         // somebody who cannot read the interface has to be able to change it on the sign-in page.
-        Route::post('preferences', [AdminPanelController::class, 'preferences'])->name('access.staff.preferences');
+        Route::post('preferences', PreferencesController::class)->name('access.staff.preferences');
     });
+
+/*
+| The theme, for the whole shop (frontend.md 2.3).
+|
+| One endpoint at the top level rather than one under each store: the country page belongs to no
+| store, and the theme is the same choice whichever country somebody is looking at. The shop's
+| session cookie covers the whole site, so a store page posts here too.
+|
+| It exists because the panel's endpoint is behind the panel's session, whose token no shop page
+| carries - the shop's button posted there and failed silently on every press (owner, 2026-09-25).
+*/
+Route::middleware(StorefrontArea::MIDDLEWARE_WITHOUT_STORE)
+    ->post('preferences', PreferencesController::class)
+    ->name('storefront.preferences');
 
 /*
 | The storefront flows a customer reaches from an email (spec §1.2): the verification link proves

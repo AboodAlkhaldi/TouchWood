@@ -104,6 +104,7 @@ use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
@@ -116,6 +117,11 @@ final class AccessServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // The shop's own theme endpoint sits at the top level, beside the country page, so the
+        // path is reserved: a store whose code spelled it would swallow it (Platform's rule, and
+        // reservations are made in register() because the {store} pattern is frozen after them).
+        $this->app->make(ReservedPaths::class)->reserve('access', 'preferences');
+
         // Bound here, not in $singletons: other modules declare their permissions in boot(), and
         // this provider declares its own and Platform's below.
         $this->app->singleton(InMemoryPermissionCatalog::class);

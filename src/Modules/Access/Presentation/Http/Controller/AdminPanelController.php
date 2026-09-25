@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Modules\Access\Presentation\Http\Controller;
 
 use App\Http\FormErrors;
-use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Page;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,37 +31,6 @@ final readonly class AdminPanelController
     public function home(): Response
     {
         return $this->page->render('Admin/Home', [], ['admin', 'access::auth']);
-    }
-
-    /**
-     * The theme and the displayed language, both remembered **per browser** in a cookie so the
-     * server renders the right one from the first byte and nothing flashes (decided 2026-09-19).
-     *
-     * The displayed language is not the person's communication language: emails and SMS codes keep
-     * going in the language saved on their account, which only they change, in their own settings
-     * (Access amendment 16).
-     *
-     * A value we do not know is ignored rather than refused. Nobody types this; it arrives from our
-     * own toggle, and the worst a wrong one can do is leave the panel as it was.
-     */
-    public function preferences(Request $request): RedirectResponse
-    {
-        $preference = $request->string('preference')->toString();
-        $value = $request->string('value')->toString();
-
-        $cookie = match (true) {
-            $preference === 'theme' && in_array($value, ['light', 'dark'], true) => HandleInertiaRequests::THEME_COOKIE,
-            $preference === 'locale' && in_array($value, ['ar', 'en'], true) => HandleInertiaRequests::LOCALE_COOKIE,
-            default => null,
-        };
-
-        $back = back();
-
-        return $cookie === null
-            ? $back
-            // Not httpOnly on purpose: it decides nothing and protects nothing, and a person's own
-            // browser may read which theme it is showing.
-            : $back->withCookie(cookie($cookie, $value, HandleInertiaRequests::COOKIE_MINUTES, httpOnly: false));
     }
 
     /**
