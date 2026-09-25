@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -115,6 +116,29 @@ describe('the pages a visitor sees (F3, F5, F6)', function () {
                 // Still only the files this screen named, never the system's whole dictionary.
                 ->and($words)->not->toHaveKey('access::permissions.access.staff.invite');
         });
+    });
+});
+
+describe('the country page, which belongs to no store', function () {
+    it('sends a customer who is signed in to their store, rather than failing', function () {
+        // brand.com belongs to no store, and a customer's session is bounded by numbers that are
+        // a store's own - how long "keep me signed in" lasts, how long they may be idle. Asking
+        // for those on a page with no store threw, and every visitor who had ever signed in got a
+        // 500 on the front door (found by the owner, 2026-09-25).
+        [, $browser] = authPageCustomer();
+
+        // The store lives in Laravel's Context, which is process-global: inside one test the store
+        // resolved by the sign-in request is still set when the next one runs, and it hid this bug
+        // completely. A real request starts with none, so the test must too.
+        Context::flush();
+
+        $browser->get('/')->assertRedirect('/sa/en');
+    });
+
+    it('still lets a visitor who has chosen nothing choose', function () {
+        (new AdminBrowser)->get('/')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('Platform/Storefront/ChooseStore'));
     });
 });
 

@@ -58,13 +58,23 @@ final class StorefrontArea
     public const array MIDDLEWARE = [self::SESSION, 'web', self::STORE, self::SHOP, self::IDENTIFY, self::PAGE];
 
     /**
-     * And the same without resolving a store, for the country page.
+     * And the same without a store, for the country page.
      *
      * That page is the one part of the shop that belongs to no store - it exists because the
      * visitor has not chosen one - so asking which store its URL names answers nothing, and the
      * middleware that asks refuses the page outright (found by running it, 2026-09-24).
      *
+     * **Nothing that needs a store may run here, and that includes naming the customer.** A
+     * customer's session is bounded by numbers that belong to a store - how long "keep me signed
+     * in" lasts, how long they may be idle - so identifying them asks for a store that this page
+     * does not have. Every visitor who had ever signed in met a 500 on the front door, while every
+     * test passed, because a test process keeps the store of the request before it (found by the
+     * owner, 2026-09-25).
+     *
+     * They lose nothing: this page lists countries and offers no account, and anybody with a
+     * remembered store is sent into it before it draws.
+     *
      * @var list<string>
      */
-    public const array MIDDLEWARE_WITHOUT_STORE = [self::SESSION, 'web', self::SHOP, self::IDENTIFY, self::PAGE];
+    public const array MIDDLEWARE_WITHOUT_STORE = [self::SESSION, 'web', self::SHOP];
 }
