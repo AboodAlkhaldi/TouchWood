@@ -64,13 +64,36 @@ country: an approved company orders in KSA, Egypt and UAE alike.
   "`COMPANY` means approved" (handoff §6), and it applies to prices shown, never to ordering.
 - **Blocking a person is Access's** `customers.status = BLOCKED`, never a company status
   (handoff §8.2).
-- A company is never deleted. When Access anonymizes its account (access.md §1.10), the company's
-  personal fields go with it; the company row stays for the order history.
+
+**[DECIDED 2026-09-25] There is no company until an application is submitted.** A half-finished
+wizard is a `DRAFT` application and nothing else (§1.2): the name, the CR number, the tax number,
+the address and the documents live on the application until it is sent. Submitting creates the
+company, `PENDING`.
+
+Because `PENDING` is what grants company prices, a company row that existed from the first keystroke
+would put somebody who opened the wizard and wandered off on company prices, and would fill the
+review queue with nothing to review. Everything in that queue is something a person actually sent.
+
+**[DECIDED 2026-09-25] What anonymizing an account reaches.** A company is never deleted. When
+Access anonymizes its account (access.md §1.10) the company's personal fields go, **and so do its
+uploaded documents**: a commercial registration certificate and a signatory's identity photograph
+are that person's papers, and nothing defends keeping them once the account is emptied.
+
+What stays is the company row, its status, and the decision record — who approved or rejected it,
+when, and why. Deliberately unlike an **order**, which keeps its copy of an address because an
+order is a commercial record of what was agreed; a document uploaded to prove who somebody is, is
+not.
 
 **[DECIDED 2026-09-19] Editing after approval.** The customer may freely change the address and
 the contact details. Changing the **company name, CR number, tax number or documents** puts the
 company back to `PENDING` — it cannot order until staff approve again — and the screen says so
 before the change is saved.
+
+**[DECIDED 2026-09-25] Editing while suspended is refused.** A `SUSPENDED` company may still change
+its address and contact details, and may **not** touch the name, CR number, tax number or documents;
+the screen refuses with the suspension's own reason. Suspension is a deliberate act by staff, and
+an edit that sent the company back to `PENDING` would let a rename undo it. The way back is staff
+reinstating them (§3.2).
 
 ### 1.2 Application
 
@@ -155,7 +178,8 @@ through its own signed link, by staff with the permission (§3).
 
 | From | What | State |
 |---|---|---|
-| Access | The account: its type, home store, contact details, and its address scheme for the registered address | Exists (`AccessApi`); the address question is open (§9) |
+| Access | The account: its type, contact details, and its address scheme for the registered address | Exists (`AccessApi`) |
+| Access | **The account's home store**, which decides who may review the company | **An Access change [FOUND 2026-09-25]**: `CustomerDto` carries the type, status, names, email, phone and locale, but **not `homeStoreId`**. One field on the DTO and one column read. Made in B2B's first build step, not before: Access is finished and nothing needs it yet. |
 | Access | A message to the customer when staff reject or suspend (`SecurityMessages`, access.md §2.3) | **An Access change**: B2B's own message type, until Ops |
 | Platform | A module uploading a private file for its own use | **A Platform change**, the same one the frontend spec needs (`frontend.md` §4.3 P1) |
 | Platform | Media, the audit log, and the permission catalog | Exists |
