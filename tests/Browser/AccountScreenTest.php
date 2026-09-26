@@ -190,3 +190,22 @@ it('signs out everywhere, and the browser that pressed it is out too', function 
         ->assertPathIs('/admin/sign-in')
         ->assertNoJavaScriptErrors();
 });
+
+it('forgets a trusted browser, in a suite with no transaction around it', function () {
+    // This is the test the feature tests could not be. RefreshDatabase wraps each of those in a
+    // transaction, so Platform's "an audit entry belongs inside the transaction of its change"
+    // was satisfied by the test itself and the handler's missing transaction went unseen - until
+    // the owner pressed the button and met a 500 (2026-09-26). Nothing wraps this suite.
+    $page = accountScreenSignedIn()->navigate('/admin/account?tab=sessions');
+
+    // Whether this browser is trusted depends on the sign-in above, so both endings are allowed:
+    // a button to press, or the line saying there is nothing to forget. What is not allowed is a
+    // server error, which assertNoJavaScriptErrors and the page itself would show.
+    $page->assertSee('متصفحات تتخطى رمزك');
+
+    if ($page->script('document.querySelector(\'[data-test="forget-all-browsers"]\') !== null') === true) {
+        $page->click('[data-test="forget-all-browsers"]')->assertSee('لا شيء. كل متصفّح يطلب رمزًا.');
+    }
+
+    $page->assertNoJavaScriptErrors();
+});

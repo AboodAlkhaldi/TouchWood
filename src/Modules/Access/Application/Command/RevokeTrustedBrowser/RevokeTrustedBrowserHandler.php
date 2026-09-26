@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Command\RevokeTrustedBrowser;
 
+use Illuminate\Database\Connection;
 use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Permission\AccessPermissions;
@@ -34,6 +35,7 @@ final readonly class RevokeTrustedBrowserHandler
         private StaffUserRepository $staff,
         private StaffTokenRepository $tokens,
         private PlatformApi $platform,
+        private Connection $db,
     ) {}
 
     /**
@@ -45,18 +47,23 @@ final readonly class RevokeTrustedBrowserHandler
         $staffId = $this->rules->currentStaffId();
         $staff = $this->staff->byId($staffId) ?? throw new StaffNotFound($staffId);
 
-        if ($command->browserId === null) {
-            $this->tokens->forgetTrustedBrowsers($staffId);
-        } else {
-            // Their id as well: an id from a request may name somebody else's browser.
-            $this->tokens->forgetTrustedBrowser($command->browserId, $staffId);
-        }
+        // In one transaction with its audit entry, as every audited change is: Platform refuses an
+        // entry written outside the transaction of the change it records, so that the two can
+        // never be committed apart (platform.md §1.5).
+        $this->db->transaction(function () use ($command, $staff, $staffId): void {
+            if ($command->browserId === null) {
+                $this->tokens->forgetTrustedBrowsers($staffId);
+            } else {
+                // Their id as well: an id from a request may name somebody else's browser.
+                $this->tokens->forgetTrustedBrowser($command->browserId, $staffId);
+            }
 
-        $this->platform->recordAudit(StaffAudit::event(
-            $command->browserId === null
-                ? 'access.staff_user.trusted_browsers_forgotten'
-                : 'access.staff_user.trusted_browser_forgotten',
-            $staff,
-        ));
+            $this->platform->recordAudit(StaffAudit::event(
+                $command->browserId === null
+                    ? 'access.staff_user.trusted_browsers_forgotten'
+                    : 'access.staff_user.trusted_browser_forgotten',
+                $staff,
+            ));
+        }, 3);
     }
 }
