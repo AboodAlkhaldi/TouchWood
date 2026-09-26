@@ -12,8 +12,14 @@ use Illuminate\Http\UploadedFile;
 use Inertia\Response;
 use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmail;
 use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmailHandler;
+use Modules\Access\Application\Command\EndOwnSession\EndOwnSession;
+use Modules\Access\Application\Command\EndOwnSession\EndOwnSessionHandler;
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChange;
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChangeHandler;
+use Modules\Access\Application\Command\RevokeTrustedBrowser\RevokeTrustedBrowser;
+use Modules\Access\Application\Command\RevokeTrustedBrowser\RevokeTrustedBrowserHandler;
+use Modules\Access\Application\Command\SignOutEverywhere\SignOutEverywhere;
+use Modules\Access\Application\Command\SignOutEverywhere\SignOutEverywhereHandler;
 use Modules\Access\Application\Command\UpdateOwnNotificationPreferences\UpdateOwnNotificationPreferences;
 use Modules\Access\Application\Command\UpdateOwnNotificationPreferences\UpdateOwnNotificationPreferencesHandler;
 use Modules\Access\Application\Command\UpdateOwnStaffProfile\UpdateOwnStaffProfile;
@@ -23,6 +29,9 @@ use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChange
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\MyAccount\MyAccountDto;
 use Modules\Access\Application\Query\MyAccount\MyAccountForStaff;
+use Modules\Access\Application\Query\MySessions\MySessionsForStaff;
+use Modules\Access\Application\Query\MySessions\StaffSessionDto;
+use Modules\Access\Application\Query\MySessions\TrustedBrowserDto;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Presentation\Http\Request\EmailRequest;
 use Modules\Access\Presentation\Http\Request\NotificationSwitchRequest;
@@ -33,6 +42,8 @@ use Modules\Access\Presentation\Http\Resource\AccountPage;
 use Modules\Access\Presentation\Http\Resource\Countries;
 use Modules\Access\Presentation\Http\Resource\CountryOption;
 use Modules\Access\Presentation\Http\Resource\NotificationSetting;
+use Modules\Access\Presentation\Http\Resource\StaffSessionRow;
+use Modules\Access\Presentation\Http\Resource\TrustedBrowserRow;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\ModuleUploadDto;
@@ -63,11 +74,12 @@ final readonly class StaffOwnAccountController
     private const array WORDS = ['access::account', 'access::auth', 'access::errors', 'admin'];
 
     /** @var list<string> */
-    private const array TABS = ['account', 'security', 'notifications'];
+    private const array TABS = ['account', 'security', 'sessions', 'notifications'];
 
     public function __construct(
         private Page $page,
         private MyAccountForStaff $account,
+        private MySessionsForStaff $mySessions,
         private StaffSecuritySettings $settings,
     ) {}
 
@@ -94,8 +106,92 @@ final readonly class StaffOwnAccountController
             notifications: $this->notifications($account),
             countries: $this->countries(),
             passwordMinLength: $this->settings->passwordMinLength(),
+            // The session doing the asking is named here rather than guessed further in: this is
+            // the only place that holds the request.
+            sessions: $this->sessionRows($request),
+            trustedBrowsers: $this->trustedRows(),
             tab: in_array($tab, self::TABS, true) ? $tab : self::TABS[0],
         ))->toArray(), self::WORDS);
+    }
+
+    /**
+     * B5 - one of their own sessions, ended (owner, 2026-09-26).
+     *
+     * Ending the current one signs them out, which is not an error: the screen warns first, and
+     * the redirect then lands on the sign-in page like any other request without a session.
+     */
+    public function endSession(Request $request, string $session, EndOwnSessionHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new EndOwnSession($session));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        return $this->backToSessions('access::account.session_ended');
+    }
+
+    /**
+     * B5 - every session at once, including this one, and every trusted browser with them.
+     *
+     * The case it is for: an account lent to somebody for a job and wanted back (owner,
+     * 2026-09-26).
+     */
+    public function signOutEverywhere(Request $request, SignOutEverywhereHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new SignOutEverywhere);
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        // Their own session is among the ones just ended, so the next request has none and the
+        // panel asks them to sign in. Nothing else to do here.
+        return $this->backToSessions('access::account.signed_out_everywhere');
+    }
+
+    /** B5 - a browser must ask for an SMS code again. A null id means all of them. */
+    public function revokeTrustedBrowser(Request $request, RevokeTrustedBrowserHandler $handler, ?string $browser = null): RedirectResponse
+    {
+        try {
+            $handler->handle(new RevokeTrustedBrowser($browser));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        return $this->backToSessions('access::account.trusted_browser_forgotten');
+    }
+
+    /**
+     * @return list<StaffSessionRow>
+     */
+    private function sessionRows(Request $request): array
+    {
+        $sessions = $this->mySessions->forCurrentStaff($request->hasSession() ? $request->session()->getId() : null);
+
+        return array_map(static fn (StaffSessionDto $session): StaffSessionRow => new StaffSessionRow(
+            $session->id,
+            $session->ipAddress,
+            $session->userAgent,
+            $session->lastActivity,
+            $session->isCurrent,
+        ), $sessions->sessions);
+    }
+
+    /**
+     * @return list<TrustedBrowserRow>
+     */
+    private function trustedRows(): array
+    {
+        return array_map(
+            static fn (TrustedBrowserDto $browser): TrustedBrowserRow => new TrustedBrowserRow($browser->id, $browser->expiresAt),
+            $this->mySessions->forCurrentStaff(null)->trustedBrowsers,
+        );
+    }
+
+    private function backToSessions(string $message): RedirectResponse
+    {
+        return redirect()->to('/admin/account?tab=sessions')->with('status', __($message));
     }
 
     /** B1. */

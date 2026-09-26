@@ -79,5 +79,20 @@ interface StaffTokenRepository
     /**
      * Every browser this staff member trusted is forgotten (spec §1.8).
      */
+    /**
+     * The browsers this staff member has trusted, newest first, expired ones left out.
+     *
+     * @return list<TrustedBrowser>
+     */
+    public function trustedBrowsersFor(string $staffId): array;
+
+    /**
+     * One of them, forgotten: that browser asks for an SMS code again next time.
+     *
+     * The staff id is taken as well as the browser's, because an id from a request may name
+     * somebody else's browser.
+     */
+    public function forgetTrustedBrowser(string $id, string $staffId): void;
+
     public function forgetTrustedBrowsers(string $staffId): void;
 }

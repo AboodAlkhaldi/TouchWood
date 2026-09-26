@@ -12,6 +12,7 @@ return [
     'tab' => [
         'account' => 'Account',
         'security' => 'Security',
+        'sessions' => 'Sessions',
         'notifications' => 'Notifications',
     ],
 
@@ -162,4 +163,30 @@ return [
     'close_account_signs_out' => 'Confirming signs you out everywhere at once, so this is the last page you will see while signed in.',
     'close_account_confirm' => 'Close it',
     'closed' => 'Your account is closed. It is deleted on :date unless you sign in again before then, which cancels it.',
+
+    // B5 — where I am signed in, and which browsers skip my code (owner, 2026-09-26).
+    'sessions' => 'Where you are signed in',
+    'sessions_hint' => 'Every browser signed in to your account right now. If you do not recognise one, end it.',
+    'this_browser' => 'This browser',
+    'session_ip' => 'Address',
+    'session_seen' => 'Last used',
+    'unknown_device' => 'Unknown browser',
+    'end_session' => 'Sign this one out',
+    'end_this_session' => 'Sign out here',
+    'end_this_session_warning' => 'This is the browser you are using. Ending it signs you out now.',
+
+    'sign_out_everywhere' => 'Sign out everywhere',
+    'sign_out_everywhere_body' => 'Ends every session, including this one, and makes every trusted browser ask for a code again. Use it when somebody else has had your account.',
+    'sign_out_everywhere_confirm' => 'Sign out everywhere',
+
+    'trusted_browsers' => 'Browsers that skip your code',
+    'trusted_browsers_hint' => 'These sign in with your password alone, without an SMS code, until they expire. They are not signed in — that is the list above.',
+    'no_trusted_browsers' => 'None. Every browser asks for a code.',
+    'trusted_until' => 'Until :date',
+    'forget_browser' => 'Ask this one for a code',
+    'forget_all_browsers' => 'Ask them all for a code',
+
+    'session_ended' => 'That browser was signed out.',
+    'signed_out_everywhere' => 'Every session was ended, and every browser will ask for a code.',
+    'trusted_browser_forgotten' => 'That browser will ask for a code next time.',
 ];

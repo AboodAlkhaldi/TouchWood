@@ -169,3 +169,24 @@ it('saves a notification switch as it is flipped, and says so', function () {
         ->assertSee('تم الحفظ.')
         ->assertNoJavaScriptErrors();
 });
+
+it('shows where I am signed in, and marks this browser', function () {
+    accountScreenSignedIn()
+        ->navigate('/admin/account?tab=sessions')
+        ->assertSee('أين أنت مسجَّل الدخول')
+        // The browser reading the page says so about itself.
+        ->assertSee('هذا المتصفّح')
+        ->assertNoJavaScriptErrors();
+});
+
+it('signs out everywhere, and the browser that pressed it is out too', function () {
+    // The case the whole feature was asked for: an account lent to somebody, and wanted back.
+    $page = accountScreenSignedIn()->navigate('/admin/account?tab=sessions');
+
+    // Asked once before doing it: this signs the person pressing it out.
+    $page->click('[data-test="sign-out-everywhere"]')
+        ->click('[data-test="confirm-sign-out-everywhere"]')
+        // No session left, so the panel asks them to sign in again.
+        ->assertPathIs('/admin/sign-in')
+        ->assertNoJavaScriptErrors();
+});

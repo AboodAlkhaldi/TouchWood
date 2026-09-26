@@ -143,6 +143,17 @@ Route::prefix('admin')
             Route::post('account/phone', [StaffOwnAccountController::class, 'requestPhoneChange'])->name('access.staff.account.phone');
             Route::post('account/phone/code', [StaffOwnAccountController::class, 'confirmPhoneChange'])->name('access.staff.account.phone.confirm');
             Route::post('account/notifications', [StaffOwnAccountController::class, 'updateNotifications'])->name('access.staff.account.notifications');
+
+            /*
+            | Where I am signed in, and which browsers skip my sign-in code (owner, 2026-09-26).
+            | Their own only - no route here names another person, because the case this exists
+            | for is an admin taking back an account they lent, not an admin reaching into
+            | somebody else's.
+            */
+            Route::post('account/sessions/all', [StaffOwnAccountController::class, 'signOutEverywhere'])->name('access.staff.account.sessions.all');
+            Route::post('account/sessions/{session}', [StaffOwnAccountController::class, 'endSession'])->name('access.staff.account.sessions.end');
+            Route::post('account/trusted-browsers', [StaffOwnAccountController::class, 'revokeTrustedBrowser'])->name('access.staff.account.trusted.all');
+            Route::post('account/trusted-browsers/{browser}', [StaffOwnAccountController::class, 'revokeTrustedBrowser'])->name('access.staff.account.trusted.one');
         });
 
         // The theme and the displayed language, chosen before anybody signs in as well as after:

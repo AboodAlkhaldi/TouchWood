@@ -14,6 +14,8 @@ canChangeEmail: boolean,
 notifications: NotificationSetting[],
 countries: CountryOption[],
 passwordMinLength: number,
+sessions: StaffSessionRow[],
+trustedBrowsers: TrustedBrowserRow[],
 tab: string,
 };
 export type AddressBookStore = {
@@ -311,9 +313,20 @@ email: string | null,
 status: string | null,
 since: string | null,
 };
+export type StaffSessionRow = {
+id: string,
+ipAddress: string | null,
+userAgent: string | null,
+lastActivity: string,
+isCurrent: boolean,
+};
 export type StoreOption = {
 id: string,
 name: string,
+};
+export type TrustedBrowserRow = {
+id: string,
+expiresAt: string,
 };
 export type VerifyEmailPage = {
 email: string,

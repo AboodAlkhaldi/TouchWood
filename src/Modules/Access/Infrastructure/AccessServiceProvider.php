@@ -38,6 +38,7 @@ use Modules\Access\Application\Security\OwnPasswordCheck;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Security\SignInLimits;
 use Modules\Access\Application\Session\CustomerSessions;
+use Modules\Access\Application\Session\StaffSessionDirectory;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
@@ -66,10 +67,12 @@ use Modules\Access\Infrastructure\Eloquent\DatabaseStaffTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffUserRepository;
 use Modules\Access\Infrastructure\Http\CookieGuestVisitors;
 use Modules\Access\Infrastructure\Http\CustomerSessionHandler;
+use Modules\Access\Infrastructure\Http\DatabaseStaffSessionDirectory;
 use Modules\Access\Infrastructure\Http\LaravelCustomerSessions;
 use Modules\Access\Infrastructure\Http\LaravelStaffSessions;
 use Modules\Access\Infrastructure\Http\RequestActor;
 use Modules\Access\Infrastructure\Http\RequestActorContext;
+use Modules\Access\Infrastructure\Http\StaffSessionHandler;
 use Modules\Access\Infrastructure\Listener\WriteStartingAddressFormat;
 use Modules\Access\Infrastructure\Media\StaffAvatarUsage;
 use Modules\Access\Infrastructure\Messages\LogSmsGateway;
@@ -128,6 +131,8 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->alias(InMemoryPermissionCatalog::class, PermissionCatalog::class);
 
         $this->app->bind(StaffUserRepository::class, DatabaseStaffUserRepository::class);
+        // The panel's session rows, for the screen that lists them and the button that ends them.
+        $this->app->bind(StaffSessionDirectory::class, DatabaseStaffSessionDirectory::class);
         $this->app->bind(StaffTokenRepository::class, DatabaseStaffTokenRepository::class);
         $this->app->bind(CustomerRepository::class, DatabaseCustomerRepository::class);
         $this->app->bind(CustomerTokenRepository::class, DatabaseCustomerTokenRepository::class);
@@ -214,6 +219,19 @@ final class AccessServiceProvider extends ServiceProvider
 
         // Every web request starts as a guest, so no route ever runs as the system.
         $this->app->make(HttpKernel::class)->pushMiddleware(IdentifyRequestActor::class);
+
+        // The panel's own session driver: the same database driver, writing the staff member each
+        // row belongs to, so a person can be shown their own sessions and sign them all out
+        // (owner, 2026-09-26). Without it every admin row was written with an empty user_id.
+        $this->app->make(SessionManager::class)->extend(
+            UseAdminSession::DRIVER,
+            fn (Application $app): StaffSessionHandler => new StaffSessionHandler(
+                $app->make('db')->connection($app->make('config')->get('session.connection')),
+                (string) $app->make('config')->get('session.table', 'sessions'),
+                (int) $app->make('config')->get('session.lifetime'),
+                $app,
+            ),
+        );
 
         // The storefront's own session driver: the same database driver, writing the customer
         // each row belongs to, so a deleted account's sessions go with it (owner, 2026-09-21).
