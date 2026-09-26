@@ -47,6 +47,36 @@ return [
         ],
         'action' => 'Choose a new password',
     ],
+    // B2B's decisions about a company, until Ops (amendment 48). One plain link, to the shop.
+    'company_approved' => [
+        'subject' => 'Your company account is approved',
+        'lines' => [
+            'Hello :name,',
+            'Your company account has been approved: you can now place orders.',
+        ],
+        'note' => 'A note from our team: :note',
+        'action' => 'Go to the shop',
+    ],
+    'company_rejected' => [
+        'subject' => 'Your company application was not approved',
+        'lines' => [
+            'Hello :name,',
+            'Your company application was not approved.',
+            'The reason: :reason',
+            'Sign in to correct your application and send it again.',
+        ],
+        'action' => 'Go to the shop',
+    ],
+    'company_suspended' => [
+        'subject' => 'Your company account is suspended',
+        'lines' => [
+            'Hello :name,',
+            'Your company account has been suspended, so it cannot place orders for now.',
+            'The reason: :reason',
+            'You can still sign in and see your past orders.',
+        ],
+        'action' => 'Go to the shop',
+    ],
     'phone_code' => 'Your verification code is :code. Do not share it with anyone.',
     'sign_in_code' => 'Your admin panel sign-in code is :code. If you did not try to sign in, change your password now.',
 ];

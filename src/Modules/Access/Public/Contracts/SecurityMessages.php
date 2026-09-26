@@ -63,4 +63,27 @@ interface SecurityMessages
      * @param  string  $locale  "ar" or "en"
      */
     public function staffSignInCode(string $phone, string $locale, string $code): void;
+
+    /*
+     * B2B's decisions about a company, told to the account holder (b2b.md §2.3; amendment 48).
+     * B2B's own messages, sent from here until Ops, like every other email to a customer. Each
+     * carries one plain link to the shop's front door, the same for all three (owner, 2026-09-27).
+     * A reinstatement sends none: it is the suspension notice disappearing.
+     */
+
+    /**
+     * @param  string|null  $note  what the staff member chose to add when approving, if anything —
+     *                             the screen tells them it is sent to the customer (owner, 2026-09-27)
+     */
+    public function companyApproved(CustomerDto $customer, ?string $note): void;
+
+    /**
+     * @param  string  $reason  why, in the staff member's words: required (b2b.md §1.1)
+     */
+    public function companyRejected(CustomerDto $customer, string $reason): void;
+
+    /**
+     * @param  string  $reason  why, in the staff member's words: required (b2b.md §1.1)
+     */
+    public function companySuspended(CustomerDto $customer, string $reason): void;
 }

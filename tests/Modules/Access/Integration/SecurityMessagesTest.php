@@ -9,12 +9,24 @@ use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Infrastructure\AccessServiceProvider;
 use Modules\Access\Infrastructure\Messages\SecurityMail;
 use Modules\Access\Public\Contracts\SecurityMessages;
+use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
+use Modules\Access\Public\Enums\AccountType;
+use Modules\Access\Public\Enums\CustomerStatus;
 use Modules\Access\Public\Enums\StaffStatus;
 
 function staffDto(string $locale): StaffDto
 {
     return new StaffDto('01j8z3k4m5n6p7q8r9s0t1v2w3', 'Sara', 'Ali', 'sara@example.test', '+966501234567', $locale, StaffStatus::Invited, false);
+}
+
+/**
+ * The holder of a company account. Named for this file: a function declared in a Pest file is
+ * global to the whole suite.
+ */
+function messagesCompanyHolder(string $locale): CustomerDto
+{
+    return new CustomerDto('01j8z3k4m5n6p7q8r9s0t1v2w4', AccountType::Company, CustomerStatus::Active, 'Sara', 'Ali', 'sara@example.test', '+966501234567', true, true, $locale, '01j8z3k4m5n6p7q8r9s0t1v2w5');
 }
 
 it('emails an invitation to the staff member, in their language, with the link', function (string $locale, string $subject, string $direction) {
@@ -63,6 +75,69 @@ it('sends a sign-in code with its own warning that the password was just used (a
     'English' => ['en', 'Your admin panel sign-in code is 482913. If you did not try to sign in, change your password now.'],
     'Arabic' => ['ar', 'رمز تسجيل الدخول إلى لوحة الإدارة هو 482913. إذا لم تحاول تسجيل الدخول فغيّر كلمة المرور الآن.'],
 ]);
+
+describe('B2B\'s decisions about a company (amendment 48)', function () {
+    it('tells the account holder what staff decided, in their language, with the reason', function (Closure $send, string $subject, string $text, string $direction) {
+        Mail::fake();
+
+        $send();
+
+        Mail::assertSent(SecurityMail::class, function (SecurityMail $mail) use ($subject, $text, $direction): bool {
+            $mail->assertHasTo('sara@example.test')
+                ->assertHasSubject($subject)
+                ->assertSeeInHtml($text)
+                ->assertSeeInHtml("dir=\"{$direction}\"", false)
+                ->assertSeeInHtml('Sara');
+
+            return true;
+        });
+        // Sent at once, like every message here: nothing waits in a job's stored payload.
+        Mail::assertNothingQueued();
+    })->with([
+        'approved, English' => [fn () => app(SecurityMessages::class)->companyApproved(messagesCompanyHolder('en'), null), 'Your company account is approved', 'you can now place orders', 'ltr'],
+        'rejected, English' => [fn () => app(SecurityMessages::class)->companyRejected(messagesCompanyHolder('en'), 'The tax number does not match the certificate.'), 'Your company application was not approved', 'The reason: The tax number does not match the certificate.', 'ltr'],
+        'suspended, English' => [fn () => app(SecurityMessages::class)->companySuspended(messagesCompanyHolder('en'), 'A transfer was reversed.'), 'Your company account is suspended', 'The reason: A transfer was reversed.', 'ltr'],
+        'approved, Arabic' => [fn () => app(SecurityMessages::class)->companyApproved(messagesCompanyHolder('ar'), null), 'تمت الموافقة على حساب شركتك', 'يمكنك الآن تقديم الطلبات', 'rtl'],
+        'rejected, Arabic' => [fn () => app(SecurityMessages::class)->companyRejected(messagesCompanyHolder('ar'), 'الرقم الضريبي لا يطابق الشهادة.'), 'لم تتم الموافقة على طلب شركتك', 'السبب: الرقم الضريبي لا يطابق الشهادة.', 'rtl'],
+        'suspended, Arabic' => [fn () => app(SecurityMessages::class)->companySuspended(messagesCompanyHolder('ar'), 'أُعيد مبلغ التحويل.'), 'تم تعليق حساب شركتك', 'السبب: أُعيد مبلغ التحويل.', 'rtl'],
+    ]);
+
+    it('adds the approval note as a line of its own, and only when staff wrote one', function (?string $note, bool $shown) {
+        Mail::fake();
+
+        app(SecurityMessages::class)->companyApproved(messagesCompanyHolder('en'), $note);
+
+        Mail::assertSent(SecurityMail::class, function (SecurityMail $mail) use ($shown): bool {
+            $shown
+                ? $mail->assertSeeInHtml('A note from our team: Welcome aboard.')
+                : $mail->assertDontSeeInHtml('A note from our team');
+
+            return true;
+        });
+    })->with([
+        'a note' => ['Welcome aboard.', true],
+        'no note' => [null, false],
+        // An empty line under a heading reads as something missing.
+        'only spaces' => ['   ', false],
+    ]);
+
+    it('gives all three the same one link: the shop\'s front door, built on APP_URL', function () {
+        // Not the request's host, as for every link this module emails (review of step 3b), and no
+        // store, language or page: the owner asked for a plain link to the shop (2026-09-27).
+        config(['app.url' => 'https://shop.touchwood.test']);
+        Mail::fake();
+
+        $messages = app(SecurityMessages::class);
+        $messages->companyApproved(messagesCompanyHolder('en'), null);
+        $messages->companyRejected(messagesCompanyHolder('ar'), 'A reason.');
+        $messages->companySuspended(messagesCompanyHolder('en'), 'A reason.');
+
+        // Three sent, and not one of them with any other link: "none differs" alone would pass
+        // on nothing sent at all.
+        Mail::assertSent(SecurityMail::class, 3);
+        Mail::assertNotSent(SecurityMail::class, fn (SecurityMail $mail): bool => ($mail->values['link'] ?? null) !== 'https://shop.touchwood.test');
+    });
+});
 
 it('refuses an SMS driver it does not have, rather than sending nothing', function () {
     config(['access.sms.driver' => 'twilio']);
@@ -128,6 +203,12 @@ it('has every message in both languages', function () {
     expect(array_keys($ar))->toBe(array_keys($en))
         ->and(array_keys($ar['staff_invitation']))->toBe(['subject', 'lines', 'action'])
         ->and(array_keys($ar['staff_email_change']))->toBe(['subject', 'lines', 'action'])
+        ->and(array_keys($ar['company_approved']))->toBe(['subject', 'lines', 'note', 'action'])
+        ->and(array_keys($ar['company_rejected']))->toBe(['subject', 'lines', 'action'])
+        ->and(array_keys($ar['company_suspended']))->toBe(['subject', 'lines', 'action'])
+        ->and($ar['company_approved']['note'])->toContain(':note')
+        ->and(implode(' ', $ar['company_rejected']['lines']))->toContain(':reason')
+        ->and(implode(' ', $ar['company_suspended']['lines']))->toContain(':reason')
         ->and($ar['phone_code'])->toContain(':code')
         ->and($ar['sign_in_code'])->toContain(':code');
 });
