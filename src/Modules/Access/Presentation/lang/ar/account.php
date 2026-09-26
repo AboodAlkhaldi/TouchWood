@@ -187,4 +187,5 @@ return [
     'session_ended' => 'تم تسجيل خروج ذلك المتصفّح.',
     'signed_out_everywhere' => 'أُنهيت كل الجلسات، وستطلب كل المتصفحات رمزًا.',
     'trusted_browser_forgotten' => 'سيطلب ذلك المتصفّح رمزًا في المرة القادمة.',
+    'trusted_browsers_forgotten' => 'ستطلب كل المتصفحات رمزًا في المرة القادمة.',
 ];

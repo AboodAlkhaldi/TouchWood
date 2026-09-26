@@ -18,11 +18,14 @@ namespace Modules\Access\Application\Session;
 interface StaffSessionDirectory
 {
     /**
-     * Their live sessions, most recently seen first.
+     * Their live sessions, most recently seen first: only those seen at or after $activeSince (a
+     * Unix timestamp). A row idle for longer can no longer be used, but stays in the table until
+     * Laravel's sweep reaches it — listing it would show a browser as signed in when it is not
+     * (owner, 2026-09-27).
      *
      * @return list<array{id: string, ip_address: string|null, user_agent: string|null, last_activity: int}>
      */
-    public function forStaff(string $staffId): array;
+    public function forStaff(string $staffId, int $activeSince): array;
 
     /** One of their sessions, gone at once rather than on its next request. */
     public function end(string $sessionId, string $staffId): void;

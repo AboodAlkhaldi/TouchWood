@@ -29,6 +29,7 @@ use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChange
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\MyAccount\MyAccountDto;
 use Modules\Access\Application\Query\MyAccount\MyAccountForStaff;
+use Modules\Access\Application\Query\MySessions\MySessionsDto;
 use Modules\Access\Application\Query\MySessions\MySessionsForStaff;
 use Modules\Access\Application\Query\MySessions\StaffSessionDto;
 use Modules\Access\Application\Query\MySessions\TrustedBrowserDto;
@@ -86,6 +87,9 @@ final readonly class StaffOwnAccountController
     public function show(Request $request): Response
     {
         $account = $this->account->forCurrentStaff();
+        // Asked once: the session doing the asking is named here rather than guessed further in,
+        // because this is the only place that holds the request.
+        $sessions = $this->mySessions->forCurrentStaff($request->hasSession() ? $request->session()->getId() : null);
         $tab = $request->string('tab')->toString();
 
         return $this->page->render('Access/Admin/Account/Account', (new AccountPage(
@@ -106,10 +110,8 @@ final readonly class StaffOwnAccountController
             notifications: $this->notifications($account),
             countries: $this->countries(),
             passwordMinLength: $this->settings->passwordMinLength(),
-            // The session doing the asking is named here rather than guessed further in: this is
-            // the only place that holds the request.
-            sessions: $this->sessionRows($request),
-            trustedBrowsers: $this->trustedRows(),
+            sessions: $this->sessionRows($sessions),
+            trustedBrowsers: $this->trustedRows($sessions),
             tab: in_array($tab, self::TABS, true) ? $tab : self::TABS[0],
         ))->toArray(), self::WORDS);
     }
@@ -159,16 +161,18 @@ final readonly class StaffOwnAccountController
             return FormErrors::back($request, $error);
         }
 
-        return $this->backToSessions('access::account.trusted_browser_forgotten');
+        // One browser or all of them, and the message says which: "that browser" after forgetting
+        // every one of them would leave somebody thinking the others still skip the code.
+        return $this->backToSessions($browser === null
+            ? 'access::account.trusted_browsers_forgotten'
+            : 'access::account.trusted_browser_forgotten');
     }
 
     /**
      * @return list<StaffSessionRow>
      */
-    private function sessionRows(Request $request): array
+    private function sessionRows(MySessionsDto $sessions): array
     {
-        $sessions = $this->mySessions->forCurrentStaff($request->hasSession() ? $request->session()->getId() : null);
-
         return array_map(static fn (StaffSessionDto $session): StaffSessionRow => new StaffSessionRow(
             $session->id,
             $session->ipAddress,
@@ -181,11 +185,11 @@ final readonly class StaffOwnAccountController
     /**
      * @return list<TrustedBrowserRow>
      */
-    private function trustedRows(): array
+    private function trustedRows(MySessionsDto $sessions): array
     {
         return array_map(
             static fn (TrustedBrowserDto $browser): TrustedBrowserRow => new TrustedBrowserRow($browser->id, $browser->expiresAt),
-            $this->mySessions->forCurrentStaff(null)->trustedBrowsers,
+            $sessions->trustedBrowsers,
         );
     }
 

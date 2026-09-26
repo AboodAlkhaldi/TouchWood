@@ -189,4 +189,5 @@ return [
     'session_ended' => 'That browser was signed out.',
     'signed_out_everywhere' => 'Every session was ended, and every browser will ask for a code.',
     'trusted_browser_forgotten' => 'That browser will ask for a code next time.',
+    'trusted_browsers_forgotten' => 'Every browser will ask for a code next time.',
 ];

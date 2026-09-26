@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
@@ -100,6 +102,33 @@ describe('the sessions a staff member has', function () {
         $browser->get('/admin/account?tab=sessions')
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page->has('sessions', 1)->where('sessions.0.isCurrent', true));
+    });
+
+    it('leaves out a session idle past the limit, which could no longer be used anyway', function () {
+        // The row outlives the session: Laravel sweeps the table only now and then, and a browser
+        // left idle stays there for hours after its next request would be refused. Listing it
+        // showed a laptop left in a meeting room as signed in (review of PR #59; owner, 2026-09-27).
+        $idle = app(StaffSecuritySettings::class)->sessionIdleMinutes();
+        $staffId = sessionsStaff();
+        $away = sessionsSignIn($staffId);
+
+        // A minute inside the limit it is still a way in, so it is listed.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes($idle - 1));
+        $here = sessionsSignIn($staffId);
+
+        $here->get('/admin/account?tab=sessions')
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('sessions', 2));
+
+        // A minute past it, it is not, whatever the table still holds.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(2));
+
+        expect(DB::table('access.admin_sessions')->where('user_id', $staffId)->count())->toBe(2);
+
+        $here->get('/admin/account?tab=sessions')
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('sessions', 1)->where('sessions.0.isCurrent', true));
+
+        // And the list agrees with the session check: that browser is indeed signed out.
+        expect($away->get('/admin')->getStatusCode())->toBe(302);
     });
 
     it('lists a trusted browser, and never the token behind it', function () {
@@ -210,9 +239,10 @@ describe('trusted browsers', function () {
 
         $id = (string) DB::table('access.staff_trusted_browsers')->where('staff_user_id', $staffId)->value('id');
 
-        $browser->post('/admin/account/trusted-browsers/'.$id)->assertRedirect('/admin/account?tab=sessions');
+        $response = $browser->post('/admin/account/trusted-browsers/'.$id)->assertRedirect('/admin/account?tab=sessions');
 
-        expect(DB::table('access.staff_trusted_browsers')->where('id', $id)->count())->toBe(0)
+        expect(AdminBrowser::flashed($response, 'status'))->toBe('That browser will ask for a code next time.')
+            ->and(DB::table('access.staff_trusted_browsers')->where('id', $id)->count())->toBe(0)
             // It signs nobody out: a trusted browser is one allowed past the code, not one kept
             // signed in.
             ->and(DB::table('access.admin_sessions')->where('user_id', $staffId)->count())->toBe(1);
@@ -223,9 +253,12 @@ describe('trusted browsers', function () {
         sessionsSignIn($staffId, trustBrowser: true);
         $browser = sessionsSignIn($staffId, trustBrowser: true);
 
-        $browser->post('/admin/account/trusted-browsers')->assertRedirect('/admin/account?tab=sessions');
+        $response = $browser->post('/admin/account/trusted-browsers')->assertRedirect('/admin/account?tab=sessions');
 
-        expect(DB::table('access.staff_trusted_browsers')->where('staff_user_id', $staffId)->count())->toBe(0);
+        expect(DB::table('access.staff_trusted_browsers')->where('staff_user_id', $staffId)->count())->toBe(0)
+            // All of them, and the message says so: "that browser" here would leave somebody
+            // thinking the others still skip the code (review of PR #59).
+            ->and(AdminBrowser::flashed($response, 'status'))->toBe('Every browser will ask for a code next time.');
     });
 
     it('cannot forget a browser belonging to somebody else', function () {

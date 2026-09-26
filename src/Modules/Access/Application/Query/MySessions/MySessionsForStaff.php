@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Session\StaffSessionDirectory;
+use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Domain\Model\TrustedBrowser;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Shared\Application\Authorizer;
@@ -37,12 +38,17 @@ final readonly class MySessionsForStaff
         private GrantRules $rules,
         private StaffSessionDirectory $sessions,
         private StaffTokenRepository $tokens,
+        private StaffSecuritySettings $settings,
     ) {}
 
     public function forCurrentStaff(?string $currentSessionId): MySessionsDto
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $staffId = $this->rules->currentStaffId();
+
+        // Idle past the limit is signed out, whether or not the row has been swept yet: the same
+        // rule the session itself is held to on its next request (owner, 2026-09-27).
+        $activeSince = CarbonImmutable::now()->getTimestamp() - $this->settings->sessionIdleMinutes() * 60;
 
         $sessions = array_map(static fn (array $row): StaffSessionDto => new StaffSessionDto(
             id: $row['id'],
@@ -51,7 +57,7 @@ final readonly class MySessionsForStaff
             lastActivity: CarbonImmutable::createFromTimestamp($row['last_activity'])->toIso8601String(),
             // Named rather than guessed: the caller knows which session it is answering.
             isCurrent: $currentSessionId !== null && $row['id'] === $currentSessionId,
-        ), $this->sessions->forStaff($staffId));
+        ), $this->sessions->forStaff($staffId, $activeSince));
 
         $trusted = array_map(static fn (TrustedBrowser $browser): TrustedBrowserDto => new TrustedBrowserDto(
             id: $browser->id,

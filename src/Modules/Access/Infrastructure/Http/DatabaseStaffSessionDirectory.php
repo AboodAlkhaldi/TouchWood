@@ -22,10 +22,11 @@ final readonly class DatabaseStaffSessionDirectory implements StaffSessionDirect
     /**
      * @return list<array{id: string, ip_address: string|null, user_agent: string|null, last_activity: int}>
      */
-    public function forStaff(string $staffId): array
+    public function forStaff(string $staffId, int $activeSince): array
     {
         $rows = $this->db->table(self::TABLE)
             ->where('user_id', $staffId)
+            ->where('last_activity', '>=', $activeSince)
             ->orderByDesc('last_activity')
             ->get(['id', 'ip_address', 'user_agent', 'last_activity']);
 
