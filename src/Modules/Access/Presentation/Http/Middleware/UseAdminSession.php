@@ -23,6 +23,9 @@ final readonly class UseAdminSession
 {
     public const string ALIAS = AdminArea::SESSION;
 
+    /** The panel's own session driver, which writes the staff member each row belongs to. */
+    public const string DRIVER = 'access-admin';
+
     public function __construct(
         private Config $config,
         private SessionManager $sessions,
@@ -34,6 +37,7 @@ final readonly class UseAdminSession
     public function handle(Request $request, Closure $next): Response
     {
         $previous = [
+            'session.driver' => $this->config->get('session.driver'),
             'session.cookie' => $this->config->get('session.cookie'),
             'session.path' => $this->config->get('session.path'),
             'session.lifetime' => $this->config->get('session.lifetime'),
@@ -41,6 +45,9 @@ final readonly class UseAdminSession
         ];
 
         $this->config->set([
+            // Only a panel row carries a staff id, so only the panel uses this driver; the
+            // storefront and anything else keep whatever is configured.
+            'session.driver' => self::DRIVER,
             'session.cookie' => $this->config->get('access.admin.session_cookie'),
             'session.path' => '/admin',
             'session.lifetime' => $this->settings->sessionMaxHours() * 60,
