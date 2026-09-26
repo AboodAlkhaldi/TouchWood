@@ -213,6 +213,29 @@ final readonly class DatabaseStaffTokenRepository implements StaffTokenRepositor
         $this->db->table(self::TRUSTED_BROWSERS)->where('id', $id)->update(['last_used_at' => $usedAt]);
     }
 
+    /**
+     * @return list<TrustedBrowser>
+     */
+    public function trustedBrowsersFor(string $staffId): array
+    {
+        $rows = $this->db->table(self::TRUSTED_BROWSERS)
+            ->where('staff_user_id', $staffId)
+            ->where('expires_at', '>', CarbonImmutable::now())
+            ->orderByDesc('created_at')
+            ->get();
+
+        return array_values(array_map(static fn (object $row): TrustedBrowser => new TrustedBrowser(
+            (string) $row->id,
+            (string) $row->staff_user_id,
+            CarbonImmutable::parse((string) $row->expires_at),
+        ), $rows->all()));
+    }
+
+    public function forgetTrustedBrowser(string $id, string $staffId): void
+    {
+        $this->db->table(self::TRUSTED_BROWSERS)->where('id', $id)->where('staff_user_id', $staffId)->delete();
+    }
+
     public function forgetTrustedBrowsers(string $staffId): void
     {
         $this->db->table(self::TRUSTED_BROWSERS)->where('staff_user_id', $staffId)->delete();

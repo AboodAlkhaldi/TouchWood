@@ -23,6 +23,9 @@ final class AdminArea
     /** Every admin page hangs under /admin. Platform reserves the path so no store can take it. */
     public const string PREFIX = 'admin';
 
+    /** Where the panel lives, as a cookie or a session writes a path. */
+    public const string PATH = '/'.self::PREFIX;
+
     /** The panel's own session cookie, set before `web` opens the session. */
     public const string SESSION = 'access.admin-session';
 

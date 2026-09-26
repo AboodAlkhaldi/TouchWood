@@ -4,12 +4,14 @@ import { useTranslator } from '@/lib/t';
 import { NotificationsTab } from '@/pages/Access/Admin/Account/NotificationsTab';
 import { ProfileTab } from '@/pages/Access/Admin/Account/ProfileTab';
 import { SecurityTab } from '@/pages/Access/Admin/Account/SecurityTab';
+import { SessionsTab } from '@/pages/Access/Admin/Account/SessionsTab';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
 | B1-B4 - "Account & settings" (frontend.md §3.2).
 |
-| One screen with three tabs, because it is one person's account: Account, Security, Notifications.
+| One screen with four tabs, because it is one person's account: Account, Security, Sessions,
+| Notifications.
 | Every staff member has it, and it only ever shows the person looking at it - there is no id in any
 | route behind it.
 |
@@ -24,7 +26,7 @@ import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/
 
 type Props = AccountPage;
 
-const TABS = ['account', 'security', 'notifications'] as const;
+const TABS = ['account', 'security', 'sessions', 'notifications'] as const;
 
 type Tab = (typeof TABS)[number];
 
@@ -70,6 +72,7 @@ export default function Account(account: Props) {
                 <div role="tabpanel" id={`panel-${open}`} aria-labelledby={`tab-${open}`}>
                     {open === 'account' ? <ProfileTab account={account} /> : null}
                     {open === 'security' ? <SecurityTab account={account} /> : null}
+                    {open === 'sessions' ? <SessionsTab account={account} /> : null}
                     {open === 'notifications' ? <NotificationsTab account={account} /> : null}
                 </div>
             </div>

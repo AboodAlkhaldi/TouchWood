@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\HandleInertiaRequests;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -314,3 +315,30 @@ function signedInBrowser(array $permissions = [AccessPermissions::STAFF_VIEW]): 
 
     return $browser;
 }
+
+it('sets a preference for the whole site, and clears the panel-scoped twin', function () {
+    // The panel sets session.path to /admin for the length of its request, and Laravel's cookie
+    // helper takes the current session's path - so these were written at /admin while the shop
+    // wrote the same names at /. A browser that had seen both held two cookies of each name and
+    // sent both, and which one the server read was its choice: the toggle changed a copy nobody
+    // was reading and looked stuck (owner, 2026-09-26).
+    $browser = signedInBrowser();
+
+    $response = $browser->post('/admin/preferences', ['preference' => 'locale', 'value' => 'ar']);
+
+    $cookies = collect($response->headers->getCookies())
+        ->filter(fn ($cookie): bool => $cookie->getName() === HandleInertiaRequests::LOCALE_COOKIE);
+
+    // One written for the whole site, and one clearing the /admin copy any browser already holds
+    // - which would otherwise stay until it expired, and might keep winning.
+    $paths = $cookies->map(fn ($cookie): string => (string) $cookie->getPath())->sort()->values()->all();
+    expect($paths)->toBe(['/', '/admin']);
+
+    $written = $cookies->first(fn ($cookie): bool => $cookie->getPath() === '/');
+    $forgotten = $cookies->first(fn ($cookie): bool => $cookie->getPath() === '/admin');
+
+    // Both values are encrypted on the way out - even the empty one - so the expiry is what says
+    // which is which: one is being kept, the other is being taken away.
+    expect($written?->getExpiresTime())->toBeGreaterThan(time())
+        ->and($forgotten?->getExpiresTime())->toBeLessThan(time());
+});

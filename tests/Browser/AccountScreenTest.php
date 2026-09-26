@@ -169,3 +169,43 @@ it('saves a notification switch as it is flipped, and says so', function () {
         ->assertSee('تم الحفظ.')
         ->assertNoJavaScriptErrors();
 });
+
+it('shows where I am signed in, and marks this browser', function () {
+    accountScreenSignedIn()
+        ->navigate('/admin/account?tab=sessions')
+        ->assertSee('أين أنت مسجَّل الدخول')
+        // The browser reading the page says so about itself.
+        ->assertSee('هذا المتصفّح')
+        ->assertNoJavaScriptErrors();
+});
+
+it('signs out everywhere, and the browser that pressed it is out too', function () {
+    // The case the whole feature was asked for: an account lent to somebody, and wanted back.
+    $page = accountScreenSignedIn()->navigate('/admin/account?tab=sessions');
+
+    // Asked once before doing it: this signs the person pressing it out.
+    $page->click('[data-test="sign-out-everywhere"]')
+        ->click('[data-test="confirm-sign-out-everywhere"]')
+        // No session left, so the panel asks them to sign in again.
+        ->assertPathIs('/admin/sign-in')
+        ->assertNoJavaScriptErrors();
+});
+
+it('forgets a trusted browser, in a suite with no transaction around it', function () {
+    // This is the test the feature tests could not be. RefreshDatabase wraps each of those in a
+    // transaction, so Platform's "an audit entry belongs inside the transaction of its change"
+    // was satisfied by the test itself and the handler's missing transaction went unseen - until
+    // the owner pressed the button and met a 500 (2026-09-26). Nothing wraps this suite.
+    $page = accountScreenSignedIn()->navigate('/admin/account?tab=sessions');
+
+    // Whether this browser is trusted depends on the sign-in above, so both endings are allowed:
+    // a button to press, or the line saying there is nothing to forget. What is not allowed is a
+    // server error, which assertNoJavaScriptErrors and the page itself would show.
+    $page->assertSee('متصفحات تتخطى رمزك');
+
+    if ($page->script('document.querySelector(\'[data-test="forget-all-browsers"]\') !== null') === true) {
+        $page->click('[data-test="forget-all-browsers"]')->assertSee('لا شيء. كل متصفّح يطلب رمزًا.');
+    }
+
+    $page->assertNoJavaScriptErrors();
+});

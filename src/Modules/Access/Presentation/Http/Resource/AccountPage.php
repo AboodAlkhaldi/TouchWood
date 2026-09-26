@@ -52,6 +52,10 @@ final class AccountPage extends Data
         public array $notifications,
         public array $countries,
         public int $passwordMinLength,
+        /** @var list<StaffSessionRow> where they are signed in, most recently seen first */
+        public array $sessions,
+        /** @var list<TrustedBrowserRow> the browsers that skip the SMS code, until they expire */
+        public array $trustedBrowsers,
         public string $tab,
     ) {}
 }
