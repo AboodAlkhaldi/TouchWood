@@ -7,6 +7,7 @@ namespace Modules\Access\Application\Command\SignOutEverywhere;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
+use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Session\StaffSessionDirectory;
 use Modules\Access\Domain\Exception\StaffNotFound;
@@ -42,6 +43,7 @@ final readonly class SignOutEverywhereHandler
     public function __construct(
         private Authorizer $authorizer,
         private GrantRules $rules,
+        private GrantsReader $grants,
         private StaffUserRepository $staff,
         private StaffTokenRepository $tokens,
         private StaffSessionDirectory $sessions,
@@ -68,6 +70,15 @@ final readonly class SignOutEverywhereHandler
 
             $this->tokens->forgetTrustedBrowsers($staffId);
             $this->sessions->endAll($staffId);
+
+            // **The number a session is checked against is the cached one**, not the row: a
+            // session is accepted when its version matches the grants cache (LaravelStaffSessions).
+            // Raising the row without refreshing the cache leaves the two disagreeing, and then
+            // every later sign-in stores the new number, is compared against the stale one, and is
+            // thrown out - which locks the person out of their own account until the cache
+            // expires. A password change has always refreshed it here; this did not, and the owner
+            // could not sign in again (found by him, 2026-09-26).
+            $this->grants->refresh($staffId);
 
             $this->platform->recordAudit(StaffAudit::event('access.staff_user.signed_out_everywhere', $staff));
         }, 3);

@@ -181,6 +181,26 @@ describe('ending them', function () {
         expect($elsewhere->get('/admin')->getStatusCode())->toBe(302)
             ->and($here->get('/admin')->getStatusCode())->toBe(302);
     });
+
+    it('lets them sign in again afterwards, which is the next thing anybody does', function () {
+        // The test that was missing. The one above proved they were signed out and stopped there,
+        // so it never saw that they could not get back in: a session is checked against the
+        // **cached** grants, and raising the version on the row without refreshing the cache left
+        // the two disagreeing, so every later sign-in was accepted and then thrown out on its very
+        // next request. The owner met it as a sign-in that would not stick (2026-09-26).
+        $staffId = sessionsStaff();
+        $browser = sessionsSignIn($staffId);
+
+        $browser->post('/admin/account/sessions/all')->assertRedirect('/admin/account?tab=sessions');
+
+        // A fresh browser, the whole way in.
+        $again = sessionsSignIn($staffId);
+
+        // And it stays in: the panel answers rather than sending them back to the door.
+        $again->get('/admin/account?tab=sessions')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('sessions', 1));
+    });
 });
 
 describe('trusted browsers', function () {
