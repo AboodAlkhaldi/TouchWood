@@ -22,7 +22,8 @@ use Shared\Application\Actor;
  */
 final readonly class LaravelStaffSessions implements StaffSessions
 {
-    private const string SIGNED_IN = 'access.staff';
+    /** Public because the session handler reads it out of a written row (StaffSessionHandler). */
+    public const string SIGNED_IN = 'access.staff';
 
     private const string PENDING = 'access.staff_pending';
 

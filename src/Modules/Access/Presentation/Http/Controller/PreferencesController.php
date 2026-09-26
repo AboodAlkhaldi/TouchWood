@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Controller;
 
+use App\Http\AdminArea;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie as CookieFacade;
 
 /**
  * The theme and the displayed language, remembered **per browser** in a cookie so the server
@@ -31,6 +33,9 @@ use Illuminate\Http\Request;
  */
 final readonly class PreferencesController
 {
+    /** These belong to the browser, not to an area of the site, so they are set for all of it. */
+    private const string PATH = '/';
+
     public function __invoke(Request $request): RedirectResponse
     {
         $preference = $request->string('preference')->toString();
@@ -44,10 +49,25 @@ final readonly class PreferencesController
 
         $back = back();
 
-        return $cookie === null
-            ? $back
+        if ($cookie === null) {
+            return $back;
+        }
+
+        return $back
             // Not httpOnly on purpose: it decides nothing and protects nothing, and a person's own
             // browser may read which theme it is showing.
-            : $back->withCookie(cookie($cookie, $value, HandleInertiaRequests::COOKIE_MINUTES, httpOnly: false));
+            //
+            // **The path is given, and it is the whole site.** Laravel's cookie helper otherwise
+            // takes the current session's path, which the panel sets to /admin for the length of
+            // its request - so the panel wrote tw_locale and tw_theme at /admin while the shop
+            // wrote the same names at /, and a browser that had seen both held two cookies of each
+            // name and sent both. Which one the server read was the browser's choice, so the
+            // toggle changed a copy nobody was reading and looked stuck (found by the owner,
+            // 2026-09-26). It is the same disease this application already met with XSRF-TOKEN,
+            // which is why the CSRF token travels as a page prop instead.
+            ->withCookie(cookie($cookie, $value, HandleInertiaRequests::COOKIE_MINUTES, self::PATH, httpOnly: false))
+            // And the /admin copy of it goes, for every browser that already holds one. Without
+            // this the stale twin stays until it expires, and may keep winning.
+            ->withCookie(CookieFacade::forget($cookie, AdminArea::PATH));
     }
 }

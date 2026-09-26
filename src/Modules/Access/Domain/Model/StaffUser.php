@@ -108,6 +108,23 @@ final class StaffUser
     }
 
     /**
+     * "Sign out everywhere", asked for by the staff member themselves (owner, 2026-09-26).
+     *
+     * The session version moves on and nothing else does: no status changes, no password, no
+     * permission. Every session holding the old number is refused on its next request, wherever
+     * it is - which is the only way to reach a browser this process will never see.
+     *
+     * It is deliberately something an **active** account does to itself. A disabled or cancelled
+     * account has had its sessions ended already by the change that disabled it.
+     */
+    public function endEverySession(): void
+    {
+        $this->requireStatus(StaffStatus::Active);
+        $this->sessionVersion++;
+        $this->markChanged('session_version');
+    }
+
+    /**
      * Only someone who accepted: an invited person's invitation is cancelled instead. Every session
      * ends for good: the session version moves on, so enabling them again brings none back (review
      * of step 3b).
