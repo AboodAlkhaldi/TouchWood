@@ -247,9 +247,9 @@ through its own signed link, by staff with the permission (§3).
 | Access | **The account's home store**, which decides who may review the company | **An Access change [FOUND 2026-09-25]**: `CustomerDto` carries the type, status, names, email, phone and locale, but **not `homeStoreId`**. One field on the DTO and one column read. Made in B2B's first build step, not before: Access is finished and nothing needs it yet. |
 | Access | A message to the customer when staff **approve, reject or suspend** — **[DECIDED 2026-09-26]**; a reinstatement sends none, being the suspension notice disappearing (`SecurityMessages`, access.md §2.3) | **An Access change**: B2B's own message types, until Ops |
 | Platform | **The IBAN to transfer to**, a per-store setting **[DECIDED 2026-09-26]** — a Saudi and an Egyptian bank account are not the same account. Shown by B2B on the company page **only while `APPROVED`**, since only an approved company can order. Payments owns it from stage 7 and this setting goes then | **A Platform setting**, declared by B2B |
-| Platform | A module uploading a private file for its own use | **A Platform change**, the same one the frontend spec needs (`frontend.md` §4.3 P1) |
+| Platform | A module uploading a private file for its own use | **Exists** — `PlatformApi::uploadMediaFor(ModuleUploadDto)`, built in stage 2b. Platform checks the permission B2B names, not `platform.media.upload`, which a customer will never hold |
 | Platform | Media, the audit log, and the permission catalog | Exists |
-| Access | The permission catalog, with the **group** each permission belongs to | **The change in `frontend.md` §4.3 P2** |
+| Access | The permission catalog, with the **group** each permission belongs to | **Exists** — `PermissionGroup` shipped in stage 2b; B2B's permissions join the `Customers` group |
 
 ### 2.4 What B2B gives others
 
