@@ -121,9 +121,30 @@ final class AdminBrowser
 
         $response = call($method, $uri, $data, $cookies, [], [...$this->server, 'REMOTE_ADDR' => $this->ip]);
 
+        /*
+        | This jar has **one slot per name**, where a browser keys a cookie by its name *and* its
+        | path. That is usually close enough, and it stops being close enough the moment one
+        | response both sets a cookie for the whole site and clears the same name under a path -
+        | which is exactly what changing a preference does, to take away the /admin copy an older
+        | build left behind (PreferencesController, 2026-09-26). Taking the clearing literally
+        | would throw away the value just written.
+        |
+        | So a name being set in this response is never also cleared by it. Modelling paths
+        | properly would be the fuller answer, and nothing here has needed it yet.
+        */
+        $set = [];
+
+        foreach ($response->headers->getCookies() as $cookie) {
+            if (! $cookie->isCleared()) {
+                $set[$cookie->getName()] = true;
+            }
+        }
+
         foreach ($response->headers->getCookies() as $cookie) {
             if ($cookie->isCleared()) {
-                unset($this->cookies[$cookie->getName()]);
+                if (! isset($set[$cookie->getName()])) {
+                    unset($this->cookies[$cookie->getName()]);
+                }
 
                 continue;
             }
