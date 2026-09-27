@@ -23,8 +23,11 @@ final class AccountPage extends Data
     /**
      * @param  string|null  $pendingEmail  an address waiting for its link to be used (amendment
      *                                     17); the screen says the change is pending until then
-     * @param  string  $locale  the **communication** language, which is not the panel's displayed
-     *                          language — the form labels them apart (§3.2, B1)
+     * @param  string  $communicationLocale  the **communication** language, which is not the
+     *                                       panel's displayed language — the form labels them
+     *                                       apart (§3.2, B1). Never named `locale`: that is the
+     *                                       displayed language every page shares, and a page's
+     *                                       own field of that name replaces it (owner, 2026-09-27)
      * @param  string|null  $phone  in full, in E.164 — not masked (stage 2b step 2, 2026-09-23):
      *                              the person is looking at their own account, and they cannot
      *                              decide whether to change a number they are not shown. Null only
@@ -45,7 +48,7 @@ final class AccountPage extends Data
         public string $dateOfBirth,
         public string $country,
         public ?string $address,
-        public string $locale,
+        public string $communicationLocale,
         public ?string $avatarUrl,
         public ?string $phone,
         public bool $canChangeEmail,

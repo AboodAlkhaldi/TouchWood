@@ -32,7 +32,7 @@ export function ProfileTab({ account }: Props) {
     const form = useForm({
         first_name: account.firstName,
         last_name: account.lastName,
-        locale: account.locale,
+        locale: account.communicationLocale,
     });
 
     return (
@@ -95,7 +95,7 @@ export function ProfileTab({ account }: Props) {
                         onChange={(event) => form.setData('locale', event.target.value)}
                         className="h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
                     >
-                        {(shop?.languages ?? [account.locale]).map((language) => (
+                        {(shop?.languages ?? [account.communicationLocale]).map((language) => (
                             <option key={language} value={language}>
                                 {t(`access::account.language.${language}`)}
                             </option>

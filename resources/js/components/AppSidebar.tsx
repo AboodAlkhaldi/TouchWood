@@ -119,7 +119,7 @@ export function AppSidebar() {
                             any of it, which is the reason it is a menu rather than four buttons. */}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <SidebarMenuButton size="lg" tooltip={viewer?.name ?? t('admin.panel')}>
+                                <SidebarMenuButton size="lg" tooltip={viewer?.name ?? t('admin.panel')} data-test="person-menu">
                                     {viewer?.avatarUrl ? (
                                         <img
                                             src={viewer.avatarUrl}
@@ -171,6 +171,7 @@ export function AppSidebar() {
                                 {/* Written in the language being offered, never translated: somebody
                                     who cannot read the current language must still recognise it. */}
                                 <DropdownMenuItem
+                                    data-test="language"
                                     lang={locale === 'ar' ? 'en' : 'ar'}
                                     onSelect={() => choosePreference('locale', locale === 'ar' ? 'en' : 'ar', '/admin/preferences')}
                                 >

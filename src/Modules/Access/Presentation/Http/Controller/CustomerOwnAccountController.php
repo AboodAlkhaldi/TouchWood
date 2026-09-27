@@ -214,7 +214,7 @@ final readonly class CustomerOwnAccountController
             lastName: $account->lastName,
             email: $account->email,
             accountType: $account->accountType->value,
-            locale: $account->locale,
+            communicationLocale: $account->locale,
             phone: $account->phone,
             emailVerified: $account->emailVerified,
             phoneVerified: $account->phoneVerified,
