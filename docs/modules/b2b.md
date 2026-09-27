@@ -67,8 +67,8 @@ Before the email is confirmed, before an application is started, and in every st
 
 > **This widens handoff §8.2**, which grants company prices to `PENDING` and calls it "the one
 > exception". The owner's reason: a company that can see its prices has something to finish the
-> approval *for*. Where this file and the handoff disagree on this point, this file is the later
-> decision — handoff §6 and §8.2 are to be amended to match.
+> approval *for*. Handoff §6 and §8.2 were amended to match in B2B's first build step (handoff
+> §0.1, 2026-09-26).
 
 It leaves a cleaner rule than the one it replaces, and the two halves no longer share a source:
 
@@ -127,7 +127,7 @@ decided. Staff can compare what was rejected with what has been sent now.
 | `state` | `DRAFT`, `SUBMITTED`, `APPROVED` or `REJECTED` (§4.2). |
 | `note` | The customer's note with a reapplication (handoff §8.2). Optional. |
 | `submitted_at` | Set when it leaves `DRAFT`. |
-| `decided_at`, `decided_by`, `decision_reason` | Filled when staff approve or reject it. |
+| `decided_at`, `decided_by`, `decision_reason` | Filled when staff approve or reject it. `decision_reason` is the rejection's **required** reason, or the approval's **optional** note — empty when staff wrote none (amendment 1). |
 | documents | One row per uploaded document (§1.4). |
 
 **[DECIDED 2026-09-26] An application is a snapshot, not a pointer.** It carries its own copy of
@@ -244,8 +244,8 @@ through its own signed link, by staff with the permission (§3).
 | From | What | State |
 |---|---|---|
 | Access | The account: its type, contact details, and its address scheme for the registered address | Exists (`AccessApi`) |
-| Access | **The account's home store**, which decides who may review the company | **An Access change [FOUND 2026-09-25]**: `CustomerDto` carries the type, status, names, email, phone and locale, but **not `homeStoreId`**. One field on the DTO and one column read. Made in B2B's first build step, not before: Access is finished and nothing needs it yet. |
-| Access | A message to the customer when staff **approve, reject or suspend** — **[DECIDED 2026-09-26]**; a reinstatement sends none, being the suspension notice disappearing (`SecurityMessages`, access.md §2.3) | **An Access change**: B2B's own message types, until Ops |
+| Access | **The account's home store**, which decides who may review the company | **Done in B2B step 1** (access.md amendment 48): `CustomerDto::$homeStoreId`. It was found missing on 2026-09-25. |
+| Access | A message to the customer when staff **approve, reject or suspend** — **[DECIDED 2026-09-26]**; a reinstatement sends none, being the suspension notice disappearing (`SecurityMessages`, access.md §2.3). The approval carries the staff member's **optional note**; each carries **one plain link to the shop's front door**, the same for everyone (amendment 1) | **Done in B2B step 1** (access.md amendment 48): `companyApproved`, `companyRejected`, `companySuspended`, until Ops |
 | Platform | **The IBAN to transfer to**, a per-store setting **[DECIDED 2026-09-26]** — a Saudi and an Egyptian bank account are not the same account. Shown by B2B on the company page **only while `APPROVED`**, since only an approved company can order. Payments owns it from stage 7 and this setting goes then | **A Platform setting**, declared by B2B |
 | Platform | A module uploading a private file for its own use | **Exists** — `PlatformApi::uploadMediaFor(ModuleUploadDto)`, built in stage 2b. Platform checks the permission B2B names, not `platform.media.upload`, which a customer will never hold |
 | Platform | Media, the audit log, and the permission catalog | Exists |
@@ -288,7 +288,7 @@ account registered in, as staff already see customers by home store (access.md �
 |---|---|---|---|
 | `ListCompanies` / `ViewCompany` | role | `b2b.company.view` | The account's home store |
 | `DownloadCompanyDocument` — a signed link, 30 minutes | role | `b2b.company.view` | The account's home store |
-| `ApproveCompany` | role | `b2b.company.review` | The account's home store |
+| `ApproveCompany` — an **optional note**, and the screen tells staff it is sent to the customer with the approval email (amendment 1) | role | `b2b.company.review` | The account's home store |
 | `RejectCompany` — **a reason is required** | role | `b2b.company.review` | The account's home store |
 | `SuspendCompany` — from any status, **a reason is required** (handoff §8.2) | role | `b2b.company.suspend` | The account's home store |
 | `ReinstateCompany` — ends a suspension (§4.1) | role | `b2b.company.suspend` | The account's home store |
@@ -438,7 +438,7 @@ type string and HTTP status (handoff §11).
 4. Submitting without a required document is refused, and nothing is created.
 5. Submitting before the email is confirmed is refused.
 6. A second submit while one is open is refused — including two requests at once, which the partial unique index has to decide.
-7. Approving lets them order, rejecting does not, and each is emailed with its reason.
+7. Approving lets them order, rejecting does not, and each is emailed — the rejection with its reason, the approval with the staff member's note when they wrote one.
 8. Reapplying after a rejection carries the previous documents; the rejected application keeps its own copies unchanged.
 9. A document type made required since the last application appears on the new one — and an approved company is never asked for it.
 
@@ -450,7 +450,7 @@ type string and HTTP status (handoff §11).
 13. A company sees company prices in every status, rejected and suspended included.
 14. The IBAN is absent from the page in every status but `APPROVED`.
 15. Staff of another store cannot see, approve, reject or suspend a company whose home store is not theirs — and a Super Admin can.
-16. Every staff action without a reason is refused.
+16. A rejection, a suspension or a reinstatement without a reason is refused; an approval needs none (amendment 1).
 17. A document is reachable only through a signed link, only by staff holding the permission, and the link expires.
 18. Anonymizing the account deletes the documents and keeps the company row, its status and the decision record.
 19. Every change is audited, and the personal fields are recorded as "changed", never by value.
@@ -466,4 +466,13 @@ type string and HTTP status (handoff §11).
 | 3 | Settling with staff over WhatsApp instead | **Out of scope**, and deliberately outside the system (owner, 2026-09-26) |
 | 4 | The IBAN setting | B2B's until **Payments**, stage 7, which takes it over (§2.3) |
 | 5 | Colleagues sharing one company | **Not built** (§1.1); the design's "Company staff" segment waits for a later stage |
-| 6 | `homeStoreId` on Access's `CustomerDto` | **An Access change**, made in B2B's first build step (§2.3) |
+| 6 | `homeStoreId` on Access's `CustomerDto` | **Done** in B2B step 1 (§2.3; access.md amendment 48) |
+
+### Amendments during the build
+
+Changes to what was accepted on 2026-09-26, each with the owner's agreement. Each is applied in
+place in the sections named; this table records what changed and why.
+
+| # | Where | Change | Why | Source |
+|---|---|---|---|---|
+| 1 | §1.2, §2.3, §3.2, §8 (7, 16) | **Approving takes an optional note, and the emails carry one plain link.** (a) The spec disagreed with itself: §1.1 and §3.2 required a reason for rejecting, suspending and reinstating, while scenario 16 refused "every staff action without a reason", approving included. Approving takes an **optional note**; the screen tells staff that the note is sent to the customer with the approval email. (b) The three decision emails carry **one link, the same for every customer: the shop's front door** (`APP_URL`), with no store, language or page in it. | (a) A reason on the normal path is typing nobody reads, but a word of welcome is worth being able to send — and staff must know it leaves the building. (b) The owner asked for the plainest link. | Owner, 2026-09-27 (B2B step 1) |

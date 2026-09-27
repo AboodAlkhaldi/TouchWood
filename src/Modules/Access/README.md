@@ -300,6 +300,11 @@ queued job would store the link in the `jobs` table. SMS goes through `SmsGatewa
 fails loudly rather than sending nothing. `log` writes codes to the log, so it refuses to run in
 production. Every message is in the person's communication language.
 
+It also carries **B2B's three decision emails** — approved (with the staff member's optional
+note), rejected and suspended (each with its reason) — because until Ops exists this is the one
+sender a customer's email goes through (amendment 48). They carry one plain link, the shop's front
+door on `APP_URL` (`CustomerLinks::shopFrontDoor`), the same for every customer.
+
 ### Super Admins: the console only
 
 `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`,

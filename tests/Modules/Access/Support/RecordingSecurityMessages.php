@@ -34,6 +34,13 @@ final class RecordingSecurityMessages implements SecurityMessages
     /** @var list<array{to: string, locale: string, link: string}> */
     public array $passwordResets = [];
 
+    /**
+     * B2B's decisions: the note for an approval, the reason for the other two.
+     *
+     * @var list<array{to: string, decision: 'approved'|'rejected'|'suspended', text: string|null, locale: string}>
+     */
+    public array $companyDecisions = [];
+
     private static ?self $installed = null;
 
     public static function install(): self
@@ -102,6 +109,21 @@ final class RecordingSecurityMessages implements SecurityMessages
     public function staffSignInCode(string $phone, string $locale, string $code): void
     {
         $this->codes[] = ['phone' => $phone, 'locale' => $locale, 'code' => $code, 'kind' => 'sign_in'];
+    }
+
+    public function companyApproved(CustomerDto $customer, ?string $note): void
+    {
+        $this->companyDecisions[] = ['to' => $customer->email, 'decision' => 'approved', 'text' => $note, 'locale' => $customer->locale];
+    }
+
+    public function companyRejected(CustomerDto $customer, string $reason): void
+    {
+        $this->companyDecisions[] = ['to' => $customer->email, 'decision' => 'rejected', 'text' => $reason, 'locale' => $customer->locale];
+    }
+
+    public function companySuspended(CustomerDto $customer, string $reason): void
+    {
+        $this->companyDecisions[] = ['to' => $customer->email, 'decision' => 'suspended', 'text' => $reason, 'locale' => $customer->locale];
     }
 
     /**

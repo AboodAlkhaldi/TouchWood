@@ -17,11 +17,14 @@ final class SecurityMail extends Mailable
     /**
      * @param  string  $message  the key under access::messages, e.g. "staff_invitation"
      * @param  array<string, string>  $values
+     * @param  list<string>  $moreLines  lines only some sends of this message carry, already in the
+     *                                   recipient's language — an approval's optional note
      */
     public function __construct(
         public readonly string $message,
         public readonly array $values,
         string $language,
+        public readonly array $moreLines = [],
     ) {
         $this->locale($language);
     }
@@ -34,7 +37,7 @@ final class SecurityMail extends Mailable
     public function content(): Content
     {
         return new Content(view: 'access::mail.security', with: [
-            'lines' => (array) __("access::messages.{$this->message}.lines", $this->values, $this->locale),
+            'lines' => [...(array) __("access::messages.{$this->message}.lines", $this->values, $this->locale), ...$this->moreLines],
             'action' => (string) __("access::messages.{$this->message}.action", $this->values, $this->locale),
             'link' => $this->values['link'] ?? null,
             'direction' => $this->locale === 'ar' ? 'rtl' : 'ltr',

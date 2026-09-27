@@ -23,4 +23,11 @@ interface CustomerLinks
      * random and stored only as a hash, so this link needs no signature.
      */
     public function passwordReset(string $token, string $storeCode, string $locale): string;
+
+    /**
+     * The shop's front door — APP_URL itself, with no store, language or page in it. The one link
+     * B2B's decision emails carry, the same for every customer (owner, 2026-09-27): whoever opens
+     * it lands where anybody typing the address would, and their own browser takes it from there.
+     */
+    public function shopFrontDoor(): string;
 }
