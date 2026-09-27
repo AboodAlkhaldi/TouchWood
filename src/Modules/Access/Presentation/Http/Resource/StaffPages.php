@@ -103,7 +103,7 @@ final readonly class StaffPages
             // this screen at all means they may, so it is present - but it is read defensively
             // rather than assumed, because a screen is not the place to learn that the hard way.
             status: ($person->status ?? StaffStatus::Active)->value,
-            locale: $this->text($row, 'locale') ?? 'ar',
+            communicationLocale: $this->text($row, 'locale') ?? 'ar',
             dateOfBirth: $this->text($row, 'date_of_birth'),
             country: $this->text($row, 'country'),
             address: $this->text($row, 'address'),
@@ -235,7 +235,7 @@ final readonly class StaffPages
             // every time (owner, 2026-09-24).
             countries: Countries::in($this->locale(), $this->ourCountries()),
             maySetAdmin: $unlimited,
-            locale: $this->locale(),
+            communicationLocale: $this->locale(),
         );
     }
 

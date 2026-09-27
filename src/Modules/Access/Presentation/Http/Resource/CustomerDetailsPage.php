@@ -20,13 +20,15 @@ final class CustomerDetailsPage extends Data
 {
     /**
      * @param  list<CustomerAddressGroup>  $addresses  by store, and empty where they have none
-     * @param  string  $locale  the language we write to them in, which is their own choice
-     *                          Each flag is what Access says this reader may do **next**: an account is blocked or
-     *                          unblocked, never both, and a closing is started or stopped, never started twice.
+     * @param  string  $communicationLocale  the language we write to them in, which is their own
+     *                                       choice — never named `locale`, which is the panel's
+     *                                       displayed language (owner, 2026-09-27).
+     *                                       Each flag is what Access says this reader may do **next**: an account is blocked or
+     *                                       unblocked, never both, and a closing is started or stopped, never started twice.
      */
     public function __construct(
         public CustomerRow $customer,
-        public string $locale,
+        public string $communicationLocale,
         public array $addresses,
         public bool $mayBlock,
         public bool $mayUnblock,

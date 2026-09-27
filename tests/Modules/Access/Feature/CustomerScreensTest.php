@@ -157,7 +157,7 @@ describe('one customer (G2)', function () {
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('Access/Admin/Customers/Show')
                 ->where('customer.email', 'sara@example.test')
-                ->where('locale', 'en')
+                ->where('communicationLocale', 'en')
                 ->where('addresses', [])
                 // Active and not closing, so those are the two that can happen next.
                 ->where('mayBlock', true)

@@ -55,7 +55,7 @@ export default function Invite(page: Props) {
         country: page.countries[0]?.code ?? '',
         address: '',
         phone: '',
-        locale: page.locale,
+        locale: page.communicationLocale,
         access_level: SELECTED_STORES,
         store_ids: [] as string[],
         exceptions: [] as ExceptionRow[],

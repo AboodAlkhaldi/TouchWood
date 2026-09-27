@@ -31,7 +31,7 @@ type Props = CustomerDetailsPage;
 
 export default function Show({
     customer,
-    locale,
+    communicationLocale,
     addresses,
     mayBlock,
     mayUnblock,
@@ -73,7 +73,7 @@ export default function Show({
                             </Fact>
 
                             <Fact label={t('access::customers.communication_language')}>
-                                {t(`access::account.language.${locale}`)}
+                                {t(`access::account.language.${communicationLocale}`)}
                             </Fact>
 
                             <Fact label={t('access::customers.email_verified')}>

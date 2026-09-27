@@ -35,7 +35,10 @@ final class InviteStaffPage extends Data
         public array $countries,
         /** Only a Super Admin may bring in an admin (access.md §1.6). */
         public bool $maySetAdmin,
-        /** The inviting admin's own language, which the form starts from. */
-        public string $locale,
+        /**
+         * The language the new person's communication language starts from: the inviting admin's
+         * own. Never named `locale`, which is the panel's displayed language (owner, 2026-09-27).
+         */
+        public string $communicationLocale,
     ) {}
 }
