@@ -1,0 +1,118 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\B2B\Infrastructure\Eloquent;
+
+use Carbon\CarbonImmutable;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Str;
+use Modules\B2B\Domain\Model\CompanyType;
+use Modules\B2B\Domain\Repository\CompanyTypeRepository;
+use Modules\B2B\Domain\ValueObject\TypeName;
+use stdClass;
+
+final readonly class DatabaseCompanyTypeRepository implements CompanyTypeRepository
+{
+    private const string TABLE = 'b2b.company_types';
+
+    public function __construct(
+        private ConnectionInterface $db,
+    ) {}
+
+    public function nextId(): string
+    {
+        return strtolower((string) Str::ulid());
+    }
+
+    public function find(string $typeId): ?CompanyType
+    {
+        if (! Ulids::valid($typeId)) {
+            return null;
+        }
+
+        $row = $this->db->table(self::TABLE)->where('id', strtolower($typeId))->first();
+
+        return $row instanceof stdClass ? self::toType($row) : null;
+    }
+
+    public function byId(string $typeId): ?CompanyType
+    {
+        if (! Ulids::valid($typeId)) {
+            return null;
+        }
+
+        $row = $this->db->table(self::TABLE)->where('id', strtolower($typeId))->lockForUpdate()->first();
+
+        return $row instanceof stdClass ? self::toType($row) : null;
+    }
+
+    public function all(): array
+    {
+        return $this->list($this->db->table(self::TABLE));
+    }
+
+    public function active(): array
+    {
+        return $this->list($this->db->table(self::TABLE)->where('is_active', true));
+    }
+
+    public function nameTaken(TypeName $name, ?string $exceptId = null): bool
+    {
+        return TypeNames::taken($this->db->table(self::TABLE), $name, $exceptId);
+    }
+
+    public function add(CompanyType $type): void
+    {
+        $now = CarbonImmutable::now();
+
+        $this->db->table(self::TABLE)->insert([
+            'id' => $type->id(),
+            ...self::toRow($type),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    public function update(CompanyType $type): void
+    {
+        $this->db->table(self::TABLE)->where('id', $type->id())->update([
+            ...self::toRow($type),
+            'updated_at' => CarbonImmutable::now(),
+        ]);
+    }
+
+    /**
+     * @return list<CompanyType>
+     */
+    private function list(Builder $query): array
+    {
+        $rows = $query->orderBy('position')->orderBy('name_en')->orderBy('id')->get();
+
+        return array_values(array_map(static fn (stdClass $row): CompanyType => self::toType($row), $rows->all()));
+    }
+
+    /**
+     * @return array<string, string|int|bool>
+     */
+    private static function toRow(CompanyType $type): array
+    {
+        return [
+            'name_ar' => $type->name()->ar,
+            'name_en' => $type->name()->en,
+            'position' => $type->position(),
+            'is_active' => $type->isActive(),
+        ];
+    }
+
+    private static function toType(stdClass $row): CompanyType
+    {
+        return CompanyType::reconstitute(
+            (string) $row->id,
+            TypeName::reconstitute((string) $row->name_ar, (string) $row->name_en),
+            (int) $row->position,
+            (bool) $row->is_active,
+        );
+    }
+}
