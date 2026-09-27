@@ -55,7 +55,7 @@ country: an approved company orders in KSA, Egypt and UAE alike.
 | `address` | The registered address: **one block of text** **[DECIDED 2026-09-27, amendment 2]** — required, at most 500 characters, line breaks allowed and no other control characters, read by staff as typed. No map pin. It is the company's and lives as long as the company; a delivery address is the person's, a separate thing, and keeps Access's structured form. *(Replaces 2026-09-25's "B2B's own record in Access's address scheme": nothing downstream reads the address — invoices come from the external accounting system, handoff §12.6 — so its shape is the screen's business, and the screen may change it later.)* |
 | ~~`contact_name`, `contact_phone`~~ | **Not columns. The responsible person is the account holder** **[DECIDED 2026-09-25]**, read from Access (`AccessApi::customer`). Handoff §8.1 asks registration for "the responsible person and their phone"; the account already carries both, and the phone is **verified by SMS**, which a typed-in second number would not be. Two phone numbers that can disagree is a support case nobody can settle. |
 | `status` | `PENDING`, `APPROVED`, `REJECTED` or `SUSPENDED` — **these four only** (handoff §8.2). Controls ordering and pricing, never sign-in. |
-| `status_reason` | Why it was rejected, suspended **or reinstated** — **required for all three** **[DECIDED 2026-09-19, 2026-09-26]**; shown to the customer. A reinstatement carries one too, so the history reads as a conversation rather than one side of it. |
+| `status_reason` | Why it was rejected, suspended **or reinstated** — **required for all three** **[DECIDED 2026-09-19, 2026-09-26]**; shown to the customer. A reinstatement carries one too, so the history reads as a conversation rather than one side of it. At most 1000 characters, line breaks allowed (amendment 3). |
 | `status_changed_at`, `status_changed_by` | When, and which staff member. |
 | `home_store_id` | Taken from the account's home store (access.md §1.1). It decides **which staff may review it** (§3), not where the company may buy. |
 
@@ -103,12 +103,20 @@ order is a commercial record of what was agreed; a document uploaded to prove wh
 not.
 
 **[DECIDED 2026-09-19] Editing after approval.** The customer may freely change the address and
-the contact details. Changing the **company name, CR number, tax number or documents** puts the
+the contact details. Changing the **company name, CR number, tax number, type or documents** puts the
 company back to `PENDING` — it cannot order until staff approve again — and the screen says so
 before the change is saved.
 
+**[DECIDED 2026-09-27] One path for every change of those details** (amendment 3): a **new
+application**, the same wizard — draft → sent → `PENDING` → decided — whether it is the account's
+first, a reapplication after a rejection, or new details from an approved company. The company keeps
+ordering while the draft is unsent; it goes back to `PENDING` when the application is sent. No other
+status is needed, and handoff §8.2 allows none. The **type** is one of these details: a change of
+legal form is always seen by staff before the company orders again. A staff correction of the type
+(§3.2) is not — it changes the company without sending it back.
+
 **[DECIDED 2026-09-25] Editing while suspended is refused.** A `SUSPENDED` company may still change
-its address and contact details, and may **not** touch the name, CR number, tax number or documents;
+its address and contact details, and may **not** touch the name, CR number, tax number, type or documents;
 the screen refuses with the suspension's own reason. Suspension is a deliberate act by staff, and
 an edit that sent the company back to `PENDING` would let a rename undo it. The way back is staff
 reinstating them (§3.2).
@@ -125,10 +133,10 @@ decided. Staff can compare what was rejected with what has been sent now.
 | `company_id` | The company, once there is one. Null on a first draft; set when it is submitted. |
 | `name`, `company_type_id`, `company_type_other`, `cr_number`, `tax_number`, `address` | **[DECIDED 2026-09-26] A snapshot of what was sent**, copied onto the application, not read through the company. A draft may hold any of them empty; submitting needs them all, and a type staff have deactivated since the draft chose it must be chosen again (amendment 2). A staff correction of the type (§3.2) changes the company, never the application: it is what was sent. |
 | `state` | `DRAFT`, `SUBMITTED`, `APPROVED` or `REJECTED` (§4.2). |
-| `note` | The customer's note with a reapplication (handoff §8.2). Optional. |
+| `note` | The customer's note with a reapplication (handoff §8.2). Optional; at most 1000 characters, line breaks allowed (amendment 3). |
 | `submitted_at` | Set when it leaves `DRAFT`. |
-| `decided_at`, `decided_by`, `decision_reason` | Filled when staff approve or reject it. `decision_reason` is the rejection's **required** reason, or the approval's **optional** note — empty when staff wrote none (amendment 1). |
-| documents | One row per uploaded document (§1.4). |
+| `decided_at`, `decided_by`, `decision_reason` | Filled when staff approve or reject it. `decision_reason` is the rejection's **required** reason, or the approval's **optional** note — empty when staff wrote none (amendment 1); at most 1000 characters, line breaks allowed (amendment 3). |
+| documents | **One file per document type** (§1.4, amendment 3). |
 
 **[DECIDED 2026-09-26] An application is a snapshot, not a pointer.** It carries its own copy of
 every value sent with it.
@@ -151,6 +159,9 @@ be tidied away into the other.
 - **[DECIDED 2026-09-20] A half-finished wizard is saved as a `DRAFT`**: the customer can leave and
   come back, and their account shows that the application is unfinished. Nothing is reviewed until
   they submit it.
+- **[DECIDED 2026-09-27] A draft is kept until it is sent, and the customer may discard it**
+  (amendment 3), which deletes the files it holds — those no other application of theirs still
+  holds. Nothing sent is ever discarded.
 - **One open application at a time** (handoff §8.2), **per account** — not per company, since a
   first draft has no company. Reapplication is unlimited once the last one was decided.
 - **[DECIDED 2026-09-26] Submitting requires a confirmed email address.** It is refused until then,
@@ -212,6 +223,13 @@ to un-accept it.
 ### 1.4 Documents
 
 An uploaded file belonging to one application and one document type.
+
+- **[DECIDED 2026-09-27] Exactly one file per document type** (amendment 3): uploading again
+  replaces it. A two-sided ID is one PDF. The file types and the size limit are Platform's for every
+  private file: PDF, JPEG or PNG, up to 10 MB (platform.md §1.4).
+- A document under a type staff have deactivated since it was uploaded **goes with the application
+  when it is sent**: it was uploaded, and it is evidence like any other. Only a type that is both
+  required and still offered is asked for.
 
 - **Private** Platform media (handoff §5.5: "company registration documents" are named there as
   private files). They are never public, never deduplicated (platform.md §1.4), and are reached
@@ -287,9 +305,10 @@ account, checked where it cannot be walked around.
 |---|---|---|---|
 | `SaveApplicationDraft` — the wizard, saved as it goes | company accounts only | `b2b.company.apply` | Global |
 | `SubmitApplication` — takes the company to `PENDING` | every customer | `b2b.company.apply` | Global |
+| `DiscardApplicationDraft` — throws an unsent draft away, with the files only it holds (amendment 3) | company accounts only | `b2b.company.apply` | Own data |
 | `ViewMyCompany` — details, status, reason, history | every customer | `b2b.company.apply` | Own data |
 | `UpdateCompanyContact` — address and contact details | every customer | `b2b.company.update` | Own data |
-| `UpdateCompanyDetails` — name, CR number, tax number, documents; **sends it back to `PENDING`** | every customer | `b2b.company.update` | Own data |
+| ~~`UpdateCompanyDetails`~~ — **not a use case of its own** (amendment 3): the name, CR number, tax number, type and documents change only by a **new application** — `SaveApplicationDraft`, then `SubmitApplication` — which sends the company back to `PENDING` | — | — | — |
 
 ### 3.2 Staff
 
@@ -316,25 +335,22 @@ are personal data: recorded only as "changed" (access.md §3.3, platform.md §1.
 
 ### 4.1 The company
 
-```
-                    (no company)
-                         │  SubmitApplication
-                         ▼
-   ┌──────────────────► PENDING ◄──────────────────┐
-   │                      │                        │
-   │ UpdateCompanyDetails │ Approve      Reject    │ SubmitApplication
-   │ (name, CR, tax, docs)│                        │ (reapplication)
-   │                      ▼                        │
-   │                  APPROVED ──── Reject ───► REJECTED
-   │                      │                        ▲
-   └──────────────────────┤                        │
-                          │                        │
-              Suspend     │     Suspend            │
-                          ▼                        │
-                      SUSPENDED ── Reinstate ──────┘
-                                   (to the status it held before)
-```
+Redrawn as a table by amendment 3; the earlier drawing had an arrow from `APPROVED` to `REJECTED`,
+which is gone.
 
+| From | Event | To |
+|---|---|---|
+| (no company) | `SubmitApplication` — the account's first | `PENDING` |
+| `PENDING` | `ApproveCompany` | `APPROVED` |
+| `PENDING` | `RejectCompany`, with a reason | `REJECTED` |
+| `APPROVED` | `SubmitApplication` — new name, CR number, tax number, type or documents | `PENDING` |
+| `REJECTED` | `SubmitApplication` — a reapplication | `PENDING` |
+| `PENDING`, `APPROVED`, `REJECTED` | `SuspendCompany`, with a reason | `SUSPENDED` |
+| `SUSPENDED` | `ReinstateCompany`, with a reason | the status it held before |
+
+- **No way from `APPROVED` to `REJECTED`** (owner, 2026-09-27, amendment 3). Rejecting decides a
+  sent application, and an approved company has none waiting; staff who must stop an approved
+  company suspend it.
 - **`SUSPENDED` remembers where it came from.** Reinstating returns the company to the status it
   held when it was suspended — an approved company comes back approved, and one suspended while
   pending is pending again. Anything else would either grant ordering nobody decided to grant, or
@@ -397,7 +413,7 @@ the company, and as part of the snapshot on each application.
 | `companies (status)` | The queue across every store, for a Super Admin |
 | `applications (customer_id, state)` | "Has this account an open application?" — asked on every submit, and for the banner on every shop page |
 | `applications (company_id, submitted_at DESC)` | One company's history, newest first |
-| `application_documents (application_id)` | The documents of one application |
+| **Unique** `application_documents (application_id, document_type_id)`, named `application_documents_one_per_type` | One file per type (amendment 3); its leading column also serves "the documents of one application" |
 | **Partial unique** `applications (customer_id) WHERE state IN ('DRAFT','SUBMITTED')` | One open application at a time, enforced where two tabs cannot both win |
 
 ---
@@ -435,6 +451,7 @@ type string and HTTP status (handoff §11).
 | `MissingRequiredDocument` | UNPROCESSABLE | Submitting without every active required type |
 | `ApplicationNotEditable` | CONFLICT | Changing an application that is no longer `DRAFT` |
 | `CompanySuspended` | CONFLICT | Editing the name, CR number, tax number or documents while suspended (§1.1) |
+| `InvalidCompanyStatus` | CONFLICT | A change the company's status does not allow: deciding a company with no application waiting, suspending one already suspended, reinstating one that is not (§4.1, amendment 3) |
 | `InvalidCompanyAttribute` | UNPROCESSABLE | A value the domain refuses — a CR number too long, an unknown company type |
 | `DocumentTypeInUse` | CONFLICT | Deleting a type an application references; deactivate it instead (§1.3) |
 | `TypeNameTaken` | CONFLICT | Adding or renaming a type to a name another type of its kind already has, in either language, ignoring case (§1.3, amendment 2) |
@@ -457,12 +474,15 @@ type string and HTTP status (handoff §11).
 9. A document type made required since the last application appears on the new one — and an approved company is never asked for it.
 9a. A draft whose company type staff deactivated since it was chosen must choose again before it is sent; a company already submitted keeps its type (amendment 2).
 9b. Choosing "Other" asks for the type in words, and the company carries exactly one of a listed type or its own words; staff may correct either, which changes the company and never the application it sent (amendment 2).
+9c. An approved company changing its name, CR number, tax number, type or documents does it by a new application: it keeps ordering while the draft is unsent, and is `PENDING` from the moment it is sent (amendment 3).
+9d. One file per document type: a second upload replaces the first. A discarded draft takes the files only it held with it, never one an earlier application still holds (amendment 3).
 
 **The rules that protect somebody**
 
 10. An individual account is refused every application use case by the handler, not only by the screen.
-11. A suspended company may change its address, and may not change its name, CR number, tax number or documents.
+11. A suspended company may change its address, and may not change its name, CR number, tax number, type or documents.
 12. Reinstating returns the company to the status it held before the suspension, never to `PENDING`.
+12a. An approved company cannot be rejected; only suspended (amendment 3).
 13. A company sees company prices in every status, rejected and suspended included.
 14. The IBAN is absent from the page in every status but `APPROVED`.
 15. Staff of another store cannot see, approve, reject or suspend a company whose home store is not theirs — and a Super Admin can.
@@ -493,3 +513,4 @@ place in the sections named; this table records what changed and why.
 |---|---|---|---|---|
 | 1 | §1.2, §2.3, §3.2, §8 (7, 16) | **Approving takes an optional note, and the emails carry one plain link.** (a) The spec disagreed with itself: §1.1 and §3.2 required a reason for rejecting, suspending and reinstating, while scenario 16 refused "every staff action without a reason", approving included. Approving takes an **optional note**; the screen tells staff that the note is sent to the customer with the approval email. (b) The three decision emails carry **one link, the same for every customer: the shop's front door** (`APP_URL`), with no store, language or page in it. | (a) A reason on the normal path is typing nobody reads, but a word of welcome is worth being able to send — and staff must know it leaves the building. (b) The owner asked for the plainest link. | Owner, 2026-09-27 (B2B step 1) |
 | 2 | §1.1, §1.2, §1.3, §2.3, §3.2, §5, §5.1, §7, §8 (9a, 9b) | **The company's details and the two type lists, before the tables are built.** (a) **The registered address is one block of text** — required, at most 500 characters, line breaks allowed, no map pin — replacing 2026-09-25's "B2B's own record in Access's address scheme"; §2.3 had said Access already offered that scheme, which was wrong. (b) **Six company types ship**, in the owner's words and order, and **"Other" is built into the form**, not a row: the company then says what it is (at most 100 characters), and carries exactly one of a listed type or its own words. **Staff may correct the type** (`CorrectCompanyType`). (c) **Types have no code**, only an id and two names; names are **at most 100 characters and unique in each language, ignoring case** (`TypeNameTaken`). (d) The three document types ship with the Arabic names شهادة ضريبة القيمة المضافة, شهادة السجل التجاري, هوية المفوّض بالتوقيع. (e) **A draft whose type was deactivated must choose again** before it is sent (`CompanyTypeInactive`). (f) **Name, CR number and tax number are checked loosely** — one line; the name at most 200 characters, the two numbers at most 50 of letters, digits, spaces and dashes — and staff check them against the documents. | (a) The owner's rule: if it is only shape, keep it plain; if business logic depends on it, structure it. Nothing downstream reads the address — invoices come from the external accounting system (handoff §12.6), deliveries use the person's own addresses — so it is shape, and the screen may change it later. (b) A company that does not fit the list still has to be able to apply, and staff know the legal forms better than the person filling the form. (f) Three countries' number formats are three rule sets to keep right; the documents are what staff trust anyway. | Owner, 2026-09-27 (B2B step 2) |
+| 3 | §1.1, §1.2, §1.4, §3.1, §4.1, §5.2, §7, §8 (9c, 9d, 11, 12a) | **The company and its applications, before their tables are built.** (a) **No way from `APPROVED` to `REJECTED`**: the §4.1 drawing had that arrow; rejecting decides a sent application, and staff stop an approved company by suspending it. §4.1 is redrawn as a table. (b) **One path for every change of the registered details** — the first application, a reapplication, new details from an approved company — draft → sent → `PENDING` → decided; `UpdateCompanyDetails` is therefore not a use case of its own. The **type** is one of those details. No new status: handoff §8.2 allows four. (c) **Exactly one file per document type**; uploading again replaces it. (d) **Reasons and notes** — staff's reasons, the approval note, the customer's note — hold **at most 1000 characters, line breaks allowed**. (e) **A draft is kept until it is sent, and the customer may discard it** (`DiscardApplicationDraft`), with the files only it holds. (f) `InvalidCompanyStatus` for a change the status does not allow. | (a) A decision needs something to decide on. (b) An approval is a decision about the values staff saw; every other route would let values change underneath it. (c) The owner's choice: simplest for staff; a two-sided ID becomes one PDF. (e) Nobody loses work by coming back late, and files go only when the customer says so. | Owner, 2026-09-27 (B2B step 2) |

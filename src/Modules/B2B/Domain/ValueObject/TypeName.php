@@ -28,7 +28,7 @@ final readonly class TypeName
      */
     public static function of(string $ar, string $en): self
     {
-        return new self(self::text('name_ar', $ar), self::text('name_en', $en));
+        return new self(CompanyText::oneLine('name_ar', $ar, self::MAX), CompanyText::oneLine('name_en', $en, self::MAX));
     }
 
     /**
@@ -42,23 +42,5 @@ final readonly class TypeName
     public function equals(self $other): bool
     {
         return $this->ar === $other->ar && $this->en === $other->en;
-    }
-
-    /**
-     * @throws InvalidCompanyAttribute
-     */
-    private static function text(string $attribute, string $value): string
-    {
-        // Trimmed first: a name pasted from elsewhere often ends in a newline, which is not the
-        // typist's mistake. Anything left is a control character in the middle of the name.
-        $text = trim($value);
-
-        return match (true) {
-            $text === '' => throw new InvalidCompanyAttribute($attribute, 'required'),
-            preg_match('//u', $text) !== 1 => throw new InvalidCompanyAttribute($attribute, 'text'),
-            preg_match('/\p{Cc}/u', $text) === 1 => throw new InvalidCompanyAttribute($attribute, 'on one line, without control characters'),
-            mb_strlen($text) > self::MAX => throw new InvalidCompanyAttribute($attribute, 'at most '.self::MAX.' characters'),
-            default => $text,
-        };
     }
 }
