@@ -74,7 +74,7 @@ final readonly class CustomerPages
 
         return new CustomerDetailsPage(
             customer: $this->row($details->customer, $stores),
-            locale: $details->locale,
+            communicationLocale: $details->locale,
             addresses: array_map(
                 static fn (string $storeId): CustomerAddressGroup => new CustomerAddressGroup(
                     $storeId,

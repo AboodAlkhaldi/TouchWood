@@ -45,7 +45,7 @@ export function ProfileTab({ account }: Props) {
         date_of_birth: account.dateOfBirth,
         country: account.country,
         address: account.address ?? '',
-        locale: account.locale,
+        locale: account.communicationLocale,
         avatar: null,
         remove_avatar: false,
     });

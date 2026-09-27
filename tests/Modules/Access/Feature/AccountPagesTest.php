@@ -142,8 +142,9 @@ describe('the account screen', function () {
                 ->where('jobTitle', 'Tester')
                 ->where('dateOfBirth', '1990-01-01')
                 ->where('country', 'SA')
-                // Their communication language, which the fixture leaves as English.
-                ->where('locale', 'en')
+                // Their communication language, which the fixture leaves as English. Not `locale`,
+                // which is the language the panel is displayed in (owner, 2026-09-27).
+                ->where('communicationLocale', 'en')
                 // The whole number, not masked: their own account, after a password and a code
                 // (2026-09-23).
                 ->where('phone', (string) DB::table('access.staff_users')->where('id', $staffId)->value('phone'))

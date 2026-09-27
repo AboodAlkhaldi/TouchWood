@@ -209,3 +209,30 @@ it('forgets a trusted browser, in a suite with no transaction around it', functi
 
     $page->assertNoJavaScriptErrors();
 });
+
+it('switches the account screen\'s language both ways, whatever language the account\'s emails go in', function () {
+    // The owner's case (2026-09-27). This person's emails go in Arabic; switching the panel to
+    // English makes the two differ, which is when the account page's own `locale` used to replace
+    // the displayed one: the menu then offered "English" on a page already English, for ever.
+    $page = accountScreenSignedIn()->navigate('/admin/account');
+    $page->assertSee('الحساب والإعدادات');
+
+    $page->click('[data-test="person-menu"]')
+        ->assertSeeIn('[data-test="language"]', 'English')
+        ->click('[data-test="language"]')
+        ->assertSee('Account & settings');
+
+    expect($page->script('document.documentElement.lang'))->toBe('en')
+        ->and($page->script('document.documentElement.dir'))->toBe('ltr');
+
+    // And back: the menu offers the language the page is not in - the step that used to be stuck.
+    $page->click('[data-test="person-menu"]')
+        ->assertSeeIn('[data-test="language"]', 'العربية')
+        ->click('[data-test="language"]')
+        ->assertSee('الحساب والإعدادات');
+
+    expect($page->script('document.documentElement.lang'))->toBe('ar')
+        ->and($page->script('document.documentElement.dir'))->toBe('rtl');
+
+    $page->assertNoJavaScriptErrors();
+});

@@ -101,7 +101,7 @@ final readonly class StaffOwnAccountController
             dateOfBirth: $account->dateOfBirth,
             country: $account->country,
             address: $account->address,
-            locale: $account->locale,
+            communicationLocale: $account->locale,
             avatarUrl: $account->avatarUrl,
             phone: $account->phone,
             // Only a Super Admin changes their own address; everybody else asks an admin, because

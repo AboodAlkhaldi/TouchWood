@@ -188,7 +188,7 @@ export default function Show(person: Props) {
                             <Detail label={t('access::staff.address')} value={person.address} />
                             <Detail
                                 label={t('access::staff.communication_language')}
-                                value={person.locale === 'en' ? 'English' : 'العربية'}
+                                value={person.communicationLocale === 'en' ? 'English' : 'العربية'}
                             />
                         </dl>
                     )}

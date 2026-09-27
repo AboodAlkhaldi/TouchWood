@@ -31,8 +31,11 @@ final class StaffMemberPage extends Data
         public ?string $email,
         public ?string $phone,
         public string $status,
-        /** Their communication language: the one emails and codes go in (amendment 16). */
-        public string $locale,
+        /**
+         * Their communication language: the one emails and codes go in (amendment 16). Never named
+         * `locale`, which is the panel's displayed language (owner, 2026-09-27).
+         */
+        public string $communicationLocale,
         public ?string $dateOfBirth,
         public ?string $country,
         public ?string $address,

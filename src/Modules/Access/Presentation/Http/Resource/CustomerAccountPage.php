@@ -21,8 +21,11 @@ final class CustomerAccountPage extends Data
      *                       the tab the person was on rather than to the top of the first one
      * @param  string  $email  never editable, and the screen says so (§3.6)
      * @param  string  $accountType  INDIVIDUAL or COMPANY, chosen at registration and immutable
-     * @param  string  $locale  the language we write to them in, which is not the language the
-     *                          shop is being read in
+     * @param  string  $communicationLocale  the language we write to them in, which is not the
+     *                                       language the shop is being read in. Never named
+     *                                       `locale`: that is the shop's displayed language, and
+     *                                       a page's own field of that name replaces it (owner,
+     *                                       2026-09-27)
      * @param  string|null  $phone  in full: this is their own page, and they cannot decide whether
      *                              to change a number they are not allowed to read
      * @param  string  $homeStore  the store they registered in, named in the page's language. It
@@ -40,7 +43,7 @@ final class CustomerAccountPage extends Data
         public string $lastName,
         public string $email,
         public string $accountType,
-        public string $locale,
+        public string $communicationLocale,
         public ?string $phone,
         public bool $emailVerified,
         public bool $phoneVerified,
