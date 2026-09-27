@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\B2B\Infrastructure;
+
+use Illuminate\Support\ServiceProvider;
+use Modules\B2B\Domain\Repository\CompanyTypeRepository;
+use Modules\B2B\Domain\Repository\DocumentTypeRepository;
+use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyTypeRepository;
+use Modules\B2B\Infrastructure\Eloquent\DatabaseDocumentTypeRepository;
+
+/**
+ * The company behind a company account (b2b.md). Registered after Access, which it depends on
+ * (handoff §4.4).
+ */
+final class B2BServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->app->bind(CompanyTypeRepository::class, DatabaseCompanyTypeRepository::class);
+        $this->app->bind(DocumentTypeRepository::class, DatabaseDocumentTypeRepository::class);
+    }
+
+    public function boot(): void
+    {
+        $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
+        $this->loadTranslationsFrom(dirname(__DIR__).'/Presentation/lang', 'b2b');
+    }
+}
