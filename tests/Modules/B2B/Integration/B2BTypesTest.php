@@ -190,17 +190,25 @@ describe('what every store starts with (amendments 5 and 6(a))', function () {
     it('gives a store opened later the same lists, marked copied, and touches no other store', function () {
         $eg = Fx::storeId('eg');
         $sa = Fx::storeId('sa');
+        $ae = Fx::storeId('ae');
         $saBefore = b2bTypesRows($sa);
-        DB::table('b2b.company_types')->where('store_id', $eg)->delete();
-        DB::table('b2b.document_types')->where('store_id', $eg)->delete();
-        DB::table('b2b.store_type_lists')->where('store_id', $eg)->delete();
+
+        // 'ae' is emptied too: the writer fills any store with no lists, so only a listener that
+        // writes the one store it was told about leaves it empty.
+        foreach ([$eg, $ae] as $storeId) {
+            DB::table('b2b.company_types')->where('store_id', $storeId)->delete();
+            DB::table('b2b.document_types')->where('store_id', $storeId)->delete();
+            DB::table('b2b.store_type_lists')->where('store_id', $storeId)->delete();
+        }
 
         event(new StoreCreated('e1', $eg, CarbonImmutable::now()));
 
         expect(b2bTypesCompanyNames($eg))->toBe(B2B_TYPES_COMPANY_NAMES)
             ->and(b2bTypesDocumentNames($eg))->toBe(B2B_TYPES_DOCUMENT_NAMES)
             ->and(app(StoreTypeListsRepository::class)->find($eg)?->copiedNotReviewed())->toBeTrue()
-            ->and(b2bTypesRows($sa))->toBe($saBefore);
+            ->and(b2bTypesRows($sa))->toBe($saBefore)
+            ->and(b2bTypesRows($ae))->toBe(['company_types' => [], 'document_types' => []])
+            ->and(b2bTypesFlagRow($ae))->toBeNull();
     });
 
     it('leaves a store with lists, and lists already reviewed, exactly as they are', function () {

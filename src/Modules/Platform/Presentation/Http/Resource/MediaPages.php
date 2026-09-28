@@ -11,6 +11,7 @@ use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Public\Enums\ImageFormat;
 use Modules\Platform\Public\Enums\MediaSize;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
+use Modules\Platform\Public\Enums\MediaVisibility;
 
 /**
  * Platform's media reads, in the shape the screen wants (frontend.md 3.5, E5).
@@ -18,6 +19,9 @@ use Modules\Platform\Public\Enums\MediaVariantsStatus;
  * It decides nothing: who may open the library, and what may be done to a file, are the handler's
  * answers. What happens here is a size written the way a person reads it, and a thumbnail for the
  * images that have one.
+ *
+ * A private file's row carries its name, its upload date and where it is used, and nothing else
+ * (B2B step 3, amendment 6(b)): the page draws no more than that, so no more is sent.
  */
 final readonly class MediaPages
 {
@@ -43,6 +47,27 @@ final readonly class MediaPages
 
     private function row(MediaRow $media): MediaFileRow
     {
+        if ($media->visibility === MediaVisibility::Private) {
+            return new MediaFileRow(
+                $media->id,
+                $media->originalFilename,
+                null,
+                null,
+                null,
+                null,
+                null,
+                $media->visibility->value,
+                null,
+                null,
+                $media->uploadedAt,
+                null,
+                null,
+                null,
+                $media->usedIn,
+                null,
+            );
+        }
+
         return new MediaFileRow(
             $media->id,
             $media->originalFilename,

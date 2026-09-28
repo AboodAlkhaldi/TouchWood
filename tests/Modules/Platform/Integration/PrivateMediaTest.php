@@ -30,6 +30,7 @@ use Modules\Platform\Presentation\Http\Resource\MediaFileRow;
 use Modules\Platform\Presentation\Http\Resource\MediaPages;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\ModuleUploadDto;
+use Modules\Platform\Public\Enums\MediaVariantsStatus;
 use Modules\Platform\Public\Enums\MediaVisibility;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\PermissionScope;
@@ -246,9 +247,13 @@ describe('private files in the media library', function () {
 
         $rows = app(MediaPages::class)->list(app(ListMediaHandler::class), null, null)->media;
         $row = array_values(array_filter($rows, static fn (MediaFileRow $row): bool => $row->id === $private))[0] ?? null;
+        // The library's own answer still says it has its sizes: only the private rule keeps the
+        // link, and the status with it, off the screen (amendment 6(b)).
+        $answered = array_values(array_filter(privateMediaPage()->media, static fn (MediaRow $row): bool => $row->id === $private))[0] ?? null;
 
-        expect($row?->visibility)->toBe('PRIVATE')
-            ->and($row?->variantsStatus)->toBe('READY')
+        expect($answered?->variantsStatus)->toBe(MediaVariantsStatus::Ready)
+            ->and($row?->visibility)->toBe('PRIVATE')
+            ->and($row?->variantsStatus)->toBeNull()
             ->and($row?->thumbnailUrl)->toBeNull();
     });
 

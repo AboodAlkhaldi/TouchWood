@@ -6,6 +6,7 @@ namespace Modules\B2B\Domain\Model;
 
 use DateTimeImmutable;
 use Modules\B2B\Domain\Exception\CompanySuspended;
+use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\InvalidCompanyStatus;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyDetails;
@@ -186,15 +187,47 @@ final class Company
      * Staff putting the type right — an "Other" in better words, or a listed type the company
      * should have chosen (owner, 2026-09-27). It corrects the company only: the application keeps
      * what was sent, and the company does not go back to `PENDING` for a staff member's own fix.
+     *
+     * A listed type must be one of the home store's (amendment 6(c)), as when a draft is sent.
+     *
+     * @param  list<CompanyType>  $companyTypes  the home store's company types
+     *
+     * @throws InvalidCompanyAttribute
      */
-    public function correctType(CompanyTypeChoice $type): void
+    public function correctType(CompanyTypeChoice $type, array $companyTypes): void
     {
+        $this->requireHomeStoreType($type, $companyTypes);
+
         if ($type->equals($this->type)) {
             return;
         }
 
         $this->type = $type;
         $this->markChanged('company_type');
+    }
+
+    /**
+     * Code-only: the database cannot see that the type belongs to the home store's list (amendment
+     * 6(c)). The store is read from the type itself, so a list of the wrong store cannot let one
+     * through; a type of another store is as unknown as one that does not exist (6(d)).
+     *
+     * @param  list<CompanyType>  $companyTypes
+     *
+     * @throws InvalidCompanyAttribute
+     */
+    private function requireHomeStoreType(CompanyTypeChoice $type, array $companyTypes): void
+    {
+        if ($type->typeId === null) {
+            return;
+        }
+
+        foreach ($companyTypes as $companyType) {
+            if ($companyType->id() === $type->typeId && strtolower($companyType->storeId()) === strtolower($this->homeStoreId)) {
+                return;
+            }
+        }
+
+        throw new InvalidCompanyAttribute('company_type', "not one of the home store's types");
     }
 
     /** Sales's half of the ordering rule (handoff §7.4): approved, and nothing else. */

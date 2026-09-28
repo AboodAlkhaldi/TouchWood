@@ -50,6 +50,8 @@ const REJECTION_TEST_NEXT = '01j8z3k4m5n6p7q8r9s0t1v3a2';
 
 const REJECTION_TEST_LLC = '01j8z3k4m5n6p7q8r9s0t1v3t1';
 
+const REJECTION_TEST_JSC = '01j8z3k4m5n6p7q8r9s0t1v3t2';
+
 const REJECTION_TEST_VAT = '01j8z3k4m5n6p7q8r9s0t1v3d1';
 
 const REJECTION_TEST_CR = '01j8z3k4m5n6p7q8r9s0t1v3d2';
@@ -73,13 +75,16 @@ const REJECTION_TEST_TEXT_REQUEST = '01j8z3k4m5n6p7q8r9s0t1v3r1';
 const REJECTION_TEST_FILE_REQUEST = '01j8z3k4m5n6p7q8r9s0t1v3r2';
 
 /**
- * The home store's company types: one, active.
+ * The home store's company types: two, active — so a draft can move from one to the other.
  *
  * @return list<CompanyType>
  */
 function rejectionTestCompanyTypes(): array
 {
-    return [CompanyType::add(REJECTION_TEST_LLC, REJECTION_TEST_STORE, TypeName::of('شركة ذات مسؤولية محدودة', 'Limited Liability Company'), 1)];
+    return [
+        CompanyType::add(REJECTION_TEST_LLC, REJECTION_TEST_STORE, TypeName::of('شركة ذات مسؤولية محدودة', 'Limited Liability Company'), 1),
+        CompanyType::add(REJECTION_TEST_JSC, REJECTION_TEST_STORE, TypeName::of('شركة مساهمة', 'Joint Stock Company'), 2),
+    ];
 }
 
 /**
@@ -101,12 +106,14 @@ function rejectionTestDocumentTypes(): array
  * Fills in the five values as the first application sent them, or with the ones given.
  *
  * @param  array<string, string>  $values  by FlaggedField value
+ * @param  CompanyTypeChoice|null  $type  a type picked from the list, or any choice, in place of
+ *                                        the "Other" words in $values
  */
-function rejectionTestFillIn(Application $application, array $values = []): void
+function rejectionTestFillIn(Application $application, array $values = [], ?CompanyTypeChoice $type = null): void
 {
     $application->describe(
         CompanyName::of($values['name'] ?? 'Al Noor Trading'),
-        CompanyTypeChoice::other($values['company_type'] ?? 'Trading house'),
+        $type ?? CompanyTypeChoice::other($values['company_type'] ?? 'Trading house'),
         RegistrationNumber::of('cr_number', $values['cr_number'] ?? 'CR-1010123456'),
         RegistrationNumber::of('tax_number', $values['tax_number'] ?? 'VAT-300123456700003'),
         CompanyAddress::of($values['address'] ?? "12 Industrial Road\nBlock 4"),
@@ -117,10 +124,10 @@ function rejectionTestFillIn(Application $application, array $values = []): void
 /**
  * The company's first application, sent with three files and waiting for a decision.
  */
-function rejectionTestSent(string $companyId = REJECTION_TEST_COMPANY): Application
+function rejectionTestSent(string $companyId = REJECTION_TEST_COMPANY, ?CompanyTypeChoice $type = null): Application
 {
     $application = Application::draft(REJECTION_TEST_FIRST, REJECTION_TEST_CUSTOMER, null);
-    rejectionTestFillIn($application);
+    rejectionTestFillIn($application, [], $type);
     $application->attach(REJECTION_TEST_VAT, REJECTION_TEST_VAT_FILE, CarbonImmutable::now());
     $application->attach(REJECTION_TEST_CR, REJECTION_TEST_CR_FILE, CarbonImmutable::now());
     $application->attach(REJECTION_TEST_LETTER, REJECTION_TEST_LETTER_FILE, CarbonImmutable::now());
@@ -135,9 +142,9 @@ function rejectionTestSent(string $companyId = REJECTION_TEST_COMPANY): Applicat
  * @param  list<ApplicationFlag>  $flags
  * @param  list<ApplicationRequest>  $requests
  */
-function rejectionTestRejected(array $flags = [], array $requests = [], string $companyId = REJECTION_TEST_COMPANY): Application
+function rejectionTestRejected(array $flags = [], array $requests = [], string $companyId = REJECTION_TEST_COMPANY, ?CompanyTypeChoice $type = null): Application
 {
-    $application = rejectionTestSent($companyId);
+    $application = rejectionTestSent($companyId, $type);
     $application->reject(REJECTION_TEST_STAFF, Remark::of('reason', 'The CR number does not match the certificate.'), CarbonImmutable::now(), $flags, $requests);
 
     return $application;
@@ -493,6 +500,30 @@ describe('sending after a rejection (amendments 4, 5 and 6)', function () {
         'the address, unchanged' => [FlaggedField::Address, "12 Industrial Road\nBlock 4", false],
         'the address, the same once trimmed' => [FlaggedField::Address, "  12 Industrial Road\r\nBlock 4\n", false],
         'the address, in other letters' => [FlaggedField::Address, "12 INDUSTRIAL ROAD\nBLOCK 4", true],
+    ]);
+
+    it('refuses a flagged type picked from the list when the draft picks it again, and takes another — listed or "Other"', function (CompanyTypeChoice $sent, CompanyTypeChoice $next, bool $replaced) {
+        $last = rejectionTestRejected([ApplicationFlag::field(FlaggedField::CompanyType)], [], REJECTION_TEST_COMPANY, $sent);
+        $draft = rejectionTestNextDraft();
+        rejectionTestFillIn($draft, [], $next);
+
+        if ($replaced) {
+            rejectionTestSend($draft, $last);
+
+            expect($draft->state())->toBe(ApplicationState::Submitted);
+
+            return;
+        }
+
+        expect(fn () => rejectionTestSend($draft, $last))->toThrow(FlaggedItemNotReplaced::class)
+            ->and($draft->state())->toBe(ApplicationState::Draft);
+    })->with([
+        'a listed type, picked again' => [CompanyTypeChoice::listed(REJECTION_TEST_LLC), CompanyTypeChoice::listed(REJECTION_TEST_LLC), false],
+        'a listed type, picked again in capitals' => [CompanyTypeChoice::listed(REJECTION_TEST_LLC), CompanyTypeChoice::listed(strtoupper(REJECTION_TEST_LLC)), false],
+        // Neither holds any words of its own, so only the type's id can tell them apart.
+        'a listed type, another one picked' => [CompanyTypeChoice::listed(REJECTION_TEST_LLC), CompanyTypeChoice::listed(REJECTION_TEST_JSC), true],
+        'a listed type, "Other" chosen' => [CompanyTypeChoice::listed(REJECTION_TEST_LLC), CompanyTypeChoice::other('Trading house'), true],
+        '"Other", a listed type picked' => [CompanyTypeChoice::other('Trading house'), CompanyTypeChoice::listed(REJECTION_TEST_LLC), true],
     ]);
 
     it('refuses a flagged document with no file, or with the file that was sent, and takes a new one', function () {

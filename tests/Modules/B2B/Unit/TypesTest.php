@@ -138,6 +138,18 @@ describe('deactivating a type: hidden or greyed out (amendment 5)', function () 
             ->and($document->inactiveDisplay())->toBeNull();
     })->with([InactiveTypeDisplay::Hidden, InactiveTypeDisplay::Greyed]);
 
+    it('records being offered again for the audit log: that it is active, and how it showed', function () {
+        // Read back inactive, so nothing a deactivation recorded can stand in for what activating does.
+        $company = CompanyType::reconstitute('01j8z3k4m5n6p7q8r9s0t1v2w3', TYPES_TEST_STORE, TypeName::of('شركة', 'Company'), 1, false, InactiveTypeDisplay::Greyed);
+        $document = DocumentType::reconstitute('01j8z3k4m5n6p7q8r9s0t1v2w4', TYPES_TEST_STORE, TypeName::of('شهادة', 'Certificate'), 1, false, InactiveTypeDisplay::Hidden, true);
+
+        $company->activate();
+        $document->activate();
+
+        expect($company->pullChanges())->toBe(['is_active', 'inactive_display'])
+            ->and($document->pullChanges())->toBe(['is_active', 'inactive_display']);
+    });
+
     it('changes only how an inactive type shows when staff choose again, and nothing for the same choice', function () {
         $company = CompanyType::reconstitute('01j8z3k4m5n6p7q8r9s0t1v2w3', TYPES_TEST_STORE, TypeName::of('شركة', 'Company'), 1, false, InactiveTypeDisplay::Hidden);
         $document = DocumentType::reconstitute('01j8z3k4m5n6p7q8r9s0t1v2w4', TYPES_TEST_STORE, TypeName::of('شهادة', 'Certificate'), 1, false, InactiveTypeDisplay::Hidden, true);

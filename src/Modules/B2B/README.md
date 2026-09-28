@@ -120,7 +120,8 @@ each crosses two tables, which a CHECK cannot see.
 - An answer matches its request's kind — text for text, a file for a file (`answer()`).
 - Flags and requests exist only on a `REJECTED` application (`reject()`).
 - An answer's request belongs to the last rejection (`answer()`, given the last application sent).
-- A company's type comes from its home store's list (`submit()`, given that store's types).
+- A company's type comes from its home store's list (`submit()`, given that store's types; and
+  `Company::correctType()`, a staff correction, which reads the store from the type itself).
 - Staff flag only a document the rejected application sent a file under (`reject()`).
 
 **A file an application holds is never deleted from under it** (b2b.md §1.4). B2B registers

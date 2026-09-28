@@ -187,6 +187,44 @@ describe('private files in the media library screen', function () {
             );
     });
 
+    it('hands the page a private file\'s name, date and where it is used, and nothing else (amendment 6(b))', function () {
+        Storage::fake('local', ['serve' => true]);
+        $public = libraryScreenFile();
+        $private = libraryScreenPrivateFile();
+        // Everything a row could otherwise carry: a description, dimensions, a retry.
+        DB::table('platform.media')->where('id', $private)->update([
+            'alt_ar' => 'ورقة الشركة',
+            'alt_en' => 'The company paper',
+            'width' => 800,
+            'height' => 600,
+            'variants_status' => 'FAILED',
+        ]);
+
+        /** @var array<string, array<string, mixed>> $rows */
+        $rows = [];
+
+        libraryScreenSignIn(Fx::staff(superAdmin: true))->get('/admin/media')
+            ->assertOk()
+            ->assertInertia(function (AssertableInertia $inertia) use (&$rows) {
+                /** @var list<array<string, mixed>> $media */
+                $media = $inertia->toArray()['props']['media'];
+                $rows = array_column($media, null, 'id');
+            });
+
+        $sent = static fn (array $row): array => array_keys(array_filter($row, static fn (mixed $value): bool => $value !== null));
+
+        // The id and the visibility are how the page tells rows apart and draws this one short.
+        expect($sent($rows[$private]))->toBe(['id', 'filename', 'visibility', 'uploadedAt', 'usedIn'])
+            ->and($rows[$private]['filename'])->toBe('paper.pdf')
+            // The public file beside it keeps everything, so the nulls are the private rule's.
+            ->and($rows[$public]['mime'])->toBe('image/jpeg')
+            ->and($rows[$public]['bytes'])->toBe(2_400_000)
+            ->and($rows[$public]['size'])->toBe('2.3 MB')
+            ->and($rows[$public]['variantsStatus'])->toBe('READY')
+            ->and($rows[$public]['retryable'])->toBeFalse()
+            ->and($rows[$public]['deleteBlocked'])->toBeFalse();
+    });
+
     it('offers "private" when uploading only to someone who may see private files', function () {
         libraryScreenSignIn(Fx::staffWith([PlatformPermissions::MEDIA_UPLOAD], ['sa']))->get('/admin/media')
             ->assertOk()

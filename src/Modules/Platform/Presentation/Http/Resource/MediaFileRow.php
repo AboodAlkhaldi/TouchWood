@@ -9,6 +9,11 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
  * One file in the media library (frontend.md 3.5, E5).
+ *
+ * A **private file** - a company's papers - is handed over as its name, its upload date and where
+ * it is used, and nothing else (B2B step 3, amendment 6(b)): every field below marked "null for a
+ * private file" is null for one, whatever the file holds. What the page is not to show is never
+ * sent, as a private file's link never is.
  */
 #[TypeScript]
 final class MediaFileRow extends Data
@@ -19,23 +24,30 @@ final class MediaFileRow extends Data
     public function __construct(
         public string $id,
         public string $filename,
-        public string $mime,
-        public int $bytes,
-        /** The size a person reads: "1.4 MB". */
-        public string $size,
+        /** Null for a private file. */
+        public ?string $mime,
+        /** Null for a private file. */
+        public ?int $bytes,
+        /** The size a person reads: "1.4 MB". Null for a private file. */
+        public ?string $size,
+        /** Null for a private file. */
         public ?int $width,
+        /** Null for a private file. */
         public ?int $height,
         public string $visibility,
-        /** PENDING, READY, FAILED - or null for a file that has no variants at all. */
+        /** PENDING, READY, FAILED - or null for a file that has no variants at all, and for a private file. */
         public ?string $variantsStatus,
-        public bool $retryable,
+        /** Null for a private file. */
+        public ?bool $retryable,
         public string $uploadedAt,
+        /** Null for a private file. */
         public ?string $altAr,
+        /** Null for a private file. */
         public ?string $altEn,
         /** A thumbnail, for an image whose variants are ready; null otherwise. */
         public ?string $thumbnailUrl,
         public array $usedIn,
-        /** Whether a use would refuse the delete (platform.md 1.4). */
-        public bool $deleteBlocked,
+        /** Whether a use would refuse the delete (platform.md 1.4). Null for a private file. */
+        public ?bool $deleteBlocked,
     ) {}
 }

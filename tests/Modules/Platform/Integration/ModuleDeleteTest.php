@@ -30,6 +30,7 @@ use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
 use function Pest\Laravel\seed;
@@ -100,9 +101,9 @@ function moduleDeleteUpload(MediaVisibility $visibility = MediaVisibility::Priva
     ));
 }
 
-function moduleDeleteFor(string $mediaId, string $module = 'access', string $permission = AccessPermissions::ACCOUNT_UPDATE): void
+function moduleDeleteFor(string $mediaId, string $module = 'access', string $permission = AccessPermissions::ACCOUNT_UPDATE, ?PermissionScope $scope = null): void
 {
-    app(PlatformApi::class)->deleteMediaFor(new ModuleDeleteDto($module, $permission, PermissionScope::global(), $mediaId));
+    app(PlatformApi::class)->deleteMediaFor(new ModuleDeleteDto($module, $permission, $scope ?? PermissionScope::global(), $mediaId));
 }
 
 function moduleDeleteRow(string $mediaId): bool
@@ -364,7 +365,10 @@ describe('the permission a module names for a delete', function () {
             ->and(moduleDeleteError(fn () => moduleDeleteFor($missing)))->toBeInstanceOf(Unauthorized::class);
     });
 
-    it('checks exactly the permission named, in the scope named, and nothing else', function () {
+    it('checks exactly the permission named, in the scope named, and nothing else', function (Closure $scoped) {
+        /** @var array{0: PermissionScope, 1: string} $given */
+        $given = $scoped();
+        [$scope, $described] = $given;
         Fx::actAsCustomer(Fx::customer());
         $mediaId = moduleDeleteUpload();
 
@@ -374,11 +378,16 @@ describe('the permission a module names for a delete', function () {
         $log = new ModuleDeleteAuthorizations;
         app()->instance(Authorizer::class, $log);
 
-        moduleDeleteFor($mediaId);
+        moduleDeleteFor($mediaId, scope: $scope);
 
-        expect($log->checks)->toBe([[AccessPermissions::ACCOUNT_UPDATE, 'global']])
+        expect($log->checks)->toBe([[AccessPermissions::ACCOUNT_UPDATE, $described]])
             ->and(moduleDeleteRow($mediaId))->toBeFalse();
-    });
+    })->with([
+        'global' => [fn () => [PermissionScope::global(), 'global']],
+        // Not global, so a handler that checked globally whatever it was told would show here.
+        'one store' => [fn () => [PermissionScope::store(StoreId::fromString(Fx::storeId('sa'))), Fx::storeId('sa')]],
+        'every store' => [fn () => [PermissionScope::allStores(), 'all stores']],
+    ]);
 });
 
 describe('a module deleting inside its own transaction', function () {
