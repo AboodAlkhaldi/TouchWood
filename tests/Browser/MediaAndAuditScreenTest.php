@@ -270,6 +270,42 @@ it('shows a private file in the grid as its name, date and use, without a pictur
         ->assertNoJavaScriptErrors();
 });
 
+it('shows a reader who may not see private files an entry about one, without which file it is (amendment 8(c))', function () {
+    $paperId = libraryScreenPaperNamed('paper-'.Str::random(8).'.pdf');
+    // Now, and filtered to its action below, so it is on the first page however much this database
+    // holds from earlier runs.
+    $entryId = (string) DB::table('platform.audit_entries')->insertGetId([
+        'occurred_at' => now()->toDateTimeString(),
+        'recorded_at' => now()->toDateTimeString(),
+        'source' => 'WEB',
+        'store_id' => null,
+        'actor_type' => 'SYSTEM',
+        'action' => 'platform.media.uploaded',
+        'subject_type' => 'platform.media',
+        'subject_id' => $paperId,
+        'changes' => json_encode(['visibility' => [null, 'PRIVATE'], 'for_module' => [null, 'b2b']], JSON_THROW_ON_ERROR),
+    ]);
+    $email = (string) DB::table('access.staff_users')
+        ->where('id', Fx::staffWith([PlatformPermissions::AUDIT_VIEW], ['*'], RoleLevel::Admin))
+        ->value('email');
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', $email)
+        ->type('#password', LIBRARY_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        ->navigate('/admin/audit?action=platform.media.uploaded');
+
+    $page->assertPresent("[data-test=\"withheld-{$entryId}\"]")
+        ->assertSee('a private file')
+        ->assertDontSee($paperId)
+        ->assertDontSee('b2b')
+        ->assertNoJavaScriptErrors();
+});
+
 it('does not offer "private" when uploading to someone who may not see private files', function () {
     $uploader = (string) DB::table('access.staff_users')
         ->where('id', Fx::staffWith([PlatformPermissions::MEDIA_UPLOAD], ['sa']))

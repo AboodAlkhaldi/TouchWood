@@ -36,7 +36,7 @@ final readonly class UpdateMediaAltTextHandler
 
         $this->db->transaction(function () use ($command) {
             $media = $this->media->lockById($command->mediaId) ?? throw new MediaNotFound($command->mediaId);
-            $this->private->reach($media);
+            $this->private->reach($media, $command->mediaId);
             $before = ['alt_ar' => $media->altAr(), 'alt_en' => $media->altEn()];
 
             $media->changeAltText($command->altAr, $command->altEn);

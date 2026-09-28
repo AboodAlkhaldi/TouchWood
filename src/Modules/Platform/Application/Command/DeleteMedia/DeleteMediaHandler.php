@@ -93,7 +93,7 @@ final readonly class DeleteMediaHandler
             // Before anything about its uses is said: a refusal that named the application holding
             // a company's paper would tell staff it is there (amendment 8(a)).
             if ($forModule === null) {
-                $this->private->reach($media);
+                $this->private->reach($media, $command->mediaId);
             }
 
             // A module deletes only the private files it holds (amendment 5): a public image may be

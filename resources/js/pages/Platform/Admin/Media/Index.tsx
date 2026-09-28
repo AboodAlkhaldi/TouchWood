@@ -23,9 +23,9 @@ import type { MediaFileRow, MediaPage } from '@/types/generated/Modules/Platform
 | screen shows the uses and does not offer the button at all when one of them blocks it.
 |
 | A **private file** - a company's papers - reaches this page only for a holder of the private-files
-| permission, and shows **its name, its upload date and where it is used, and nothing else** (B2B
-| step 3, amendment 6): no picture, no type or size, nothing to describe, retry or delete. Any change
-| to a company's papers goes through the company's account. "Private" is offered when uploading
+| permission, and shows **its name, its upload date and where it is used** (B2B step 3, amendment
+| 6): no picture, no type or size, and no retry, since it never has sizes made. It offers Describe
+| and Delete to whoever may, as any other file (amendment 8). "Private" is offered when uploading
 | only to someone who may also see private files.
 */
 

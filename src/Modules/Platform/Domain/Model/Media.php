@@ -215,9 +215,16 @@ final class Media
     /**
      * Queues generation again: FAILED → PENDING, or a stale PENDING stays PENDING with a new
      * queue time. A recent PENDING is refused — its job may still be running.
+     *
+     * A private file never has sizes (platform.md §5.4): whatever its row says, it has none to retry,
+     * because its sizes would be written to the public disk (b2b.md amendment 8(d)).
      */
     public function retryVariants(DateTimeImmutable $now): void
     {
+        if ($this->visibility === MediaVisibility::Private) {
+            throw new InvalidMediaVariantsTransition('NONE', MediaVariantsStatus::Pending->value);
+        }
+
         if ($this->variantsStatus === MediaVariantsStatus::Failed) {
             $this->transition(MediaVariantsStatus::Failed, MediaVariantsStatus::Pending);
         } elseif (! $this->isStalePending($now)) {

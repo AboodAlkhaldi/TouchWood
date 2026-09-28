@@ -272,12 +272,18 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
   it never detaches another module's use. Otherwise it is the staff delete: the row in a savepoint
   of the caller's transaction, the files and `MediaDeleted` after the outermost commit. Both are
   audited like any other upload or delete, with `for_module` and `under_permission` added.
-- **Private files in the media library** (B2B step 3, amendments 5 and 6) are listed only to holders
-  of the admin-only `platform.media.private.view` — a Super Admin always, an admin when a Super
-  Admin gives it to their role — and the rule is in the query, so pages stay full. It adds them to a
-  library the person may already open, and opens it to nobody. A private file shows its name, its
-  upload date and where it is used, and nothing else: no picture, no link, nothing to describe or
-  delete there. Choosing "private" when uploading in the library needs the permission too.
+- **Private files in the media library** (B2B step 3, amendments 5, 6 and 8) are listed only to
+  holders of the admin-only `platform.media.private.view` — a Super Admin always, an admin when a
+  Super Admin gives it to their role — and the rule is in the query, so pages stay full. It adds
+  them to a library the person may already open, and opens it to nobody. A private file shows its
+  name, its upload date and where it is used: no picture, no link, no type or size. **To anyone
+  without the permission it does not exist**: describing, retrying or deleting it answers exactly
+  as for an id that never existed (`PrivateMedia::reach`, before anything else is said about the
+  file). **A holder describes or deletes one with the usual permission on top**
+  (`platform.media.update`, `platform.media.delete`). A private file never has sizes made, so it is
+  never retried and never written to the public disk. **In the audit log**, a reader without the
+  permission sees an entry about a private file without its id or its changes (`withheld`).
+  Choosing "private" when uploading in the library needs the permission too.
 - **Private files** are served only through signed links that expire after 30 minutes. On
   S3-compatible storage they download under their original name; Laravel's local disk ignores that
   and serves them under their object key. They never get variants and never go through the CDN.

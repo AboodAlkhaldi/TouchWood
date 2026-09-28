@@ -22,6 +22,8 @@ use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
+use Modules\Platform\Application\Command\GenerateMediaVariants\GenerateMediaVariants;
+use Modules\Platform\Application\Command\GenerateMediaVariants\GenerateMediaVariantsHandler;
 use Modules\Platform\Application\Command\RetryMediaVariants\RetryMediaVariants;
 use Modules\Platform\Application\Command\RetryMediaVariants\RetryMediaVariantsHandler;
 use Modules\Platform\Application\Command\UpdateMediaAltText\UpdateMediaAltText;
@@ -32,6 +34,7 @@ use Modules\Platform\Application\Query\ListMedia\ListMedia;
 use Modules\Platform\Application\Query\ListMedia\ListMediaHandler;
 use Modules\Platform\Application\Query\ListMedia\MediaLibraryPage;
 use Modules\Platform\Application\Query\ListMedia\MediaRow;
+use Modules\Platform\Domain\Exception\InvalidMediaVariantsTransition;
 use Modules\Platform\Domain\Exception\MediaNotFound;
 use Modules\Platform\Presentation\Http\Resource\MediaFileRow;
 use Modules\Platform\Presentation\Http\Resource\MediaPages;
@@ -414,18 +417,71 @@ describe('acting on a private file in the library (amendment 8(a))', function ()
         'see, describe and delete' => [fn () => Fx::staffWith([PlatformPermissions::MEDIA_PRIVATE_VIEW, PlatformPermissions::MEDIA_UPDATE, PlatformPermissions::MEDIA_DELETE], ['sa'], RoleLevel::Admin), true, true],
     ]);
 
-    it('lets a Super Admin describe, retry and delete a private file', function () {
-        $private = privateMediaRow(MediaVisibility::Private, variantsStatus: 'FAILED');
+    it('lets a Super Admin describe and delete a private file', function () {
+        $private = privateMediaRow(MediaVisibility::Private);
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
         app(UpdateMediaAltTextHandler::class)->handle(new UpdateMediaAltText($private, 'ورقة الشركة', 'The company paper'));
-        app(RetryMediaVariantsHandler::class)->handle(new RetryMediaVariants($private));
 
-        expect(DB::table('platform.media')->where('id', $private)->value('alt_en'))->toBe('The company paper')
-            ->and(DB::table('platform.media')->where('id', $private)->value('variants_status'))->toBe('PENDING');
+        expect(DB::table('platform.media')->where('id', $private)->value('alt_en'))->toBe('The company paper');
 
         app(DeleteMediaHandler::class)->handle(new DeleteMedia($private));
 
         expect(DB::table('platform.media')->where('id', $private)->exists())->toBeFalse();
+    });
+
+    it('carries the id exactly as it was asked for, as for an id that never existed', function () {
+        $private = privateMediaRow(MediaVisibility::Private);
+        Fx::actAsStaff(Fx::staffWith([PlatformPermissions::MEDIA_UPDATE], ['sa']));
+        $asked = strtoupper($private);
+
+        $error = privateMediaError(fn () => app(UpdateMediaAltTextHandler::class)->handle(new UpdateMediaAltText($asked, null, 'A paper')));
+
+        expect($error instanceof MediaNotFound ? $error->mediaId : null)->toBe($asked);
+    });
+});
+
+describe('a private file has no sizes (amendment 8(d))', function () {
+    it('never retries one, not even for a Super Admin, whatever its row says', function () {
+        // A state no upload makes (platform.md §5.4): only the rule that a private file has no
+        // sizes can refuse it.
+        $private = privateMediaRow(MediaVisibility::Private, variantsStatus: 'FAILED');
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $entries = DB::table('platform.audit_entries')->count();
+
+        expect(fn () => app(RetryMediaVariantsHandler::class)->handle(new RetryMediaVariants($private)))->toThrow(InvalidMediaVariantsTransition::class)
+            ->and(DB::table('platform.media')->where('id', $private)->value('variants_status'))->toBe('FAILED')
+            ->and(DB::table('platform.audit_entries')->count())->toBe($entries);
+        Queue::assertNothingPushed();
+    });
+
+    it('never writes sizes of one to the public disk, whatever its row says', function () {
+        // A real picture kept privately, marked as waiting for its sizes: without the rule, the
+        // generator would make them from it and put them where anybody can fetch them.
+        $id = strtolower((string) Str::ulid());
+        $objectKey = "private/{$id}.jpg";
+        Storage::disk('local')->put($objectKey, (string) file_get_contents(privateMediaImage()));
+        DB::table('platform.media')->insert([
+            'id' => $id,
+            'visibility' => 'PRIVATE',
+            'disk' => 'local',
+            'object_key' => $objectKey,
+            'original_filename' => 'passport.jpg',
+            'mime' => 'image/jpeg',
+            'bytes' => 1_000,
+            'width' => 40,
+            'height' => 40,
+            'checksum' => hash('sha256', $id),
+            'variants_status' => 'PENDING',
+            'variants_queued_at' => '2026-09-20 10:00:00+00',
+            'created_at' => '2026-09-20 10:00:00+00',
+            'updated_at' => '2026-09-20 10:00:00+00',
+        ]);
+
+        // As the queued job runs it: as the system, which may generate sizes.
+        app(GenerateMediaVariantsHandler::class)->handle(new GenerateMediaVariants($id));
+
+        expect(Storage::disk('public')->allFiles())->toBe([])
+            ->and(DB::table('platform.media')->where('id', $id)->value('variants_status'))->toBe('PENDING');
     });
 });

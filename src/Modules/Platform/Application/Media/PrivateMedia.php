@@ -38,12 +38,15 @@ final readonly class PrivateMedia
     }
 
     /**
+     * @param  string  $askedFor  the id exactly as it was asked for — the error for an id that never
+     *                            existed carries it that way, and this one must not differ from it
+     *
      * @throws MediaNotFound for a private file the current actor may not see
      */
-    public function reach(Media $media): void
+    public function reach(Media $media, string $askedFor): void
     {
         if ($media->visibility() === MediaVisibility::Private && ! $this->seen()) {
-            throw new MediaNotFound($media->id());
+            throw new MediaNotFound($askedFor);
         }
     }
 }

@@ -36,10 +36,11 @@ final class PlatformPermissions
     public const string MEDIA_VARIANTS_GENERATE = 'platform.media.variants.generate';
 
     /**
-     * Private files — a company's papers — appear in the media library only to holders, and only as
-     * a list: name, date, where used; never opened there (B2B step 3, amendments 5 and 6). It adds
-     * them to a library the person may already open; it opens the library to nobody. Choosing
-     * "private" when uploading in the library also needs it.
+     * Private files — a company's papers — exist in the media library only for holders: name, date,
+     * where used; never opened there. A holder describes or deletes one with the usual permission on
+     * top, and the audit log withholds which private file an entry is about from anyone else (B2B
+     * step 3, amendments 5, 6 and 8). It adds them to a library the person may already open; it
+     * opens the library to nobody. Choosing "private" when uploading in the library also needs it.
      */
     public const string MEDIA_PRIVATE_VIEW = 'platform.media.private.view';
 

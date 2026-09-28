@@ -40,7 +40,7 @@ final readonly class RetryMediaVariantsHandler
 
         $this->db->transaction(function () use ($command) {
             $media = $this->media->lockById($command->mediaId) ?? throw new MediaNotFound($command->mediaId);
-            $this->private->reach($media);
+            $this->private->reach($media, $command->mediaId);
             [$before, $queuedBefore] = [$media->variantsStatus(), $media->variantsQueuedAt()];
 
             $media->retryVariants(CarbonImmutable::now());

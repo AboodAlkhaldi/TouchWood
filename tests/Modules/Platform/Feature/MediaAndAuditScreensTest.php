@@ -319,4 +319,44 @@ describe('the audit log screen', function () {
 
         $browser->get('/admin/audit')->assertForbidden();
     });
+
+    it('sends a reader who may not see private files an entry about one without which file or what changed, even once it is deleted (amendment 8(c))', function () {
+        Storage::fake('public');
+        Storage::fake('local', ['serve' => true]);
+        Queue::fake();
+        $adminId = Fx::staff(superAdmin: true);
+        $superAdmin = libraryScreenSignIn($adminId);
+
+        $superAdmin->post('/admin/media', [
+            'file' => UploadedFile::fake()->createWithContent('paper.pdf', "%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"),
+            'visibility' => 'PRIVATE',
+        ])->assertRedirect();
+        $mediaId = (string) DB::table('platform.media')->where('visibility', 'PRIVATE')->value('id');
+        // Gone afterwards, so only what its upload recorded can still say it was private.
+        $superAdmin->post("/admin/media/{$mediaId}/delete")->assertRedirect();
+
+        expect($mediaId)->not->toBe('')
+            ->and(DB::table('platform.media')->where('id', $mediaId)->exists())->toBeFalse();
+
+        libraryScreenSignIn(Fx::staffWith([PlatformPermissions::AUDIT_VIEW], ['*'], RoleLevel::Admin))
+            ->get('/admin/audit?action=platform.media.uploaded')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $inertia) => $inertia
+                ->has('entries', 1)
+                ->where('entries.0.withheld', true)
+                ->where('entries.0.subjectId', null)
+                ->where('entries.0.changes', [])
+                // What was done, and by whom, still reach them.
+                ->where('entries.0.action', 'platform.media.uploaded')
+                ->where('entries.0.actorId', $adminId)
+            );
+
+        $superAdmin->get('/admin/audit?action=platform.media.uploaded')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $inertia) => $inertia
+                ->has('entries', 1)
+                ->where('entries.0.withheld', false)
+                ->where('entries.0.subjectId', $mediaId)
+            );
+    });
 });

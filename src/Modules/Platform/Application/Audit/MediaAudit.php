@@ -14,10 +14,16 @@ use Modules\Platform\Public\Enums\MediaVariantsStatus;
 /**
  * Audit entries for media. Media is global, so entries have no store. The original file name
  * is recorded only as "changed": an uploaded document's name can carry personal data.
+ *
+ * An entry about a private file is read back without its subject id or its changes by anyone who
+ * may not see private files (ListAuditHandler, b2b.md amendment 8(c)); the upload entry's
+ * "visibility" is how that is known once the file itself is gone.
  */
 final class MediaAudit
 {
-    private const string SUBJECT = 'platform.media';
+    public const string SUBJECT = 'platform.media';
+
+    public const string UPLOADED = 'platform.media.uploaded';
 
     /**
      * @param  string|null  $forModule  the module that uploaded it for its own use, and the
@@ -39,7 +45,7 @@ final class MediaAudit
             $changes = $changes->changed('for_module', null, $forModule)->changed('under_permission', null, $underPermission);
         }
 
-        return new AuditEntryDto('platform.media.uploaded', self::SUBJECT, $media->id(), null, $changes);
+        return new AuditEntryDto(self::UPLOADED, self::SUBJECT, $media->id(), null, $changes);
     }
 
     /**
