@@ -9,11 +9,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\B2B\Domain\Model\Application;
-use Modules\B2B\Domain\Model\Company;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
-use Modules\B2B\Domain\Repository\CompanyTypeRepository;
-use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyName;
@@ -24,11 +21,13 @@ use Modules\B2B\Public\Enums\CompanyStatus;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\B2B\Support\B2BFixtures;
 
 use function Pest\Laravel\seed;
 
 /*
-| The company, its applications and their files, as stored (b2b.md §5, amendments 2 and 3).
+| The company, its applications and their files, as stored (b2b.md §5, amendments 2 and 3). Every
+| application here is filled in from its account's home store's lists (amendment 5).
 */
 
 uses(RefreshDatabase::class);
@@ -39,99 +38,28 @@ beforeEach(function () {
     RecordingSecurityMessages::install();
 });
 
-/**
- * A private file, as Platform stores one: a company's papers are never public (b2b.md §1.4).
- *
- * Named for this file: a function declared in a Pest file is global to the whole suite.
- */
-function b2bDocumentFile(): string
-{
-    $id = strtolower((string) Str::ulid());
-
-    DB::table('platform.media')->insert([
-        'id' => $id,
-        'visibility' => 'PRIVATE',
-        'disk' => 'local',
-        'object_key' => 'media/'.$id.'.pdf',
-        'original_filename' => 'certificate.pdf',
-        'mime' => 'application/pdf',
-        'bytes' => 120_000,
-        'checksum' => hash('sha256', $id),
-    ]);
-
-    return $id;
-}
-
-function b2bCompanyAccount(): string
-{
-    return Fx::customer(strtolower((string) Str::ulid()).'@example.test', 'sa', 'company');
-}
-
-/**
- * A draft, filled in and holding the two required files, stored.
- */
-function b2bStoredDraft(string $customerId, ?string $companyId = null): Application
-{
-    $applications = app(ApplicationRepository::class);
-    $draft = Application::draft($applications->nextId(), $customerId, $companyId);
-    $draft->describe(
-        CompanyName::of('Al Noor Trading'),
-        CompanyTypeChoice::listed(app(CompanyTypeRepository::class)->active()[1]->id()),
-        RegistrationNumber::of('cr_number', '1010123456'),
-        RegistrationNumber::of('tax_number', '300123456700003'),
-        CompanyAddress::of("King Fahd Road\nRiyadh"),
-        null,
-    );
-
-    foreach (app(DocumentTypeRepository::class)->active() as $type) {
-        $draft->attach($type->id(), b2bDocumentFile(), CarbonImmutable::now());
-    }
-
-    $applications->add($draft);
-
-    return $draft;
-}
-
-/**
- * The whole first application: sent, and the company it creates.
- *
- * @return array{0: Company, 1: Application}
- */
-function b2bSentApplication(string $customerId): array
-{
-    $draft = b2bStoredDraft($customerId);
-    $companies = app(CompanyRepository::class);
-    $companyId = $companies->nextId();
-
-    $details = $draft->submit($companyId, app(CompanyTypeRepository::class)->active(), app(DocumentTypeRepository::class)->all(), CarbonImmutable::now());
-    $company = Company::fromFirstApplication($companyId, $customerId, Fx::storeId('sa'), $details, CarbonImmutable::now());
-    $companies->add($company);
-    app(ApplicationRepository::class)->update($draft);
-
-    return [$company, $draft];
-}
-
 describe('the repositories', function () {
     it('stores a draft with its files and reads it back as it was', function () {
-        $customerId = b2bCompanyAccount();
-        $draft = b2bStoredDraft($customerId);
+        $customerId = B2BFixtures::companyAccount();
+        $draft = B2BFixtures::storedDraft($customerId);
 
         $read = app(ApplicationRepository::class)->find($draft->id());
 
         expect($read?->state())->toBe(ApplicationState::Draft)
             ->and($read?->name()?->value)->toBe('Al Noor Trading')
             ->and($read?->address()?->value)->toBe("King Fahd Road\nRiyadh")
+            ->and($read?->documents())->toHaveCount(3)
             ->and(array_keys($read?->documents() ?? []))->toEqualCanonicalizing(array_keys($draft->documents()))
             ->and(app(ApplicationRepository::class)->openFor($customerId)?->id())->toBe($draft->id());
     });
 
     it('keeps an unchanged file\'s row and replaces only the one uploaded again', function () {
-        $draft = b2bStoredDraft(b2bCompanyAccount());
+        $draft = B2BFixtures::storedDraft(B2BFixtures::companyAccount());
         [$first, $second] = array_keys($draft->documents());
         $rowOf = fn (string $typeId): ?string => DB::table('b2b.application_documents')->where('application_id', $draft->id())->where('document_type_id', $typeId)->value('id');
         $kept = $rowOf($first);
 
-        $replacement = b2bDocumentFile();
+        $replacement = B2BFixtures::privateFile();
         $draft->attach($second, $replacement, CarbonImmutable::now());
         app(ApplicationRepository::class)->update($draft);
 
@@ -141,20 +69,22 @@ describe('the repositories', function () {
     });
 
     it('sends the first application: the company exists from then on, PENDING, in the account\'s home store', function () {
-        $customerId = b2bCompanyAccount();
-        [$company, $application] = b2bSentApplication($customerId);
+        $customerId = B2BFixtures::companyAccount();
+        [$company, $application] = B2BFixtures::sent($customerId);
 
         $stored = app(CompanyRepository::class)->forCustomer($customerId);
 
         expect($stored?->id())->toBe($company->id())
             ->and($stored?->status())->toBe(CompanyStatus::Pending)
             ->and($stored?->homeStoreId())->toBe(Fx::storeId('sa'))
+            // The type it chose is one of its home store's (amendment 5).
+            ->and($stored?->details()->type->typeId)->toBe(B2BFixtures::companyTypes()[1]->id())
             ->and(app(ApplicationRepository::class)->find($application->id())?->state())->toBe(ApplicationState::Submitted)
             ->and(app(ApplicationRepository::class)->historyOf($company->id()))->toHaveCount(1);
     });
 
     it('stores every status change, and suspended remembers where it came from', function () {
-        [$company] = b2bSentApplication(b2bCompanyAccount());
+        [$company] = B2BFixtures::sent(B2BFixtures::companyAccount());
         $staffId = Fx::staff();
         $companies = app(CompanyRepository::class);
 
@@ -171,7 +101,7 @@ describe('the repositories', function () {
     });
 
     it('throws a draft away with its file references, and leaves the files to Platform', function () {
-        $draft = b2bStoredDraft(b2bCompanyAccount());
+        $draft = B2BFixtures::storedDraft(B2BFixtures::companyAccount());
         $files = array_map(static fn ($document): string => $document->mediaId, array_values($draft->documents()));
 
         app(ApplicationRepository::class)->delete($draft->id());
@@ -182,17 +112,12 @@ describe('the repositories', function () {
     });
 
     it('lists a company\'s applications newest first', function () {
-        $customerId = b2bCompanyAccount();
-        [$company, $first] = b2bSentApplication($customerId);
-        $staffId = Fx::staff();
-        $first->reject($staffId, Remark::of('reason', 'The CR number does not match.'), CarbonImmutable::now());
-        app(ApplicationRepository::class)->update($first);
-        $company->reject($staffId, Remark::of('reason', 'The CR number does not match.'), CarbonImmutable::now());
-        app(CompanyRepository::class)->update($company);
+        $customerId = B2BFixtures::companyAccount();
+        [$company, $first] = B2BFixtures::rejected($customerId);
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
-        $second = b2bStoredDraft($customerId, $company->id());
-        $second->submit($company->id(), app(CompanyTypeRepository::class)->active(), app(DocumentTypeRepository::class)->all(), CarbonImmutable::now());
+        $second = B2BFixtures::storedDraft($customerId, $company->id());
+        $second->submit($company->id(), B2BFixtures::companyTypes(), B2BFixtures::documentTypes(), app(ApplicationRepository::class)->lastSent($company->id()), CarbonImmutable::now());
         app(ApplicationRepository::class)->update($second);
 
         expect(array_map(static fn (Application $each): string => $each->id(), app(ApplicationRepository::class)->historyOf($company->id())))
@@ -209,7 +134,7 @@ describe('the repositories', function () {
 
 describe('what the database takes: everything the code takes', function () {
     it('stores numbers in any script, and addresses and reasons on several lines', function () {
-        $customerId = b2bCompanyAccount();
+        $customerId = B2BFixtures::companyAccount();
         $applications = app(ApplicationRepository::class);
         $draft = Application::draft($applications->nextId(), $customerId, null);
         $draft->describe(
@@ -233,7 +158,7 @@ describe('what the database takes: everything the code takes', function () {
 
 describe('what the database refuses on its own', function () {
     it('refuses a company row the code would never write', function (Closure $change, string $constraint) {
-        [$company] = b2bSentApplication(b2bCompanyAccount());
+        [$company] = B2BFixtures::sent(B2BFixtures::companyAccount());
 
         expect(fn () => $change($company->id()))->toThrow(QueryException::class, $constraint);
     })->with([
@@ -256,8 +181,8 @@ describe('what the database refuses on its own', function () {
     ]);
 
     it('refuses an application row the code would never write', function (Closure $change, string $constraint) {
-        $customerId = b2bCompanyAccount();
-        [, $application] = b2bSentApplication($customerId);
+        $customerId = B2BFixtures::companyAccount();
+        [, $application] = B2BFixtures::sent($customerId);
 
         expect(fn () => $change($application->id(), $customerId))->toThrow(QueryException::class, $constraint);
     })->with([
@@ -273,19 +198,17 @@ describe('what the database refuses on its own', function () {
         ]), 'applications_one_open_per_customer'],
         'two files under one type' => [function (string $id) {
             $typeId = DB::table('b2b.application_documents')->where('application_id', $id)->value('document_type_id');
-            DB::table('b2b.application_documents')->insert(['id' => strtolower((string) Str::ulid()), 'application_id' => $id, 'document_type_id' => $typeId, 'media_id' => b2bDocumentFile(), 'uploaded_at' => now()]);
+            DB::table('b2b.application_documents')->insert(['id' => strtolower((string) Str::ulid()), 'application_id' => $id, 'document_type_id' => $typeId, 'media_id' => B2BFixtures::privateFile(), 'uploaded_at' => now()]);
         }, 'application_documents_one_per_type'],
         'deleting a file an application holds' => [fn (string $id) => DB::table('platform.media')->where('id', DB::table('b2b.application_documents')->where('application_id', $id)->value('media_id'))->delete(), 'application_documents_media_id_foreign'],
     ]);
 
     it('lets an account start a new draft once the last application is decided', function () {
-        $customerId = b2bCompanyAccount();
-        [$company, $application] = b2bSentApplication($customerId);
-        $application->reject(Fx::staff(), Remark::of('reason', 'The CR number does not match.'), CarbonImmutable::now());
-        app(ApplicationRepository::class)->update($application);
+        $customerId = B2BFixtures::companyAccount();
+        [$company] = B2BFixtures::rejected($customerId);
 
         // Only an open one blocks another: reapplication is unlimited once the last was decided.
-        $next = b2bStoredDraft($customerId, $company->id());
+        $next = B2BFixtures::storedDraft($customerId, $company->id());
 
         expect(app(ApplicationRepository::class)->openFor($customerId)?->id())->toBe($next->id());
     });

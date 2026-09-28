@@ -5,18 +5,21 @@ declare(strict_types=1);
 namespace Modules\B2B\Domain\Model;
 
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
+use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Domain\ValueObject\TypeName;
 use Modules\B2B\Domain\ValueObject\TypePosition;
 
 /**
  * A kind of company a customer can say they are — a limited liability company, a sole
- * proprietorship (b2b.md §1.3). A table staff manage, not a list in code; six ship with the
- * migration (owner, 2026-09-27), and "Other", which the company describes in its own words, is not
- * a row at all.
+ * proprietorship (b2b.md §1.3). A table staff manage, not a list in code, and **one list per store**
+ * (amendment 5): a legal form in one country is not one in another, and a company uses its home
+ * store's list. Every store starts with the same six (StartingTypes); "Other", which the company
+ * describes in its own words, is not a row at all.
  *
  * Never deleted once used, only deactivated: the applications that name it are permanent. An
  * inactive type cannot be chosen by a new application, and a draft that chose it before must choose
- * again before it is sent (owner, 2026-09-27); a company already submitted keeps it.
+ * again before it is sent (owner, 2026-09-27); a company already submitted keeps it. Deactivating,
+ * staff choose how it looks to new applications: hidden, or greyed out (amendment 5).
  */
 final class CompanyType
 {
@@ -25,22 +28,26 @@ final class CompanyType
 
     private function __construct(
         private readonly string $id,
+        private readonly string $storeId,
         private TypeName $name,
         private int $position,
         private bool $isActive,
+        private ?InactiveTypeDisplay $inactiveDisplay,
     ) {}
 
     /**
+     * @param  string  $storeId  the store whose list it joins
+     *
      * @throws InvalidCompanyAttribute
      */
-    public static function add(string $id, TypeName $name, int $position): self
+    public static function add(string $id, string $storeId, TypeName $name, int $position): self
     {
-        return new self($id, $name, TypePosition::check($position), true);
+        return new self($id, strtolower($storeId), $name, TypePosition::check($position), true, null);
     }
 
-    public static function reconstitute(string $id, TypeName $name, int $position, bool $isActive): self
+    public static function reconstitute(string $id, string $storeId, TypeName $name, int $position, bool $isActive, ?InactiveTypeDisplay $inactiveDisplay): self
     {
-        return new self($id, $name, $position, $isActive);
+        return new self($id, $storeId, $name, $position, $isActive, $inactiveDisplay);
     }
 
     public function rename(TypeName $name): void
@@ -68,6 +75,9 @@ final class CompanyType
         $this->markChanged('position');
     }
 
+    /**
+     * Offered again; an active type has no "how it looks while inactive".
+     */
     public function activate(): void
     {
         if ($this->isActive) {
@@ -75,22 +85,38 @@ final class CompanyType
         }
 
         $this->isActive = true;
+        $this->inactiveDisplay = null;
         $this->markChanged('is_active');
+        $this->markChanged('inactive_display');
     }
 
-    public function deactivate(): void
+    /**
+     * No longer chosen by a new application, shown to one as staff choose: hidden or greyed out
+     * (amendment 5). Choosing again while it is inactive changes only how it looks.
+     */
+    public function deactivate(InactiveTypeDisplay $shown): void
     {
-        if (! $this->isActive) {
+        if ($this->isActive) {
+            $this->isActive = false;
+            $this->markChanged('is_active');
+        }
+
+        if ($this->inactiveDisplay === $shown) {
             return;
         }
 
-        $this->isActive = false;
-        $this->markChanged('is_active');
+        $this->inactiveDisplay = $shown;
+        $this->markChanged('inactive_display');
     }
 
     public function id(): string
     {
         return $this->id;
+    }
+
+    public function storeId(): string
+    {
+        return $this->storeId;
     }
 
     public function name(): TypeName
@@ -106,6 +132,12 @@ final class CompanyType
     public function isActive(): bool
     {
         return $this->isActive;
+    }
+
+    /** Null while it is active. */
+    public function inactiveDisplay(): ?InactiveTypeDisplay
+    {
+        return $this->inactiveDisplay;
     }
 
     /**
