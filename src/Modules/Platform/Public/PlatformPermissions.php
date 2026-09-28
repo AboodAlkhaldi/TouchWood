@@ -8,7 +8,8 @@ namespace Modules\Platform\Public;
  * Every permission Platform checks (Platform spec §3). Access puts them in its permission catalog
  * (Access spec §1.5); their names in Arabic and English are Platform's translations
  * (`platform::permissions`). Reserved permissions belong to Super Admins only and are never
- * offered in the role editor.
+ * offered in the role editor. Admin-only permissions go only into admin roles, which only a Super
+ * Admin edits; Access adds them to its own list of management actions and enforces it.
  */
 final class PlatformPermissions
 {
@@ -34,6 +35,14 @@ final class PlatformPermissions
 
     public const string MEDIA_VARIANTS_GENERATE = 'platform.media.variants.generate';
 
+    /**
+     * Private files — a company's papers — appear in the media library only to holders, and only as
+     * a list: name, date, where used; never opened there (B2B step 3, amendments 5 and 6). It adds
+     * them to a library the person may already open; it opens the library to nobody. Choosing
+     * "private" when uploading in the library also needs it.
+     */
+    public const string MEDIA_PRIVATE_VIEW = 'platform.media.private.view';
+
     public const string AUDIT_VIEW = 'platform.audit.view';
 
     /**
@@ -49,24 +58,29 @@ final class PlatformPermissions
      * Platform sits below Access and cannot see its types. A reserved action is never offered, so
      * it has none.
      *
-     * @return array<string, array{reserved: bool, storeFree: bool, group: string|null}>
+     * Whether it is admin-only: a role action that only an admin role may hold (B2B step 3, amendment
+     * 5). Platform only says so; Access, which owns roles, enforces it.
+     *
+     * @return array<string, array{reserved: bool, storeFree: bool, group: string|null, adminOnly: bool}>
      */
     public static function all(): array
     {
         return [
-            self::STORE_CREATE => ['reserved' => true, 'storeFree' => true, 'group' => null],
-            self::STORE_UPDATE => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings'],
-            self::STORE_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings'],
-            self::CURRENCY_CREATE => ['reserved' => true, 'storeFree' => true, 'group' => null],
-            self::CURRENCY_UPDATE => ['reserved' => true, 'storeFree' => true, 'group' => null],
-            self::SETTINGS_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings'],
+            self::STORE_CREATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
+            self::STORE_UPDATE => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],
+            self::STORE_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],
+            self::CURRENCY_CREATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
+            self::CURRENCY_UPDATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
+            self::SETTINGS_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],
             // A global setting is checked with PermissionScope::allStores().
-            self::SETTINGS_UPDATE => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings'],
-            self::MEDIA_UPLOAD => ['reserved' => false, 'storeFree' => true, 'group' => 'media'],
-            self::MEDIA_UPDATE => ['reserved' => false, 'storeFree' => true, 'group' => 'media'],
-            self::MEDIA_DELETE => ['reserved' => false, 'storeFree' => true, 'group' => 'media'],
-            self::MEDIA_VARIANTS_GENERATE => ['reserved' => true, 'storeFree' => true, 'group' => null],
-            self::AUDIT_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'audit'],
+            self::SETTINGS_UPDATE => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],
+            self::MEDIA_UPLOAD => ['reserved' => false, 'storeFree' => true, 'group' => 'media', 'adminOnly' => false],
+            self::MEDIA_UPDATE => ['reserved' => false, 'storeFree' => true, 'group' => 'media', 'adminOnly' => false],
+            self::MEDIA_DELETE => ['reserved' => false, 'storeFree' => true, 'group' => 'media', 'adminOnly' => false],
+            // A Super Admin always holds it; an admin when a Super Admin gives it to their role.
+            self::MEDIA_PRIVATE_VIEW => ['reserved' => false, 'storeFree' => true, 'group' => 'media', 'adminOnly' => true],
+            self::MEDIA_VARIANTS_GENERATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
+            self::AUDIT_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'audit', 'adminOnly' => false],
         ];
     }
 }

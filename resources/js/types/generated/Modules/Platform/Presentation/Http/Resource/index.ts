@@ -73,6 +73,7 @@ nextId: string | null,
 mayUpload: boolean,
 mayUpdate: boolean,
 mayDelete: boolean,
+mayUploadPrivate: boolean,
 };
 export type SettingGroup = {
 module: string,

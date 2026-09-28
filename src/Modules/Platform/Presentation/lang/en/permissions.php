@@ -21,6 +21,9 @@ return [
         'upload' => 'Upload files',
         'update' => 'Edit file descriptions',
         'delete' => 'Delete files',
+        'private' => [
+            'view' => 'View private files',
+        ],
         'variants' => [
             'generate' => 'Generate image sizes',
         ],

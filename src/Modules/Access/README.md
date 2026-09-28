@@ -130,7 +130,10 @@ declares it. Names come from translations, read only when a screen shows them.
 A role is an **admin** or a **staff** role. The management actions (`staff.invite`, `staff.update`,
 `staff.assign_role`, `staff.disable`, `role.manage`), the two that reach a customer's account
 (`customer.block`, `customer.delete`, amendment 43) and `staff_settings.update` — the numbers that
-decide how staff sign in (owner, 2026-09-21) — go only into admin roles. A store's own settings are
+decide how staff sign in (owner, 2026-09-21) — go only into admin roles. So does Platform's
+`platform.media.private.view`, which lists private files in the media library (B2B step 3,
+amendment 5): Platform flags it `adminOnly` in `PlatformPermissions`, and `AccessPermissions::adminOnly()`
+adds every action so flagged to Access's own list. A store's own settings are
 `settings.update`, an ordinary action a staff role may hold. Only a Super Admin
 creates, edits or gives admin roles and manages admins; nobody changes their own role. An admin
 manages a staff member only when holding **assign roles** in **all** of their stores — a staff

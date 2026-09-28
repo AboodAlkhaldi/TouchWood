@@ -37,6 +37,7 @@ final readonly class MediaPages
             $page->mayUpload,
             $page->mayUpdate,
             $page->mayDelete,
+            $page->mayUploadPrivate,
         );
     }
 

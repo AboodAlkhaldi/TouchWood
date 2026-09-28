@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -122,6 +123,151 @@ it('asks before deleting a file, in the page, and then deletes it', function () 
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('platform.media')->where('id', $id)->exists())->toBeFalse();
+});
+
+/**
+ * A company's paper in the library, written straight in, marked as having sizes so that only the
+ * private rule keeps a picture off the screen.
+ */
+function libraryScreenPaperNamed(string $filename): string
+{
+    $id = strtolower((string) Str::ulid());
+
+    DB::table('platform.media')->insert([
+        'id' => $id,
+        'visibility' => 'PRIVATE',
+        'disk' => 'local',
+        'object_key' => 'media/'.$id.'.pdf',
+        'original_filename' => $filename,
+        'mime' => 'application/pdf',
+        'bytes' => 2_400_000,
+        'checksum' => hash('sha256', $id),
+        'variants_status' => 'READY',
+        'variants_queued_at' => now()->toDateTimeString(),
+        'created_at' => now()->toDateTimeString(),
+        'updated_at' => now()->toDateTimeString(),
+    ]);
+
+    return $id;
+}
+
+/**
+ * The date the screen shows for a file: the first ten characters of what the database gives back.
+ */
+function libraryScreenShownDate(string $mediaId): string
+{
+    return substr((string) DB::table('platform.media')->where('id', $mediaId)->value('created_at'), 0, 10);
+}
+
+it('shows a private file in the table as its name, date and use only, with nothing to press', function () {
+    $paper = 'paper-'.Str::random(8).'.pdf';
+    $photo = 'photo-'.Str::random(8).'.jpg';
+    $paperId = libraryScreenPaperNamed($paper);
+    $photoId = libraryScreenFileNamed($photo, 'READY');
+    $date = libraryScreenShownDate($paperId);
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', libraryScreenEmail())
+        ->type('#password', LIBRARY_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        ->navigate('/admin/media');
+
+    $page->assertSee($paper)
+        ->assertNotPresent("[data-test=\"describe-{$paperId}\"]")
+        ->assertNotPresent("[data-test=\"delete-{$paperId}\"]")
+        // The public file beside it keeps both.
+        ->assertPresent("[data-test=\"describe-{$photoId}\"]")
+        ->assertPresent("[data-test=\"delete-{$photoId}\"]")
+        // Its own row: the name, the date and where it is used - no picture, no type, no size.
+        ->assertScript(<<<JS
+            (() => {
+                const row = [...document.querySelectorAll('tbody tr')].find((tr) => tr.textContent.includes('{$paper}'));
+                return row !== undefined
+                    && row.textContent.includes('{$date}')
+                    && row.textContent.includes('Not used')
+                    && ! row.textContent.includes('application/pdf')
+                    && ! row.textContent.includes('2.3 MB')
+                    && ! row.textContent.includes('Ready')
+                    && row.querySelector('img') === null
+                    && row.querySelector('button') === null;
+            })()
+            JS)
+        ->assertNoJavaScriptErrors();
+});
+
+it('shows a private file in the grid as its name, date and use, without a picture', function () {
+    $paper = 'paper-'.Str::random(8).'.pdf';
+    $paperId = libraryScreenPaperNamed($paper);
+    $date = libraryScreenShownDate($paperId);
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', libraryScreenEmail())
+        ->type('#password', LIBRARY_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        ->navigate('/admin/media');
+
+    $page->click('[data-test="view-switch"]')
+        ->assertSee($paper)
+        ->assertScript(<<<JS
+            (() => {
+                const tile = [...document.querySelectorAll('li')].find((li) => li.textContent.includes('{$paper}'));
+                return tile !== undefined
+                    && tile.textContent.includes('{$date}')
+                    && tile.textContent.includes('Not used')
+                    && ! tile.textContent.includes('2.3 MB')
+                    // Neither a picture nor the placeholder drawn where a picture is missing.
+                    && ! tile.textContent.includes('Ready')
+                    && ! tile.textContent.includes('application/pdf')
+                    && tile.querySelector('img') === null;
+            })()
+            JS)
+        ->assertNoJavaScriptErrors();
+});
+
+it('does not offer "private" when uploading to someone who may not see private files', function () {
+    $uploader = (string) DB::table('access.staff_users')
+        ->where('id', Fx::staffWith([PlatformPermissions::MEDIA_UPLOAD], ['sa']))
+        ->value('email');
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', $uploader)
+        ->type('#password', LIBRARY_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        ->navigate('/admin/media');
+
+    // The form is there, with one choice fewer.
+    $page->assertPresent('[data-test="file"]')
+        ->assertPresent('option[value="PUBLIC"]')
+        ->assertNotPresent('option[value="PRIVATE"]')
+        ->assertNoJavaScriptErrors();
+});
+
+it('offers "private" when uploading to a Super Admin', function () {
+    $page = visit('/admin/sign-in')
+        ->type('#email', libraryScreenEmail())
+        ->type('#password', LIBRARY_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        ->navigate('/admin/media');
+
+    $page->assertPresent('option[value="PUBLIC"]')
+        ->assertPresent('option[value="PRIVATE"]')
+        ->assertNoJavaScriptErrors();
 });
 
 it('draws the audit log with its filters', function () {

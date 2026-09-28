@@ -261,6 +261,23 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
   permission for its own change and auditing it — and the media is deleted, all in one transaction.
   The deletion's audit entry lists where the media was used. Other modules' `ON DELETE RESTRICT`
   foreign keys stay as the backstop: a reference nobody reported still becomes `MediaInUse`.
+- **A module uploads and deletes its own files under its own permission.**
+  `PlatformApi::uploadMediaFor(ModuleUploadDto)` (stage 2b, P1) and its mirror
+  `PlatformApi::deleteMediaFor(ModuleDeleteDto)` (B2B step 3, amendments 4 and 5) check the
+  permission the module names, in the scope it names, instead of `platform.media.upload` or
+  `platform.media.delete`: a staff member setting their own picture, or a customer replacing a
+  company paper, holds no media permission. The permission must start with the module's own name,
+  and both are checked before the file is read or the id looked up. `deleteMediaFor` deletes
+  **only a private file**, and **refuses while any use of it remains**, the caller's own included —
+  it never detaches another module's use. Otherwise it is the staff delete: the row in a savepoint
+  of the caller's transaction, the files and `MediaDeleted` after the outermost commit. Both are
+  audited like any other upload or delete, with `for_module` and `under_permission` added.
+- **Private files in the media library** (B2B step 3, amendments 5 and 6) are listed only to holders
+  of the admin-only `platform.media.private.view` — a Super Admin always, an admin when a Super
+  Admin gives it to their role — and the rule is in the query, so pages stay full. It adds them to a
+  library the person may already open, and opens it to nobody. A private file shows its name, its
+  upload date and where it is used, and nothing else: no picture, no link, nothing to describe or
+  delete there. Choosing "private" when uploading in the library needs the permission too.
 - **Private files** are served only through signed links that expire after 30 minutes. On
   S3-compatible storage they download under their original name; Laravel's local disk ignores that
   and serves them under their object key. They never get variants and never go through the CDN.

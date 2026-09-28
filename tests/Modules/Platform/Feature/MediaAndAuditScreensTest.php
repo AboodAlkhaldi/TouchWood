@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 use Modules\Access\Domain\ValueObject\RoleLevel;
@@ -118,6 +121,98 @@ describe('the media library screen', function () {
         ])->assertRedirect();
 
         expect(DB::table('platform.media')->where('id', $mediaId)->value('alt_en'))->toBe('The shopfront');
+    });
+});
+
+/**
+ * A company's paper in the library, marked as having sizes so that only the private rule can keep
+ * a link off the screen.
+ */
+function libraryScreenPrivateFile(): string
+{
+    $id = strtolower((string) Str::ulid());
+
+    DB::table('platform.media')->insert([
+        'id' => $id,
+        'visibility' => 'PRIVATE',
+        'disk' => 'local',
+        'object_key' => 'media/'.$id.'.pdf',
+        'original_filename' => 'paper.pdf',
+        'mime' => 'application/pdf',
+        'bytes' => 2_400_000,
+        'checksum' => hash('sha256', $id),
+        'variants_status' => 'READY',
+        'variants_queued_at' => '2026-09-20 11:00:00+00',
+        'created_at' => '2026-09-20 11:00:00+00',
+        'updated_at' => '2026-09-20 11:00:00+00',
+    ]);
+
+    return $id;
+}
+
+/**
+ * @return list<string> the ids of the files the media library page is handed
+ */
+function libraryScreenPrivateListed(AdminBrowser $browser): array
+{
+    $ids = [];
+
+    $browser->get('/admin/media')->assertOk()->assertInertia(function (AssertableInertia $inertia) use (&$ids) {
+        /** @var list<array{id: string}> $media */
+        $media = $inertia->toArray()['props']['media'];
+        $ids = array_column($media, 'id');
+    });
+
+    return $ids;
+}
+
+describe('private files in the media library screen', function () {
+    it('leaves private files off the page for staff, and lists them, with no link, to a Super Admin', function () {
+        Storage::fake('local', ['serve' => true]);
+        $public = libraryScreenFile();
+        $private = libraryScreenPrivateFile();
+
+        $staff = libraryScreenSignIn(Fx::staffWith([PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::MEDIA_UPDATE, PlatformPermissions::MEDIA_DELETE], ['sa']));
+
+        expect(libraryScreenPrivateListed($staff))->toBe([$public]);
+
+        libraryScreenSignIn(Fx::staff(superAdmin: true))->get('/admin/media')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $inertia) => $inertia
+                ->has('media', 2)
+                ->where('media.0.id', $private)
+                ->where('media.0.visibility', 'PRIVATE')
+                ->where('media.0.thumbnailUrl', null)
+                ->where('media.1.id', $public)
+            );
+    });
+
+    it('offers "private" when uploading only to someone who may see private files', function () {
+        libraryScreenSignIn(Fx::staffWith([PlatformPermissions::MEDIA_UPLOAD], ['sa']))->get('/admin/media')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('mayUpload', true)->where('mayUploadPrivate', false));
+
+        libraryScreenSignIn(Fx::staff(superAdmin: true))->get('/admin/media')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('mayUpload', true)->where('mayUploadPrivate', true));
+    });
+
+    it('sends a private upload back with the refusal when the uploader may not see private files', function () {
+        Storage::fake('public');
+        Storage::fake('local', ['serve' => true]);
+        Queue::fake();
+        $before = DB::table('platform.media')->count();
+        $browser = libraryScreenSignIn(Fx::staffWith([PlatformPermissions::MEDIA_UPLOAD], ['sa']));
+
+        $response = $browser->post('/admin/media', [
+            'file' => UploadedFile::fake()->create('paper.pdf', 10, 'application/pdf'),
+            'visibility' => 'PRIVATE',
+        ])->assertRedirect();
+
+        // In the form, in their language (their account is in English), rather than a 403 page.
+        expect(AdminBrowser::formError($response))->toBe(trans('errors.unauthorized.detail', [], 'en'))
+            ->and(Storage::disk('local')->allFiles())->toBe([])
+            ->and(DB::table('platform.media')->count())->toBe($before);
     });
 });
 
