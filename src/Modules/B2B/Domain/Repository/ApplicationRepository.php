@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\B2B\Domain\Repository;
 
+use Modules\B2B\Domain\Exception\ApplicationAlreadyOpen;
 use Modules\B2B\Domain\Model\Application;
 
 /**
@@ -37,9 +38,36 @@ interface ApplicationRepository
      */
     public function lastSent(string $companyId): ?Application;
 
+    /**
+     * Serialises everything the account does to its applications and its company, until the
+     * transaction ends: one open application and one company per account (§1.1, §1.2) are decided
+     * here before the database's unique indexes ever have to. Every one of the company's own use
+     * cases that writes takes it first, then reads.
+     */
+    public function lockAccount(string $customerId): void;
+
+    /**
+     * @throws ApplicationAlreadyOpen the account already has an open application — which the lock
+     *                                above means only a caller that skipped it can reach
+     */
     public function add(Application $application): void;
 
     public function update(Application $application): void;
+
+    /**
+     * Which of these files any application still holds, as a document or as an answer, drafts
+     * included (§1.4): B2B asks Platform to delete a file only once none does.
+     *
+     * @param  list<string>  $mediaIds
+     * @return list<string>
+     */
+    public function stillHeld(array $mediaIds): array;
+
+    /**
+     * Whether one of the account's own applications holds this file, as a document or an answer —
+     * the only files the company may open (§1.4, amendment 5).
+     */
+    public function accountHolds(string $customerId, string $mediaId): bool;
 
     /**
      * A draft thrown away by the customer (owner, 2026-09-27). Its references to its files go with

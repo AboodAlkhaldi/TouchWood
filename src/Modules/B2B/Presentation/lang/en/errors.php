@@ -48,6 +48,34 @@ return [
         'title' => 'Answer as asked',
         'detail' => 'Answer this request the way it asks: with text, or with a file.',
     ],
+    'not_a_company_account' => [
+        'title' => 'Company accounts only',
+        'detail' => 'Only a company account can apply as a company.',
+    ],
+    'company_not_found' => [
+        'title' => 'No company yet',
+        'detail' => 'There is no company for this account until its first application is sent.',
+    ],
+    'application_not_found' => [
+        'title' => 'No application',
+        'detail' => 'There is no application to change. Start one first.',
+    ],
+    'application_already_open' => [
+        'title' => 'Already waiting',
+        'detail' => 'Your application is waiting for a decision. You can start another once it is decided.',
+    ],
+    'email_not_verified' => [
+        'title' => 'Confirm your email',
+        'detail' => 'Confirm your email address before you send the application.',
+    ],
+    'document_type_inactive' => [
+        'title' => 'Document not accepted',
+        'detail' => 'This kind of document is not accepted. Choose one from the list.',
+    ],
+    'application_file_not_found' => [
+        'title' => 'File not found',
+        'detail' => 'That file is not one of your applications\'.',
+    ],
     'fields' => [
         'address' => 'address',
         'answer' => 'answer',

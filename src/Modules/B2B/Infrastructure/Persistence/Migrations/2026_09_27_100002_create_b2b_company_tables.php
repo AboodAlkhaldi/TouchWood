@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Schema;
 | b2b.md §5: the company, its applications, and the files each application carries.
 |
 | Every rule here is also a rule in code — the value objects, and the Company and Application
-| aggregates — which refuses first; these are the backstop. Two have their code half in the use cases
-| that come next: one open application per account (step 3b, applying) and one company per account
-| (step 3b, the first application sent). Until then nothing but the tests writes these tables.
+| aggregates — which refuses first; these are the backstop. Two have their code half in the company's
+| own use cases (step 3b): one open application per account and one company per account, both decided
+| under the account's lock (ApplicationRepository::lockAccount) before these indexes are reached.
 */
 
 return new class extends Migration

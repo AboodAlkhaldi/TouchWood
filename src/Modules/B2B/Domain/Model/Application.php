@@ -89,6 +89,31 @@ final class Application
     }
 
     /**
+     * A later draft of an existing company (amendment 4): it opens with **the details the company
+     * holds now** — so an address change or a staff correction of the type since is not lost — and
+     * **the files of the last application it sent**, already under their types with the dates they
+     * were uploaded. The company then replaces only what the rejection was about; the application it
+     * copies from keeps its own copies untouched. The note starts empty: each application's is its own.
+     *
+     * @param  Application|null  $lastSent  the company's last application sent, if it has one
+     */
+    public static function draftFor(string $id, Company $company, ?Application $lastSent): self
+    {
+        if ($lastSent !== null && $lastSent->companyId !== $company->id()) {
+            throw new LogicException('A draft of one company cannot start from another company\'s application.');
+        }
+
+        $details = $company->details();
+
+        return new self(
+            $id, $company->customerId(), $company->id(), ApplicationState::Draft,
+            $details->name, $details->type, $details->crNumber, $details->taxNumber, $details->address, null,
+            $lastSent === null ? [] : $lastSent->documents,
+            null, null, null, null, [], [], [],
+        );
+    }
+
+    /**
      * @param  array<string, AttachedDocument>  $documents
      * @param  list<ApplicationFlag>  $flags  what the rejection of this application marked
      * @param  list<ApplicationRequest>  $requests  what the rejection of this application asked for

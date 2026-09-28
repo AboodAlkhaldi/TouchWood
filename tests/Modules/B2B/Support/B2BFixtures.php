@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Modules\B2B\Support;
 
+use ArrayObject;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Modules\B2B\Application\Types\GiveEveryStoreTheStartingTypes;
 use Modules\B2B\Domain\Model\Application;
@@ -21,6 +24,7 @@ use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyName;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
+use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -129,6 +133,111 @@ final class B2BFixtures
         app(ApplicationRepository::class)->update($draft);
 
         return [$company, $draft];
+    }
+
+    /**
+     * A company account registered in the 'sa' store whose email address is confirmed — what
+     * sending an application needs (b2b.md §1.2). Its phone is not.
+     */
+    public static function verifiedCompanyAccount(): string
+    {
+        $customerId = self::companyAccount();
+        DB::table('access.customers')->where('id', $customerId)->update(['email_verified_at' => CarbonImmutable::now()]);
+
+        return $customerId;
+    }
+
+    /**
+     * A real PDF on local disk, as a person's browser sends one, for the use cases that upload.
+     */
+    public static function pdf(): string
+    {
+        File::ensureDirectoryExists(self::uploads());
+        $path = self::uploads().'/'.uniqid('', true).'-paper.pdf';
+        file_put_contents($path, "%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%".uniqid('', true)."\n%%EOF\n");
+
+        return $path;
+    }
+
+    /**
+     * Where pdf() writes; a test file removes it after each test.
+     */
+    public static function uploads(): string
+    {
+        return sys_get_temp_dir().'/tw-b2b-uploads';
+    }
+
+    /**
+     * Staff suspending the company, as step 4 will (b2b.md §4.1).
+     */
+    public static function suspend(Company $company): void
+    {
+        $company->suspend(Fx::staff(), Remark::of('reason', 'Suspended while the tax number is checked.'), CarbonImmutable::now());
+        app(CompanyRepository::class)->update($company);
+    }
+
+    /**
+     * Staff deactivating a type, as step 4 will (b2b.md §1.3): shown greyed out, or hidden.
+     */
+    public static function deactivate(CompanyType|DocumentType $type, InactiveTypeDisplay $shown = InactiveTypeDisplay::Hidden): void
+    {
+        $type->deactivate($shown);
+
+        $type instanceof CompanyType
+            ? app(CompanyTypeRepository::class)->update($type)
+            : app(DocumentTypeRepository::class)->update($type);
+    }
+
+    /**
+     * Records, for every audit entry written from now on, its action and the transaction level it
+     * was written at — so a test can tell an entry written inside its use case's own transaction
+     * from one the test's RefreshDatabase transaction merely satisfied (lesson 87).
+     *
+     * @return ArrayObject<int, array{0: string, 1: int}> filled as entries are written
+     */
+    public static function auditLevels(): ArrayObject
+    {
+        /** @var ArrayObject<int, array{0: string, 1: int}> $levels */
+        $levels = new ArrayObject;
+
+        DB::listen(static function (QueryExecuted $query) use ($levels): void {
+            if (! str_starts_with($query->sql, 'insert into "platform"."audit_entries"')) {
+                return;
+            }
+
+            foreach ($query->bindings as $binding) {
+                if (is_string($binding) && preg_match('/\A[a-z0-9_]+\.[a-z0-9_]+\.[a-z0-9_]+\z/', $binding) === 1) {
+                    $levels[] = [$binding, DB::transactionLevel()];
+
+                    return;
+                }
+            }
+        });
+
+        return $levels;
+    }
+
+    /**
+     * Counts every file Platform starts to store from now on — even one a rolled-back transaction
+     * then takes away. A refusal "before anything is stored" leaves it at zero, where an upload that
+     * came first and was undone would not (3a critic M5).
+     *
+     * @return ArrayObject<int, true>
+     */
+    public static function mediaWrites(): ArrayObject
+    {
+        /** @var ArrayObject<int, true> $writes */
+        $writes = new ArrayObject;
+
+        DB::listen(static function (QueryExecuted $query) use ($writes): void {
+            // Platform writes a media row with its own SQL (INSERT … ON CONFLICT), not the query
+            // builder's quoted form, so both are matched.
+            if (preg_match('/\A\s*insert\s+into\s+"?platform"?\."?media"?[\s(]/i', $query->sql) === 1) {
+                $writes[] = true;
+            }
+        });
+
+        return $writes;
     }
 
     /**
