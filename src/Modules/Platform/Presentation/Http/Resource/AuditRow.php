@@ -13,6 +13,9 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
  * A personal field shows only as "changed" - not because this hides it, but because the value was
  * never recorded: the log is kept forever, and anonymizing an account must never have to rewrite
  * history (platform.md 1.5).
+ *
+ * An entry about a private file, read by someone who may not see private files, comes **withheld**:
+ * no subject id and no changes (b2b.md amendment 8(c)).
  */
 #[TypeScript]
 final class AuditRow extends Data
@@ -27,7 +30,8 @@ final class AuditRow extends Data
         /** The action in words, where the module wrote one down; the action itself otherwise. */
         public string $actionLabel,
         public string $subjectType,
-        public string $subjectId,
+        /** Null when withheld. */
+        public ?string $subjectId,
         public string $source,
         public string $actorType,
         public ?string $actorId,
@@ -40,5 +44,7 @@ final class AuditRow extends Data
         /** Only ever a staff member's. */
         public ?string $ipAddress,
         public array $changes,
+        /** A private file's entry, for a reader who may not see private files. */
+        public bool $withheld,
     ) {}
 }

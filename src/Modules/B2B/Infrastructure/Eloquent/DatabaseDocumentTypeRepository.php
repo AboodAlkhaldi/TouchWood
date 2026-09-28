@@ -10,6 +10,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Str;
 use Modules\B2B\Domain\Model\DocumentType;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
+use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Domain\ValueObject\TypeName;
 use stdClass;
 
@@ -48,19 +49,27 @@ final readonly class DatabaseDocumentTypeRepository implements DocumentTypeRepos
         return $row instanceof stdClass ? self::toType($row) : null;
     }
 
-    public function all(): array
+    public function all(string $storeId): array
     {
-        return $this->list($this->db->table(self::TABLE));
+        if (! Ulids::valid($storeId)) {
+            return [];
+        }
+
+        return $this->list($this->db->table(self::TABLE)->where('store_id', strtolower($storeId)));
     }
 
-    public function active(): array
+    public function active(string $storeId): array
     {
-        return $this->list($this->db->table(self::TABLE)->where('is_active', true));
+        if (! Ulids::valid($storeId)) {
+            return [];
+        }
+
+        return $this->list($this->db->table(self::TABLE)->where('store_id', strtolower($storeId))->where('is_active', true));
     }
 
-    public function nameTaken(TypeName $name, ?string $exceptId = null): bool
+    public function nameTaken(string $storeId, TypeName $name, ?string $exceptId = null): bool
     {
-        return TypeNames::taken($this->db->table(self::TABLE), $name, $exceptId);
+        return TypeNames::taken($this->db->table(self::TABLE), $storeId, $name, $exceptId);
     }
 
     public function add(DocumentType $type): void
@@ -69,6 +78,7 @@ final readonly class DatabaseDocumentTypeRepository implements DocumentTypeRepos
 
         $this->db->table(self::TABLE)->insert([
             'id' => $type->id(),
+            'store_id' => $type->storeId(),
             ...self::toRow($type),
             'created_at' => $now,
             'updated_at' => $now,
@@ -94,7 +104,7 @@ final readonly class DatabaseDocumentTypeRepository implements DocumentTypeRepos
     }
 
     /**
-     * @return array<string, string|int|bool>
+     * @return array<string, string|int|bool|null>
      */
     private static function toRow(DocumentType $type): array
     {
@@ -103,6 +113,7 @@ final readonly class DatabaseDocumentTypeRepository implements DocumentTypeRepos
             'name_en' => $type->name()->en,
             'position' => $type->position(),
             'is_active' => $type->isActive(),
+            'inactive_display' => $type->inactiveDisplay()?->value,
             'is_required' => $type->isRequired(),
         ];
     }
@@ -111,9 +122,11 @@ final readonly class DatabaseDocumentTypeRepository implements DocumentTypeRepos
     {
         return DocumentType::reconstitute(
             (string) $row->id,
+            (string) $row->store_id,
             TypeName::reconstitute((string) $row->name_ar, (string) $row->name_en),
             (int) $row->position,
             (bool) $row->is_active,
+            $row->inactive_display === null ? null : InactiveTypeDisplay::from((string) $row->inactive_display),
             (bool) $row->is_required,
         );
     }

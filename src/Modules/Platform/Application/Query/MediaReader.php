@@ -23,7 +23,10 @@ interface MediaReader
      * Keyset, over media_created_idx: created_at DESC, id DESC, with the id breaking a tie because
      * two files uploaded together share a moment (platform.md 5.4).
      *
+     * @param  bool  $includePrivate  false leaves private files out in the query itself, before the
+     *                                page is cut, so the page stays full and the next one starts
+     *                                where this reader's own rows end (B2B step 3, amendment 6)
      * @return list<array<string, mixed>>
      */
-    public function page(ListMedia $query): array;
+    public function page(ListMedia $query, bool $includePrivate): array;
 }

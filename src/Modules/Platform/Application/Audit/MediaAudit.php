@@ -14,10 +14,16 @@ use Modules\Platform\Public\Enums\MediaVariantsStatus;
 /**
  * Audit entries for media. Media is global, so entries have no store. The original file name
  * is recorded only as "changed": an uploaded document's name can carry personal data.
+ *
+ * An entry about a private file is read back without its subject id or its changes by anyone who
+ * may not see private files (ListAuditHandler, b2b.md amendment 8(c)); the upload entry's
+ * "visibility" is how that is known once the file itself is gone.
  */
 final class MediaAudit
 {
-    private const string SUBJECT = 'platform.media';
+    public const string SUBJECT = 'platform.media';
+
+    public const string UPLOADED = 'platform.media.uploaded';
 
     /**
      * @param  string|null  $forModule  the module that uploaded it for its own use, and the
@@ -39,7 +45,7 @@ final class MediaAudit
             $changes = $changes->changed('for_module', null, $forModule)->changed('under_permission', null, $underPermission);
         }
 
-        return new AuditEntryDto('platform.media.uploaded', self::SUBJECT, $media->id(), null, $changes);
+        return new AuditEntryDto(self::UPLOADED, self::SUBJECT, $media->id(), null, $changes);
     }
 
     /**
@@ -73,13 +79,23 @@ final class MediaAudit
 
     /**
      * @param  list<MediaUseDto>  $detachedFrom  where the media was used until this delete
+     * @param  string|null  $forModule  the module that deleted a file it held, and the permission
+     *                                  that allowed it (B2B step 3, amendment 5) — recorded exactly
+     *                                  as uploaded() records a module's upload. Null for a delete
+     *                                  through the media library
      */
-    public static function deleted(Media $media, array $detachedFrom = []): AuditEntryDto
+    public static function deleted(Media $media, array $detachedFrom = [], ?string $forModule = null, ?string $underPermission = null): AuditEntryDto
     {
         $changes = AuditChanges::none()->changed('checksum', $media->checksum(), null);
 
         if ($detachedFrom !== []) {
             $changes->changed('detached_from', array_map(fn (MediaUseDto $use): string => $use->describe(), $detachedFrom), null);
+        }
+
+        // Who asked for it and under what, as for an upload: a module removing a file it held is not
+        // the same event as staff removing one through the media library.
+        if ($forModule !== null) {
+            $changes->changed('for_module', null, $forModule)->changed('under_permission', null, $underPermission);
         }
 
         return new AuditEntryDto('platform.media.deleted', self::SUBJECT, $media->id(), null, $changes);

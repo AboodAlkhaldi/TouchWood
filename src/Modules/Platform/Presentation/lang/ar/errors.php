@@ -94,5 +94,6 @@ return [
         'permission' => 'الصلاحية',
         'position' => 'الترتيب',
         'sign' => 'الرمز',
+        'visibility' => 'الظهور',
     ],
 ];

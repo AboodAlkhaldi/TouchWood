@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Application\Query\ListAudit;
 
+use Modules\Platform\Application\Audit\MediaAudit;
+use Modules\Platform\Application\Media\PrivateMedia;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
@@ -19,6 +21,11 @@ use Shared\Application\Unauthorized;
  * Personal fields are not filtered out here, because they were never recorded: a module writes them
  * with personal(), which keeps only that they changed (platform.md §1.5). What this reads is
  * already safe to show.
+ *
+ * **Except which private file an entry is about** (b2b.md amendment 8(c)). A company's papers are
+ * private media, whose entries belong to no store; a reader of every store who may not see private
+ * files still gets each entry — what was done, when, by whom — but not the file's id nor what
+ * changed, and asks an admin who may. The entry stays on the page, so paging is unchanged.
  */
 final readonly class ListAuditHandler
 {
@@ -30,6 +37,7 @@ final readonly class ListAuditHandler
     public function __construct(
         private Authorizer $authorizer,
         private AuditReader $reader,
+        private PrivateMedia $private,
     ) {}
 
     /**
@@ -54,7 +62,7 @@ final readonly class ListAuditHandler
 
         $more = count($rows) > $perPage;
         $rows = array_slice($rows, 0, $perPage);
-        $entries = array_map($this->row(...), $rows);
+        $entries = $this->withholdPrivateFiles(array_map($this->row(...), $rows));
         $last = $more ? end($entries) : null;
 
         return new AuditPage(
@@ -86,6 +94,35 @@ final readonly class ListAuditHandler
         }
 
         return $reach === null ? null : array_map(static fn ($store): string => $store->value, $reach);
+    }
+
+    /**
+     * @param  list<AuditEntryRow>  $entries
+     * @return list<AuditEntryRow>
+     */
+    private function withholdPrivateFiles(array $entries): array
+    {
+        $media = [];
+
+        foreach ($entries as $entry) {
+            if ($entry->subjectType === MediaAudit::SUBJECT && $entry->subjectId !== null) {
+                $media[] = $entry->subjectId;
+            }
+        }
+
+        // Nothing to ask about, or somebody who may see them all.
+        if ($media === [] || $this->private->seen()) {
+            return $entries;
+        }
+
+        $private = array_flip($this->reader->privateMedia($media));
+
+        return array_map(
+            static fn (AuditEntryRow $entry): AuditEntryRow => $entry->subjectType === MediaAudit::SUBJECT && isset($private[(string) $entry->subjectId])
+                ? $entry->withSubjectWithheld()
+                : $entry,
+            $entries,
+        );
     }
 
     /**

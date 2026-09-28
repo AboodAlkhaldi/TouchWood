@@ -86,6 +86,8 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'platform.currency.create',
         'platform.currency.update',
         'platform.media.delete',
+        // Admin-only, and store-free like every media action (B2B step 3, amendment 5).
+        'platform.media.private.view',
         'platform.media.update',
         'platform.media.upload',
         'platform.media.variants.generate',
@@ -106,6 +108,9 @@ it('keeps the management actions out of staff roles, and viewing staff in them',
         // The staff security settings decide how everyone signs in; a store's own settings do not
         // (owner, 2026-09-21).
         AccessPermissions::STAFF_SETTINGS_UPDATE,
+        // Platform's own, flagged in PlatformPermissions: private files in the media library
+        // (B2B step 3, amendment 5).
+        PlatformPermissions::MEDIA_PRIVATE_VIEW,
     ]);
     expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::SETTINGS_UPDATE);
     expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::STAFF_VIEW);

@@ -8,6 +8,7 @@ use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionAudience;
 use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
+use Modules\Platform\Public\PlatformPermissions;
 
 /**
  * Every permission Access checks (Access spec §3). Their names in Arabic and English are in
@@ -131,6 +132,9 @@ final class AccessPermissions
      * The management actions: only an admin role may hold them, so staff manage no roles and no
      * people (owner's decision, 2026-09-19). Viewing staff is not one of them.
      *
+     * Platform flags its own admin-only actions in PlatformPermissions (the private files of the
+     * media library, B2B step 3, amendment 5), and they are held to the same rule here.
+     *
      * @return list<string>
      */
     public static function adminOnly(): array
@@ -144,6 +148,7 @@ final class AccessPermissions
             // reach every account. A store's own settings stay an ordinary action (owner,
             // 2026-09-21).
             self::STAFF_SETTINGS_UPDATE,
+            ...array_keys(array_filter(PlatformPermissions::all(), fn (array $permission): bool => $permission['adminOnly'])),
         ];
     }
 

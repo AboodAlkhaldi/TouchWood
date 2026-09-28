@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Modules\B2B\Domain\Exception\CompanySuspended;
+use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\InvalidCompanyStatus;
 use Modules\B2B\Domain\Model\Company;
+use Modules\B2B\Domain\Model\CompanyType;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyDetails;
 use Modules\B2B\Domain\ValueObject\CompanyName;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
+use Modules\B2B\Domain\ValueObject\TypeName;
 use Modules\B2B\Public\Enums\CompanyStatus;
 
 /*
@@ -19,6 +22,34 @@ use Modules\B2B\Public\Enums\CompanyStatus;
 */
 
 const COMPANY_TEST_STAFF = '01j8z3k4m5n6p7q8r9s0t1v2w9';
+
+/** The home store of every company built here (companyIn). */
+const COMPANY_TEST_HOME_STORE = '01j8z3k4m5n6p7q8r9s0t1v2w5';
+
+const COMPANY_TEST_OTHER_STORE = '01j8z3k4m5n6p7q8r9s0t1v2w6';
+
+/** The type every company here was sent with, from the home store's list. */
+const COMPANY_TEST_LLC = '01j8z3k4m5n6p7q8r9s0t1v2w1';
+
+const COMPANY_TEST_JSC = '01j8z3k4m5n6p7q8r9s0t1v2x1';
+
+/** Another store's type, with the same name as the home store's. */
+const COMPANY_TEST_OTHER_STORE_LLC = '01j8z3k4m5n6p7q8r9s0t1v2x2';
+
+/**
+ * The company types a correction is checked against: the home store's two, and — to show that the
+ * store decides, not the list a caller hands over — one of another store.
+ *
+ * @return list<CompanyType>
+ */
+function companyTestTypes(): array
+{
+    return [
+        CompanyType::add(COMPANY_TEST_LLC, COMPANY_TEST_HOME_STORE, TypeName::of('شركة ذات مسؤولية محدودة', 'Limited Liability Company'), 1),
+        CompanyType::add(COMPANY_TEST_JSC, COMPANY_TEST_HOME_STORE, TypeName::of('شركة مساهمة', 'Joint Stock Company'), 2),
+        CompanyType::add(COMPANY_TEST_OTHER_STORE_LLC, COMPANY_TEST_OTHER_STORE, TypeName::of('شركة ذات مسؤولية محدودة', 'Limited Liability Company'), 1),
+    ];
+}
 
 function companyTestDetails(string $name = 'Al Noor Trading'): CompanyDetails
 {
@@ -158,17 +189,44 @@ describe('what changes without an application', function () {
 
     it('lets staff correct the type without sending the company back to PENDING', function () {
         $company = companyIn(CompanyStatus::Approved);
-        $company->correctType(CompanyTypeChoice::other('Cooperative society'));
+        $company->correctType(CompanyTypeChoice::other('Cooperative society'), companyTestTypes());
 
         expect($company->details()->type->other)->toBe('Cooperative society')
             ->and($company->status())->toBe(CompanyStatus::Approved)
             ->and($company->pullChanges())->toBe(['company_type']);
     });
 
+    it('lets staff move the company to another type of its home store\'s list', function () {
+        $company = companyIn(CompanyStatus::Approved);
+        $company->correctType(CompanyTypeChoice::listed(COMPANY_TEST_JSC), companyTestTypes());
+
+        expect($company->details()->type->typeId)->toBe(COMPANY_TEST_JSC)
+            ->and($company->pullChanges())->toBe(['company_type']);
+    });
+
+    it('refuses a correction to a type that is not one of the home store\'s, whatever list it is given (amendment 6(c))', function (string $typeId) {
+        $company = companyIn(CompanyStatus::Approved);
+        $error = null;
+
+        try {
+            $company->correctType(CompanyTypeChoice::listed($typeId), companyTestTypes());
+        } catch (InvalidCompanyAttribute $caught) {
+            $error = $caught;
+        }
+
+        expect($error?->attribute)->toBe('company_type')
+            ->and($company->details()->type->typeId)->toBe(COMPANY_TEST_LLC)
+            ->and($company->pullChanges())->toBe([]);
+    })->with([
+        // In the list handed over, so only the store it belongs to can refuse it.
+        'another store\'s type' => [COMPANY_TEST_OTHER_STORE_LLC],
+        'a type no store has' => ['01j8z3k4m5n6p7q8r9s0t1v2x9'],
+    ]);
+
     it('records nothing when nothing changed', function () {
         $company = companyIn(CompanyStatus::Approved);
         $company->moveTo(CompanyAddress::of("King Fahd Road\nRiyadh"));
-        $company->correctType(CompanyTypeChoice::listed('01j8z3k4m5n6p7q8r9s0t1v2w1'));
+        $company->correctType(CompanyTypeChoice::listed(COMPANY_TEST_LLC), companyTestTypes());
 
         expect($company->pullChanges())->toBe([]);
     });

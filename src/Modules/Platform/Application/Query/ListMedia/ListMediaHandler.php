@@ -6,6 +6,7 @@ namespace Modules\Platform\Application\Query\ListMedia;
 
 use Carbon\CarbonImmutable;
 use Modules\Platform\Application\Media\InMemoryMediaUsages;
+use Modules\Platform\Application\Media\PrivateMedia;
 use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Domain\Model\Media;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
@@ -24,6 +25,14 @@ use Shared\Application\Unauthorized;
  * Each row carries **where the file is used** and whether any of those uses would refuse a delete
  * (platform.md §1.4). That is asked of the modules themselves, and only for the files on this page:
  * the answer is theirs to give, and it changes as they change.
+ *
+ * **Private files** — a company's papers — are listed only to holders of the admin-only
+ * platform.media.private.view (B2B step 3, amendments 5 and 6), and the rule sits in the query, so a
+ * page is always full and its "more" counts only what this reader may see. The permission adds
+ * them to a library the person may already open; on its own it opens nothing. Choosing "private"
+ * when uploading here takes both the upload permission and this one. Describing or deleting one
+ * takes the usual permission on top (amendment 8(a)), so the page's mayUpdate and mayDelete hold
+ * for its private rows as for the others.
  */
 final readonly class ListMediaHandler
 {
@@ -31,6 +40,7 @@ final readonly class ListMediaHandler
         private Authorizer $authorizer,
         private MediaReader $reader,
         private InMemoryMediaUsages $usages,
+        private PrivateMedia $private,
     ) {}
 
     /**
@@ -46,10 +56,14 @@ final readonly class ListMediaHandler
             throw new Unauthorized(PlatformPermissions::MEDIA_UPLOAD);
         }
 
+        $maySeePrivate = $this->private->seen();
+        // The same two checks UploadMediaHandler makes for a private upload through the library.
+        $mayUploadPrivate = $mayUpload && $maySeePrivate;
+
         $perPage = min(max($query->perPage, 1), 100);
 
         // One more than a page, to learn whether there is another without counting the library.
-        $rows = $this->reader->page(new ListMedia($query->cursorCreatedAt, $query->cursorId, $perPage + 1));
+        $rows = $this->reader->page(new ListMedia($query->cursorCreatedAt, $query->cursorId, $perPage + 1), $maySeePrivate);
         $more = count($rows) > $perPage;
         $rows = array_slice($rows, 0, $perPage);
 
@@ -63,6 +77,7 @@ final readonly class ListMediaHandler
             $mayUpload,
             $mayUpdate,
             $mayDelete,
+            $mayUploadPrivate,
         );
     }
 

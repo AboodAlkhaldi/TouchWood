@@ -94,5 +94,6 @@ return [
         'permission' => 'permission',
         'position' => 'position',
         'sign' => 'symbol',
+        'visibility' => 'visibility',
     ],
 ];

@@ -9,6 +9,7 @@ use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Dto\CurrencyDto;
 use Modules\Platform\Public\Dto\MediaDto;
 use Modules\Platform\Public\Dto\MediaUrlsDto;
+use Modules\Platform\Public\Dto\ModuleDeleteDto;
 use Modules\Platform\Public\Dto\ModuleUploadDto;
 use Modules\Platform\Public\Dto\SettingValueDto;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -58,6 +59,24 @@ interface PlatformApi
      *                     it, or when the file is not one the settings allow
      */
     public function uploadMediaFor(ModuleUploadDto $upload): string;
+
+    /**
+     * A module deletes a file it holds for its own use (B2B step 3, amendments 4 and 5) — the mirror
+     * of uploadMediaFor. Platform checks the permission that module names for the change, in the
+     * scope it names — not `platform.media.delete`, which a customer replacing a company document
+     * should never need to hold. Staff deletion of media is unchanged.
+     *
+     * - **Private files only.** A public image is refused.
+     * - **Refused while any use remains**, the calling module's own included: the module removes
+     *   its reference first. Another module's use is never detached on the caller's behalf.
+     * - Otherwise it is deleted as any other media is: in a savepoint of the caller's transaction,
+     *   with the files removed and MediaDeleted sent only once the outermost transaction commits,
+     *   and audited with the module and the permission, as a module's upload is.
+     *
+     * @throws DomainError when the permission does not belong to that module or is not held, when
+     *                     nobody declared it, when the file is public, still used, or does not exist
+     */
+    public function deleteMediaFor(ModuleDeleteDto $delete): void;
 
     public function media(string $mediaId): ?MediaDto;
 

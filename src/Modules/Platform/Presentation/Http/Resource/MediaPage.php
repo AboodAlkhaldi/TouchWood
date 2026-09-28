@@ -18,6 +18,8 @@ final class MediaPage extends Data
 {
     /**
      * @param  list<MediaFileRow>  $media
+     * @param  bool  $mayUploadPrivate  "private" is offered in the upload form only when true
+     *                                  (B2B step 3, amendment 6)
      */
     public function __construct(
         public array $media,
@@ -26,5 +28,6 @@ final class MediaPage extends Data
         public bool $mayUpload,
         public bool $mayUpdate,
         public bool $mayDelete,
+        public bool $mayUploadPrivate,
     ) {}
 }

@@ -911,3 +911,14 @@ With the frontend milestone:
 - **Error pages** for 409, 413, 415 and 422. Laravel has no page for these statuses, so a page
   request shows only the status text (for example "Conflict"); JSON requests already get the
   translated title and detail.
+
+### 9.4 Additions asked for by later modules
+
+Platform changes made while another module was being built, each agreed with the owner and recorded
+in full in that module's specification.
+
+| Added | For | What | Recorded in |
+|---|---|---|---|
+| Stage 2b | Access (staff avatars), B2B (company papers) | `PlatformApi::uploadMediaFor(ModuleUploadDto)`: a module uploads a file for its own use, checked against a permission the module names | `docs/modules/frontend-step-0.md` (P1) |
+| B2B step 3 | B2B (replaced and discarded papers; later, anonymized accounts) | **`PlatformApi::deleteMediaFor`**, the mirror of `uploadMediaFor`: a module deletes a **private** file it created, checked against the permission it names; refused while any use of the file remains, and never detaching another module's use; logged as an upload is. Staff deletion of media is unchanged, except that a private file does not exist for staff who may not see private files (next row) | `docs/modules/b2b.md` amendments 4, 5 and 8 |
+| B2B step 3 | B2B (company papers) | **Private files leave the media library**: listed only to holders of a new **admin-only** permission, `platform.media.private.view` — a Super Admin always, an admin when a Super Admin gives it to their role — who can already open the library (the permission opens it to nobody); a private row shows its name, upload date and where it is used, and the file is never opened there. **To anyone without the permission a private file does not exist**: describing, retrying or deleting it answers exactly as for an id that never existed. **A holder describes or deletes one with the library's usual permissions on top** (`platform.media.update`, `platform.media.delete`); a use that blocks a delete still refuses it. A private file never has sizes made, so it is never retried and never written to the public disk (§5.4, `variants_status`). **Choosing "private" when uploading in the library** needs the permission too: it is offered only to holders and refused from anyone else. **In the audit log**, a reader without the permission sees each entry about a private file with what was done, when, by whom and from where, but not which file nor what changed. A module's own upload (`uploadMediaFor`) and delete (`deleteMediaFor`) are unchanged | `docs/modules/b2b.md` amendments 5, 6 and 8; `docs/modules/access.md` amendment 49 |

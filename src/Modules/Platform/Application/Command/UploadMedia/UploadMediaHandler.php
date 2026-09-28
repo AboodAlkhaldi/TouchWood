@@ -56,6 +56,10 @@ final readonly class UploadMediaHandler
      * The permission must belong to the module that names it — Platform checks the prefix, which is
      * all it can do without reading Access's catalog it sits below. An undeclared name is refused
      * by the authorizer itself, so nothing reaches storage under a permission no module declared.
+     *
+     * A private file uploaded through the media library also needs the private-files permission
+     * (B2B step 3, amendment 6): the library lists private files only to its holders, so nobody
+     * else may put one there. A module's upload is checked against that module's permission alone.
      */
     private function authorizeUpload(UploadMedia $command): void
     {
@@ -63,6 +67,10 @@ final readonly class UploadMediaHandler
 
         if ($upload === null) {
             $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+
+            if ($command->visibility === MediaVisibility::Private) {
+                $this->authorizer->authorize(PlatformPermissions::MEDIA_PRIVATE_VIEW, PermissionScope::global());
+            }
 
             return;
         }

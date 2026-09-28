@@ -6,19 +6,28 @@ namespace Modules\B2B\Domain\Model;
 
 use DateTimeImmutable;
 use LogicException;
+use Modules\B2B\Domain\Exception\AnswerKindMismatch;
 use Modules\B2B\Domain\Exception\ApplicationNotEditable;
 use Modules\B2B\Domain\Exception\CompanyTypeInactive;
+use Modules\B2B\Domain\Exception\DocumentNoLongerAccepted;
+use Modules\B2B\Domain\Exception\FlaggedItemNotReplaced;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\InvalidCompanyStatus;
 use Modules\B2B\Domain\Exception\MissingRequiredDocument;
+use Modules\B2B\Domain\Exception\RequestNotAnswered;
+use Modules\B2B\Domain\Exception\RequestNotFound;
+use Modules\B2B\Domain\ValueObject\ApplicationFlag;
+use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\AttachedDocument;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyDetails;
 use Modules\B2B\Domain\ValueObject\CompanyName;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
+use Modules\B2B\Domain\ValueObject\FlaggedField;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
+use Modules\B2B\Domain\ValueObject\RequestAnswer;
 
 /**
  * One application: what a company sent, when, and what staff decided (b2b.md §1.2). **Every
@@ -32,6 +41,12 @@ use Modules\B2B\Domain\ValueObject\Remark;
  *   DRAFT → SUBMITTED → APPROVED | REJECTED     (§4.2)
  *
  * Only a draft changes. A draft may hold any value empty; sending needs them all.
+ *
+ * **A rejection can say what to fix and what to add** (amendment 4), and only a rejection: staff
+ * flag items sent wrong, and request extra text answers or files from this one company. Those
+ * belong to the rejected application, as part of what it was told; the next draft answers the
+ * requests — the answers are that draft's, as every value it sends — and cannot be sent until every
+ * flagged item is replaced and every request answered.
  */
 final class Application
 {
@@ -40,6 +55,9 @@ final class Application
 
     /**
      * @param  array<string, AttachedDocument>  $documents  by document type id: one file per type
+     * @param  array<string, ApplicationFlag>  $flags  by ApplicationFlag::key(): one per item
+     * @param  array<string, ApplicationRequest>  $requests  by request id
+     * @param  array<string, RequestAnswer>  $answers  by request id: one answer per request
      */
     private function __construct(
         private readonly string $id,
@@ -57,6 +75,9 @@ final class Application
         private ?DateTimeImmutable $decidedAt,
         private ?string $decidedBy,
         private ?Remark $decisionReason,
+        private array $flags,
+        private array $requests,
+        private array $answers,
     ) {}
 
     /**
@@ -64,11 +85,14 @@ final class Application
      */
     public static function draft(string $id, string $customerId, ?string $companyId): self
     {
-        return new self($id, $customerId, $companyId, ApplicationState::Draft, null, null, null, null, null, null, [], null, null, null, null);
+        return new self($id, $customerId, $companyId, ApplicationState::Draft, null, null, null, null, null, null, [], null, null, null, null, [], [], []);
     }
 
     /**
      * @param  array<string, AttachedDocument>  $documents
+     * @param  list<ApplicationFlag>  $flags  what the rejection of this application marked
+     * @param  list<ApplicationRequest>  $requests  what the rejection of this application asked for
+     * @param  list<RequestAnswer>  $answers  this application's answers to the requests before it
      */
     public static function reconstitute(
         string $id,
@@ -86,8 +110,20 @@ final class Application
         ?DateTimeImmutable $decidedAt,
         ?string $decidedBy,
         ?Remark $decisionReason,
+        array $flags,
+        array $requests,
+        array $answers,
     ): self {
-        return new self($id, $customerId, $companyId, $state, $name, $type, $crNumber, $taxNumber, $address, $note, $documents, $submittedAt, $decidedAt, $decidedBy, $decisionReason);
+        $byRequest = [];
+
+        foreach ($answers as $answer) {
+            $byRequest[$answer->requestId] = $answer;
+        }
+
+        return new self(
+            $id, $customerId, $companyId, $state, $name, $type, $crNumber, $taxNumber, $address, $note, $documents,
+            $submittedAt, $decidedAt, $decidedBy, $decisionReason, self::byKey($flags), self::byId($requests), $byRequest,
+        );
     }
 
     /**
@@ -153,27 +189,107 @@ final class Application
     }
 
     /**
-     * Sends it (§4.2). Everything must be there; a listed company type must still be offered — a
-     * draft that chose one staff have deactivated since chooses again (owner, 2026-09-27) — and
-     * every document type that is required and offered must have its file.
+     * Answers one request of the last rejection (amendments 4 and 5), with what it asks for: text,
+     * or a file. A second answer to the same request replaces the first.
      *
-     * A document under a type staff have deactivated since goes with it: it was uploaded, and it is
-     * evidence like any other. Nothing about the account is checked here — the confirmed email is
-     * Access's, and the use case asks it (§1.2).
+     * @param  Application|null  $lastSent  the account's last application sent, if any
+     * @return string|null the file the new answer replaced, for the caller to let go of; null when
+     *                     it replaced text or nothing
+     *
+     * @throws ApplicationNotEditable
+     * @throws RequestNotFound the last application sent was not rejected, or made no such request
+     * @throws AnswerKindMismatch
+     */
+    public function answer(?Application $lastSent, string $requestId, RequestAnswer $answer): ?string
+    {
+        $this->requireDraft();
+        $this->requireLastSentOfThisCompany($lastSent);
+
+        $requestId = strtolower($requestId);
+
+        if ($answer->requestId !== $requestId) {
+            throw new LogicException('An answer given for one request cannot be kept under another.');
+        }
+
+        if ($lastSent === null || $lastSent->state !== ApplicationState::Rejected) {
+            throw new RequestNotFound($requestId);
+        }
+
+        $request = $lastSent->requests[$requestId] ?? throw new RequestNotFound($requestId);
+
+        if ($answer->kind() !== $request->kind) {
+            throw new AnswerKindMismatch($request->kind->value, $answer->kind()->value);
+        }
+
+        $replaced = $this->answers[$requestId]->mediaId ?? null;
+        $this->answers[$requestId] = $answer;
+        $this->markChanged('answers');
+
+        return $replaced;
+    }
+
+    /**
+     * The mirror of detach(): nothing blocks the company taking an answer out of its own draft.
+     *
+     * @return string|null the file it removed, for the caller to let go of; null for a text answer
+     *                     or none
+     *
+     * @throws ApplicationNotEditable
+     */
+    public function removeAnswer(string $requestId): ?string
+    {
+        $this->requireDraft();
+
+        $requestId = strtolower($requestId);
+
+        if (! isset($this->answers[$requestId])) {
+            return null;
+        }
+
+        $removed = $this->answers[$requestId]->mediaId;
+        unset($this->answers[$requestId]);
+        $this->markChanged('answers');
+
+        return $removed;
+    }
+
+    /**
+     * Sends it (§4.2). Refused, in this order (amendments 2, 4, 5 and 6):
+     *
+     * 1. a value is missing;
+     * 2. a listed company type is not one of the home store's (InvalidCompanyAttribute), or is one
+     *    staff have deactivated since the draft chose it (CompanyTypeInactive) — "Other" is not a row
+     *    and is always taken;
+     * 3. a file sits under a document type staff have deactivated since (DocumentNoLongerAccepted):
+     *    the draft never sends anything deactivated;
+     * 4. a document type that is required and offered has no file;
+     * 5. after a rejection, a flagged field holds what was sent (exactly, after trimming);
+     * 6. after a rejection, a flagged document has no file, or the file that was sent — unless its
+     *    type is no longer offered, when the flag stops blocking;
+     * 7. after a rejection, a request has no answer.
+     *
+     * Nothing about the account is checked here — the confirmed email is Access's, and the use case
+     * asks it (§1.2).
      *
      * @param  string  $companyId  the company this application creates or updates
-     * @param  list<CompanyType>  $offeredTypes  the company types a new application may choose
-     * @param  list<DocumentType>  $documentTypes  every document type, active or not
+     * @param  list<CompanyType>  $companyTypes  every company type of the home store, active or not
+     * @param  list<DocumentType>  $documentTypes  every document type of the home store, active or not
+     * @param  Application|null  $lastSent  the account's last application sent; its flags and
+     *                                      requests apply only when it was rejected
      * @return CompanyDetails what the company now holds
      *
      * @throws ApplicationNotEditable
-     * @throws InvalidCompanyAttribute a value is missing
+     * @throws InvalidCompanyAttribute a value is missing, or the type is not the home store's
      * @throws CompanyTypeInactive
+     * @throws DocumentNoLongerAccepted
      * @throws MissingRequiredDocument
+     * @throws FlaggedItemNotReplaced
+     * @throws RequestNotAnswered
      */
-    public function submit(string $companyId, array $offeredTypes, array $documentTypes, DateTimeImmutable $at): CompanyDetails
+    public function submit(string $companyId, array $companyTypes, array $documentTypes, ?Application $lastSent, DateTimeImmutable $at): CompanyDetails
     {
         $this->requireDraft();
+        $this->requireLastSentOfThisCompany($lastSent);
 
         $details = new CompanyDetails(
             $this->name ?? throw new InvalidCompanyAttribute('name', 'required'),
@@ -183,15 +299,35 @@ final class Application
             $this->address ?? throw new InvalidCompanyAttribute('address', 'required'),
         );
 
-        $typeId = $details->type->typeId;
+        self::requireOffered($details->type, $companyTypes);
 
-        if ($typeId !== null && ! in_array($typeId, array_map(static fn (CompanyType $type): string => $type->id(), $offeredTypes), true)) {
-            throw new CompanyTypeInactive;
+        $types = [];
+
+        foreach ($documentTypes as $documentType) {
+            $types[$documentType->id()] = $documentType;
+        }
+
+        foreach (array_keys($this->documents) as $typeId) {
+            $type = $types[$typeId] ?? throw new LogicException("A document is held under \"{$typeId}\", which is not one of the home store's document types.");
+
+            if (! $type->isActive()) {
+                throw new DocumentNoLongerAccepted($typeId);
+            }
         }
 
         foreach ($documentTypes as $documentType) {
             if ($documentType->isAskedFor() && ! isset($this->documents[$documentType->id()])) {
                 throw new MissingRequiredDocument($documentType->id());
+            }
+        }
+
+        if ($lastSent !== null && $lastSent->state === ApplicationState::Rejected) {
+            $this->requireFlagsReplaced($lastSent, $types);
+
+            foreach ($lastSent->requests() as $request) {
+                if (! isset($this->answers[$request->id])) {
+                    throw new RequestNotAnswered($request->id);
+                }
             }
         }
 
@@ -220,11 +356,35 @@ final class Application
     }
 
     /**
+     * Rejects it with a reason, and optionally says exactly what to fix and what to add (amendment
+     * 4): flags on items it sent wrong, and requests for extra items. They are kept only once the
+     * rejection itself succeeds.
+     *
+     * @param  list<ApplicationFlag>  $flags  any of the five fields; a document only if the
+     *                                        application sent a file under its type. The same flag
+     *                                        twice is kept once.
+     * @param  list<ApplicationRequest>  $requests
+     *
+     * @throws InvalidCompanyAttribute a flag on a document the application did not send
      * @throws InvalidCompanyStatus it is not waiting for a decision
      */
-    public function reject(string $staffId, Remark $reason, DateTimeImmutable $at): void
+    public function reject(string $staffId, Remark $reason, DateTimeImmutable $at, array $flags = [], array $requests = []): void
     {
+        foreach ($flags as $flag) {
+            // Code-only: the database cannot see that the flagged type is one this application
+            // sent a file under (amendment 6(c)).
+            if ($flag->documentTypeId !== null && ! isset($this->documents[$flag->documentTypeId])) {
+                throw new InvalidCompanyAttribute('flags', 'only a document the application sent');
+            }
+        }
+
+        $flags = self::byKey($flags);
+        $requests = self::byId($requests);
+
         $this->decide(ApplicationState::Rejected, 'rejected', $staffId, $reason, $at);
+
+        $this->flags = $flags;
+        $this->requests = $requests;
     }
 
     /**
@@ -323,6 +483,39 @@ final class Application
     }
 
     /**
+     * What the rejection of this application marked; empty for any other.
+     *
+     * @return list<ApplicationFlag>
+     */
+    public function flags(): array
+    {
+        return array_values($this->flags);
+    }
+
+    /**
+     * What the rejection of this application asked for, by position, then id; empty for any other.
+     *
+     * @return list<ApplicationRequest>
+     */
+    public function requests(): array
+    {
+        $requests = array_values($this->requests);
+        usort($requests, static fn (ApplicationRequest $a, ApplicationRequest $b): int => [$a->position, $a->id] <=> [$b->position, $b->id]);
+
+        return $requests;
+    }
+
+    /**
+     * This application's answers to the requests of the rejection before it.
+     *
+     * @return array<string, RequestAnswer> by request id
+     */
+    public function answers(): array
+    {
+        return $this->answers;
+    }
+
+    /**
      * @return list<string> what changed since this was read, for the audit log
      */
     public function pullChanges(): array
@@ -331,6 +524,102 @@ final class Application
         $this->changed = [];
 
         return $changed;
+    }
+
+    /**
+     * @param  list<CompanyType>  $companyTypes
+     *
+     * @throws InvalidCompanyAttribute
+     * @throws CompanyTypeInactive
+     */
+    private static function requireOffered(CompanyTypeChoice $type, array $companyTypes): void
+    {
+        if ($type->typeId === null) {
+            return;
+        }
+
+        foreach ($companyTypes as $companyType) {
+            if ($companyType->id() === $type->typeId) {
+                if (! $companyType->isActive()) {
+                    throw new CompanyTypeInactive;
+                }
+
+                return;
+            }
+        }
+
+        // Code-only: the database cannot see that the type belongs to the home store's list
+        // (amendment 6(c)); a type of another store is as unknown as one that does not exist (6(d)).
+        throw new InvalidCompanyAttribute('company_type', "not one of the home store's types");
+    }
+
+    /**
+     * @param  array<string, DocumentType>  $types  the home store's document types, by id
+     *
+     * @throws FlaggedItemNotReplaced
+     */
+    private function requireFlagsReplaced(Application $lastSent, array $types): void
+    {
+        foreach ($lastSent->flags as $flag) {
+            if ($flag->field !== null && $this->sentValue($flag->field) === $lastSent->sentValue($flag->field)) {
+                throw new FlaggedItemNotReplaced($flag->field->value);
+            }
+        }
+
+        foreach ($lastSent->flags as $flag) {
+            $typeId = $flag->documentTypeId;
+
+            if ($typeId === null) {
+                continue;
+            }
+
+            // A type no longer offered asks for nothing, so its flag stops blocking (amendment 5).
+            if (isset($types[$typeId]) && ! $types[$typeId]->isActive()) {
+                continue;
+            }
+
+            $now = $this->documents[$typeId]->mediaId ?? null;
+
+            if ($now === null || $now === ($lastSent->documents[$typeId]->mediaId ?? null)) {
+                throw new FlaggedItemNotReplaced($typeId);
+            }
+        }
+    }
+
+    /**
+     * One field as it would be sent, for telling whether a flagged one was replaced: a different
+     * value exactly, after trimming (amendment 5) — letter case counts.
+     */
+    private function sentValue(FlaggedField $field): ?string
+    {
+        $value = match ($field) {
+            FlaggedField::Name => $this->name?->value,
+            FlaggedField::CompanyType => $this->type === null ? null : ($this->type->typeId !== null ? 'listed:'.$this->type->typeId : 'other:'.$this->type->other),
+            FlaggedField::CrNumber => $this->crNumber?->value,
+            FlaggedField::TaxNumber => $this->taxNumber?->value,
+            FlaggedField::Address => $this->address?->value,
+        };
+
+        return $value === null ? null : trim($value);
+    }
+
+    /**
+     * The last application sent must be this company's, and decided: while one is waiting, no
+     * draft can be open beside it. Anything else is a caller's bug, not the customer's mistake.
+     */
+    private function requireLastSentOfThisCompany(?Application $lastSent): void
+    {
+        if ($lastSent === null) {
+            return;
+        }
+
+        if ($lastSent->companyId === null || $lastSent->companyId !== $this->companyId) {
+            throw new LogicException('The last application sent belongs to another company.');
+        }
+
+        if ($lastSent->state !== ApplicationState::Approved && $lastSent->state !== ApplicationState::Rejected) {
+            throw new LogicException('The last application sent is not decided yet.');
+        }
     }
 
     /**
@@ -364,5 +653,35 @@ final class Application
         if (! in_array($attribute, $this->changed, true)) {
             $this->changed[] = $attribute;
         }
+    }
+
+    /**
+     * @param  list<ApplicationFlag>  $flags
+     * @return array<string, ApplicationFlag> one per item: a repeated flag is kept once
+     */
+    private static function byKey(array $flags): array
+    {
+        $keyed = [];
+
+        foreach ($flags as $flag) {
+            $keyed[$flag->key()] = $flag;
+        }
+
+        return $keyed;
+    }
+
+    /**
+     * @param  list<ApplicationRequest>  $requests
+     * @return array<string, ApplicationRequest>
+     */
+    private static function byId(array $requests): array
+    {
+        $keyed = [];
+
+        foreach ($requests as $request) {
+            $keyed[$request->id] = $request;
+        }
+
+        return $keyed;
     }
 }

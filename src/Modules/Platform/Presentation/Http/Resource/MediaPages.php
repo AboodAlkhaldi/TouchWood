@@ -11,6 +11,7 @@ use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Public\Enums\ImageFormat;
 use Modules\Platform\Public\Enums\MediaSize;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
+use Modules\Platform\Public\Enums\MediaVisibility;
 
 /**
  * Platform's media reads, in the shape the screen wants (frontend.md 3.5, E5).
@@ -18,6 +19,11 @@ use Modules\Platform\Public\Enums\MediaVariantsStatus;
  * It decides nothing: who may open the library, and what may be done to a file, are the handler's
  * answers. What happens here is a size written the way a person reads it, and a thumbnail for the
  * images that have one.
+ *
+ * A private file's row carries its name, its upload date and where it is used (B2B step 3,
+ * amendment 6(b)), and what describing or deleting it needs — its two descriptions, and whether a
+ * use blocks the delete (amendment 8(a)). Nothing about the file itself: no type, size, picture or
+ * sizes status. Only someone who may see private files is sent the row at all.
  */
 final readonly class MediaPages
 {
@@ -37,11 +43,33 @@ final readonly class MediaPages
             $page->mayUpload,
             $page->mayUpdate,
             $page->mayDelete,
+            $page->mayUploadPrivate,
         );
     }
 
     private function row(MediaRow $media): MediaFileRow
     {
+        if ($media->visibility === MediaVisibility::Private) {
+            return new MediaFileRow(
+                $media->id,
+                $media->originalFilename,
+                null,
+                null,
+                null,
+                null,
+                null,
+                $media->visibility->value,
+                null,
+                null,
+                $media->uploadedAt,
+                $media->altAr,
+                $media->altEn,
+                null,
+                $media->usedIn,
+                $media->deleteBlocked,
+            );
+        }
+
         return new MediaFileRow(
             $media->id,
             $media->originalFilename,

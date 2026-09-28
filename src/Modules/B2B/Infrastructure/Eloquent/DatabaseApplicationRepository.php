@@ -7,16 +7,22 @@ namespace Modules\B2B\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Str;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
+use Modules\B2B\Domain\ValueObject\ApplicationFlag;
+use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\AttachedDocument;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyName;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
+use Modules\B2B\Domain\ValueObject\FlaggedField;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
+use Modules\B2B\Domain\ValueObject\RequestAnswer;
+use Modules\B2B\Domain\ValueObject\RequestKind;
 use stdClass;
 
 final readonly class DatabaseApplicationRepository implements ApplicationRepository
@@ -24,6 +30,12 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
     private const string TABLE = 'b2b.applications';
 
     private const string DOCUMENTS = 'b2b.application_documents';
+
+    private const string FLAGS = 'b2b.application_flags';
+
+    private const string REQUESTS = 'b2b.application_requests';
+
+    private const string ANSWERS = 'b2b.application_request_answers';
 
     public function __construct(
         private ConnectionInterface $db,
@@ -64,14 +76,20 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             return [];
         }
 
-        $rows = $this->db->table(self::TABLE)
-            ->where('company_id', strtolower($companyId))
-            ->whereNotNull('submitted_at')
-            ->orderByDesc('submitted_at')
-            ->orderByDesc('id')
-            ->get();
+        $rows = $this->sentBy($companyId)->get();
 
         return array_values(array_map(fn (stdClass $row): Application => $this->toApplication($row), $rows->all()));
+    }
+
+    public function lastSent(string $companyId): ?Application
+    {
+        if (! Ulids::valid($companyId)) {
+            return null;
+        }
+
+        $row = $this->sentBy($companyId)->limit(1)->first();
+
+        return $row instanceof stdClass ? $this->toApplication($row) : null;
     }
 
     public function add(Application $application): void
@@ -86,7 +104,7 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             'updated_at' => $now,
         ]);
 
-        $this->writeDocuments($application);
+        $this->writeHeld($application);
     }
 
     public function update(Application $application): void
@@ -96,12 +114,12 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             'updated_at' => CarbonImmutable::now(),
         ]);
 
-        $this->writeDocuments($application);
+        $this->writeHeld($application);
     }
 
     public function delete(string $applicationId): void
     {
-        // The document rows go by the foreign key's cascade.
+        // The document, flag, request and answer rows go by the foreign keys' cascade.
         $this->db->table(self::TABLE)->where('id', strtolower($applicationId))->delete();
     }
 
@@ -115,6 +133,30 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
         $row = ($lock ? $query->lockForUpdate() : $query)->first();
 
         return $row instanceof stdClass ? $this->toApplication($row) : null;
+    }
+
+    /**
+     * The company's applications that left DRAFT, newest first.
+     */
+    private function sentBy(string $companyId): Builder
+    {
+        return $this->db->table(self::TABLE)
+            ->where('company_id', strtolower($companyId))
+            ->whereNotNull('submitted_at')
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('id');
+    }
+
+    /**
+     * Everything the application holds besides its own row, each written as a difference from what
+     * is stored: a row that is unchanged keeps its id, and one that is gone is deleted.
+     */
+    private function writeHeld(Application $application): void
+    {
+        $this->writeDocuments($application);
+        $this->writeFlags($application);
+        $this->writeRequests($application);
+        $this->writeAnswers($application);
     }
 
     /**
@@ -157,6 +199,117 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
     }
 
     /**
+     * The rejection's flags, by what they mark: one row per field or document type.
+     */
+    private function writeFlags(Application $application): void
+    {
+        $held = $application->flags();
+        $heldKeys = array_map(static fn (ApplicationFlag $flag): string => $flag->key(), $held);
+
+        $stored = [];
+
+        foreach ($this->db->table(self::FLAGS)->where('application_id', $application->id())->get(['id', 'field', 'document_type_id']) as $row) {
+            $stored[self::toFlag($row)->key()] = (string) $row->id;
+        }
+
+        $gone = array_values(array_diff_key($stored, array_flip($heldKeys)));
+
+        if ($gone !== []) {
+            $this->db->table(self::FLAGS)->whereIn('id', $gone)->delete();
+        }
+
+        // One per item is the aggregate's rule (Application::reject), which this does not repeat.
+        foreach ($held as $flag) {
+            if (isset($stored[$flag->key()])) {
+                continue;
+            }
+
+            $this->db->table(self::FLAGS)->insert([
+                'id' => $this->nextId(),
+                'application_id' => $application->id(),
+                'field' => $flag->field?->value,
+                'document_type_id' => $flag->documentTypeId,
+            ]);
+        }
+    }
+
+    /**
+     * The rejection's requests, by id. A request never changes once made, so a stored one is kept
+     * as it is.
+     */
+    private function writeRequests(Application $application): void
+    {
+        $held = [];
+
+        foreach ($application->requests() as $request) {
+            $held[$request->id] = $request;
+        }
+
+        $stored = $this->db->table(self::REQUESTS)->where('application_id', $application->id())->pluck('id')
+            ->mapWithKeys(static fn (mixed $id): array => [(string) $id => true])
+            ->all();
+
+        $gone = array_keys(array_diff_key($stored, $held));
+
+        if ($gone !== []) {
+            $this->db->table(self::REQUESTS)->whereIn('id', $gone)->delete();
+        }
+
+        foreach (array_diff_key($held, $stored) as $request) {
+            $this->db->table(self::REQUESTS)->insert([
+                'id' => $request->id,
+                'application_id' => $application->id(),
+                'kind' => $request->kind->value,
+                'label' => $request->label,
+                'position' => $request->position,
+            ]);
+        }
+    }
+
+    /**
+     * The draft's answers, by request. An unchanged answer keeps its row and its id; a replaced one
+     * is rewritten, and a removed one dropped.
+     */
+    private function writeAnswers(Application $application): void
+    {
+        $held = $application->answers();
+
+        $stored = [];
+
+        foreach ($this->db->table(self::ANSWERS)->where('application_id', $application->id())->get(['id', 'request_id', 'text', 'media_id']) as $row) {
+            $stored[(string) $row->request_id] = $row;
+        }
+
+        $gone = [];
+
+        foreach ($stored as $requestId => $row) {
+            $answer = $held[$requestId] ?? null;
+
+            if ($answer === null || $answer->text?->value !== ($row->text === null ? null : (string) $row->text) || $answer->mediaId !== ($row->media_id === null ? null : (string) $row->media_id)) {
+                $gone[$requestId] = (string) $row->id;
+            }
+        }
+
+        if ($gone !== []) {
+            $this->db->table(self::ANSWERS)->whereIn('id', array_values($gone))->delete();
+        }
+
+        foreach ($held as $requestId => $answer) {
+            if (isset($stored[$requestId]) && ! isset($gone[$requestId])) {
+                continue;
+            }
+
+            $this->db->table(self::ANSWERS)->insert([
+                'id' => $this->nextId(),
+                'application_id' => $application->id(),
+                'request_id' => $requestId,
+                'text' => $answer->text?->value,
+                'media_id' => $answer->mediaId,
+            ]);
+        }
+    }
+
+    /**
      * @return array<string, string|CarbonImmutable|null>
      */
     private static function toRow(Application $application): array
@@ -187,6 +340,26 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             $documents[$typeId] = new AttachedDocument($typeId, (string) $document->media_id, CarbonImmutable::parse((string) $document->uploaded_at));
         }
 
+        $flags = [];
+
+        foreach ($this->db->table(self::FLAGS)->where('application_id', $row->id)->orderBy('id')->get() as $flag) {
+            $flags[] = self::toFlag($flag);
+        }
+
+        $requests = [];
+
+        foreach ($this->db->table(self::REQUESTS)->where('application_id', $row->id)->orderBy('position')->orderBy('id')->get() as $request) {
+            $requests[] = ApplicationRequest::reconstitute((string) $request->id, RequestKind::from((string) $request->kind), (string) $request->label, (int) $request->position);
+        }
+
+        $answers = [];
+
+        foreach ($this->db->table(self::ANSWERS)->where('application_id', $row->id)->orderBy('request_id')->get() as $answer) {
+            $answers[] = $answer->media_id === null
+                ? RequestAnswer::text((string) $answer->request_id, Remark::reconstitute((string) $answer->text))
+                : RequestAnswer::file((string) $answer->request_id, (string) $answer->media_id);
+        }
+
         $typeId = $row->company_type_id === null ? null : (string) $row->company_type_id;
         $other = $row->company_type_other === null ? null : (string) $row->company_type_other;
 
@@ -206,7 +379,18 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             $row->decided_at === null ? null : CarbonImmutable::parse((string) $row->decided_at),
             $row->decided_by === null ? null : (string) $row->decided_by,
             $row->decision_reason === null ? null : Remark::reconstitute((string) $row->decision_reason),
+            $flags,
+            $requests,
+            $answers,
         );
+    }
+
+    private static function toFlag(stdClass $row): ApplicationFlag
+    {
+        // Exactly one of the two, by the table's CHECK.
+        return $row->field !== null
+            ? ApplicationFlag::field(FlaggedField::from((string) $row->field))
+            : ApplicationFlag::document((string) $row->document_type_id);
     }
 
     private static function time(?DateTimeImmutable $at): ?CarbonImmutable

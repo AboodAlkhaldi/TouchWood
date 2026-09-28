@@ -28,11 +28,34 @@ return [
         'title' => 'Nothing to change',
         'detail' => 'The company is not in a state that allows that change.',
     ],
+    'flagged_item_not_replaced' => [
+        'title' => 'Replace the marked items',
+        'detail' => 'Replace every item marked in the last decision before you send the application.',
+    ],
+    'request_not_answered' => [
+        'title' => 'A request is not answered',
+        'detail' => 'Answer every request in the last decision before you send the application.',
+    ],
+    'document_no_longer_accepted' => [
+        'title' => 'A document is no longer accepted',
+        'detail' => 'Remove every document marked as no longer accepted before you send the application.',
+    ],
+    'request_not_found' => [
+        'title' => 'Request not found',
+        'detail' => 'That request is not one of the last decision\'s.',
+    ],
+    'answer_kind_mismatch' => [
+        'title' => 'Answer as asked',
+        'detail' => 'Answer this request the way it asks: with text, or with a file.',
+    ],
     'fields' => [
         'address' => 'address',
+        'answer' => 'answer',
         'company_type' => 'company type',
         'company_type_other' => 'company type',
         'cr_number' => 'commercial registration number',
+        'flags' => 'marked items',
+        'label' => 'label',
         'name' => 'company name',
         'name_ar' => 'Arabic name',
         'name_en' => 'English name',

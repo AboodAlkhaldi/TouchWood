@@ -32,4 +32,15 @@ interface AuditReader
      * @return list<string> ordered by name
      */
     public function actions(?array $storeIds): array;
+
+    /**
+     * Which of these media ids are private files (b2b.md amendment 8(c)).
+     *
+     * Read from the file while it exists, and from its upload entry once it is deleted: a file's
+     * visibility never changes, and the log keeps what its upload recorded.
+     *
+     * @param  list<string>  $mediaIds
+     * @return list<string> the private ones among them
+     */
+    public function privateMedia(array $mediaIds): array;
 }

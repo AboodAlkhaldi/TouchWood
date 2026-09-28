@@ -41,7 +41,7 @@ final readonly class DatabaseMediaReader implements MediaReader
      *
      * @return list<array<string, mixed>>
      */
-    public function page(ListMedia $query): array
+    public function page(ListMedia $query, bool $includePrivate): array
     {
         $rows = $this->db->table('platform.media')
             ->select([
@@ -51,6 +51,12 @@ final readonly class DatabaseMediaReader implements MediaReader
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->limit($query->perPage);
+
+        // In the WHERE clause, never after the page is cut: a reader who may not see private files
+        // gets a full page, and a "more" that counts only the rows they may see.
+        if (! $includePrivate) {
+            $rows->where('visibility', MediaVisibility::Public->value);
+        }
 
         if ($query->cursorCreatedAt !== null && $query->cursorId !== null) {
             // Strictly older than the last file shown, by the order media_created_idx keeps.

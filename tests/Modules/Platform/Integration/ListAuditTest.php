@@ -5,8 +5,12 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\Platform\Application\Query\ListAudit\AuditEntryRow;
 use Modules\Platform\Application\Query\ListAudit\ListAudit;
 use Modules\Platform\Application\Query\ListAudit\ListAuditHandler;
+use Modules\Platform\Public\Enums\MediaVisibility;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -137,5 +141,151 @@ describe('the audit log', function () {
         // Read from the log itself, so a module that starts recording something new appears in the
         // filter without anybody remembering to add it.
         expect(app(ListAuditHandler::class)->actions())->toContain('platform.store.updated');
+    });
+});
+
+/**
+ * A file in the library, written straight in: what is being tested is how its entries read back.
+ */
+function auditMediaFile(MediaVisibility $visibility): string
+{
+    $id = strtolower((string) Str::ulid());
+
+    DB::table('platform.media')->insert([
+        'id' => $id,
+        'visibility' => $visibility->value,
+        'disk' => $visibility === MediaVisibility::Private ? 'local' : 'public',
+        'object_key' => 'media/'.$id.'.pdf',
+        'original_filename' => 'paper.pdf',
+        'mime' => 'application/pdf',
+        'bytes' => 2_400,
+        'checksum' => hash('sha256', $id),
+        'created_at' => '2027-02-01 09:00:00+00',
+        'updated_at' => '2027-02-01 09:00:00+00',
+    ]);
+
+    return $id;
+}
+
+/**
+ * One entry about a file, by a staff member, as MediaAudit writes them.
+ *
+ * @param  array<string, mixed>  $changes
+ */
+function auditMediaEntry(string $action, string $mediaId, array $changes, string $occurredAt, string $actorId): int
+{
+    return (int) DB::table('platform.audit_entries')->insertGetId([
+        'occurred_at' => $occurredAt,
+        'recorded_at' => $occurredAt,
+        'source' => 'WEB',
+        'store_id' => null,
+        'actor_type' => 'STAFF',
+        'actor_id' => $actorId,
+        'action' => $action,
+        'subject_type' => 'platform.media',
+        'subject_id' => $mediaId,
+        'changes' => json_encode($changes, JSON_THROW_ON_ERROR),
+        'ip_address' => '10.0.0.7',
+    ]);
+}
+
+/**
+ * The entries of one day about one file, as the handler hands them back.
+ *
+ * @return list<AuditEntryRow>
+ */
+function auditEntriesAbout(string $mediaId): array
+{
+    return array_values(array_filter(
+        app(ListAuditHandler::class)->handle(new ListAudit(from: '2027-02-01'))->entries,
+        static fn (AuditEntryRow $entry): bool => $entry->subjectId === $mediaId || ($entry->withheld && $entry->occurredAt >= '2027-02-01'),
+    ));
+}
+
+describe('entries about a private file (b2b.md amendment 8(c))', function () {
+    it('keeps what was done, when and by whom, and withholds which file and what changed, from a reader who may not see private files', function () {
+        $uploader = Fx::staff(superAdmin: true);
+        $paper = auditMediaFile(MediaVisibility::Private);
+        auditMediaEntry('platform.media.uploaded', $paper, ['visibility' => [null, 'PRIVATE'], 'mime' => [null, 'application/pdf'], 'for_module' => [null, 'b2b']], '2027-02-01 10:00:00+00', $uploader);
+        auditMediaEntry('platform.media.alt_text_changed', $paper, ['alt_en' => [null, 'Commercial register of Company X']], '2027-02-01 11:00:00+00', $uploader);
+        Fx::actAsAdmin(['*'], [PlatformPermissions::AUDIT_VIEW]);
+
+        $entries = auditEntriesAbout($paper);
+
+        expect(array_map(static fn (AuditEntryRow $entry): array => [$entry->action, $entry->subjectType, $entry->subjectId, $entry->changes, $entry->actorId, $entry->ipAddress, $entry->withheld], $entries))->toBe([
+            ['platform.media.alt_text_changed', 'platform.media', null, [], $uploader, '10.0.0.7', true],
+            ['platform.media.uploaded', 'platform.media', null, [], $uploader, '10.0.0.7', true],
+        ]);
+    });
+
+    it('withholds them for a private file that has since been deleted, from what its upload recorded', function () {
+        $uploader = Fx::staff(superAdmin: true);
+        // No row: the file is gone, and only its entries remain.
+        $gone = strtolower((string) Str::ulid());
+        auditMediaEntry('platform.media.uploaded', $gone, ['visibility' => [null, 'PRIVATE']], '2027-02-01 10:00:00+00', $uploader);
+        auditMediaEntry('platform.media.deleted', $gone, ['checksum' => ['abc', null]], '2027-02-01 12:00:00+00', $uploader);
+        Fx::actAsAdmin(['*'], [PlatformPermissions::AUDIT_VIEW]);
+
+        $entries = auditEntriesAbout($gone);
+
+        expect(array_map(static fn (AuditEntryRow $entry): array => [$entry->action, $entry->subjectId, $entry->changes, $entry->withheld], $entries))->toBe([
+            ['platform.media.deleted', null, [], true],
+            ['platform.media.uploaded', null, [], true],
+        ]);
+    });
+
+    it('shows the whole entry to someone who may see private files', function (Closure $reader) {
+        $paper = auditMediaFile(MediaVisibility::Private);
+        auditMediaEntry('platform.media.uploaded', $paper, ['visibility' => [null, 'PRIVATE']], '2027-02-01 10:00:00+00', Fx::staff(superAdmin: true));
+        Fx::actAsStaff($reader());
+
+        $entries = auditEntriesAbout($paper);
+
+        expect($entries)->toHaveCount(1)
+            ->and($entries[0]->subjectId)->toBe($paper)
+            ->and($entries[0]->changes)->toBe(['visibility' => [null, 'PRIVATE']])
+            ->and($entries[0]->withheld)->toBeFalse();
+    })->with([
+        'a Super Admin' => [fn () => Fx::staff(superAdmin: true)],
+        'an admin given the permission' => [fn () => Fx::staffWith([PlatformPermissions::AUDIT_VIEW, PlatformPermissions::MEDIA_PRIVATE_VIEW], ['*'], RoleLevel::Admin)],
+    ]);
+
+    it('leaves a public file\'s entries whole for the same reader', function () {
+        $photo = auditMediaFile(MediaVisibility::Public);
+        auditMediaEntry('platform.media.uploaded', $photo, ['visibility' => [null, 'PUBLIC']], '2027-02-01 10:00:00+00', Fx::staff(superAdmin: true));
+        Fx::actAsAdmin(['*'], [PlatformPermissions::AUDIT_VIEW]);
+
+        $entries = auditEntriesAbout($photo);
+
+        expect($entries)->toHaveCount(1)
+            ->and($entries[0]->subjectId)->toBe($photo)
+            ->and($entries[0]->changes)->toBe(['visibility' => [null, 'PUBLIC']])
+            ->and($entries[0]->withheld)->toBeFalse();
+    });
+
+    it('leaves another subject with a private file\'s id alone', function () {
+        // Only an entry about media is about a file: the same id on something else is not one. The
+        // file's own entry is on the page too, so the private file really is asked about.
+        $paper = auditMediaFile(MediaVisibility::Private);
+        auditMediaEntry('platform.media.uploaded', $paper, ['visibility' => [null, 'PRIVATE']], '2027-02-01 09:00:00+00', Fx::staff(superAdmin: true));
+        DB::table('platform.audit_entries')->insert([
+            'occurred_at' => '2027-02-01 10:00:00+00',
+            'recorded_at' => '2027-02-01 10:00:00+00',
+            'source' => 'WEB',
+            'store_id' => null,
+            'actor_type' => 'SYSTEM',
+            'action' => 'platform.store.updated',
+            'subject_type' => 'platform.store',
+            'subject_id' => $paper,
+            'changes' => json_encode(['name' => ['a', 'b']], JSON_THROW_ON_ERROR),
+        ]);
+        Fx::actAsAdmin(['*'], [PlatformPermissions::AUDIT_VIEW]);
+
+        $entries = auditEntriesAbout($paper);
+
+        expect(array_map(static fn (AuditEntryRow $entry): array => [$entry->subjectType, $entry->subjectId, $entry->withheld], $entries))->toBe([
+            ['platform.store', $paper, false],
+            ['platform.media', null, true],
+        ]);
     });
 });
