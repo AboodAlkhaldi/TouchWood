@@ -911,3 +911,14 @@ With the frontend milestone:
 - **Error pages** for 409, 413, 415 and 422. Laravel has no page for these statuses, so a page
   request shows only the status text (for example "Conflict"); JSON requests already get the
   translated title and detail.
+
+### 9.4 Additions asked for by later modules
+
+Platform changes made while another module was being built, each agreed with the owner and recorded
+in full in that module's specification.
+
+| Added | For | What | Recorded in |
+|---|---|---|---|
+| Stage 2b | Access (staff avatars), B2B (company papers) | `PlatformApi::uploadMediaFor(ModuleUploadDto)`: a module uploads a file for its own use, checked against a permission the module names | `docs/modules/frontend-step-0.md` (P1) |
+| B2B step 3 | B2B (replaced and discarded papers; later, anonymized accounts) | **`PlatformApi::deleteMediaFor`**, the mirror of `uploadMediaFor`: a module deletes a **private** file it created, checked against the permission it names; refused while any use of the file remains, and never detaching another module's use; logged as an upload is. Staff deletion of media is unchanged | `docs/modules/b2b.md` amendments 4 and 5 |
+| B2B step 3 | B2B (company papers) | **Private files leave the media library**: listed only to holders of a new **admin-only** permission — a Super Admin always, an admin when a Super Admin gives it to their role — and as a list only (name, date, where used), never opened there | `docs/modules/b2b.md` amendment 5 |
