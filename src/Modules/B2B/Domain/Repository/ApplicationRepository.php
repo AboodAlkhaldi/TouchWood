@@ -7,7 +7,8 @@ namespace Modules\B2B\Domain\Repository;
 use Modules\B2B\Domain\Model\Application;
 
 /**
- * Applications, every one kept (b2b.md §1.2), each with its files. Writing one writes its files in
+ * Applications, every one kept (b2b.md §1.2), each with its files — and with the flags and requests
+ * a rejection gave it, or the answers a draft gives (amendment 4). Writing one writes all of them in
  * the same call, so an application and what it holds never disagree.
  */
 interface ApplicationRepository
@@ -29,6 +30,12 @@ interface ApplicationRepository
      * @return list<Application>
      */
     public function historyOf(string $companyId): array;
+
+    /**
+     * The company's last application sent — never a draft — whose flags and requests the next
+     * draft meets when it was rejected (amendment 4); null when it has sent none.
+     */
+    public function lastSent(string $companyId): ?Application;
 
     public function add(Application $application): void;
 
