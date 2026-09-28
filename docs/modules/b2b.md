@@ -203,7 +203,8 @@ there to take it. Per §1.3 that never reaches a company already approved.
 
 *A document required of **one** company alone* was first left unbuilt (owner, 2026-09-26) and is
 now built as a **request** on a rejection (above; owner, 2026-09-28, amendment 4). Document types
-stay global; what one company alone is asked for travels with its rejection.
+are the store's (§1.3, amendment 5), the same for every company of that store; what one company
+alone is asked for travels with its rejection.
 - Submitting takes the company to `PENDING`; approving to `APPROVED`; rejecting to `REJECTED`
   (§4.1). **Reapplying never restores ordering in the meantime** (handoff §8.2).
 
@@ -235,6 +236,25 @@ Stock Company; شركة مساهمة مبسطة — Simplified Joint Stock Compa
 شركة توصية بسيطة — Limited Partnership. Document types, required: شهادة ضريبة القيمة المضافة — VAT
 certificate; شهادة السجل التجاري — Commercial registration certificate; هوية المفوّض بالتوقيع —
 Authorised signatory ID.
+
+**[DECIDED 2026-09-28] Every store gets them** (amendment 6(a)): they are written into each store
+whose list of that kind is empty — the stores that exist when B2B's tables are migrated, and every
+store created afterwards, when Platform publishes `StoreCreated` (§6). The launch stores, which the
+seeder creates after the migrations, are among the second. Writing only ever adds: a store that
+already has company types keeps them exactly as they are, and the same for document types. A store
+the lists are written into is marked **copied, not yet reviewed** — one mark for both lists
+(`b2b.store_type_lists`, §5) — and a store that already carries the mark keeps it as it is, so a
+store whose admins reviewed their lists stays reviewed. While it is set, the store's types page
+tells its admins the lists were copied from the Saudi store, until one of them edits a type or
+marks the lists reviewed. Step 3a keeps the mark as data only: clearing it comes with the type
+screens (step 4), and the notice is drawn on the staff screen (step 7).
+
+**[DECIDED 2026-09-28] A company's type comes from its home store's list** (amendment 6(c), (d)).
+Sending a draft whose listed type is not one of the home store's is refused as
+`InvalidCompanyAttribute`, as an unknown type is (§7). The rule crosses two tables, so it is kept
+**in code only**, with nothing in the database behind it — as is the rule that staff flag only a
+document the rejected application sent a file under (§1.2). The module's README names every such
+rule.
 
 **"Other" is not a type** (amendment 2). The form always offers it last, whatever staff have set up,
 and choosing it asks the company to say what it is in its own words. It cannot be deactivated or
@@ -301,11 +321,15 @@ An uploaded file belonging to one application and one document type.
   cases**, so every file B2B holds, and may later delete, is one it created. If any use of the file
   remains, the delete is refused; it never detaches another module's use. Platform logs the delete
   as it logs a module's upload.
-- **[DECIDED 2026-09-28] Company papers stay out of the media library** (amendment 5). Private files
-  are listed there only to holders of a new **admin-only** Platform permission — a Super Admin
-  always, an admin when a Super Admin gives it to their role — and **as a list only**: name, date,
-  where it is used; never opened there. Everyone else does not see them at all. A company's papers
-  are opened from its page in B2B, where the opening is B2B's to record.
+- **[DECIDED 2026-09-28] Company papers stay out of the media library** (amendments 5 and 6(b)).
+  Private files are listed there only to holders of the **admin-only** Platform permission
+  `platform.media.private.view` — a Super Admin always, an admin when a Super Admin gives it to
+  their role (access.md amendment 49) — and only for someone who can already open the library: the
+  permission adds private files to it and opens it to nobody. They are listed **as a list only**:
+  name, upload date, where it is used; never opened there, with nothing to describe or delete — any
+  change goes through the company's account. Choosing "private" when uploading in the library is
+  offered only to holders and refused from anyone else. Everyone else does not see them at all. A
+  company's papers are opened from its page in B2B, where the opening is B2B's to record.
 - **[DECIDED 2026-09-28] Nothing new is uploaded under a type staff have deactivated** (amendment
   4), and nothing under a type that does not exist.
 - **[DECIDED 2026-09-19] No expiry is tracked.** A document is a file with its type and the date it
@@ -507,11 +531,12 @@ All in schema `b2b`. Every id is `char(26)` (ULID); timestamps are `timestamptz`
 | `b2b.companies` | `id` PK · `customer_id` **unique** FK → `access.customers` · `name` · `company_type_id` NULL FK · `company_type_other` NULL — exactly one of the two · `cr_number` · `tax_number` · `address` (§5.1) · `home_store_id` FK → `platform.stores` · `status` · `status_before_suspension` NULL · `status_reason` NULL · `status_changed_at` NULL · `status_changed_by` NULL FK → `access.staff_users` · timestamps |
 | `b2b.applications` | `id` PK · `customer_id` FK · `company_id` NULL FK · `state` · the snapshot, each NULL while a draft: `name`, `company_type_id`, `company_type_other`, `cr_number`, `tax_number`, `address` · `note` NULL · `submitted_at` NULL · `decided_at` NULL · `decided_by` NULL FK · `decision_reason` NULL · timestamps |
 | `b2b.application_documents` | `id` PK · `application_id` FK ON DELETE CASCADE · `document_type_id` FK · `media_id` FK → `platform.media` **RESTRICT** · `uploaded_at` |
-| `b2b.application_flags` (amendment 4) | `id` PK · `application_id` FK ON DELETE CASCADE — **the rejected application** · `field` NULL (`name`, `company_type`, `cr_number`, `tax_number`, `address`) · `document_type_id` NULL FK — exactly one of the two; one flag per field or document type per application |
-| `b2b.application_requests` (amendment 4) | `id` PK · `application_id` FK ON DELETE CASCADE — **the rejected application** · `kind` (`TEXT`, `FILE`) · `label` — the staff member's words, one line, at most 200 characters · `position` |
-| `b2b.application_request_answers` (amendment 4) | `id` PK · `application_id` FK ON DELETE CASCADE — **the answering application** · `request_id` FK **RESTRICT** · `text` NULL (at most 1000, line breaks allowed) · `media_id` NULL FK → `platform.media` **RESTRICT** — exactly one, matching the request's kind; one answer per request per application |
-| `b2b.company_types` | `id` PK · `store_id` FK → `platform.stores` (amendment 5) · `name_ar`, `name_en` — `varchar(100)`, each unique on (`store_id`, `lower()`) · `position` 0–10,000 · `is_active` · how an inactive one shows: hidden or greyed (amendment 5) · timestamps |
-| `b2b.document_types` | `id` PK · `store_id` FK → `platform.stores` (amendment 5) · `name_ar`, `name_en` — `varchar(100)`, each unique on (`store_id`, `lower()`) · `position` 0–10,000 · `is_active` · hidden or greyed (amendment 5) · `is_required` · timestamps |
+| `b2b.application_flags` (amendment 4) | `id` PK · `application_id` FK ON DELETE CASCADE — **the rejected application** · `field` NULL (`name`, `company_type`, `cr_number`, `tax_number`, `address`; CHECK `application_flags_field`) · `document_type_id` NULL FK **RESTRICT** — exactly one of the two (CHECK `application_flags_one_item`); one flag per field or document type per application (§5.2) |
+| `b2b.application_requests` (amendment 4) | `id` PK · `application_id` FK ON DELETE CASCADE — **the rejected application** · `kind` (`TEXT`, `FILE`; CHECK `application_requests_kind`) · `label` — the staff member's words, one line, at most 200 characters (CHECK `application_requests_label_text`) · `position` 0–10,000 (CHECK `application_requests_position_range`) |
+| `b2b.application_request_answers` (amendment 4) | `id` PK · `application_id` FK ON DELETE CASCADE — **the answering application** · `request_id` FK **RESTRICT** · `text` NULL (at most 1000, line breaks allowed; CHECK `application_request_answers_text_text`) · `media_id` NULL FK → `platform.media` **RESTRICT** — exactly one (CHECK `application_request_answers_one_value`), matching the request's kind (in code only, amendment 5(g)); one answer per request per application (§5.2) |
+| `b2b.company_types` | `id` PK · `store_id` FK → `platform.stores` **RESTRICT** (amendment 5) · `name_ar`, `name_en` — `varchar(100)`, each unique on (`store_id`, `lower()`) (§5.2) · `position` 0–10,000 · `is_active` · `inactive_display` NULL — how an inactive one shows, `HIDDEN` or `GREYED` (amendment 5), present exactly while the type is inactive (CHECKs `company_types_inactive_display` and `company_types_inactive_display_when_inactive`) · timestamps |
+| `b2b.document_types` | `id` PK · `store_id` FK → `platform.stores` **RESTRICT** (amendment 5) · `name_ar`, `name_en` — `varchar(100)`, each unique on (`store_id`, `lower()`) (§5.2) · `position` 0–10,000 · `is_active` · `inactive_display` NULL — `HIDDEN` or `GREYED`, present exactly while inactive (CHECKs `document_types_inactive_display` and `document_types_inactive_display_when_inactive`) · `is_required` · timestamps |
+| `b2b.store_type_lists` (amendment 6(a)) | `store_id` PK (`store_type_lists_pkey`), FK → `platform.stores` ON DELETE CASCADE (`store_type_lists_store`) · `copied_not_reviewed` — set when the starting lists are written into the store, cleared once its admins have reviewed them (§1.3); no default · `updated_at`. One row per store the lists were written into |
 
 ### 5.1 The address
 
@@ -530,6 +555,10 @@ the company, and as part of the snapshot on each application.
 | `applications (company_id, submitted_at DESC)` | One company's history, newest first |
 | **Unique** `application_documents (application_id, document_type_id)`, named `application_documents_one_per_type` | One file per type (amendment 3); its leading column also serves "the documents of one application" |
 | **Partial unique** `applications (customer_id) WHERE state IN ('DRAFT','SUBMITTED')` | One open application at a time, enforced where two tabs cannot both win |
+| **Unique** `company_types (store_id, lower(name_ar))` and `(store_id, lower(name_en))`, named `company_types_name_ar_unique` and `company_types_name_en_unique`; the same two on `document_types`, named `document_types_name_ar_unique` and `document_types_name_en_unique` | Names unique in each language, ignoring case, **within one store**; two stores may share a name (§1.3, amendments 2 and 5) |
+| **Partial unique** `application_flags (application_id, field) WHERE field IS NOT NULL`, named `application_flags_one_per_field`, and `application_flags (application_id, document_type_id) WHERE document_type_id IS NOT NULL`, named `application_flags_one_per_document` | One flag per field, and one per document type, on a rejected application (amendment 4) |
+| **Unique** `application_request_answers (application_id, request_id)`, named `application_request_answers_one_per_request` | One answer per request per application (amendment 4); its leading column also serves "the answers of one application" |
+| `application_documents (media_id)`, named `application_documents_media`, and `application_request_answers (media_id)`, named `application_request_answers_media` | "Which applications hold this file?" — asked by B2B's media usage before every delete of a file (§1.4) |
 
 ---
 
@@ -547,7 +576,7 @@ the company, and as part of the snapshot on each application.
 | Event | From | What B2B does |
 |---|---|---|
 | `CustomerAnonymized` | Access | Clears the company's personal fields and **deletes the uploaded documents** (§1.1). The company row, its status and the decision record stay |
-| `StoreCreated` | Platform | Nothing. A company is valid in every store (§1.1), so a new country needs no company data |
+| `StoreCreated` | Platform | **Writes the starting company types and document types into the new store**, each kind only where the store has none, and marks its lists **copied, not yet reviewed** (§1.3, amendment 6(a)). A company still needs nothing here: it is valid in every store (§1.1) |
 
 ---
 
@@ -565,7 +594,7 @@ type string and HTTP status (handoff §11).
 | `EmailNotVerified` | CONFLICT | Submitting before the address is confirmed (§1.2) |
 | `MissingRequiredDocument` | UNPROCESSABLE | Submitting without every active required type |
 | `ApplicationNotEditable` | CONFLICT | Changing an application that is no longer `DRAFT` |
-| `FlaggedItemNotReplaced` | UNPROCESSABLE | Sending while a field or document the last rejection flagged is unchanged (§1.2, amendment 4) |
+| `FlaggedItemNotReplaced` | UNPROCESSABLE | Sending while a field or document the last rejection flagged is unchanged (§1.2, amendment 4). One general message for every item: "Replace every item marked in the last decision before you send the application." (amendment 6(e)) |
 | `RequestNotAnswered` | UNPROCESSABLE | Sending while a request of the last rejection has no answer (§1.2, amendment 4) |
 | `DocumentTypeInactive` | CONFLICT | Uploading under a document type that is inactive or does not exist (§1.4, amendment 4) |
 | `DocumentNoLongerAccepted` | UNPROCESSABLE | Sending a draft that still holds a file under a document type deactivated since (§1.3, amendment 5); a company type deactivated since is `CompanyTypeInactive` |
@@ -573,7 +602,7 @@ type string and HTTP status (handoff §11).
 | `AnswerKindMismatch` | UNPROCESSABLE | A text answer to a file request, or a file to a text request (§3.1, amendment 5) |
 | `CompanySuspended` | CONFLICT | Editing the name, CR number, tax number or documents while suspended (§1.1) |
 | `InvalidCompanyStatus` | CONFLICT | A change the company's status does not allow: deciding a company with no application waiting, suspending one already suspended, reinstating one that is not (§4.1, amendment 3) |
-| `InvalidCompanyAttribute` | UNPROCESSABLE | A value the domain refuses — a CR number too long, an unknown company type |
+| `InvalidCompanyAttribute` | UNPROCESSABLE | A value the domain refuses — a CR number too long, an unknown company type, or a listed type that is not one of the home store's (§1.3, amendment 6(d)) |
 | `DocumentTypeInUse` | CONFLICT | Deleting a type an application references; deactivate it instead (§1.3) |
 | `TypeNameTaken` | CONFLICT | Adding or renaming a type to a name another type of its kind already has, in either language, ignoring case (§1.3, amendment 2) |
 | `CompanyTypeInactive` | CONFLICT | Submitting a draft whose chosen type staff have deactivated since; choose again (§1.3, amendment 2) |
@@ -646,3 +675,4 @@ place in the sections named; this table records what changed and why.
 | 4 | §1.2, §1.3 (§9 #1), §1.4, §2.3, §3.1, §3.2, §5, §7, §8 (9e–9h) | **Applying, before step 3 is built.** (a) **Rejections can say exactly what to fix and what to add** — only rejections, no new status: staff may **flag** any item sent (a field or a document), which the next draft must **replace** before it is sent (a different value, a new file); and **request** extra items from this one company, each **a text answer or a file** with a staff-written label, **all required** before sending. Flags and requests belong to the rejected application; answers to the application that gives them. Staff set them in step 4; the company meets them in step 3. This builds §9 #1, left unbuilt on 2026-09-26. (b) **A new draft of an existing company starts from the company as it is now plus the files of the last application sent.** (c) **B2B deletes the files it no longer holds** — a replaced one, a discarded draft's — through a new **`PlatformApi::deleteMediaFor`**, the mirror of `uploadMediaFor`, without touching how staff delete media or the module boundaries. (d) **Each value is checked when a draft is saved**; completeness when it is sent. (e) **A note on every application**, the first included. (f) **Nothing new under an inactive or unknown document type.** (g) **The audit log** gets the company's sending, discarding and address changes — not each draft save or upload. | (a) A reason in prose left the company to guess which item was wrong, and a paper one company alone needed had no place to go. (b) A staff correction or an address change must not be lost to a reapplication. (c) The owner decided files go when replaced or discarded, and Platform had no way for a module to delete its own. (d) A mistake shows where it is made. (g) The decisions are recorded; the typing is not. | Owner, 2026-09-28 (B2B step 3, phase 0) |
 | 5 | §1.3, §1.4, §2.3, §3.1, §3.2, §5, §7, §8 (9i–9l, 17) | **Step 3, after the plan was read** — the owner's answers to the 26 questions the step-3 plan raised. (a) **Company and document types are per store**; a company uses its home store's lists; the Saudi lists ship in every store for now; `b2b.types.manage` becomes per store. (b) **Deactivating a type**: hidden or greyed out, for both kinds; for a company type, the companies holding it are left or replaced (staff correction, no `PENDING`, audited per company); a waiting application with a deactivated type is marked for its reviewer. (c) **A draft never sends anything deactivated**: marked "no longer accepted", to be removed or chosen again — replacing the earlier "an old file goes with the application". (d) **The company's side**: one rule refusing individual accounts everywhere; an explicit start; actions on the one open application; saves change only the fields sent; suspended → no draft work but discarding; address changes and staff corrections carried into an open draft; flags "replaced" when exactly different; new errors `RequestNotFound`, `AnswerKindMismatch`, `DocumentNoLongerAccepted`; `ViewMyCompany` always answers, history without staff names; **the company may open its own files**. (e) **Files**: `deleteMediaFor` deletes private files only and refuses while any use remains; B2B uploads inside its own use cases; Platform logs the delete; **private files leave the media library** except, as a list, for a new admin-only permission. (f) **The log**: typed values as "changed", states and type ids by value; sending and discarding on the application, the address on the company. (g) B2B's staff permissions in the **Companies** group; the events stay in step 5; the three two-table rules are code-only, named in the README; anonymizing deletes request answers and their files. | The owner's answers of 2026-09-28, given after workflow 1 of the step-3 pilot read the spec and the code and found where they did not yet meet. | Owner, 2026-09-28 (B2B step 3) |
 | 6 | §1.3, §1.4, §6, §7 | **Step 3a, before it is built** — the owner's answers to the questions its re-plan raised. (a) **Every store gets the Saudi lists** through a `StoreCreated` listener, the launch stores (created by the seeder after the migrations) and any store opened later alike, until its admins change them; **the store's types page tells its admins the lists were copied from the Saudi store**, until one of them edits a type or marks the lists reviewed (the notice is data in 3a, drawn on the staff screen in step 7). §6's `StoreCreated → Nothing` no longer holds. (b) **The private-files permission** adds private files to the media library only for someone who can already open it; a private row shows its name, date and where it is used, with nothing to describe or delete — any change goes through the company's account; choosing "private" when uploading in the library is offered only to holders and refused from anyone else. (c) Two more cross-table rules are **code-only**, named in the README with the other three: a company's type comes from its home store's list; staff flag only a document the rejected application sent a file under. (d) A draft sent with another store's company type is refused as `InvalidCompanyAttribute`, as §7 already says for an unknown type. (e) Sending with a flagged item not replaced gets **one general message**: "Replace every item marked in the last decision before you send the application." (f) The spec text 3a makes out of date is corrected in 3a's own PR. | The owner's answers of 2026-09-28, after workflow 2 of the pilot stopped before building to ask them. | Owner, 2026-09-28 (B2B step 3a) |
+| 7 | §1.2, §1.3, §1.4, §5, §5.2, §6, §7 | **Step 3a, as built** — the spec text brought up to what step 3a built, as amendment 6(f) asks; no rule changes. (a) §1.2 said document types "stay global"; they are per store since amendment 5(a). (b) **Amendment 6 applied in place**: §1.3 says how every store gets the starting lists and the "copied, not yet reviewed" mark, and that a company's type comes from its home store's list, in code only; §1.4 names the private-files permission, `platform.media.private.view`, and says what the library shows and offers; §6 says what B2B does on `StoreCreated`; §7 gives `FlaggedItemNotReplaced`'s one general message, and another store's type as `InvalidCompanyAttribute`. (c) **§5** gains the table `b2b.store_type_lists`, the types' `inactive_display` column with its two CHECKs, the request tables' named CHECKs, and the types' `RESTRICT` keys to `platform.stores`; **§5.2** gains the per-store unique names, the flags' and answers' uniques, and the two `media_id` indexes. | Amendment 6 had been recorded as a row only, and §5 named only what step 2 had built. | Owner, 2026-09-28 (B2B step 3a: the corrections the integrator writes) |
