@@ -64,7 +64,7 @@ altAr: string | null,
 altEn: string | null,
 thumbnailUrl: string | null,
 usedIn: string[],
-deleteBlocked: boolean | null,
+deleteBlocked: boolean,
 };
 export type MediaPage = {
 media: MediaFileRow[],

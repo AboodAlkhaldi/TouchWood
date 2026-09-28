@@ -20,8 +20,10 @@ use Modules\Platform\Public\Enums\MediaVisibility;
  * answers. What happens here is a size written the way a person reads it, and a thumbnail for the
  * images that have one.
  *
- * A private file's row carries its name, its upload date and where it is used, and nothing else
- * (B2B step 3, amendment 6(b)): the page draws no more than that, so no more is sent.
+ * A private file's row carries its name, its upload date and where it is used (B2B step 3,
+ * amendment 6(b)), and what describing or deleting it needs — its two descriptions, and whether a
+ * use blocks the delete (amendment 8(a)). Nothing about the file itself: no type, size, picture or
+ * sizes status. Only someone who may see private files is sent the row at all.
  */
 final readonly class MediaPages
 {
@@ -60,11 +62,11 @@ final readonly class MediaPages
                 null,
                 null,
                 $media->uploadedAt,
-                null,
-                null,
+                $media->altAr,
+                $media->altEn,
                 null,
                 $media->usedIn,
-                null,
+                $media->deleteBlocked,
             );
         }
 

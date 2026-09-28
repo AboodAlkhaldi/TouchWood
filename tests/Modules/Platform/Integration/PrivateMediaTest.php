@@ -20,12 +20,19 @@ use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Enums\PermissionAudience;
 use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
+use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
+use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
+use Modules\Platform\Application\Command\RetryMediaVariants\RetryMediaVariants;
+use Modules\Platform\Application\Command\RetryMediaVariants\RetryMediaVariantsHandler;
+use Modules\Platform\Application\Command\UpdateMediaAltText\UpdateMediaAltText;
+use Modules\Platform\Application\Command\UpdateMediaAltText\UpdateMediaAltTextHandler;
 use Modules\Platform\Application\Command\UploadMedia\UploadMedia;
 use Modules\Platform\Application\Command\UploadMedia\UploadMediaHandler;
 use Modules\Platform\Application\Query\ListMedia\ListMedia;
 use Modules\Platform\Application\Query\ListMedia\ListMediaHandler;
 use Modules\Platform\Application\Query\ListMedia\MediaLibraryPage;
 use Modules\Platform\Application\Query\ListMedia\MediaRow;
+use Modules\Platform\Domain\Exception\MediaNotFound;
 use Modules\Platform\Presentation\Http\Resource\MediaFileRow;
 use Modules\Platform\Presentation\Http\Resource\MediaPages;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -53,9 +60,10 @@ afterEach(function () {
 });
 
 /*
-| B2B step 3, amendments 5 and 6 (platform.md §9.4). Private files - a company's papers - are listed
-| in the media library only to holders of the admin-only platform.media.private.view, as a list; and
-| "private" may be chosen when uploading there only by a holder.
+| B2B step 3, amendments 5, 6 and 8 (platform.md §9.4). Private files - a company's papers - are
+| listed in the media library only to holders of the admin-only platform.media.private.view; to
+| anyone else they do not exist there at all; a holder describes or deletes one only with the usual
+| permission on top; and "private" may be chosen when uploading there only by a holder.
 |
 | Every helper here is named after this file's subject: a Pest file's functions are global.
 */
@@ -314,4 +322,110 @@ describe('choosing "private" when uploading in the library', function () {
         'an admin who may upload and see them' => [fn () => Fx::staffWith([PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::MEDIA_PRIVATE_VIEW], ['sa'], RoleLevel::Admin), true],
         'an admin who may see them and delete, but not upload' => [fn () => Fx::staffWith([PlatformPermissions::MEDIA_DELETE, PlatformPermissions::MEDIA_PRIVATE_VIEW], ['sa'], RoleLevel::Admin), false],
     ]);
+});
+
+/**
+ * What an action threw, or null: the test compares two answers, so it needs the errors themselves.
+ */
+function privateMediaError(Closure $act): ?Throwable
+{
+    try {
+        $act();
+    } catch (Throwable $error) {
+        return $error;
+    }
+
+    return null;
+}
+
+/**
+ * The three things the library does to one file by its id, on the staff path.
+ *
+ * @return array<string, array{0: string, 1: Closure(string): void}> the permission each needs, and the action
+ */
+function privateMediaActions(): array
+{
+    return [
+        'describing' => [PlatformPermissions::MEDIA_UPDATE, static function (string $id): void {
+            app(UpdateMediaAltTextHandler::class)->handle(new UpdateMediaAltText($id, 'ورقة الشركة', 'The company paper'));
+        }],
+        'retrying its sizes' => [PlatformPermissions::MEDIA_UPLOAD, static function (string $id): void {
+            app(RetryMediaVariantsHandler::class)->handle(new RetryMediaVariants($id));
+        }],
+        'deleting' => [PlatformPermissions::MEDIA_DELETE, static function (string $id): void {
+            app(DeleteMediaHandler::class)->handle(new DeleteMedia($id));
+        }],
+    ];
+}
+
+describe('acting on a private file in the library (amendment 8(a))', function () {
+    it('answers someone who may not see private files exactly as for an id that never existed, changing nothing', function (RoleLevel $level, string $permission, Closure $act) {
+        // FAILED, so that without the rule a retry would go through and queue the file again.
+        $private = privateMediaRow(MediaVisibility::Private, variantsStatus: 'FAILED');
+        Fx::actAsStaff(Fx::staffWith([$permission], ['sa'], $level));
+        $row = DB::table('platform.media')->where('id', $private)->first();
+        $entries = DB::table('platform.audit_entries')->count();
+
+        $error = privateMediaError(fn () => $act($private));
+        $never = privateMediaError(fn () => $act(strtolower((string) Str::ulid())));
+
+        expect($error)->toBeInstanceOf(MediaNotFound::class)
+            ->and($never)->toBeInstanceOf(MediaNotFound::class)
+            ->and($error?->getMessage())->toBe(str_replace($never instanceof MediaNotFound ? $never->mediaId : '', $private, (string) $never?->getMessage()))
+            ->and(DB::table('platform.media')->where('id', $private)->first())->toEqual($row)
+            ->and(DB::table('platform.audit_entries')->count())->toBe($entries);
+        Queue::assertNothingPushed();
+    })->with([
+        'a staff member' => [RoleLevel::Staff],
+        'an admin not given it' => [RoleLevel::Admin],
+    ])->with(privateMediaActions());
+
+    it('still does it on a public file for the same person', function () {
+        $public = privateMediaRow(MediaVisibility::Public);
+        Fx::actAsStaff(Fx::staffWith([PlatformPermissions::MEDIA_UPDATE, PlatformPermissions::MEDIA_DELETE], ['sa']));
+
+        app(UpdateMediaAltTextHandler::class)->handle(new UpdateMediaAltText($public, 'صورة', 'A picture'));
+
+        expect(DB::table('platform.media')->where('id', $public)->value('alt_en'))->toBe('A picture');
+
+        app(DeleteMediaHandler::class)->handle(new DeleteMedia($public));
+
+        expect(DB::table('platform.media')->where('id', $public)->exists())->toBeFalse();
+    });
+
+    it('lets an admin who sees private files describe and delete one only as far as they were given', function (Closure $admin, bool $describes, bool $deletes) {
+        $described = privateMediaRow(MediaVisibility::Private);
+        $deleted = privateMediaRow(MediaVisibility::Private, '2026-09-20 11:00:00+00');
+        Fx::actAsStaff($admin());
+
+        $outcome = static fn (?Throwable $error): string => $error === null ? 'done' : $error::class;
+
+        $describing = privateMediaError(fn () => app(UpdateMediaAltTextHandler::class)->handle(new UpdateMediaAltText($described, 'ورقة الشركة', 'The company paper')));
+        $deleting = privateMediaError(fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($deleted)));
+
+        // Refused by the name of the permission they lack, like anyone else: they may see the file.
+        expect($outcome($describing))->toBe($describes ? 'done' : Unauthorized::class)
+            ->and(DB::table('platform.media')->where('id', $described)->value('alt_en'))->toBe($describes ? 'The company paper' : null)
+            ->and($outcome($deleting))->toBe($deletes ? 'done' : Unauthorized::class)
+            ->and(DB::table('platform.media')->where('id', $deleted)->exists())->toBe(! $deletes);
+    })->with([
+        'see only' => [fn () => Fx::staffWith([PlatformPermissions::MEDIA_PRIVATE_VIEW, PlatformPermissions::MEDIA_UPLOAD], ['sa'], RoleLevel::Admin), false, false],
+        'see and describe' => [fn () => Fx::staffWith([PlatformPermissions::MEDIA_PRIVATE_VIEW, PlatformPermissions::MEDIA_UPDATE], ['sa'], RoleLevel::Admin), true, false],
+        'see, describe and delete' => [fn () => Fx::staffWith([PlatformPermissions::MEDIA_PRIVATE_VIEW, PlatformPermissions::MEDIA_UPDATE, PlatformPermissions::MEDIA_DELETE], ['sa'], RoleLevel::Admin), true, true],
+    ]);
+
+    it('lets a Super Admin describe, retry and delete a private file', function () {
+        $private = privateMediaRow(MediaVisibility::Private, variantsStatus: 'FAILED');
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        app(UpdateMediaAltTextHandler::class)->handle(new UpdateMediaAltText($private, 'ورقة الشركة', 'The company paper'));
+        app(RetryMediaVariantsHandler::class)->handle(new RetryMediaVariants($private));
+
+        expect(DB::table('platform.media')->where('id', $private)->value('alt_en'))->toBe('The company paper')
+            ->and(DB::table('platform.media')->where('id', $private)->value('variants_status'))->toBe('PENDING');
+
+        app(DeleteMediaHandler::class)->handle(new DeleteMedia($private));
+
+        expect(DB::table('platform.media')->where('id', $private)->exists())->toBeFalse();
+    });
 });

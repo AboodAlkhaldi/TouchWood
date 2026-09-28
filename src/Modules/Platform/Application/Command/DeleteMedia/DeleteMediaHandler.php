@@ -12,6 +12,7 @@ use Modules\Platform\Application\Audit\MediaAudit;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Media\InMemoryMediaUsages;
 use Modules\Platform\Application\Media\MediaStorage;
+use Modules\Platform\Application\Media\PrivateMedia;
 use Modules\Platform\Domain\Exception\InvalidMediaAttribute;
 use Modules\Platform\Domain\Exception\MediaInUse;
 use Modules\Platform\Domain\Exception\MediaNotFound;
@@ -33,7 +34,8 @@ use Shared\Application\PermissionScope;
  * A module deleting a file it holds for its own use (B2B step 3, amendments 4 and 5) goes through
  * the same delete, with three differences: its own permission is checked instead of the media one,
  * only a private file may go, and **any** use refuses it — another module's use is never detached
- * on its behalf. Staff deletion is unchanged (platform.md §9.4).
+ * on its behalf. Staff deletion is unchanged (platform.md §9.4), except that a private file does not
+ * exist for staff who may not see private files (b2b.md amendment 8(a)).
  */
 final readonly class DeleteMediaHandler
 {
@@ -43,6 +45,7 @@ final readonly class DeleteMediaHandler
         private Authorizer $authorizer,
         private MediaRepository $media,
         private InMemoryMediaUsages $usages,
+        private PrivateMedia $private,
         private MediaStorage $storage,
         private AuditLog $auditLog,
         private ConnectionInterface $db,
@@ -86,6 +89,12 @@ final readonly class DeleteMediaHandler
             // Locked first: a module adding a reference to this media now waits for the delete.
             $media = $this->media->lockById($command->mediaId) ?? throw new MediaNotFound($command->mediaId);
             $forModule = $command->forModule;
+
+            // Before anything about its uses is said: a refusal that named the application holding
+            // a company's paper would tell staff it is there (amendment 8(a)).
+            if ($forModule === null) {
+                $this->private->reach($media);
+            }
 
             // A module deletes only the private files it holds (amendment 5): a public image may be
             // shared by anything that uploaded the same picture, so it is never one module's to remove.

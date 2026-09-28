@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
@@ -21,7 +22,11 @@ use Modules\Platform\Application\Query\ListMedia\ListMedia;
 use Modules\Platform\Application\Query\ListMedia\ListMediaHandler;
 use Modules\Platform\Application\Query\ListMedia\MediaRow;
 use Modules\Platform\Domain\Exception\MediaInUse;
+use Modules\Platform\Domain\Exception\MediaNotFound;
+use Modules\Platform\Presentation\Http\Resource\MediaFileRow;
+use Modules\Platform\Presentation\Http\Resource\MediaPages;
 use Modules\Platform\Public\Dto\MediaUseDto;
+use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -169,7 +174,48 @@ it('shows a Super Admin in the media library where the file is used, and that it
         static fn (MediaRow $row): bool => $row->id === $mediaId,
     ));
 
+    // And the page is told so too, so it offers no Delete on the paper (amendment 8(a)).
+    $page = array_values(array_filter(
+        app(MediaPages::class)->list(app(ListMediaHandler::class), null, null)->media,
+        static fn (MediaFileRow $row): bool => $row->id === $mediaId,
+    ));
+
     expect($rows)->toHaveCount(1)
         ->and($rows[0]->usedIn)->toBe(["b2b.application {$draft->id()}"])
-        ->and($rows[0]->deleteBlocked)->toBeTrue();
+        ->and($rows[0]->deleteBlocked)->toBeTrue()
+        ->and($page)->toHaveCount(1)
+        ->and($page[0]->deleteBlocked)->toBeTrue();
+});
+
+it('answers staff who may delete media, but not see private files, as if the paper did not exist, never naming the application', function (RoleLevel $level) {
+    // The case the review of step 3a found: "in use by b2b.application …" told them the paper was
+    // there, and whose it was (amendment 8(a)).
+    $draft = B2BFixtures::storedDraft(B2BFixtures::companyAccount());
+    $mediaId = b2bMediaUsageBytes(b2bMediaUsageFirstDocument($draft));
+    Fx::actAsStaff(Fx::staffWith([PlatformPermissions::MEDIA_DELETE], ['sa'], $level));
+    $error = null;
+
+    try {
+        app(DeleteMediaHandler::class)->handle(new DeleteMedia($mediaId));
+    } catch (Throwable $caught) {
+        $error = $caught;
+    }
+
+    expect($error)->toBeInstanceOf(MediaNotFound::class)
+        ->and((string) $error?->getMessage())->not->toContain($draft->id())
+        ->and(DB::table('platform.media')->where('id', $mediaId)->exists())->toBeTrue()
+        ->and(Storage::disk('local')->exists("media/{$mediaId}.pdf"))->toBeTrue();
+})->with([
+    'a staff member' => [RoleLevel::Staff],
+    'an admin not given the private-files permission' => [RoleLevel::Admin],
+]);
+
+it('tells an admin who may see private files and delete media that the paper is in use, and keeps it', function () {
+    $draft = B2BFixtures::storedDraft(B2BFixtures::companyAccount());
+    $mediaId = b2bMediaUsageBytes(b2bMediaUsageFirstDocument($draft));
+    Fx::actAsStaff(Fx::staffWith([PlatformPermissions::MEDIA_DELETE, PlatformPermissions::MEDIA_PRIVATE_VIEW], ['sa'], RoleLevel::Admin));
+
+    expect(fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($mediaId)))->toThrow(MediaInUse::class)
+        ->and(DB::table('platform.media')->where('id', $mediaId)->exists())->toBeTrue()
+        ->and(Storage::disk('local')->exists("media/{$mediaId}.pdf"))->toBeTrue();
 });

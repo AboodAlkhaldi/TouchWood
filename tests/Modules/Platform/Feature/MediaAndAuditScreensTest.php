@@ -187,7 +187,7 @@ describe('private files in the media library screen', function () {
             );
     });
 
-    it('hands the page a private file\'s name, date and where it is used, and nothing else (amendment 6(b))', function () {
+    it('hands the page a private file\'s name, date and where it is used, what describing and deleting it need, and nothing about the file (amendments 6(b), 8(a))', function () {
         Storage::fake('local', ['serve' => true]);
         $public = libraryScreenFile();
         $private = libraryScreenPrivateFile();
@@ -213,9 +213,12 @@ describe('private files in the media library screen', function () {
 
         $sent = static fn (array $row): array => array_keys(array_filter($row, static fn (mixed $value): bool => $value !== null));
 
-        // The id and the visibility are how the page tells rows apart and draws this one short.
-        expect($sent($rows[$private]))->toBe(['id', 'filename', 'visibility', 'uploadedAt', 'usedIn'])
+        // The id and the visibility are how the page tells rows apart and draws this one short; the
+        // two descriptions fill the Describe form, and deleteBlocked says whether Delete is offered.
+        expect($sent($rows[$private]))->toBe(['id', 'filename', 'visibility', 'uploadedAt', 'altAr', 'altEn', 'usedIn', 'deleteBlocked'])
             ->and($rows[$private]['filename'])->toBe('paper.pdf')
+            ->and($rows[$private]['altEn'])->toBe('The company paper')
+            ->and($rows[$private]['deleteBlocked'])->toBeFalse()
             // The public file beside it keeps everything, so the nulls are the private rule's.
             ->and($rows[$public]['mime'])->toBe('image/jpeg')
             ->and($rows[$public]['bytes'])->toBe(2_400_000)
@@ -224,6 +227,28 @@ describe('private files in the media library screen', function () {
             ->and($rows[$public]['retryable'])->toBeFalse()
             ->and($rows[$public]['deleteBlocked'])->toBeFalse();
     });
+
+    it('answers a request about a private file, from someone who may not see private files, exactly as for an id that never existed', function (string $permission, string $action) {
+        Storage::fake('local', ['serve' => true]);
+        Queue::fake();
+        $private = libraryScreenPrivateFile();
+        DB::table('platform.media')->where('id', $private)->update(['variants_status' => 'FAILED']);
+        $row = DB::table('platform.media')->where('id', $private)->first();
+        $browser = libraryScreenSignIn(Fx::staffWith([$permission], ['sa']));
+        $form = ['alt_ar' => 'ورقة الشركة', 'alt_en' => 'The company paper'];
+
+        $aboutPrivate = AdminBrowser::formError($browser->post("/admin/media/{$private}/{$action}", $form)->assertRedirect());
+        $aboutNothing = AdminBrowser::formError($browser->post('/admin/media/'.strtolower((string) Str::ulid())."/{$action}", $form)->assertRedirect());
+
+        expect($aboutPrivate)->toBe(trans('platform::errors.media_not_found.detail', [], 'en'))
+            ->and($aboutPrivate)->toBe($aboutNothing)
+            ->and(DB::table('platform.media')->where('id', $private)->first())->toEqual($row);
+        Queue::assertNothingPushed();
+    })->with([
+        'describing' => [PlatformPermissions::MEDIA_UPDATE, 'alt'],
+        'retrying' => [PlatformPermissions::MEDIA_UPLOAD, 'retry'],
+        'deleting' => [PlatformPermissions::MEDIA_DELETE, 'delete'],
+    ]);
 
     it('offers "private" when uploading only to someone who may see private files', function () {
         libraryScreenSignIn(Fx::staffWith([PlatformPermissions::MEDIA_UPLOAD], ['sa']))->get('/admin/media')

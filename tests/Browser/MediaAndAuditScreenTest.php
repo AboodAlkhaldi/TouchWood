@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -159,7 +160,7 @@ function libraryScreenShownDate(string $mediaId): string
     return substr((string) DB::table('platform.media')->where('id', $mediaId)->value('created_at'), 0, 10);
 }
 
-it('shows a private file in the table as its name, date and use only, with nothing to press', function () {
+it('shows a private file in the table as its name, date and use, with no picture, type or size, and Describe and Delete for a Super Admin', function () {
     $paper = 'paper-'.Str::random(8).'.pdf';
     $photo = 'photo-'.Str::random(8).'.jpg';
     $paperId = libraryScreenPaperNamed($paper);
@@ -176,13 +177,15 @@ it('shows a private file in the table as its name, date and use only, with nothi
         ->assertPathIs('/admin')
         ->navigate('/admin/media');
 
+    // A Super Admin holds every permission, so they may describe and delete it, as the public file
+    // beside it (amendment 8(a)).
     $page->assertSee($paper)
-        ->assertNotPresent("[data-test=\"describe-{$paperId}\"]")
-        ->assertNotPresent("[data-test=\"delete-{$paperId}\"]")
-        // The public file beside it keeps both.
+        ->assertPresent("[data-test=\"describe-{$paperId}\"]")
+        ->assertPresent("[data-test=\"delete-{$paperId}\"]")
         ->assertPresent("[data-test=\"describe-{$photoId}\"]")
         ->assertPresent("[data-test=\"delete-{$photoId}\"]")
-        // Its own row: the name, the date and where it is used - no picture, no type, no size.
+        // Its own row: the name, the date and where it is used - no picture, no type, no size, and
+        // exactly the two buttons.
         ->assertScript(<<<JS
             (() => {
                 const row = [...document.querySelectorAll('tbody tr')].find((tr) => tr.textContent.includes('{$paper}'));
@@ -193,10 +196,45 @@ it('shows a private file in the table as its name, date and use only, with nothi
                     && ! row.textContent.includes('2.3 MB')
                     && ! row.textContent.includes('Ready')
                     && row.querySelector('img') === null
-                    && row.querySelector('button') === null;
+                    && row.querySelectorAll('button').length === 2;
             })()
             JS)
         ->assertNoJavaScriptErrors();
+});
+
+it('lets an admin given "see" and "describe" describe a private file through the page, and offers no Delete', function () {
+    $paper = 'paper-'.Str::random(8).'.pdf';
+    $paperId = libraryScreenPaperNamed($paper);
+    $email = (string) DB::table('access.staff_users')
+        ->where('id', Fx::staffWith([PlatformPermissions::MEDIA_UPDATE, PlatformPermissions::MEDIA_PRIVATE_VIEW], ['sa'], RoleLevel::Admin))
+        ->value('email');
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', $email)
+        ->type('#password', LIBRARY_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        ->navigate('/admin/media');
+
+    // An id begins with a digit, which a "#id" selector cannot: hence the attribute form.
+    $page->assertSee($paper)
+        ->assertNotPresent("[data-test=\"delete-{$paperId}\"]")
+        ->click("[data-test=\"describe-{$paperId}\"]")
+        ->type("[id=\"{$paperId}-alt_en\"]", 'The company paper')
+        ->press('Save');
+
+    // The save is a request the page sends in the background, served by this same process: give
+    // it its moment rather than read the row before it arrives.
+    for ($tries = 0; $tries < 25 && DB::table('platform.media')->where('id', $paperId)->value('alt_en') === null; $tries++) {
+        $page->wait(0.2);
+    }
+
+    expect(DB::table('platform.media')->where('id', $paperId)->value('alt_en'))->toBe('The company paper');
+
+    $page->assertNoJavaScriptErrors();
 });
 
 it('shows a private file in the grid as its name, date and use, without a picture', function () {

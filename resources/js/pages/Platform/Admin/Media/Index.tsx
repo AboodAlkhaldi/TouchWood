@@ -174,7 +174,11 @@ function statusKey(status: string): string {
     return `platform::admin_media.variants_${status.toLowerCase()}`;
 }
 
-/** A company's papers and the like: listed here by name only, never shown or changed (amendment 6). */
+/**
+ * A company's papers and the like: listed by name, never shown (amendment 6). Only someone who may
+ * see private files is sent one, and they describe or delete it with the usual permissions, as any
+ * other file (amendment 8).
+ */
 function isPrivate(file: MediaFileRow): boolean {
     return file.visibility === 'PRIVATE';
 }
@@ -198,41 +202,33 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
     const alt = useForm({ alt_ar: file.altAr ?? '', alt_en: file.altEn ?? '' });
     const [confirming, setConfirming] = useState(false);
 
-    // Its name, its date and where it is used, and nothing else (amendment 6).
-    if (isPrivate(file)) {
-        return (
-            <tr>
-                <td className="px-4 py-3 text-ink">{file.filename}</td>
-                <td className="px-4 py-3" />
-                <td className="px-4 py-3" />
-                <td className="px-4 py-3 text-xs text-ink-muted">{usedIn(file, t)}</td>
-                <td className="tw-figure px-4 py-3 text-xs text-ink-muted" dir="ltr">
-                    {file.uploadedAt.slice(0, 10)}
-                </td>
-                <td className="px-4 py-3" />
-            </tr>
-        );
-    }
-
     return (
         <>
             <tr>
                 <td className="px-4 py-3">
                     {/* The picture belongs in the table too, not only in the grid (owner,
                         2026-09-24): a library of file names is a list of strings, and the one
-                        question somebody has about a file is what it looks like. */}
-                    <div className="flex items-center gap-3">
-                        <span className="w-12 shrink-0">
-                            <Thumbnail file={file} />
-                        </span>
+                        question somebody has about a file is what it looks like. A private file
+                        is the exception: its name only (amendment 6). Its type and size never
+                        reach the page, and it offers no retry. */}
+                    {isPrivate(file) ? (
+                        <span className="text-ink">{file.filename}</span>
+                    ) : (
+                        <div className="flex items-center gap-3">
+                            <span className="w-12 shrink-0">
+                                <Thumbnail file={file} />
+                            </span>
 
-                        <span className="grid gap-0.5">
-                            <span className="text-ink">{file.filename}</span>
-                            {file.variantsStatus === null ? null : (
-                                <span className="text-xs text-ink-muted">{t(statusKey(file.variantsStatus))}</span>
-                            )}
-                        </span>
-                    </div>
+                            <span className="grid gap-0.5">
+                                <span className="text-ink">{file.filename}</span>
+                                {file.variantsStatus === null ? null : (
+                                    <span className="text-xs text-ink-muted">
+                                        {t(statusKey(file.variantsStatus))}
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+                    )}
                 </td>
                 <td className="px-4 py-3 text-xs text-ink-muted">{file.mime}</td>
                 <td className="tw-figure px-4 py-3 text-xs text-ink-muted">{file.size}</td>
