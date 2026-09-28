@@ -36,6 +36,7 @@ use Modules\B2B\Application\Query\ViewMyCompany\ViewMyCompany;
 use Modules\B2B\Application\Query\ViewMyCompany\ViewMyCompanyHandler;
 use Modules\B2B\Domain\Exception\ApplicationFileNotFound;
 use Modules\B2B\Domain\Exception\CompanyNotFound;
+use Modules\B2B\Domain\Exception\CompanySuspended;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
@@ -135,23 +136,82 @@ describe('who reaches the company\'s own side (§3.1)', function () {
     })->with(companyAccountUseCases());
 });
 
-describe('the address (§1.1, amendments 4 and 5)', function () {
-    it('changes in every status, suspended included, and never sends the company back to PENDING', function (string $status) {
-        $customerId = B2BFixtures::verifiedCompanyAccount();
-        [$company] = B2BFixtures::rejected($customerId);
+/**
+ * The use cases that write: each serialises the account's work under its lock.
+ *
+ * @return array<string, array{0: Closure(): mixed}>
+ */
+function companyAccountWriters(): array
+{
+    return array_diff_key(companyAccountUseCases(), ['opening a file' => true, 'viewing the company' => true]);
+}
 
-        if ($status === 'SUSPENDED') {
-            B2BFixtures::suspend($company);
+describe('the account\'s lock (§1.1, §1.2: one company and one open application per account)', function () {
+    it('is taken by every use case that writes, inside that use case\'s own transaction', function (Closure $useCase) {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        Fx::actAsCustomer($customerId);
+        $locks = B2BFixtures::accountLocks();
+
+        try {
+            $useCase();
+        } catch (Throwable) {
+            // Refused after the lock, most of them — nothing is open yet. The lock is what is asked.
         }
 
+        // Level 2: the use case's own transaction, not only the test's. Without it the lock would
+        // end with its statement and serialise nothing.
+        expect($locks->getArrayCopy())->toContain(['exclusive', 'b2b:account:'.$customerId, 2]);
+    })->with(companyAccountWriters());
+
+    it('is taken shared by the company page, so its reads see one moment (the review of step 3b)', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        Fx::actAsCustomer($customerId);
+        $locks = B2BFixtures::accountLocks();
+
+        companyAccountView();
+
+        expect($locks->getArrayCopy())->toBe([['shared', 'b2b:account:'.$customerId, 2]]);
+    });
+});
+
+describe('the address (§1.1, amendments 4, 5 and 9(d))', function () {
+    it('changes after a rejection, and never sends the company back to PENDING', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::rejected($customerId);
         Fx::actAsCustomer($customerId);
 
         companyAccountMove("Olaya Street\nRiyadh");
         $moved = app(CompanyRepository::class)->forCustomer($customerId);
 
         expect($moved?->details()->address->value)->toBe("Olaya Street\nRiyadh")
-            ->and($moved?->status()->value)->toBe($status);
-    })->with(['REJECTED', 'SUSPENDED']);
+            ->and($moved?->status()->value)->toBe('REJECTED');
+    });
+
+    it('changes while a sent application waits, and leaves that application as it was sent (the review of step 3b)', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        [, $waiting] = B2BFixtures::sent($customerId);
+        Fx::actAsCustomer($customerId);
+
+        companyAccountMove("Olaya Street\nRiyadh");
+
+        expect(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->value)->toBe("Olaya Street\nRiyadh")
+            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->status()->value)->toBe('PENDING')
+            ->and(app(ApplicationRepository::class)->find($waiting->id())?->address()?->value)->toBe("King Fahd Road\nRiyadh");
+    });
+
+    it('is refused while the company is suspended, and nothing is written — the company, its draft, the log (amendment 9(d))', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        [$company] = B2BFixtures::rejected($customerId);
+        Fx::actAsCustomer($customerId);
+        app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
+        B2BFixtures::suspend($company);
+        $levels = B2BFixtures::auditLevels();
+
+        expect(fn () => companyAccountMove("Olaya Street\nRiyadh"))->toThrow(CompanySuspended::class)
+            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->value)->toBe("King Fahd Road\nRiyadh")
+            ->and(app(ApplicationRepository::class)->openFor($customerId)?->address()?->value)->toBe("King Fahd Road\nRiyadh")
+            ->and(array_filter($levels->getArrayCopy(), static fn (array $entry): bool => str_starts_with($entry[0], 'b2b.')))->toBe([]);
+    });
 
     it('is audited on the company, as "changed", inside its own transaction (amendment 4)', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
@@ -328,7 +388,12 @@ describe('what the account is shown (§3.1, §4.3)', function () {
             $files[$file->documentTypeId] = $file->noLongerAccepted;
         }
 
-        expect(array_map(static fn ($flag): array => [$flag->field, $flag->documentTypeId], $draft->flags ?? []))->toEqualCanonicalizing([['cr_number', null], [null, $documentType->id()]])
+        // Sorted, then compared exactly: toEqualCanonicalizing would sort inside each pair too, and a
+        // field flag would pass for a paper's (lesson 105).
+        $flags = array_map(static fn ($flag): array => [$flag->field, $flag->documentTypeId], $draft->flags ?? []);
+        sort($flags);
+
+        expect($flags)->toBe([[null, $documentType->id()], ['cr_number', null]])
             ->and(array_map(static fn ($request): array => [$request->id, $request->kind, $request->label], $draft->requests ?? []))->toBe([[$requestId, 'TEXT', 'Who signs for the company?']])
             ->and(array_map(static fn ($answer): array => [$answer->requestId, $answer->text], $draft->answers ?? []))->toBe([[$requestId, 'Sara Ali']])
             // The paper under the type deactivated since is marked; the others are not.

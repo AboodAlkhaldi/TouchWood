@@ -47,6 +47,12 @@ interface ApplicationRepository
     public function lockAccount(string $customerId): void;
 
     /**
+     * The same lock, shared: readers do not wait for each other, only for a writer, and no writer
+     * commits while they read — so a read of several tables sees them as of one moment.
+     */
+    public function lockAccountForReading(string $customerId): void;
+
+    /**
      * @throws ApplicationAlreadyOpen the account already has an open application — which the lock
      *                                above means only a caller that skipped it can reach
      */

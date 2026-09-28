@@ -218,6 +218,30 @@ final class B2BFixtures
     }
 
     /**
+     * Records, for every advisory lock asked for from now on, whether it is exclusive or shared, its
+     * key, and the transaction level at the moment — so a test tells a lock taken inside a use case's
+     * own transaction (level 2 under RefreshDatabase) from one missing, or taken where the lock would
+     * end with the statement (the review of step 3b).
+     *
+     * @return ArrayObject<int, array{0: string, 1: string, 2: int}>
+     */
+    public static function accountLocks(): ArrayObject
+    {
+        /** @var ArrayObject<int, array{0: string, 1: string, 2: int}> $locks */
+        $locks = new ArrayObject;
+
+        DB::listen(static function (QueryExecuted $query) use ($locks): void {
+            if (preg_match('/pg_advisory_xact_lock(_shared)?\(/', $query->sql, $match) !== 1) {
+                return;
+            }
+
+            $locks[] = [($match[1] ?? '') === '_shared' ? 'shared' : 'exclusive', (string) ($query->bindings[0] ?? ''), DB::transactionLevel()];
+        });
+
+        return $locks;
+    }
+
+    /**
      * Counts every file Platform starts to store from now on — even one a rolled-back transaction
      * then takes away. A refusal "before anything is stored" leaves it at zero, where an upload that
      * came first and was undone would not (3a critic M5).

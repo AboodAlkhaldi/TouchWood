@@ -99,7 +99,17 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
         // A row lock locks nothing while the account has no application or company yet, so two
         // first starts, or two first sends, would both see none. A transaction-scoped advisory lock
         // on the account serialises them (as DatabaseSettings::lockForUpdate does for a setting).
-        $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['b2b:account:'.strtolower($customerId)], false);
+        $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [self::accountKey($customerId)], false);
+    }
+
+    public function lockAccountForReading(string $customerId): void
+    {
+        $this->db->select('SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))', [self::accountKey($customerId)], false);
+    }
+
+    private static function accountKey(string $customerId): string
+    {
+        return 'b2b:account:'.strtolower($customerId);
     }
 
     public function add(Application $application): void

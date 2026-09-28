@@ -9,6 +9,7 @@ use Modules\B2B\Application\Account\CurrentCompanyAccount;
 use Modules\B2B\Application\Audit\CompanyAccountAudit;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Domain\Exception\CompanyNotFound;
+use Modules\B2B\Domain\Exception\CompanySuspended;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
@@ -20,8 +21,10 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
 /**
- * **The address changes freely** (b2b.md §1.1): in every status, suspended included, and it never
- * sends the company back to `PENDING` — it is not one of the details staff approve.
+ * **The address changes freely** (b2b.md §1.1), and it never sends the company back to `PENDING` —
+ * it is not one of the details staff approve — **but not while the company is suspended**
+ * (CompanySuspended, amendment 9(d)): a suspended company changes nothing, so nothing is ever written
+ * into its frozen draft either.
  *
  * - Before the first application is sent there is no company, and the address lives in the draft
  *   (CompanyNotFound here).
@@ -45,7 +48,7 @@ final readonly class UpdateCompanyContactHandler
     ) {}
 
     /**
-     * @throws NotACompanyAccount|InvalidCompanyAttribute|CompanyNotFound
+     * @throws NotACompanyAccount|InvalidCompanyAttribute|CompanyNotFound|CompanySuspended
      */
     public function handle(UpdateCompanyContact $command): void
     {

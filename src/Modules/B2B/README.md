@@ -95,8 +95,11 @@ halves are the company's own use cases (step 3b): each takes `ApplicationReposit
 a transaction-scoped advisory lock, since a row lock locks nothing while the account has no row yet
 — then reads, so two first starts or two first sends of one account run one after the other, and
 the second sees what the first wrote. A caller that skipped the lock and still reached the index is
-answered `ApplicationAlreadyOpen`, not a database error (lesson 64). The lock itself cannot be proved
-by a test in one process; the index behind it is.
+answered `ApplicationAlreadyOpen`, not a database error (lesson 64). The tests prove the lock is
+taken, and taken inside each use case's own transaction — not merely inside the test's — by
+recording the transaction level at which every advisory lock is asked for (`B2BFixtures::accountLocks`).
+`ViewMyCompany` takes the same lock **shared**, so its several reads see one moment: readers wait
+for a writer, never for each other.
 
 **A rejection can say what to fix and what to add** (amendment 4), and only a rejection:
 `Application::reject()` takes **flags** — any of the five fields, or a document the application sent
@@ -154,11 +157,14 @@ store-free; B2B declares them into Access's catalog, being above Access.
 
 **The draft's actions name no application** (amendment 5): they act on the account's one open
 application, through `OpenDrafts`, which locks **the account, then the company's row**, reads the
-draft, and refuses in one order — none open (`ApplicationNotFound`), the company suspended
-(`CompanySuspended`: starting, saving, uploading, answering and removing are all refused, amendment
-9(a)), already sent (`ApplicationNotEditable`). Discarding goes around it, being the one thing a
-suspended company's draft allows. **Step 4's staff actions must take the company's row in the same
-order** (lesson 37): never the company's row and then the account's lock.
+draft (read, not locked: every writer holds the account's lock), and refuses in one order — none
+open (`ApplicationNotFound`), the company suspended (`CompanySuspended`: starting, saving,
+uploading, answering and removing are all refused, amendment 9(a)), already sent
+(`ApplicationNotEditable`). Discarding goes around it, being the one thing a suspended company's
+draft allows. **A suspended company changes nothing else either**: starting is refused even with a
+draft open (9(e)), and so is the address (9(d), which reversed the 2026-09-25 rule — refused in
+the domain, by `Company::moveTo`, so no caller can skip it). **Step 4's staff actions must take the
+company's row in the same order** (lesson 37): never the company's row and then the account's lock.
 
 **Files are checked before they are stored.** An upload under a type that is inactive, another
 store's, or unknown is `DocumentTypeInactive`, and an answer to a request that is not the last

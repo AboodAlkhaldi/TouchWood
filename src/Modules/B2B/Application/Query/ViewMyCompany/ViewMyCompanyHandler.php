@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\B2B\Application\Query\ViewMyCompany;
 
 use DateTimeInterface;
+use Illuminate\Database\ConnectionInterface;
+use Modules\Access\Public\Dto\CustomerDto;
 use Modules\B2B\Application\Account\CurrentCompanyAccount;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
@@ -49,6 +51,7 @@ final readonly class ViewMyCompanyHandler
         private ApplicationRepository $applications,
         private CompanyTypeRepository $companyTypes,
         private DocumentTypeRepository $documentTypes,
+        private ConnectionInterface $db,
     ) {}
 
     /**
@@ -59,6 +62,18 @@ final readonly class ViewMyCompanyHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $account = $this->account->get(self::PERMISSION);
 
+        // Several reads, of one moment: the account's lock, shared, so no writer — the first send
+        // above all, which creates the company — commits between them. Without it the page could
+        // say "finish and submit" for an application just sent (the review of step 3b).
+        return $this->db->transaction(function () use ($account): MyCompanyView {
+            $this->applications->lockAccountForReading($account->id);
+
+            return $this->read($account);
+        });
+    }
+
+    private function read(CustomerDto $account): MyCompanyView
+    {
         $company = $this->companies->forCustomer($account->id);
         $open = $this->applications->openFor($account->id);
         $draft = $open?->state() === ApplicationState::Draft ? $open : null;

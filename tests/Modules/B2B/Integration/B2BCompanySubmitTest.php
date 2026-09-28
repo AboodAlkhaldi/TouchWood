@@ -186,6 +186,27 @@ describe('sending an application (§1.2, §3.1, §4.1)', function () {
             ]);
     });
 
+    it('audits a type typed under Other, and a note, as "changed" — never by value (amendment 4, the review of step 3b)', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        Fx::actAsCustomer($customerId);
+        companySubmitFilledDraft();
+        app(SaveApplicationDraftHandler::class)->handle(new SaveApplicationDraft(['company_type_other' => 'Charitable foundation', 'note' => 'Please call before visiting.']));
+        $draftId = (string) companySubmitOpen($customerId)?->id();
+
+        companySubmitSend();
+
+        expect(companySubmitChanges('b2b.application.submitted', $draftId))->toBe([
+            'address' => 'changed',
+            'company_status' => [null, 'PENDING'],
+            'company_type_other' => 'changed',
+            'cr_number' => 'changed',
+            'name' => 'changed',
+            'note' => 'changed',
+            'state' => ['DRAFT', 'SUBMITTED'],
+            'tax_number' => 'changed',
+        ]);
+    });
+
     it('refuses before the email address is confirmed, and creates nothing (scenario 5)', function () {
         $customerId = B2BFixtures::companyAccount();
         Fx::actAsCustomer($customerId);

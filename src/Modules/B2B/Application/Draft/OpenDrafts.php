@@ -16,9 +16,11 @@ use Modules\B2B\Public\Enums\CompanyStatus;
  * **The draft's actions name no application** (b2b.md §3.1, amendment 5): they act on the account's
  * one open application. What every one of them does first, inside its own transaction.
  *
- * One lock order for all of them (lesson 37): the account, then the company's row, then the
- * application — so a staff member suspending the company waits for a save in progress, and the save
- * never acts on a company suspended under it.
+ * One lock order for all of them (lesson 37): the account's lock, then the company's row; the
+ * application is then **read, not locked** — every writer of a draft holds the account's lock, so no
+ * other can change it meanwhile. A staff member suspending the company waits for a save in progress,
+ * and the save never acts on a company suspended under it. Step 4's staff actions that write into a
+ * draft must take the company's row after the account's lock, never before, or read it under both.
  */
 final readonly class OpenDrafts
 {

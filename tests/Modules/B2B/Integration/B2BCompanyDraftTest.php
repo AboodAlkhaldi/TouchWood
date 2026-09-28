@@ -169,6 +169,8 @@ describe('starting a draft (§3.1, amendment 5)', function () {
         $corrected = B2BFixtures::companyTypes()[0]->id();
         $company->correctType(CompanyTypeChoice::listed($corrected), B2BFixtures::companyTypes());
         app(CompanyRepository::class)->update($company);
+        // A note the rejected application really carries, so its not being copied is shown (lesson 80).
+        DB::table('b2b.applications')->where('id', $rejected->id())->update(['note' => 'Please call before visiting.']);
         Fx::actAsCustomer($customerId);
 
         companyDraftStart();
@@ -180,6 +182,8 @@ describe('starting a draft (§3.1, amendment 5)', function () {
             ->and($draft->address()?->value)->toBe("Olaya Street\nRiyadh")
             ->and($draft->type()?->typeId)->toBe($corrected)
             ->and($draft->name()?->value)->toBe('Al Noor Trading')
+            // Each application's note is its own (amendment 5).
+            ->and($sent?->note()?->value)->toBe('Please call before visiting.')
             ->and($draft->note())->toBeNull()
             // The same files, under the same types, with the dates they were uploaded.
             ->and(array_map(static fn ($document): array => [$document->mediaId, $document->uploadedAt->format(DATE_ATOM)], $draft->documents()))
@@ -197,6 +201,16 @@ describe('starting a draft (§3.1, amendment 5)', function () {
 
         expect(fn () => companyDraftStart())->toThrow(CompanySuspended::class)
             ->and(app(ApplicationRepository::class)->openFor($customerId))->toBeNull();
+    });
+
+    it('refuses a suspended company even with its draft open, and leaves that draft as it is (amendment 9(e))', function () {
+        [$customerId] = companyDraftAfterRejection();
+        $draftId = companyDraftOpen($customerId)->id();
+        B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId) ?? throw new LogicException);
+
+        expect(fn () => companyDraftStart())->toThrow(CompanySuspended::class)
+            ->and(companyDraftOpen($customerId)->id())->toBe($draftId)
+            ->and(companyDraftOpen($customerId)->state()->value)->toBe('DRAFT');
     });
 });
 
@@ -557,10 +571,10 @@ describe('answering the last rejection\'s requests (§1.2, amendments 4, 5 and 9
     });
 });
 
-it('serialises two first starts of one account: the second finds the first (lesson 64)', function () {
-    // The partial unique index is the backstop behind the account lock: a caller that skipped the
-    // lock and added a second open application is refused as ApplicationAlreadyOpen, not a raw
-    // database error.
+it('refuses a second open application at the database too, behind the account\'s lock (lesson 64)', function () {
+    // The partial unique index is the backstop behind the account lock (B2BCompanyAccountTest shows
+    // every use case takes it): a caller that skipped the lock and added a second open application
+    // is refused as ApplicationAlreadyOpen, not a raw database error.
     $customerId = B2BFixtures::companyAccount();
     Fx::actAsCustomer($customerId);
     companyDraftStart();
@@ -580,4 +594,24 @@ it('records when each paper was uploaded (§1.4)', function () {
     expect(array_values(companyDraftOpen($customerId)->documents())[0]->uploadedAt->format('Y-m-d H:i'))->toBe('2026-09-29 10:00');
 
     CarbonImmutable::setTestNow();
+});
+
+it('writes nothing of its own to the audit log when it starts, uploads, answers or removes (amendment 4)', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    $requestId = strtolower((string) Str::ulid());
+    B2BFixtures::rejected($customerId, [], [ApplicationRequest::add($requestId, RequestKind::File, 'A bank letter', 1)]);
+    Fx::actAsCustomer($customerId);
+    $typeId = companyDraftDocumentTypeIds()[0];
+    $levels = B2BFixtures::auditLevels();
+
+    companyDraftStart();
+    companyDraftAttach($typeId);
+    app(AnswerApplicationRequestHandler::class)->handle(new AnswerApplicationRequest($requestId, path: B2BFixtures::pdf(), originalFilename: 'bank.pdf'));
+    app(RemoveApplicationDocumentHandler::class)->handle(new RemoveApplicationDocument($typeId));
+    app(RemoveApplicationAnswerHandler::class)->handle(new RemoveApplicationAnswer($requestId));
+    $actions = array_column($levels->getArrayCopy(), 0);
+
+    // Platform keeps its own entries for the files — which also shows the recorder heard them.
+    expect(array_values(array_filter($actions, static fn (string $action): bool => str_starts_with($action, 'b2b.'))))->toBe([])
+        ->and($actions)->toContain('platform.media.uploaded');
 });
