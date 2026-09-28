@@ -279,10 +279,10 @@ it('draws the audit log with its filters', function () {
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]')
         ->assertPathIs('/admin')
-        ->navigate('/admin/audit');
+        ->navigate('/admin/audit?action=platform.currency.created');
 
-    // The seeder opened three stores and added three currencies, and every one was audited: this
-    // log is never empty.
+    // The seeder added three currencies, and every one was audited. Filtered to that action, they
+    // stay on the first page however many sign-ins earlier runs have left in this database.
     $page->assertSee('Audit log')
         ->assertSee('Currency added')
         ->assertSee('Filters')
