@@ -24,15 +24,16 @@ with each step.
 | `Domain/ValueObject` | The company's values — `CompanyName`, `RegistrationNumber`, `CompanyAddress`, `CompanyTypeChoice` (a listed type or "Other"), `CompanyDetails` (all five, as sent) — and `Remark` for reasons, notes and text answers; `CompanyText`, the two ways typed text is accepted; `ApplicationState`, `AttachedDocument`, `TypeName`, `TypePosition`, `InactiveTypeDisplay` (hidden or greyed); `ApplicationFlag` and `FlaggedField`, `ApplicationRequest` and `RequestKind`, `RequestAnswer` |
 | `Domain/Exception` | `B2BError`, the base of every error here, and one class per refusal |
 | `Domain/Repository` | One per aggregate: companies, applications (with their files, flags, requests and answers), the two type lists, the stores' "copied" flags |
-| `Application/Types` | `StartingTypes`, the lists every store starts with; `GiveEveryStoreTheStartingTypes`, which writes them into a store that has none |
-| `Application` | `B2BPermissions` — the two automatic permissions of the company's own side, declared into Access's catalog at boot |
-| `Application/Command` | The company's own side (step 3b): `StartApplicationDraft`, `SaveApplicationDraft`, `AttachApplicationDocument`, `RemoveApplicationDocument`, `AnswerApplicationRequest`, `RemoveApplicationAnswer`, `SubmitApplication`, `DiscardApplicationDraft`, `UpdateCompanyContact` |
-| `Application/Query` | `ViewMyCompany` and its read classes — what the account is shown; `OpenMyApplicationFile`, a 30-minute link to one of its own files |
+| `Application/Types` | `StartingTypes`, the lists every store starts with; `GiveEveryStoreTheStartingTypes`, which writes them into a store that has none; `StaffTypeAction`, what every staff change to a list shares; `TypeListsNotice`, which clears a store's "copied" notice |
+| `Application` | `B2BPermissions` — the two automatic permissions of the company's own side and the eleven staff jobs, declared into Access's catalog at boot |
+| `Application/Command` | The company's own side (step 3b): `StartApplicationDraft`, `SaveApplicationDraft`, `AttachApplicationDocument`, `RemoveApplicationDocument`, `AnswerApplicationRequest`, `RemoveApplicationAnswer`, `SubmitApplication`, `DiscardApplicationDraft`, `UpdateCompanyContact`. Staff (step 4): `ApproveCompany`, `RejectCompany`, `SuspendCompany`, `ReinstateCompany`, `CorrectCompanyType`, `DownloadCompanyDocument`; the lists: `Add`/`Rename`/`Move`/`Deactivate`/`ActivateCompanyType`, the same for `DocumentType` with `RequireDocumentType`, and `MarkTypeListsReviewed` |
+| `Application/Query` | `ViewMyCompany` and its read classes — what the account is shown; `OpenMyApplicationFile`, a 30-minute link to one of its own files; staff's `ListCompanies` and `ViewCompany`; `ApplicationViews`, how an application is shown to both |
+| `Application/Staff` | `StaffCompanyAction` (which store, what a stranger is told, who decides), `CompanyTypeCorrection` (every change of a company's type), `CompanyMessages` (the decision emails, after commit) |
 | `Application/Account` | `CurrentCompanyAccount`: the signed-in company account every use case above starts from |
 | `Application/Draft` | `OpenDrafts`: the account's open draft, read under its locks, refused in the one order every draft action shares |
 | `Application/Files` | `ApplicationFiles`: B2B's own uploads (private, under its own permission) and letting go of what no application holds |
-| `Application/Audit` | `CompanyAccountAudit`: the three company actions the audit log keeps |
-| `Infrastructure/Eloquent` | The database repositories; `TypeNames`, the one "is this name taken" query both lists share; `Ulids` |
+| `Application/Audit` | `CompanyAccountAudit`: the three company actions the audit log keeps; `StaffCompanyAudit` and `TypeAudit`: staff's |
+| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `TypeNames`, the one "is this name taken" query both lists share; `Ulids` |
 | `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated` |
 | `Infrastructure/Media` | `ApplicationFilesUsage`: B2B's answer when Platform asks where a file is used |
 | `Infrastructure/Persistence/Migrations` | The `b2b` schema; the two type tables and the stores' "copied" flags; the companies, applications and their files; a rejection's flags and requests and a draft's answers |
@@ -163,8 +164,8 @@ uploading, answering and removing are all refused, amendment 9(a)), already sent
 (`ApplicationNotEditable`). Discarding goes around it, being the one thing a suspended company's
 draft allows. **A suspended company changes nothing else either**: starting is refused even with a
 draft open (9(e)), and so is the address (9(d), which reversed the 2026-09-25 rule — refused in
-the domain, by `Company::moveTo`, so no caller can skip it). **Step 4's staff actions must take the
-company's row in the same order** (lesson 37): never the company's row and then the account's lock.
+the domain, by `Company::moveTo`, so no caller can skip it). Staff take the company's row in the
+same order (step 4, below).
 
 **Files are checked before they are stored.** An upload under a type that is inactive, another
 store's, or unknown is `DocumentTypeInactive`, and an answer to a request that is not the last
@@ -191,3 +192,73 @@ staff names.
 the break kept as `\n`, for the address and for reasons and notes. Each column has a CHECK behind
 it, and a test that the database takes everything the code takes — Arabic names, and numbers in
 Arabic-Indic digits.
+
+## The staff side (step 4)
+
+**One permission per job** (amendment 10): eleven, in `B2BPermissions::staff()`, named as every
+module's are, an action sharing one with its undo (suspend and reinstate, deactivate and activate).
+Every one is per store and none is admin-only: any staff or admin role may be given any of them.
+Holding one job never grants another — viewing a company does not open its papers, reviewing does
+not suspend.
+
+**Which store, and what a stranger is told.** A company's jobs are checked in **the account's home
+store**, a type's in **the type's own store** (`StaffCompanyAction`, `StaffTypeAction`, after
+Access's `StaffCustomerAction`). Someone holding the job in no store is `Unauthorized` before
+anything is read; a company or a type of a store they do not cover answers exactly as one that
+does not exist — `CompanyNotFound`, `TypeNotFound` — so the panel never confirms which ids are real.
+A store they name themselves (adding a type, "Reviewed", the list's store filter) is refused as not
+allowed. **A decision needs a staff member** (`decided_by`, `status_changed_by`), so the system —
+which the permission check lets through — is refused approving, rejecting, suspending and
+reinstating.
+
+**One lock order for all of B2B** (lesson 37), each step inside the use case's own transaction:
+
+1. the store's type-list lock, `b2b:types:<store>` — every change to a list, and a correction or an
+   approval that may **activate** a type;
+2. the account's lock, `b2b:account:<customer>` — several accounts in account order (replacing a
+   deactivated type on its companies);
+3. the company's row;
+4. the application, read, not locked.
+
+The tests record every advisory lock with its key and transaction level (`B2BFixtures::accountLocks`)
+and prove both the level and the order.
+
+**Decisions** (`ApproveCompany`, `RejectCompany`, `SuspendCompany`, `ReinstateCompany`) run the domain's
+state machine (§4.1): only a `PENDING` company has something to decide, asked first so a suspended
+company's waiting application is refused for what it is; suspending remembers the status to return
+to. Each is audited — deciding on the application, a status change on the company — with **what
+staff wrote or marked by value** (a reason, a note, flags, requests' labels), as Access records a
+block's reason. **The customer's email goes only once the decision has committed**
+(`CompanyMessages`, `afterCommit`): approved with the note, rejected with the reason, suspended
+with the reason; reinstating sends none. A rolled-back decision emails nobody.
+
+**Approving an application whose type was deactivated after it was sent needs a choice** (10(e)):
+the replacement the deactivation gave the company, the sent type kept for this company alone (it
+stays deactivated for everyone else), or a correction — `CompanyTypeChoiceRequired` otherwise, and
+`CompanyTypeChoiceNotNeeded` for a choice sent once the type is active again (10(i)), so the
+reviewer decides with the facts as they are.
+
+**Every change of a company's type goes one way** (`CompanyTypeCorrection`): the correction itself,
+an approval's choice, and the replacement of a deactivated type. `Company::correctType` refuses a
+**suspended** company in the domain (10(h)), so no path changes one — the replacement skips it. A
+**deactivated** type is taken only once staff confirm it becomes active again, and only by someone who
+may also deactivate and activate that store's company types (8(b), 10(b)). An open draft follows only
+while it still holds the company's type (§3.1). It never touches an application sent.
+
+**The type lists** (`Add…`, `Rename…`, `Move…`, `RequireDocumentType`, `Deactivate…`, `Activate…`):
+a type is **never deleted** (10(c)). Every change runs through `StaffTypeAction::change()` — its own
+transaction, the store's lock first, the work, then, if anything changed, **the store's "copied"
+notice cleared** (`TypeListsNotice`, 10(d)) and the audit, by value (a type's names are the store's
+words, not personal data). Deactivating a company type with a replacement moves every company holding
+it — approved ones included, suspended ones not — in one transaction, each audited as
+`b2b.company.type_replaced`. Known limit: a company sending an application in the same instant a
+type is deactivated can still send it; its reviewer then meets the warning above.
+
+**What staff read.** `ListCompanies` pages in SQL with every filter in the WHERE clause, so the total
+never counts what the reader may not see (lesson 69): waiting companies first, the oldest sent first,
+then the latest status change; search by name, CR number or tax number, a `%` meaning itself.
+`ViewCompany` reads under the account's lock, shared, as the company's own page does, and shows the
+applications sent — **never a draft** — through the same `ApplicationViews` the company sees, plus
+who decided each. `DownloadCompanyDocument` opens a paper or a file answer of a **sent** application
+only, and **audits each opening** without the file's id (10(f)), so the log tells a reader without
+the private-files permission nothing about which file exists.
