@@ -426,7 +426,7 @@ Platform shows them on an admin screen (frontend.md E7):
   can quote the values it was writing, personal data among them, and a job belongs to no store, so
   it is global. It sits in a new business area, **System**.
 - **The list**: what the job was, in the words of the module that owns it (a job no module names
-  shows its technical name), when it failed, how many attempts it had, and the error's first line —
+  shows its technical name), when it failed, how many tries it was allowed, and the error's first line —
   oldest first. **Opening one** shows its whole error and the queue it ran on.
 - **Retry one**: the job goes back on its own queue, attempts counted afresh, and leaves the list;
   if it fails again it comes back. **Delete one**: gone for good, unrun. No bulk actions.
@@ -856,7 +856,7 @@ stack traces, SQL, or another customer's data.
 - Admin-permission scenarios (403 for a staff member scoped to `sa` editing `ae`) are written in
   Stage 2, when Access provides real roles.
 - **Failed jobs (2026-09-29):** a job that fails its last attempt is listed, oldest first, with its
-  owner's name for it, when it failed, its attempts and the error's first line; opening it shows the
+  owner's name for it, when it failed, the tries it was allowed and the error's first line; opening it shows the
   whole error. Retrying puts it back on its queue and off the list, and it runs; deleting removes it
   unrun; each is audited without the error or the data; the same job retried or deleted twice
   answers `FailedJobNotFound` the second time. Nothing is ever deleted on its own. Only a holder of
