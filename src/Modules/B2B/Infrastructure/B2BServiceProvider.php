@@ -7,6 +7,7 @@ namespace Modules\B2B\Infrastructure;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\B2B\Application\B2BApiImpl;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
 use Modules\B2B\Application\Settings\BankAccountSettings;
@@ -23,6 +24,7 @@ use Modules\B2B\Infrastructure\Eloquent\DatabaseDocumentTypeRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseStoreTypeListsRepository;
 use Modules\B2B\Infrastructure\Listener\WriteStartingTypes;
 use Modules\B2B\Infrastructure\Media\ApplicationFilesUsage;
+use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Events\StoreCreated;
@@ -41,6 +43,7 @@ final class B2BServiceProvider extends ServiceProvider
         $this->app->bind(CompanyRepository::class, DatabaseCompanyRepository::class);
         $this->app->bind(ApplicationRepository::class, DatabaseApplicationRepository::class);
         $this->app->bind(CompanyReader::class, DatabaseCompanyReader::class);
+        $this->app->bind(B2BApi::class, B2BApiImpl::class);
     }
 
     public function boot(): void
