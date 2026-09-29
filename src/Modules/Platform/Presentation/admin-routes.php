@@ -6,6 +6,7 @@ use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Platform\Presentation\Http\Controller\AuditController;
 use Modules\Platform\Presentation\Http\Controller\CurrenciesController;
+use Modules\Platform\Presentation\Http\Controller\FailedJobsController;
 use Modules\Platform\Presentation\Http\Controller\MediaController;
 use Modules\Platform\Presentation\Http\Controller\SettingsController;
 use Modules\Platform\Presentation\Http\Controller\StoresController;
@@ -45,4 +46,10 @@ Route::prefix(AdminArea::PREFIX)
 
         // The audit log, which is read and never written: the table refuses anything else.
         Route::get('audit', [AuditController::class, 'index'])->name('platform.admin.audit');
+
+        // The queue's failed work (frontend.md E7): admin-only, and global — a job belongs to no store.
+        Route::get('failed-jobs', [FailedJobsController::class, 'index'])->name('platform.admin.failed_jobs');
+        Route::get('failed-jobs/{job}', [FailedJobsController::class, 'show'])->name('platform.admin.failed_jobs.show');
+        Route::post('failed-jobs/{job}/retry', [FailedJobsController::class, 'retry'])->name('platform.admin.failed_jobs.retry');
+        Route::post('failed-jobs/{job}/delete', [FailedJobsController::class, 'delete'])->name('platform.admin.failed_jobs.delete');
     });

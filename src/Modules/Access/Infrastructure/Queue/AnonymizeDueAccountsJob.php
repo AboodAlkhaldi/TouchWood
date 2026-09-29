@@ -23,6 +23,12 @@ final class AnonymizeDueAccountsJob implements ShouldBeUnique, ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
+    /**
+     * One try, as the worker gave it before (platform.md §3: every queued job states its own):
+     * tomorrow's run takes up anything this one left.
+     */
+    public int $tries = 1;
+
     public int $uniqueFor = 3600;
 
     public function handle(AnonymizeDueAccountsHandler $handler): void

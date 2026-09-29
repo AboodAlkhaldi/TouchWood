@@ -47,6 +47,13 @@ final class PlatformPermissions
     public const string AUDIT_VIEW = 'platform.audit.view';
 
     /**
+     * The queue's failed work: seeing it, a job's whole error, retrying one, deleting one (owner,
+     * 2026-09-29; platform.md §3). One permission for all of it. Admin-only: an error can quote the
+     * values a job was writing, personal data among them. Global: a job belongs to no store.
+     */
+    public const string JOBS_MANAGE = 'platform.jobs.manage';
+
+    /**
      * Each permission, whether it is reserved for Super Admins, and whether it is store-free: it
      * concerns nothing that belongs to one store, so its handler checks it with
      * PermissionScope::global() (owner's decision, 2026-09-19). The others are per store.
@@ -82,6 +89,8 @@ final class PlatformPermissions
             self::MEDIA_PRIVATE_VIEW => ['reserved' => false, 'storeFree' => true, 'group' => 'media', 'adminOnly' => true],
             self::MEDIA_VARIANTS_GENERATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::AUDIT_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'audit', 'adminOnly' => false],
+            // A Super Admin always holds it; an admin when a Super Admin gives it to their role.
+            self::JOBS_MANAGE => ['reserved' => false, 'storeFree' => true, 'group' => 'system', 'adminOnly' => true],
         ];
     }
 }

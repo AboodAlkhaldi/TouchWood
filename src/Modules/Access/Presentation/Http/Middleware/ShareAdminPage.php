@@ -131,6 +131,9 @@ final readonly class ShareAdminPage
                     'href' => route($entry->routeName, [], false),
                     'comingSoon' => $entry->comingSoon(),
                     'icon' => $entry->icon,
+                    // How many wait behind it — failed jobs, say — for this person, who is offered
+                    // the entry; null when it counts nothing (frontend.md E7).
+                    'count' => $this->menu->countOf($entry),
                 ], $entries),
             ];
         }

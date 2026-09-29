@@ -65,6 +65,18 @@ $this->app->make(ReservedPaths::class)->reserve('payments', 'webhooks');
 $this->app->make(MediaUsages::class)->register('catalog', ProductImageUsage::class);
 ```
 
+```php
+// A menu entry that counts what waits behind it: a MenuCount, resolved only for people offered the
+// entry. The count shows beside the entry and on the admin home while it is above nothing.
+new MenuEntryDto('platform', 'failed_jobs', 'system', 'platform.admin.failed_jobs',
+    PlatformPermissions::JOBS_MANAGE, 10, icon: 'failed_jobs', count: FailedJobsCount::class);
+
+// Queued work is named on the failed jobs screen in your module's words: one line per queued class
+// in Presentation/lang/{ar,en}/jobs.php — AnonymizeCompany at `anonymize_company`, a trailing "Job"
+// left off. And it states its tries (`public int $tries = 3;`), which the screen shows. A test fails
+// for a queued class with no name or no tries.
+```
+
 Listen to `Public/Events/*` (`StoreUpdated`, `SettingChanged`, `MediaVariantsReady`…). They carry
 ids only and are dispatched after the transaction commits.
 
@@ -74,7 +86,7 @@ ids only and are dispatched after the transaction commits.
 
 | Folder | Contents |
 |---|---|
-| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
+| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
 | `Domain/Model` | `Store`, `Currency`, `Media`: plain PHP classes holding the rules, with no Laravel inside. |
 | `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. |
 | `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |
@@ -84,6 +96,7 @@ ids only and are dispatched after the transaction commits.
 | `Application/Settings` | The settings registry, strict type checks and reading with defaults. |
 | `Application/Media` | What media needs from the outside world, as interfaces (storage, file inspection, resizing, the queue), plus `MediaSettings` (the upload-limit declarations) and `InspectedFile`. |
 | `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached) and `MediaReader`. |
+| `Application/FailedJobs` | `FailedJobs`, the queue's failed work as an interface (a page of summaries, read, lock, whether it can be retried, requeue, forget), `FailedJob`, `FailedJobSummary`, and `FailedJobsCount`, the menu's count. |
 | `Infrastructure/` | Eloquent and query-builder repositories, caching, the audit writer, Laravel disks, Intervention Image, the queued job, migrations and the service provider. |
 | `Presentation/` | The `store` middleware, the country-choice page, a placeholder store home page, console commands, Arabic and English translations. |
 
@@ -298,6 +311,36 @@ UploadMedia ──▶ inspect headers (type, displayed size, animation, checksum
   before asking for the link.
 - **No media package.** `spatie/laravel-medialibrary` ties files to another module's Eloquent
   models, which the module boundaries forbid. A test fails if it is ever installed.
+
+### Failed jobs (owner, 2026-09-29)
+
+A job that fails its last try waits in Laravel's `failed_jobs` until an admin retries or deletes it
+on `/admin/failed-jobs` — nothing removes one on its own, so a failure is never lost by waiting.
+
+- **One admin-only, global permission**, `platform.jobs.manage`, for seeing, retrying and deleting:
+  a job's error can quote the values it was writing, and a job belongs to no store.
+- **A retry puts the job back as `queue:retry` would on the database queue**, inside one
+  transaction: the row locked, the payload pushed back raw on its own connection and queue with its
+  attempts counted afresh, the row deleted, the audit entry written. The queue lives in the same
+  database, so a job is never both queued and listed; a second retry or delete of the same job
+  answers `FailedJobNotFound`. Unlike `queue:retry` it fires no `JobRetryRequested`, as nothing here
+  listens for it, and it does not refresh `retryUntil` (a time limit in place of tries), because no
+  job here sets one.
+- **Only a job that failed on the database queue is retried** (`FailedJobNotRetryable` otherwise):
+  any other queue is outside the transaction, so the job could be pushed and still listed. Such a
+  job is offered no Retry; Delete still works.
+- **The screen shows the tries a job was allowed**, not the tries it made: Laravel's database queue
+  keeps the second only while the job is on the queue. So every queued class states its own tries
+  (`$tries` or `tries()`) — without it the worker's number applies, which the screen cannot know. A
+  test fails for a queued class that does not.
+- **Fifty at a time, oldest first**, with "Show more" continuing from where the page ended (after
+  that job's failure time and id), so a flood of failures never loads at once. The list reads the
+  error's first 2,000 characters, never a payload.
+- **Audited without the error or the payload** — both may hold personal data, and the log is
+  forever. The name and when it failed are enough to say what was handled.
+- **Noticed without opening the screen**: a menu entry may carry a count (`MenuCount`), resolved only
+  for people the entry is offered to; the admin home lists every entry with something waiting, and
+  the collapsed sidebar shows a dot on the entry's icon where the number has no room.
 
 ---
 

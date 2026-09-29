@@ -49,6 +49,24 @@ exponent: number,
 storeCount: number,
 exponentLocked: boolean,
 };
+export type FailedJobPage = {
+job: FailedJobRowData,
+error: string,
+};
+export type FailedJobRowData = {
+id: string,
+name: string,
+failedAt: string,
+triesAllowed: number | null,
+queue: string,
+errorLine: string,
+retryable: boolean,
+};
+export type FailedJobsPage = {
+jobs: FailedJobRowData[],
+nextFailedAt: string | null,
+nextId: string | null,
+};
 export type MediaFileRow = {
 id: string,
 filename: string,

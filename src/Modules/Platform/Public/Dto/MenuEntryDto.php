@@ -28,6 +28,9 @@ final readonly class MenuEntryDto
      *                             `MenuIcon` in the frontend). The sidebar collapses to a rail of
      *                             icons, so an entry without one is a blank square on that rail;
      *                             an unknown name falls back rather than breaking the page
+     * @param  string|null  $count  the class of a `MenuCount`: how many things wait behind the entry
+     *                              — failed jobs, say — shown beside it and on the admin home; asked
+     *                              only for people offered the entry
      */
     public function __construct(
         public string $module,
@@ -37,6 +40,7 @@ final readonly class MenuEntryDto
         public ?string $permission = null,
         public int $position = 0,
         public ?string $icon = null,
+        public ?string $count = null,
     ) {}
 
     public function labelKey(): string
