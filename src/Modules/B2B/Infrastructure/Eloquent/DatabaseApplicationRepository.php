@@ -14,6 +14,7 @@ use Modules\B2B\Domain\Exception\ApplicationAlreadyOpen;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
+use Modules\B2B\Domain\ValueObject\ApplicationReference;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\AttachedDocument;
@@ -382,6 +383,7 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             'address' => $application->address()?->value,
             'note' => $application->note()?->value,
             'submitted_at' => self::time($application->submittedAt()),
+            'reference' => $application->reference()?->value,
             'decided_at' => self::time($application->decidedAt()),
             'decided_by' => $application->decidedBy(),
             'decision_reason' => $application->decisionReason()?->value,
@@ -433,6 +435,7 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             $row->note === null ? null : Remark::reconstitute((string) $row->note),
             $documents,
             $row->submitted_at === null ? null : CarbonImmutable::parse((string) $row->submitted_at),
+            $row->reference === null ? null : ApplicationReference::reconstitute((string) $row->reference),
             $row->decided_at === null ? null : CarbonImmutable::parse((string) $row->decided_at),
             $row->decided_by === null ? null : (string) $row->decided_by,
             $row->decision_reason === null ? null : Remark::reconstitute((string) $row->decision_reason),

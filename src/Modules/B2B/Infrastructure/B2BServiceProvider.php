@@ -12,11 +12,13 @@ use Modules\B2B\Application\B2BApiImpl;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
 use Modules\B2B\Application\Settings\BankAccountSettings;
+use Modules\B2B\Domain\Repository\ApplicationReferenceCounter;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\B2B\Domain\Repository\StoreTypeListsRepository;
+use Modules\B2B\Infrastructure\Eloquent\DatabaseApplicationReferenceCounter;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseApplicationRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyReader;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyRepository;
@@ -46,6 +48,7 @@ final class B2BServiceProvider extends ServiceProvider
         $this->app->bind(StoreTypeListsRepository::class, DatabaseStoreTypeListsRepository::class);
         $this->app->bind(CompanyRepository::class, DatabaseCompanyRepository::class);
         $this->app->bind(ApplicationRepository::class, DatabaseApplicationRepository::class);
+        $this->app->bind(ApplicationReferenceCounter::class, DatabaseApplicationReferenceCounter::class);
         $this->app->bind(CompanyReader::class, DatabaseCompanyReader::class);
         $this->app->bind(B2BApi::class, B2BApiImpl::class);
     }

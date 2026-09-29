@@ -117,7 +117,7 @@ describe('the repositories', function () {
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
         $second = B2BFixtures::storedDraft($customerId, $company->id());
-        $second->submit($company->id(), B2BFixtures::companyTypes(), B2BFixtures::documentTypes(), app(ApplicationRepository::class)->lastSent($company->id()), CarbonImmutable::now());
+        $second->submit($company->id(), B2BFixtures::companyTypes(), B2BFixtures::documentTypes(), app(ApplicationRepository::class)->lastSent($company->id()), CarbonImmutable::now(), B2BFixtures::reference());
         app(ApplicationRepository::class)->update($second);
 
         expect(array_map(static fn (Application $each): string => $each->id(), app(ApplicationRepository::class)->historyOf($company->id())))
@@ -234,8 +234,23 @@ describe('what the database refuses on its own', function () {
         'sent with no company' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['company_id' => null]), 'applications_sent_complete'],
         'decided by nobody' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['state' => 'APPROVED', 'decided_at' => now()]), 'applications_decided_together'],
         'rejected with no reason' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['state' => 'REJECTED', 'decided_at' => now(), 'decided_by' => Fx::staff()]), 'applications_rejection_reason_given'],
-        'a draft holding both kinds of type' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['state' => 'DRAFT', 'company_type_other' => 'Cooperative']), 'applications_type_at_most_one'],
+        // A draft has no number, so the row gives it up too: only the type is wrong in it.
+        'a draft holding both kinds of type' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['state' => 'DRAFT', 'reference' => null, 'company_type_other' => 'Cooperative']), 'applications_type_at_most_one'],
         'a tab in the note' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['note' => "Attached\tagain"]), 'applications_note_text'],
+        // Amendment 14(g): a sent application has a number, a draft none, and every number is one.
+        'sent with no number' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['reference' => null]), 'applications_reference_when_sent'],
+        'a draft with a number' => [fn (string $id, string $customerId) => DB::table('b2b.applications')->insert([
+            'id' => strtolower((string) Str::ulid()), 'customer_id' => B2BFixtures::companyAccount(), 'state' => 'DRAFT', 'reference' => 'TW-CO-26-9998', 'created_at' => now(), 'updated_at' => now(),
+        ]), 'applications_reference_when_sent'],
+        'a number with the whole year' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['reference' => 'TW-CO-2026-0001']), 'applications_reference_format'],
+        'a number short of four digits' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['reference' => 'TW-CO-26-001']), 'applications_reference_format'],
+        'the number nought' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['reference' => 'TW-CO-26-0000']), 'applications_reference_format'],
+        'two applications with one number' => [function (string $id) {
+            [, $other] = B2BFixtures::sent(B2BFixtures::companyAccount());
+            DB::table('b2b.applications')->where('id', $other->id())->update(['reference' => DB::table('b2b.applications')->where('id', $id)->value('reference')]);
+        }, 'applications_reference_unique'],
+        'a year counted from nought' => [fn (string $id) => DB::table('b2b.application_reference_counters')->insert(['year' => 2031, 'last_number' => 0]), 'application_reference_counters_last_number'],
+        'a year counted twice' => [fn (string $id) => DB::table('b2b.application_reference_counters')->insert(['year' => (int) now('Asia/Riyadh')->format('Y'), 'last_number' => 5]), 'application_reference_counters_pkey'],
         'a second open application for one account' => [fn (string $id, string $customerId) => DB::table('b2b.applications')->insert([
             'id' => strtolower((string) Str::ulid()), 'customer_id' => $customerId, 'state' => 'DRAFT', 'created_at' => now(), 'updated_at' => now(),
         ]), 'applications_one_open_per_customer'],

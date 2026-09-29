@@ -15,11 +15,13 @@ use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Model\Company;
 use Modules\B2B\Domain\Model\CompanyType;
 use Modules\B2B\Domain\Model\DocumentType;
+use Modules\B2B\Domain\Repository\ApplicationReferenceCounter;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
+use Modules\B2B\Domain\ValueObject\ApplicationReference;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyName;
@@ -117,6 +119,17 @@ final class B2BFixtures
     }
 
     /**
+     * The next application number, from the real counter as a send takes it (amendment 14(g)), so
+     * a test's own sends and the handler's never share one. In a transaction, as the counter asks.
+     */
+    public static function reference(): ApplicationReference
+    {
+        return DB::transaction(static fn (): ApplicationReference => app(ApplicationReferenceCounter::class)->next(
+            (int) CarbonImmutable::now('Asia/Riyadh')->format('Y'),
+        ));
+    }
+
+    /**
      * The whole first application: sent, and the company it creates.
      *
      * @return array{0: Company, 1: Application}
@@ -127,7 +140,7 @@ final class B2BFixtures
         $companies = app(CompanyRepository::class);
         $companyId = $companies->nextId();
 
-        $details = $draft->submit($companyId, self::companyTypes(), self::documentTypes(), null, CarbonImmutable::now());
+        $details = $draft->submit($companyId, self::companyTypes(), self::documentTypes(), null, CarbonImmutable::now(), self::reference());
         $company = Company::fromFirstApplication($companyId, $customerId, Fx::storeId('sa'), $details, CarbonImmutable::now());
         $companies->add($company);
         app(ApplicationRepository::class)->update($draft);

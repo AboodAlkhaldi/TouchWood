@@ -116,6 +116,7 @@ final readonly class ViewCompanyHandler
         return new StaffApplicationView(
             $sent->id(),
             $sent->state()->value,
+            ApplicationViews::reference($sent),
             ApplicationViews::applicationValues($sent, $companyTypes),
             ApplicationViews::time($sent->submittedAt()),
             ApplicationViews::time($sent->decidedAt()),

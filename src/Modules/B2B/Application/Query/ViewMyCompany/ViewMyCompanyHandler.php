@@ -174,6 +174,7 @@ final readonly class ViewMyCompanyHandler
         return new SentApplicationView(
             $sent->id(),
             $sent->state()->value,
+            ApplicationViews::reference($sent),
             ApplicationViews::applicationValues($sent, $companyTypes),
             ApplicationViews::time($sent->submittedAt()),
             ApplicationViews::time($sent->decidedAt()),

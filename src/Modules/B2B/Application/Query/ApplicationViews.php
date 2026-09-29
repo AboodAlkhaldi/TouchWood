@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\B2B\Application\Query;
 
 use DateTimeInterface;
+use LogicException;
 use Modules\B2B\Application\Query\ViewMyCompany\AnswerView;
 use Modules\B2B\Application\Query\ViewMyCompany\ApplicationValues;
 use Modules\B2B\Application\Query\ViewMyCompany\FileView;
@@ -112,5 +113,14 @@ final class ApplicationViews
     public static function time(?DateTimeInterface $at): ?string
     {
         return $at?->format(DATE_ATOM);
+    }
+
+    /**
+     * A sent application's number (amendment 14(g)). Every sent one has one — Application's own rule
+     * and the table's CHECK — so a missing one is a bug, not a blank to show.
+     */
+    public static function reference(Application $sent): string
+    {
+        return $sent->reference()->value ?? throw new LogicException("The sent application {$sent->id()} has no reference.");
     }
 }

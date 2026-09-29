@@ -14,7 +14,8 @@ use Shared\Domain\ValueObject\StoreId;
 /**
  * **`ListCompanies`** (b2b.md §3.2, amendment 10): the companies of the reader's own stores — every
  * store for someone who holds the job everywhere, a Super Admin included. Filtered by status and by
- * store, searched by name, CR number or tax number; waiting companies first, the oldest sent first.
+ * store, searched by name, CR number, tax number or an application's reference (amendment 14(g));
+ * waiting companies first, the oldest sent first.
  * A store the reader does not cover is refused as not allowed (10(j)). Only companies: an account
  * with nothing but a draft has sent nothing to review (§1.1).
  */

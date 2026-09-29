@@ -240,7 +240,7 @@ describe('the last application sent', function () {
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
         $second = B2BFixtures::storedDraft($customerId, $company->id());
-        $second->submit($company->id(), B2BFixtures::companyTypes(), B2BFixtures::documentTypes(), $repository->lastSent($company->id()), CarbonImmutable::now());
+        $second->submit($company->id(), B2BFixtures::companyTypes(), B2BFixtures::documentTypes(), $repository->lastSent($company->id()), CarbonImmutable::now(), B2BFixtures::reference());
         $repository->update($second);
 
         expect($repository->lastSent($company->id())?->id())->toBe($second->id());

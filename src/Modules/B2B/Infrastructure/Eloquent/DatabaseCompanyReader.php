@@ -78,11 +78,20 @@ final readonly class DatabaseCompanyReader implements CompanyReader
 
         if ($search !== null && trim($search) !== '') {
             $like = self::like($search);
+            // A reference is quoted whole — read out over the phone, say — so it is matched whole,
+            // ignoring case, on its own unique index (amendment 14(g)).
+            $reference = mb_strtoupper(trim($search));
 
-            $query->where(static function (Builder $where) use ($like): void {
+            $query->where(static function (Builder $where) use ($like, $reference): void {
                 $where->whereRaw('lower(c.name) like ?', [$like])
                     ->orWhereRaw('lower(c.cr_number) like ?', [$like])
-                    ->orWhereRaw('lower(c.tax_number) like ?', [$like]);
+                    ->orWhereRaw('lower(c.tax_number) like ?', [$like])
+                    ->orWhereExists(static function (Builder $sent) use ($reference): void {
+                        $sent->selectRaw('1')
+                            ->from('b2b.applications as r')
+                            ->whereColumn('r.company_id', 'c.id')
+                            ->where('r.reference', $reference);
+                    });
             });
         }
 
