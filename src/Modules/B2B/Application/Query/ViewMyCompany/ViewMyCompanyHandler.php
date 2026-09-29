@@ -114,6 +114,7 @@ final readonly class ViewMyCompanyHandler
                 $this->applications->historyOf($company->id()),
             ),
             $company === null ? null : $this->bankAccount($company),
+            $homeStoreId,
         );
     }
 

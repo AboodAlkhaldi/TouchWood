@@ -176,9 +176,10 @@ deptrac:
     AccessPublic: [Shared, Vendor, PlatformPublic]
     Access: [+AccessPublic, AppHttp]
 
-    # B2B → Platform, Access
+    # B2B → Platform, Access. Its screens (step 6) use the framework glue, as Access's and
+    # Platform's do; AppHttpTest keeps that to its Presentation layer.
     B2BPublic: [Shared, Vendor, PlatformPublic, AccessPublic]
-    B2B: [+B2BPublic]
+    B2B: [+B2BPublic, AppHttp]
 
     # Catalog → Platform
     CatalogPublic: [Shared, Vendor, PlatformPublic]

@@ -28,5 +28,7 @@ final readonly class MyCompanyView
          * store has filled in all three (amendment 12(b)); null otherwise.
          */
         public ?BankAccountView $bankAccount,
+        /** The company's store, or the account's before there is one: its clock is the page's (HANDOFF §4). */
+        public string $homeStoreId,
     ) {}
 }

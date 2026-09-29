@@ -38,12 +38,15 @@ with each step.
 | `Application/Draft` | `OpenDrafts`: the account's open draft, read under its locks, refused in the one order every draft action shares |
 | `Application/Files` | `ApplicationFiles`: B2B's own uploads (private, under its own permission) and letting go of what no application holds |
 | `Application/Audit` | `CompanyAccountAudit`: the three company actions the audit log keeps, and the company emptied when its account is anonymized; `StaffCompanyAudit` and `TypeAudit`: staff's |
-| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `TypeNames`, the one "is this name taken" query both lists share; `Ulids` |
+| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `DatabaseCompanyStandings`, the shop line's one query; `DatabaseApplicationReferenceCounter`, the year's count of application numbers; `TypeNames`, the one "is this name taken" query both lists share; `Ulids` |
 | `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated`; `AnonymizeCompany`, on Access's `CustomerAnonymized`, from the queue |
 | `Infrastructure/Media` | `ApplicationFilesUsage`: B2B's answer when Platform asks where a file is used |
 | `Infrastructure/Settings` | `BankTransferLine`: the line at the top of the Companies settings section — bank transfer on, or temporarily off |
 | `Infrastructure/Persistence/Migrations` | The `b2b` schema; the two type tables and the stores' "copied" flags; the companies, applications and their files; a rejection's flags and requests and a draft's answers |
-| `Presentation/lang` | The error messages, the permissions' names, the audited actions' names and the settings' names, in Arabic and English |
+| `Presentation/Http` | The company's own page (step 6): `MyCompanyController`, its two form requests, and the page's data (`CompanyPage` and its parts, built by `CompanyPages` in the home store's clock) |
+| `Presentation/Storefront` | `CompanyShopperLine`: the line under the shop's header while a company account cannot order |
+| `Presentation/routes.php` | The page and its posts, under `/{store}/{locale}/account/company`, signed-in customers only |
+| `Presentation/lang` | The error messages, the permissions' names, the audited actions' names, the settings' names, and the company page's and its line's words, in Arabic and English |
 
 ## How it is built
 
@@ -348,3 +351,42 @@ reviewer rejects it by hand.
 **"Never approved as Other" is backed by the database** (13(d)): CHECK
 `companies_approved_type_listed` refuses an approved company, or one suspended from approved, that is
 "Other".
+
+## The company's own screens (step 6)
+
+**One page, the design's** (b2b.md §4.5, amendment 14), at `/{store}/{locale}/account/company`:
+a status box and, under it, the form or what was sent, and a side column — what happens after
+sending, how a company pays, what it may do before approval. Before the first send there is no
+company, only a draft, and the page shows the draft alone. The design is look and behaviour: its
+own fields, company types and structured address lose to the spec.
+
+**It reaches the shop's frame through Access** (access.md amendment 50), never by being written into
+it: `CustomerAccountPages` lists it beside the account's tabs for company accounts, and
+`CompanyShopperLine` says one line under the header on every shop page while the company cannot
+order — continue, finish, under review, not approved, suspended with its reason — and nothing once
+approved. It answers from what Access hands it before reading anything (an individual account, or
+an email not confirmed yet, costs no query), and then asks `CompanyStandings` for one row.
+
+**The form saves itself.** Each field is posted alone when the person leaves it, each file the
+moment it is chosen; `SaveApplicationDraft` changes only the fields sent. A value the domain
+refuses comes back on its own field (`InvalidCompanyAttribute`'s attribute), a paper's refusal
+beside its document type, an answer's beside its request, and anything else at the top of the form
+— the shop's usual toast and message. Send checks that it is complete.
+
+**Every application is numbered when it is sent** (§1.2, amendment 14(g)): `TW-CO-26-0001` — the
+year as the home store's clock reads it, and a count restarting at `0001` each year, across every
+store. The count is a row per year in `b2b.application_reference_counters`, moved on by one
+statement inside the send's own transaction (`DatabaseApplicationReferenceCounter`, which refuses to
+run outside one): the row stays locked until the send commits, so two sends never share a number,
+and a refused send gives its number back — a year has no gaps. The company sees every number in its
+history; staff see them on their screens (step 7) and find a company by one, whole and ignoring
+case. The database backs it: a unique index, and CHECKs that a sent application has a number, a
+draft none, all of one shape. Anonymizing keeps the number: it names nobody.
+
+**Times are the home store's.** `CompanyPages` writes every time in the home store's time zone
+(HANDOFF §4): UTC underneath, the store's clock on the screen, and the page never converts again.
+
+**Uploads cannot be tested in a real browser here**: the browser plugin's test server drops the
+files of a multipart body. They are tested over HTTP (`MyCompanyPageTest`); the browser test puts
+the papers in through the use case and checks the page around them.
+

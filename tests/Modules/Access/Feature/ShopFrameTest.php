@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Modules\Access\Application\Query\CustomerReader;
@@ -93,9 +94,21 @@ it('gives a company account its tabs, the pages added for company accounts, and 
             ['key' => 'addresses', 'label' => 'Addresses'],
             ['key' => 'close', 'label' => 'Close my account'],
         ])
-        ->where('accountMenu.pages', [['key' => 'access.test_company', 'label' => 'access::account_pages.test_company', 'routeName' => 'storefront.sign-in']])
-        ->where('shopperLines', [['text' => 'Confirm first', 'routeName' => 'storefront.account', 'tone' => 'warn']]));
+        // Among whatever the real modules add as well — B2B's company page, from step 6.
+        ->where('accountMenu.pages', fn (Collection $pages): bool => shopFrameHolds($pages, ['key' => 'access.test_company', 'label' => 'access::account_pages.test_company', 'routeName' => 'storefront.sign-in']))
+        ->where('shopperLines', fn (Collection $lines): bool => shopFrameHolds($lines, ['text' => 'Confirm first', 'routeName' => 'storefront.account', 'tone' => 'warn'])));
 });
+
+/**
+ * Whether a shared list holds this entry, whatever else is in it.
+ *
+ * @param  Collection<array-key, mixed>  $list
+ * @param  array<string, string>  $entry
+ */
+function shopFrameHolds(Collection $list, array $entry): bool
+{
+    return $list->contains(static fn (mixed $each): bool => $each === $entry);
+}
 
 it('gives an individual account its tabs and nothing a company account is given', function () {
     shopFrameSignedIn('individual')->get('/sa/en/account')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page

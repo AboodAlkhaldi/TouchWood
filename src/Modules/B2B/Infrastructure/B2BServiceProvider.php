@@ -6,11 +6,16 @@ namespace Modules\B2B\Infrastructure;
 
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Contracts\ShopperLines;
+use Modules\Access\Public\Dto\CustomerAccountPageDto;
+use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\B2B\Application\B2BApiImpl;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
+use Modules\B2B\Application\Query\ShopLine\CompanyStandings;
 use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\B2B\Domain\Repository\ApplicationReferenceCounter;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
@@ -22,6 +27,7 @@ use Modules\B2B\Infrastructure\Eloquent\DatabaseApplicationReferenceCounter;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseApplicationRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyReader;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyRepository;
+use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyStandings;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyTypeRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseDocumentTypeRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseStoreTypeListsRepository;
@@ -29,6 +35,7 @@ use Modules\B2B\Infrastructure\Listener\AnonymizeCompany;
 use Modules\B2B\Infrastructure\Listener\WriteStartingTypes;
 use Modules\B2B\Infrastructure\Media\ApplicationFilesUsage;
 use Modules\B2B\Infrastructure\Settings\BankTransferLine;
+use Modules\B2B\Presentation\Storefront\CompanyShopperLine;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
@@ -50,6 +57,7 @@ final class B2BServiceProvider extends ServiceProvider
         $this->app->bind(ApplicationRepository::class, DatabaseApplicationRepository::class);
         $this->app->bind(ApplicationReferenceCounter::class, DatabaseApplicationReferenceCounter::class);
         $this->app->bind(CompanyReader::class, DatabaseCompanyReader::class);
+        $this->app->bind(CompanyStandings::class, DatabaseCompanyStandings::class);
         $this->app->bind(B2BApi::class, B2BApiImpl::class);
     }
 
@@ -78,5 +86,16 @@ final class B2BServiceProvider extends ServiceProvider
         // An anonymized account takes its company's personal fields and papers with it, and any
         // unsent draft (amendment 12(a)) — from the queue (13(a)).
         Event::listen(CustomerAnonymized::class, [AnonymizeCompany::class, 'handle']);
+
+        // The company's own page (amendment 14): in the account's side list for company accounts,
+        // and a line under the shop's header while the company cannot order (access.md amendment 50).
+        $this->app->make(CustomerAccountPages::class)->register(
+            new CustomerAccountPageDto('b2b', 'company', CompanyShopperLine::ROUTE, AccountType::Company),
+        );
+        $this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
+
+        if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/routes.php');
+        }
     }
 }
