@@ -427,12 +427,19 @@ Platform shows them on an admin screen (frontend.md E7):
   it is global. It sits in a new business area, **System**.
 - **The list**: what the job was, in the words of the module that owns it (a job no module names
   shows its technical name), when it failed, how many tries it was allowed, and the error's first line —
-  oldest first. **Opening one** shows its whole error and the queue it ran on.
+  oldest first, **50 at a time** with "Show more", as the media library and the audit log page.
+  **Opening one** shows its whole error and the queue it ran on.
+- **Every queued job states its own tries** (second review of the screen): the worker's default
+  otherwise applies, and the screen could not say what it was. A test holds every queued class to it.
 - **Retry one**: the job goes back on its own queue, attempts counted afresh, and leaves the list;
-  if it fails again it comes back. **Delete one**: gone for good, unrun. No bulk actions.
+  if it fails again it comes back. **Only a job that failed on the database queue is retried** —
+  the queue in the same database, so the retry and the list change together; any other (none today)
+  can only be deleted, and its Retry is not offered (`FailedJobNotRetryable`). **Delete one**: gone
+  for good, unrun. No bulk actions.
 - **Kept until handled**: nothing deletes a failed job on its own.
 - **Noticed without opening the screen**, by those who hold the permission: the menu entry shows how
-  many are waiting, and the admin home says so while any is.
+  many are waiting — as a dot on its icon while the sidebar is collapsed — and the admin home says so
+  while any is.
 - Retrying and deleting are audited, with the job's name and when it failed — **never its error or
   its data**, which may hold personal data (the audit log is kept forever).
 
@@ -749,7 +756,8 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── MediaInUse                            CONFLICT
 ├── InvalidMediaVariantsTransition        CONFLICT    e.g. retrying an image that did not fail  ¹
 ├── InvalidMediaAttribute                 INVALID     file name or alt text too long / empty, bad checksum  ¹
-└── FailedJobNotFound                     NOT_FOUND   retried or deleted already, or never there (2026-09-29)
+├── FailedJobNotFound                     NOT_FOUND   retried or deleted already, or never there (2026-09-29)
+└── FailedJobNotRetryable                 CONFLICT    it failed on a queue other than the database one: delete it (2026-09-29)
 ```
 
 ¹ Added during implementation, **[DECIDED 2026-09-18]** kept. The approved list had no error for
