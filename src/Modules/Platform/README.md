@@ -41,6 +41,8 @@ $this->app->make(SettingsRegistry::class)->define('loyalty',
     new SettingDefinitionDto('loyalty.points.expiry_days', SettingScope::Global,
         SettingType::Integer, ['min:1'], 365, 'loyalty.settings.update'),
 );
+// A text setting that starts "not set yet" takes mayBeEmpty: true and the default '': its rules
+// then apply only to a value that is not empty (§1.3). B2B's bank account settings are the first.
 ```
 
 ```php
