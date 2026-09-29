@@ -26,6 +26,9 @@ enum PermissionGroup: string
 
     case Audit = 'audit';
 
+    /** The running of the system — first the failed jobs (owner, 2026-09-29; frontend.md E7). */
+    case System = 'system';
+
     // Nothing declares these yet; they are the groups the modules still to be built will use
     // (handoff §14 and the design's own grouping).
     case Catalog = 'catalog';

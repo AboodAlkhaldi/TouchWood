@@ -31,4 +31,7 @@ return [
     'audit' => [
         'view' => 'View the audit log',
     ],
+    'jobs' => [
+        'manage' => 'See, retry and delete failed jobs',
+    ],
 ];
