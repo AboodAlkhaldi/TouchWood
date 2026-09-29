@@ -170,11 +170,19 @@ final class Company
     }
 
     /**
-     * The address changes freely, in every status — suspended included (§1.1). It is not one of
-     * the details staff approve.
+     * The address changes freely — it is not one of the details staff approve, and changing it never
+     * sends the company back to `PENDING` — in every status **but suspended** (§1.1, amendment 9(d),
+     * which reversed the 2026-09-25 "may still change its address"): a suspended company changes
+     * nothing until staff reinstate it.
+     *
+     * @throws CompanySuspended
      */
     public function moveTo(CompanyAddress $address): void
     {
+        if ($this->status === CompanyStatus::Suspended) {
+            throw new CompanySuspended;
+        }
+
         if ($address->equals($this->address)) {
             return;
         }

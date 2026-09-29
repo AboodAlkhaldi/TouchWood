@@ -8,7 +8,9 @@ use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
+use Modules\B2B\Domain\Exception\ApplicationAlreadyOpen;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
@@ -92,19 +94,61 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
         return $row instanceof stdClass ? $this->toApplication($row) : null;
     }
 
+    public function lockAccount(string $customerId): void
+    {
+        // A row lock locks nothing while the account has no application or company yet, so two
+        // first starts, or two first sends, would both see none. A transaction-scoped advisory lock
+        // on the account serialises them (as DatabaseSettings::lockForUpdate does for a setting).
+        $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [self::accountKey($customerId)], false);
+    }
+
+    public function lockAccountForReading(string $customerId): void
+    {
+        $this->db->select('SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))', [self::accountKey($customerId)], false);
+    }
+
+    private static function accountKey(string $customerId): string
+    {
+        return 'b2b:account:'.strtolower($customerId);
+    }
+
     public function add(Application $application): void
     {
         $now = CarbonImmutable::now();
 
-        $this->db->table(self::TABLE)->insert([
-            'id' => $application->id(),
-            'customer_id' => $application->customerId(),
-            ...self::toRow($application),
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        try {
+            $this->db->table(self::TABLE)->insert([
+                'id' => $application->id(),
+                'customer_id' => $application->customerId(),
+                ...self::toRow($application),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        } catch (UniqueConstraintViolationException $e) {
+            // The partial unique index behind the account lock (lesson 64): a violation is not
+            // retried, so it is answered here rather than reaching the person as a database error.
+            throw str_contains($e->getMessage(), 'applications_one_open_per_customer') ? new ApplicationAlreadyOpen : $e;
+        }
 
         $this->writeHeld($application);
+    }
+
+    public function stillHeld(array $mediaIds): array
+    {
+        if ($mediaIds === []) {
+            return [];
+        }
+
+        $documents = $this->db->table(self::DOCUMENTS)->select('media_id')->whereIn('media_id', $mediaIds);
+
+        return array_values(array_map(
+            static fn (mixed $mediaId): string => (string) $mediaId,
+            $this->db->table(self::ANSWERS)->select('media_id')->whereIn('media_id', $mediaIds)
+                // UNION, not UNION ALL: a file held twice is one file still held.
+                ->union($documents)
+                ->pluck('media_id')
+                ->all(),
+        ));
     }
 
     public function update(Application $application): void
@@ -121,6 +165,19 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
     {
         // The document, flag, request and answer rows go by the foreign keys' cascade.
         $this->db->table(self::TABLE)->where('id', strtolower($applicationId))->delete();
+    }
+
+    public function accountHolds(string $customerId, string $mediaId): bool
+    {
+        if (! Ulids::valid($customerId) || ! Ulids::valid($mediaId)) {
+            return false;
+        }
+
+        $mediaId = strtolower($mediaId);
+        $own = $this->db->table(self::TABLE)->select('id')->where('customer_id', strtolower($customerId));
+
+        return $this->db->table(self::DOCUMENTS)->where('media_id', $mediaId)->whereIn('application_id', $own)->exists()
+            || $this->db->table(self::ANSWERS)->where('media_id', $mediaId)->whereIn('application_id', clone $own)->exists();
     }
 
     private function one(string $applicationId, bool $lock): ?Application

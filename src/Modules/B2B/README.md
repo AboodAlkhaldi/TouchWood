@@ -25,11 +25,18 @@ with each step.
 | `Domain/Exception` | `B2BError`, the base of every error here, and one class per refusal |
 | `Domain/Repository` | One per aggregate: companies, applications (with their files, flags, requests and answers), the two type lists, the stores' "copied" flags |
 | `Application/Types` | `StartingTypes`, the lists every store starts with; `GiveEveryStoreTheStartingTypes`, which writes them into a store that has none |
+| `Application` | `B2BPermissions` — the two automatic permissions of the company's own side, declared into Access's catalog at boot |
+| `Application/Command` | The company's own side (step 3b): `StartApplicationDraft`, `SaveApplicationDraft`, `AttachApplicationDocument`, `RemoveApplicationDocument`, `AnswerApplicationRequest`, `RemoveApplicationAnswer`, `SubmitApplication`, `DiscardApplicationDraft`, `UpdateCompanyContact` |
+| `Application/Query` | `ViewMyCompany` and its read classes — what the account is shown; `OpenMyApplicationFile`, a 30-minute link to one of its own files |
+| `Application/Account` | `CurrentCompanyAccount`: the signed-in company account every use case above starts from |
+| `Application/Draft` | `OpenDrafts`: the account's open draft, read under its locks, refused in the one order every draft action shares |
+| `Application/Files` | `ApplicationFiles`: B2B's own uploads (private, under its own permission) and letting go of what no application holds |
+| `Application/Audit` | `CompanyAccountAudit`: the three company actions the audit log keeps |
 | `Infrastructure/Eloquent` | The database repositories; `TypeNames`, the one "is this name taken" query both lists share; `Ulids` |
 | `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated` |
 | `Infrastructure/Media` | `ApplicationFilesUsage`: B2B's answer when Platform asks where a file is used |
 | `Infrastructure/Persistence/Migrations` | The `b2b` schema; the two type tables and the stores' "copied" flags; the companies, applications and their files; a rejection's flags and requests and a draft's answers |
-| `Presentation/lang` | The error messages, in Arabic and English |
+| `Presentation/lang` | The error messages, the permissions' names and the audited actions' names, in Arabic and English |
 
 ## How it is built
 
@@ -82,10 +89,17 @@ sends the company back to `PENDING`. Only the address (`moveTo`) and a staff cor
 the application beside it holds, and `Application` is a snapshot — its own copy of each — never a
 pointer to the company.
 
-**Two rules the database holds before their use cases exist.** One company per account (a unique
-`customer_id`) and one open application per account (a partial unique index) are in the tables now;
-their code halves — checked under a lock, before the insert — come with the company's side of
-applying (step 3b). Until then nothing but the tests writes those rows.
+**One company and one open application per account, decided under the account's lock.** The
+database holds both (a unique `customer_id`; a partial unique index on the open states). Their code
+halves are the company's own use cases (step 3b): each takes `ApplicationRepository::lockAccount` —
+a transaction-scoped advisory lock, since a row lock locks nothing while the account has no row yet
+— then reads, so two first starts or two first sends of one account run one after the other, and
+the second sees what the first wrote. A caller that skipped the lock and still reached the index is
+answered `ApplicationAlreadyOpen`, not a database error (lesson 64). The tests prove the lock is
+taken, and taken inside each use case's own transaction — not merely inside the test's — by
+recording the transaction level at which every advisory lock is asked for (`B2BFixtures::accountLocks`).
+`ViewMyCompany` takes the same lock **shared**, so its several reads see one moment: readers wait
+for a writer, never for each other.
 
 **A rejection can say what to fix and what to add** (amendment 4), and only a rejection:
 `Application::reject()` takes **flags** — any of the five fields, or a document the application sent
@@ -128,8 +142,50 @@ each crosses two tables, which a CHECK cannot see.
 `ApplicationFilesUsage` with Platform: every application that holds a file — as a document or as the
 answer to a request, drafts included — is one **blocking** use, named `b2b.application {id}`, so a
 delete from the media library is refused while any holds it, and Platform never asks B2B to detach
-one. B2B lets go of its own files through its own use cases (step 3b), and the `RESTRICT` keys on
-`media_id` stay the backstop.
+one. B2B lets go of its own files through its own use cases (`ApplicationFiles::release`, step 3b):
+after the application's own rows are written, and only a file no application still holds — so one
+carried from the last application sent stays with it. The `RESTRICT` keys on `media_id` stay the
+backstop.
+
+## The company's own side (step 3b)
+
+**Every use case starts from the signed-in account** (`CurrentCompanyAccount`), never an id from the
+request: a guest, a staff member or the system is `Unauthorized`; an individual account — and one
+Access cannot find (amendment 9(b)) — is `NotACompanyAccount`, in the handler itself (§3.1). The two
+permissions, `b2b.company.apply` and `b2b.company.update`, are automatic for every customer and
+store-free; B2B declares them into Access's catalog, being above Access.
+
+**The draft's actions name no application** (amendment 5): they act on the account's one open
+application, through `OpenDrafts`, which locks **the account, then the company's row**, reads the
+draft (read, not locked: every writer holds the account's lock), and refuses in one order — none
+open (`ApplicationNotFound`), the company suspended (`CompanySuspended`: starting, saving,
+uploading, answering and removing are all refused, amendment 9(a)), already sent
+(`ApplicationNotEditable`). Discarding goes around it, being the one thing a suspended company's
+draft allows. **A suspended company changes nothing else either**: starting is refused even with a
+draft open (9(e)), and so is the address (9(d), which reversed the 2026-09-25 rule — refused in
+the domain, by `Company::moveTo`, so no caller can skip it). **Step 4's staff actions must take the
+company's row in the same order** (lesson 37): never the company's row and then the account's lock.
+
+**Files are checked before they are stored.** An upload under a type that is inactive, another
+store's, or unknown is `DocumentTypeInactive`, and an answer to a request that is not the last
+rejection's, or of the wrong kind, is refused — before Platform stores anything, which the tests
+prove by counting Platform's writes, not by looking for a file afterwards (a rolled-back upload
+leaves none either).
+
+**Saving changes only the fields sent** (amendment 5), each checked on its own field; a newly chosen
+listed type must be the home store's and still offered, while one the draft already holds is left
+alone and refused only when the draft is sent (§1.3).
+
+**Three actions are audited** (amendment 4, `CompanyAccountAudit`), each inside its own transaction
+and under the account's home store: sending and discarding on the application, the address change
+on the company. What the customer typed is only "changed"; the states and a listed type's id are
+recorded by value.
+
+**`ViewMyCompany` always answers** (§3.1, §4.3): before a company, which step the account is on —
+the email first, then whether a draft is open; the open draft with the last rejection's marks and
+requests, its answers, and what is no longer accepted; the home store's types as the form offers
+them — greyed ones marked, hidden ones left out; the company; and its history, newest first, with no
+staff names.
 
 **Typed text is accepted two ways** (`CompanyText`): one line for names and numbers; lines, with
 the break kept as `\n`, for the address and for reasons and notes. Each column has a CHECK behind

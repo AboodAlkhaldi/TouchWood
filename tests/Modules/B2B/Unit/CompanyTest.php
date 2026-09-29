@@ -178,14 +178,22 @@ describe('a new application from an existing company', function () {
 });
 
 describe('what changes without an application', function () {
-    it('moves the address in any status, suspended included, and leaves the status alone', function (CompanyStatus $status) {
+    it('moves the address in any status but suspended, and leaves the status alone', function (CompanyStatus $status) {
         $company = companyIn($status);
         $company->moveTo(CompanyAddress::of("Olaya Street\nRiyadh"));
 
         expect($company->details()->address->value)->toBe("Olaya Street\nRiyadh")
             ->and($company->status())->toBe($status)
             ->and($company->pullChanges())->toBe(['address']);
-    })->with([CompanyStatus::Pending, CompanyStatus::Approved, CompanyStatus::Rejected, CompanyStatus::Suspended]);
+    })->with([CompanyStatus::Pending, CompanyStatus::Approved, CompanyStatus::Rejected]);
+
+    it('refuses to move a suspended company\'s address, and changes nothing (amendment 9(d))', function () {
+        $company = companyIn(CompanyStatus::Suspended);
+
+        expect(fn () => $company->moveTo(CompanyAddress::of("Olaya Street\nRiyadh")))->toThrow(CompanySuspended::class)
+            ->and($company->details()->address->value)->toBe("King Fahd Road\nRiyadh")
+            ->and($company->pullChanges())->toBe([]);
+    });
 
     it('lets staff correct the type without sending the company back to PENDING', function () {
         $company = companyIn(CompanyStatus::Approved);

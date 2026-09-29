@@ -21,8 +21,8 @@ use Illuminate\Support\Facades\Schema;
 | application; an answer's request belongs to the last rejection; a company's type comes from its
 | home store's list; staff flag only a document the rejected application sent a file under.
 |
-| Until step 4's RejectCompany, nothing but the tests writes flags or requests; the answers arrive
-| with the company's side in step 3b.
+| Until step 4's RejectCompany, nothing but the tests writes flags or requests; the answers are
+| written by the company's side (step 3b, AnswerApplicationRequest).
 */
 
 return new class extends Migration

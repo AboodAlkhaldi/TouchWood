@@ -6,6 +6,8 @@ namespace Modules\B2B\Infrastructure;
 
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
@@ -40,6 +42,10 @@ final class B2BServiceProvider extends ServiceProvider
     {
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
         $this->loadTranslationsFrom(dirname(__DIR__).'/Presentation/lang', 'b2b');
+
+        // B2B sits above Access, so it declares its own permissions through Access's public
+        // catalog (Access spec §2.2); Access checks them at boot like its own.
+        $this->app->make(PermissionCatalog::class)->declare('b2b', ...B2BPermissions::definitions());
 
         // A company's papers are Platform media, and every application holding one blocks its
         // delete (b2b.md §1.4).

@@ -115,11 +115,13 @@ status is needed, and handoff §8.2 allows none. The **type** is one of these de
 legal form is always seen by staff before the company orders again. A staff correction of the type
 (§3.2) is not — it changes the company without sending it back.
 
-**[DECIDED 2026-09-25] Editing while suspended is refused.** A `SUSPENDED` company may still change
-its address and contact details, and may **not** touch the name, CR number, tax number, type or documents;
-the screen refuses with the suspension's own reason. Suspension is a deliberate act by staff, and
-an edit that sent the company back to `PENDING` would let a rename undo it. The way back is staff
-reinstating them (§3.2).
+**[DECIDED 2026-09-25, 2026-09-29] Editing while suspended is refused.** A `SUSPENDED` company may
+**not** touch the name, CR number, tax number, type or documents, **nor its address** (amendment
+9(d), which reverses the 2026-09-25 "may still change its address"); the screen refuses with the
+suspension's own reason. Suspension is a deliberate act by staff, and an edit that sent the company
+back to `PENDING` would let a rename undo it; with the address frozen too, nothing is ever written
+into a suspended company's draft. The contact details are the account holder's, kept by Access, and
+stay theirs to change. The way back is staff reinstating them (§3.2).
 
 ### 1.2 Application
 
@@ -301,7 +303,8 @@ An uploaded file belonging to one application and one document type.
   (amendment 5). A file only the draft holds is deleted; one carried from the last application sent
   stays with that application and simply leaves the draft.
 - **[DECIDED 2026-09-28] The company may open its own files** (amendment 5): a link that lasts 30
-  minutes, to a file of one of the account's own applications and nothing else.
+  minutes, to a file of one of the account's own applications and nothing else. Any other file is
+  refused as `ApplicationFileNotFound`, the same whether or not it exists (amendment 9(c)).
 
 - **Private** Platform media (handoff §5.5: "company registration documents" are named there as
   private files). They are never public, never deduplicated (platform.md §1.4), and are reached
@@ -406,16 +409,20 @@ account, checked where it cannot be walked around.
 **[DECIDED 2026-09-28] How the company's own side works** (amendment 5):
 
 - **Every** use case below refuses an individual account with `NotACompanyAccount`, reading and
-  changing the address included — one rule for the whole of B2B.
+  changing the address included — one rule for the whole of B2B. An account Access cannot find is
+  refused the same way (amendment 9(b)).
 - A draft is **started** (`StartApplicationDraft`): the first empty, a later one from the company as
   it is now plus the files of the last application sent (§1.2). Starting while a draft is open
-  returns that draft; while a sent application waits it is refused (`ApplicationAlreadyOpen`).
+  returns that draft — unless the company is suspended, when starting is refused even then
+  (amendment 9(e)); while a sent application waits it is refused (`ApplicationAlreadyOpen`).
 - The draft's actions name no application: they act on **the account's one open application**. No
   draft → `ApplicationNotFound`; one already sent → `ApplicationNotEditable`.
 - **Saving changes only the fields sent**; a field left out keeps its value. A newly chosen type
   that is inactive is refused (`CompanyTypeInactive`).
 - **While the company is suspended**, starting, saving, uploading and answering are refused
-  (`CompanySuspended`); discarding a draft is allowed.
+  (`CompanySuspended`), and so is removing a file or an answer from the draft (amendment 9(a)),
+  and changing the address (amendment 9(d)): the draft is frozen, and discarding it whole is the one
+  thing allowed.
 - **While a draft is open**, changing the company's address writes it into the draft too; a staff
   correction of the type goes into the draft only if the draft's type is still the one the company
   had.
@@ -595,7 +602,7 @@ type string and HTTP status (handoff §11).
 
 | Error | Status | When |
 |---|---|---|
-| `NotACompanyAccount` | FORBIDDEN | An individual account reached an application use case (§3.1) |
+| `NotACompanyAccount` | FORBIDDEN | An individual account — or one Access cannot find (amendment 9(b)) — reached an application use case (§3.1) |
 | `CompanyNotFound` | NOT_FOUND | No company for that account — or not one this staff member may see |
 | `ApplicationNotFound` | NOT_FOUND | — |
 | `ApplicationAlreadyOpen` | CONFLICT | A draft or submitted application already exists for the account |
@@ -608,7 +615,8 @@ type string and HTTP status (handoff §11).
 | `DocumentNoLongerAccepted` | UNPROCESSABLE | Sending a draft that still holds a file under a document type deactivated since (§1.3, amendment 5); a company type deactivated since is `CompanyTypeInactive` |
 | `RequestNotFound` | NOT_FOUND | Answering a request that is not one of the last rejection's (§3.1, amendment 5) |
 | `AnswerKindMismatch` | UNPROCESSABLE | A text answer to a file request, or a file to a text request (§3.1, amendment 5) |
-| `CompanySuspended` | CONFLICT | Editing the name, CR number, tax number or documents while suspended (§1.1) |
+| `ApplicationFileNotFound` | NOT_FOUND | Opening a file that is not one of the account's own applications' — answered the same whether or not such a file exists (§1.4, amendment 9(c)) |
+| `CompanySuspended` | CONFLICT | Anything the company does while suspended but discard its draft (§1.1, §3.1, amendments 5, 9(a), (d) and (e)): starting, saving, uploading, answering, removing a file or an answer, sending, and changing the address |
 | `InvalidCompanyStatus` | CONFLICT | A change the company's status does not allow: deciding a company with no application waiting, suspending one already suspended, reinstating one that is not (§4.1, amendment 3) |
 | `InvalidCompanyAttribute` | UNPROCESSABLE | A value the domain refuses — a CR number too long, an unknown company type, or a listed type that is not one of the home store's (§1.3, amendment 6(d)) |
 | `DocumentTypeInUse` | CONFLICT | Deleting a type an application references; deactivate it instead (§1.3) |
@@ -641,12 +649,12 @@ type string and HTTP status (handoff §11).
 9i. A draft holding a file or a company type deactivated since shows it "no longer accepted", and cannot be sent until it is removed or chosen again (amendment 5).
 9j. Each store has its own company and document types; a company is offered its home store's (amendment 5).
 9k. Starting a draft while one is open returns it; while a sent application waits it is refused; the draft's actions act on the one open application (amendment 5).
-9l. While suspended, starting, saving, uploading and answering are refused, and discarding is allowed (amendment 5).
+9l. While suspended, starting (even with a draft open), saving, uploading, answering, removing a file or an answer, and changing the address are refused, and discarding is allowed (amendments 5, 9(a), (d) and (e)).
 
 **The rules that protect somebody**
 
 10. An individual account is refused every application use case by the handler, not only by the screen.
-11. A suspended company may change its address, and may not change its name, CR number, tax number, type or documents.
+11. A suspended company may not change its name, CR number, tax number, type, documents or address (amendment 9(d)).
 12. Reinstating returns the company to the status it held before the suspension, never to `PENDING`.
 12a. An approved company cannot be rejected; only suspended (amendment 3).
 13. A company sees company prices in every status, rejected and suspended included.
@@ -685,3 +693,4 @@ place in the sections named; this table records what changed and why.
 | 6 | §1.3, §1.4, §6, §7 | **Step 3a, before it is built** — the owner's answers to the questions its re-plan raised. (a) **Every store gets the Saudi lists** through a `StoreCreated` listener, the launch stores (created by the seeder after the migrations) and any store opened later alike, until its admins change them; **the store's types page tells its admins the lists were copied from the Saudi store**, until one of them edits a type or marks the lists reviewed (the notice is data in 3a, drawn on the staff screen in step 7). §6's `StoreCreated → Nothing` no longer holds. (b) **The private-files permission** adds private files to the media library only for someone who can already open it; a private row shows its name, date and where it is used, with nothing to describe or delete — any change goes through the company's account; choosing "private" when uploading in the library is offered only to holders and refused from anyone else. (c) Two more cross-table rules are **code-only**, named in the README with the other three: a company's type comes from its home store's list; staff flag only a document the rejected application sent a file under. (d) A draft sent with another store's company type is refused as `InvalidCompanyAttribute`, as §7 already says for an unknown type. (e) Sending with a flagged item not replaced gets **one general message**: "Replace every item marked in the last decision before you send the application." (f) The spec text 3a makes out of date is corrected in 3a's own PR. | The owner's answers of 2026-09-28, after workflow 2 of the pilot stopped before building to ask them. | Owner, 2026-09-28 (B2B step 3a) |
 | 7 | §1.2, §1.3, §1.4, §5, §5.2, §6, §7 | **Step 3a, as built** — the spec text brought up to what step 3a built, as amendment 6(f) asks; no rule changes. (a) §1.2 said document types "stay global"; they are per store since amendment 5(a). (b) **Amendment 6 applied in place**: §1.3 says how every store gets the starting lists and the "copied, not yet reviewed" mark, and that a company's type comes from its home store's list, in code only; §1.4 names the private-files permission, `platform.media.private.view`, and says what the library shows and offers; §6 says what B2B does on `StoreCreated`; §7 gives `FlaggedItemNotReplaced`'s one general message, and another store's type as `InvalidCompanyAttribute`. (c) **§5** gains the table `b2b.store_type_lists`, the types' `inactive_display` column with its two CHECKs, the request tables' named CHECKs, and the types' `RESTRICT` keys to `platform.stores`; **§5.2** gains the per-store unique names, the flags' and answers' uniques, and the two `media_id` indexes. | Amendment 6 had been recorded as a row only, and §5 named only what step 2 had built. | Owner, 2026-09-28 (B2B step 3a: the corrections the integrator writes) |
 | 8 | §1.4, §2.3, §3.2, §8 (17); platform.md §9.4 | **Step 3a, after its review** — the owner's answers to the questions the review raised. (a) **A private file does not exist in the media library for anyone without `platform.media.private.view`**: describing, retrying or deleting it there answers exactly as for an id that never existed — the review had found the server still accepted a description from staff who could not see the file, and that a refused delete named the application holding it. **A holder acts on a private file with the library's usual permissions on top** — describing needs `platform.media.update`, deleting `platform.media.delete` — so an admin may see only, see and describe, or see, describe and delete, as far as a Super Admin gave them; the private row therefore offers Describe and Delete to whoever may, which replaces amendment 6(b)'s "no Describe, no Delete". The row still shows only the name, upload date and where it is used, and the file is still never opened there; a paper an application holds is still refused as in use. A module's own delete (`deleteMediaFor`) is unchanged. (b) **For step 4**: a staff correction of a company's type to a **deactivated** type first tells them the type becomes active again; confirmed, the type is activated, then assigned. (c) **The audit log**: a reader without `platform.media.private.view` still sees each entry about a private file — the action, the time, who did it and on whose behalf, and the address — but **not which file** (its id) **nor what changed** (type, size, checksum, module, permission, descriptions); an admin who holds the permission sees the whole entry, so a reader who needs it asks one. Which files are private is read from the file while it exists and from its upload entry once it is deleted, since a file's visibility never changes. (d) **A private file never has sizes made** (platform.md §5.4: `variants_status` is NULL for private files): retrying one is refused, and the size generator never writes one to the public disk — the review found nothing stopped it if a private row were ever marked as having sizes. | Only a Super Admin and the admins a Super Admin chooses may deal with a company's papers from the media library, each as far as they were given; a staff member who may manage B2B accounts still does not learn from the library that the papers exist. A correction may not pick something deactivated, so picking one means bringing it back first. The log stays complete for oversight without telling everyone who may read it which company papers exist. | Owner, 2026-09-28; (d) the review of amendment 8 |
+| 9 | §1.1, §1.4, §3.1, §7, §8 (9l, 11) | **Step 3b** — the owner's answers to the points the spec left open, (a)–(c) before it was built and (d)–(e) after its review. (a) **While a company is suspended, its open draft is frozen**: removing a file or an answer is refused (`CompanySuspended`) as starting, saving, uploading and answering already are, and discarding the whole draft stays the one thing allowed. (b) **An account Access cannot find** — a session that outlived its account — **is refused as `NotACompanyAccount`**, as an individual account is; no new error. (c) **Opening a file that is not one of the account's own applications'** is refused with a new error, **`ApplicationFileNotFound`**, answered the same whether or not the file exists. (d) **A suspended company may not change its address either** (`CompanySuspended`) — this **reverses** §1.1's 2026-09-25 "may still change its address" and the first half of scenario 11 — so nothing is ever written into a suspended company's draft; the review had found the address change still writing into a draft 9(a) calls frozen. (e) **Starting while suspended is refused even when a draft is already open** (`CompanySuspended`), rather than returning that draft: nothing on the draft side works while suspended but discarding, and the company page still shows the draft. | (a) §1.1 already says a suspended company may not touch its documents, and a draft that can shrink file by file is one that can still be worked on; discarding remains the way to drop it. (b) It cannot happen in practice, and it is not a company account either way. (c) §7 had nothing for it, and an answer that differed for another company's file would say that file exists. (d) "Much easier" (owner): with the address frozen too, a suspended company changes nothing at all but its own draft's existence. (e) One rule — suspended means the draft side is shut — is simpler than an exception for the start button. | Owner, 2026-09-29 |
