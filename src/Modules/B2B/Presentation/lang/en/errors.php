@@ -76,14 +76,6 @@ return [
         'title' => 'File not found',
         'detail' => 'That file is not in any of your applications.',
     ],
-    'company_type_choice_required' => [
-        'title' => 'Choose the company type',
-        'detail' => 'This application\'s company type was deactivated after it was sent. Choose the replacement, keep the old type for this company, or correct it, then approve.',
-    ],
-    'company_type_choice_not_needed' => [
-        'title' => 'Nothing to choose',
-        'detail' => 'The application\'s company type is active again. Look at the application again, then approve.',
-    ],
     'type_not_found' => [
         'title' => 'Type not found',
         'detail' => 'There is no such type in your stores\' lists.',
@@ -111,6 +103,5 @@ return [
         'status' => 'status',
         'store' => 'store',
         'tax_number' => 'tax number',
-        'type_choice' => 'type choice',
     ],
 ];

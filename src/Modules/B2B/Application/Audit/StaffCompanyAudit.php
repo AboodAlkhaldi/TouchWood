@@ -32,7 +32,7 @@ final class StaffCompanyAudit
 
     private const string COMPANY = 'b2b.company';
 
-    public static function approved(Application $application, ?Remark $note, ?string $typeChoice, string $homeStoreId): AuditEntryDto
+    public static function approved(Application $application, ?Remark $note, string $homeStoreId): AuditEntryDto
     {
         $changes = AuditChanges::none()
             ->changed('state', 'SUBMITTED', $application->state()->value)
@@ -40,10 +40,6 @@ final class StaffCompanyAudit
 
         if ($note !== null) {
             $changes->changed('note', null, $note->value);
-        }
-
-        if ($typeChoice !== null) {
-            $changes->changed('type_choice', null, $typeChoice);
         }
 
         return new AuditEntryDto('b2b.application.approved', self::APPLICATION, $application->id(), $homeStoreId, $changes);

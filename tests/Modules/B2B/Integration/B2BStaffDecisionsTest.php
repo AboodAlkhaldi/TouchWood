@@ -10,11 +10,12 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\B2B\Application\B2BPermissions;
-use Modules\B2B\Application\Command\ApproveCompany\ApprovalTypeChoice;
 use Modules\B2B\Application\Command\ApproveCompany\ApproveCompany;
 use Modules\B2B\Application\Command\ApproveCompany\ApproveCompanyHandler;
 use Modules\B2B\Application\Command\CorrectCompanyType\CorrectCompanyType;
 use Modules\B2B\Application\Command\CorrectCompanyType\CorrectCompanyTypeHandler;
+use Modules\B2B\Application\Command\DeactivateCompanyType\DeactivateCompanyType;
+use Modules\B2B\Application\Command\DeactivateCompanyType\DeactivateCompanyTypeHandler;
 use Modules\B2B\Application\Command\DownloadCompanyDocument\DownloadCompanyDocument;
 use Modules\B2B\Application\Command\DownloadCompanyDocument\DownloadCompanyDocumentHandler;
 use Modules\B2B\Application\Command\ReinstateCompany\ReinstateCompany;
@@ -33,8 +34,6 @@ use Modules\B2B\Application\Query\ViewMyCompany\ViewMyCompany;
 use Modules\B2B\Application\Query\ViewMyCompany\ViewMyCompanyHandler;
 use Modules\B2B\Domain\Exception\CompanyNotFound;
 use Modules\B2B\Domain\Exception\CompanySuspended;
-use Modules\B2B\Domain\Exception\CompanyTypeChoiceNotNeeded;
-use Modules\B2B\Domain\Exception\CompanyTypeChoiceRequired;
 use Modules\B2B\Domain\Exception\CompanyTypeInactive;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\InvalidCompanyStatus;
@@ -42,7 +41,7 @@ use Modules\B2B\Domain\Model\Company;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
-use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
+use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Public\Enums\CompanyStatus;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -128,9 +127,9 @@ function staffDecisionsMails(): array
     return RecordingSecurityMessages::installed()->companyDecisions;
 }
 
-function staffDecisionsApprove(string $companyId, ?string $note = null, ?ApprovalTypeChoice $choice = null, ?string $correctTypeId = null, bool $confirm = false): void
+function staffDecisionsApprove(string $companyId, ?string $note = null): void
 {
-    app(ApproveCompanyHandler::class)->handle(new ApproveCompany($companyId, $note, $choice, $correctTypeId, confirmReactivation: $confirm));
+    app(ApproveCompanyHandler::class)->handle(new ApproveCompany($companyId, $note));
 }
 
 /**
@@ -342,20 +341,42 @@ describe('approving (§3.2, §4.1, amendments 1 and 10)', function () {
     ]);
 });
 
-describe('approving an application whose type was deactivated since it was sent (§1.3, amendment 10(e), (i))', function () {
-    it('refuses to approve without a choice, and writes and sends nothing', function () {
+describe('approving an application whose type was deactivated since it was sent (§1.3, amendment 11(a))', function () {
+    it('asks for no choice: a company the deactivation moved keeps the replacement', function () {
         [$customerId, $company] = staffDecisionsPending();
-        B2BFixtures::deactivate(B2BFixtures::companyTypes()[1]);
+        [$replacement, $sent] = B2BFixtures::companyTypes();
         staffDecisionsReviewer();
+        app(DeactivateCompanyTypeHandler::class)->handle(new DeactivateCompanyType($sent->id(), InactiveTypeDisplay::Hidden, $replacement->id()));
         $levels = B2BFixtures::auditLevels();
 
-        expect(fn () => staffDecisionsApprove($company->id()))->toThrow(CompanyTypeChoiceRequired::class)
-            ->and(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Pending)
-            ->and($levels->getArrayCopy())->toBe([])
-            ->and(staffDecisionsMails())->toBe([]);
+        staffDecisionsApprove($company->id());
+        $applicationId = app(ApplicationRepository::class)->historyOf($company->id())[0]->id();
+
+        expect(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Approved)
+            ->and(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe($replacement->id())
+            // The approval itself changes no type: it follows what the deactivation decided.
+            ->and($levels->getArrayCopy())->toBe([['b2b.application.approved', 2]])
+            ->and(staffDecisionsChanges('b2b.application.approved', $applicationId))->toBe([
+                'company_status' => ['PENDING', 'APPROVED'],
+                'state' => ['SUBMITTED', 'APPROVED'],
+            ]);
     });
 
-    it('asks the company\'s status before the type: a suspended company\'s waiting application is refused for what it is', function () {
+    it('asks for no choice: a company left on the old type keeps it, still deactivated for everyone else', function () {
+        [$customerId, $company] = staffDecisionsPending();
+        $sent = B2BFixtures::companyTypes()[1];
+        staffDecisionsReviewer();
+        app(DeactivateCompanyTypeHandler::class)->handle(new DeactivateCompanyType($sent->id(), InactiveTypeDisplay::Hidden));
+
+        staffDecisionsApprove($company->id());
+
+        expect(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Approved)
+            ->and(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe($sent->id())
+            ->and(app(CompanyTypeRepository::class)->find($sent->id())?->isActive())->toBeFalse()
+            ->and(Fx::audits('b2b.company.type_corrected', $company->id()))->toBe(0);
+    });
+
+    it('asks the company\'s status first: a suspended company\'s waiting application is refused for what it is', function () {
         [, $company] = staffDecisionsPending();
         B2BFixtures::deactivate(B2BFixtures::companyTypes()[1]);
         B2BFixtures::suspend($company);
@@ -375,88 +396,6 @@ describe('approving an application whose type was deactivated since it was sent 
 
         expect(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Approved)
             ->and(staffDecisionsCompany($customerId)->details()->type->other)->toBe('Cooperative society');
-    });
-
-    it('keeps the sent type for this company alone, which stays deactivated for everyone else', function () {
-        [$customerId, $company] = staffDecisionsPending();
-        $sent = B2BFixtures::companyTypes()[1];
-        B2BFixtures::deactivate($sent);
-        staffDecisionsReviewer();
-
-        staffDecisionsApprove($company->id(), choice: ApprovalTypeChoice::Keep);
-
-        expect(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Approved)
-            ->and(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe($sent->id())
-            ->and(app(CompanyTypeRepository::class)->find($sent->id())?->isActive())->toBeFalse()
-            // It already held the sent type: nothing changed, so no correction is logged.
-            ->and(Fx::audits('b2b.company.type_corrected', $company->id()))->toBe(0);
-    });
-
-    it('keeps the sent type even after the deactivation replaced it: the company goes back to it, still deactivated (the review of step 4)', function () {
-        [$customerId, $company] = staffDecisionsPending();
-        [$replacement, $sent] = B2BFixtures::companyTypes();
-        $company->correctType(CompanyTypeChoice::listed($replacement->id()), B2BFixtures::companyTypes());
-        app(CompanyRepository::class)->update($company);
-        B2BFixtures::deactivate($sent);
-        staffDecisionsReviewer();
-
-        staffDecisionsApprove($company->id(), choice: ApprovalTypeChoice::Keep);
-        $applicationId = app(ApplicationRepository::class)->historyOf($company->id())[0]->id();
-
-        expect(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe($sent->id())
-            ->and(app(CompanyTypeRepository::class)->find($sent->id())?->isActive())->toBeFalse()
-            ->and(staffDecisionsChanges('b2b.company.type_corrected', $company->id()))->toBe(['company_type_id' => [$replacement->id(), $sent->id()]])
-            ->and(staffDecisionsChanges('b2b.application.approved', $applicationId)['type_choice'] ?? null)->toBe([null, 'KEEP']);
-    });
-
-    it('uses the replacement the deactivation gave the company', function () {
-        [$customerId, $company] = staffDecisionsPending();
-        [$replacement, $sent] = B2BFixtures::companyTypes();
-        // What replacing a deactivated type on its holders does (§1.3).
-        $company->correctType(CompanyTypeChoice::listed($replacement->id()), B2BFixtures::companyTypes());
-        app(CompanyRepository::class)->update($company);
-        B2BFixtures::deactivate($sent);
-        staffDecisionsReviewer();
-
-        staffDecisionsApprove($company->id(), choice: ApprovalTypeChoice::Replacement);
-        $applicationId = app(ApplicationRepository::class)->historyOf($company->id())[0]->id();
-
-        expect(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe($replacement->id())
-            ->and(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Approved)
-            ->and(staffDecisionsChanges('b2b.application.approved', $applicationId)['type_choice'] ?? null)->toBe([null, 'REPLACEMENT']);
-    });
-
-    it('refuses "the replacement" when the companies were left with the old type', function () {
-        [$customerId, $company] = staffDecisionsPending();
-        B2BFixtures::deactivate(B2BFixtures::companyTypes()[1]);
-        staffDecisionsReviewer();
-
-        expect(fn () => staffDecisionsApprove($company->id(), choice: ApprovalTypeChoice::Replacement))->toThrow(InvalidCompanyAttribute::class)
-            ->and(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Pending);
-    });
-
-    it('corrects the type while approving, which needs the correction job as well', function () {
-        [$customerId, $company] = staffDecisionsPending();
-        [$other, $sent] = B2BFixtures::companyTypes();
-        B2BFixtures::deactivate($sent);
-        staffDecisionsReviewer([B2BPermissions::COMPANY_VIEW, B2BPermissions::COMPANY_REVIEW]);
-
-        expect(fn () => staffDecisionsApprove($company->id(), choice: ApprovalTypeChoice::Correct, correctTypeId: $other->id()))->toThrow(Unauthorized::class)
-            ->and(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Pending);
-
-        staffDecisionsReviewer([B2BPermissions::COMPANY_REVIEW, B2BPermissions::COMPANY_CORRECT_TYPE]);
-        staffDecisionsApprove($company->id(), choice: ApprovalTypeChoice::Correct, correctTypeId: $other->id());
-
-        expect(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe($other->id())
-            ->and(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Approved);
-    });
-
-    it('refuses a choice when the type is active again, so the reviewer looks again (10(i))', function () {
-        [$customerId, $company] = staffDecisionsPending();
-        staffDecisionsReviewer();
-
-        expect(fn () => staffDecisionsApprove($company->id(), choice: ApprovalTypeChoice::Keep))->toThrow(CompanyTypeChoiceNotNeeded::class)
-            ->and(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Pending);
     });
 });
 
@@ -720,16 +659,14 @@ describe('the locks (lesson 37)', function () {
         expect($keys)->toBe(['b2b:types:'.Fx::storeId('sa'), 'b2b:account:'.$customerId]);
     });
 
-    it('takes the store\'s type lock first when an approval corrects to a listed type (the review of step 4)', function () {
+    it('takes only the account\'s lock to approve: approving changes no type (amendment 11(a))', function () {
         [$customerId, $company] = staffDecisionsPending();
-        [$other, $sent] = B2BFixtures::companyTypes();
-        B2BFixtures::deactivate($sent);
+        B2BFixtures::deactivate(B2BFixtures::companyTypes()[1]);
         staffDecisionsReviewer();
         $locks = B2BFixtures::accountLocks();
 
-        staffDecisionsApprove($company->id(), choice: ApprovalTypeChoice::Correct, correctTypeId: $other->id());
+        staffDecisionsApprove($company->id());
 
-        expect(array_map(static fn (array $lock): array => [$lock[1], $lock[2]], $locks->getArrayCopy()))
-            ->toBe([['b2b:types:'.Fx::storeId('sa'), 2], ['b2b:account:'.$customerId, 2]]);
+        expect($locks->getArrayCopy())->toBe([['exclusive', 'b2b:account:'.$customerId, 2]]);
     });
 });
