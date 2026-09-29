@@ -9,6 +9,7 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
+use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
@@ -23,6 +24,7 @@ use Modules\B2B\Infrastructure\Eloquent\DatabaseStoreTypeListsRepository;
 use Modules\B2B\Infrastructure\Listener\WriteStartingTypes;
 use Modules\B2B\Infrastructure\Media\ApplicationFilesUsage;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Events\StoreCreated;
 
 /**
@@ -53,6 +55,9 @@ final class B2BServiceProvider extends ServiceProvider
         // A company's papers are Platform media, and every application holding one blocks its
         // delete (b2b.md §1.4).
         $this->app->make(MediaUsages::class)->register('b2b', ApplicationFilesUsage::class);
+
+        // The bank account an approved company transfers to, one per store (amendment 12(b)).
+        $this->app->make(SettingsRegistry::class)->define('b2b', ...BankAccountSettings::definitions());
 
         // A store opened later starts with the same type lists as the others, until its admins
         // change them (amendment 6(a)).
