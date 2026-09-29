@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\DB;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\B2B\Application\Settings\BankAccountSettings;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -70,4 +74,45 @@ it('saves one setting on its own, leaving the rest of the screen alone', functio
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('platform.settings')->where('key', $key)->value('value'))->toBe('27');
+});
+
+it('says in the Companies section whether bank transfer is on, and names no value for a setting still empty (b2b.md amendment 13(c))', function () {
+    // The browser suite keeps its data, so the three start empty here and are emptied again after.
+    $empty = function (): void {
+        foreach ([BankAccountSettings::IBAN, BankAccountSettings::BANK, BankAccountSettings::HOLDER] as $key) {
+            app(UpdateSettingHandler::class)->handle(new UpdateSetting($key, 'sa', ''));
+        }
+    };
+    $empty();
+
+    // An admin of one store who may change its store settings: only the Companies section shows.
+    $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
+    $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', $email)
+        ->type('#password', SETTINGS_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        ->navigate('/admin/settings');
+
+    $page->assertSee('Companies')
+        ->assertSee('Bank transfer: temporarily off — fill in all three to turn it on.')
+        // An empty default is "not set yet": no value in force to name (owner, 2026-09-29).
+        ->assertDontSee('is in force')
+        ->assertNoJavaScriptErrors();
+
+    app(UpdateSettingHandler::class)->handle(new UpdateSetting(BankAccountSettings::IBAN, 'sa', 'GB82 WEST 1234 5698 7654 32'));
+    app(UpdateSettingHandler::class)->handle(new UpdateSetting(BankAccountSettings::BANK, 'sa', 'Al Noor Bank'));
+    app(UpdateSettingHandler::class)->handle(new UpdateSetting(BankAccountSettings::HOLDER, 'sa', 'TouchWood Trading'));
+
+    $page->navigate('/admin/settings')
+        ->assertSee('Bank transfer: on')
+        ->assertDontSee('temporarily off')
+        ->assertNoJavaScriptErrors();
+
+    $empty();
 });

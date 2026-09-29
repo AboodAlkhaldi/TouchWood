@@ -7,9 +7,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
 use Modules\Platform\Domain\Exception\InvalidSettingValue;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\SettingsSectionLines;
 use Modules\Platform\Public\Enums\SettingScope;
 use Modules\Platform\Public\Enums\SettingType;
 use Modules\Platform\Public\PlatformPermissions;
@@ -122,4 +124,19 @@ it('names the section and the three settings on the settings screen, in Arabic a
             expect(is_string($name) && $name !== '' && $name !== $key)->toBeTrue("{$key} has no {$locale} name");
         }
     }
+});
+
+it('gives the settings section no line on a page showing no store: the account is per store (amendment 13(c))', function () {
+    bankSettingSave(BankAccountSettings::IBAN, 'sa', 'GB82 WEST 1234 5698 7654 32');
+    bankSettingSave(BankAccountSettings::BANK, 'sa', 'Al Noor Bank');
+    bankSettingSave(BankAccountSettings::HOLDER, 'sa', 'TouchWood Trading');
+    // The registry behind Platform's contract, where B2B registered its line at boot; read in English
+    // here, as the panel's language decides it there.
+    app()->setLocale('en');
+    $line = app(InMemorySettingsSectionLines::class)->for('b2b');
+
+    expect(app(SettingsSectionLines::class))->toBe(app(InMemorySettingsSectionLines::class))
+        ->and($line?->line(null))->toBeNull()
+        ->and($line?->line(bankSettingStore('sa')))->toBe('Bank transfer: on')
+        ->and($line?->line(bankSettingStore('eg')))->toBe('Bank transfer: temporarily off — fill in all three to turn it on.');
 });

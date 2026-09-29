@@ -10,4 +10,9 @@ return [
     'bank.iban' => 'IBAN companies transfer to',
     'bank.name' => 'Bank name',
     'bank.holder' => 'Account holder',
+
+    // The section's line (BankTransferLine, amendment 13(c)): bank transfer is on only while all
+    // three are filled in.
+    'bank_transfer.on' => 'Bank transfer: on',
+    'bank_transfer.off' => 'Bank transfer: temporarily off — fill in all three to turn it on.',
 ];

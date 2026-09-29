@@ -26,9 +26,11 @@ use Modules\B2B\Infrastructure\Eloquent\DatabaseStoreTypeListsRepository;
 use Modules\B2B\Infrastructure\Listener\AnonymizeCompany;
 use Modules\B2B\Infrastructure\Listener\WriteStartingTypes;
 use Modules\B2B\Infrastructure\Media\ApplicationFilesUsage;
+use Modules\B2B\Infrastructure\Settings\BankTransferLine;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\SettingsSectionLines;
 use Modules\Platform\Public\Events\StoreCreated;
 
 /**
@@ -63,13 +65,15 @@ final class B2BServiceProvider extends ServiceProvider
 
         // The bank account an approved company transfers to, one per store (amendment 12(b)).
         $this->app->make(SettingsRegistry::class)->define('b2b', ...BankAccountSettings::definitions());
+        // Bank transfer is on only while all three are filled in; the section says which (13(c)).
+        $this->app->make(SettingsSectionLines::class)->register('b2b', BankTransferLine::class);
 
         // A store opened later starts with the same type lists as the others, until its admins
         // change them (amendment 6(a)).
         Event::listen(StoreCreated::class, [WriteStartingTypes::class, 'handle']);
 
         // An anonymized account takes its company's personal fields and papers with it, and any
-        // unsent draft (amendment 12(a)).
+        // unsent draft (amendment 12(a)) — from the queue (13(a)).
         Event::listen(CustomerAnonymized::class, [AnonymizeCompany::class, 'handle']);
     }
 }
