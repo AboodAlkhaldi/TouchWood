@@ -25,10 +25,10 @@ with each step.
 | `Domain/Exception` | `B2BError`, the base of every error here, and one class per refusal |
 | `Domain/Repository` | One per aggregate: companies, applications (with their files, flags, requests and answers), the two type lists, the stores' "copied" flags |
 | `Application/Types` | `StartingTypes`, the lists every store starts with; `GiveEveryStoreTheStartingTypes`, which writes them into a store that has none; `StaffTypeAction`, what every staff change to a list shares; `TypeListsNotice`, which clears a store's "copied" notice |
-| `Application` | `B2BPermissions` — the two automatic permissions of the company's own side and the eleven staff jobs, declared into Access's catalog at boot |
-| `Application/Command` | The company's own side (step 3b): `StartApplicationDraft`, `SaveApplicationDraft`, `AttachApplicationDocument`, `RemoveApplicationDocument`, `AnswerApplicationRequest`, `RemoveApplicationAnswer`, `SubmitApplication`, `DiscardApplicationDraft`, `UpdateCompanyContact`. Staff (step 4): `ApproveCompany`, `RejectCompany`, `SuspendCompany`, `ReinstateCompany`, `CorrectCompanyType`, `DownloadCompanyDocument`; the lists: `Add`/`Rename`/`Move`/`Deactivate`/`ActivateCompanyType`, the same for `DocumentType` with `RequireDocumentType`, and `MarkTypeListsReviewed` |
+| `Application` | `B2BPermissions` — the two automatic permissions of the company's own side and the twelve staff jobs, declared into Access's catalog at boot |
+| `Application/Command` | The company's own side (step 3b): `StartApplicationDraft`, `SaveApplicationDraft`, `AttachApplicationDocument`, `RemoveApplicationDocument`, `AnswerApplicationRequest`, `RemoveApplicationAnswer`, `SubmitApplication`, `DiscardApplicationDraft`, `UpdateCompanyContact`. Staff (step 4): `ApproveCompany`, `RejectCompany`, `SuspendCompany`, `ReinstateCompany`, `CorrectCompanyType`, `TransferCompanyType`, `DownloadCompanyDocument`; the lists: `Add`/`Rename`/`Move`/`Deactivate`/`ActivateCompanyType`, the same for `DocumentType` with `RequireDocumentType`, and `MarkTypeListsReviewed` |
 | `Application/Query` | `ViewMyCompany` and its read classes — what the account is shown; `OpenMyApplicationFile`, a 30-minute link to one of its own files; staff's `ListCompanies` and `ViewCompany`; `ApplicationViews`, how an application is shown to both |
-| `Application/Staff` | `StaffCompanyAction` (which store, what a stranger is told, who decides), `CompanyTypeCorrection` (every change of a company's type), `CompanyMessages` (the decision emails, after commit) |
+| `Application/Staff` | `StaffCompanyAction` (which store, what a stranger is told, who decides), `CompanyTypeCorrection` (every change of a company's type), `CompanyTypeHolders` (every holder of a type moved to another), `CompanyMessages` (the decision emails, after commit) |
 | `Application/Account` | `CurrentCompanyAccount`: the signed-in company account every use case above starts from |
 | `Application/Draft` | `OpenDrafts`: the account's open draft, read under its locks, refused in the one order every draft action shares |
 | `Application/Files` | `ApplicationFiles`: B2B's own uploads (private, under its own permission) and letting go of what no application holds |
@@ -195,7 +195,7 @@ Arabic-Indic digits.
 
 ## The staff side (step 4)
 
-**One permission per job** (amendment 10): eleven, in `B2BPermissions::staff()`, named as every
+**One permission per job** (amendments 10 and 11(c)): twelve, in `B2BPermissions::staff()`, named as every
 module's are, an action sharing one with its undo (suspend and reinstate, deactivate and activate).
 Every one is per store and none is admin-only: any staff or admin role may be given any of them.
 Holding one job never grants another — viewing a company does not open its papers, reviewing does
@@ -213,10 +213,10 @@ reinstating.
 
 **One lock order for all of B2B** (lesson 37), each step inside the use case's own transaction:
 
-1. the store's type-list lock, `b2b:types:<store>` — every change to a list, and a correction or an
-   approval that may **activate** a type;
-2. the account's lock, `b2b:account:<customer>` — several accounts in account order (replacing a
-   deactivated type on its companies);
+1. the store's type-list lock, `b2b:types:<store>` — every change to a list, a correction that may
+   **activate** a type, and a transfer of companies between types;
+2. the account's lock, `b2b:account:<customer>` — several accounts in account order (moving a type's
+   holders, on a deactivation or a transfer);
 3. the company's row;
 4. the application, read, not locked.
 
@@ -236,15 +236,16 @@ block's reason. **The customer's email goes only once the decision has committed
 (`CompanyMessages`, `afterCommit`): approved with the note, rejected with the reason, suspended
 with the reason; reinstating sends none. A rolled-back decision emails nobody.
 
-**Approving an application whose type was deactivated after it was sent needs a choice** (10(e)):
-the replacement the deactivation gave the company, the sent type kept for this company alone (it
-stays deactivated for everyone else), or a correction — `CompanyTypeChoiceRequired` otherwise, and
-`CompanyTypeChoiceNotNeeded` for a choice sent once the type is active again (10(i)), so the
-reviewer decides with the facts as they are.
+**The staff member deactivating a type decides for its holders; the reviewer follows** (amendment
+11(a), which reversed 10(e) and 10(i)). Approving asks for no choice about the type: the company
+already carries what the deactivation gave it — the replacement, or the old type if it was left — and
+approving keeps it. A waiting application whose type was deactivated since is marked for the reviewer,
+for information only.
 
 **Every change of a company's type goes one way** (`CompanyTypeCorrection`): the correction itself,
-an approval's choice, and the replacement of a deactivated type. `Company::correctType` refuses a
-**suspended** company in the domain (10(h)), so no path changes one — the replacement skips it. A
+and moving a type's holders (`CompanyTypeHolders`) — when the type is deactivated with a replacement,
+or transferred to another active type. `Company::correctType` refuses a **suspended** company in the
+domain (10(h)), so no path changes one — moving holders skips it. A
 **deactivated** type is taken only once staff confirm it becomes active again, and only by someone who
 may also deactivate and activate that store's company types (8(b), 10(b)). An open draft follows only
 while it still holds the company's type (§3.1). It never touches an application sent.
@@ -253,10 +254,15 @@ while it still holds the company's type (§3.1). It never touches an application
 a type is **never deleted** (10(c)). Every change runs through `StaffTypeAction::change()` — its own
 transaction, the store's lock first, the work, then, if anything changed, **the store's "copied"
 notice cleared** (`TypeListsNotice`, 10(d)) and the audit, by value (a type's names are the store's
-words, not personal data). Deactivating a company type with a replacement moves every company holding
-it — approved ones included, suspended ones not — in one transaction, each audited as
-`b2b.company.type_replaced`. Known limit: a company sending an application in the same instant a
-type is deactivated can still send it; its reviewer then meets the warning above.
+words, not personal data). **Deactivating a company type decides for its holders** (11): leave them,
+move every one — approved ones included, suspended ones not — to another active type, or to **a new
+type created in the same step** (which needs the job of adding types too), all in one transaction:
+the new type, the deactivation and every move, or none of them. Each move is audited as
+`b2b.company.type_replaced`. **`TransferCompanyType`** moves every holder of one active type to
+another, both staying active — its own job, `b2b.company.transfer_type`; it changes neither list, so
+it runs in its own transaction under the store's lock, not through `change()`, and leaves the notice.
+Known limit: a company sending an application in the same instant a type is deactivated can still
+send it; its reviewer then sees the mark above.
 
 **What staff read.** `ListCompanies` pages in SQL with every filter in the WHERE clause, so the total
 never counts what the reader may not see (lesson 69): waiting companies first, the oldest sent first,
