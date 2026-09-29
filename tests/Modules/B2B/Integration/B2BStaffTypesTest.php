@@ -465,6 +465,91 @@ describe('deactivating a company type (§1.3, amendments 5 and 10)', function ()
     });
 });
 
+describe('replacing a company type with a new one, in one step (§1.3, amendment 11(b))', function () {
+    it('adds the new type, deactivates the old one and moves every holder but a suspended one — audited', function () {
+        $held = B2BFixtures::companyTypes()[1];
+        $movers = [];
+
+        foreach (['sent', 'approved', 'rejected'] as $fixture) {
+            $customerId = B2BFixtures::verifiedCompanyAccount();
+            B2BFixtures::{$fixture}($customerId);
+            $movers[] = $customerId;
+        }
+
+        $suspendedId = B2BFixtures::verifiedCompanyAccount();
+        [$suspended] = B2BFixtures::approved($suspendedId);
+        B2BFixtures::suspend($suspended);
+        staffTypesAdmin();
+
+        $newId = app(DeactivateCompanyTypeHandler::class)->handle(new DeactivateCompanyType($held->id(), InactiveTypeDisplay::Greyed, newTypeNameAr: 'شركة شخص واحد', newTypeNameEn: 'One Person Company'));
+        $new = app(CompanyTypeRepository::class)->find((string) $newId);
+
+        expect($new?->isActive())->toBeTrue()
+            ->and($new?->storeId())->toBe(Fx::storeId('sa'))
+            ->and($new?->name()->en)->toBe('One Person Company')
+            ->and($new?->position())->toBe($held->position())
+            ->and(app(CompanyTypeRepository::class)->find($held->id())?->inactiveDisplay())->toBe(InactiveTypeDisplay::Greyed)
+            ->and(array_map(static fn (string $customerId): ?string => app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId, $movers))
+            ->toBe([$newId, $newId, $newId])
+            ->and(app(CompanyRepository::class)->forCustomer($suspendedId)?->details()->type->typeId)->toBe($held->id())
+            ->and(Fx::audits('b2b.company_type.added', (string) $newId))->toBe(1)
+            ->and(Fx::audits('b2b.company.type_replaced'))->toBe(3)
+            ->and(staffTypesChanges('b2b.company_type.deactivated', $held->id())['replaced_by'] ?? null)->toBe([null, $newId]);
+    });
+
+    it('needs the job of adding types as well, and writes nothing without it', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::approved($customerId);
+        $held = B2BFixtures::companyTypes()[1];
+        $count = count(B2BFixtures::companyTypes());
+        staffTypesAdmin([B2BPermissions::COMPANY_TYPE_DEACTIVATE]);
+
+        expect(fn () => app(DeactivateCompanyTypeHandler::class)->handle(new DeactivateCompanyType($held->id(), InactiveTypeDisplay::Hidden, newTypeNameAr: 'نوع جديد', newTypeNameEn: 'A new type')))
+            ->toThrow(Unauthorized::class)
+            ->and(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue()
+            ->and(B2BFixtures::companyTypes())->toHaveCount($count)
+            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($held->id());
+    });
+
+    it('is all or nothing: a new name another type has leaves the old type active and its holders where they were', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::approved($customerId);
+        [$other, $held] = B2BFixtures::companyTypes();
+        $count = count(B2BFixtures::companyTypes());
+        staffTypesAdmin();
+
+        expect(fn () => app(DeactivateCompanyTypeHandler::class)->handle(new DeactivateCompanyType($held->id(), InactiveTypeDisplay::Hidden, newTypeNameAr: 'اسم جديد', newTypeNameEn: $other->name()->en)))
+            ->toThrow(TypeNameTaken::class)
+            ->and(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue()
+            ->and(B2BFixtures::companyTypes())->toHaveCount($count)
+            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($held->id())
+            ->and(staffTypesNotice())->toBeTrue();
+    });
+
+    it('takes an existing type or a new one, never both', function () {
+        $held = B2BFixtures::companyTypes()[1];
+        staffTypesAdmin();
+
+        expect(fn () => app(DeactivateCompanyTypeHandler::class)->handle(new DeactivateCompanyType($held->id(), InactiveTypeDisplay::Hidden, B2BFixtures::companyTypes()[0]->id(), 'نوع جديد', 'A new type')))
+            ->toThrow(InvalidCompanyAttribute::class)
+            ->and(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue();
+    });
+
+    it('lets the old type be activated again later; its former holders stay on the new one', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::approved($customerId);
+        $held = B2BFixtures::companyTypes()[1];
+        staffTypesAdmin();
+        $newId = app(DeactivateCompanyTypeHandler::class)->handle(new DeactivateCompanyType($held->id(), InactiveTypeDisplay::Hidden, newTypeNameAr: 'نوع جديد', newTypeNameEn: 'A new type', newTypePosition: 7));
+
+        app(ActivateCompanyTypeHandler::class)->handle(new ActivateCompanyType($held->id()));
+
+        expect(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue()
+            ->and(app(CompanyTypeRepository::class)->find((string) $newId)?->position())->toBe(7)
+            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($newId);
+    });
+});
+
 describe('the locks (lesson 37)', function () {
     it('takes the store\'s type lock inside the change\'s own transaction, for every change to a list', function (Closure $type, Closure $change) {
         $id = $type();

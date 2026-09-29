@@ -6,37 +6,34 @@ namespace Modules\B2B\Application\Command\DeactivateCompanyType;
 
 use Modules\B2B\Application\Audit\TypeAudit;
 use Modules\B2B\Application\B2BPermissions;
-use Modules\B2B\Application\Staff\CompanyTypeCorrection;
+use Modules\B2B\Application\Staff\CompanyTypeHolders;
 use Modules\B2B\Application\Types\StaffTypeAction;
 use Modules\B2B\Domain\Exception\CompanyTypeInactive;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
+use Modules\B2B\Domain\Exception\TypeNameTaken;
 use Modules\B2B\Domain\Exception\TypeNotFound;
 use Modules\B2B\Domain\Model\CompanyType;
-use Modules\B2B\Domain\Repository\ApplicationRepository;
-use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
-use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
-use Modules\B2B\Public\Enums\CompanyStatus;
+use Modules\B2B\Domain\ValueObject\TypeName;
 use Shared\Application\Authorizer;
-use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 
 /**
- * **`DeactivateCompanyType`** (b2b.md §1.3, §3.2, amendments 5 and 10): no new application may choose
+ * **`DeactivateCompanyType`** (b2b.md §1.3, §3.2, amendments 5 and 11): no new application may choose
  * it, and it shows to one hidden or greyed out. Deactivating one already inactive changes how it
  * shows — and, with a replacement, still moves the companies holding it.
  *
- * **Replacing it** moves every company holding it to another active type of the same store — approved
- * ones included — as a staff correction: the company changes, never an application it sent, nobody
- * goes back to `PENDING`, each company is audited, and an open draft follows only if it still held
- * the company's type (§3.1). **A suspended company is skipped** and keeps the old type (10(h)). An
- * application sent and still waiting keeps what it sent; its reviewer chooses when approving (10(e)).
+ * **The staff member deactivating it decides for its holders, once** (amendment 11): leave them, or
+ * move every one of them — approved ones included, suspended ones not (10(h)) — to another active type
+ * of the same store, or to **a new type created in the same step**, which needs
+ * `b2b.company_type.create` as well. The reviewer of a waiting application then follows that decision
+ * (11(a)). The old type may be activated again later; the companies moved off it stay where they are.
  *
- * All in one transaction, in B2B's one lock order: the store's lists, then each account in turn, in
- * account order, then its company. **The type's own row is read, not locked**: the store's lock
- * already serialises every writer of the list, and a `FOR UPDATE` on it would block the foreign-key
- * check of a company saving a draft that points at it — while this waits for that company's account
- * lock (the review of step 4).
+ * All in one transaction — the new type, the deactivation and every move happen together or not at
+ * all — in B2B's one lock order: the store's lists, then each account in turn, in account order, then
+ * its company. **The type's own row is read, not locked**: the store's lock already serialises every
+ * writer of the list, and a `FOR UPDATE` on it would block the foreign-key check of a company saving a
+ * draft that points at it — while this waits for that company's account lock (the review of step 4).
  */
 final readonly class DeactivateCompanyTypeHandler
 {
@@ -45,26 +42,47 @@ final readonly class DeactivateCompanyTypeHandler
     public function __construct(
         private Authorizer $authorizer,
         private StaffTypeAction $action,
-        private CompanyTypeCorrection $correction,
+        private CompanyTypeHolders $holders,
         private CompanyTypeRepository $types,
-        private CompanyRepository $companies,
-        private ApplicationRepository $applications,
     ) {}
 
     /**
-     * @throws CompanyTypeInactive|InvalidCompanyAttribute|TypeNotFound|Unauthorized
+     * @return string|null the new type's id, when one was created to replace it
+     *
+     * @throws CompanyTypeInactive|InvalidCompanyAttribute|TypeNameTaken|TypeNotFound|Unauthorized
      */
-    public function handle(DeactivateCompanyType $command): void
+    public function handle(DeactivateCompanyType $command): ?string
     {
         [$scope, $found] = $this->action->companyType(self::PERMISSION, $command->typeId);
         $this->authorizer->authorize(self::PERMISSION, $scope);
+        $newName = null;
 
-        $this->action->change($found->storeId(), function () use ($found, $command, $scope): array {
+        if ($command->newTypeNameAr !== null || $command->newTypeNameEn !== null) {
+            if ($command->replacementTypeId !== null) {
+                throw new InvalidCompanyAttribute('replacement', 'an existing type or a new one, not both');
+            }
+
+            // Adding a type is its own job (amendment 11(b)): asked before anything is written.
+            $this->authorizer->authorize(B2BPermissions::COMPANY_TYPE_CREATE, $scope);
+            $newName = TypeName::of((string) $command->newTypeNameAr, (string) $command->newTypeNameEn);
+        }
+
+        $newId = $newName === null ? null : $this->types->nextId();
+
+        $this->action->change($found->storeId(), function () use ($found, $command, $scope, $newName, $newId): array {
             $type = $this->types->find($found->id()) ?? throw new TypeNotFound($found->id());
-            $replacement = $command->replacementTypeId === null ? null : $this->replacement($type, $command->replacementTypeId);
+            $entries = [];
+            $replacement = null;
+
+            if ($newName !== null && $newId !== null) {
+                $replacement = $this->add($type, $newId, $newName, $command->newTypePosition);
+                $entries[] = TypeAudit::added($replacement);
+            } elseif ($command->replacementTypeId !== null) {
+                $replacement = $this->holders->target($type, $command->replacementTypeId);
+            }
+
             $wasActive = $type->isActive();
             $wasShown = $type->inactiveDisplay();
-
             $type->deactivate($command->shown);
             $changed = $type->pullChanges() !== [];
 
@@ -73,47 +91,33 @@ final readonly class DeactivateCompanyTypeHandler
             }
 
             if ($replacement !== null) {
-                $this->replace($type, $replacement, $scope);
+                $this->holders->move($type, $replacement, $scope, 'b2b.company.type_replaced');
             }
 
-            return $changed || $replacement !== null ? [TypeAudit::deactivated($type, $wasActive, $wasShown, $replacement?->id())] : [];
+            if ($changed || $replacement !== null) {
+                $entries[] = TypeAudit::deactivated($type, $wasActive, $wasShown, $replacement?->id());
+            }
+
+            return $entries;
         });
+
+        return $newId;
     }
 
     /**
-     * @throws CompanyTypeInactive|InvalidCompanyAttribute
+     * The new type the holders move to: in the same store, active, its names not another type's.
+     *
+     * @throws InvalidCompanyAttribute|TypeNameTaken
      */
-    private function replacement(CompanyType $type, string $replacementTypeId): CompanyType
+    private function add(CompanyType $replacing, string $id, TypeName $name, ?int $position): CompanyType
     {
-        $replacement = $this->types->find($replacementTypeId);
-
-        // Unknown, another store's, or itself: none is a replacement for it (§7).
-        if ($replacement === null || $replacement->storeId() !== $type->storeId() || $replacement->id() === $type->id()) {
-            throw new InvalidCompanyAttribute('replacement', 'another type of the same store');
+        if ($this->types->nameTaken($replacing->storeId(), $name)) {
+            throw new TypeNameTaken;
         }
 
-        if (! $replacement->isActive()) {
-            throw new CompanyTypeInactive;
-        }
+        $type = CompanyType::add($id, $replacing->storeId(), $name, $position ?? $replacing->position());
+        $this->types->add($type);
 
-        return $replacement;
-    }
-
-    private function replace(CompanyType $type, CompanyType $replacement, PermissionScope $scope): void
-    {
-        $held = CompanyTypeChoice::listed($type->id());
-
-        foreach ($this->companies->holdersOf($type->id()) as $customerId) {
-            $this->applications->lockAccount($customerId);
-            $company = $this->companies->forCustomerLocked($customerId);
-
-            // Read again under its locks: it may have moved since the list was read, and a suspended
-            // company changes nothing, not even by staff (10(h)).
-            if ($company === null || $company->status() === CompanyStatus::Suspended || ! $company->details()->type->equals($held)) {
-                continue;
-            }
-
-            $this->correction->apply($company, CompanyTypeChoice::listed($replacement->id()), 'b2b.company.type_replaced', $scope);
-        }
+        return $type;
     }
 }
