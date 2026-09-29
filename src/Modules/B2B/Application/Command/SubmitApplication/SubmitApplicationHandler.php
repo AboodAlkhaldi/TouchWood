@@ -10,6 +10,7 @@ use Modules\B2B\Application\Account\CurrentCompanyAccount;
 use Modules\B2B\Application\Audit\CompanyAccountAudit;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Draft\OpenDrafts;
+use Modules\B2B\Application\Events\CompanyEvents;
 use Modules\B2B\Domain\Exception\ApplicationNotEditable;
 use Modules\B2B\Domain\Exception\ApplicationNotFound;
 use Modules\B2B\Domain\Exception\CompanySuspended;
@@ -59,6 +60,7 @@ final readonly class SubmitApplicationHandler
         private CompanyRepository $companies,
         private CompanyTypeRepository $companyTypes,
         private DocumentTypeRepository $documentTypes,
+        private CompanyEvents $events,
         private PlatformApi $platform,
         private ConnectionInterface $db,
     ) {}
@@ -109,6 +111,9 @@ final readonly class SubmitApplicationHandler
 
             $this->applications->update($draft);
             $this->platform->recordAudit(CompanyAccountAudit::submitted($draft, $before, $company->status(), $homeStoreId));
+            // Sending always changes the status: a PENDING company cannot send again (applyAgain).
+            $this->events->submitted($company, $draft);
+            $this->events->statusChanged($company, $before);
         }, 3);
     }
 }

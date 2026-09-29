@@ -10,6 +10,7 @@ use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\B2B\Application\Audit\StaffCompanyAudit;
 use Modules\B2B\Application\B2BPermissions;
+use Modules\B2B\Application\Events\CompanyEvents;
 use Modules\B2B\Application\Staff\CompanyMessages;
 use Modules\B2B\Application\Staff\StaffCompanyAction;
 use Modules\B2B\Domain\Exception\CompanyNotFound;
@@ -46,6 +47,7 @@ final readonly class ApproveCompanyHandler
         private CompanyRepository $companies,
         private ApplicationRepository $applications,
         private CompanyMessages $messages,
+        private CompanyEvents $events,
         private PlatformApi $platform,
         private ConnectionInterface $db,
     ) {}
@@ -77,6 +79,7 @@ final readonly class ApproveCompanyHandler
             $this->applications->update($waiting);
             $this->companies->update($company);
             $this->platform->recordAudit(StaffCompanyAudit::approved($waiting, $note, $company->homeStoreId()));
+            $this->events->statusChanged($company, CompanyStatus::Pending);
             $this->messages->afterCommit($company->customerId(), static fn (SecurityMessages $messages, CustomerDto $customer) => $messages->companyApproved($customer, $note?->value));
         }, 3);
     }
