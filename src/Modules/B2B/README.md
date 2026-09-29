@@ -261,8 +261,10 @@ the new type, the deactivation and every move, or none of them. Each move is aud
 `b2b.company.type_replaced`. **`TransferCompanyType`** moves every holder of one active type to
 another, both staying active — its own job, `b2b.company.transfer_type`; it changes neither list, so
 it runs in its own transaction under the store's lock, not through `change()`, and leaves the notice.
-Known limit: a company sending an application in the same instant a type is deactivated can still
-send it; its reviewer then sees the mark above.
+Known limit: a company sending an application in the same instant its type is deactivated with a
+replacement can still send it — sending takes the account's lock, not the store's, and the holders
+are read once — so it may keep the old type; its reviewer then sees the mark above, and since
+approving follows the company's type (11(a)), the reviewer corrects it if the replacement should apply.
 
 **What staff read.** `ListCompanies` pages in SQL with every filter in the WHERE clause, so the total
 never counts what the reader may not see (lesson 69): waiting companies first, the oldest sent first,

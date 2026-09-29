@@ -57,6 +57,11 @@ final readonly class DeactivateCompanyTypeHandler
         $this->authorizer->authorize(self::PERMISSION, $scope);
         $newName = null;
 
+        // A position belongs to a new type only; sent alone it would be silently ignored.
+        if ($command->newTypePosition !== null && $command->newTypeNameAr === null && $command->newTypeNameEn === null) {
+            throw new InvalidCompanyAttribute('position', 'only for a new type');
+        }
+
         if ($command->newTypeNameAr !== null || $command->newTypeNameEn !== null) {
             if ($command->replacementTypeId !== null) {
                 throw new InvalidCompanyAttribute('replacement', 'an existing type or a new one, not both');
@@ -78,7 +83,7 @@ final readonly class DeactivateCompanyTypeHandler
                 $replacement = $this->add($type, $newId, $newName, $command->newTypePosition);
                 $entries[] = TypeAudit::added($replacement);
             } elseif ($command->replacementTypeId !== null) {
-                $replacement = $this->holders->target($type, $command->replacementTypeId);
+                $replacement = $this->holders->target($type, $command->replacementTypeId, 'replacement');
             }
 
             $wasActive = $type->isActive();

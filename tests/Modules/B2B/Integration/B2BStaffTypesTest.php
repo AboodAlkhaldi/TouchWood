@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -528,6 +529,44 @@ describe('replacing a company type with a new one, in one step (§1.3, amendment
             ->and(staffTypesNotice())->toBeTrue();
     });
 
+    it('is all or nothing even when it fails after the new type is written (the review of amendment 11)', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::approved($customerId);
+        $held = B2BFixtures::companyTypes()[1];
+        $count = count(B2BFixtures::companyTypes());
+        // The deactivation itself is refused by the database, after the new type was added: only the
+        // one transaction around both can take the new type away again. Inside the test's own
+        // transaction, so it goes with the test (lesson 36).
+        DB::unprepared(<<<'SQL'
+            CREATE FUNCTION b2b.test_refuse_deactivation() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                IF OLD.is_active AND NOT NEW.is_active THEN
+                    RAISE EXCEPTION 'refused by the test';
+                END IF;
+                RETURN NEW;
+            END $$;
+            CREATE TRIGGER test_refuse_deactivation BEFORE UPDATE ON b2b.company_types
+                FOR EACH ROW EXECUTE FUNCTION b2b.test_refuse_deactivation();
+            SQL);
+        staffTypesAdmin();
+
+        expect(fn () => app(DeactivateCompanyTypeHandler::class)->handle(new DeactivateCompanyType($held->id(), InactiveTypeDisplay::Hidden, newTypeNameAr: 'نوع جديد', newTypeNameEn: 'A new type')))
+            ->toThrow(QueryException::class, 'refused by the test')
+            ->and(B2BFixtures::companyTypes())->toHaveCount($count)
+            ->and(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue()
+            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($held->id())
+            ->and(Fx::audits('b2b.company_type.added'))->toBe(0);
+    });
+
+    it('refuses a position sent without a new type, rather than ignoring it', function () {
+        $held = B2BFixtures::companyTypes()[1];
+        staffTypesAdmin();
+
+        expect(fn () => app(DeactivateCompanyTypeHandler::class)->handle(new DeactivateCompanyType($held->id(), InactiveTypeDisplay::Hidden, newTypePosition: 3)))
+            ->toThrow(InvalidCompanyAttribute::class)
+            ->and(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue();
+    });
+
     it('takes an existing type or a new one, never both', function () {
         $held = B2BFixtures::companyTypes()[1];
         staffTypesAdmin();
@@ -620,6 +659,34 @@ describe('moving every company of one active type to another (§1.3, amendment 1
 
             return $type->id();
         }, fn () => B2BFixtures::companyTypes()[0]->id(), CompanyTypeInactive::class],
+    ]);
+
+    it('refuses a target of another store, or an inactive one, even when no company holds the type — its own check, not a company\'s (the review of amendment 11)', function (Closure $to, string $error) {
+        $from = B2BFixtures::companyTypes()[3];
+        staffTypesAdmin([B2BPermissions::COMPANY_TRANSFER_TYPE]);
+        $refused = null;
+
+        try {
+            app(TransferCompanyTypeHandler::class)->handle(new TransferCompanyType($from->id(), $to()));
+        } catch (Throwable $caught) {
+            $refused = $caught;
+        }
+
+        expect(app(CompanyRepository::class)->holdersOf($from->id()))->toBe([])
+            ->and($refused === null ? null : $refused::class)->toBe($error)
+            ->and(Fx::audits('b2b.company_type.transferred'))->toBe(0);
+
+        if ($refused instanceof InvalidCompanyAttribute) {
+            expect($refused->attribute)->toBe('target');
+        }
+    })->with([
+        'another store\'s' => [fn () => B2BFixtures::companyTypes('eg')[0]->id(), InvalidCompanyAttribute::class],
+        'an inactive one' => [function () {
+            $type = B2BFixtures::companyTypes()[0];
+            B2BFixtures::deactivate($type);
+
+            return $type->id();
+        }, CompanyTypeInactive::class],
     ]);
 
     it('moves in B2B\'s one lock order: the store\'s lists, then each account in account order, rows never locked', function () {

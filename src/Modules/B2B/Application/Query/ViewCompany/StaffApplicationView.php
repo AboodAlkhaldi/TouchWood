@@ -34,7 +34,7 @@ final readonly class StaffApplicationView
         public array $flags,
         public array $requests,
         public array $answers,
-        /** Waiting, and its company type was deactivated since it was sent: approving needs a choice (§1.3). */
+        /** Waiting, and its company type was deactivated since it was sent — for the reviewer's information (§1.3, amendment 11(a)). */
         public bool $typeDeactivatedSinceSent,
     ) {}
 }

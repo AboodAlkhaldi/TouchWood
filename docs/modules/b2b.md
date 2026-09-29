@@ -276,8 +276,9 @@ permanent, and a type added by mistake is simply deactivated and hidden.
 **[DECIDED 2026-09-28, 2026-09-29] Deactivating a company type that companies hold** (amendments 5
 and 11): **the staff member deactivating it decides, once, for every company holding it** — to
 **leave** them with it, to **replace** it with another active type of the same store, or to
-**replace it with a new type created in the same step** (amendment 11(b)): the new type is added,
-the old one deactivated, and every holder moved to the new one, all or nothing. Every company
+**replace it with a new type created in the same step** (amendment 11(b)): the new type is added —
+at the old type's position on the form unless staff give another —, the old one deactivated, and
+every holder moved to the new one, all or nothing. Every company
 holding it is moved — approved ones included, a suspended one excepted, which keeps the old type
 (amendment 10(h)). A replacement is a staff correction, like `CorrectCompanyType` (§3.2): it changes
 the company, never an application it sent, and sends nobody back to `PENDING`; it is audited on each
@@ -662,7 +663,7 @@ type string and HTTP status (handoff §11).
 | `InvalidCompanyAttribute` | UNPROCESSABLE | A value the domain refuses — a CR number too long, an unknown company type, or a listed type that is not one of the home store's (§1.3, amendment 6(d)) |
 | ~~`DocumentTypeInUse`~~ | — | **Removed** (amendment 10): a type is never deleted, so nothing can refuse deleting one (§1.3) |
 | `TypeNameTaken` | CONFLICT | Adding or renaming a type to a name another type of its kind already has, in either language, ignoring case (§1.3, amendment 2) |
-| `CompanyTypeInactive` | CONFLICT | Submitting a draft whose chosen type staff have deactivated since; choose again (§1.3, amendment 2). Also a staff correction to a deactivated type **not yet confirmed** — the screen then says the type becomes active again (amendment 8(b)) — and a replacement, when deactivating a type, or a type companies are moved from or to (amendment 11(c)), that is itself inactive (amendment 10); an unknown one, or another store's, is `InvalidCompanyAttribute` as everywhere |
+| `CompanyTypeInactive` | CONFLICT | Submitting a draft whose chosen type staff have deactivated since; choose again (§1.3, amendment 2). Also a staff correction to a deactivated type **not yet confirmed** — the screen then says the type becomes active again (amendment 8(b)) — and a replacement, when deactivating a type, or a type companies are moved from or to (amendment 11(c)), that is itself inactive (amendment 10). A replacement or a transfer's target that is unknown, another store's, or the same type is `InvalidCompanyAttribute`, as everywhere; the type the action is about — the one deactivated, or moved from — answers `TypeNotFound` when it is unknown or another store's (10(k)) |
 | ~~`CompanyTypeChoiceRequired`~~ | — | **Removed** (amendment 11(a)): approving asks for no choice about the type |
 | ~~`CompanyTypeChoiceNotNeeded`~~ | — | **Removed** (amendment 11(a)), with the choice it refused |
 | `TypeNotFound` | NOT_FOUND | A staff action on a company or document type that does not exist, or that belongs to a store the staff member does not cover — the same answer for both (§3.2, amendment 10(k)) |

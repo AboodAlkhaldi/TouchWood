@@ -52,9 +52,9 @@ use Tests\Modules\B2B\Support\B2BFixtures;
 use function Pest\Laravel\seed;
 
 /*
-| B2B step 4: staff deciding on a company (b2b.md §3.2, §4.1; amendments 1, 4 and 10) — who may,
-| approving with its type choice, rejecting with flags and requests, suspending and reinstating,
-| correcting the type, the emails and the audit log.
+| B2B step 4: staff deciding on a company (b2b.md §3.2, §4.1; amendments 1, 4, 10 and 11) — who may,
+| approving (following what a type's deactivation decided), rejecting with flags and requests,
+| suspending and reinstating, correcting the type, the emails and the audit log.
 |
 | Every helper here is named after this file's subject: a Pest file's functions are global.
 */

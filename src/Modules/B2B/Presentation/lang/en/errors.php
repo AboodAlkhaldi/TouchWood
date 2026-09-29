@@ -102,6 +102,7 @@ return [
         'requests' => 'requested items',
         'status' => 'status',
         'store' => 'store',
+        'target' => 'type to move the companies to',
         'tax_number' => 'tax number',
     ],
 ];

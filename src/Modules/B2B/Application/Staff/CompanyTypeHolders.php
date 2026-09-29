@@ -39,14 +39,17 @@ final readonly class CompanyTypeHolders
      * another store's, or `$from` itself is `InvalidCompanyAttribute`, as an unknown type is
      * everywhere (§7); an inactive one is `CompanyTypeInactive`.
      *
+     * @param  string  $field  what the screen calls it: "replacement" on a deactivation, "target" on a
+     *                         transfer
+     *
      * @throws CompanyTypeInactive|InvalidCompanyAttribute
      */
-    public function target(CompanyType $from, string $toTypeId): CompanyType
+    public function target(CompanyType $from, string $toTypeId, string $field): CompanyType
     {
         $to = $this->companyTypes->find($toTypeId);
 
         if ($to === null || $to->storeId() !== $from->storeId() || $to->id() === $from->id()) {
-            throw new InvalidCompanyAttribute('replacement', 'another type of the same store');
+            throw new InvalidCompanyAttribute($field, 'another type of the same store');
         }
 
         if (! $to->isActive()) {

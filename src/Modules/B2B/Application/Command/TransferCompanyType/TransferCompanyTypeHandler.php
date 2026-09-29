@@ -67,7 +67,7 @@ final readonly class TransferCompanyTypeHandler
                 throw new CompanyTypeInactive;
             }
 
-            $to = $this->holders->target($from, $command->toTypeId);
+            $to = $this->holders->target($from, $command->toTypeId, 'target');
             $moved = $this->holders->move($from, $to, $scope, 'b2b.company.type_transferred');
             $this->platform->recordAudit(TypeAudit::transferred($from, $to, $moved));
 
