@@ -136,6 +136,24 @@ final class B2BFixtures
     }
 
     /**
+     * The whole first application: sent and approved, and its company approved with it.
+     *
+     * @return array{0: Company, 1: Application}
+     */
+    public static function approved(string $customerId): array
+    {
+        [$company, $application] = self::sent($customerId);
+        $staffId = Fx::staff();
+
+        $application->approve($staffId, null, CarbonImmutable::now());
+        app(ApplicationRepository::class)->update($application);
+        $company->approve($staffId, CarbonImmutable::now());
+        app(CompanyRepository::class)->update($company);
+
+        return [$company, $application];
+    }
+
+    /**
      * A company account registered in the 'sa' store whose email address is confirmed — what
      * sending an application needs (b2b.md §1.2). Its phone is not.
      */

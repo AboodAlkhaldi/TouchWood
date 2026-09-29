@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\B2B\Application\Query\ViewMyCompany;
 
-use DateTimeInterface;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\B2B\Application\Account\CurrentCompanyAccount;
 use Modules\B2B\Application\B2BPermissions;
+use Modules\B2B\Application\Query\ApplicationViews;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Model\CompanyType;
@@ -17,13 +17,8 @@ use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
-use Modules\B2B\Domain\ValueObject\ApplicationFlag;
-use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
-use Modules\B2B\Domain\ValueObject\AttachedDocument;
-use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
-use Modules\B2B\Domain\ValueObject\RequestAnswer;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
@@ -97,13 +92,13 @@ final readonly class ViewMyCompanyHandler
             $company === null ? $this->stage($account->emailVerified, $open) : null,
             $company === null ? null : new CompanyView(
                 $company->id(),
-                self::values(
+                ApplicationViews::values(
                     $company->details()->name->value, $company->details()->type, $company->details()->crNumber->value,
                     $company->details()->taxNumber->value, $company->details()->address->value, null, $companyTypes,
                 ),
                 $company->status()->value,
                 $company->statusReason()?->value,
-                self::time($company->statusChangedAt()),
+                ApplicationViews::time($company->statusChangedAt()),
                 $company->mayOrder(),
             ),
             $draft === null ? null : $this->draft($draft, $lastSent, $companyTypes, $documentTypes),
@@ -140,12 +135,12 @@ final readonly class ViewMyCompanyHandler
 
         return new DraftView(
             $draft->id(),
-            self::applicationValues($draft, $companyTypes),
+            ApplicationViews::applicationValues($draft, $companyTypes),
             $type?->typeId !== null && ! ($companyTypes[$type->typeId] ?? null)?->isActive(),
-            self::files($draft->documents(), $documentTypes, markInactive: true),
-            $rejection === null ? [] : self::flags($rejection->flags()),
-            $rejection === null ? [] : self::requests($rejection->requests()),
-            self::answers($draft->answers()),
+            ApplicationViews::files($draft->documents(), $documentTypes, markInactive: true),
+            $rejection === null ? [] : ApplicationViews::flags($rejection->flags()),
+            $rejection === null ? [] : ApplicationViews::requests($rejection->requests()),
+            ApplicationViews::answers($draft->answers()),
         );
     }
 
@@ -158,99 +153,15 @@ final readonly class ViewMyCompanyHandler
         return new SentApplicationView(
             $sent->id(),
             $sent->state()->value,
-            self::applicationValues($sent, $companyTypes),
-            self::time($sent->submittedAt()),
-            self::time($sent->decidedAt()),
+            ApplicationViews::applicationValues($sent, $companyTypes),
+            ApplicationViews::time($sent->submittedAt()),
+            ApplicationViews::time($sent->decidedAt()),
             $sent->decisionReason()?->value,
-            self::files($sent->documents(), $documentTypes, markInactive: false),
-            self::flags($sent->flags()),
-            self::requests($sent->requests()),
-            self::answers($sent->answers()),
+            ApplicationViews::files($sent->documents(), $documentTypes, markInactive: false),
+            ApplicationViews::flags($sent->flags()),
+            ApplicationViews::requests($sent->requests()),
+            ApplicationViews::answers($sent->answers()),
         );
-    }
-
-    /**
-     * @param  array<string, CompanyType>  $companyTypes
-     */
-    private static function applicationValues(Application $application, array $companyTypes): ApplicationValues
-    {
-        return self::values(
-            $application->name()?->value, $application->type(), $application->crNumber()?->value,
-            $application->taxNumber()?->value, $application->address()?->value, $application->note()?->value, $companyTypes,
-        );
-    }
-
-    /**
-     * @param  array<string, CompanyType>  $companyTypes
-     */
-    private static function values(?string $name, ?CompanyTypeChoice $type, ?string $crNumber, ?string $taxNumber, ?string $address, ?string $note, array $companyTypes): ApplicationValues
-    {
-        $listed = $type?->typeId === null ? null : ($companyTypes[$type->typeId] ?? null);
-
-        return new ApplicationValues(
-            $name,
-            $type?->typeId,
-            $listed?->name()->ar,
-            $listed?->name()->en,
-            $type?->other,
-            $crNumber,
-            $taxNumber,
-            $address,
-            $note,
-        );
-    }
-
-    /**
-     * @param  array<string, AttachedDocument>  $documents
-     * @param  array<string, DocumentType>  $documentTypes
-     * @return list<FileView>
-     */
-    private static function files(array $documents, array $documentTypes, bool $markInactive): array
-    {
-        $files = [];
-
-        foreach ($documents as $typeId => $document) {
-            $type = $documentTypes[$typeId] ?? null;
-
-            $files[] = new FileView(
-                $typeId,
-                $type?->name()->ar,
-                $type?->name()->en,
-                $document->mediaId,
-                (string) self::time($document->uploadedAt),
-                // A draft never sends anything deactivated (§1.3); what was sent is history.
-                $markInactive && ($type === null || ! $type->isActive()),
-            );
-        }
-
-        return $files;
-    }
-
-    /**
-     * @param  list<ApplicationFlag>  $flags
-     * @return list<FlagView>
-     */
-    private static function flags(array $flags): array
-    {
-        return array_map(static fn (ApplicationFlag $flag): FlagView => new FlagView($flag->field?->value, $flag->documentTypeId), $flags);
-    }
-
-    /**
-     * @param  list<ApplicationRequest>  $requests
-     * @return list<RequestView>
-     */
-    private static function requests(array $requests): array
-    {
-        return array_map(static fn (ApplicationRequest $request): RequestView => new RequestView($request->id, $request->kind->value, $request->label), $requests);
-    }
-
-    /**
-     * @param  array<string, RequestAnswer>  $answers
-     * @return list<AnswerView>
-     */
-    private static function answers(array $answers): array
-    {
-        return array_values(array_map(static fn (RequestAnswer $answer): AnswerView => new AnswerView($answer->requestId, $answer->text?->value, $answer->mediaId), $answers));
     }
 
     /**
@@ -281,10 +192,5 @@ final readonly class ViewMyCompanyHandler
         }
 
         return $offered;
-    }
-
-    private static function time(?DateTimeInterface $at): ?string
-    {
-        return $at?->format(DATE_ATOM);
     }
 }

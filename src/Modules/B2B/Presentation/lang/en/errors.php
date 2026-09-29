@@ -102,6 +102,10 @@ return [
         'note' => 'note',
         'position' => 'position',
         'reason' => 'reason',
+        'requests' => 'requested items',
+        'status' => 'status',
+        'store' => 'store',
         'tax_number' => 'tax number',
+        'type_choice' => 'type choice',
     ],
 ];
