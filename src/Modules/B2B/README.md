@@ -19,8 +19,8 @@ with each step.
 
 | Folder | What is in it |
 |---|---|
-| `Public/Contracts` | `B2BApi` — what other modules may ask: the company behind an account, its status, whether it may order |
-| `Public/Dto` | `CompanyDto` — a company as other modules see it, never its documents |
+| `Public/Contracts` | `B2BApi` — what other modules may ask: the company behind an account, its status, whether it may order, and a store's bank account while bank transfer is on |
+| `Public/Dto` | `CompanyDto` — a company as other modules see it, never its documents nor an "Other" company's words; `BankAccountDto` |
 | `Public/Enums` | `CompanyStatus` — the four statuses, and the only company status in the system |
 | `Public/Events` | `CompanyStatusChanged`, `CompanyApplicationSubmitted` — ids only, after commit |
 | `Domain/Model` | `Company` and its state machine; `Application`, draft to decision, with its files, a rejection's flags and requests, and a draft's answers; `CompanyType`, `DocumentType` — the two lists staff manage, one of each per store; `StoreTypeLists`, each store's "copied, not yet reviewed" flag over its two lists |
@@ -29,7 +29,7 @@ with each step.
 | `Domain/Repository` | One per aggregate: companies, applications (with their files, flags, requests and answers), the two type lists, the stores' "copied" flags |
 | `Application/Types` | `StartingTypes`, the lists every store starts with; `GiveEveryStoreTheStartingTypes`, which writes them into a store that has none; `StaffTypeAction`, what every staff change to a list shares; `TypeListsNotice`, which clears a store's "copied" notice |
 | `Application` | `B2BPermissions` — the two automatic permissions of the company's own side and the twelve staff jobs, declared into Access's catalog at boot; `B2BApiImpl` |
-| `Application/Settings` | `BankAccountSettings`: the three per-store bank settings, declared into Platform's registry at boot; `IbanRule`, an IBAN's shape and check digits |
+| `Application/Settings` | `BankAccountSettings`: the three per-store bank settings, declared into Platform's registry at boot; `IbanRule`, an IBAN's shape and check digits; `StoreBankAccount`, the one reader of the three — no account while any is empty |
 | `Application/Events` | `CompanyEvents`: the two events, dispatched inside a use case's transaction |
 | `Application/Command` | The company's own side (step 3b): `StartApplicationDraft`, `SaveApplicationDraft`, `AttachApplicationDocument`, `RemoveApplicationDocument`, `AnswerApplicationRequest`, `RemoveApplicationAnswer`, `SubmitApplication`, `DiscardApplicationDraft`, `UpdateCompanyContact`. Staff (step 4): `ApproveCompany`, `RejectCompany`, `SuspendCompany`, `ReinstateCompany`, `CorrectCompanyType`, `TransferCompanyType`, `DownloadCompanyDocument`; the lists: `Add`/`Rename`/`Move`/`Deactivate`/`ActivateCompanyType`, the same for `DocumentType` with `RequireDocumentType`, and `MarkTypeListsReviewed` |
 | `Application/Query` | `ViewMyCompany` and its read classes — what the account is shown; `OpenMyApplicationFile`, a 30-minute link to one of its own files; staff's `ListCompanies` and `ViewCompany`; `ApplicationViews`, how an application is shown to both |
@@ -39,8 +39,9 @@ with each step.
 | `Application/Files` | `ApplicationFiles`: B2B's own uploads (private, under its own permission) and letting go of what no application holds |
 | `Application/Audit` | `CompanyAccountAudit`: the three company actions the audit log keeps, and the company emptied when its account is anonymized; `StaffCompanyAudit` and `TypeAudit`: staff's |
 | `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `TypeNames`, the one "is this name taken" query both lists share; `Ulids` |
-| `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated`; `AnonymizeCompany`, on Access's `CustomerAnonymized` |
+| `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated`; `AnonymizeCompany`, on Access's `CustomerAnonymized`, from the queue |
 | `Infrastructure/Media` | `ApplicationFilesUsage`: B2B's answer when Platform asks where a file is used |
+| `Infrastructure/Settings` | `BankTransferLine`: the line at the top of the Companies settings section — bank transfer on, or temporarily off |
 | `Infrastructure/Persistence/Migrations` | The `b2b` schema; the two type tables and the stores' "copied" flags; the companies, applications and their files; a rejection's flags and requests and a draft's answers |
 | `Presentation/lang` | The error messages, the permissions' names, the audited actions' names and the settings' names, in Arabic and English |
 
@@ -284,11 +285,17 @@ the private-files permission nothing about which file exists.
 
 **`B2BApi`** (§2.1) answers other modules with ids in and DTOs out, and checks no permission — the
 calling use case checks its own. `company()` gives a `CompanyDto` with the type's names from the
-home store's list, or the company's own words when it chose "Other" (`typeOther`, the names then
-null), and **never its documents**. `isApproved()` is true only while the company is `APPROVED`,
-Sales's half of "may place an order". An individual account, or a company account whose first
-application is still a draft, has no company: null, null, false. Plain reads: a type's row is read,
-never locked.
+home store's list — **both null while the company is still "Other"**: its type is not set yet, and
+its own words are for the reviewing staff alone (amendment 13(b)) — and **never its documents**.
+`isApproved()` is true only while the company is `APPROVED`, Sales's half of "may place an order".
+An individual account, or a company account whose first application is still a draft, has no
+company: null, null, false. `bankAccount(store)` gives the store's account, or null while bank
+transfer is temporarily off (below). Plain reads: a type's row is read, never locked.
+
+**A company is never approved as "Other"** (amendment 13(b)): `Company::approve` refuses it with
+`CompanyTypeNotSet`, after the status check, and staff correct the type to a listed one first — one
+that exists, or one an admin adds for it. `Company::correctType` never makes an approved company
+"Other".
 
 **Two events** (§6), both `ShouldDispatchAfterCommit` and dispatched inside the use case's own
 transaction (`CompanyEvents`), so a change rolled back — or refused — tells nobody.
@@ -304,14 +311,20 @@ yet": a Platform addition lets a text setting say it may be empty, and then its 
 value that is not (platform.md §1.3, §9.4). `IbanRule` checks an IBAN's shape (two letters, two
 digits, 11 to 30 letters and digits) and its check digits (ISO 13616, the number modulo 97), with
 spaces ignored; the value is **kept as typed**, so up to 42 characters — 34 in groups of four. No
-country's length is written in: the store knows its own bank. `ViewMyCompany` shows the home store's
-account **only while the company is `APPROVED`**, and only once all three are filled in.
+country's length is written in: the store knows its own bank; check digits 00, 01 and 99, which no
+IBAN has, are refused though the remainder comes out right for them. **Bank transfer is on only while
+all three are filled in** (amendment 13(c)); until then it is temporarily off and a company pays
+through staff. `StoreBankAccount` is the one reader: `ViewMyCompany` shows the home store's account
+**only while the company is `APPROVED`**, `B2BApi::bankAccount` gives it to Sales (null while off),
+and `BankTransferLine` says which, in one line at the top of the Companies section of the settings
+page — a Platform addition, `SettingsSectionLines`.
 
-**Anonymizing an account** (amendment 12(a), scenario 18) runs on Access's `CustomerAnonymized`,
-once Access's change has committed (`AnonymizeCompany` → `CompanyAnonymizer`), in one transaction
-under the account's lock. **The company is never deleted**: it and every application it sent give up
-the name, CR number, tax number and address to placeholders — "Deleted company", "Deleted", as Access
-leaves "Deleted customer" — and each sent application its note, its answers and its papers
+**Anonymizing an account** (amendments 12(a), 13(a), scenario 18) runs on Access's
+`CustomerAnonymized`, **from the queue** (`AnonymizeCompany` → `CompanyAnonymizer`), in one
+transaction under the account's lock. **The company is never deleted**: it and every application it
+sent give up the name, CR number, tax number, address and an "Other" company's own words to
+placeholders — "Deleted company", "Deleted", as Access leaves "Deleted customer" — and each sent
+application its note, its answers and its papers
 (`Company::anonymize`, `Application::anonymize`). The type, the status and its reason, staff's flags
 and requests and every decision stay. **An unsent draft is deleted whole**, as discarding it would,
 and recorded as `b2b.application.discarded`. The files are deleted through Platform last, once no row
@@ -319,11 +332,11 @@ holds them; the company is recorded once as `b2b.company.anonymized`, by the sys
 applications and files went. **A second time changes and records nothing**; an individual account has
 nothing here.
 
-**Known limit, open with the owner** (the review of step 5): the listener runs in Access's
-after-commit callbacks, once Access's own part is saved. If B2B's part fails — after its three
-attempts — the exception reaches Access's nightly sweep, which logs the account as "could not be
-anonymized" although Access's part is done; the account is never due again, so B2B's part stays
-undone, and any later listener of `CustomerAnonymized` is skipped for it. The anonymizer can be run
-again safely (it changes nothing twice), so a retry — a queued listener, or a B2B sweep — is the fix
-to choose. An application still **waiting** when its account is anonymized is kept, emptied, in
-staff's queue; what should become of it is open too.
+**Why from the queue** (the review of step 5, amendment 13(a)): run inside Access's after-commit
+callbacks, a failure here reached Access's nightly sweep, which then logged the account as not
+anonymized although its own part was done, and B2B's part was never tried again. Queued, Access only
+hands it over: five attempts over about 36 minutes (10 s, 1 min, 5 min, 30 min apart), then
+`failed_jobs`. **Done once however many times it runs** — no unique-job lock is needed: the account's
+lock lets one run at a time, and a run that finds the placeholders in place changes and records
+nothing. An application still **waiting** when its account is anonymized is kept, emptied, in staff's
+queue, and a reviewer rejects it by hand (13(a)).
