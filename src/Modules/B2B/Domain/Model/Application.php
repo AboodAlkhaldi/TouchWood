@@ -413,6 +413,63 @@ final class Application
     }
 
     /**
+     * The account behind it was anonymized (b2b.md §1.1, amendment 12(a)). **A sent application**
+     * keeps its state, its type, its dates, its decision and staff's flags and requests, and gives up
+     * the rest: the name, the CR number, the tax number and the address become the company's
+     * placeholders, the note and every answer go, and so do its papers. A draft is not kept this way —
+     * it is deleted whole, as discarding it would.
+     *
+     * @return list<string> the files it let go of, for the caller to delete; empty a second time
+     */
+    public function anonymize(): array
+    {
+        if ($this->state === ApplicationState::Draft) {
+            throw new LogicException('A draft is deleted whole when its account is anonymized, not kept with placeholders.');
+        }
+
+        $released = [];
+
+        foreach ($this->documents as $document) {
+            $released[] = $document->mediaId;
+        }
+
+        foreach ($this->answers as $answer) {
+            if ($answer->mediaId !== null) {
+                $released[] = $answer->mediaId;
+            }
+        }
+
+        $placeholders = [
+            $this->name?->value !== Company::DELETED_NAME,
+            $this->crNumber?->value !== Company::DELETED,
+            $this->taxNumber?->value !== Company::DELETED,
+            $this->address?->value !== Company::DELETED,
+            $this->note !== null,
+        ];
+
+        if (in_array(true, $placeholders, true)) {
+            $this->name = CompanyName::of(Company::DELETED_NAME);
+            $this->crNumber = RegistrationNumber::of('cr_number', Company::DELETED);
+            $this->taxNumber = RegistrationNumber::of('tax_number', Company::DELETED);
+            $this->address = CompanyAddress::of(Company::DELETED);
+            $this->note = null;
+            $this->markChanged('details');
+        }
+
+        if ($this->documents !== []) {
+            $this->documents = [];
+            $this->markChanged('documents');
+        }
+
+        if ($this->answers !== []) {
+            $this->answers = [];
+            $this->markChanged('answers');
+        }
+
+        return $released;
+    }
+
+    /**
      * A draft may be thrown away by the customer, files and all (owner, 2026-09-27); nothing sent
      * ever is.
      *

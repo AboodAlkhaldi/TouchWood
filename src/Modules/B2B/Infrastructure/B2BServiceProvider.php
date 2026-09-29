@@ -7,6 +7,7 @@ namespace Modules\B2B\Infrastructure;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\B2B\Application\B2BApiImpl;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
@@ -22,6 +23,7 @@ use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyTypeRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseDocumentTypeRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseStoreTypeListsRepository;
+use Modules\B2B\Infrastructure\Listener\AnonymizeCompany;
 use Modules\B2B\Infrastructure\Listener\WriteStartingTypes;
 use Modules\B2B\Infrastructure\Media\ApplicationFilesUsage;
 use Modules\B2B\Public\Contracts\B2BApi;
@@ -65,5 +67,9 @@ final class B2BServiceProvider extends ServiceProvider
         // A store opened later starts with the same type lists as the others, until its admins
         // change them (amendment 6(a)).
         Event::listen(StoreCreated::class, [WriteStartingTypes::class, 'handle']);
+
+        // An anonymized account takes its company's personal fields and papers with it, and any
+        // unsent draft (amendment 12(a)).
+        Event::listen(CustomerAnonymized::class, [AnonymizeCompany::class, 'handle']);
     }
 }

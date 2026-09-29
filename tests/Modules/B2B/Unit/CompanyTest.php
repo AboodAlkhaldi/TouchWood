@@ -255,3 +255,27 @@ describe('what changes without an application', function () {
         expect($company->pullChanges())->toBe([]);
     });
 });
+
+describe('when the account is anonymized (amendment 12(a))', function () {
+    it('gives up its name, numbers and address, and keeps its type, status, reason and who decided', function (CompanyStatus $status) {
+        $company = companyIn($status);
+        $before = [$company->details()->type, $company->status(), $company->statusReason()?->value, $company->statusChangedBy(), $company->statusBeforeSuspension()];
+
+        $company->anonymize();
+
+        expect([$company->details()->name->value, $company->details()->crNumber->value, $company->details()->taxNumber->value, $company->details()->address->value])
+            ->toBe(['Deleted company', 'Deleted', 'Deleted', 'Deleted'])
+            ->and([$company->details()->type, $company->status(), $company->statusReason()?->value, $company->statusChangedBy(), $company->statusBeforeSuspension()])->toBe($before)
+            ->and($company->pullChanges())->toBe(['name', 'cr_number', 'tax_number', 'address']);
+    })->with(CompanyStatus::cases());
+
+    it('changes nothing a second time', function () {
+        $company = companyIn(CompanyStatus::Approved);
+        $company->anonymize();
+        $company->pullChanges();
+
+        $company->anonymize();
+
+        expect($company->pullChanges())->toBe([]);
+    });
+});

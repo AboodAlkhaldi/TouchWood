@@ -8,6 +8,8 @@ return [
     'application.submitted' => 'إرسال طلب شركة',
     'application.discarded' => 'حذف مسودة طلب شركة',
     'company.address_changed' => 'تغيير عنوان الشركة',
+    // النظام، عند إخفاء هوية الحساب (المرحلة 5، التعديل 12(أ)).
+    'company.anonymized' => 'إفراغ بيانات الشركة مع إخفاء هوية حسابها',
     // الموظفون (المرحلة 4، التعديل 10).
     'application.approved' => 'قبول طلب شركة',
     'application.rejected' => 'رفض طلب شركة',

@@ -38,6 +38,15 @@ use Modules\B2B\Public\Enums\CompanyStatus;
  */
 final class Company
 {
+    /**
+     * What anonymizing an account leaves in place of the company's name (amendment 12(a)), as Access
+     * leaves "Deleted customer".
+     */
+    public const string DELETED_NAME = 'Deleted company';
+
+    /** What it leaves in place of the CR number, the tax number and the address. */
+    public const string DELETED = 'Deleted';
+
     /** @var list<string> */
     private array $changed = [];
 
@@ -222,6 +231,35 @@ final class Company
 
         $this->type = $type;
         $this->markChanged('company_type');
+    }
+
+    /**
+     * The account behind it was anonymized (b2b.md §1.1, amendment 12(a)): the name, the CR number,
+     * the tax number and the address give way to placeholders — a sole proprietor's numbers identify a
+     * person. **A company is never deleted**: its type, its status and its reason, and who decided,
+     * stay. Whatever its status, suspended included; a second time changes nothing.
+     */
+    public function anonymize(): void
+    {
+        if ($this->name->value !== self::DELETED_NAME) {
+            $this->name = CompanyName::of(self::DELETED_NAME);
+            $this->markChanged('name');
+        }
+
+        if ($this->crNumber->value !== self::DELETED) {
+            $this->crNumber = RegistrationNumber::of('cr_number', self::DELETED);
+            $this->markChanged('cr_number');
+        }
+
+        if ($this->taxNumber->value !== self::DELETED) {
+            $this->taxNumber = RegistrationNumber::of('tax_number', self::DELETED);
+            $this->markChanged('tax_number');
+        }
+
+        if ($this->address->value !== self::DELETED) {
+            $this->address = CompanyAddress::of(self::DELETED);
+            $this->markChanged('address');
+        }
     }
 
     /**

@@ -1,0 +1,282 @@
+<?php
+
+declare(strict_types=1);
+
+use Carbon\CarbonImmutable;
+use Database\Seeders\PlatformSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Modules\Access\Application\Command\AnonymizeDueAccounts\AnonymizeDueAccounts;
+use Modules\Access\Application\Command\AnonymizeDueAccounts\AnonymizeDueAccountsHandler;
+use Modules\B2B\Application\Account\CompanyAnonymizer;
+use Modules\B2B\Application\B2BPermissions;
+use Modules\B2B\Application\Command\AnswerApplicationRequest\AnswerApplicationRequest;
+use Modules\B2B\Application\Command\AnswerApplicationRequest\AnswerApplicationRequestHandler;
+use Modules\B2B\Application\Command\ApproveCompany\ApproveCompany;
+use Modules\B2B\Application\Command\ApproveCompany\ApproveCompanyHandler;
+use Modules\B2B\Application\Command\AttachApplicationDocument\AttachApplicationDocument;
+use Modules\B2B\Application\Command\AttachApplicationDocument\AttachApplicationDocumentHandler;
+use Modules\B2B\Application\Command\SaveApplicationDraft\SaveApplicationDraft;
+use Modules\B2B\Application\Command\SaveApplicationDraft\SaveApplicationDraftHandler;
+use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraft;
+use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraftHandler;
+use Modules\B2B\Application\Command\SubmitApplication\SubmitApplication;
+use Modules\B2B\Application\Command\SubmitApplication\SubmitApplicationHandler;
+use Modules\B2B\Domain\Model\Company;
+use Modules\B2B\Domain\Repository\ApplicationRepository;
+use Modules\B2B\Domain\Repository\CompanyRepository;
+use Modules\B2B\Domain\ValueObject\ApplicationRequest;
+use Modules\B2B\Domain\ValueObject\ApplicationState;
+use Modules\B2B\Domain\ValueObject\RequestKind;
+use Modules\B2B\Public\Enums\CompanyStatus;
+use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Access\Support\FakeBreachList;
+use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\B2B\Support\B2BFixtures;
+
+use function Pest\Laravel\seed;
+
+/*
+| B2B step 5: what anonymizing an account reaches (b2b.md §1.1, §6, amendment 12(a), scenario 18).
+| The company is never deleted; its name, numbers and address are, on it and on every application it
+| sent, with their notes, answers and papers; an unsent draft goes whole.
+|
+| Every helper here is named after this file's subject: a Pest file's functions are global.
+*/
+
+uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    seed(PlatformSeeder::class);
+    FakeBreachList::install();
+    RecordingSecurityMessages::install();
+    Storage::fake('local', ['serve' => true]);
+    Storage::fake('public');
+    Queue::fake();
+});
+
+afterEach(function () {
+    File::deleteDirectory(B2BFixtures::uploads());
+});
+
+/**
+ * A company with a whole history: a first application rejected with two requests, a second that
+ * answered them — a file and a text — with its own note, approved with staff's note, and a third
+ * still a draft, holding one new paper only it holds.
+ *
+ * @return array{customerId: string, company: Company, sent: list<string>, draftId: string, answerFile: string, draftFile: string}
+ */
+function companyAnonymizeHistory(): array
+{
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    $fileRequest = strtolower((string) Str::ulid());
+    $textRequest = strtolower((string) Str::ulid());
+    [$company, $first] = B2BFixtures::rejected($customerId, [], [
+        ApplicationRequest::add($fileRequest, RequestKind::File, 'A bank letter', 0),
+        ApplicationRequest::add($textRequest, RequestKind::Text, 'Who signs for the company?', 1),
+    ]);
+
+    Fx::actAsCustomer($customerId);
+    app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
+    app(SaveApplicationDraftHandler::class)->handle(new SaveApplicationDraft(['note' => 'Please call before noon.']));
+    app(AnswerApplicationRequestHandler::class)->handle(new AnswerApplicationRequest($fileRequest, path: B2BFixtures::pdf(), originalFilename: 'bank-letter.pdf'));
+    app(AnswerApplicationRequestHandler::class)->handle(new AnswerApplicationRequest($textRequest, text: 'The owner, in person.'));
+    app(SubmitApplicationHandler::class)->handle(new SubmitApplication);
+    $second = app(ApplicationRepository::class)->lastSent($company->id()) ?? throw new LogicException('The second was not sent.');
+
+    Fx::actAsStaff(Fx::staffWith(B2BPermissions::staff(), ['sa']));
+    app(ApproveCompanyHandler::class)->handle(new ApproveCompany($company->id(), 'Welcome aboard.'));
+
+    Fx::actAsCustomer($customerId);
+    app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
+    app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument(B2BFixtures::documentTypes()[0]->id(), B2BFixtures::pdf(), 'new.pdf'));
+    $draft = app(ApplicationRepository::class)->openFor($customerId) ?? throw new LogicException('No draft.');
+
+    return [
+        'customerId' => $customerId,
+        'company' => $company,
+        'sent' => [$first->id(), $second->id()],
+        'draftId' => $draft->id(),
+        'answerFile' => (string) DB::table('b2b.application_request_answers')->where('application_id', $second->id())->whereNotNull('media_id')->value('media_id'),
+        'draftFile' => $draft->documents()[B2BFixtures::documentTypes()[0]->id()]->mediaId,
+    ];
+}
+
+/**
+ * Every file any of these applications holds, papers and answers.
+ *
+ * @param  list<string>  $applicationIds
+ * @return list<string>
+ */
+function companyAnonymizeFiles(array $applicationIds): array
+{
+    return array_values(array_unique([
+        ...DB::table('b2b.application_documents')->whereIn('application_id', $applicationIds)->pluck('media_id')->map(static fn (mixed $id): string => (string) $id)->all(),
+        ...DB::table('b2b.application_request_answers')->whereIn('application_id', $applicationIds)->whereNotNull('media_id')->pluck('media_id')->map(static fn (mixed $id): string => (string) $id)->all(),
+    ]));
+}
+
+function companyAnonymizeRun(string $customerId): void
+{
+    Fx::asSystem(fn () => app(CompanyAnonymizer::class)->anonymize($customerId));
+}
+
+/**
+ * @return array<string, mixed> the changes the newest such entry recorded, in a steady key order
+ */
+function companyAnonymizeChanges(string $action, string $subjectId): array
+{
+    $changes = json_decode((string) DB::table('platform.audit_entries')->where('action', $action)->where('subject_id', $subjectId)->orderByDesc('id')->value('changes'), true);
+    $changes = is_array($changes) ? $changes : [];
+    ksort($changes);
+
+    return $changes;
+}
+
+describe('a company with a history (scenario 18)', function () {
+    it('empties the company and every application it sent, keeping the company, its type, status and decisions', function () {
+        $history = companyAnonymizeHistory();
+        $company = app(CompanyRepository::class)->forCustomer($history['customerId']) ?? throw new LogicException('No company.');
+
+        companyAnonymizeRun($history['customerId']);
+
+        $after = app(CompanyRepository::class)->find($company->id());
+        expect($after?->id())->toBe($company->id())
+            ->and([$after?->details()->name->value, $after?->details()->crNumber->value, $after?->details()->taxNumber->value, $after?->details()->address->value])
+            ->toBe(['Deleted company', 'Deleted', 'Deleted', 'Deleted'])
+            ->and($after?->details()->type->equals($company->details()->type))->toBeTrue()
+            ->and($after?->status())->toBe(CompanyStatus::Approved)
+            ->and($after?->statusChangedBy())->toBe($company->statusChangedBy());
+
+        [$first, $second] = array_map(static fn (string $id) => app(ApplicationRepository::class)->find($id), $history['sent']);
+
+        foreach ([$first, $second] as $sent) {
+            expect([$sent?->name()?->value, $sent?->crNumber()?->value, $sent?->taxNumber()?->value, $sent?->address()?->value])
+                ->toBe(['Deleted company', 'Deleted', 'Deleted', 'Deleted'])
+                ->and($sent?->note())->toBeNull()
+                ->and($sent?->documents())->toBe([])
+                ->and($sent?->answers())->toBe([])
+                ->and($sent?->type())->not->toBeNull()
+                ->and($sent?->decidedBy())->not->toBeNull();
+        }
+
+        expect($first?->state())->toBe(ApplicationState::Rejected)
+            ->and($first?->decisionReason()?->value)->toBe('The CR number does not match the certificate.')
+            // Staff's requests stay: they are what the company was told.
+            ->and($first?->requests())->toHaveCount(2)
+            ->and($second?->state())->toBe(ApplicationState::Approved)
+            ->and($second?->decisionReason()?->value)->toBe('Welcome aboard.');
+    });
+
+    it('deletes the unsent draft whole, and every paper and answer file, from the media too', function () {
+        $history = companyAnonymizeHistory();
+        $files = companyAnonymizeFiles([...$history['sent'], $history['draftId']]);
+
+        companyAnonymizeRun($history['customerId']);
+
+        expect($files)->toContain($history['answerFile'], $history['draftFile'])
+            ->and(count($files))->toBeGreaterThan(2)
+            ->and(app(ApplicationRepository::class)->find($history['draftId']))->toBeNull()
+            ->and(app(ApplicationRepository::class)->openFor($history['customerId']))->toBeNull()
+            ->and(DB::table('platform.media')->whereIn('id', $files)->count())->toBe(0)
+            ->and(DB::table('b2b.application_documents')->whereIn('application_id', $history['sent'])->count())->toBe(0)
+            ->and(DB::table('b2b.application_request_answers')->whereIn('application_id', $history['sent'])->count())->toBe(0);
+    });
+
+    it('records the company emptied, by the system, and the draft discarded', function () {
+        $history = companyAnonymizeHistory();
+        $files = companyAnonymizeFiles([...$history['sent'], $history['draftId']]);
+
+        companyAnonymizeRun($history['customerId']);
+
+        $entry = DB::table('platform.audit_entries')->where('action', 'b2b.company.anonymized')->where('subject_id', $history['company']->id())->first();
+
+        expect($entry?->actor_type)->toBe('SYSTEM')
+            ->and($entry?->store_id)->toBe($history['company']->homeStoreId())
+            ->and(companyAnonymizeChanges('b2b.company.anonymized', $history['company']->id()))->toBe([
+                'address' => 'changed',
+                'applications_anonymized' => [0, 2],
+                'cr_number' => 'changed',
+                'files_deleted' => [0, count($files)],
+                'name' => 'changed',
+                'tax_number' => 'changed',
+            ])
+            ->and(companyAnonymizeChanges('b2b.application.discarded', $history['draftId']))->toBe(['state' => ['DRAFT', null]]);
+    });
+
+    it('changes nothing, and records nothing, a second time', function () {
+        $history = companyAnonymizeHistory();
+        companyAnonymizeRun($history['customerId']);
+        $entries = DB::table('platform.audit_entries')->count();
+        $rows = DB::table('b2b.applications')->where('customer_id', $history['customerId'])->orderBy('id')->get()->toArray();
+
+        companyAnonymizeRun($history['customerId']);
+
+        expect(DB::table('platform.audit_entries')->count())->toBe($entries)
+            ->and(DB::table('b2b.applications')->where('customer_id', $history['customerId'])->orderBy('id')->get()->toArray())->toEqual($rows);
+    });
+
+    it('leaves every other account\'s company, applications and papers alone', function () {
+        $otherId = B2BFixtures::verifiedCompanyAccount();
+        [$other, $otherSent] = B2BFixtures::sent($otherId);
+        $otherFiles = companyAnonymizeFiles([$otherSent->id()]);
+        $history = companyAnonymizeHistory();
+
+        companyAnonymizeRun($history['customerId']);
+
+        expect(app(CompanyRepository::class)->forCustomer($otherId)?->details()->name->value)->toBe($other->details()->name->value)
+            ->and(app(ApplicationRepository::class)->find($otherSent->id())?->documents())->toHaveCount(count($otherSent->documents()))
+            ->and(DB::table('platform.media')->whereIn('id', $otherFiles)->count())->toBe(count($otherFiles));
+    });
+
+    it('works inside its own transaction, under the account\'s lock', function () {
+        $history = companyAnonymizeHistory();
+        $locks = B2BFixtures::accountLocks();
+        $audits = B2BFixtures::auditLevels();
+
+        companyAnonymizeRun($history['customerId']);
+
+        expect($locks->getArrayCopy())->toContain(['exclusive', 'b2b:account:'.$history['customerId'], 2])
+            ->and(array_values(array_unique(array_column(array_filter($audits->getArrayCopy(), static fn (array $a): bool => str_starts_with($a[0], 'b2b.')), 1))))->toBe([2]);
+    });
+});
+
+describe('an account with no company', function () {
+    it('deletes a first draft whole, with its papers, and records it discarded', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        $draft = B2BFixtures::storedDraft($customerId);
+        $files = companyAnonymizeFiles([$draft->id()]);
+
+        companyAnonymizeRun($customerId);
+
+        expect($files)->not->toBe([])
+            ->and(app(ApplicationRepository::class)->find($draft->id()))->toBeNull()
+            ->and(DB::table('platform.media')->whereIn('id', $files)->count())->toBe(0)
+            ->and(companyAnonymizeChanges('b2b.application.discarded', $draft->id()))->toBe(['state' => ['DRAFT', null]])
+            ->and(DB::table('platform.audit_entries')->where('action', 'b2b.company.anonymized')->count())->toBe(0);
+    });
+
+    it('leaves an individual account alone: nothing changes, nothing is recorded', function () {
+        $customerId = Fx::customer(strtolower((string) Str::ulid()).'@example.test');
+        $entries = DB::table('platform.audit_entries')->where('action', 'like', 'b2b.%')->count();
+
+        companyAnonymizeRun($customerId);
+
+        expect(DB::table('platform.audit_entries')->where('action', 'like', 'b2b.%')->count())->toBe($entries);
+    });
+});
+
+it('is what happens when Access anonymizes the account, fourteen days after it asked', function () {
+    $history = companyAnonymizeHistory();
+    DB::table('access.customers')->where('id', $history['customerId'])->update(['deletion_scheduled_for' => CarbonImmutable::now()->subMinute()]);
+
+    $done = Fx::asSystem(fn (): int => app(AnonymizeDueAccountsHandler::class)->handle(new AnonymizeDueAccounts));
+
+    expect($done)->toBe(1)
+        ->and(app(CompanyRepository::class)->forCustomer($history['customerId'])?->details()->name->value)->toBe('Deleted company')
+        ->and(app(ApplicationRepository::class)->find($history['draftId']))->toBeNull();
+});

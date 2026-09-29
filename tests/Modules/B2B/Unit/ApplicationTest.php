@@ -12,13 +12,17 @@ use Modules\B2B\Domain\Exception\MissingRequiredDocument;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Model\CompanyType;
 use Modules\B2B\Domain\Model\DocumentType;
+use Modules\B2B\Domain\ValueObject\ApplicationFlag;
+use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyName;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
+use Modules\B2B\Domain\ValueObject\FlaggedField;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
+use Modules\B2B\Domain\ValueObject\RequestKind;
 use Modules\B2B\Domain\ValueObject\TypeName;
 
 /*
@@ -290,5 +294,56 @@ describe('once it is sent', function () {
     it('decides only a sent application, never a draft', function () {
         expect(fn () => completeDraft()->approve('01j8z3k4m5n6p7q8r9s0t1v2s1', null, CarbonImmutable::now()))
             ->toThrow(InvalidCompanyStatus::class);
+    });
+});
+
+describe('when the account is anonymized (amendment 12(a))', function () {
+    it('gives up its values, its note and its papers, and keeps its state, type, decision, flags and requests', function () {
+        $application = Application::draft('01j8z3k4m5n6p7q8r9s0t1v2a2', '01j8z3k4m5n6p7q8r9s0t1v2u1', null);
+        $application->describe(
+            CompanyName::of('Al Noor Trading'),
+            CompanyTypeChoice::listed(APPLICATION_TEST_LLC),
+            RegistrationNumber::of('cr_number', '1010123456'),
+            RegistrationNumber::of('tax_number', '300123456700003'),
+            CompanyAddress::of("King Fahd Road\nRiyadh"),
+            Remark::of('note', 'Please call the owner before noon.'),
+        );
+        $application->attach(APPLICATION_TEST_VAT, '01j8z3k4m5n6p7q8r9s0t1v2m1', CarbonImmutable::now());
+        $application->attach(APPLICATION_TEST_CR, '01j8z3k4m5n6p7q8r9s0t1v2m2', CarbonImmutable::now());
+        applicationTestSend($application);
+        $flags = [ApplicationFlag::field(FlaggedField::CrNumber), ApplicationFlag::document(APPLICATION_TEST_VAT)];
+        $requests = [ApplicationRequest::add('01j8z3k4m5n6p7q8r9s0t1v2r1', RequestKind::File, 'A bank letter', 0)];
+        $application->reject('01j8z3k4m5n6p7q8r9s0t1v2s1', Remark::of('reason', 'The VAT certificate has expired.'), CarbonImmutable::now(), $flags, $requests);
+        $application->pullChanges();
+
+        $released = $application->anonymize();
+
+        expect($released)->toBe(['01j8z3k4m5n6p7q8r9s0t1v2m1', '01j8z3k4m5n6p7q8r9s0t1v2m2'])
+            ->and([$application->name()?->value, $application->crNumber()?->value, $application->taxNumber()?->value, $application->address()?->value])
+            ->toBe(['Deleted company', 'Deleted', 'Deleted', 'Deleted'])
+            ->and($application->note())->toBeNull()
+            ->and($application->documents())->toBe([])
+            ->and($application->answers())->toBe([])
+            ->and($application->state())->toBe(ApplicationState::Rejected)
+            ->and($application->type()?->typeId)->toBe(APPLICATION_TEST_LLC)
+            ->and($application->decidedBy())->toBe('01j8z3k4m5n6p7q8r9s0t1v2s1')
+            ->and($application->decisionReason()?->value)->toBe('The VAT certificate has expired.')
+            ->and($application->submittedAt())->not->toBeNull()
+            ->and($application->flags())->toHaveCount(2)
+            ->and($application->requests())->toHaveCount(1)
+            ->and($application->pullChanges())->toBe(['details', 'documents']);
+    });
+
+    it('lets go of nothing, and changes nothing, a second time', function () {
+        $application = sentApplication();
+        $application->anonymize();
+        $application->pullChanges();
+
+        expect($application->anonymize())->toBe([])
+            ->and($application->pullChanges())->toBe([]);
+    });
+
+    it('is never asked of a draft, which is deleted whole instead', function () {
+        expect(fn () => completeDraft()->anonymize())->toThrow(LogicException::class);
     });
 });
