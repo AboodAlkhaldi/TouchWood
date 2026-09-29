@@ -422,8 +422,8 @@ through its own signed link, by staff with the permission (§3).
 ### 2.4 What B2B gives others
 
 - `B2BApi` above.
-- Events (§6): the company's status changed, so Pricing can drop what it cached and Ops can write
-  to the customer later.
+- Events (§6): the company's status changed, so Ops can write to the customer later — not Pricing,
+  since prices follow the account type (§1.1) — and an application sent, for staff notifications.
 
 ---
 

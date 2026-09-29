@@ -318,3 +318,12 @@ and recorded as `b2b.application.discarded`. The files are deleted through Platf
 holds them; the company is recorded once as `b2b.company.anonymized`, by the system, with how many
 applications and files went. **A second time changes and records nothing**; an individual account has
 nothing here.
+
+**Known limit, open with the owner** (the review of step 5): the listener runs in Access's
+after-commit callbacks, once Access's own part is saved. If B2B's part fails — after its three
+attempts — the exception reaches Access's nightly sweep, which logs the account as "could not be
+anonymized" although Access's part is done; the account is never due again, so B2B's part stays
+undone, and any later listener of `CustomerAnonymized` is skipped for it. The anonymizer can be run
+again safely (it changes nothing twice), so a retry — a queued listener, or a B2B sweep — is the fix
+to choose. An application still **waiting** when its account is anonymized is kept, emptied, in
+staff's queue; what should become of it is open too.

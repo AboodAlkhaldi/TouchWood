@@ -120,6 +120,19 @@ function companyAnonymizeFiles(array $applicationIds): array
     ]));
 }
 
+/**
+ * Where these files sit on disk, as [disk, key] — read before they are deleted.
+ *
+ * @param  list<string>  $mediaIds
+ * @return list<array{0: string, 1: string}>
+ */
+function companyAnonymizeObjects(array $mediaIds): array
+{
+    return array_values(DB::table('platform.media')->whereIn('id', $mediaIds)->get(['disk', 'object_key'])
+        ->map(static fn (stdClass $row): array => [(string) $row->disk, (string) $row->object_key])
+        ->all());
+}
+
 function companyAnonymizeRun(string $customerId): void
 {
     Fx::asSystem(fn () => app(CompanyAnonymizer::class)->anonymize($customerId));
@@ -172,13 +185,18 @@ describe('a company with a history (scenario 18)', function () {
             ->and($second?->decisionReason()?->value)->toBe('Welcome aboard.');
     });
 
-    it('deletes the unsent draft whole, and every paper and answer file, from the media too', function () {
+    it('deletes the unsent draft whole, and every paper and answer file, from the media and the disk too', function () {
         $history = companyAnonymizeHistory();
         $files = companyAnonymizeFiles([...$history['sent'], $history['draftId']]);
+        // The two uploaded through the use cases are on the disk; the fixture's papers are rows only.
+        $uploaded = companyAnonymizeObjects([$history['answerFile'], $history['draftFile']]);
+        $storedBefore = array_filter($uploaded, static fn (array $object): bool => Storage::disk($object[0])->exists($object[1]));
 
         companyAnonymizeRun($history['customerId']);
 
-        expect($files)->toContain($history['answerFile'], $history['draftFile'])
+        expect($storedBefore)->toHaveCount(2)
+            ->and(array_filter($uploaded, static fn (array $object): bool => Storage::disk($object[0])->exists($object[1])))->toBe([])
+            ->and($files)->toContain($history['answerFile'], $history['draftFile'])
             ->and(count($files))->toBeGreaterThan(2)
             ->and(app(ApplicationRepository::class)->find($history['draftId']))->toBeNull()
             ->and(app(ApplicationRepository::class)->openFor($history['customerId']))->toBeNull()
@@ -245,6 +263,21 @@ describe('a company with a history (scenario 18)', function () {
     });
 });
 
+describe('a company whose application is still waiting', function () {
+    it('keeps the application: it was sent, so it keeps its record, with placeholders', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        [, $sent] = B2BFixtures::sent($customerId);
+
+        companyAnonymizeRun($customerId);
+
+        $after = app(ApplicationRepository::class)->find($sent->id());
+        expect($after?->state())->toBe(ApplicationState::Submitted)
+            ->and($after?->name()?->value)->toBe('Deleted company')
+            ->and($after?->documents())->toBe([])
+            ->and(companyAnonymizeChanges('b2b.application.discarded', $sent->id()))->toBe([]);
+    });
+});
+
 describe('an account with no company', function () {
     it('deletes a first draft whole, with its papers, and records it discarded', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
@@ -278,5 +311,6 @@ it('is what happens when Access anonymizes the account, fourteen days after it a
 
     expect($done)->toBe(1)
         ->and(app(CompanyRepository::class)->forCustomer($history['customerId'])?->details()->name->value)->toBe('Deleted company')
-        ->and(app(ApplicationRepository::class)->find($history['draftId']))->toBeNull();
+        ->and(app(ApplicationRepository::class)->find($history['draftId']))->toBeNull()
+        ->and(DB::table('platform.media')->whereIn('id', [$history['answerFile'], $history['draftFile']])->count())->toBe(0);
 });

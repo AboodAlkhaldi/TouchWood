@@ -337,7 +337,7 @@ builder. spatie/laravel-data stays available for the presentation layer (forms, 
 |---|---|
 | `StoreDto` | `id`, `code`, `name` (ar, en), `countryCode`, `currencyCode`, `currencyExponent`, `currencySign`, `currencyAbbreviation` (ar, en), `taxRateBasisPoints`, `timezone`, `position` |
 | `CurrencyDto` | `code`, `exponent`, `name` (ar, en), `abbreviation` (ar, en), `sign`; `displaySymbol(locale)` returns the sign, or the abbreviation when there is no sign |
-| `SettingDefinitionDto` | `key`, `scope`, `type` (checked strictly before any rule), `rules` (further Laravel validation rules), `default`, `permission`, `sensitive` (audited only as "changed") |
+| `SettingDefinitionDto` | `key`, `scope`, `type` (checked strictly before any rule), `rules` (further Laravel validation rules), `default`, `permission`, `sensitive` (audited only as "changed"), `mayBeEmpty` (a text setting whose empty text means "not set yet"; its rules then apply only to a value that is not empty, §1.3) |
 | `SettingValueDto` | `key`, `storeId`, `isDefault`; typed readers `int()`, `bool()`, `string()`, `list()` that throw if the stored type does not match |
 | `MediaDto` | `id`, `visibility`, `mime`, `bytes`, `width`, `height`, `originalFilename`¹, `altAr`, `altEn`¹, `variantsStatus` |
 | `MediaUrlsDto` | `original` (PRIVATE only: the expiring link; null for a public image, whose original is never served), `variants` (size slug → format extension → CDN URL, empty until ready), `expiresAt` (PRIVATE only) |

@@ -41,6 +41,18 @@ it('accepts an IBAN whose check digits are right, with or without its spaces, in
     'the shortest, 15' => 'NO9386011117947',
     'a long one, 32' => 'LC55HEMM000100010012001200023015',
     'the longest, 34' => 'ZZ64AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    'the lowest check digits, 02' => 'GB02WEST10000000000014',
+    'the highest check digits, 98' => 'GB98WEST10000000000032',
+]);
+
+it('refuses the check digits no IBAN has — 00, 01 and 99 — though the remainder comes out right', function (string $iban) {
+    expect(IbanRule::valid($iban))->toBeFalse();
+})->with([
+    // Each account's right check digits are 98, 97 and 02; these are them moved by 97, which the
+    // remainder cannot tell apart.
+    '01 for 98' => 'GB01WEST12345698765435',
+    '00 for 97' => 'GB00WEST12345698765453',
+    '99 for 02' => 'GB99WEST12345698765417',
 ]);
 
 it('refuses one wrong digit: the check digits catch it', function () {
