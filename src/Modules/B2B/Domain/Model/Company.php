@@ -234,13 +234,19 @@ final class Company
     }
 
     /**
-     * The account behind it was anonymized (b2b.md §1.1, amendment 12(a)): the name, the CR number,
-     * the tax number and the address give way to placeholders — a sole proprietor's numbers identify a
-     * person. **A company is never deleted**: its type, its status and its reason, and who decided,
-     * stay. Whatever its status, suspended included; a second time changes nothing.
+     * The account behind it was anonymized (b2b.md §1.1, amendments 12(a), 13(a)): the name, the CR
+     * number, the tax number and the address give way to placeholders — a sole proprietor's numbers
+     * identify a person — and so do the company's own words for its type when it is still "Other",
+     * which stays "Other". **A company is never deleted**: its type, its status and its reason, and who
+     * decided, stay. Whatever its status, suspended included; a second time changes nothing.
      */
     public function anonymize(): void
     {
+        if ($this->type->isOther() && $this->type->other !== self::DELETED) {
+            $this->type = CompanyTypeChoice::other(self::DELETED);
+            $this->markChanged('company_type_other');
+        }
+
         if ($this->name->value !== self::DELETED_NAME) {
             $this->name = CompanyName::of(self::DELETED_NAME);
             $this->markChanged('name');

@@ -347,3 +347,21 @@ describe('when the account is anonymized (amendment 12(a))', function () {
         expect(fn () => completeDraft()->anonymize())->toThrow(LogicException::class);
     });
 });
+
+describe('when the account of a company that sent "Other" is anonymized (amendment 13(a))', function () {
+    it('gives up the words for its type too, and stays "Other"; a second time changes nothing', function () {
+        $application = completeDraft(CompanyTypeChoice::other('Cooperative of one'));
+        applicationTestSend($application);
+        $application->pullChanges();
+
+        $application->anonymize();
+
+        expect($application->type()?->isOther())->toBeTrue()
+            ->and($application->type()?->other)->toBe('Deleted')
+            ->and($application->pullChanges())->toBe(['details', 'documents']);
+
+        $application->anonymize();
+
+        expect($application->pullChanges())->toBe([]);
+    });
+});

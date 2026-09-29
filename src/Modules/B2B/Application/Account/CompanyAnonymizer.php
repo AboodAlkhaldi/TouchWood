@@ -16,15 +16,15 @@ use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\Platform\Public\Contracts\PlatformApi;
 
 /**
- * What anonymizing an account reaches in B2B (b2b.md §1.1, §6, amendment 12(a)), once Access has
- * emptied the account:
+ * What anonymizing an account reaches in B2B (b2b.md §1.1, §6, amendments 12(a), 13(a)), once Access
+ * has emptied the account (AnonymizeCompany, from the queue):
  *
  * - **an unsent draft is deleted whole**, with the files only it holds, as discarding it would —
- *   and audited as a discard;
+ *   and audited as a discard; an application still waiting is sent, so it is kept like the others;
  * - **every application the company sent** keeps its state, type, dates, decision, flags and
- *   requests, and gives up its four personal values, its note, its answers and its papers
- *   (Application::anonymize);
- * - **the company** keeps its row, type, status and reason, and gives up the same four values
+ *   requests, and gives up its four personal values and any "Other" words, its note, its answers
+ *   and its papers (Application::anonymize);
+ * - **the company** keeps its row, type, status and reason, and gives up the same values
  *   (Company::anonymize), audited once as `b2b.company.anonymized`;
  * - every file let go of is deleted through Platform, after the rows that held it are written.
  *

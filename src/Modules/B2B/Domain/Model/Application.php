@@ -415,8 +415,9 @@ final class Application
     /**
      * The account behind it was anonymized (b2b.md §1.1, amendment 12(a)). **A sent application**
      * keeps its state, its type, its dates, its decision and staff's flags and requests, and gives up
-     * the rest: the name, the CR number, the tax number and the address become the company's
-     * placeholders, the note and every answer go, and so do its papers. A draft is not kept this way —
+     * the rest: the name, the CR number, the tax number, the address and an "Other" type's own words
+     * become the company's placeholders (amendment 13(a)), the note and every answer go, and so do its
+     * papers. A draft is not kept this way —
      * it is deleted whole, as discarding it would.
      *
      * @return list<string> the files it let go of, for the caller to delete; empty a second time
@@ -439,12 +440,15 @@ final class Application
             }
         }
 
+        $other = $this->type?->isOther() === true;
         $placeholders = [
             $this->name?->value !== Company::DELETED_NAME,
             $this->crNumber?->value !== Company::DELETED,
             $this->taxNumber?->value !== Company::DELETED,
             $this->address?->value !== Company::DELETED,
             $this->note !== null,
+            // An "Other" company's own words for its type (amendment 13(a)); a listed type stays.
+            $other && $this->type->other !== Company::DELETED,
         ];
 
         if (in_array(true, $placeholders, true)) {
@@ -452,6 +456,7 @@ final class Application
             $this->crNumber = RegistrationNumber::of('cr_number', Company::DELETED);
             $this->taxNumber = RegistrationNumber::of('tax_number', Company::DELETED);
             $this->address = CompanyAddress::of(Company::DELETED);
+            $this->type = $other ? CompanyTypeChoice::other(Company::DELETED) : $this->type;
             $this->note = null;
             $this->markChanged('details');
         }

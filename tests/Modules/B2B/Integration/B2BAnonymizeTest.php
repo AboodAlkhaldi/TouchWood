@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Events\CallQueuedListener;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Queue\Jobs\FakeJob;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Testing\Fakes\QueueFake;
 use Modules\Access\Application\Command\AnonymizeDueAccounts\AnonymizeDueAccounts;
 use Modules\Access\Application\Command\AnonymizeDueAccounts\AnonymizeDueAccountsHandler;
 use Modules\B2B\Application\Account\CompanyAnonymizer;
@@ -31,7 +34,12 @@ use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
+use Modules\B2B\Domain\ValueObject\CompanyAddress;
+use Modules\B2B\Domain\ValueObject\CompanyName;
+use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
+use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\RequestKind;
+use Modules\B2B\Infrastructure\Listener\AnonymizeCompany;
 use Modules\B2B\Public\Enums\CompanyStatus;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -131,6 +139,31 @@ function companyAnonymizeObjects(array $mediaIds): array
     return array_values(DB::table('platform.media')->whereIn('id', $mediaIds)->get(['disk', 'object_key'])
         ->map(static fn (stdClass $row): array => [(string) $row->disk, (string) $row->object_key])
         ->all());
+}
+
+/**
+ * B2B's part of anonymizing, as Access's sweep leaves it on the (faked) queue.
+ *
+ * @return list<CallQueuedListener>
+ */
+function companyAnonymizeQueued(): array
+{
+    $queue = Queue::getFacadeRoot();
+
+    if (! $queue instanceof QueueFake) {
+        throw new LogicException('The queue is not faked: beforeEach fakes it.');
+    }
+
+    return array_values($queue->pushed(CallQueuedListener::class, static fn (CallQueuedListener $job): bool => $job->class === AnonymizeCompany::class)->all());
+}
+
+/**
+ * Runs a queued job as a worker would, by the system.
+ */
+function companyAnonymizeWork(CallQueuedListener $job): void
+{
+    $job->setJob(new FakeJob);
+    Fx::asSystem(fn () => $job->handle(app()));
 }
 
 function companyAnonymizeRun(string $customerId): void
@@ -303,14 +336,70 @@ describe('an account with no company', function () {
     });
 });
 
-it('is what happens when Access anonymizes the account, fourteen days after it asked', function () {
-    $history = companyAnonymizeHistory();
-    DB::table('access.customers')->where('id', $history['customerId'])->update(['deletion_scheduled_for' => CarbonImmutable::now()->subMinute()]);
+describe('a company still "Other" (amendment 13(a))', function () {
+    it('gives up its own words for its type, on the company and the application that sent them', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        $draft = B2BFixtures::storedDraft($customerId);
+        $draft->describe(
+            CompanyName::of('Al Noor Trading'),
+            CompanyTypeChoice::other('Cooperative of one'),
+            RegistrationNumber::of('cr_number', '1010123456'),
+            RegistrationNumber::of('tax_number', '300123456700003'),
+            CompanyAddress::of("King Fahd Road\nRiyadh"),
+            null,
+        );
+        app(ApplicationRepository::class)->update($draft);
+        Fx::actAsCustomer($customerId);
+        app(SubmitApplicationHandler::class)->handle(new SubmitApplication);
+        $company = app(CompanyRepository::class)->forCustomer($customerId) ?? throw new LogicException('Not sent.');
 
-    $done = Fx::asSystem(fn (): int => app(AnonymizeDueAccountsHandler::class)->handle(new AnonymizeDueAccounts));
+        companyAnonymizeRun($customerId);
 
-    expect($done)->toBe(1)
-        ->and(app(CompanyRepository::class)->forCustomer($history['customerId'])?->details()->name->value)->toBe('Deleted company')
-        ->and(app(ApplicationRepository::class)->find($history['draftId']))->toBeNull()
-        ->and(DB::table('platform.media')->whereIn('id', [$history['answerFile'], $history['draftFile']])->count())->toBe(0);
+        $after = app(CompanyRepository::class)->find($company->id());
+        $sent = app(ApplicationRepository::class)->find($draft->id());
+        expect($company->details()->type->other)->toBe('Cooperative of one')
+            ->and($after?->details()->type->isOther())->toBeTrue()
+            ->and($after?->details()->type->other)->toBe('Deleted')
+            ->and($sent?->type()?->other)->toBe('Deleted')
+            ->and(companyAnonymizeChanges('b2b.company.anonymized', $company->id()))->toHaveKey('company_type_other', 'changed');
+    });
+});
+
+describe('from Access\'s nightly sweep (amendment 13(a))', function () {
+    it('only queues B2B\'s part — the sweep counts the account done — and the queued job empties the company', function () {
+        $history = companyAnonymizeHistory();
+        DB::table('access.customers')->where('id', $history['customerId'])->update(['deletion_scheduled_for' => CarbonImmutable::now()->subMinute()]);
+
+        $done = Fx::asSystem(fn (): int => app(AnonymizeDueAccountsHandler::class)->handle(new AnonymizeDueAccounts));
+        $queued = companyAnonymizeQueued();
+
+        expect($done)->toBe(1)
+            ->and($queued)->toHaveCount(1)
+            ->and($queued[0]->data[0]->customerId ?? null)->toBe($history['customerId'])
+            ->and($queued[0]->tries)->toBe(5)
+            ->and($queued[0]->backoff)->toBe([10, 60, 300, 1800])
+            // Nothing happens here until a worker runs it.
+            ->and(app(CompanyRepository::class)->forCustomer($history['customerId'])?->details()->name->value)->toBe('Al Noor Trading');
+
+        companyAnonymizeWork($queued[0]);
+
+        expect(app(CompanyRepository::class)->find($history['company']->id())?->details()->name->value)->toBe('Deleted company')
+            ->and(app(ApplicationRepository::class)->find($history['draftId']))->toBeNull()
+            ->and(DB::table('platform.media')->whereIn('id', [$history['answerFile'], $history['draftFile']])->count())->toBe(0);
+    });
+
+    it('is done once however many times the job runs: the second run changes and records nothing', function () {
+        $history = companyAnonymizeHistory();
+        DB::table('access.customers')->where('id', $history['customerId'])->update(['deletion_scheduled_for' => CarbonImmutable::now()->subMinute()]);
+        Fx::asSystem(fn (): int => app(AnonymizeDueAccountsHandler::class)->handle(new AnonymizeDueAccounts));
+        $job = companyAnonymizeQueued()[0] ?? throw new LogicException('Nothing queued.');
+
+        companyAnonymizeWork($job);
+        $entries = DB::table('platform.audit_entries')->count();
+        $rows = DB::table('b2b.applications')->where('customer_id', $history['customerId'])->orderBy('id')->get()->toArray();
+        companyAnonymizeWork($job);
+
+        expect(DB::table('platform.audit_entries')->count())->toBe($entries)
+            ->and(DB::table('b2b.applications')->where('customer_id', $history['customerId'])->orderBy('id')->get()->toArray())->toEqual($rows);
+    });
 });

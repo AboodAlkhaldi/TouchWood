@@ -279,3 +279,21 @@ describe('when the account is anonymized (amendment 12(a))', function () {
         expect($company->pullChanges())->toBe([]);
     });
 });
+
+describe('when the account of a company still "Other" is anonymized (amendment 13(a))', function () {
+    it('gives up its own words for its type too, and stays "Other"', function () {
+        $company = companyIn(CompanyStatus::Rejected);
+        $company->correctType(CompanyTypeChoice::other('Cooperative of one'), companyTestTypes());
+        $company->pullChanges();
+
+        $company->anonymize();
+
+        expect($company->details()->type->isOther())->toBeTrue()
+            ->and($company->details()->type->other)->toBe('Deleted')
+            ->and($company->pullChanges())->toBe(['company_type_other', 'name', 'cr_number', 'tax_number', 'address']);
+
+        $company->anonymize();
+
+        expect($company->pullChanges())->toBe([]);
+    });
+});
