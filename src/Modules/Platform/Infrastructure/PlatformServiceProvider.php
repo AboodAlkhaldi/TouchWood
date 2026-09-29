@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\Platform\Application\AuditLog;
+use Modules\Platform\Application\FailedJobs\FailedJobs;
 use Modules\Platform\Application\Media\ImageVariantGenerator;
 use Modules\Platform\Application\Media\InMemoryMediaUsages;
 use Modules\Platform\Application\Media\MediaInspector;
@@ -47,6 +48,7 @@ use Modules\Platform\Infrastructure\Eloquent\EloquentStoreRepository;
 use Modules\Platform\Infrastructure\External\FinfoMediaInspector;
 use Modules\Platform\Infrastructure\External\InterventionImageVariantGenerator;
 use Modules\Platform\Infrastructure\External\LaravelMediaStorage;
+use Modules\Platform\Infrastructure\Queue\DatabaseFailedJobs;
 use Modules\Platform\Infrastructure\Queue\JobActorState;
 use Modules\Platform\Infrastructure\Queue\JobAwareActorContext;
 use Modules\Platform\Infrastructure\Queue\LaravelMediaVariantsQueue;
@@ -91,6 +93,7 @@ final class PlatformServiceProvider extends ServiceProvider
         MediaInspector::class => FinfoMediaInspector::class,
         ImageVariantGenerator::class => InterventionImageVariantGenerator::class,
         MediaVariantsQueue::class => LaravelMediaVariantsQueue::class,
+        FailedJobs::class => DatabaseFailedJobs::class,
         // Process-wide on purpose: the queue worker runs jobs one after another in one process.
         JobActorState::class => JobActorState::class,
     ];

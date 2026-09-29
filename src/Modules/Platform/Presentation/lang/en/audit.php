@@ -14,4 +14,6 @@ return [
     'media.deleted' => 'File deleted',
     'media.alt_text_changed' => 'File description changed',
     'media.variants_retried' => 'Image processing tried again',
+    'failed_job.retried' => 'Failed job retried',
+    'failed_job.deleted' => 'Failed job deleted',
 ];
