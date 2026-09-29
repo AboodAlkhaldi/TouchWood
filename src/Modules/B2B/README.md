@@ -221,7 +221,11 @@ reinstating.
 4. the application, read, not locked.
 
 The tests record every advisory lock with its key and transaction level (`B2BFixtures::accountLocks`)
-and prove both the level and the order.
+and prove both the level and the order. **A type's own row is read, never row-locked**: the store's
+lock already serialises every writer of the lists, and a `FOR UPDATE` on a type would block the
+foreign-key check of a company saving a draft that points at it — while a deactivation holding it
+waits for that company's account lock, a deadlock the first review of step 4 found. A test records
+every row lock on the type tables and expects none.
 
 **Decisions** (`ApproveCompany`, `RejectCompany`, `SuspendCompany`, `ReinstateCompany`) run the domain's
 state machine (§4.1): only a `PENDING` company has something to decide, asked first so a suspended

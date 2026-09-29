@@ -36,7 +36,7 @@ final readonly class DeactivateDocumentTypeHandler
         $this->authorizer->authorize(self::PERMISSION, $scope);
 
         $this->action->change($found->storeId(), function () use ($found, $command): array {
-            $type = $this->types->byId($found->id()) ?? throw new TypeNotFound($found->id());
+            $type = $this->types->find($found->id()) ?? throw new TypeNotFound($found->id());
             $wasActive = $type->isActive();
             $wasShown = $type->inactiveDisplay();
             $type->deactivate($command->shown);

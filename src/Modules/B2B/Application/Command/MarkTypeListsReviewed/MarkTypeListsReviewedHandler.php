@@ -13,7 +13,7 @@ use Shared\Application\Unauthorized;
 
 /**
  * **`MarkTypeListsReviewed`** (b2b.md §1.3, §3.2, amendment 10(d)): clears the store's "copied from
- * the Saudi store" notice when nothing needs changing — any change to either list clears it anyway.
+ * the starting lists" notice when nothing needs changing — any change to either list clears it anyway.
  * Either list's `update` job in that store will do; audited only when the notice was showing.
  */
 final readonly class MarkTypeListsReviewedHandler

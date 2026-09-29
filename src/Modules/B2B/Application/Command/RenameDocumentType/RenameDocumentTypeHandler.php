@@ -39,7 +39,7 @@ final readonly class RenameDocumentTypeHandler
         $name = TypeName::of($command->nameAr, $command->nameEn);
 
         $this->action->change($found->storeId(), function () use ($found, $name): array {
-            $type = $this->types->byId($found->id()) ?? throw new TypeNotFound($found->id());
+            $type = $this->types->find($found->id()) ?? throw new TypeNotFound($found->id());
 
             if ($this->types->nameTaken($type->storeId(), $name, $type->id())) {
                 throw new TypeNameTaken;

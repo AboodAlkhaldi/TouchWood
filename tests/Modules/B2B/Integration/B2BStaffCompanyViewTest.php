@@ -31,7 +31,9 @@ use Modules\B2B\Application\Query\ViewCompany\ViewCompanyHandler;
 use Modules\B2B\Domain\Exception\ApplicationFileNotFound;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
+use Modules\B2B\Domain\ValueObject\ApplicationFlag;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
+use Modules\B2B\Domain\ValueObject\FlaggedField;
 use Modules\B2B\Domain\ValueObject\RequestKind;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -178,6 +180,22 @@ describe('the company list (§3.2, amendment 10(g), (j))', function () {
             ->and($second->total)->toBe(4);
     });
 
+    it('keeps the page within bounds, as the customer list does (the review of step 4)', function () {
+        staffCompanyViewCompany('Al Noor Trading');
+        staffCompanyViewReader([B2BPermissions::COMPANY_VIEW]);
+
+        $huge = staffCompanyViewList(page: PHP_INT_MAX, perPage: 500);
+        $none = staffCompanyViewList(page: 0, perPage: 0);
+
+        expect($huge->page)->toBe(100_000)
+            ->and($huge->perPage)->toBe(100)
+            ->and($huge->companies)->toBe([])
+            ->and($huge->total)->toBe(1)
+            ->and($none->page)->toBe(1)
+            ->and($none->perPage)->toBe(1)
+            ->and($none->companies)->toHaveCount(1);
+    });
+
     it('marks a waiting company whose sent type was deactivated since (§1.3)', function () {
         $companyId = staffCompanyViewCompany('Al Noor Trading');
         staffCompanyViewReader([B2BPermissions::COMPANY_VIEW]);
@@ -212,6 +230,38 @@ describe('one company (§3.2)', function () {
             ->and($view->applications[1]->decisionReason)->toBe('The CR number does not match the certificate.')
             ->and($view->applications[0]->decidedBy)->toBeNull()
             ->and($view->applications[0]->typeDeactivatedSinceSent)->toBeFalse();
+    });
+
+    it('shows each sent application\'s papers, flags and requests, and the company\'s details (the review of step 4)', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        $requestId = strtolower((string) Str::ulid());
+        $documentType = B2BFixtures::documentTypes()[0]->id();
+        [$company, $rejected] = B2BFixtures::rejected(
+            $customerId,
+            [ApplicationFlag::field(FlaggedField::CrNumber), ApplicationFlag::document($documentType)],
+            [ApplicationRequest::add($requestId, RequestKind::Text, 'Who signs for the company?', 0)],
+        );
+        // Deactivated after the decision: only a waiting application is marked (§1.3).
+        B2BFixtures::deactivate(B2BFixtures::companyTypes()[1]);
+        staffCompanyViewReader([B2BPermissions::COMPANY_VIEW]);
+
+        $view = staffCompanyViewOf($company->id());
+        $sent = $view->applications[0];
+        $flags = array_map(static fn ($flag): array => [$flag->field, $flag->documentTypeId], $sent->flags);
+        sort($flags);
+
+        expect($view->details->name)->toBe('Al Noor Trading')
+            ->and($view->details->crNumber)->toBe('1010123456')
+            ->and($view->status)->toBe('REJECTED')
+            ->and($view->statusReason)->toBe('The CR number does not match the certificate.')
+            ->and($view->mayOrder)->toBeFalse()
+            ->and(array_map(static fn ($file): string => $file->mediaId, $sent->documents))
+            ->toEqualCanonicalizing(array_values(array_map(static fn ($document): string => $document->mediaId, $rejected->documents())))
+            ->and($sent->documents)->not->toBe([])
+            ->and($flags)->toBe([[null, $documentType], ['cr_number', null]])
+            ->and(array_map(static fn ($request): array => [$request->id, $request->kind, $request->label], $sent->requests))
+            ->toBe([[$requestId, 'TEXT', 'Who signs for the company?']])
+            ->and($sent->typeDeactivatedSinceSent)->toBeFalse();
     });
 
     it('never shows a draft: nothing is reviewed until it is sent (§1.2)', function () {
@@ -252,10 +302,11 @@ describe('a company\'s papers (§1.4, §3.2, amendment 10(f))', function () {
         [$company, $application] = B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
         $typeId = (string) array_key_first($application->documents());
         $mediaId = $application->documents()[$typeId]->mediaId;
-        staffCompanyViewReader([B2BPermissions::COMPANY_DOCUMENT_VIEW]);
+        $staffId = staffCompanyViewReader([B2BPermissions::COMPANY_DOCUMENT_VIEW]);
         $levels = B2BFixtures::auditLevels();
 
-        $link = app(DownloadCompanyDocumentHandler::class)->handle(new DownloadCompanyDocument($company->id(), $mediaId));
+        // As pasted: in capitals, with a space around it.
+        $link = app(DownloadCompanyDocumentHandler::class)->handle(new DownloadCompanyDocument($company->id(), ' '.strtoupper($mediaId).' '));
         $entry = DB::table('platform.audit_entries')->where('action', 'b2b.company.document_opened')->first();
         $changes = json_decode((string) $entry?->changes, true);
         ksort($changes);
@@ -264,6 +315,10 @@ describe('a company\'s papers (§1.4, §3.2, amendment 10(f))', function () {
             ->and($link->expiresAt->getTimestamp() - time())->toBeGreaterThan(29 * 60)->toBeLessThanOrEqual(30 * 60)
             ->and($levels->getArrayCopy())->toBe([['b2b.company.document_opened', 2]])
             ->and($entry?->subject_id)->toBe($company->id())
+            // Who opened it, in the company's home store (scenario 24).
+            ->and($entry?->actor_type)->toBe('STAFF')
+            ->and($entry?->actor_id)->toBe($staffId)
+            ->and($entry?->store_id)->toBe(Fx::storeId('sa'))
             ->and($changes)->toBe(['application_id' => [null, $application->id()], 'document_type_id' => [null, $typeId]])
             ->and((string) $entry?->changes)->not->toContain($mediaId);
     });
@@ -293,6 +348,7 @@ describe('a company\'s papers (§1.4, §3.2, amendment 10(f))', function () {
         $typeId = B2BFixtures::documentTypes()[0]->id();
         app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument($typeId, B2BFixtures::pdf(), 'new.pdf'));
         $draftFile = (string) app(ApplicationRepository::class)->openFor($customerId)?->documents()[$typeId]->mediaId;
+        expect($draftFile)->not->toBe('');
         [, $other] = B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
         $othersFile = array_values($other->documents())[0]->mediaId;
         staffCompanyViewReader([B2BPermissions::COMPANY_DOCUMENT_VIEW]);

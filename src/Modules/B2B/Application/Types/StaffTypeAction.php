@@ -32,7 +32,7 @@ use Shared\Domain\ValueObject\StoreId;
  *   them, is refused as not allowed.
  * - **One order for every change** (README): in its own transaction, the store's type-list lock
  *   first — before any account's —, then the change; **anything changed clears the store's "copied
- *   from the Saudi store" notice** (10(d)); then the audit entries, inside the same transaction.
+ *   from the starting lists" notice** (10(d)); then the audit entries, inside the same transaction.
  */
 final readonly class StaffTypeAction
 {

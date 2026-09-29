@@ -259,9 +259,15 @@ describe('approving (§3.2, §4.1, amendments 1 and 10)', function () {
         $approved = staffDecisionsCompany($customerId);
         $decided = app(ApplicationRepository::class)->find($applicationId);
 
+        $entry = DB::table('platform.audit_entries')->where('action', 'b2b.application.approved')->first();
+
         expect($approved->status())->toBe(CompanyStatus::Approved)
             ->and($approved->mayOrder())->toBeTrue()
             ->and($approved->statusChangedBy())->toBe($staffId)
+            // In the home store, so that store's auditors read it, and by the reviewer (review of step 4).
+            ->and($entry?->store_id)->toBe(Fx::storeId('sa'))
+            ->and($entry?->actor_type)->toBe('STAFF')
+            ->and($entry?->actor_id)->toBe($staffId)
             ->and($decided?->state()->value)->toBe('APPROVED')
             ->and($decided?->decidedBy())->toBe($staffId)
             ->and($decided?->decisionReason()?->value)->toBe('Welcome aboard.')
@@ -282,8 +288,22 @@ describe('approving (§3.2, §4.1, amendments 1 and 10)', function () {
         staffDecisionsApprove($company->id(), '   ');
         $applicationId = app(ApplicationRepository::class)->historyOf($company->id())[0]->id();
 
-        expect(staffDecisionsChanges('b2b.application.approved', $applicationId))->not->toHaveKey('note')
+        expect(staffDecisionsChanges('b2b.application.approved', $applicationId))->toBe([
+            'company_status' => ['PENDING', 'APPROVED'],
+            'state' => ['SUBMITTED', 'APPROVED'],
+        ])
             ->and(array_column(staffDecisionsMails(), 'text'))->toBe([null]);
+    });
+
+    it('writes to nobody whose account was emptied (§1.1)', function () {
+        [$customerId, $company] = staffDecisionsPending();
+        DB::table('access.customers')->where('id', $customerId)->update(['anonymized_at' => now()]);
+        staffDecisionsReviewer();
+
+        staffDecisionsSuspend($company->id());
+
+        expect(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Suspended)
+            ->and(staffDecisionsMails())->toBe([]);
     });
 
     it('emails nobody until the approval has committed, and nobody when it rolls back', function () {
@@ -323,13 +343,38 @@ describe('approving (§3.2, §4.1, amendments 1 and 10)', function () {
 });
 
 describe('approving an application whose type was deactivated since it was sent (§1.3, amendment 10(e), (i))', function () {
-    it('refuses to approve without a choice, and writes nothing', function () {
+    it('refuses to approve without a choice, and writes and sends nothing', function () {
         [$customerId, $company] = staffDecisionsPending();
         B2BFixtures::deactivate(B2BFixtures::companyTypes()[1]);
         staffDecisionsReviewer();
+        $levels = B2BFixtures::auditLevels();
 
         expect(fn () => staffDecisionsApprove($company->id()))->toThrow(CompanyTypeChoiceRequired::class)
-            ->and(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Pending);
+            ->and(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Pending)
+            ->and($levels->getArrayCopy())->toBe([])
+            ->and(staffDecisionsMails())->toBe([]);
+    });
+
+    it('asks the company\'s status before the type: a suspended company\'s waiting application is refused for what it is', function () {
+        [, $company] = staffDecisionsPending();
+        B2BFixtures::deactivate(B2BFixtures::companyTypes()[1]);
+        B2BFixtures::suspend($company);
+        staffDecisionsReviewer();
+
+        expect(fn () => staffDecisionsApprove($company->id()))->toThrow(InvalidCompanyStatus::class);
+    });
+
+    it('approves an application sent under "Other" with no choice: only a listed type can be deactivated', function () {
+        [$customerId, $company] = staffDecisionsPending();
+        $applicationId = app(ApplicationRepository::class)->historyOf($company->id())[0]->id();
+        DB::table('b2b.applications')->where('id', $applicationId)->update(['company_type_id' => null, 'company_type_other' => 'Cooperative society']);
+        DB::table('b2b.companies')->where('id', $company->id())->update(['company_type_id' => null, 'company_type_other' => 'Cooperative society']);
+        staffDecisionsReviewer();
+
+        staffDecisionsApprove($company->id());
+
+        expect(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Approved)
+            ->and(staffDecisionsCompany($customerId)->details()->type->other)->toBe('Cooperative society');
     });
 
     it('keeps the sent type for this company alone, which stays deactivated for everyone else', function () {
@@ -342,7 +387,26 @@ describe('approving an application whose type was deactivated since it was sent 
 
         expect(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Approved)
             ->and(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe($sent->id())
-            ->and(app(CompanyTypeRepository::class)->find($sent->id())?->isActive())->toBeFalse();
+            ->and(app(CompanyTypeRepository::class)->find($sent->id())?->isActive())->toBeFalse()
+            // It already held the sent type: nothing changed, so no correction is logged.
+            ->and(Fx::audits('b2b.company.type_corrected', $company->id()))->toBe(0);
+    });
+
+    it('keeps the sent type even after the deactivation replaced it: the company goes back to it, still deactivated (the review of step 4)', function () {
+        [$customerId, $company] = staffDecisionsPending();
+        [$replacement, $sent] = B2BFixtures::companyTypes();
+        $company->correctType(CompanyTypeChoice::listed($replacement->id()), B2BFixtures::companyTypes());
+        app(CompanyRepository::class)->update($company);
+        B2BFixtures::deactivate($sent);
+        staffDecisionsReviewer();
+
+        staffDecisionsApprove($company->id(), choice: ApprovalTypeChoice::Keep);
+        $applicationId = app(ApplicationRepository::class)->historyOf($company->id())[0]->id();
+
+        expect(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe($sent->id())
+            ->and(app(CompanyTypeRepository::class)->find($sent->id())?->isActive())->toBeFalse()
+            ->and(staffDecisionsChanges('b2b.company.type_corrected', $company->id()))->toBe(['company_type_id' => [$replacement->id(), $sent->id()]])
+            ->and(staffDecisionsChanges('b2b.application.approved', $applicationId)['type_choice'] ?? null)->toBe([null, 'KEEP']);
     });
 
     it('uses the replacement the deactivation gave the company', function () {
@@ -548,6 +612,8 @@ describe('correcting the type (§3.2, amendments 2, 8(b) and 10)', function () {
 
         expect(staffDecisionsCompany($customerId)->details()->type->other)->toBe('Cooperative society')
             ->and(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Rejected)
+            // A correction that activates nothing leaves the store's lists — and their notice — alone.
+            ->and(DB::table('b2b.store_type_lists')->where('store_id', Fx::storeId('sa'))->value('copied_not_reviewed'))->toBeTrue()
             ->and(staffDecisionsChanges('b2b.company.type_corrected', $company->id()))->toBe([
                 'company_type_id' => [$sent, null],
                 'company_type_other' => 'changed',
@@ -652,5 +718,18 @@ describe('the locks (lesson 37)', function () {
         $keys = array_column($locks->getArrayCopy(), 1);
 
         expect($keys)->toBe(['b2b:types:'.Fx::storeId('sa'), 'b2b:account:'.$customerId]);
+    });
+
+    it('takes the store\'s type lock first when an approval corrects to a listed type (the review of step 4)', function () {
+        [$customerId, $company] = staffDecisionsPending();
+        [$other, $sent] = B2BFixtures::companyTypes();
+        B2BFixtures::deactivate($sent);
+        staffDecisionsReviewer();
+        $locks = B2BFixtures::accountLocks();
+
+        staffDecisionsApprove($company->id(), choice: ApprovalTypeChoice::Correct, correctTypeId: $other->id());
+
+        expect(array_map(static fn (array $lock): array => [$lock[1], $lock[2]], $locks->getArrayCopy()))
+            ->toBe([['b2b:types:'.Fx::storeId('sa'), 2], ['b2b:account:'.$customerId, 2]]);
     });
 });

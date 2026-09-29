@@ -7,7 +7,7 @@ namespace Modules\B2B\Application\Types;
 use Modules\B2B\Domain\Repository\StoreTypeListsRepository;
 
 /**
- * The "copied from the Saudi store" notice on a store's types page (b2b.md §1.3, amendment 6(a)):
+ * The "copied from the starting lists" notice on a store's types page (b2b.md §1.3, amendment 6(a)):
  * **any change to either of the store's lists clears it** (amendment 10(d)) — an admin who edited
  * the lists has reviewed them. Called inside the change's own transaction, after the store's
  * type-list lock.

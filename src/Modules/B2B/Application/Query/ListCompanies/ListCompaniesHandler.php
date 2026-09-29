@@ -24,6 +24,9 @@ final readonly class ListCompaniesHandler
 
     private const int PER_PAGE_MAX = 100;
 
+    /** As Access's lists: a page past this is nobody's, and a larger one overflows the offset. */
+    private const int PAGE_MAX = 100_000;
+
     public function __construct(
         private Authorizer $authorizer,
         private CompanyReader $companies,
@@ -56,7 +59,7 @@ final readonly class ListCompaniesHandler
         $status = $query->status === null || trim($query->status) === ''
             ? null
             : (CompanyStatus::tryFrom(strtoupper(trim($query->status))) ?? throw new InvalidCompanyAttribute('status', 'one of the four statuses'))->value;
-        $page = max($query->page, 1);
+        $page = min(max($query->page, 1), self::PAGE_MAX);
         $perPage = min(max($query->perPage, 1), self::PER_PAGE_MAX);
 
         [$rows, $total] = $this->companies->companies($storeIds, $query->search, $status, $page, $perPage);

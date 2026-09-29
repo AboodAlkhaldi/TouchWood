@@ -181,6 +181,11 @@ describe('who may change a store\'s lists (§3.2, amendment 10)', function () {
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
         expect(fn () => $change(strtolower((string) Str::ulid())))->toThrow(InvalidCompanyAttribute::class);
+
+        // Someone with no such job anywhere is refused by its name, before the store is even read.
+        staffTypesAdmin(['b2b.company.view']);
+
+        expect(fn () => $change('not-a-store'))->toThrow(Unauthorized::class);
     })->with(staffTypesOnAStore());
 
     it('grants one job, never another (scenario 20)', function () {
@@ -228,10 +233,14 @@ describe('adding, renaming and moving (§1.3, amendment 2)', function () {
 
         B2BFixtures::deactivate(B2BFixtures::companyTypes('eg')[0]);
         app(RenameCompanyTypeHandler::class)->handle(new RenameCompanyType(B2BFixtures::companyTypes('eg')[1]->id(), 'اسم مصري', 'An Egyptian name'));
-        $add('eg', 'اسم سعودي', 'A Saudi Only Name');
+        $inEgypt = $add('eg', 'اسم سعودي', 'A Saudi Only Name');
         $add('sa', 'اسم سعودي', 'A Saudi Only Name');
+        $entry = DB::table('platform.audit_entries')->where('action', 'b2b.company_type.added')->where('subject_id', $inEgypt)->first();
 
-        expect(count(B2BFixtures::companyTypes()))->toBe($count + 1);
+        expect(count(B2BFixtures::companyTypes()))->toBe($count + 1)
+            // Logged in the list's own store, so that store's auditors read it (the review of step 4).
+            ->and($entry?->store_id)->toBe(Fx::storeId('eg'))
+            ->and($entry?->actor_type)->toBe('STAFF');
     });
 
     it('renames and moves a type, audited from and to; a change to nothing writes nothing and keeps the notice', function () {
@@ -418,6 +427,25 @@ describe('deactivating a company type (§1.3, amendments 5 and 10)', function ()
             ->and(app(CompanyTypeRepository::class)->find($unheld->id())?->isActive())->toBeTrue();
     });
 
+    it('refuses another store\'s replacement even when no company holds the type (the review of step 4)', function () {
+        $unheld = B2BFixtures::companyTypes()[3];
+        staffTypesAdmin();
+
+        expect(fn () => staffTypesDeactivate($unheld->id(), B2BFixtures::companyTypes('eg')[0]->id()))->toThrow(InvalidCompanyAttribute::class)
+            ->and(app(CompanyTypeRepository::class)->find($unheld->id())?->isActive())->toBeTrue();
+    });
+
+    it('writes nothing and keeps the notice when a deactivation changes nothing', function () {
+        $type = B2BFixtures::companyTypes()[3];
+        B2BFixtures::deactivate($type, InactiveTypeDisplay::Greyed);
+        staffTypesAdmin();
+
+        staffTypesDeactivate($type->id(), shown: InactiveTypeDisplay::Greyed);
+
+        expect(Fx::audits('b2b.company_type.deactivated', $type->id()))->toBe(0)
+            ->and(staffTypesNotice())->toBeTrue();
+    });
+
     it('activates it again; the companies moved off it stay where they are', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
         B2BFixtures::approved($customerId);
@@ -448,16 +476,41 @@ describe('the locks (lesson 37)', function () {
         expect($locks->getArrayCopy())->toContain(['exclusive', 'b2b:types:'.Fx::storeId('sa'), 2]);
     })->with(staffTypesOnAType());
 
-    it('replaces in B2B\'s one lock order: the store\'s lists, then each account in account order', function () {
-        $holders = [];
+    it('takes the store\'s type lock for "Reviewed" too', function () {
+        staffTypesAdmin();
+        $locks = B2BFixtures::accountLocks();
 
-        foreach (range(1, 3) as $ignored) {
-            $customerId = B2BFixtures::verifiedCompanyAccount();
+        app(MarkTypeListsReviewedHandler::class)->handle(new MarkTypeListsReviewed(Fx::storeId('sa')));
+
+        expect($locks->getArrayCopy())->toBe([['exclusive', 'b2b:types:'.Fx::storeId('sa'), 2]]);
+    });
+
+    it('never row-locks a type: the store\'s lock already serialises its writers, and a row lock would deadlock with a company saving a draft that points at it (the review of step 4)', function (Closure $type, Closure $change) {
+        $id = $type();
+        staffTypesAdmin();
+        $rowLocks = new ArrayObject;
+        DB::listen(static function ($query) use ($rowLocks): void {
+            if (preg_match('/"?(company|document)_types"?.*\bfor\s+(update|share|no key update|key share)\b/is', $query->sql) === 1) {
+                $rowLocks[] = $query->sql;
+            }
+        });
+
+        $change($id);
+
+        expect($rowLocks->getArrayCopy())->toBe([]);
+    })->with(staffTypesOnAType());
+
+    it('replaces in B2B\'s one lock order: the store\'s lists, then each account in account order', function () {
+        // The accounts first, then their companies in the reverse order, so the rows sit in the table
+        // in an order the account order is not (the review of step 4).
+        $accounts = array_map(static fn (): string => B2BFixtures::verifiedCompanyAccount(), range(1, 3));
+        sort($accounts);
+
+        foreach (array_reverse($accounts) as $customerId) {
             B2BFixtures::approved($customerId);
-            $holders[] = 'b2b:account:'.$customerId;
         }
 
-        sort($holders);
+        $holders = array_map(static fn (string $customerId): string => 'b2b:account:'.$customerId, $accounts);
         staffTypesAdmin();
         $locks = B2BFixtures::accountLocks();
 

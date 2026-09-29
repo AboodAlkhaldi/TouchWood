@@ -35,7 +35,7 @@ final readonly class RequireDocumentTypeHandler
         $this->authorizer->authorize(self::PERMISSION, $scope);
 
         $this->action->change($found->storeId(), function () use ($found, $command): array {
-            $type = $this->types->byId($found->id()) ?? throw new TypeNotFound($found->id());
+            $type = $this->types->find($found->id()) ?? throw new TypeNotFound($found->id());
             $command->required ? $type->require() : $type->makeOptional();
 
             if ($type->pullChanges() === []) {

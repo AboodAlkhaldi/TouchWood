@@ -36,7 +36,7 @@ final readonly class MoveCompanyTypeHandler
         $this->authorizer->authorize(self::PERMISSION, $scope);
 
         $this->action->change($found->storeId(), function () use ($found, $command): array {
-            $type = $this->types->byId($found->id()) ?? throw new TypeNotFound($found->id());
+            $type = $this->types->find($found->id()) ?? throw new TypeNotFound($found->id());
             $from = $type->position();
             $type->moveTo($command->position);
 
