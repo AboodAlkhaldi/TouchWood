@@ -82,8 +82,8 @@ final class StaffCompanyAudit
     }
 
     /**
-     * A staff correction of the company's type — by the correction itself, an approval's choice, or
-     * the replacement of a deactivated type (§1.3, §3.2).
+     * A staff correction of the company's type — by the correction itself, or a type's holders moved
+     * when it is deactivated with a replacement or transferred (§1.3, §3.2, amendment 11).
      */
     public static function typeChanged(string $action, Company $company, ?CompanyTypeChoice $from): AuditEntryDto
     {

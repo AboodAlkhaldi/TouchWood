@@ -197,12 +197,12 @@ final class Company
      * what was sent, and the company does not go back to `PENDING` for a staff member's own fix.
      *
      * A listed type must be one of the home store's (amendment 6(c)), as when a draft is sent. It may
-     * be an inactive one: whether staff may pick it — reactivating it first, or keeping it for this
-     * company alone when approving — is the use case's to decide (amendments 8(b), 10).
+     * be an inactive one: whether staff may pick it — reactivating it first — is the use case's to
+     * decide (amendments 8(b), 10).
      *
      * **Never while suspended** (amendment 10(h)): staff do not change a suspended company's type
-     * either, whichever use case asks — a correction, an approval's choice, or a replacement when the
-     * type is deactivated.
+     * either, whichever use case asks — a correction, or a type's holders moved when it is deactivated
+     * with a replacement or transferred (amendment 11).
      *
      * @param  list<CompanyType>  $companyTypes  the home store's company types
      *

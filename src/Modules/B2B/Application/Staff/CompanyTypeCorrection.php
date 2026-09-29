@@ -24,14 +24,14 @@ use Shared\Application\Unauthorized;
 
 /**
  * A staff member changing a company's type (b2b.md §1.3, §3.2) — the one way it is done, whichever
- * use case asks: a correction, an approval's choice, or the replacement of a deactivated type. It
- * changes the company, never an application it sent, and sends nobody back to `PENDING`.
+ * use case asks: a correction, or moving a type's holders when it is deactivated with a replacement
+ * or transferred (`CompanyTypeHolders`). It changes the company, never an application it sent, and
+ * sends nobody back to `PENDING`.
  *
  * - **A suspended company's type is never changed** (amendment 10(h)): the domain refuses.
  * - **A deactivated type** is taken only once staff confirm it becomes active again, and only by
  *   someone who may also deactivate and activate that store's company types (amendments 8(b), 10(b));
- *   it is activated, then assigned. Keeping the old type for this company alone on an approval
- *   (10(e)) is the one way to hold a deactivated type without activating it.
+ *   it is activated, then assigned. Moving holders only ever moves them to an active type.
  * - **An open draft follows** only if its type is still the one the company had (§3.1).
  *
  * Runs inside the caller's transaction, after its locks: the store's type-list lock first when a
@@ -67,11 +67,10 @@ final readonly class CompanyTypeCorrection
 
     /**
      * @param  Company  $company  read under the account's lock and locked itself
-     * @param  bool  $keepInactive  the approval's "keep the old type for this company alone"
      *
      * @throws CompanySuspended|CompanyTypeInactive|InvalidCompanyAttribute|Unauthorized
      */
-    public function apply(Company $company, CompanyTypeChoice $to, string $action, PermissionScope $scope, bool $confirmReactivation = false, bool $keepInactive = false): void
+    public function apply(Company $company, CompanyTypeChoice $to, string $action, PermissionScope $scope, bool $confirmReactivation = false): void
     {
         $types = $this->companyTypes->all($company->homeStoreId());
         $from = $company->details()->type;
@@ -79,7 +78,7 @@ final readonly class CompanyTypeCorrection
         // Suspended and not-the-home-store's are refused here, before anything else is touched.
         $company->correctType($to, $types);
 
-        if ($to->typeId !== null && ! $keepInactive) {
+        if ($to->typeId !== null) {
             foreach ($types as $type) {
                 if ($type->id() !== $to->typeId || $type->isActive()) {
                     continue;
