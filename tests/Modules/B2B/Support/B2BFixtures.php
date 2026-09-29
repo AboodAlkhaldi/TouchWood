@@ -186,7 +186,8 @@ final class B2BFixtures
     }
 
     /**
-     * Staff suspending the company, as step 4 will (b2b.md §4.1).
+     * Staff suspending the company, straight through the domain (b2b.md §4.1); the use case is
+     * SuspendCompany (step 4).
      */
     public static function suspend(Company $company): void
     {
@@ -195,7 +196,8 @@ final class B2BFixtures
     }
 
     /**
-     * Staff deactivating a type, as step 4 will (b2b.md §1.3): shown greyed out, or hidden.
+     * Staff deactivating a type, straight through the domain (b2b.md §1.3): shown greyed out, or
+     * hidden. The use cases are DeactivateCompanyType and DeactivateDocumentType (step 4).
      */
     public static function deactivate(CompanyType|DocumentType $type, InactiveTypeDisplay $shown = InactiveTypeDisplay::Hidden): void
     {

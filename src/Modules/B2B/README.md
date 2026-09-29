@@ -50,9 +50,9 @@ A type's name is checked by `TypeName` — present, one line, real text, at most
 the table has a CHECK for each. The names are unique in each language ignoring case, **within one
 store** (amendment 5): a unique index on `(store_id, lower())` in the database, and `nameTaken()`
 asking the same `lower()` question of the same store, so the two can never disagree about a letter.
-Two stores may share a name. That question is answered by the screens that add and rename types:
-until step 4 (`TypeNameTaken`) only the starting lists write rows. A type an application references
-is never deleted; the refusal, `DocumentTypeInUse`, comes in step 4 too.
+Two stores may share a name. Staff adding or renaming a type are refused `TypeNameTaken`, asked
+under the store's type-list lock so two admins cannot both win (step 4). **A type is never deleted**
+(amendment 10(c)) — deactivated, and activated again — so nothing needs a "type in use" refusal.
 
 **Both lists are per store** (amendment 5): a legal form or a paper in one country is not one in
 another, and a company uses its home store's lists. Every store starts with the same six company
@@ -69,9 +69,9 @@ types page tells its admins they were copied in, until one of them changes a typ
 reviewed. That is one flag per store over both lists, `StoreTypeLists`: the writer adds it, set, in
 the same transaction as the lists, whenever it writes either list into a store that has no flag;
 a flag that exists is never touched again by the writer, so a store that was reviewed stays
-reviewed. `markReviewed()` is the one way it clears. **Nothing in step 3a calls it** but the tests:
-step 4's type changes and its "mark reviewed" use case call it, and the notice is drawn on the staff
-screen in step 7.
+reviewed. `markReviewed()` is the one way it clears: **any staff change to either list** calls it,
+through `TypeListsNotice`, and so does "Reviewed" (step 4, amendment 10(d)); the notice is drawn on
+the staff screen in step 7.
 
 **Deactivating a type, staff choose how it looks** to new applications (amendment 5): `HIDDEN` or
 `GREYED`, for both kinds. An active type has no such choice and activating one clears it; two CHECKs
@@ -108,7 +108,7 @@ under a label staff write. They are kept only once the rejection itself succeeds
 to the rejected application. The next draft **answers** the requests (`answer()`, and
 `removeAnswer()`, the mirror of `detach()`); the answers are that draft's, as every value it sends.
 A second answer replaces the first, and says which file it replaced so the caller can let it go.
-Until step 4's `RejectCompany`, nothing but the tests writes flags or requests.
+Staff write them when rejecting (step 4, `RejectCompany`).
 
 **Sending is refused in one order** (`submit()`, amendments 2, 4, 5 and 6), against every type of
 the home store, active or not, and the last application the company sent:

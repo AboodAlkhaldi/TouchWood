@@ -58,15 +58,22 @@ final class TypeAudit
     }
 
     /**
-     * @param  string|null  $replacedBy  a company type replaced on the companies holding it (§1.3)
+     * Deactivated, or — already inactive — shown another way (amendment 5); for a company type, the
+     * type it was replaced by on the companies holding it, if staff chose to (§1.3).
      */
-    public static function deactivated(CompanyType|DocumentType $type, ?string $replacedBy = null): AuditEntryDto
+    public static function deactivated(CompanyType|DocumentType $type, bool $wasActive, ?InactiveTypeDisplay $wasShown, ?string $replacedBy = null): AuditEntryDto
     {
-        $changes = AuditChanges::none()
-            ->changed('is_active', true, false)
-            ->changed('inactive_display', null, $type->inactiveDisplay()?->value);
+        $changes = AuditChanges::none();
 
-        if ($type instanceof CompanyType) {
+        if ($wasActive) {
+            $changes->changed('is_active', true, false);
+        }
+
+        if ($wasShown !== $type->inactiveDisplay()) {
+            $changes->changed('inactive_display', $wasShown?->value, $type->inactiveDisplay()?->value);
+        }
+
+        if ($replacedBy !== null) {
             $changes->changed('replaced_by', null, $replacedBy);
         }
 
