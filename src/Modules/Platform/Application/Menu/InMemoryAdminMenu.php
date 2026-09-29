@@ -7,6 +7,7 @@ namespace Modules\Platform\Application\Menu;
 use Illuminate\Contracts\Container\Container;
 use LogicException;
 use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\MenuCount;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Shared\Application\Authorizer;
 
@@ -37,6 +38,7 @@ final class InMemoryAdminMenu implements AdminMenu
         'store_settings',
         'media',
         'audit',
+        'system',
     ];
 
     /** @var list<MenuEntryDto> */
@@ -57,6 +59,10 @@ final class InMemoryAdminMenu implements AdminMenu
         foreach ($entries as $entry) {
             if (! in_array($entry->group, self::GROUPS, true)) {
                 throw new LogicException("The menu entry \"{$entry->module}.{$entry->key}\" is in \"{$entry->group}\", which is not a business area the role editor uses.");
+            }
+
+            if ($entry->count !== null && ! is_subclass_of($entry->count, MenuCount::class)) {
+                throw new LogicException("The menu entry \"{$entry->module}.{$entry->key}\" counts with \"{$entry->count}\", which does not implement ".MenuCount::class.'.');
             }
 
             foreach ($this->entries as $registered) {
@@ -96,6 +102,22 @@ final class InMemoryAdminMenu implements AdminMenu
         }
 
         return $menu;
+    }
+
+    public function countOf(MenuEntryDto $entry): ?int
+    {
+        if ($entry->count === null) {
+            return null;
+        }
+
+        $counter = $this->container->make($entry->count);
+
+        // Checked when the entry was registered; resolved from the container, so asked again.
+        if (! $counter instanceof MenuCount) {
+            throw new LogicException("\"{$entry->count}\" does not implement ".MenuCount::class.'.');
+        }
+
+        return $counter->count();
     }
 
     private function mayUse(Authorizer $authorizer, MenuEntryDto $entry, bool $unlimited): bool

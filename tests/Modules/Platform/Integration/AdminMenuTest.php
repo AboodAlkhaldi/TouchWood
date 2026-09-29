@@ -87,6 +87,8 @@ describe('the admin menu', function () {
             'store_settings/address-formats',
             'media/media',
             'audit/audit',
+            // A Super Admin holds every admin-only action (owner, 2026-09-29).
+            'system/failed_jobs',
         ]);
     });
 
@@ -193,6 +195,10 @@ describe('the admin menu', function () {
                 app(AdminMenu::class)->register(new MenuEntryDto('access', 'two', 'staff_and_permissions', 'test.same', AccessPermissions::STAFF_VIEW));
             },
             'already has a menu entry',
+        ],
+        'a count that is not a MenuCount (frontend.md E7)' => [
+            fn () => app(AdminMenu::class)->register(new MenuEntryDto('access', 'counted', 'staff_and_permissions', 'test.counted', AccessPermissions::STAFF_VIEW, count: stdClass::class)),
+            'does not implement',
         ],
     ]);
 });

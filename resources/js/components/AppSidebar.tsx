@@ -102,6 +102,13 @@ export function AppSidebar() {
                                                 {t('admin.coming_soon')}
                                             </SidebarMenuBadge>
                                         ) : null}
+
+                                        {/* The number waiting behind it, when there is any (frontend.md E7). */}
+                                        {entry.count !== null && entry.count > 0 ? (
+                                            <SidebarMenuBadge data-test={`count-${entry.module}.${entry.key}`}>
+                                                {entry.count}
+                                            </SidebarMenuBadge>
+                                        ) : null}
                                     </SidebarMenuItem>
                                 ))}
                             </SidebarMenu>

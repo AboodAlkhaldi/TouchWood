@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\FailedJobs\FailedJobs;
+use Modules\Platform\Application\FailedJobs\FailedJobsCount;
 use Modules\Platform\Application\Media\ImageVariantGenerator;
 use Modules\Platform\Application\Media\InMemoryMediaUsages;
 use Modules\Platform\Application\Media\MediaInspector;
@@ -200,6 +201,8 @@ final class PlatformServiceProvider extends ServiceProvider
             new MenuEntryDto('platform', 'settings', 'store_settings', 'platform.admin.settings', PlatformPermissions::SETTINGS_VIEW, 30, icon: 'dashboard'),
             new MenuEntryDto('platform', 'media', 'media', 'platform.admin.media', PlatformPermissions::MEDIA_UPLOAD, 10, icon: 'media'),
             new MenuEntryDto('platform', 'audit', 'audit', 'platform.admin.audit', PlatformPermissions::AUDIT_VIEW, 10, icon: 'audit'),
+            // With the number waiting beside it, and on the admin home (owner, 2026-09-29).
+            new MenuEntryDto('platform', 'failed_jobs', 'system', 'platform.admin.failed_jobs', PlatformPermissions::JOBS_MANAGE, 10, icon: 'failed_jobs', count: FailedJobsCount::class),
         );
 
         // Images whose variant job was lost are queued again (owner's decision, 2026-09-16). Scheduled

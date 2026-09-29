@@ -34,6 +34,8 @@ export type MenuEntry = {
     comingSoon: boolean;
     /** Named from the panel's own short list; see MenuIcon. Null draws the fallback. */
     icon: string | null;
+    /** How many wait behind it — failed jobs, say (frontend.md E7); null when it counts nothing. */
+    count: number | null;
 };
 
 export type MenuGroup = {
