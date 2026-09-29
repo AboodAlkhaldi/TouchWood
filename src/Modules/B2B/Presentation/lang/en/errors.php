@@ -74,7 +74,7 @@ return [
     ],
     'application_file_not_found' => [
         'title' => 'File not found',
-        'detail' => 'That file is not one of your applications\'.',
+        'detail' => 'That file is not in any of your applications.',
     ],
     'fields' => [
         'address' => 'address',

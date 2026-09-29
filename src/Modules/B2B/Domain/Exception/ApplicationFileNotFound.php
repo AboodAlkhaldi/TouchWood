@@ -7,7 +7,7 @@ namespace Modules\B2B\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * Opening a file that is not one of the account's own applications' (b2b.md §1.4, §7, amendment
+ * Opening a file that is not in any of the account's own applications (b2b.md §1.4, §7, amendment
  * 9(c)). Answered the same whether or not such a file exists, so asking tells nobody about another
  * company's papers.
  */
@@ -15,7 +15,7 @@ final class ApplicationFileNotFound extends B2BError
 {
     public function __construct()
     {
-        parent::__construct('That file is not one of your applications\'.');
+        parent::__construct('That file is not in any of your applications.');
     }
 
     public function type(): string
