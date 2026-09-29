@@ -200,6 +200,27 @@ describe('what the database refuses on its own', function () {
             $row = (array) DB::table('b2b.companies')->where('id', $id)->first();
             DB::table('b2b.companies')->insert([...$row, 'id' => strtolower((string) Str::ulid())]);
         }, 'companies_customer_id_unique'],
+        // Amendment 13(d): never approved as "Other" — nor suspended from approved as "Other".
+        'approved as "Other"' => [fn (string $id) => DB::table('b2b.companies')->where('id', $id)->update([
+            'status' => 'APPROVED', 'company_type_id' => null, 'company_type_other' => 'Cooperative',
+        ]), 'companies_approved_type_listed'],
+        'suspended from approved as "Other"' => [fn (string $id) => DB::table('b2b.companies')->where('id', $id)->update([
+            'status' => 'SUSPENDED', 'status_before_suspension' => 'APPROVED', 'status_reason' => 'Why',
+            'company_type_id' => null, 'company_type_other' => 'Cooperative',
+        ]), 'companies_approved_type_listed'],
+    ]);
+
+    it('lets a company not approved be "Other" — waiting, rejected, or suspended from either (amendment 13(d))', function (array $status) {
+        [$company] = B2BFixtures::sent(B2BFixtures::companyAccount());
+
+        DB::table('b2b.companies')->where('id', $company->id())->update([...$status, 'company_type_id' => null, 'company_type_other' => 'Cooperative']);
+
+        expect(DB::table('b2b.companies')->where('id', $company->id())->value('company_type_other'))->toBe('Cooperative');
+    })->with([
+        'waiting' => [['status' => 'PENDING']],
+        'rejected' => [['status' => 'REJECTED', 'status_reason' => 'Why']],
+        'suspended from waiting' => [['status' => 'SUSPENDED', 'status_before_suspension' => 'PENDING', 'status_reason' => 'Why']],
+        'suspended from rejected' => [['status' => 'SUSPENDED', 'status_before_suspension' => 'REJECTED', 'status_reason' => 'Why']],
     ]);
 
     it('refuses an application row the code would never write', function (Closure $change, string $constraint) {

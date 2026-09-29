@@ -417,8 +417,7 @@ final class Application
      * keeps its state, its type, its dates, its decision and staff's flags and requests, and gives up
      * the rest: the name, the CR number, the tax number, the address and an "Other" type's own words
      * become the company's placeholders (amendment 13(a)), the note and every answer go, and so do its
-     * papers. A draft is not kept this way —
-     * it is deleted whole, as discarding it would.
+     * papers. A draft is not kept this way — it is deleted whole, as discarding it would.
      *
      * @return list<string> the files it let go of, for the caller to delete; empty a second time
      */

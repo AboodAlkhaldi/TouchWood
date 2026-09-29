@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Events\CallQueuedListener;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Queue\Jobs\FakeJob;
@@ -23,12 +24,15 @@ use Modules\B2B\Application\Command\ApproveCompany\ApproveCompany;
 use Modules\B2B\Application\Command\ApproveCompany\ApproveCompanyHandler;
 use Modules\B2B\Application\Command\AttachApplicationDocument\AttachApplicationDocument;
 use Modules\B2B\Application\Command\AttachApplicationDocument\AttachApplicationDocumentHandler;
+use Modules\B2B\Application\Command\RejectCompany\RejectCompany;
+use Modules\B2B\Application\Command\RejectCompany\RejectCompanyHandler;
 use Modules\B2B\Application\Command\SaveApplicationDraft\SaveApplicationDraft;
 use Modules\B2B\Application\Command\SaveApplicationDraft\SaveApplicationDraftHandler;
 use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraft;
 use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraftHandler;
 use Modules\B2B\Application\Command\SubmitApplication\SubmitApplication;
 use Modules\B2B\Application\Command\SubmitApplication\SubmitApplicationHandler;
+use Modules\B2B\Domain\Exception\CompanyAccountDeleted;
 use Modules\B2B\Domain\Model\Company;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
@@ -284,6 +288,32 @@ describe('a company with a history (scenario 18)', function () {
             ->and(DB::table('platform.media')->whereIn('id', $otherFiles)->count())->toBe(count($otherFiles));
     });
 
+    it('leaves nothing half done when an attempt fails partway, so the next attempt completes (amendment 13(a))', function () {
+        $history = companyAnonymizeHistory();
+        $files = companyAnonymizeFiles([...$history['sent'], $history['draftId']]);
+        // The company's row is written last, after the draft is gone and the applications emptied:
+        // refusing it fails the attempt as late as it can fail.
+        DB::unprepared(<<<'SQL'
+            CREATE FUNCTION b2b.anonymize_test_refuse() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'refused for the test'; END $$;
+            CREATE TRIGGER anonymize_test_refuse BEFORE UPDATE ON b2b.companies
+                FOR EACH ROW EXECUTE FUNCTION b2b.anonymize_test_refuse();
+            SQL);
+
+        expect(fn () => companyAnonymizeRun($history['customerId']))->toThrow(QueryException::class, 'refused for the test')
+            ->and(app(ApplicationRepository::class)->find($history['sent'][0])?->name()?->value)->toBe('Al Noor Trading')
+            ->and(app(ApplicationRepository::class)->find($history['draftId']))->not->toBeNull()
+            ->and(DB::table('platform.media')->whereIn('id', $files)->count())->toBe(count($files))
+            ->and(DB::table('platform.audit_entries')->whereIn('action', ['b2b.company.anonymized', 'b2b.application.discarded'])->count())->toBe(0);
+
+        DB::unprepared('DROP TRIGGER anonymize_test_refuse ON b2b.companies; DROP FUNCTION b2b.anonymize_test_refuse();');
+        companyAnonymizeRun($history['customerId']);
+
+        expect(app(CompanyRepository::class)->find($history['company']->id())?->details()->name->value)->toBe('Deleted company')
+            ->and(app(ApplicationRepository::class)->find($history['draftId']))->toBeNull()
+            ->and(DB::table('platform.media')->whereIn('id', $files)->count())->toBe(0);
+    });
+
     it('works inside its own transaction, under the account\'s lock', function () {
         $history = companyAnonymizeHistory();
         $locks = B2BFixtures::accountLocks();
@@ -308,6 +338,26 @@ describe('a company whose application is still waiting', function () {
             ->and($after?->name()?->value)->toBe('Deleted company')
             ->and($after?->documents())->toBe([])
             ->and(companyAnonymizeChanges('b2b.application.discarded', $sent->id()))->toBe([]);
+    });
+
+    it('is refused approval once the account is erased, writing nothing, and is rejected by hand (amendment 13(e))', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        [$company, $sent] = B2BFixtures::sent($customerId);
+        DB::table('access.customers')->where('id', $customerId)->update(['deletion_scheduled_for' => CarbonImmutable::now()->subMinute()]);
+        Fx::asSystem(fn (): int => app(AnonymizeDueAccountsHandler::class)->handle(new AnonymizeDueAccounts));
+        companyAnonymizeWork(companyAnonymizeQueued()[0] ?? throw new LogicException('Nothing queued.'));
+        Fx::actAsStaff(Fx::staffWith(B2BPermissions::staff(), ['sa']));
+        $entries = DB::table('platform.audit_entries')->count();
+
+        expect(fn () => app(ApproveCompanyHandler::class)->handle(new ApproveCompany($company->id())))->toThrow(CompanyAccountDeleted::class)
+            ->and(app(CompanyRepository::class)->find($company->id())?->status())->toBe(CompanyStatus::Pending)
+            ->and(app(ApplicationRepository::class)->find($sent->id())?->state())->toBe(ApplicationState::Submitted)
+            ->and(DB::table('platform.audit_entries')->count())->toBe($entries);
+
+        app(RejectCompanyHandler::class)->handle(new RejectCompany($company->id(), 'The account was deleted.'));
+
+        expect(app(CompanyRepository::class)->find($company->id())?->status())->toBe(CompanyStatus::Rejected)
+            ->and(app(ApplicationRepository::class)->find($sent->id())?->state())->toBe(ApplicationState::Rejected);
     });
 });
 

@@ -23,7 +23,8 @@ use Shared\Application\Unauthorized;
  * words, or move the company to a listed type of its home store. It changes the company, never the
  * application it sent, and does not send it back to `PENDING`. Refused while the company is
  * suspended (10(h)). A deactivated type is activated first — confirmed, and by someone who may also
- * deactivate that store's company types (10(b)).
+ * deactivate that store's company types (10(b)). An approved company is never made "Other"
+ * (`Company::correctType`, amendment 13(b)): it was approved with a listed type.
  */
 final readonly class CorrectCompanyTypeHandler
 {

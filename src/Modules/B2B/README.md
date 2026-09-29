@@ -336,7 +336,15 @@ nothing here.
 callbacks, a failure here reached Access's nightly sweep, which then logged the account as not
 anonymized although its own part was done, and B2B's part was never tried again. Queued, Access only
 hands it over: five attempts over about 36 minutes (10 s, 1 min, 5 min, 30 min apart), then
-`failed_jobs`. **Done once however many times it runs** — no unique-job lock is needed: the account's
-lock lets one run at a time, and a run that finds the placeholders in place changes and records
-nothing. An application still **waiting** when its account is anonymized is kept, emptied, in staff's
-queue, and a reviewer rejects it by hand (13(a)).
+`failed_jobs`. That needs an asynchronous connection — the database queue the application runs on
+(handoff §3); on `sync`, as the tests run, the job runs at once and a failure reaches the sweep as
+before. **Done once however many times it runs** — no unique-job lock is needed: the account's lock
+lets one run at a time, and a run that finds the placeholders in place changes and records nothing; an
+attempt that fails partway leaves nothing done, so the next one starts clean (tested with a trigger
+that refuses the company's row). An application still **waiting** when its account is anonymized is
+kept, emptied, in staff's queue: approving it is refused (`CompanyAccountDeleted`, 13(e)), and a
+reviewer rejects it by hand.
+
+**"Never approved as Other" is backed by the database** (13(d)): CHECK
+`companies_approved_type_listed` refuses an approved company, or one suspended from approved, that is
+"Other".

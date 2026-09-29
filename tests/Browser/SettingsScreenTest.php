@@ -10,6 +10,7 @@ use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Platform\Application\Settings\SettingValues;
 use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -77,11 +78,15 @@ it('saves one setting on its own, leaving the rest of the screen alone', functio
 });
 
 it('says in the Companies section whether bank transfer is on, and names no value for a setting still empty (b2b.md amendment 13(c))', function () {
-    // The browser suite keeps its data, so the three start empty here and are emptied again after.
+    // The browser suite keeps its data, so the three start with no stored row — never set, their
+    // default in force — and are left that way after. A stored '' would not do: a stored value is no
+    // default, and the hint this proves hidden would be absent anyway (the review of step 5b).
     $empty = function (): void {
-        foreach ([BankAccountSettings::IBAN, BankAccountSettings::BANK, BankAccountSettings::HOLDER] as $key) {
-            app(UpdateSettingHandler::class)->handle(new UpdateSetting($key, 'sa', ''));
-        }
+        DB::table('platform.settings')
+            ->where('store_id', Fx::storeId('sa'))
+            ->whereIn('key', [BankAccountSettings::IBAN, BankAccountSettings::BANK, BankAccountSettings::HOLDER])
+            ->delete();
+        app(SettingValues::class)->invalidate();
     };
     $empty();
 

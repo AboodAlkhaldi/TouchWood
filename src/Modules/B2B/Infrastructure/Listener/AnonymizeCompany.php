@@ -15,7 +15,9 @@ use Modules\B2B\Application\Account\CompanyAnonymizer;
  *
  * **From the queue** (13(a)): Access's sweep only queues this, so a failure here never reaches it —
  * its log stays true and every other listener still runs. A failed attempt is retried, the last one
- * waits in `failed_jobs`. **Done once** however many times it runs: the account's lock lets one run
+ * waits in `failed_jobs`. That holds on an asynchronous connection — the database queue the
+ * application runs on (handoff §3); on `sync`, as the tests run, the job runs at once and a failure
+ * does reach the sweep. **Done once** however many times it runs: the account's lock lets one run
  * at a time, and a run that finds the placeholders in place changes and records nothing.
  */
 final class AnonymizeCompany implements ShouldQueue
