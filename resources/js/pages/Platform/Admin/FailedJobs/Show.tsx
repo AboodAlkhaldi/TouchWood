@@ -5,7 +5,7 @@ import { FormError } from '@/components/FormError';
 import { Button } from '@/components/ui/button';
 import { useTranslator } from '@/lib/t';
 import type { FailedJobPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
-import { DeleteConfirmation } from './Index';
+import { DeleteConfirmation, triesLabel } from './DeleteConfirmation';
 
 /*
 | E7 - one failed job, with its whole error (frontend.md §3.5).
@@ -25,13 +25,16 @@ export default function Show({ job, error }: FailedJobPage) {
             // The trail says "Failed jobs", from the menu entry this page sits under.
             action={
                 <div className="flex flex-wrap gap-2">
-                    <Button
-                        variant="outline"
-                        data-test="retry"
-                        onClick={() => router.post(`/admin/failed-jobs/${job.id}/retry`)}
-                    >
-                        {t('platform::admin_failed_jobs.retry')}
-                    </Button>
+                    {/* Only a job that failed on the database queue is put back (platform.md §3). */}
+                    {job.retryable ? (
+                        <Button
+                            variant="outline"
+                            data-test="retry"
+                            onClick={() => router.post(`/admin/failed-jobs/${job.id}/retry`)}
+                        >
+                            {t('platform::admin_failed_jobs.retry')}
+                        </Button>
+                    ) : null}
                     <Button variant="destructive" data-test="delete" onClick={() => setConfirming((open) => !open)}>
                         {t('platform::admin_failed_jobs.delete')}
                     </Button>
@@ -56,9 +59,7 @@ export default function Show({ job, error }: FailedJobPage) {
                     </div>
                     <div className="grid gap-1">
                         <dt className="text-xs text-ink-muted">{t('platform::admin_failed_jobs.tries')}</dt>
-                        <dd className="tw-figure text-ink">
-                            {job.triesAllowed === null ? t('platform::admin_failed_jobs.no_limit') : job.triesAllowed}
-                        </dd>
+                        <dd className="tw-figure text-ink">{triesLabel(job.triesAllowed, t)}</dd>
                     </div>
                     <div className="grid gap-1">
                         <dt className="text-xs text-ink-muted">{t('platform::admin_failed_jobs.queue')}</dt>

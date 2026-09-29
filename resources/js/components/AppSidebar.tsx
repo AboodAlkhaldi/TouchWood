@@ -105,9 +105,18 @@ export function AppSidebar() {
 
                                         {/* The number waiting behind it, when there is any (frontend.md E7). */}
                                         {entry.count !== null && entry.count > 0 ? (
-                                            <SidebarMenuBadge data-test={`count-${entry.module}.${entry.key}`}>
-                                                {entry.count}
-                                            </SidebarMenuBadge>
+                                            <>
+                                                <SidebarMenuBadge data-test={`count-${entry.module}.${entry.key}`}>
+                                                    {entry.count}
+                                                </SidebarMenuBadge>
+                                                {/* The badge hides on the rail of icons; a dot on the icon
+                                                    says something waits (owner, 2026-09-29). */}
+                                                <span
+                                                    aria-hidden
+                                                    data-test={`dot-${entry.module}.${entry.key}`}
+                                                    className="pointer-events-none absolute end-1 top-1 hidden size-2 rounded-full bg-bad group-data-[collapsible=icon]:block"
+                                                />
+                                            </>
                                         ) : null}
                                     </SidebarMenuItem>
                                 ))}

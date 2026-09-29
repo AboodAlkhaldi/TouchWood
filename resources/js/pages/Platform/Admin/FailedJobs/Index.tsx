@@ -5,17 +5,19 @@ import { FormError } from '@/components/FormError';
 import { Button } from '@/components/ui/button';
 import { useTranslator } from '@/lib/t';
 import type { FailedJobRowData, FailedJobsPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
+import { DeleteConfirmation, triesLabel } from './DeleteConfirmation';
 
 /*
 | E7 - the failed jobs (frontend.md §3.5, platform.md §3).
 |
-| Work that failed its last try, oldest first, each waiting until somebody retries or deletes it -
-| nothing here goes on its own (owner, 2026-09-29). One job at a time: a retry puts it back on its
-| queue, a delete removes it unrun, and the delete is asked in the page first, as the media library
-| asks. The whole error is on the job's own page; the list shows its first line.
+| Work that failed its last try, oldest first, 50 at a time, each waiting until somebody retries or
+| deletes it - nothing here goes on its own (owner, 2026-09-29). One job at a time: a retry puts it
+| back on its queue - offered only for a job that failed on the database queue -, a delete removes
+| it unrun, and the delete is asked in the page first, as the media library asks. The whole error
+| is on the job's own page; the list shows its first line.
 */
 
-export default function Index({ jobs }: FailedJobsPage) {
+export default function Index({ jobs, nextFailedAt, nextId }: FailedJobsPage) {
     const t = useTranslator();
     const [confirming, setConfirming] = useState<string | null>(null);
 
@@ -54,6 +56,18 @@ export default function Index({ jobs }: FailedJobsPage) {
                         </table>
                     </div>
                 )}
+
+                {nextFailedAt !== null && nextId !== null ? (
+                    <div>
+                        <Button
+                            variant="outline"
+                            data-test="more"
+                            onClick={() => router.get('/admin/failed-jobs', { after_at: nextFailedAt, after_id: nextId })}
+                        >
+                            {t('platform::admin_failed_jobs.more')}
+                        </Button>
+                    </div>
+                ) : null}
             </div>
         </AdminLayout>
     );
@@ -80,22 +94,22 @@ function Row({ job, confirming, onConfirm, onCancel }: RowProps) {
                 <td className="tw-figure px-4 py-3 text-xs text-ink-muted" dir="ltr">
                     {job.failedAt.slice(0, 19).replace('T', ' ')}
                 </td>
-                <td className="tw-figure px-4 py-3 text-xs text-ink-muted">
-                    {job.triesAllowed === null ? t('platform::admin_failed_jobs.no_limit') : job.triesAllowed}
-                </td>
+                <td className="tw-figure px-4 py-3 text-xs text-ink-muted">{triesLabel(job.triesAllowed, t)}</td>
                 <td className="max-w-md px-4 py-3 text-xs text-ink-muted" dir="ltr">
                     <span className="line-clamp-2 break-all">{job.errorLine}</span>
                 </td>
                 <td className="px-4 py-3">
                     <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            data-test={`retry-${job.id}`}
-                            onClick={() => router.post(`/admin/failed-jobs/${job.id}/retry`)}
-                        >
-                            {t('platform::admin_failed_jobs.retry')}
-                        </Button>
+                        {job.retryable ? (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                data-test={`retry-${job.id}`}
+                                onClick={() => router.post(`/admin/failed-jobs/${job.id}/retry`)}
+                            >
+                                {t('platform::admin_failed_jobs.retry')}
+                            </Button>
+                        ) : null}
                         <Button variant="destructive" size="sm" data-test={`delete-${job.id}`} onClick={onConfirm}>
                             {t('platform::admin_failed_jobs.delete')}
                         </Button>
@@ -111,29 +125,5 @@ function Row({ job, confirming, onConfirm, onCancel }: RowProps) {
                 </tr>
             ) : null}
         </>
-    );
-}
-
-/** Asked in the page, never with the browser's own box, as the media library asks (owner, 2026-09-24). */
-export function DeleteConfirmation({ id, onCancel }: { id: string; onCancel: () => void }) {
-    const t = useTranslator();
-
-    return (
-        <div className="grid gap-3">
-            <p className="text-sm text-ink">{t('platform::admin_failed_jobs.confirm_delete')}</p>
-            <div className="flex flex-wrap gap-2">
-                <Button
-                    variant="destructive"
-                    size="sm"
-                    data-test={`delete-confirm-${id}`}
-                    onClick={() => router.post(`/admin/failed-jobs/${id}/delete`)}
-                >
-                    {t('platform::admin_failed_jobs.delete')}
-                </Button>
-                <Button variant="outline" size="sm" onClick={onCancel}>
-                    {t('platform::admin_failed_jobs.cancel')}
-                </Button>
-            </div>
-        </div>
     );
 }

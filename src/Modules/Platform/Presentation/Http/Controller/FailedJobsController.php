@@ -15,6 +15,7 @@ use Modules\Platform\Application\Command\RetryFailedJob\RetryFailedJob;
 use Modules\Platform\Application\Command\RetryFailedJob\RetryFailedJobHandler;
 use Modules\Platform\Application\Query\ListFailedJobs\ListFailedJobsHandler;
 use Modules\Platform\Application\Query\ViewFailedJob\ViewFailedJobHandler;
+use Modules\Platform\Domain\Exception\FailedJobNotFound;
 use Modules\Platform\Presentation\Http\Resource\FailedJobPages;
 use Shared\Domain\Error\DomainError;
 
@@ -36,9 +37,13 @@ final readonly class FailedJobsController
         private FailedJobPages $pages,
     ) {}
 
-    public function index(ListFailedJobsHandler $handler): Response
+    public function index(Request $request, ListFailedJobsHandler $handler): Response
     {
-        return $this->page->render('Platform/Admin/FailedJobs/Index', $this->pages->list($handler)->toArray(), self::WORDS);
+        return $this->page->render('Platform/Admin/FailedJobs/Index', $this->pages->list(
+            $handler,
+            $this->optional($request, 'after_at'),
+            $this->optional($request, 'after_id'),
+        )->toArray(), self::WORDS);
     }
 
     public function show(string $job, ViewFailedJobHandler $handler): Response
@@ -51,7 +56,7 @@ final readonly class FailedJobsController
         try {
             $handler->handle(new RetryFailedJob($job));
         } catch (DomainError $error) {
-            return FormErrors::back($request, $error);
+            return $this->refused($request, $error);
         }
 
         return redirect()->route('platform.admin.failed_jobs')->with('status', __('platform::admin_failed_jobs.retried'));
@@ -62,9 +67,29 @@ final readonly class FailedJobsController
         try {
             $handler->handle(new DeleteFailedJob($job));
         } catch (DomainError $error) {
-            return FormErrors::back($request, $error);
+            return $this->refused($request, $error);
         }
 
         return redirect()->route('platform.admin.failed_jobs')->with('status', __('platform::admin_failed_jobs.deleted'));
+    }
+
+    /**
+     * Back where the person was — except for a job that is gone: somebody else handled it, and going
+     * back to its page would only say it does not exist, so the list says so instead.
+     */
+    private function refused(Request $request, DomainError $error): RedirectResponse
+    {
+        if ($error instanceof FailedJobNotFound && ! $request->expectsJson()) {
+            return redirect()->route('platform.admin.failed_jobs')->withErrors(['form' => FormErrors::message($error)]);
+        }
+
+        return FormErrors::back($request, $error);
+    }
+
+    private function optional(Request $request, string $field): ?string
+    {
+        $value = $request->string($field)->toString();
+
+        return $value === '' ? null : $value;
     }
 }

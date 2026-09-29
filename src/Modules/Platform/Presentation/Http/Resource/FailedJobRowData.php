@@ -19,9 +19,11 @@ final class FailedJobRowData extends Data
         public string $name,
         /** ISO 8601, UTC. */
         public string $failedAt,
-        /** The tries Laravel allowed it — not the tries made; null when it set no limit. */
+        /** The tries Laravel allowed it — not the tries made. 0 no limit; null the worker's number. */
         public ?int $triesAllowed,
         public string $queue,
         public string $errorLine,
+        /** Only a job that failed on the database queue is offered Retry (platform.md §3). */
+        public bool $retryable,
     ) {}
 }

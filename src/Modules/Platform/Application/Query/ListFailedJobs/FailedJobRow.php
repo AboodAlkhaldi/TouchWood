@@ -16,9 +16,12 @@ final readonly class FailedJobRow
         public string $id,
         public string $className,
         public DateTimeImmutable $failedAt,
+        /** 0 no limit; null the worker's own number (FailedJob::triesAllowed). */
         public ?int $triesAllowed,
         public string $queue,
         /** At most FailedJob::ERROR_LINE_MAX characters. */
         public string $errorLine,
+        /** Only a job that failed on the database queue is put back (platform.md §3). */
+        public bool $retryable,
     ) {}
 }

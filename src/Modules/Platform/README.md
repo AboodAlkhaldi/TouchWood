@@ -73,7 +73,8 @@ new MenuEntryDto('platform', 'failed_jobs', 'system', 'platform.admin.failed_job
 
 // Queued work is named on the failed jobs screen in your module's words: one line per queued class
 // in Presentation/lang/{ar,en}/jobs.php — AnonymizeCompany at `anonymize_company`, a trailing "Job"
-// left off. A test fails for a queued class with no name.
+// left off. And it states its tries (`public int $tries = 3;`), which the screen shows. A test fails
+// for a queued class with no name or no tries.
 ```
 
 Listen to `Public/Events/*` (`StoreUpdated`, `SettingChanged`, `MediaVariantsReady`…). They carry
@@ -95,7 +96,7 @@ ids only and are dispatched after the transaction commits.
 | `Application/Settings` | The settings registry, strict type checks and reading with defaults. |
 | `Application/Media` | What media needs from the outside world, as interfaces (storage, file inspection, resizing, the queue), plus `MediaSettings` (the upload-limit declarations) and `InspectedFile`. |
 | `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached) and `MediaReader`. |
-| `Application/FailedJobs` | `FailedJobs`, the queue's failed work as an interface (read, lock, requeue, forget), `FailedJob`, and `FailedJobsCount`, the menu's count. |
+| `Application/FailedJobs` | `FailedJobs`, the queue's failed work as an interface (a page of summaries, read, lock, whether it can be retried, requeue, forget), `FailedJob`, `FailedJobSummary`, and `FailedJobsCount`, the menu's count. |
 | `Infrastructure/` | Eloquent and query-builder repositories, caching, the audit writer, Laravel disks, Intervention Image, the queued job, migrations and the service provider. |
 | `Presentation/` | The `store` middleware, the country-choice page, a placeholder store home page, console commands, Arabic and English translations. |
 
@@ -318,17 +319,28 @@ on `/admin/failed-jobs` — nothing removes one on its own, so a failure is neve
 
 - **One admin-only, global permission**, `platform.jobs.manage`, for seeing, retrying and deleting:
   a job's error can quote the values it was writing, and a job belongs to no store.
-- **A retry does what `queue:retry` does**, inside one transaction: the row locked, the payload
-  pushed back raw on its own connection and queue with its attempts counted afresh, the row deleted,
-  the audit entry written. The queue lives in the same database, so a job is never both queued and
-  listed; a second retry or delete of the same job answers `FailedJobNotFound`. `retryUntil` (a time
-  limit in place of tries) is not refreshed, because no job here sets one.
+- **A retry puts the job back as `queue:retry` would on the database queue**, inside one
+  transaction: the row locked, the payload pushed back raw on its own connection and queue with its
+  attempts counted afresh, the row deleted, the audit entry written. The queue lives in the same
+  database, so a job is never both queued and listed; a second retry or delete of the same job
+  answers `FailedJobNotFound`. Unlike `queue:retry` it fires no `JobRetryRequested`, as nothing here
+  listens for it, and it does not refresh `retryUntil` (a time limit in place of tries), because no
+  job here sets one.
+- **Only a job that failed on the database queue is retried** (`FailedJobNotRetryable` otherwise):
+  any other queue is outside the transaction, so the job could be pushed and still listed. Such a
+  job is offered no Retry; Delete still works.
 - **The screen shows the tries a job was allowed**, not the tries it made: Laravel's database queue
-  keeps the second only while the job is on the queue.
+  keeps the second only while the job is on the queue. So every queued class states its own tries
+  (`$tries` or `tries()`) — without it the worker's number applies, which the screen cannot know. A
+  test fails for a queued class that does not.
+- **Fifty at a time, oldest first**, with "Show more" continuing from where the page ended (after
+  that job's failure time and id), so a flood of failures never loads at once. The list reads the
+  error's first 2,000 characters, never a payload.
 - **Audited without the error or the payload** — both may hold personal data, and the log is
   forever. The name and when it failed are enough to say what was handled.
 - **Noticed without opening the screen**: a menu entry may carry a count (`MenuCount`), resolved only
-  for people the entry is offered to; the admin home lists every entry with something waiting.
+  for people the entry is offered to; the admin home lists every entry with something waiting, and
+  the collapsed sidebar shows a dot on the entry's icon where the number has no room.
 
 ---
 

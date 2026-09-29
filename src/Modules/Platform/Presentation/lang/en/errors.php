@@ -63,6 +63,10 @@ return [
         'title' => 'Job not found',
         'detail' => 'This failed job is no longer waiting: it was retried or deleted.',
     ],
+    'failed_job_not_retryable' => [
+        'title' => 'Cannot be retried',
+        'detail' => 'This job failed on a queue that cannot take it back safely. Delete it instead.',
+    ],
     'unsupported_media_type' => [
         'title' => 'File type not allowed',
         'detail' => 'Images must be JPEG, PNG or WebP; documents must be PDF, JPEG or PNG.',

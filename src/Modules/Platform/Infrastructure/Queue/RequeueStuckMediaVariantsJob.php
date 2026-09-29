@@ -24,6 +24,12 @@ final class RequeueStuckMediaVariantsJob implements ShouldBeUnique, ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
+    /**
+     * One try, as the worker gave it before (§3: every queued job states its own): the next
+     * sweep, ten minutes on, takes up anything this one left.
+     */
+    public int $tries = 1;
+
     public int $uniqueFor = 600;
 
     public function handle(RequeueStuckMediaVariantsHandler $handler): void

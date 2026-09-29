@@ -13,6 +13,8 @@ return [
     'failed_at' => 'Failed',
     'tries' => 'Tries allowed',
     'no_limit' => 'No limit',
+    'set_by_worker' => 'Set by the worker',
+    'more' => 'Show more',
     'queue' => 'Queue',
     'error' => 'Error',
 

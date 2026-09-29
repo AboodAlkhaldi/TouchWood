@@ -24,12 +24,18 @@ final readonly class FailedJobPages
         private Application $app,
     ) {}
 
-    public function list(ListFailedJobsHandler $handler): FailedJobsPage
+    public function list(ListFailedJobsHandler $handler, ?string $afterFailedAt, ?string $afterId): FailedJobsPage
     {
-        return new FailedJobsPage(array_map(
-            fn (FailedJobRow $row): FailedJobRowData => $this->row($row->id, $row->className, $row->failedAt, $row->triesAllowed, $row->queue, $row->errorLine),
-            $handler->handle(new ListFailedJobs),
-        ));
+        $page = $handler->handle(new ListFailedJobs($afterFailedAt, $afterId));
+
+        return new FailedJobsPage(
+            array_map(
+                fn (FailedJobRow $row): FailedJobRowData => $this->row($row->id, $row->className, $row->failedAt, $row->triesAllowed, $row->queue, $row->errorLine, $row->retryable),
+                $page->rows,
+            ),
+            $page->nextFailedAt,
+            $page->nextId,
+        );
     }
 
     /**
@@ -37,19 +43,19 @@ final readonly class FailedJobPages
      */
     public function view(ViewFailedJobHandler $handler, string $id): FailedJobPage
     {
-        $job = $handler->handle(new ViewFailedJob($id));
+        $view = $handler->handle(new ViewFailedJob($id));
 
-        return new FailedJobPage($this->fromJob($job), $job->error);
+        return new FailedJobPage($this->fromJob($view->job, $view->retryable), $view->job->error);
     }
 
-    private function fromJob(FailedJob $job): FailedJobRowData
+    private function fromJob(FailedJob $job, bool $retryable): FailedJobRowData
     {
-        return $this->row($job->id, $job->className(), $job->failedAt, $job->triesAllowed(), $job->queue, $job->errorLine());
+        return $this->row($job->id, $job->className(), $job->failedAt, $job->triesAllowed(), $job->queue, $job->errorLine(), $retryable);
     }
 
-    private function row(string $id, string $class, DateTimeImmutable $failedAt, ?int $tries, string $queue, string $errorLine): FailedJobRowData
+    private function row(string $id, string $class, DateTimeImmutable $failedAt, ?int $tries, string $queue, string $errorLine, bool $retryable): FailedJobRowData
     {
-        return new FailedJobRowData($id, $this->name($class), $failedAt->format(DATE_ATOM), $tries, $queue, $errorLine);
+        return new FailedJobRowData($id, $this->name($class), $failedAt->format(DATE_ATOM), $tries, $queue, $errorLine, $retryable);
     }
 
     private function name(string $class): string

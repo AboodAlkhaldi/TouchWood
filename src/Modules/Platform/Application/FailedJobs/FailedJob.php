@@ -38,8 +38,9 @@ final readonly class FailedJob
     }
 
     /**
-     * How many tries it was allowed — Laravel keeps that, not how many it made (owner, 2026-09-29);
-     * null when the job set no limit.
+     * How many tries it was allowed — Laravel keeps that, not how many it made (owner, 2026-09-29).
+     * 0 is Laravel's "no limit"; null means the job stated none and the worker's own number applied,
+     * which every queued job here now states (platform.md §3).
      */
     public function triesAllowed(): ?int
     {
@@ -50,7 +51,15 @@ final readonly class FailedJob
 
     public function errorLine(): string
     {
-        foreach (preg_split('/\R/', $this->error) ?: [] as $line) {
+        return self::firstLine($this->error);
+    }
+
+    /**
+     * An error's first line that says anything, at most ERROR_LINE_MAX characters: what the list shows.
+     */
+    public static function firstLine(string $error): string
+    {
+        foreach (preg_split('/\R/', $error) ?: [] as $line) {
             if (trim($line) !== '') {
                 return mb_substr(trim($line), 0, self::ERROR_LINE_MAX);
             }

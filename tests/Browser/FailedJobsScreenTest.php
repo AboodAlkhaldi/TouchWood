@@ -15,7 +15,8 @@ use function Pest\Laravel\seed;
 
 /*
 | E7 in a real browser (frontend.md §3.5): the admin home says how many jobs failed, the menu shows
-| the number, and one job is retried and another deleted from the screen, the delete confirmed first.
+| the number - a dot when collapsed -, and one job is retried and another deleted from the screen,
+| the delete confirmed first.
 |
 | No RefreshDatabase — the suite keeps its data — so the failed jobs start empty here and are left
 | empty after.
@@ -70,7 +71,17 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
     // The owner's words (2026-09-29), from the menu this person was offered.
     $page->assertSee('Failed jobs: 2 waiting')
         ->assertSeeIn('[data-test="count-platform.failed_jobs"]', '2')
+        ->assertMissing('[data-test="dot-platform.failed_jobs"]')
         ->assertNoJavaScriptErrors();
+
+    // On the rail of icons the number has no room; a dot on the icon says something waits (owner,
+    // 2026-09-29). Opened again after, as the rest of the test reads the full sidebar.
+    $page->click('[data-sidebar="trigger"]')
+        ->assertVisible('[data-test="dot-platform.failed_jobs"]')
+        ->assertMissing('[data-test="count-platform.failed_jobs"]')
+        ->click('[data-sidebar="trigger"]')
+        ->assertVisible('[data-test="count-platform.failed_jobs"]')
+        ->assertMissing('[data-test="dot-platform.failed_jobs"]');
 
     $page->click('[data-test="waiting-platform.failed_jobs"]')
         ->assertPathIs('/admin/failed-jobs')

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Application\FailedJobs;
 
+use DateTimeImmutable;
+
 /**
  * The queue's failed work (platform.md §3, §5.6). Nothing here deletes a job on its own: one stays
  * until an admin retries or deletes it.
@@ -11,10 +13,14 @@ namespace Modules\Platform\Application\FailedJobs;
 interface FailedJobs
 {
     /**
-     * @return list<FailedJob> oldest first
+     * One page, oldest first, after the given job — the time it failed and its id, the last row of
+     * the page before — or from the start.
+     *
+     * @return list<FailedJobSummary>
      */
-    public function all(): array;
+    public function page(?DateTimeImmutable $afterFailedAt, ?string $afterId, int $limit): array;
 
+    /** Null as well for an id that is not a uuid: no failed job could have it. */
     public function find(string $id): ?FailedJob;
 
     /**
@@ -24,9 +30,16 @@ interface FailedJobs
     public function lock(string $id): ?FailedJob;
 
     /**
+     * Whether a job that failed on this connection can be put back safely: only the database queue
+     * in this same database, where the retry and the list change in one transaction. Another
+     * queue's push could be lost (sync) or survive a rollback (redis, sqs).
+     */
+    public function retryable(string $connection): bool;
+
+    /**
      * Back on its own connection and queue, its attempts counted afresh — as Laravel's `queue:retry`
-     * does. Call inside the transaction that then forgets it: the queue is in the same database, so
-     * the job is never both queued and listed, nor neither.
+     * does for the database queue. Call only for a retryable job, inside the transaction that then
+     * forgets it: the job is never both queued and listed, nor neither.
      */
     public function requeue(FailedJob $job): void;
 
