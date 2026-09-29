@@ -51,6 +51,21 @@ final readonly class DatabaseCompanyRepository implements CompanyRepository
         return $this->one('customer_id', $customerId, lock: true);
     }
 
+    public function holdersOf(string $companyTypeId): array
+    {
+        if (! Ulids::valid($companyTypeId)) {
+            return [];
+        }
+
+        /** @var list<string> */
+        return $this->db->table(self::TABLE)
+            ->where('company_type_id', strtolower($companyTypeId))
+            ->orderBy('customer_id')
+            ->pluck('customer_id')
+            ->map(static fn (mixed $id): string => (string) $id)
+            ->all();
+    }
+
     public function add(Company $company): void
     {
         $now = CarbonImmutable::now();

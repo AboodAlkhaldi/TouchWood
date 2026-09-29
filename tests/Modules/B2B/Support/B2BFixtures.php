@@ -136,6 +136,24 @@ final class B2BFixtures
     }
 
     /**
+     * The whole first application: sent and approved, and its company approved with it.
+     *
+     * @return array{0: Company, 1: Application}
+     */
+    public static function approved(string $customerId): array
+    {
+        [$company, $application] = self::sent($customerId);
+        $staffId = Fx::staff();
+
+        $application->approve($staffId, null, CarbonImmutable::now());
+        app(ApplicationRepository::class)->update($application);
+        $company->approve($staffId, CarbonImmutable::now());
+        app(CompanyRepository::class)->update($company);
+
+        return [$company, $application];
+    }
+
+    /**
      * A company account registered in the 'sa' store whose email address is confirmed — what
      * sending an application needs (b2b.md §1.2). Its phone is not.
      */
@@ -168,7 +186,8 @@ final class B2BFixtures
     }
 
     /**
-     * Staff suspending the company, as step 4 will (b2b.md §4.1).
+     * Staff suspending the company, straight through the domain (b2b.md §4.1); the use case is
+     * SuspendCompany (step 4).
      */
     public static function suspend(Company $company): void
     {
@@ -177,7 +196,8 @@ final class B2BFixtures
     }
 
     /**
-     * Staff deactivating a type, as step 4 will (b2b.md §1.3): shown greyed out, or hidden.
+     * Staff deactivating a type, straight through the domain (b2b.md §1.3): shown greyed out, or
+     * hidden. The use cases are DeactivateCompanyType and DeactivateDocumentType (step 4).
      */
     public static function deactivate(CompanyType|DocumentType $type, InactiveTypeDisplay $shown = InactiveTypeDisplay::Hidden): void
     {

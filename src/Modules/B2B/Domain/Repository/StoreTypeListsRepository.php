@@ -18,6 +18,13 @@ interface StoreTypeListsRepository
     /** Locks the row: for a change, inside its transaction. */
     public function byStore(string $storeId): ?StoreTypeLists;
 
+    /**
+     * Serialises every change to one store's two lists, inside the caller's transaction: the first
+     * step of B2B's one lock order — the store's lists, then an account, then its company (README).
+     * An advisory lock, since a store need not have a row here.
+     */
+    public function lockLists(string $storeId): void;
+
     public function add(StoreTypeLists $lists): void;
 
     public function update(StoreTypeLists $lists): void;

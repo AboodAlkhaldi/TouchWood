@@ -14,11 +14,11 @@ use Modules\B2B\Application\Types\GiveEveryStoreTheStartingTypes;
 | copied in and not yet reviewed by its admins (amendment 6(a)).
 |
 | Every rule here is also a rule in code (TypeName, TypePosition, the types' deactivate(), the
-| repositories' nameTaken), which refuses first; these are the backstop. Two code halves arrive with
-| the screens that manage types (step 4): the unique names within a store, whose refusal is
-| TypeNameTaken, and markReviewed(), which step 4's type changes and its "mark reviewed" use case
-| call — the notice itself is drawn on the staff screen in step 7. Until then only the starting
-| lists write rows. A type an application references is never deleted (DocumentTypeInUse, step 4).
+| repositories' nameTaken), which refuses first; these are the backstop. Staff change the lists from
+| step 4: the unique names within a store are refused as TypeNameTaken, decided under the store's
+| type-list lock, and every change clears the store's "copied" flag (markReviewed()) — the notice
+| itself is drawn on the staff screen in step 7. A type is never deleted, only deactivated and
+| activated again (amendment 10(c)).
 |
 | Every store already open gets the starting lists here; a store opened later — the launch stores,
 | which the seeder creates after the migrations, included — gets them from WriteStartingTypes.

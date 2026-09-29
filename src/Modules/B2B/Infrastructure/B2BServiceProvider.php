@@ -8,12 +8,14 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\B2B\Application\B2BPermissions;
+use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\B2B\Domain\Repository\StoreTypeListsRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseApplicationRepository;
+use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyReader;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyTypeRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseDocumentTypeRepository;
@@ -36,6 +38,7 @@ final class B2BServiceProvider extends ServiceProvider
         $this->app->bind(StoreTypeListsRepository::class, DatabaseStoreTypeListsRepository::class);
         $this->app->bind(CompanyRepository::class, DatabaseCompanyRepository::class);
         $this->app->bind(ApplicationRepository::class, DatabaseApplicationRepository::class);
+        $this->app->bind(CompanyReader::class, DatabaseCompanyReader::class);
     }
 
     public function boot(): void

@@ -28,6 +28,11 @@ final readonly class DatabaseStoreTypeListsRepository implements StoreTypeListsR
         return $this->one($storeId, lock: true);
     }
 
+    public function lockLists(string $storeId): void
+    {
+        $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['b2b:types:'.strtolower($storeId)], false);
+    }
+
     public function add(StoreTypeLists $lists): void
     {
         $this->db->table(self::TABLE)->insert([

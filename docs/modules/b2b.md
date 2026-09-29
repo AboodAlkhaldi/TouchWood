@@ -120,8 +120,12 @@ legal form is always seen by staff before the company orders again. A staff corr
 9(d), which reverses the 2026-09-25 "may still change its address"); the screen refuses with the
 suspension's own reason. Suspension is a deliberate act by staff, and an edit that sent the company
 back to `PENDING` would let a rename undo it; with the address frozen too, nothing is ever written
-into a suspended company's draft. The contact details are the account holder's, kept by Access, and
-stay theirs to change. The way back is staff reinstating them (§3.2).
+into a suspended company's draft. **Staff do not change a suspended company's type either**
+(amendment 10(h)): a correction is refused (`CompanySuspended`), and when its type is deactivated
+and replaced on the companies holding it, a suspended company is skipped and keeps the old type, as
+a company left with it does — so neither the company nor its draft changes while it is suspended.
+The contact details are the account holder's, kept by Access, and stay theirs to change. The way
+back is staff reinstating them (§3.2).
 
 ### 1.2 Application
 
@@ -219,7 +223,8 @@ says document types are configurable).
 country is not one in another. Each store keeps its own company types and its own document types,
 and **a company uses its home store's lists** — the store its account registered in (§1.1). The
 company itself stays valid in every store. Names are unique **within a store**. Staff manage the
-lists of the stores their role covers (`b2b.types.manage`, per store, §3.2).
+lists of the stores their role covers (`b2b.company_type.*` and `b2b.document_type.*`, per store,
+§3.2 and amendment 10).
 
 | Attribute | Invariant |
 |---|---|
@@ -247,9 +252,11 @@ already has company types keeps them exactly as they are, and the same for docum
 the lists are written into is marked **copied, not yet reviewed** — one mark for both lists
 (`b2b.store_type_lists`, §5) — and a store that already carries the mark keeps it as it is, so a
 store whose admins reviewed their lists stays reviewed. While it is set, the store's types page
-tells its admins the lists were copied from the Saudi store, until one of them edits a type or
-marks the lists reviewed. Step 3a keeps the mark as data only: clearing it comes with the type
-screens (step 4), and the notice is drawn on the staff screen (step 7).
+tells its admins the lists were copied from the Saudi store, until **any change to either of that
+store's lists** — a type added, renamed, reordered, made required or optional, deactivated or
+activated again, a correction that reactivates one included — or until one of them marks the lists
+reviewed (amendment 10). Step 3a keeps the mark as data only; step 4 clears it, and the notice is
+drawn on the staff screen (step 7).
 
 **[DECIDED 2026-09-28] A company's type comes from its home store's list** (amendment 6(c), (d)).
 Sending a draft whose listed type is not one of the home store's is refused as
@@ -262,15 +269,34 @@ rule.
 and choosing it asks the company to say what it is in its own words. It cannot be deactivated or
 deleted by mistake, because there is no row to do it to.
 
-A type in use is never deleted, only deactivated: the applications that reference it are permanent.
+**[DECIDED 2026-09-29] A type is never deleted** (amendment 10), in use or not: staff deactivate it
+— hidden or greyed out — and may **activate it again**. The applications that reference a type are
+permanent, and a type added by mistake is simply deactivated and hidden.
 
-**[DECIDED 2026-09-28] Deactivating a company type that companies hold** (amendment 5): staff choose
-to **leave** those companies with it, or to **replace** it with another type of the same store for
-every company holding it — approved ones included. A replacement is a staff correction, like
-`CorrectCompanyType` (§3.2): it changes the company, never an application it sent, and sends nobody
-back to `PENDING`; it is audited on each company. **An application sent and still waiting whose
-type was deactivated is marked for the reviewer**, who uses the replacement if one was set, keeps
-the type, or rejects with a note.
+**[DECIDED 2026-09-28, 2026-09-29] Deactivating a company type that companies hold** (amendments 5
+and 11): **the staff member deactivating it decides, once, for every company holding it** — to
+**leave** them with it, to **replace** it with another active type of the same store, or to
+**replace it with a new type created in the same step** (amendment 11(b)): the new type is added —
+at the old type's position on the form unless staff give another —, the old one deactivated, and
+every holder moved to the new one, all or nothing. Every company
+holding it is moved — approved ones included, a suspended one excepted, which keeps the old type
+(amendment 10(h)). A replacement is a staff correction, like `CorrectCompanyType` (§3.2): it changes
+the company, never an application it sent, and sends nobody back to `PENDING`; it is audited on each
+company. The old type may be activated again later; the companies moved off it stay where they are.
+
+**[DECIDED 2026-09-29] The reviewer follows that decision** (amendment 11(a), which reverses 10(e)
+and 10(i)). Approving asks for no choice about the type: the company already carries what the
+deactivation gave it — the replacement, or the old type if it was left — and approving keeps it. An
+application sent and still waiting whose type was deactivated since is **marked for the reviewer,
+for information only**, beside the type the company holds now. A reviewer who disagrees corrects
+the type (§3.2) or rejects with a note.
+
+**[DECIDED 2026-09-29] Moving every company of one active type to another** (amendment 11(c)):
+staff may move all the companies holding a type to another active type of the same store, neither
+being deactivated — a clear transfer between two types that both stay offered. It is the same staff
+correction, on every holder at once, suspended ones excepted (10(h)), each audited; it is its own
+job, `b2b.company.transfer_type`. It changes no list, so it leaves the store's "copied" notice as it
+is.
 
 **[DECIDED 2026-09-28] A draft never sends anything deactivated** (amendment 5). A value or a file
 under a type deactivated since the draft chose or received it stays in the draft, **marked "no
@@ -461,24 +487,40 @@ files (§1.4).
 ### 3.2 Staff
 
 **[DECIDED 2026-09-20] The home store's staff review a company** — whoever covers the store the
-account registered in, as staff already see customers by home store (access.md §3.3).
+account registered in, as staff already see customers by home store (access.md §3.3). A company of
+another store answers `CompanyNotFound`, exactly as one that does not exist (§7).
 
-| Use case | Audience | Permission | Scope |
-|---|---|---|---|
-| `ListCompanies` / `ViewCompany` | role | `b2b.company.view` | The account's home store |
-| `DownloadCompanyDocument` — a signed link, 30 minutes | role | `b2b.company.view` | The account's home store |
-| `ApproveCompany` — an **optional note**, and the screen tells staff it is sent to the customer with the approval email (amendment 1) | role | `b2b.company.review` | The account's home store |
-| `RejectCompany` — **a reason is required**; staff may also **flag** items sent wrong and **request** extra text answers or files from this company (§1.2, amendment 4) | role | `b2b.company.review` | The account's home store |
-| `SuspendCompany` — from any status, **a reason is required** (handoff §8.2) | role | `b2b.company.suspend` | The account's home store |
-| `ReinstateCompany` — ends a suspension (§4.1) | role | `b2b.company.suspend` | The account's home store |
-| `CorrectCompanyType` — rewrite an "Other" in the right words, or move the company to a listed type of its home store, when it chose wrongly or did not know (amendment 2). Changes the company, never the application it sent, and does not send it back to `PENDING`. **Choosing a deactivated type** first tells staff that the type becomes active again; confirmed, the type is activated, then assigned (amendment 8(b)) | role | `b2b.company.review` | The account's home store |
-| `ManageCompanyTypes` / `ManageDocumentTypes` — add, rename, reorder, deactivate (hidden or greyed out); for a company type, leave or replace it on the companies holding it (§1.3, amendment 5) | role | `b2b.types.manage` | **Per store** (amendment 5): the lists of the stores the role covers |
+**[DECIDED 2026-09-29] One permission per job** (amendment 10), named as every other module's are,
+an action and its undo sharing one — as blocking and unblocking a customer share
+`access.customer.block`. Every one is **per store** — the account's home store for a company, the
+list's own store for a type — and **none is admin-only**: any staff or admin role may be given any
+of them. They sit in the **Companies** group (amendment 5(g)). Twelve jobs — eleven in amendment
+10, and moving companies between types in amendment 11(c):
+
+| Use case | Permission | Scope |
+|---|---|---|
+| `ListCompanies` — filtered by status and by store — a store the reader does not cover is refused as not allowed (amendment 10(j)) —, searched by company name, CR number or tax number; waiting companies first, the oldest sent first, then the others by their latest status change; 25 a page, at most 100, as the customer list (amendment 10) · `ViewCompany` — the company, the account holder read from Access, and the applications it sent, newest first, each with who decided it. **Never a draft**: nothing is reviewed until it is sent (§1.2) | `b2b.company.view` | The account's home store |
+| `DownloadCompanyDocument` — a signed link, 30 minutes, to a paper or a file answer of one of the company's sent applications. **Each opening is audited** (amendment 10): who, which company, which paper type or request — never the file's id | `b2b.company_document.view` | The account's home store |
+| `ApproveCompany` — an **optional note**, and the screen tells staff it is sent to the customer with the approval email (amendment 1); **no choice about the type**: the company keeps what the type's deactivation gave it (§1.3, amendment 11(a)) · `RejectCompany` — **a reason is required**; staff may also **flag** items sent wrong and **request** extra text answers or files from this company (§1.2, amendment 4) | `b2b.company.review` | The account's home store |
+| `SuspendCompany` — from any status, **a reason is required** (handoff §8.2) · `ReinstateCompany` — ends a suspension, **a reason is required** (§4.1) | `b2b.company.suspend` | The account's home store |
+| `CorrectCompanyType` — rewrite an "Other" in the right words, or move the company to a listed type of its home store, when it chose wrongly or did not know (amendment 2). Changes the company, never the application it sent, and does not send it back to `PENDING`. **Choosing a deactivated type** first tells staff that the type becomes active again; confirmed, the type is activated, then assigned (amendment 8(b)) — which needs `b2b.company_type.deactivate` for that store as well (amendment 10). **Refused while the company is suspended** (`CompanySuspended`, amendment 10(h)) | `b2b.company.correct_type` | The account's home store |
+| `AddCompanyType` | `b2b.company_type.create` | The list's store |
+| `RenameCompanyType` · `MoveCompanyType` (its position) | `b2b.company_type.update` | The list's store |
+| `DeactivateCompanyType` — hidden or greyed out, and **leave** the companies holding it, **replace** it on every one of them with another active type of the store (§1.3, amendment 5), or **replace it with a new type created in the same step**, which needs `b2b.company_type.create` as well (amendment 11(b)) — a suspended company is skipped and keeps the old type (amendment 10(h)) · `ActivateCompanyType` — offered again (amendment 10) | `b2b.company_type.deactivate` | The list's store |
+| `TransferCompanyType` — every company holding one active type moves to another active type of the same store, both staying offered; suspended ones skipped (§1.3, amendment 11(c)) | `b2b.company.transfer_type` | The list's store |
+| `AddDocumentType` | `b2b.document_type.create` | The list's store |
+| `RenameDocumentType` · `MoveDocumentType` · `RequireDocumentType` (required, or optional again) | `b2b.document_type.update` | The list's store |
+| `DeactivateDocumentType` — hidden or greyed out · `ActivateDocumentType` (amendment 10) | `b2b.document_type.deactivate` | The list's store |
+| `MarkTypeListsReviewed` — clears the "copied from the starting lists" notice when nothing needs changing (§1.3) | `b2b.company_type.update` or `b2b.document_type.update` | The list's store |
 
 `ApproveCompany` and `RejectCompany` **mark an application whose company type was deactivated after
-it was sent** (§1.3, amendment 5), so the reviewer decides with that in front of them.
+it was sent** (§1.3, amendment 5), so the reviewer decides with that in front of them — for
+information only: approving follows what the deactivation decided (amendment 11(a)).
 
 Every change is audited (Platform). Company name, contact name, phone, address and the documents
-are personal data: recorded only as "changed" (access.md §3.3, platform.md §1.5).
+are personal data: recorded only as "changed" (access.md §3.3, platform.md §1.5). What staff write
+— a reason, a note, a request's label — and what they mark — the flagged fields and document types
+— are recorded **by value**, as Access records the reason a customer was blocked.
 
 ---
 
@@ -616,12 +658,15 @@ type string and HTTP status (handoff §11).
 | `RequestNotFound` | NOT_FOUND | Answering a request that is not one of the last rejection's (§3.1, amendment 5) |
 | `AnswerKindMismatch` | UNPROCESSABLE | A text answer to a file request, or a file to a text request (§3.1, amendment 5) |
 | `ApplicationFileNotFound` | NOT_FOUND | Opening a file that is not one of the account's own applications' — answered the same whether or not such a file exists (§1.4, amendment 9(c)) |
-| `CompanySuspended` | CONFLICT | Anything the company does while suspended but discard its draft (§1.1, §3.1, amendments 5, 9(a), (d) and (e)): starting, saving, uploading, answering, removing a file or an answer, sending, and changing the address |
+| `CompanySuspended` | CONFLICT | Anything the company does while suspended but discard its draft (§1.1, §3.1, amendments 5, 9(a), (d) and (e)): starting, saving, uploading, answering, removing a file or an answer, sending, and changing the address — and a staff correction of its type (amendment 10(h)) |
 | `InvalidCompanyStatus` | CONFLICT | A change the company's status does not allow: deciding a company with no application waiting, suspending one already suspended, reinstating one that is not (§4.1, amendment 3) |
 | `InvalidCompanyAttribute` | UNPROCESSABLE | A value the domain refuses — a CR number too long, an unknown company type, or a listed type that is not one of the home store's (§1.3, amendment 6(d)) |
-| `DocumentTypeInUse` | CONFLICT | Deleting a type an application references; deactivate it instead (§1.3) |
+| ~~`DocumentTypeInUse`~~ | — | **Removed** (amendment 10): a type is never deleted, so nothing can refuse deleting one (§1.3) |
 | `TypeNameTaken` | CONFLICT | Adding or renaming a type to a name another type of its kind already has, in either language, ignoring case (§1.3, amendment 2) |
-| `CompanyTypeInactive` | CONFLICT | Submitting a draft whose chosen type staff have deactivated since; choose again (§1.3, amendment 2) |
+| `CompanyTypeInactive` | CONFLICT | Submitting a draft whose chosen type staff have deactivated since; choose again (§1.3, amendment 2). Also a staff correction to a deactivated type **not yet confirmed** — the screen then says the type becomes active again (amendment 8(b)) — and a replacement, when deactivating a type, or a type companies are moved from or to (amendment 11(c)), that is itself inactive (amendment 10). A replacement or a transfer's target that is unknown, another store's, or the same type is `InvalidCompanyAttribute`, as everywhere; the type the action is about — the one deactivated, or moved from — answers `TypeNotFound` when it is unknown or another store's (10(k)) |
+| ~~`CompanyTypeChoiceRequired`~~ | — | **Removed** (amendment 11(a)): approving asks for no choice about the type |
+| ~~`CompanyTypeChoiceNotNeeded`~~ | — | **Removed** (amendment 11(a)), with the choice it refused |
+| `TypeNotFound` | NOT_FOUND | A staff action on a company or document type that does not exist, or that belongs to a store the staff member does not cover — the same answer for both (§3.2, amendment 10(k)) |
 
 ---
 
@@ -661,9 +706,18 @@ type string and HTTP status (handoff §11).
 14. The IBAN is absent from the page in every status but `APPROVED`.
 15. Staff of another store cannot see, approve, reject or suspend a company whose home store is not theirs — and a Super Admin can.
 16. A rejection, a suspension or a reinstatement without a reason is refused; an approval needs none (amendment 1).
-17. A document is reachable only through a signed link that expires — by staff holding the permission, or by the account that uploaded it (amendment 5) — and private files appear in the media library only to holders of the private-files permission, never opened there; to anyone else, describing, retrying or deleting one answers as for an id that never existed, and the audit log shows them what was done to a private file, when and by whom, but not which file or what changed (amendment 8(a), (c)).
+17. A document is reachable only through a signed link that expires — by staff given the job of opening a company's papers (amendment 10), or by the account that uploaded it (amendment 5) — and private files appear in the media library only to holders of the private-files permission, never opened there; to anyone else, describing, retrying or deleting one answers as for an id that never existed, and the audit log shows them what was done to a private file, when and by whom, but not which file or what changed (amendment 8(a), (c)).
 18. Anonymizing the account deletes the documents and keeps the company row, its status and the decision record.
 19. Every change is audited, and the personal fields are recorded as "changed", never by value.
+20. Each staff job is its own permission, per store, and any staff or admin role may hold it: a staff member who may review but not suspend is refused suspending, and one who may view a company but not open its papers is refused its papers (amendment 10).
+21. Approving an application whose company type was deactivated since it was sent asks for no choice: the company keeps the replacement the deactivation gave it, or the old type if it was left; the reviewer sees the mark for information (amendment 11(a), which replaced 10(e)).
+22. A staff correction to a deactivated type is refused until confirmed, and needs the job that activates types as well; confirmed, the type is active again for the whole store, then assigned (amendments 8(b) and 10).
+23. A type is never deleted; a deactivated one can be activated again. Any change to either of a store's lists, or "Reviewed", clears its "copied from the starting lists" notice (amendment 10).
+24. Each time staff open a company's paper, the audit log records who, which company and which paper — never the file's id (amendment 10).
+25. Staff cannot correct a suspended company's type, and replacing a deactivated type skips a suspended company, which keeps the old one; neither the company nor its draft changes (amendment 10(h)).
+26. Filtering the company list by a store the staff member does not cover is refused; a type of another store answers as one that does not exist (amendment 10(j)–(k)).
+27. Deactivating a company type and replacing it with a new type is one step: the new type exists, the old one is inactive, and every holder but a suspended one is on the new type — or, if any part is refused, none of it happened; it needs the jobs of adding and of deactivating types (amendment 11(b)).
+28. Moving every company of one active type to another moves them all but a suspended one, leaves both types active and the lists' notice as it was, and needs its own job (amendment 11(c)).
 
 ---
 
@@ -694,3 +748,5 @@ place in the sections named; this table records what changed and why.
 | 7 | §1.2, §1.3, §1.4, §5, §5.2, §6, §7 | **Step 3a, as built** — the spec text brought up to what step 3a built, as amendment 6(f) asks; no rule changes. (a) §1.2 said document types "stay global"; they are per store since amendment 5(a). (b) **Amendment 6 applied in place**: §1.3 says how every store gets the starting lists and the "copied, not yet reviewed" mark, and that a company's type comes from its home store's list, in code only; §1.4 names the private-files permission, `platform.media.private.view`, and says what the library shows and offers; §6 says what B2B does on `StoreCreated`; §7 gives `FlaggedItemNotReplaced`'s one general message, and another store's type as `InvalidCompanyAttribute`. (c) **§5** gains the table `b2b.store_type_lists`, the types' `inactive_display` column with its two CHECKs, the request tables' named CHECKs, and the types' `RESTRICT` keys to `platform.stores`; **§5.2** gains the per-store unique names, the flags' and answers' uniques, and the two `media_id` indexes. | Amendment 6 had been recorded as a row only, and §5 named only what step 2 had built. | Owner, 2026-09-28 (B2B step 3a: the corrections the integrator writes) |
 | 8 | §1.4, §2.3, §3.2, §8 (17); platform.md §9.4 | **Step 3a, after its review** — the owner's answers to the questions the review raised. (a) **A private file does not exist in the media library for anyone without `platform.media.private.view`**: describing, retrying or deleting it there answers exactly as for an id that never existed — the review had found the server still accepted a description from staff who could not see the file, and that a refused delete named the application holding it. **A holder acts on a private file with the library's usual permissions on top** — describing needs `platform.media.update`, deleting `platform.media.delete` — so an admin may see only, see and describe, or see, describe and delete, as far as a Super Admin gave them; the private row therefore offers Describe and Delete to whoever may, which replaces amendment 6(b)'s "no Describe, no Delete". The row still shows only the name, upload date and where it is used, and the file is still never opened there; a paper an application holds is still refused as in use. A module's own delete (`deleteMediaFor`) is unchanged. (b) **For step 4**: a staff correction of a company's type to a **deactivated** type first tells them the type becomes active again; confirmed, the type is activated, then assigned. (c) **The audit log**: a reader without `platform.media.private.view` still sees each entry about a private file — the action, the time, who did it and on whose behalf, and the address — but **not which file** (its id) **nor what changed** (type, size, checksum, module, permission, descriptions); an admin who holds the permission sees the whole entry, so a reader who needs it asks one. Which files are private is read from the file while it exists and from its upload entry once it is deleted, since a file's visibility never changes. (d) **A private file never has sizes made** (platform.md §5.4: `variants_status` is NULL for private files): retrying one is refused, and the size generator never writes one to the public disk — the review found nothing stopped it if a private row were ever marked as having sizes. | Only a Super Admin and the admins a Super Admin chooses may deal with a company's papers from the media library, each as far as they were given; a staff member who may manage B2B accounts still does not learn from the library that the papers exist. A correction may not pick something deactivated, so picking one means bringing it back first. The log stays complete for oversight without telling everyone who may read it which company papers exist. | Owner, 2026-09-28; (d) the review of amendment 8 |
 | 9 | §1.1, §1.4, §3.1, §7, §8 (9l, 11) | **Step 3b** — the owner's answers to the points the spec left open, (a)–(c) before it was built and (d)–(e) after its review. (a) **While a company is suspended, its open draft is frozen**: removing a file or an answer is refused (`CompanySuspended`) as starting, saving, uploading and answering already are, and discarding the whole draft stays the one thing allowed. (b) **An account Access cannot find** — a session that outlived its account — **is refused as `NotACompanyAccount`**, as an individual account is; no new error. (c) **Opening a file that is not one of the account's own applications'** is refused with a new error, **`ApplicationFileNotFound`**, answered the same whether or not the file exists. (d) **A suspended company may not change its address either** (`CompanySuspended`) — this **reverses** §1.1's 2026-09-25 "may still change its address" and the first half of scenario 11 — so nothing is ever written into a suspended company's draft; the review had found the address change still writing into a draft 9(a) calls frozen. (e) **Starting while suspended is refused even when a draft is already open** (`CompanySuspended`), rather than returning that draft: nothing on the draft side works while suspended but discarding, and the company page still shows the draft. | (a) §1.1 already says a suspended company may not touch its documents, and a draft that can shrink file by file is one that can still be worked on; discarding remains the way to drop it. (b) It cannot happen in practice, and it is not a company account either way. (c) §7 had nothing for it, and an answer that differed for another company's file would say that file exists. (d) "Much easier" (owner): with the address frozen too, a suspended company changes nothing at all but its own draft's existence. (e) One rule — suspended means the draft side is shut — is simpler than an exception for the start button. | Owner, 2026-09-29 |
+| 10 | §1.1, §1.3, §3.2, §7, §8 (17, 20–26) | **Step 4, before it is built** — the owner's answers to the points the staff side left open. (a) **One permission per job**, eleven, named as every module's are and an action sharing one with its undo: `b2b.company.view` (list and view), `b2b.company_document.view` (open a company's papers), `b2b.company.review` (approve, reject), `b2b.company.suspend` (suspend, reinstate), `b2b.company.correct_type`, and for each list `b2b.company_type.*` / `b2b.document_type.*` — `create`, `update` (rename, reorder; for a document type also required or optional), `deactivate` (deactivate, activate again). This replaces §3.2's four (`view`, `review`, `suspend`, `types.manage`). All are per store and **none is admin-only**: any staff or admin role may hold any of them. (b) A correction to a deactivated type needs `b2b.company_type.deactivate` as well as `b2b.company.correct_type`. (c) **A type is never deleted**; a deactivated one may be **activated again** — so `DocumentTypeInUse` goes. (d) **Any change to either of a store's lists**, or "Reviewed", clears its "copied from the Saudi store" notice; "Reviewed" goes with either list's `update`. (e) **Approving an application whose company type was deactivated since it was sent needs a choice**: the replacement, the old type for this company alone, or a correction; otherwise `CompanyTypeChoiceRequired`. (f) **Each staff opening of a company's paper is audited**, without the file's id. (g) **The company list** filters by status and store, searches by name, CR number or tax number, shows waiting companies first. (h) **Staff do not change a suspended company's type**: a correction is refused (`CompanySuspended`), and a replacement on deactivating a type skips a suspended company, which keeps the old type — neither the company nor its draft changes while it is suspended. (i) **A type choice is taken only when needed**: approving with one when the type is no longer deactivated is refused (`CompanyTypeChoiceNotNeeded`). (j) **Filtering the list by a store the staff member does not cover is refused** as not allowed. (k) **`TypeNotFound`** answers a staff action on a type that does not exist or is another store's. | (a) "Divide each action into its job", so a role holds exactly the jobs given to it, as the other modules' roles do; suspending is ordinary work, not an admin's alone. (b) A reviewer alone must not change a store's list. (c) A type added by mistake is deactivated and hidden; nothing is lost. (d) An admin who edits the lists has reviewed them. (e) The reviewer says, on the record, which type the approved company carries. (f) They are identity papers. (h) "A suspended company will not have the luxury of such a change" (owner): suspension freezes the company whole, whoever would change it. (i) The reviewer decides again with the facts as they are. | Owner, 2026-09-29 |
+| 11 | §1.3, §3.2, §7, §8 (21, 26–28) | **Step 4, after its review** — the owner's answer to what "the replacement" means, and a transfer between types. (a) **The staff member deactivating a type decides for its holders, once; the reviewer follows.** Approving asks for no choice about the type: the company keeps what the deactivation gave it — the replacement, or the old type if it was left. The waiting application's mark stays, for information only. This **reverses 10(e) and 10(i)**: `CompanyTypeChoiceRequired`, `CompanyTypeChoiceNotNeeded` and the approval's choice go. (b) **Deactivating may replace the type with a new one created in the same step** — the new type added, the old one deactivated, every holder moved, all or nothing; it needs `b2b.company_type.create` as well as `b2b.company_type.deactivate`. The old type may still be activated again later; its former holders stay on the new one. (c) **Moving every company of one active type to another active type** (`TransferCompanyType`), both staying offered — suspended companies skipped (10(h)), each audited, the lists' notice untouched — as **a twelfth job of its own**, `b2b.company.transfer_type`. | (a) "The staff who make the deactivation operation will decide what will happen with this type's holders; the staff approving follow the first staff's rules" (owner). The review had found "use the replacement" accepting any type the company happened to hold. (b) A replacement that does not exist yet should not take two steps, one of which could fail alone. (c) A clear transfer between two types that both stay valid; its own job, so a role holds exactly that. | Owner, 2026-09-29 |

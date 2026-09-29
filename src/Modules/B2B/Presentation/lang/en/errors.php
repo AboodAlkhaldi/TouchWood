@@ -76,6 +76,14 @@ return [
         'title' => 'File not found',
         'detail' => 'That file is not in any of your applications.',
     ],
+    'type_not_found' => [
+        'title' => 'Type not found',
+        'detail' => 'There is no such type in your stores\' lists.',
+    ],
+    'type_name_taken' => [
+        'title' => 'Name already used',
+        'detail' => 'Another type in this list already has that name, in Arabic or in English.',
+    ],
     'fields' => [
         'address' => 'address',
         'answer' => 'answer',
@@ -90,6 +98,11 @@ return [
         'note' => 'note',
         'position' => 'position',
         'reason' => 'reason',
+        'replacement' => 'replacement type',
+        'requests' => 'requested items',
+        'status' => 'status',
+        'store' => 'store',
+        'target' => 'type to move the companies to',
         'tax_number' => 'tax number',
     ],
 ];

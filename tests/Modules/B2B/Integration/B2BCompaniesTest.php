@@ -127,8 +127,30 @@ describe('the repositories', function () {
     it('finds nothing for an id that is not one', function () {
         expect(app(CompanyRepository::class)->find('nope'))->toBeNull()
             ->and(app(CompanyRepository::class)->forCustomer('nope'))->toBeNull()
+            ->and(app(CompanyRepository::class)->holdersOf('nope'))->toBe([])
             ->and(app(ApplicationRepository::class)->openFor('nope'))->toBeNull()
             ->and(app(ApplicationRepository::class)->historyOf('nope'))->toBe([]);
+    });
+
+    it('lists the accounts whose company holds a type, in account order, and no others (step 4)', function () {
+        $held = B2BFixtures::companyTypes()[1]->id();
+        // The accounts first, then their companies in the reverse order, so the rows sit in the table
+        // in an order the account order is not (the review of step 4).
+        $holders = array_map(static fn (): string => B2BFixtures::companyAccount(), range(1, 3));
+        sort($holders);
+
+        foreach (array_reverse($holders) as $customerId) {
+            B2BFixtures::sent($customerId);
+        }
+
+        // One company moved to another type since: it no longer holds this one.
+        $moved = B2BFixtures::companyAccount();
+        [$company] = B2BFixtures::sent($moved);
+        $company->correctType(CompanyTypeChoice::listed(B2BFixtures::companyTypes()[0]->id()), B2BFixtures::companyTypes());
+        app(CompanyRepository::class)->update($company);
+
+        expect(app(CompanyRepository::class)->holdersOf($held))->toBe($holders)
+            ->and(app(CompanyRepository::class)->holdersOf(B2BFixtures::companyTypes()[0]->id()))->toBe([$moved]);
     });
 });
 

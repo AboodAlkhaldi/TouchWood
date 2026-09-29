@@ -201,9 +201,10 @@ it('gives every action a role can hold a business area, and names every area in 
         }
     }
 
-    // The areas Access and Platform actually use today (owner, 2026-09-19 and 2026-09-22).
+    // The areas the modules actually use today (owner, 2026-09-19 and 2026-09-22); B2B's staff jobs
+    // fill Companies (b2b.md amendment 10).
     ksort($used);
-    expect(array_keys($used))->toBe(['audit', 'customers', 'media', 'staff_and_permissions', 'store_settings']);
+    expect(array_keys($used))->toBe(['audit', 'companies', 'customers', 'media', 'staff_and_permissions', 'store_settings']);
 });
 
 it('names every permission in Arabic and English', function () {
