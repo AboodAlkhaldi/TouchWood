@@ -204,6 +204,22 @@ describe('what changes without an application', function () {
             ->and($company->pullChanges())->toBe(['company_type']);
     });
 
+    it('refuses to correct a suspended company\'s type, and changes nothing (amendment 10(h))', function () {
+        $company = companyIn(CompanyStatus::Suspended);
+
+        expect(fn () => $company->correctType(CompanyTypeChoice::listed(COMPANY_TEST_JSC), companyTestTypes()))->toThrow(CompanySuspended::class)
+            ->and($company->details()->type->typeId)->toBe(COMPANY_TEST_LLC)
+            ->and($company->pullChanges())->toBe([]);
+    });
+
+    it('corrects the type in every other status', function (CompanyStatus $status) {
+        $company = companyIn($status);
+        $company->correctType(CompanyTypeChoice::listed(COMPANY_TEST_JSC), companyTestTypes());
+
+        expect($company->details()->type->typeId)->toBe(COMPANY_TEST_JSC)
+            ->and($company->status())->toBe($status);
+    })->with([CompanyStatus::Pending, CompanyStatus::Approved, CompanyStatus::Rejected]);
+
     it('lets staff move the company to another type of its home store\'s list', function () {
         $company = companyIn(CompanyStatus::Approved);
         $company->correctType(CompanyTypeChoice::listed(COMPANY_TEST_JSC), companyTestTypes());
