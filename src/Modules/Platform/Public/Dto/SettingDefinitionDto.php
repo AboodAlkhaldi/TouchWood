@@ -22,6 +22,9 @@ final readonly class SettingDefinitionDto
      * @param  mixed  $default  returned while nothing is stored; must itself pass the type and rules
      * @param  string  $permission  the permission needed to change it, e.g. "loyalty.settings.update"
      * @param  bool  $sensitive  the audit log records only that it changed, never its values
+     * @param  bool  $mayBeEmpty  a text setting whose value may be the empty text, meaning "not set
+     *                            yet" (platform.md §1.3, asked for by B2B step 5); its rules then
+     *                            apply only to a value that is not empty. Text settings only.
      */
     public function __construct(
         public string $key,
@@ -31,6 +34,7 @@ final readonly class SettingDefinitionDto
         public mixed $default,
         public string $permission,
         public bool $sensitive = false,
+        public bool $mayBeEmpty = false,
     ) {}
 
     /**

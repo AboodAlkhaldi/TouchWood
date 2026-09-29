@@ -12,7 +12,8 @@ use Modules\Platform\Public\Dto\AuditEntryDto;
 
 /**
  * What the company's own actions leave in the audit log (b2b.md §3.1, amendments 4 and 5): **sending
- * an application, discarding a draft, and changing the address** — nothing else. Each draft save
+ * an application, discarding a draft, and changing the address** — nothing else — and, done by the
+ * system when the account is anonymized, the company emptied (amendment 12(a)). Each draft save
  * and each upload is not audited: every one of those is part of an application that is then either
  * sent or discarded, and Platform keeps its own entries for the files.
  *
@@ -63,5 +64,24 @@ final class CompanyAccountAudit
     {
         return new AuditEntryDto('b2b.company.address_changed', self::COMPANY, $company->id(), $company->homeStoreId(), AuditChanges::none()
             ->personal('address'));
+    }
+
+    /**
+     * The account was anonymized (amendment 12(a)), by the system: the company's personal fields,
+     * and how many of its sent applications and files went with them.
+     *
+     * @param  list<string>  $fields  the company's fields that changed
+     */
+    public static function anonymized(Company $company, array $fields, int $applications, int $files): AuditEntryDto
+    {
+        $changes = AuditChanges::none();
+
+        foreach ($fields as $field) {
+            $changes->personal($field);
+        }
+
+        return new AuditEntryDto('b2b.company.anonymized', self::COMPANY, $company->id(), $company->homeStoreId(), $changes
+            ->changed('applications_anonymized', 0, $applications)
+            ->changed('files_deleted', 0, $files));
     }
 }

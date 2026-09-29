@@ -80,6 +80,16 @@ return [
         'title' => 'Type not found',
         'detail' => 'There is no such type in your stores\' lists.',
     ],
+    // Amendment 13(b), the owner's words.
+    'company_type_not_set' => [
+        'title' => 'Choose a listed type first',
+        'detail' => 'Choose a listed type for this company before approving it.',
+    ],
+    // Amendment 13(e).
+    'company_account_deleted' => [
+        'title' => 'Account deleted',
+        'detail' => 'The account was deleted: reject this application.',
+    ],
     'type_name_taken' => [
         'title' => 'Name already used',
         'detail' => 'Another type in this list already has that name, in Arabic or in English.',

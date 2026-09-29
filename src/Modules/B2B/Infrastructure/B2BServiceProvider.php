@@ -7,8 +7,11 @@ namespace Modules\B2B\Infrastructure;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Events\CustomerAnonymized;
+use Modules\B2B\Application\B2BApiImpl;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
+use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
@@ -20,9 +23,14 @@ use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyTypeRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseDocumentTypeRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseStoreTypeListsRepository;
+use Modules\B2B\Infrastructure\Listener\AnonymizeCompany;
 use Modules\B2B\Infrastructure\Listener\WriteStartingTypes;
 use Modules\B2B\Infrastructure\Media\ApplicationFilesUsage;
+use Modules\B2B\Infrastructure\Settings\BankTransferLine;
+use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\SettingsSectionLines;
 use Modules\Platform\Public\Events\StoreCreated;
 
 /**
@@ -39,6 +47,7 @@ final class B2BServiceProvider extends ServiceProvider
         $this->app->bind(CompanyRepository::class, DatabaseCompanyRepository::class);
         $this->app->bind(ApplicationRepository::class, DatabaseApplicationRepository::class);
         $this->app->bind(CompanyReader::class, DatabaseCompanyReader::class);
+        $this->app->bind(B2BApi::class, B2BApiImpl::class);
     }
 
     public function boot(): void
@@ -54,8 +63,17 @@ final class B2BServiceProvider extends ServiceProvider
         // delete (b2b.md §1.4).
         $this->app->make(MediaUsages::class)->register('b2b', ApplicationFilesUsage::class);
 
+        // The bank account an approved company transfers to, one per store (amendment 12(b)).
+        $this->app->make(SettingsRegistry::class)->define('b2b', ...BankAccountSettings::definitions());
+        // Bank transfer is on only while all three are filled in; the section says which (13(c)).
+        $this->app->make(SettingsSectionLines::class)->register('b2b', BankTransferLine::class);
+
         // A store opened later starts with the same type lists as the others, until its admins
         // change them (amendment 6(a)).
         Event::listen(StoreCreated::class, [WriteStartingTypes::class, 'handle']);
+
+        // An anonymized account takes its company's personal fields and papers with it, and any
+        // unsent draft (amendment 12(a)) — from the queue (13(a)).
+        Event::listen(CustomerAnonymized::class, [AnonymizeCompany::class, 'handle']);
     }
 }

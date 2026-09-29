@@ -34,6 +34,7 @@ use Modules\B2B\Application\Query\ViewMyCompany\MyCompanyView;
 use Modules\B2B\Application\Query\ViewMyCompany\TypeOption;
 use Modules\B2B\Application\Query\ViewMyCompany\ViewMyCompany;
 use Modules\B2B\Application\Query\ViewMyCompany\ViewMyCompanyHandler;
+use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\B2B\Domain\Exception\ApplicationFileNotFound;
 use Modules\B2B\Domain\Exception\CompanyNotFound;
 use Modules\B2B\Domain\Exception\CompanySuspended;
@@ -46,6 +47,8 @@ use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\FlaggedField;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Domain\ValueObject\RequestKind;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -431,4 +434,54 @@ describe('what the account is shown (§3.1, §4.3)', function () {
             // Another store's lists are not offered.
             ->and($ids)->not->toContain(B2BFixtures::companyTypes('eg')[0]->id());
     });
+});
+
+/**
+ * The three bank settings of a store, as its staff fill them in on the settings screen.
+ */
+function companyAccountBank(string $storeCode, string $iban, string $bank, string $holder): void
+{
+    foreach ([BankAccountSettings::IBAN => $iban, BankAccountSettings::BANK => $bank, BankAccountSettings::HOLDER => $holder] as $key => $value) {
+        app(UpdateSettingHandler::class)->handle(new UpdateSetting($key, $storeCode, $value));
+    }
+}
+
+describe('the bank account to transfer to (§2.3, amendment 12(b), scenario 14)', function () {
+    it('shows an approved company its home store\'s account, the IBAN as the store typed it', function () {
+        companyAccountBank('sa', 'GB82 WEST 1234 5698 7654 32', 'Al Noor Bank', 'TouchWood Trading');
+        companyAccountBank('eg', 'DE89 3704 0044 0532 0130 00', 'Another Bank', 'Another Holder');
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::approved($customerId);
+        Fx::actAsCustomer($customerId);
+
+        $view = companyAccountView();
+
+        expect($view->bankAccount?->iban)->toBe('GB82 WEST 1234 5698 7654 32')
+            ->and($view->bankAccount?->bank)->toBe('Al Noor Bank')
+            ->and($view->bankAccount?->holder)->toBe('TouchWood Trading');
+    });
+
+    it('shows it in no other status: waiting, rejected, suspended, or before there is a company', function (Closure $arrange) {
+        companyAccountBank('sa', 'GB82 WEST 1234 5698 7654 32', 'Al Noor Bank', 'TouchWood Trading');
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        $arrange($customerId);
+        Fx::actAsCustomer($customerId);
+
+        expect(companyAccountView()->bankAccount)->toBeNull();
+    })->with([
+        'waiting for review' => [fn (string $customerId) => B2BFixtures::sent($customerId)],
+        'rejected' => [fn (string $customerId) => B2BFixtures::rejected($customerId)],
+        'suspended after its approval' => [fn (string $customerId) => B2BFixtures::suspend(B2BFixtures::approved($customerId)[0])],
+        'only a draft' => [fn (string $customerId) => B2BFixtures::storedDraft($customerId)],
+    ]);
+
+    it('shows nothing while any one of the three is still empty', function (string $empty) {
+        companyAccountBank('sa', 'GB82 WEST 1234 5698 7654 32', 'Al Noor Bank', 'TouchWood Trading');
+        app(UpdateSettingHandler::class)->handle(new UpdateSetting($empty, 'sa', ''));
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::approved($customerId);
+        Fx::actAsCustomer($customerId);
+
+        expect(companyAccountView()->bankAccount)->toBeNull();
+    })->with([BankAccountSettings::IBAN, BankAccountSettings::BANK, BankAccountSettings::HOLDER]);
 });

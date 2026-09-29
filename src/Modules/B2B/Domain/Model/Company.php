@@ -6,6 +6,7 @@ namespace Modules\B2B\Domain\Model;
 
 use DateTimeImmutable;
 use Modules\B2B\Domain\Exception\CompanySuspended;
+use Modules\B2B\Domain\Exception\CompanyTypeNotSet;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\InvalidCompanyStatus;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
@@ -38,6 +39,15 @@ use Modules\B2B\Public\Enums\CompanyStatus;
  */
 final class Company
 {
+    /**
+     * What anonymizing an account leaves in place of the company's name (amendment 12(a)), as Access
+     * leaves "Deleted customer".
+     */
+    public const string DELETED_NAME = 'Deleted company';
+
+    /** What it leaves in place of the CR number, the tax number and the address. */
+    public const string DELETED = 'Deleted';
+
     /** @var list<string> */
     private array $changed = [];
 
@@ -117,11 +127,20 @@ final class Company
     }
 
     /**
+     * **Never as "Other"** (amendment 13(b)): the company's words are a hint to the reviewer, not a
+     * type, so staff correct it to a listed type first.
+     *
      * @throws InvalidCompanyStatus nothing is waiting to be decided
+     * @throws CompanyTypeNotSet the company is still "Other"
      */
     public function approve(string $staffId, DateTimeImmutable $at): void
     {
         $this->requireStatus('approved', CompanyStatus::Pending);
+
+        if ($this->type->isOther()) {
+            throw new CompanyTypeNotSet;
+        }
+
         // The approval's note, if staff wrote one, belongs to the application it decided; what the
         // company is told today is simply that it is approved.
         $this->changeStatus(CompanyStatus::Approved, null, $staffId, $at);
@@ -204,6 +223,9 @@ final class Company
      * either, whichever use case asks — a correction, or a type's holders moved when it is deactivated
      * with a replacement or transferred (amendment 11).
      *
+     * **An approved company is never made "Other"** (amendment 13(b)): it was approved with a listed
+     * type, and "Other" is no type to hold.
+     *
      * @param  list<CompanyType>  $companyTypes  the home store's company types
      *
      * @throws CompanySuspended|InvalidCompanyAttribute
@@ -214,6 +236,10 @@ final class Company
             throw new CompanySuspended;
         }
 
+        if ($type->isOther() && $this->status === CompanyStatus::Approved) {
+            throw new InvalidCompanyAttribute('company_type', 'a listed type: an approved company is never "Other"');
+        }
+
         $this->requireHomeStoreType($type, $companyTypes);
 
         if ($type->equals($this->type)) {
@@ -222,6 +248,41 @@ final class Company
 
         $this->type = $type;
         $this->markChanged('company_type');
+    }
+
+    /**
+     * The account behind it was anonymized (b2b.md §1.1, amendments 12(a), 13(a)): the name, the CR
+     * number, the tax number and the address give way to placeholders — a sole proprietor's numbers
+     * identify a person — and so do the company's own words for its type when it is still "Other",
+     * which stays "Other". **A company is never deleted**: its type, its status and its reason, and who
+     * decided, stay. Whatever its status, suspended included; a second time changes nothing.
+     */
+    public function anonymize(): void
+    {
+        if ($this->type->isOther() && $this->type->other !== self::DELETED) {
+            $this->type = CompanyTypeChoice::other(self::DELETED);
+            $this->markChanged('company_type_other');
+        }
+
+        if ($this->name->value !== self::DELETED_NAME) {
+            $this->name = CompanyName::of(self::DELETED_NAME);
+            $this->markChanged('name');
+        }
+
+        if ($this->crNumber->value !== self::DELETED) {
+            $this->crNumber = RegistrationNumber::of('cr_number', self::DELETED);
+            $this->markChanged('cr_number');
+        }
+
+        if ($this->taxNumber->value !== self::DELETED) {
+            $this->taxNumber = RegistrationNumber::of('tax_number', self::DELETED);
+            $this->markChanged('tax_number');
+        }
+
+        if ($this->address->value !== self::DELETED) {
+            $this->address = CompanyAddress::of(self::DELETED);
+            $this->markChanged('address');
+        }
     }
 
     /**

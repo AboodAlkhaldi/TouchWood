@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Modules\B2B\Domain\Exception\CompanySuspended;
+use Modules\B2B\Domain\Exception\CompanyTypeNotSet;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\InvalidCompanyStatus;
 use Modules\B2B\Domain\Model\Company;
@@ -126,6 +127,32 @@ describe('staff deciding', function () {
         'rejecting a suspended one' => [CompanyStatus::Suspended, fn (Company $company) => $company->reject(COMPANY_TEST_STAFF, Remark::of('reason', 'No.'), CarbonImmutable::now())],
         'approving a suspended one' => [CompanyStatus::Suspended, fn (Company $company) => $company->approve(COMPANY_TEST_STAFF, CarbonImmutable::now())],
     ]);
+
+    it('never approves a company still "Other": a listed type first (amendment 13(b))', function () {
+        $company = companyIn(CompanyStatus::Rejected);
+        $company->correctType(CompanyTypeChoice::other('Cooperative society'), companyTestTypes());
+        $company->applyAgain(new CompanyDetails(
+            $company->details()->name, $company->details()->type, $company->details()->crNumber,
+            $company->details()->taxNumber, $company->details()->address,
+        ), CarbonImmutable::now());
+        $company->pullChanges();
+
+        expect(fn () => $company->approve(COMPANY_TEST_STAFF, CarbonImmutable::now()))->toThrow(CompanyTypeNotSet::class)
+            ->and($company->status())->toBe(CompanyStatus::Pending)
+            ->and($company->pullChanges())->toBe([]);
+
+        $company->correctType(CompanyTypeChoice::listed(COMPANY_TEST_JSC), companyTestTypes());
+        $company->approve(COMPANY_TEST_STAFF, CarbonImmutable::now());
+
+        expect($company->status())->toBe(CompanyStatus::Approved);
+    });
+
+    it('answers a company not waiting by its status first, "Other" or not', function () {
+        $company = companyIn(CompanyStatus::Rejected);
+        $company->correctType(CompanyTypeChoice::other('Cooperative society'), companyTestTypes());
+
+        expect(fn () => $company->approve(COMPANY_TEST_STAFF, CarbonImmutable::now()))->toThrow(InvalidCompanyStatus::class);
+    });
 });
 
 describe('suspending and reinstating', function () {
@@ -197,12 +224,34 @@ describe('what changes without an application', function () {
 
     it('lets staff correct the type without sending the company back to PENDING', function () {
         $company = companyIn(CompanyStatus::Approved);
-        $company->correctType(CompanyTypeChoice::other('Cooperative society'), companyTestTypes());
+        $company->correctType(CompanyTypeChoice::listed(COMPANY_TEST_JSC), companyTestTypes());
 
-        expect($company->details()->type->other)->toBe('Cooperative society')
+        expect($company->details()->type->typeId)->toBe(COMPANY_TEST_JSC)
             ->and($company->status())->toBe(CompanyStatus::Approved)
             ->and($company->pullChanges())->toBe(['company_type']);
     });
+
+    it('never makes an approved company "Other", and changes nothing (amendment 13(b))', function () {
+        $company = companyIn(CompanyStatus::Approved);
+        $error = null;
+
+        try {
+            $company->correctType(CompanyTypeChoice::other('Cooperative society'), companyTestTypes());
+        } catch (InvalidCompanyAttribute $caught) {
+            $error = $caught;
+        }
+
+        expect($error?->attribute)->toBe('company_type')
+            ->and($company->details()->type->typeId)->toBe(COMPANY_TEST_LLC)
+            ->and($company->pullChanges())->toBe([]);
+    });
+
+    it('lets a company not approved be corrected to "Other" words', function (CompanyStatus $status) {
+        $company = companyIn($status);
+        $company->correctType(CompanyTypeChoice::other('Cooperative society'), companyTestTypes());
+
+        expect($company->details()->type->other)->toBe('Cooperative society');
+    })->with([CompanyStatus::Pending, CompanyStatus::Rejected]);
 
     it('refuses to correct a suspended company\'s type, and changes nothing (amendment 10(h))', function () {
         $company = companyIn(CompanyStatus::Suspended);
@@ -251,6 +300,48 @@ describe('what changes without an application', function () {
         $company = companyIn(CompanyStatus::Approved);
         $company->moveTo(CompanyAddress::of("King Fahd Road\nRiyadh"));
         $company->correctType(CompanyTypeChoice::listed(COMPANY_TEST_LLC), companyTestTypes());
+
+        expect($company->pullChanges())->toBe([]);
+    });
+});
+
+describe('when the account is anonymized (amendment 12(a))', function () {
+    it('gives up its name, numbers and address, and keeps its type, status, reason and who decided', function (CompanyStatus $status) {
+        $company = companyIn($status);
+        $before = [$company->details()->type, $company->status(), $company->statusReason()?->value, $company->statusChangedBy(), $company->statusBeforeSuspension()];
+
+        $company->anonymize();
+
+        expect([$company->details()->name->value, $company->details()->crNumber->value, $company->details()->taxNumber->value, $company->details()->address->value])
+            ->toBe(['Deleted company', 'Deleted', 'Deleted', 'Deleted'])
+            ->and([$company->details()->type, $company->status(), $company->statusReason()?->value, $company->statusChangedBy(), $company->statusBeforeSuspension()])->toBe($before)
+            ->and($company->pullChanges())->toBe(['name', 'cr_number', 'tax_number', 'address']);
+    })->with(CompanyStatus::cases());
+
+    it('changes nothing a second time', function () {
+        $company = companyIn(CompanyStatus::Approved);
+        $company->anonymize();
+        $company->pullChanges();
+
+        $company->anonymize();
+
+        expect($company->pullChanges())->toBe([]);
+    });
+});
+
+describe('when the account of a company still "Other" is anonymized (amendment 13(a))', function () {
+    it('gives up its own words for its type too, and stays "Other"', function () {
+        $company = companyIn(CompanyStatus::Rejected);
+        $company->correctType(CompanyTypeChoice::other('Cooperative of one'), companyTestTypes());
+        $company->pullChanges();
+
+        $company->anonymize();
+
+        expect($company->details()->type->isOther())->toBeTrue()
+            ->and($company->details()->type->other)->toBe('Deleted')
+            ->and($company->pullChanges())->toBe(['company_type_other', 'name', 'cr_number', 'tax_number', 'address']);
+
+        $company->anonymize();
 
         expect($company->pullChanges())->toBe([]);
     });

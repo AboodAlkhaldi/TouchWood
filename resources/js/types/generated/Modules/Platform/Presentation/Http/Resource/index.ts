@@ -79,6 +79,7 @@ mayUploadPrivate: boolean,
 export type SettingGroup = {
 module: string,
 label: string,
+line: string | null,
 settings: SettingRowData[],
 };
 export type SettingRowData = {

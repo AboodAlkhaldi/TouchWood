@@ -8,6 +8,8 @@ return [
     'application.submitted' => 'Company application sent',
     'application.discarded' => 'Draft company application discarded',
     'company.address_changed' => 'Company address changed',
+    // The system, when the account is anonymized (step 5, amendment 12(a)).
+    'company.anonymized' => 'Company emptied with its anonymized account',
     // Staff (step 4, amendment 10).
     'application.approved' => 'Company application approved',
     'application.rejected' => 'Company application rejected',

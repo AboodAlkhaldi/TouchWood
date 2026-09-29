@@ -6,13 +6,17 @@ namespace Modules\B2B\Application\Command\ApproveCompany;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\B2B\Application\Audit\StaffCompanyAudit;
 use Modules\B2B\Application\B2BPermissions;
+use Modules\B2B\Application\Events\CompanyEvents;
 use Modules\B2B\Application\Staff\CompanyMessages;
 use Modules\B2B\Application\Staff\StaffCompanyAction;
+use Modules\B2B\Domain\Exception\CompanyAccountDeleted;
 use Modules\B2B\Domain\Exception\CompanyNotFound;
+use Modules\B2B\Domain\Exception\CompanyTypeNotSet;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\InvalidCompanyStatus;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
@@ -34,6 +38,11 @@ use Shared\Application\Unauthorized;
  * carries the replacement, or the old type if it was left — and approving keeps what it carries. The
  * application is marked for the reviewer, for information only (ViewCompany, ListCompanies).
  *
+ * **Never as "Other"** (amendment 13(b)): `Company::approve` refuses it with `CompanyTypeNotSet`,
+ * and staff correct the type to a listed one first. **Never for an erased account** (13(e)):
+ * nobody can sign in to it again, so its waiting application is rejected instead
+ * (`CompanyAccountDeleted`).
+ *
  * Audited on the application, as sending is.
  */
 final readonly class ApproveCompanyHandler
@@ -46,12 +55,15 @@ final readonly class ApproveCompanyHandler
         private CompanyRepository $companies,
         private ApplicationRepository $applications,
         private CompanyMessages $messages,
+        private CompanyEvents $events,
+        private AccessApi $access,
         private PlatformApi $platform,
         private ConnectionInterface $db,
     ) {}
 
     /**
      * @throws CompanyNotFound|InvalidCompanyAttribute|InvalidCompanyStatus|Unauthorized
+     * @throws CompanyAccountDeleted|CompanyTypeNotSet
      */
     public function handle(ApproveCompany $command): void
     {
@@ -70,6 +82,11 @@ final readonly class ApproveCompanyHandler
                 throw new InvalidCompanyStatus('approved', $company->status()->value);
             }
 
+            // Access keeps an erased account's row, marked; B2B has already emptied the company.
+            if ($this->access->customer($company->customerId())?->anonymized === true) {
+                throw new CompanyAccountDeleted;
+            }
+
             $now = CarbonImmutable::now();
             $waiting->approve($staffId, $note, $now);
             $company->approve($staffId, $now);
@@ -77,6 +94,7 @@ final readonly class ApproveCompanyHandler
             $this->applications->update($waiting);
             $this->companies->update($company);
             $this->platform->recordAudit(StaffCompanyAudit::approved($waiting, $note, $company->homeStoreId()));
+            $this->events->statusChanged($company, CompanyStatus::Pending);
             $this->messages->afterCommit($company->customerId(), static fn (SecurityMessages $messages, CustomerDto $customer) => $messages->companyApproved($customer, $note?->value));
         }, 3);
     }

@@ -24,6 +24,11 @@ final class SettingGroup extends Data
         public string $module,
         /** The module's name, in the language the panel is being read in. */
         public string $label,
+        /**
+         * The module's one line at the top of its section — what its settings add up to in the
+         * store shown — or null (platform.md §1.3).
+         */
+        public ?string $line,
         public array $settings,
     ) {}
 }

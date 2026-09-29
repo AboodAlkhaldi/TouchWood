@@ -35,12 +35,14 @@ use Modules\B2B\Application\Query\ViewMyCompany\ViewMyCompanyHandler;
 use Modules\B2B\Domain\Exception\CompanyNotFound;
 use Modules\B2B\Domain\Exception\CompanySuspended;
 use Modules\B2B\Domain\Exception\CompanyTypeInactive;
+use Modules\B2B\Domain\Exception\CompanyTypeNotSet;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\InvalidCompanyStatus;
 use Modules\B2B\Domain\Model\Company;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
+use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Public\Enums\CompanyStatus;
 use Shared\Application\Unauthorized;
@@ -385,17 +387,34 @@ describe('approving an application whose type was deactivated since it was sent 
         expect(fn () => staffDecisionsApprove($company->id()))->toThrow(InvalidCompanyStatus::class);
     });
 
-    it('approves an application sent under "Other" with no choice: only a listed type can be deactivated', function () {
+    it('refuses a company still "Other", writing and sending nothing, until staff correct it to a listed type (amendment 13(b))', function () {
         [$customerId, $company] = staffDecisionsPending();
         $applicationId = app(ApplicationRepository::class)->historyOf($company->id())[0]->id();
         DB::table('b2b.applications')->where('id', $applicationId)->update(['company_type_id' => null, 'company_type_other' => 'Cooperative society']);
         DB::table('b2b.companies')->where('id', $company->id())->update(['company_type_id' => null, 'company_type_other' => 'Cooperative society']);
         staffDecisionsReviewer();
+        $entries = DB::table('platform.audit_entries')->count();
 
+        expect(fn () => staffDecisionsApprove($company->id()))->toThrow(CompanyTypeNotSet::class)
+            ->and(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Pending)
+            ->and(app(ApplicationRepository::class)->find($applicationId)?->state())->toBe(ApplicationState::Submitted)
+            ->and(DB::table('platform.audit_entries')->count())->toBe($entries)
+            ->and(staffDecisionsMails())->toBe([]);
+
+        staffDecisionsCorrect($company->id(), B2BFixtures::companyTypes()[0]->id());
         staffDecisionsApprove($company->id());
 
         expect(staffDecisionsCompany($customerId)->status())->toBe(CompanyStatus::Approved)
-            ->and(staffDecisionsCompany($customerId)->details()->type->other)->toBe('Cooperative society');
+            ->and(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe(B2BFixtures::companyTypes()[0]->id());
+    });
+
+    it('never corrects an approved company to "Other" (amendment 13(b))', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        [$company] = B2BFixtures::approved($customerId);
+        staffDecisionsReviewer();
+
+        expect(fn () => staffDecisionsCorrect($company->id(), other: 'Cooperative society'))->toThrow(InvalidCompanyAttribute::class)
+            ->and(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe($company->details()->type->typeId);
     });
 });
 

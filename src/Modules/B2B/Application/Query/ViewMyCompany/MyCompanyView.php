@@ -23,5 +23,10 @@ final readonly class MyCompanyView
         public array $companyTypes,
         public array $documentTypes,
         public array $history,
+        /**
+         * Where to transfer a payment: only while the company is approved, and only once its home
+         * store has filled in all three (amendment 12(b)); null otherwise.
+         */
+        public ?BankAccountView $bankAccount,
     ) {}
 }

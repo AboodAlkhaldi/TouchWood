@@ -11,6 +11,8 @@ use Modules\Platform\Application\Query\ListSettings\ListSettingsHandler;
 use Modules\Platform\Application\Query\ListSettings\SettingRow;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
+use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Platform's settings read, in the shape the screen wants (frontend.md 3.5, E4).
@@ -26,6 +28,7 @@ final readonly class SettingPages
         private PanelStore $panel,
         private StoreDirectory $directory,
         private InMemorySettingsRegistry $registry,
+        private InMemorySettingsSectionLines $lines,
     ) {}
 
     /** E4. */
@@ -42,14 +45,16 @@ final readonly class SettingPages
         }
 
         $groups = [];
+        $store = $storeId === null ? null : StoreId::fromString($storeId);
 
+        // A section is here only when the reader sees one of its settings, so its line is too.
         foreach ($byModule as $module => $settings) {
-            $groups[] = new SettingGroup($module, $this->moduleName($module), $settings);
+            $groups[] = new SettingGroup($module, $this->moduleName($module), $this->lines->for($module)?->line($store), $settings);
         }
 
-        $store = $storeId === null ? null : $this->directory->storeById($storeId);
+        $named = $storeId === null ? null : $this->directory->storeById($storeId);
 
-        return new SettingsPage($groups, $store?->name->in($this->locale()));
+        return new SettingsPage($groups, $named?->name->in($this->locale()));
     }
 
     private function row(SettingRow $row): SettingRowData

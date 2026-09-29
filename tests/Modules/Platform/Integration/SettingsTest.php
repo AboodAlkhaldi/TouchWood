@@ -141,6 +141,37 @@ describe('declaring', function () {
     ]);
 });
 
+describe('a text setting that may be empty (platform.md §1.3, asked for by B2B step 5)', function () {
+    beforeEach(function () {
+        app(SettingsRegistry::class)->define(
+            'testing',
+            new SettingDefinitionDto('testing.bank.holder', SettingScope::Store, SettingType::Text, ['max:10'], '', 'testing.settings.update', mayBeEmpty: true),
+        );
+    });
+
+    it('starts empty, meaning not set yet, and takes a value and the empty text again', function () {
+        expect(app(PlatformApi::class)->setting('testing.bank.holder', storeIdFor('sa'))->string())->toBe('');
+
+        setSetting('testing.bank.holder', 'sa', 'Al Noor');
+        $set = app(PlatformApi::class)->setting('testing.bank.holder', storeIdFor('sa'))->string();
+        setSetting('testing.bank.holder', 'sa', '');
+
+        expect($set)->toBe('Al Noor')
+            ->and(app(PlatformApi::class)->setting('testing.bank.holder', storeIdFor('sa'))->string())->toBe('');
+    });
+
+    it('still holds a value that is not empty to its rules', function () {
+        expect(fn () => setSetting('testing.bank.holder', 'sa', str_repeat('a', 11)))->toThrow(InvalidSettingValue::class)
+            ->and(fn () => setSetting('testing.bank.holder', 'sa', '   '))->toThrow(InvalidSettingValue::class);
+    });
+
+    it('is refused on any other text setting, and on a setting that is not text', function () {
+        expect(fn () => setSetting('testing.sms.sender_name', null, ''))->toThrow(InvalidSettingValue::class)
+            ->and(fn () => app(SettingsRegistry::class)->define('testing', new SettingDefinitionDto('testing.otp.window', SettingScope::Global, SettingType::Integer, [], 5, 'testing.settings.update', mayBeEmpty: true)))
+            ->toThrow(InvalidSettingDefinition::class, 'may be empty only as a text setting');
+    });
+});
+
 describe('reading', function () {
     it('returns the default while nothing is stored', function () {
         $setting = app(PlatformApi::class)->setting('testing.otp.max_resends', storeIdFor('sa'));

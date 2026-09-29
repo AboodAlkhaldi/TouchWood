@@ -80,6 +80,14 @@ hours to verify a bank transfer, and so on.
 - Keys are named `{module}.{area}.{name}` — for example `loyalty.points.expiry_days`. The prefix
   must be the declaring module.
 - Values are validated against the definition on every write.
+- **[DECIDED 2026-09-29] A text setting may be marked "may be empty"** (B2B step 5, §9.4): its value
+  may then be the empty text — "not set yet" — and its default usually is. Every other text setting
+  stays refused when empty. The rules still apply to a value that is not empty.
+- **[DECIDED 2026-09-29] A module may show one line at the top of its section of the settings page**
+  (B2B step 5, §9.4): what its settings add up to in the store the page shows, in the reader's
+  language — B2B's says whether bank transfer is on or temporarily off. The module answers when the
+  page is shown; Platform only places the line. It is shown with the section, so only to someone who
+  sees one of its settings.
 - Reading a declared key that has no stored row returns the definition's default. Reading a
   declared key never fails.
 - A `STORE` key is never stored without a store, and a `GLOBAL` key never with one.
@@ -334,7 +342,7 @@ builder. spatie/laravel-data stays available for the presentation layer (forms, 
 |---|---|
 | `StoreDto` | `id`, `code`, `name` (ar, en), `countryCode`, `currencyCode`, `currencyExponent`, `currencySign`, `currencyAbbreviation` (ar, en), `taxRateBasisPoints`, `timezone`, `position` |
 | `CurrencyDto` | `code`, `exponent`, `name` (ar, en), `abbreviation` (ar, en), `sign`; `displaySymbol(locale)` returns the sign, or the abbreviation when there is no sign |
-| `SettingDefinitionDto` | `key`, `scope`, `type` (checked strictly before any rule), `rules` (further Laravel validation rules), `default`, `permission`, `sensitive` (audited only as "changed") |
+| `SettingDefinitionDto` | `key`, `scope`, `type` (checked strictly before any rule), `rules` (further Laravel validation rules), `default`, `permission`, `sensitive` (audited only as "changed"), `mayBeEmpty` (a text setting whose empty text means "not set yet"; its rules then apply only to a value that is not empty, §1.3) |
 | `SettingValueDto` | `key`, `storeId`, `isDefault`; typed readers `int()`, `bool()`, `string()`, `list()` that throw if the stored type does not match |
 | `MediaDto` | `id`, `visibility`, `mime`, `bytes`, `width`, `height`, `originalFilename`¹, `altAr`, `altEn`¹, `variantsStatus` |
 | `MediaUrlsDto` | `original` (PRIVATE only: the expiring link; null for a public image, whose original is never served), `variants` (size slug → format extension → CDN URL, empty until ready), `expiresAt` (PRIVATE only) |
@@ -922,3 +930,5 @@ in full in that module's specification.
 | Stage 2b | Access (staff avatars), B2B (company papers) | `PlatformApi::uploadMediaFor(ModuleUploadDto)`: a module uploads a file for its own use, checked against a permission the module names | `docs/modules/frontend-step-0.md` (P1) |
 | B2B step 3 | B2B (replaced and discarded papers; later, anonymized accounts) | **`PlatformApi::deleteMediaFor`**, the mirror of `uploadMediaFor`: a module deletes a **private** file it created, checked against the permission it names; refused while any use of the file remains, and never detaching another module's use; logged as an upload is. Staff deletion of media is unchanged, except that a private file does not exist for staff who may not see private files (next row) | `docs/modules/b2b.md` amendments 4, 5 and 8 |
 | B2B step 3 | B2B (company papers) | **Private files leave the media library**: listed only to holders of a new **admin-only** permission, `platform.media.private.view` — a Super Admin always, an admin when a Super Admin gives it to their role — who can already open the library (the permission opens it to nobody); a private row shows its name, upload date and where it is used, and the file is never opened there. **To anyone without the permission a private file does not exist**: describing, retrying or deleting it answers exactly as for an id that never existed. **A holder describes or deletes one with the library's usual permissions on top** (`platform.media.update`, `platform.media.delete`); a use that blocks a delete still refuses it. A private file never has sizes made, so it is never retried and never written to the public disk (§5.4, `variants_status`). **Choosing "private" when uploading in the library** needs the permission too: it is offered only to holders and refused from anyone else. **In the audit log**, a reader without the permission sees each entry about a private file with what was done, when, by whom and from where, but not which file nor what changed. A module's own upload (`uploadMediaFor`) and delete (`deleteMediaFor`) are unchanged | `docs/modules/b2b.md` amendments 5, 6 and 8; `docs/modules/access.md` amendment 49 |
+| B2B step 5 | B2B (the bank account an approved company transfers to) | **A text setting may be marked "may be empty"** (§1.3): its value may be the empty text, meaning "not set yet", so a store whose bank account nobody has entered holds no made-up value. Nothing else about settings changes | `docs/modules/b2b.md` amendment 12(b) |
+| B2B step 5 | B2B (whether bank transfer is on) | **A module's line in its settings section** (§1.3): one line at the top of the module's section of the settings page, answered by the module for the store shown — "Bank transfer: on", or "Bank transfer: temporarily off — fill in all three to turn it on". Shown only with the section. Nothing else about settings changes | `docs/modules/b2b.md` amendment 13(c) |

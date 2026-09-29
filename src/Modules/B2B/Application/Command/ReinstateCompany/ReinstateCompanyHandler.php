@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\B2B\Application\Audit\StaffCompanyAudit;
 use Modules\B2B\Application\B2BPermissions;
+use Modules\B2B\Application\Events\CompanyEvents;
 use Modules\B2B\Application\Staff\StaffCompanyAction;
 use Modules\B2B\Domain\Exception\CompanyNotFound;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
@@ -33,6 +34,7 @@ final readonly class ReinstateCompanyHandler
         private StaffCompanyAction $action,
         private CompanyRepository $companies,
         private ApplicationRepository $applications,
+        private CompanyEvents $events,
         private PlatformApi $platform,
         private ConnectionInterface $db,
     ) {}
@@ -56,6 +58,7 @@ final readonly class ReinstateCompanyHandler
 
             $this->companies->update($company);
             $this->platform->recordAudit(StaffCompanyAudit::statusChanged('b2b.company.reinstated', $company, $from, $reason));
+            $this->events->statusChanged($company, $from);
         }, 3);
     }
 }
