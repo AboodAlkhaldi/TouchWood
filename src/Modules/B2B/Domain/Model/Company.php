@@ -6,6 +6,7 @@ namespace Modules\B2B\Domain\Model;
 
 use DateTimeImmutable;
 use Modules\B2B\Domain\Exception\CompanySuspended;
+use Modules\B2B\Domain\Exception\CompanyTypeNotSet;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\InvalidCompanyStatus;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
@@ -126,11 +127,20 @@ final class Company
     }
 
     /**
+     * **Never as "Other"** (amendment 13(b)): the company's words are a hint to the reviewer, not a
+     * type, so staff correct it to a listed type first.
+     *
      * @throws InvalidCompanyStatus nothing is waiting to be decided
+     * @throws CompanyTypeNotSet the company is still "Other"
      */
     public function approve(string $staffId, DateTimeImmutable $at): void
     {
         $this->requireStatus('approved', CompanyStatus::Pending);
+
+        if ($this->type->isOther()) {
+            throw new CompanyTypeNotSet;
+        }
+
         // The approval's note, if staff wrote one, belongs to the application it decided; what the
         // company is told today is simply that it is approved.
         $this->changeStatus(CompanyStatus::Approved, null, $staffId, $at);
@@ -213,6 +223,9 @@ final class Company
      * either, whichever use case asks — a correction, or a type's holders moved when it is deactivated
      * with a replacement or transferred (amendment 11).
      *
+     * **An approved company is never made "Other"** (amendment 13(b)): it was approved with a listed
+     * type, and "Other" is no type to hold.
+     *
      * @param  list<CompanyType>  $companyTypes  the home store's company types
      *
      * @throws CompanySuspended|InvalidCompanyAttribute
@@ -221,6 +234,10 @@ final class Company
     {
         if ($this->status === CompanyStatus::Suspended) {
             throw new CompanySuspended;
+        }
+
+        if ($type->isOther() && $this->status === CompanyStatus::Approved) {
+            throw new InvalidCompanyAttribute('company_type', 'a listed type: an approved company is never "Other"');
         }
 
         $this->requireHomeStoreType($type, $companyTypes);
