@@ -407,6 +407,17 @@ describe('deactivating a company type (§1.3, amendments 5 and 10)', function ()
         'itself' => [fn () => B2BFixtures::companyTypes()[1]->id(), InvalidCompanyAttribute::class],
     ]);
 
+    it('refuses an inactive replacement even when no company holds the type — the refusal is the use case\'s own, not only a company\'s correction (lesson 70)', function () {
+        $unheld = B2BFixtures::companyTypes()[3];
+        $inactive = B2BFixtures::companyTypes()[2];
+        B2BFixtures::deactivate($inactive);
+        staffTypesAdmin();
+
+        expect(app(CompanyRepository::class)->holdersOf($unheld->id()))->toBe([])
+            ->and(fn () => staffTypesDeactivate($unheld->id(), $inactive->id()))->toThrow(CompanyTypeInactive::class)
+            ->and(app(CompanyTypeRepository::class)->find($unheld->id())?->isActive())->toBeTrue();
+    });
+
     it('activates it again; the companies moved off it stay where they are', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
         B2BFixtures::approved($customerId);
