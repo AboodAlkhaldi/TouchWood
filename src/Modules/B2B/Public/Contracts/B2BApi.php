@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\B2B\Public\Contracts;
 
+use Modules\B2B\Public\Dto\BankAccountDto;
 use Modules\B2B\Public\Dto\CompanyDto;
 use Modules\B2B\Public\Enums\CompanyStatus;
 
@@ -24,4 +25,13 @@ interface B2BApi
 
     /** Sales's half of "may place an order" (handoff §7.4): true only while the company is approved. */
     public function isApproved(string $customerId): bool;
+
+    /**
+     * The account a company of this store transfers to — **null while bank transfer is temporarily
+     * off**, until the store has filled in all three settings (amendment 13(c)). Checkout then
+     * offers paying through staff alone, and the server refuses a transfer.
+     *
+     * @param  string  $storeId  a store's ULID; anything else is a caller's bug and throws
+     */
+    public function bankAccount(string $storeId): ?BankAccountDto;
 }

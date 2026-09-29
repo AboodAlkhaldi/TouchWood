@@ -16,11 +16,13 @@ final readonly class CompanyDto
         public string $id,
         public string $customerId,
         public string $name,
-        /** The type's name from the home store's list; both null when the company wrote its own ("Other"). */
+        /**
+         * The type's name from the home store's list. **Both null while the company is still
+         * "Other"**: its type is not set yet, and its own words are for the reviewing staff alone
+         * (amendment 13(b)).
+         */
         public ?string $typeNameAr,
         public ?string $typeNameEn,
-        /** The company's own words for its type when it chose "Other"; null for a listed type. */
-        public ?string $typeOther,
         public CompanyStatus $status,
         /** Why it was rejected or suspended; null otherwise. */
         public ?string $statusReason,

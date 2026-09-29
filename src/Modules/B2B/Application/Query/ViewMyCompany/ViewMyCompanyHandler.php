@@ -9,7 +9,7 @@ use Modules\Access\Public\Dto\CustomerDto;
 use Modules\B2B\Application\Account\CurrentCompanyAccount;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ApplicationViews;
-use Modules\B2B\Application\Settings\BankAccountSettings;
+use Modules\B2B\Application\Settings\StoreBankAccount;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Model\Company;
@@ -21,7 +21,6 @@ use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
-use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
@@ -52,7 +51,7 @@ final readonly class ViewMyCompanyHandler
         private CompanyTypeRepository $companyTypes,
         private DocumentTypeRepository $documentTypes,
         private ConnectionInterface $db,
-        private PlatformApi $platform,
+        private StoreBankAccount $storeBankAccount,
     ) {}
 
     /**
@@ -120,7 +119,7 @@ final readonly class ViewMyCompanyHandler
 
     /**
      * The home store's bank account (amendment 12(b)), for an approved company only — only it can
-     * order —, and only once the store has filled in all three: an empty setting means "not set yet".
+     * order —, and only while bank transfer is on: all three filled in (StoreBankAccount, 13(c)).
      */
     private function bankAccount(Company $company): ?BankAccountView
     {
@@ -128,12 +127,9 @@ final readonly class ViewMyCompanyHandler
             return null;
         }
 
-        $store = StoreId::fromString($company->homeStoreId());
-        $iban = $this->platform->setting(BankAccountSettings::IBAN, $store)->string();
-        $bank = $this->platform->setting(BankAccountSettings::BANK, $store)->string();
-        $holder = $this->platform->setting(BankAccountSettings::HOLDER, $store)->string();
+        $account = $this->storeBankAccount->for(StoreId::fromString($company->homeStoreId()));
 
-        return $iban === '' || $bank === '' || $holder === '' ? null : new BankAccountView($iban, $bank, $holder);
+        return $account === null ? null : new BankAccountView($account->iban, $account->bank, $account->holder);
     }
 
     /**
