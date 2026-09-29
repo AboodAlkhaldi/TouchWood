@@ -43,6 +43,8 @@ use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Application\Staff\StaffLinks;
+use Modules\Access\Application\Storefront\InMemoryCustomerAccountPages;
+use Modules\Access\Application\Storefront\InMemoryShopperLines;
 use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\CustomerTokenRepository;
@@ -100,8 +102,10 @@ use Modules\Access\Presentation\Http\Middleware\ShareStorefrontPage;
 use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
 use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Contracts\SecurityMessages;
+use Modules\Access\Public\Contracts\ShopperLines;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
@@ -129,6 +133,12 @@ final class AccessServiceProvider extends ServiceProvider
         // this provider declares its own and Platform's below.
         $this->app->singleton(InMemoryPermissionCatalog::class);
         $this->app->alias(InMemoryPermissionCatalog::class, PermissionCatalog::class);
+
+        // What other modules add to the shop's frame (amendment 50), registered in their boot().
+        $this->app->singleton(InMemoryCustomerAccountPages::class);
+        $this->app->alias(InMemoryCustomerAccountPages::class, CustomerAccountPages::class);
+        $this->app->singleton(InMemoryShopperLines::class);
+        $this->app->alias(InMemoryShopperLines::class, ShopperLines::class);
 
         $this->app->bind(StaffUserRepository::class, DatabaseStaffUserRepository::class);
         // The panel's session rows, for the screen that lists them and the button that ends them.

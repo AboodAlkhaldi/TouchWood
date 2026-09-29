@@ -30,6 +30,7 @@ use Modules\Access\Application\Query\MyAccount\MyAccountForCustomer;
 use Modules\Access\Application\Query\MyAccount\MyAddressesForCustomer;
 use Modules\Access\Application\Query\MyAccount\MyAddressesInStoreDto;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
+use Modules\Access\Presentation\Http\CustomerAccountTabs;
 use Modules\Access\Presentation\Http\Request\CurrentPasswordRequest;
 use Modules\Access\Presentation\Http\Request\CustomerAddressRequest;
 use Modules\Access\Presentation\Http\Request\CustomerCodeRequest;
@@ -58,9 +59,6 @@ final readonly class CustomerOwnAccountController
 {
     /** @var list<string> */
     private const array WORDS = [...StorefrontArea::WORDS, 'access::account', 'access::errors'];
-
-    /** The tabs this page has, and the one anybody arriving without asking gets. */
-    private const array TABS = ['profile', 'security', 'phone', 'addresses', 'close'];
 
     public function __construct(
         private Page $page,
@@ -209,7 +207,7 @@ final readonly class CustomerOwnAccountController
         $store = $this->platform->store(StoreId::fromString($account->homeStoreId));
 
         return new CustomerAccountPage(
-            tab: is_string($tab) && in_array($tab, self::TABS, true) ? $tab : self::TABS[0],
+            tab: is_string($tab) && in_array($tab, CustomerAccountTabs::ALL, true) ? $tab : CustomerAccountTabs::ALL[0],
             firstName: $account->firstName,
             lastName: $account->lastName,
             email: $account->email,
