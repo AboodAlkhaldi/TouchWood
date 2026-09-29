@@ -36,6 +36,8 @@ use Modules\B2B\Application\Command\RequireDocumentType\RequireDocumentType;
 use Modules\B2B\Application\Command\RequireDocumentType\RequireDocumentTypeHandler;
 use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraft;
 use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraftHandler;
+use Modules\B2B\Application\Command\TransferCompanyType\TransferCompanyType;
+use Modules\B2B\Application\Command\TransferCompanyType\TransferCompanyTypeHandler;
 use Modules\B2B\Domain\Exception\CompanyTypeInactive;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\TypeNameTaken;
@@ -547,6 +549,102 @@ describe('replacing a company type with a new one, in one step (§1.3, amendment
         expect(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue()
             ->and(app(CompanyTypeRepository::class)->find((string) $newId)?->position())->toBe(7)
             ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($newId);
+    });
+});
+
+describe('moving every company of one active type to another (§1.3, amendment 11(c))', function () {
+    it('moves every holder but a suspended one, keeps both types active, audits each company and the move, and leaves the notice', function () {
+        [$to, $from] = B2BFixtures::companyTypes();
+        $movers = [];
+
+        foreach (['sent', 'approved', 'rejected'] as $fixture) {
+            $customerId = B2BFixtures::verifiedCompanyAccount();
+            B2BFixtures::{$fixture}($customerId);
+            $movers[] = $customerId;
+        }
+
+        // A company reapplying, with its draft still holding the company's type: it follows.
+        Fx::actAsCustomer($movers[2]);
+        app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
+        $suspendedId = B2BFixtures::verifiedCompanyAccount();
+        [$suspended] = B2BFixtures::approved($suspendedId);
+        B2BFixtures::suspend($suspended);
+        staffTypesAdmin([B2BPermissions::COMPANY_TRANSFER_TYPE]);
+
+        $moved = app(TransferCompanyTypeHandler::class)->handle(new TransferCompanyType($from->id(), $to->id()));
+        $first = app(CompanyRepository::class)->forCustomer($movers[0]);
+
+        expect($moved)->toBe(3)
+            ->and(array_map(static fn (string $customerId): ?string => app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId, $movers))
+            ->toBe([$to->id(), $to->id(), $to->id()])
+            ->and(app(ApplicationRepository::class)->openFor($movers[2])?->type()?->typeId)->toBe($to->id())
+            ->and(app(CompanyRepository::class)->forCustomer($suspendedId)?->details()->type->typeId)->toBe($from->id())
+            ->and(app(CompanyTypeRepository::class)->find($from->id())?->isActive())->toBeTrue()
+            ->and(app(CompanyTypeRepository::class)->find($to->id())?->isActive())->toBeTrue()
+            ->and(staffTypesChanges('b2b.company.type_transferred', (string) $first?->id()))->toBe(['company_type_id' => [$from->id(), $to->id()]])
+            ->and(staffTypesChanges('b2b.company_type.transferred', $from->id()))->toBe(['companies_moved' => [null, 3], 'to_type_id' => [null, $to->id()]])
+            ->and(staffTypesNotice())->toBeTrue();
+    });
+
+    it('is its own job: neither correcting types nor deactivating them grants it', function () {
+        [$to, $from] = B2BFixtures::companyTypes();
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::approved($customerId);
+        staffTypesAdmin([B2BPermissions::COMPANY_CORRECT_TYPE, B2BPermissions::COMPANY_TYPE_DEACTIVATE, B2BPermissions::COMPANY_TYPE_UPDATE]);
+
+        expect(fn () => app(TransferCompanyTypeHandler::class)->handle(new TransferCompanyType($from->id(), $to->id())))->toThrow(Unauthorized::class)
+            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($from->id());
+    });
+
+    it('refuses another store\'s type as one that does not exist, a target that is not another type of the store, and an inactive type — moving nobody', function (Closure $from, Closure $to, string $error) {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::approved($customerId);
+        staffTypesAdmin([B2BPermissions::COMPANY_TRANSFER_TYPE]);
+
+        expect(fn () => app(TransferCompanyTypeHandler::class)->handle(new TransferCompanyType($from(), $to())))->toThrow($error)
+            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe(B2BFixtures::companyTypes()[1]->id());
+    })->with([
+        'from another store' => [fn () => B2BFixtures::companyTypes('eg')[1]->id(), fn () => B2BFixtures::companyTypes('eg')[0]->id(), TypeNotFound::class],
+        'to another store' => [fn () => B2BFixtures::companyTypes()[1]->id(), fn () => B2BFixtures::companyTypes('eg')[0]->id(), InvalidCompanyAttribute::class],
+        'to an unknown type' => [fn () => B2BFixtures::companyTypes()[1]->id(), fn () => strtolower((string) Str::ulid()), InvalidCompanyAttribute::class],
+        'to itself' => [fn () => B2BFixtures::companyTypes()[1]->id(), fn () => B2BFixtures::companyTypes()[1]->id(), InvalidCompanyAttribute::class],
+        'to an inactive type' => [fn () => B2BFixtures::companyTypes()[1]->id(), function () {
+            $type = B2BFixtures::companyTypes()[0];
+            B2BFixtures::deactivate($type);
+
+            return $type->id();
+        }, CompanyTypeInactive::class],
+        'from an inactive type' => [function () {
+            $type = B2BFixtures::companyTypes()[1];
+            B2BFixtures::deactivate($type);
+
+            return $type->id();
+        }, fn () => B2BFixtures::companyTypes()[0]->id(), CompanyTypeInactive::class],
+    ]);
+
+    it('moves in B2B\'s one lock order: the store\'s lists, then each account in account order, rows never locked', function () {
+        [$to, $from] = B2BFixtures::companyTypes();
+        $accounts = array_map(static fn (): string => B2BFixtures::verifiedCompanyAccount(), range(1, 3));
+        sort($accounts);
+
+        foreach (array_reverse($accounts) as $customerId) {
+            B2BFixtures::approved($customerId);
+        }
+
+        staffTypesAdmin([B2BPermissions::COMPANY_TRANSFER_TYPE]);
+        $locks = B2BFixtures::accountLocks();
+        $rowLocks = new ArrayObject;
+        DB::listen(static function ($query) use ($rowLocks): void {
+            if (preg_match('/"?(company|document)_types"?.*\bfor\s+(update|share|no key update|key share)\b/is', $query->sql) === 1) {
+                $rowLocks[] = $query->sql;
+            }
+        });
+
+        app(TransferCompanyTypeHandler::class)->handle(new TransferCompanyType($from->id(), $to->id()));
+
+        expect(array_map(static fn (array $lock): array => [$lock[1], $lock[2]], $locks->getArrayCopy()))
+            ->toBe([['b2b:types:'.Fx::storeId('sa'), 2], ...array_map(static fn (string $customerId): array => ['b2b:account:'.$customerId, 2], $accounts)])
+            ->and($rowLocks->getArrayCopy())->toBe([]);
     });
 });
 

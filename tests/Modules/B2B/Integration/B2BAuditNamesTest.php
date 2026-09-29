@@ -27,8 +27,9 @@ function b2bAuditNamesActions(): array
         'b2b.application.submitted', 'b2b.application.discarded', 'b2b.company.address_changed',
         'b2b.application.approved', 'b2b.application.rejected',
         'b2b.company.suspended', 'b2b.company.reinstated',
-        'b2b.company.type_corrected', 'b2b.company.type_replaced', 'b2b.company.document_opened',
+        'b2b.company.type_corrected', 'b2b.company.type_replaced', 'b2b.company.type_transferred', 'b2b.company.document_opened',
         ...$types,
+        'b2b.company_type.transferred',
         'b2b.document_type.requirement_changed',
         'b2b.type_lists.reviewed',
     ];

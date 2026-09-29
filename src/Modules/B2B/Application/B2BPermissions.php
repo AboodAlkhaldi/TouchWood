@@ -15,7 +15,7 @@ use Modules\Access\Public\Enums\PermissionKind;
  * The company's own side (§3.1) is two automatic permissions every customer holds for their own
  * data; the handlers themselves refuse an individual account, since an account type never changes.
  *
- * The staff side (§3.2) is **one permission per job** (amendment 10): eleven, named as every
+ * The staff side (§3.2) is **one permission per job** (amendments 10 and 11): twelve, named as every
  * module's are, an action sharing one with its undo — as blocking and unblocking a customer share
  * `access.customer.block`. Every one is per store — the account's home store for a company, the
  * list's own store for a type — none is admin-only, and all sit in the Companies group.
@@ -42,6 +42,9 @@ final class B2BPermissions
 
     /** Correct a company's type. Reactivating a type on the way also needs COMPANY_TYPE_DEACTIVATE. */
     public const string COMPANY_CORRECT_TYPE = 'b2b.company.correct_type';
+
+    /** Move every company of one active type to another — a job of its own (amendment 11(c)). */
+    public const string COMPANY_TRANSFER_TYPE = 'b2b.company.transfer_type';
 
     /** Add a company type to a store's list. */
     public const string COMPANY_TYPE_CREATE = 'b2b.company_type.create';
@@ -82,7 +85,7 @@ final class B2BPermissions
     }
 
     /**
-     * @return list<string> the eleven staff jobs (§3.2, amendment 10)
+     * @return list<string> the twelve staff jobs (§3.2, amendments 10 and 11(c))
      */
     public static function staff(): array
     {
@@ -92,6 +95,7 @@ final class B2BPermissions
             self::COMPANY_REVIEW,
             self::COMPANY_SUSPEND,
             self::COMPANY_CORRECT_TYPE,
+            self::COMPANY_TRANSFER_TYPE,
             self::COMPANY_TYPE_CREATE,
             self::COMPANY_TYPE_UPDATE,
             self::COMPANY_TYPE_DEACTIVATE,

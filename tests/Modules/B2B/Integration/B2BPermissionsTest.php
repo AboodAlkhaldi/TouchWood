@@ -18,7 +18,7 @@ use function Pest\Laravel\seed;
 
 /*
 | B2B's permissions in Access's catalog (b2b.md §3, amendment 10): the company's own two, automatic
-| and store-free, and the eleven staff jobs — per store, in the Companies group, none admin-only.
+| and store-free, and the twelve staff jobs — per store, in the Companies group, none admin-only.
 */
 
 uses(RefreshDatabase::class);
@@ -27,7 +27,7 @@ beforeEach(function () {
     seed(PlatformSeeder::class);
 });
 
-it('declares the eleven staff jobs the owner confirmed, and nothing else for staff (amendment 10)', function () {
+it('declares the twelve staff jobs the owner confirmed, and nothing else for staff (amendments 10 and 11(c))', function () {
     $staff = array_values(array_map(
         static fn (PermissionDefinitionDto $permission): string => $permission->name,
         array_filter(app(InMemoryPermissionCatalog::class)->all(), static fn (PermissionDefinitionDto $permission): bool => str_starts_with($permission->name, 'b2b.') && $permission->audience === PermissionAudience::Role),
@@ -38,6 +38,7 @@ it('declares the eleven staff jobs the owner confirmed, and nothing else for sta
         'b2b.company.correct_type',
         'b2b.company.review',
         'b2b.company.suspend',
+        'b2b.company.transfer_type',
         'b2b.company.view',
         'b2b.company_document.view',
         'b2b.company_type.create',
@@ -60,7 +61,7 @@ it('makes every staff job per store, offered in the role editor under Companies,
 
 it('keeps every staff job open to staff roles as well as admin roles: none is admin-only (amendment 10)', function () {
     // Creating the role goes through Access's own rules, which refuse an admin-only action in a
-    // staff role — so a staff role holding all eleven is the proof.
+    // staff role — so a staff role holding all twelve is the proof.
     $roleId = Fx::role(B2BPermissions::staff(), RoleLevel::Staff);
 
     expect(array_intersect(B2BPermissions::staff(), AccessPermissions::adminOnly()))->toBe([])

@@ -88,6 +88,17 @@ final class TypeAudit
     }
 
     /**
+     * Every company of one active type moved to another (amendment 11(c)); each company has its own
+     * entry besides.
+     */
+    public static function transferred(CompanyType $from, CompanyType $to, int $companies): AuditEntryDto
+    {
+        return self::entry('transferred', $from, AuditChanges::none()
+            ->changed('to_type_id', null, $to->id())
+            ->changed('companies_moved', null, $companies));
+    }
+
+    /**
      * The store's admins looked at both lists and found nothing to change (§1.3, amendment 10(d)).
      */
     public static function listsReviewed(string $storeId): AuditEntryDto
