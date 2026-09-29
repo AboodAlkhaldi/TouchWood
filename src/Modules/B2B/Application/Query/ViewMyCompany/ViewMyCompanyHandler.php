@@ -9,8 +9,10 @@ use Modules\Access\Public\Dto\CustomerDto;
 use Modules\B2B\Application\Account\CurrentCompanyAccount;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ApplicationViews;
+use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Modules\B2B\Domain\Model\Application;
+use Modules\B2B\Domain\Model\Company;
 use Modules\B2B\Domain\Model\CompanyType;
 use Modules\B2B\Domain\Model\DocumentType;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
@@ -19,8 +21,10 @@ use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **ViewMyCompany always answers** (b2b.md §3.1, amendment 5):
@@ -32,6 +36,7 @@ use Shared\Application\PermissionScope;
  * - once there is a company, its details, status and reason, and its **history** — the applications
  *   it sent, newest first, each with its values, papers and dates, its state, its reason or note, and
  *   its flags and requests. **No staff names.**
+ * - while the company is approved, the bank account to transfer to (amendment 12(b)).
  *
  * Everything is the home store's (amendment 5): a company is offered its home store's lists.
  */
@@ -47,6 +52,7 @@ final readonly class ViewMyCompanyHandler
         private CompanyTypeRepository $companyTypes,
         private DocumentTypeRepository $documentTypes,
         private ConnectionInterface $db,
+        private PlatformApi $platform,
     ) {}
 
     /**
@@ -108,7 +114,26 @@ final readonly class ViewMyCompanyHandler
                 fn (Application $sent): SentApplicationView => $this->sent($sent, $companyTypes, $documentTypes),
                 $this->applications->historyOf($company->id()),
             ),
+            $company === null ? null : $this->bankAccount($company),
         );
+    }
+
+    /**
+     * The home store's bank account (amendment 12(b)), for an approved company only — only it can
+     * order —, and only once the store has filled in all three: an empty setting means "not set yet".
+     */
+    private function bankAccount(Company $company): ?BankAccountView
+    {
+        if (! $company->mayOrder()) {
+            return null;
+        }
+
+        $store = StoreId::fromString($company->homeStoreId());
+        $iban = $this->platform->setting(BankAccountSettings::IBAN, $store)->string();
+        $bank = $this->platform->setting(BankAccountSettings::BANK, $store)->string();
+        $holder = $this->platform->setting(BankAccountSettings::HOLDER, $store)->string();
+
+        return $iban === '' || $bank === '' || $holder === '' ? null : new BankAccountView($iban, $bank, $holder);
     }
 
     /**
