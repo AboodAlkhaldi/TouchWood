@@ -16,10 +16,13 @@ return [
         'approved' => ['title' => 'Approved', 'body' => 'You can order at company prices.'],
         'rejected' => ['title' => 'Not approved', 'body' => 'Why: :reason'],
         'suspended' => ['title' => 'Suspended', 'body' => 'Why: :reason. You cannot order or change your company details until our team reinstates the account.'],
+        // A rejected company reinstated since: what it was told then, on its own line (amendment 15(b)).
+        'reinstated' => 'Reinstated: :reason',
     ],
     'missing' => 'Still missing: :items',
-    'missing_documents' => ':count documents',
-    'missing_answers' => ':count answers',
+    'missing_documents' => 'documents (:count)',
+    'missing_answers' => 'answers (:count)',
+    'separator' => ', ',
 
     'start' => 'Start your application',
     'apply_again' => 'Apply again',
@@ -32,6 +35,10 @@ return [
     'discard_yes' => 'Discard',
     'cancel' => 'Cancel',
     'suspended_draft' => 'You have a draft that was not sent. While the account is suspended you can only discard it.',
+    // Send waits for a clean form (amendment 15(a)).
+    'send_blocked' => 'Finish the fields marked above before you send: each is saved when you leave it.',
+    'answers_sent' => 'Answers sent',
+    'document_gone' => 'A document no longer asked for',
 
     'section' => [
         'details' => 'Company details',
@@ -119,6 +126,7 @@ return [
         'copy' => 'Copy',
         'copied' => 'Copied',
         'off' => 'Bank transfer is temporarily unavailable — our team will contact you to arrange payment.',
+        'suspended' => 'Company orders are never paid online. Ordering is stopped while the account is suspended.',
     ],
     'before' => [
         'title' => 'Before approval',

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,7 @@ use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\FlaggedField;
+use Modules\B2B\Domain\ValueObject\Remark;
 use Modules\B2B\Domain\ValueObject\RequestKind;
 use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -188,5 +190,109 @@ it('warns an approved company, before it sends a change, that sending it stops i
         ->click('[data-test="change"]')
         ->assertPresent('[data-test="change-warning"]')
         ->assertSee('These changes go to our team as a new application.')
+        ->assertNoJavaScriptErrors();
+});
+
+/*
+| After the review of step 6 (amendment 15): Send waits for a clean form, a refusal stays on its own
+| field through the next field's save, "Other" stays chosen until its words are left, a rejected
+| company reinstated since is shown why it was rejected, and the side column and the address form
+| follow the company's status.
+*/
+
+it('keeps a refused value on its field through the next field\'s save, and holds Send until it is fixed', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::approved($customerId);
+    $page = companyScreenSignIn($customerId);
+
+    $page->navigate('/sa/en/account/company')
+        ->click('[data-test="change"]')
+        ->assertPresent('[data-test="company-form"]');
+
+    // Two fields left in the same instant, so the second save starts while the first is still out:
+    // typed by hand, the first had always come back before the second began, and a lost save was
+    // never seen (the review of step 6 lost one this way).
+    $page->script(<<<'JS'
+        const write = (field, value) => {
+            const input = document.querySelector(field);
+            input.focus();
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.blur();
+        };
+        write('#company-tax_number', '300/123/456');
+        write('#company-cr_number', '2020123456');
+        JS);
+
+    $page->assertSee('The tax number is not valid.')
+        ->assertPresent('[data-test="send-blocked"]')
+        ->assertButtonDisabled('[data-test="send"]');
+
+    expect(DB::table('b2b.applications')->where('customer_id', $customerId)->where('state', 'DRAFT')->value('cr_number'))->toBe('2020123456');
+
+    $page->clear('#company-tax_number')
+        ->type('#company-tax_number', '300123456700099')
+        ->keys('#company-tax_number', 'Tab')
+        ->assertDontSee('The tax number is not valid.')
+        ->assertMissing('[data-test="send-blocked"]')
+        ->assertButtonEnabled('[data-test="send"]')
+        ->assertNoJavaScriptErrors();
+});
+
+it('keeps "Other" chosen until its words are left, and saves them as the type', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::approved($customerId);
+    $page = companyScreenSignIn($customerId);
+
+    $page->navigate('/sa/en/account/company')
+        ->click('[data-test="change"]')
+        ->select('#company-type', 'other')
+        ->assertPresent('#company-type-other')
+        ->assertPresent('[data-test="send-blocked"]')
+        ->type('#company-type-other', 'Cooperative society')
+        ->keys('#company-type-other', 'Tab')
+        ->assertValue('#company-type', 'other')
+        ->assertMissing('[data-test="send-blocked"]')
+        ->assertNoJavaScriptErrors();
+
+    expect(DB::table('b2b.applications')->where('customer_id', $customerId)->where('state', 'DRAFT')->value('company_type_other'))->toBe('Cooperative society');
+});
+
+it('shows a rejected company reinstated since why it was rejected, and the reinstatement on its own line', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    [$company] = B2BFixtures::rejected($customerId);
+    B2BFixtures::suspend($company);
+    $company->reinstate(Fx::staff(), Remark::of('reason', 'The tax office confirmed the number.'), CarbonImmutable::now());
+    app(CompanyRepository::class)->update($company);
+    $page = companyScreenSignIn($customerId);
+
+    $page->navigate('/sa/en/account/company')
+        ->assertSeeIn('[data-test="status-reason"]', 'The CR number does not match the certificate.')
+        ->assertSeeIn('[data-test="reinstated"]', 'Reinstated: The tax office confirmed the number.')
+        // No draft yet: the address can still be changed at once, beside Apply again.
+        ->assertPresent('[data-test="address"]')
+        ->assertPresent('[data-test="apply-again"]')
+        ->assertNoJavaScriptErrors();
+});
+
+it('lets a company under review change its address, and tells a suspended one its ordering is stopped', function () {
+    $pending = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::sent($pending);
+
+    companyScreenSignIn($pending)
+        ->navigate('/sa/en/account/company')
+        ->assertSee('Under review')
+        ->assertPresent('[data-test="address"]')
+        ->assertNoJavaScriptErrors();
+
+    $suspended = B2BFixtures::verifiedCompanyAccount();
+    [$company] = B2BFixtures::approved($suspended);
+    B2BFixtures::suspend($company);
+
+    companyScreenSignIn($suspended)
+        ->navigate('/sa/en/account/company')
+        ->assertSee('Ordering is stopped while the account is suspended.')
+        ->assertMissing('[data-test="before-approval"]')
+        ->assertMissing('[data-test="address"]')
         ->assertNoJavaScriptErrors();
 });

@@ -47,7 +47,8 @@ export function CompanySide({ page }: { page: CompanyPage }) {
                 <Payment page={page} />
             </Card>
 
-            {approved ? null : (
+            {/* Not for a suspended company: some were approved before, and none may order now (15(d)). */}
+            {approved || status === 'SUSPENDED' ? null : (
                 <Card title={t('b2b::company.before.title')} test="before-approval">
                     <p className="text-sm text-ink">{t('b2b::company.before.body')}</p>
                 </Card>
@@ -58,11 +59,20 @@ export function CompanySide({ page }: { page: CompanyPage }) {
 
 /**
  * How a company pays, by its state (amendment 14(h)): never online, the account only once approved,
- * and "temporarily unavailable" while the store has not filled in all three (amendment 13(c)).
+ * and "temporarily unavailable" while the store has not filled in all three (amendment 13(c)); a
+ * suspended company is told its ordering is stopped (amendment 15(d)).
  */
 function Payment({ page }: { page: CompanyPage }) {
     const t = useTranslator();
     const [copied, setCopied] = useState(false);
+
+    if (page.company?.status === 'SUSPENDED') {
+        return (
+            <p className="text-sm text-ink" data-test="payment-suspended">
+                {t('b2b::company.payment.suspended')}
+            </p>
+        );
+    }
 
     if (page.company?.status !== 'APPROVED') {
         return <p className="text-sm text-ink">{t('b2b::company.payment.before')}</p>;

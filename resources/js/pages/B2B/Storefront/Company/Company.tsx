@@ -39,7 +39,11 @@ export default function Company(page: CompanyPage) {
                 <div className="grid content-start gap-6">
                     <FormError />
                     {page.company === null ? <BeforeACompany page={page} /> : <WithACompany page={page} company={page.company} />}
-                    <CompanyHistory history={page.history} documentTypes={page.documentTypes} />
+                    {/* Under review, the application waiting is shown open above; the list below is the ones before it. */}
+                    <CompanyHistory
+                        history={page.company?.status === 'PENDING' ? page.history.slice(1) : page.history}
+                        documentTypes={page.documentTypes}
+                    />
                 </div>
 
                 <CompanySide page={page} />
@@ -86,9 +90,10 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
                     </StatusBox>
                     {lastSent !== null ? (
                         <Card title={t('b2b::company.section.sent')} test="sent">
-                            <SentApplication application={lastSent} documentTypes={page.documentTypes} open />
+                            <SentApplication application={lastSent} previous={page.history[1] ?? null} documentTypes={page.documentTypes} open />
                         </Card>
                     ) : null}
+                    <AddressForm saved={company.details.address ?? ''} />
                 </>
             );
 
@@ -114,10 +119,13 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
             return (
                 <>
                     <StatusBox tone="bad" title={t('b2b::company.status.rejected.title')}>
-                        <p data-test="status-reason">{t('b2b::company.status.rejected.body', { reason: company.statusReason ?? '' })}</p>
+                        <RejectedWhy company={company} history={page.history} />
                     </StatusBox>
                     {page.draft === null ? (
-                        <StartButton label={t('b2b::company.apply_again')} test="apply-again" />
+                        <>
+                            <AddressForm saved={company.details.address ?? ''} />
+                            <StartButton label={t('b2b::company.apply_again')} test="apply-again" />
+                        </>
                     ) : (
                         <CompanyForm
                             page={page}
@@ -161,7 +169,7 @@ function Missing({ page, draft }: { page: CompanyPage; draft: CompanyDraftData }
 
     return items.length === 0 ? null : (
         <p className="text-ink-muted" data-test="missing">
-            {t('b2b::company.missing', { items: items.join('، ') })}
+            {t('b2b::company.missing', { items: items.join(t('b2b::company.separator')) })}
         </p>
     );
 }
@@ -256,6 +264,27 @@ function FrozenDraft() {
             </div>
             {confirming ? <DiscardConfirmation onCancel={() => setConfirming(false)} /> : null}
         </Card>
+    );
+}
+
+/**
+ * Why it was not approved: the last rejection's own reason (amendment 15(b)). The company's reason
+ * is what it was told last, which a reinstatement since has replaced — shown then on its own line,
+ * never as the reason it was rejected.
+ */
+function RejectedWhy({ company, history }: { company: CompanyStatusData; history: CompanyApplicationData[] }) {
+    const t = useTranslator();
+    const rejection = history.find((application) => application.state === 'REJECTED');
+    const reason = rejection?.decisionReason ?? company.statusReason ?? '';
+    const since = company.statusReason !== null && company.statusReason !== reason ? company.statusReason : null;
+
+    return (
+        <>
+            <p data-test="status-reason">{t('b2b::company.status.rejected.body', { reason })}</p>
+            {since !== null ? (
+                <p data-test="reinstated">{t('b2b::company.status.reinstated', { reason: since })}</p>
+            ) : null}
+        </>
     );
 }
 

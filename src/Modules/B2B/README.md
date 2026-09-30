@@ -42,7 +42,7 @@ with each step.
 | `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated`; `AnonymizeCompany`, on Access's `CustomerAnonymized`, from the queue |
 | `Infrastructure/Media` | `ApplicationFilesUsage`: B2B's answer when Platform asks where a file is used |
 | `Infrastructure/Settings` | `BankTransferLine`: the line at the top of the Companies settings section — bank transfer on, or temporarily off |
-| `Infrastructure/Persistence/Migrations` | The `b2b` schema; the two type tables and the stores' "copied" flags; the companies, applications and their files; a rejection's flags and requests and a draft's answers |
+| `Infrastructure/Persistence/Migrations` | The `b2b` schema; the two type tables and the stores' "copied" flags; the companies, applications and their files; a rejection's flags and requests and a draft's answers; the applications' numbers and the yearly counter behind them |
 | `Presentation/Http` | The company's own page (step 6): `MyCompanyController`, its two form requests, and the page's data (`CompanyPage` and its parts, built by `CompanyPages` in the home store's clock) |
 | `Presentation/Storefront` | `CompanyShopperLine`: the line under the shop's header while a company account cannot order |
 | `Presentation/routes.php` | The page and its posts, under `/{store}/{locale}/account/company`, signed-in customers only |
@@ -369,9 +369,19 @@ an email not confirmed yet, costs no query), and then asks `CompanyStandings` fo
 
 **The form saves itself.** Each field is posted alone when the person leaves it, each file the
 moment it is chosen; `SaveApplicationDraft` changes only the fields sent. A value the domain
-refuses comes back on its own field (`InvalidCompanyAttribute`'s attribute), a paper's refusal
-beside its document type, an answer's beside its request, and anything else at the top of the form
-— the shop's usual toast and message. Send checks that it is complete.
+refuses comes back on its own field (`InvalidCompanyAttribute`'s attribute — "Other"'s words on the
+type's), a paper's refusal beside its document type, an answer's beside its request, and anything
+else at the top of the form — the shop's usual toast and message.
+
+**One change at a time.** Inertia runs one ordinary page request at a time and cancels the one
+before when another starts, so every save, upload and removal waits its turn in one queue in the
+page — none is ever lost — and each field keeps its own refusal until it is saved again, whatever
+the next field's answer says (the review of step 6).
+
+**Send waits for a clean form** (amendment 15(a)): not while anything is saving, nor while a field
+holds a refused value or one not yet saved, and not twice — what is sent is what the page shows.
+A press that leaves a field starts that field's save, so the press itself does nothing and a second
+one sends. Send then checks that the draft is complete.
 
 **Every application is numbered when it is sent** (§1.2, amendment 14(g)): `TW-CO-26-0001` — the
 year as the home store's clock reads it, and a count restarting at `0001` each year, across every

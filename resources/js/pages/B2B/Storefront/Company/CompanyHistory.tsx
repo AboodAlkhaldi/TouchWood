@@ -25,9 +25,9 @@ export function CompanyHistory({ history, documentTypes }: { history: CompanyApp
     return (
         <Card title={t('b2b::company.section.history')} test="history">
             <ul className="grid gap-2">
-                {history.map((application) => (
+                {history.map((application, index) => (
                     <li key={application.id}>
-                        <SentApplication application={application} documentTypes={documentTypes} />
+                        <SentApplication application={application} previous={history[index + 1] ?? null} documentTypes={documentTypes} />
                     </li>
                 ))}
             </ul>
@@ -38,10 +38,13 @@ export function CompanyHistory({ history, documentTypes }: { history: CompanyApp
 /** One sent application, closed to a line until it is opened. */
 export function SentApplication({
     application,
+    previous = null,
     documentTypes,
     open = false,
 }: {
     application: CompanyApplicationData;
+    /** The application sent before it, whose requests its answers reply to. */
+    previous?: CompanyApplicationData | null;
     documentTypes: CompanyTypeOptionData[];
     open?: boolean;
 }) {
@@ -60,10 +63,11 @@ export function SentApplication({
         address: values.address,
     };
 
+    // A type since hidden from the form is not in the home store's list any more; it is still named.
     const typeName = (id: string | null): string => {
         const known = documentTypes.find((type) => type.id === id);
 
-        return known === undefined ? '' : nameOf(known, locale);
+        return known === undefined ? t('b2b::company.document_gone') : nameOf(known, locale);
     };
 
     return (
@@ -119,6 +123,31 @@ export function SentApplication({
                             </li>
                         ))}
                     </ul>
+                ) : null}
+
+                {/* What it answered: the requests of the application rejected before it (§1.2). */}
+                {application.answers.length > 0 ? (
+                    <div className="grid gap-1">
+                        <h3 className="text-xs font-semibold text-ink-muted">{t('b2b::company.answers_sent')}</h3>
+                        <ul className="grid gap-2 text-sm text-ink">
+                            {application.answers.map((answer) => (
+                                <li key={answer.requestId} className="grid gap-0.5">
+                                    <span>{previous?.requests.find((request) => request.id === answer.requestId)?.label ?? ''}</span>
+                                    {answer.text !== null ? <span className="whitespace-pre-line text-ink-muted">{answer.text}</span> : null}
+                                    {answer.mediaId !== null ? (
+                                        <a
+                                            href={link('storefront.company.file', { file: answer.mediaId })}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-brand hover:underline"
+                                        >
+                                            {t('b2b::company.open')}
+                                        </a>
+                                    ) : null}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 ) : null}
 
                 {application.flags.length > 0 ? (

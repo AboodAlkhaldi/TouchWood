@@ -202,6 +202,26 @@ it('keeps "Other" as the company\'s own words, and a listed type as its id', fun
         ->and([$listed['companyTypeId'], $listed['companyTypeOther']])->toBe([B2BFixtures::companyTypes()[0]->id(), null]);
 });
 
+it('answers "Other" words it refuses on the type, the one field the page has for them', function () {
+    $browser = myCompanySignedIn(B2BFixtures::verifiedCompanyAccount());
+    $browser->post('/sa/en/account/company/draft/start');
+
+    $refused = $browser->post('/sa/en/account/company/draft', ['company_type_id' => null, 'company_type_other' => str_repeat('a', 101)]);
+
+    expect(array_keys(myCompanyErrors($refused)))->toBe(['company_type']);
+});
+
+it('refuses an empty address in the page\'s own language', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::approved($customerId);
+    $browser = myCompanySignedIn($customerId);
+
+    $refused = $browser->post('/sa/ar/account/company/address', ['address' => '']);
+
+    expect(myCompanyErrors($refused))->toHaveKey('address')
+        ->and(myCompanyErrors($refused)['address'])->toBe(trans('b2b::errors.invalid_company_attribute.detail', ['attribute' => trans('b2b::errors.fields.address', [], 'ar')], 'ar'));
+});
+
 it('takes a paper under its type, opens it through a link that expires, and removes it', function () {
     $browser = myCompanySignedIn(B2BFixtures::verifiedCompanyAccount());
     $browser->post('/sa/en/account/company/draft/start');

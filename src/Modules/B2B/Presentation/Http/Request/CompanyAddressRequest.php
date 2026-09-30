@@ -8,7 +8,9 @@ use Illuminate\Foundation\Http\FormRequest;
 
 /**
  * The company's address, changed on its own and saved at once (b2b.md §4.5, UpdateCompanyContact).
- * Shape only: the domain decides what an address may hold.
+ * Shape only: the domain decides what an address may hold — an empty one included, so the refusal
+ * reads in the page's language (the project has no translated validation messages; the review of
+ * step 6).
  */
 final class CompanyAddressRequest extends FormRequest
 {
@@ -23,7 +25,7 @@ final class CompanyAddressRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'address' => ['required', 'string'],
+            'address' => ['nullable', 'string'],
         ];
     }
 

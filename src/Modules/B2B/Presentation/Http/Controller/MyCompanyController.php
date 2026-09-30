@@ -86,7 +86,8 @@ final readonly class MyCompanyController
         try {
             $handler->handle(new SaveApplicationDraft($request->fields()));
         } catch (InvalidCompanyAttribute $error) {
-            return self::refused($request, $error, $error->attribute);
+            // "Other"'s words are part of the type on the page: one field, one place for its refusal.
+            return self::refused($request, $error, $error->attribute === 'company_type_other' ? 'company_type' : $error->attribute);
         } catch (CompanyTypeInactive $error) {
             return self::refused($request, $error, 'company_type');
         } catch (DomainError $error) {

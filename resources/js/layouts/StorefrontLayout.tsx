@@ -146,10 +146,12 @@ function ShopperLines({ lines }: { lines: ShopperLine[] }) {
         return null;
     }
 
+    // The background says the tone; the words stay in the page's own ink, which reads on every one
+    // of them — warn's own colour on its soft background did not (3.25:1, the review of step 6).
     const tones: Record<ShopperLine['tone'], string> = {
-        info: 'bg-brand-soft text-brand',
-        warn: 'bg-warn-soft text-warn',
-        bad: 'bg-bad-soft text-bad',
+        info: 'bg-brand-soft text-ink',
+        warn: 'bg-warn-soft text-ink',
+        bad: 'bg-bad-soft text-ink',
     };
 
     return (
