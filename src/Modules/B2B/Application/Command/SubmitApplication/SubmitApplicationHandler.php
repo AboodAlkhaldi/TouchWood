@@ -12,6 +12,7 @@ use Modules\B2B\Application\Audit\CompanyAccountAudit;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Draft\OpenDrafts;
 use Modules\B2B\Application\Events\CompanyEvents;
+use Modules\B2B\Application\Settings\FormRules;
 use Modules\B2B\Domain\Exception\ApplicationNotEditable;
 use Modules\B2B\Domain\Exception\ApplicationNotFound;
 use Modules\B2B\Domain\Exception\CompanySuspended;
@@ -67,6 +68,7 @@ final readonly class SubmitApplicationHandler
         private CompanyEvents $events,
         private PlatformApi $platform,
         private ApplicationReferenceCounter $references,
+        private FormRules $rules,
         private ConnectionInterface $db,
     ) {}
 
@@ -95,6 +97,17 @@ final readonly class SubmitApplicationHandler
             // since the company takes it from the account (§1.1).
             $homeStoreId = $company?->homeStoreId() ?? $account->homeStoreId;
             $companyId = $company?->id() ?? $this->companies->nextId();
+
+            // Every value again, against today's minimums: one saved before a minimum was raised
+            // is not sent (amendment 16(b)). Before the number is taken, so a refusal takes none.
+            $this->rules->hold('name', $draft->name()?->value);
+            $this->rules->hold('cr_number', $draft->crNumber()?->value);
+            $this->rules->hold('tax_number', $draft->taxNumber()?->value);
+            $this->rules->hold('company_type_other', $draft->type()?->other);
+
+            foreach ($draft->answers() as $answer) {
+                $this->rules->hold('answer', $answer->text?->value);
+            }
 
             $details = $draft->submit(
                 $companyId,

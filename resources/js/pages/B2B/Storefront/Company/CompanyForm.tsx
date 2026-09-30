@@ -1,6 +1,6 @@
 import { type ChangeEvent, createContext, type RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { router } from '@inertiajs/react';
-import { Field } from '@/components/Field';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { isolate } from '@/lib/bidi';
@@ -10,30 +10,34 @@ import type {
     CompanyAnswerData,
     CompanyApplicationData,
     CompanyDraftData,
+    CompanyFieldRuleData,
     CompanyFileData,
     CompanyPage,
     CompanyRequestData,
     CompanyTypeOptionData,
 } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
+import { AddressPicker, border, check, FieldState, type Look } from './fields';
 import { Card, nameOf, useLocale, when } from './parts';
 
 /*
-| The company form (b2b.md §4.5, amendments 14(a) and 15(a)): company details, documents, what the
-| last rejection asked for, and a note — then Send.
+| The company form (b2b.md §4.5, amendments 14(a), 15(a) and 16): company details, documents, what
+| the last rejection asked for, and a note — then Send.
 |
 | **It saves itself.** A field is saved when the person leaves it, a file the moment it is chosen,
-| so a value the domain refuses is shown on its own field while they are still there (amendment 4)
-| and nothing is lost by walking away. Each save sends that one field; the rest of the draft keeps
-| what it holds. Only Send asks whether it is complete.
+| an address the moment it is picked, so nothing is lost by walking away. Each save sends that one
+| field; the rest of the draft keeps what it holds.
+|
+| **Each field says where it stands** (amendment 16(a)): yellow while it is not valid — and then it
+| is never sent —, "Saving…", green "Saved" once the server holds it, red with the server's reason
+| if it refuses. The rules are the server's own (CompanyPage::formRules).
 |
 | **One change at a time, in the order made.** Every save, upload and removal waits in one queue:
 | a page request started while another runs would cancel it, and a save, a refusal or a paper would
-| be lost without a word (the review of step 6). Each field keeps its own refusal until it is saved
-| again — the next field's answer does not wipe it.
+| be lost without a word (the review of step 6). A save never stops the person filling the others.
 |
-| **Send waits for a clean form** (amendment 15(a)): not while anything is saving, nor while a field
-| holds a refused value or one not saved yet — the page says to finish the marked fields — and not
-| twice. What is sent is what the page shows.
+| **Send is inactive until everything is complete** (amendment 16(d)), with what is missing listed
+| beside it — and not while anything is saving, nor while a field is not saved or not valid
+| (amendment 15(a)), nor twice. What is sent is what the page shows; the server checks it again.
 |
 | After a rejection, what it marked is marked here until it is replaced — a field once it differs
 | from what was sent, a paper once a new file is under its type (§1.2). A mark on a document type no
@@ -49,13 +53,16 @@ type Props = {
     changing: boolean;
 };
 
-/** Where one field stands: waiting to be saved, being saved, or refused. */
-type Standing = 'unsaved' | 'saving' | 'refused';
+/** Where one field stands while it keeps Send waiting. */
+type Standing = 'invalid' | 'unsaved' | 'saving' | 'refused';
+
+/** A refusal belongs to the value refused: changing the value takes it away. */
+type Refusal = { value: string; message: string };
 
 type Changes = {
     /** Queues one change; `start` sends it and calls `finish` once it has an answer. */
     queue: (start: (finish: () => void) => void) => void;
-    /** A field says where it stands, or null once it holds what the server holds. */
+    /** A field says where it stands, or null once nothing about it keeps Send waiting. */
     report: (field: string, standing: Standing | null) => void;
 };
 
@@ -71,10 +78,12 @@ function useChanges(): Changes {
     return changes;
 }
 
-const DETAILS = ['cr_number', 'tax_number', 'address'] as const;
+const NUMBERS = ['cr_number', 'tax_number'] as const;
 const OTHER = 'other';
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
 const MEGABYTE = 1048576;
+
+type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 export function CompanyForm({ page, draft, lastSent, changing }: Props) {
     const t = useTranslator();
@@ -129,24 +138,18 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
         [next],
     );
 
-    const flagged = (field: string): boolean => draft.flags.some((flag) => flag.field === field);
-    const sentValue = (field: string): string | null => {
-        const values = lastSent?.values;
-
-        return values === undefined ? null : (fieldValues(values)[field] ?? null);
-    };
-    // Replaced when it differs, exactly after trimming, from what the rejection saw (§3.1).
-    const stillFlagged = (field: string): boolean =>
-        flagged(field) && (fieldValues(draft.values)[field] ?? '').trim() === (sentValue(field) ?? '').trim();
-
+    const stillFlagged = (field: string): boolean => fieldStillFlagged(field, draft, lastSent);
     const required = page.documentTypes.filter((type) => type.required && !type.greyed);
     const held = (typeId: string): CompanyFileData | undefined =>
         draft.documents.find((document) => document.documentTypeId === typeId);
     const done = required.filter((type) => held(type.id) !== undefined).length;
     // A held paper under a type no longer on the list: it must be removed before sending.
     const orphans = draft.documents.filter((document) => !page.documentTypes.some((type) => type.id === document.documentTypeId));
-    const unfinished = Object.keys(standings).length > 0;
-    const blocked = done < required.length || unfinished || waiting > 0 || sending;
+    const missing = [
+        ...missingItems(page, draft, lastSent, t),
+        ...(Object.keys(standings).length > 0 ? [t('b2b::company.missing_marked')] : []),
+    ];
+    const blocked = missing.length > 0 || waiting > 0 || sending;
 
     return (
         <ChangesContext.Provider value={changes}>
@@ -155,19 +158,28 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
 
                 <Card title={t('b2b::company.section.details')} hint={t('b2b::company.section.details_hint')} test="details">
                     <div className="grid gap-4">
-                        <SavedText field="name" label={t('b2b::company.field.name')} saved={draft.values.name} flagged={stillFlagged('name')} />
-                        <TypeChoice options={page.companyTypes} draft={draft} flagged={stillFlagged('company_type')} locale={locale} />
-                        {DETAILS.map((field) => (
+                        <SavedText
+                            field="name"
+                            label={t('b2b::company.field.name')}
+                            saved={draft.values.name}
+                            rule={page.formRules.name}
+                            required
+                            flagged={stillFlagged('name')}
+                        />
+                        <TypeChoice options={page.companyTypes} draft={draft} rule={page.formRules.company_type_other} flagged={stillFlagged('company_type')} locale={locale} />
+                        {NUMBERS.map((field) => (
                             <SavedText
                                 key={field}
                                 field={field}
                                 label={t(`b2b::company.field.${field}`)}
                                 saved={fieldValues(draft.values)[field] ?? null}
+                                rule={page.formRules[field]}
+                                required
                                 flagged={stillFlagged(field)}
-                                multiline={field === 'address'}
-                                figures={field !== 'address'}
+                                figures
                             />
                         ))}
+                        <DraftAddress page={page} draft={draft} flagged={stillFlagged('address')} locale={locale} />
                     </div>
                 </Card>
 
@@ -185,6 +197,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                                 key={type.id}
                                 type={type}
                                 file={held(type.id)}
+                                others={draft.documents.filter((document) => document.documentTypeId !== type.id)}
                                 flagged={draft.flags.some((flag) => flag.documentTypeId === type.id)}
                                 sentMediaId={lastSent?.documents.find((document) => document.documentTypeId === type.id)?.mediaId ?? null}
                                 maxBytes={page.maxFileBytes}
@@ -196,6 +209,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                                 key={file.documentTypeId}
                                 type={{ id: file.documentTypeId, nameAr: file.documentTypeNameAr ?? '', nameEn: file.documentTypeNameEn ?? '', greyed: true, required: false }}
                                 file={file}
+                                others={[]}
                                 flagged={false}
                                 sentMediaId={null}
                                 maxBytes={page.maxFileBytes}
@@ -213,6 +227,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                                     key={request.id}
                                     request={request}
                                     answer={draft.answers.find((answer) => answer.requestId === request.id) ?? null}
+                                    rule={page.formRules.answer}
                                     maxBytes={page.maxFileBytes}
                                 />
                             ))}
@@ -221,15 +236,15 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                 ) : null}
 
                 <Card title={t('b2b::company.section.note')} test="note">
-                    <SavedText field="note" label={t('b2b::company.field.note')} saved={draft.values.note} multiline />
+                    <SavedText field="note" label={t('b2b::company.field.note')} saved={draft.values.note} rule={page.formRules.note} required={false} multiline />
                 </Card>
 
                 <div className="grid gap-3">
                     {changing ? <Warning /> : null}
 
-                    {unfinished ? (
-                        <p role="status" className="text-sm text-bad" data-test="send-blocked">
-                            {t('b2b::company.send_blocked')}
+                    {missing.length > 0 ? (
+                        <p role="status" className="text-sm text-ink-muted" data-test="send-missing">
+                            {t('b2b::company.missing', { items: missing.join(t('b2b::company.separator')) })}
                         </p>
                     ) : null}
 
@@ -243,9 +258,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                                 router.post(link('storefront.company.send'), {}, { preserveScroll: true, onFinish: () => setSending(false) });
                             }}
                         >
-                            {done < required.length
-                                ? t('b2b::company.send_missing', { done, total: required.length })
-                                : t('b2b::company.send')}
+                            {t('b2b::company.send')}
                         </Button>
                         <Button type="button" variant="outline" data-test="discard" onClick={() => setConfirmingDiscard((open) => !open)}>
                             {t('b2b::company.discard')}
@@ -269,6 +282,82 @@ function fieldValues(values: CompanyDraftData['values']): Record<string, string 
         address: values.address,
         note: values.note,
     };
+}
+
+/** A value as the server keeps it: line breaks as one, and nothing at either end. */
+function normal(value: string): string {
+    return value.replace(/\r\n?/g, '\n').trim();
+}
+
+/** Marked by the last rejection and not replaced: the same, after trimming, as what it saw (§3.1). */
+function fieldStillFlagged(field: string, draft: CompanyDraftData, lastSent: CompanyApplicationData | null): boolean {
+    const sent = lastSent === null ? null : (fieldValues(lastSent.values)[field] ?? null);
+
+    return draft.flags.some((flag) => flag.field === field) && (fieldValues(draft.values)[field] ?? '').trim() === (sent ?? '').trim();
+}
+
+/**
+ * What the draft still needs before it can be sent (amendment 16(d)) — the same list the server
+ * refuses on (§1.2): every value, a type still accepted, every required paper, nothing no longer
+ * accepted, every marked item replaced, every request answered.
+ */
+export function missingItems(page: CompanyPage, draft: CompanyDraftData, lastSent: CompanyApplicationData | null, t: Translate): string[] {
+    const values = fieldValues(draft.values);
+    const items = (['name', 'company_type', 'cr_number', 'tax_number', 'address'] as const)
+        .filter((field) => values[field] === null || (field === 'company_type' && draft.typeNoLongerAccepted))
+        .map((field) => t(`b2b::company.field.${field}`));
+
+    const documents = page.documentTypes.filter(
+        (type) => type.required && !type.greyed && !draft.documents.some((document) => document.documentTypeId === type.id),
+    ).length;
+    const notAccepted = draft.documents.filter((document) => document.noLongerAccepted).length;
+    const flagged = draft.flags.filter((flag) => {
+        if (flag.documentTypeId === null) {
+            return flag.field !== null && fieldStillFlagged(flag.field, draft, lastSent);
+        }
+
+        // A mark on a type no longer offered stops counting (§3.1).
+        const type = page.documentTypes.find((offered) => offered.id === flag.documentTypeId);
+        const file = draft.documents.find((document) => document.documentTypeId === flag.documentTypeId);
+        const sent = lastSent?.documents.find((document) => document.documentTypeId === flag.documentTypeId)?.mediaId ?? null;
+
+        return type !== undefined && !type.greyed && (file === undefined || file.mediaId === sent);
+    }).length;
+    const answers = draft.requests.filter((request) => !draft.answers.some((answer) => answer.requestId === request.id)).length;
+
+    return [
+        ...items,
+        ...(documents > 0 ? [t('b2b::company.missing_documents', { count: documents })] : []),
+        ...(notAccepted > 0 ? [t('b2b::company.missing_not_accepted', { count: notAccepted })] : []),
+        ...(flagged > 0 ? [t('b2b::company.missing_flagged', { count: flagged })] : []),
+        ...(answers > 0 ? [t('b2b::company.missing_answers', { count: answers })] : []),
+    ];
+}
+
+/** Where a field stands, the strongest first. */
+function lookOf({ saving, refused, invalid, unsaved, saved }: { saving: boolean; refused: boolean; invalid: boolean; unsaved: boolean; saved: boolean }): Look {
+    if (saving) {
+        return 'saving';
+    }
+
+    if (refused) {
+        return 'refused';
+    }
+
+    if (invalid) {
+        return 'invalid';
+    }
+
+    if (unsaved) {
+        return 'unsaved';
+    }
+
+    return saved ? 'saved' : 'idle';
+}
+
+/** What keeps Send waiting, from how a field looks. */
+function standingOf(look: Look): Standing | null {
+    return look === 'saving' || look === 'refused' || look === 'invalid' || look === 'unsaved' ? look : null;
 }
 
 /** What sending a change does to an approved company, before it is sent (§1.1, amendment 14(e)). */
@@ -339,60 +428,65 @@ function useSend(): (url: string, data: Record<string, string | File | null>, do
         });
 }
 
-/** A line under a field that is always there, so "Saving…" appearing never moves what is below. */
-function Progress({ id, saving }: { id: string; saving: boolean }) {
-    const t = useTranslator();
-
-    return (
-        <p id={id} role="status" aria-live="polite" className="mt-1 min-h-4 text-xs text-ink-muted">
-            {saving ? t('b2b::company.saving') : ''}
-        </p>
-    );
-}
-
 type SavedTextProps = {
     field: string;
     label: string;
     saved: string | null;
+    rule: CompanyFieldRuleData | undefined;
+    required: boolean;
     flagged?: boolean;
     multiline?: boolean;
     figures?: boolean;
 };
 
-/** A text field that saves itself when the person leaves it — only when it changed. */
-function SavedText({ field, label, saved, flagged = false, multiline = false, figures = false }: SavedTextProps) {
+/**
+ * A text field that saves itself when the person leaves it — only when it changed, and never while
+ * it is not valid. An empty field nobody has left yet is not marked: it is listed beside Send.
+ */
+function SavedText({ field, label, saved, rule, required, flagged = false, multiline = false, figures = false }: SavedTextProps) {
     const t = useTranslator();
     const link = useLink();
     const send = useSend();
     const { report } = useChanges();
     const [value, setValue] = useState(saved ?? '');
-    const [refusal, setRefusal] = useState<string | null>(null);
+    const [left, setLeft] = useState(false);
+    const [refusal, setRefusal] = useState<Refusal | null>(null);
     const [saving, setSaving] = useState(false);
 
     // The draft as the server now holds it, whenever that changes — not on every re-render, which
-    // would throw away a refused value the person is still correcting.
+    // would throw away a value the person is still correcting.
     useEffect(() => setValue(saved ?? ''), [saved]);
 
-    const unsaved = value !== (saved ?? '');
+    const unsaved = normal(value) !== normal(saved ?? '');
+    const problem = check(value, rule, required, t);
+    const look = lookOf({
+        saving,
+        refused: refusal !== null && refusal.value === value,
+        invalid: problem !== null && (left || value.trim() !== '' || (saved ?? '') !== ''),
+        unsaved,
+        saved: (saved ?? '') !== '',
+    });
 
-    useEffect(() => {
-        report(field, saving ? 'saving' : refusal !== null ? 'refused' : unsaved ? 'unsaved' : null);
-    }, [report, field, saving, refusal, unsaved]);
+    useEffect(() => report(field, standingOf(look)), [report, field, look]);
 
     // A field that leaves the page leaves nothing behind for Send to wait on.
     useEffect(() => () => report(field, null), [report, field]);
 
     const leave = () => {
-        if (!unsaved) {
+        setLeft(true);
+
+        // Never sent while it is not valid (amendment 16(a)): it stays yellow until it is.
+        if (!unsaved || problem !== null) {
             return;
         }
 
+        const sent = value;
         setSaving(true);
         send(
             link('storefront.company.save'),
-            { [field]: value.trim() === '' ? null : value },
+            { [field]: normal(sent) === '' ? null : sent },
             (refused) => {
-                setRefusal(refused);
+                setRefusal(refused === null ? null : { value: sent, message: refused });
                 setSaving(false);
             },
             field,
@@ -404,48 +498,55 @@ function SavedText({ field, label, saved, flagged = false, multiline = false, fi
         id,
         name: field,
         value,
-        'aria-invalid': refusal !== null ? true : undefined,
-        'aria-describedby': `${id}-progress${refusal !== null ? ` ${id}-error` : ''}`,
+        'aria-invalid': look === 'invalid' || look === 'refused' ? true : undefined,
+        'aria-describedby': `${id}-state`,
         'data-test': `field-${field}`,
+        'data-look': look,
         dir: figures ? ('ltr' as const) : undefined,
         onBlur: leave,
     };
 
     return (
-        <Field id={id} label={label} error={refusal ?? undefined}>
+        <div className="grid gap-1.5">
+            <Label htmlFor={id} className="text-ink">
+                {label}
+            </Label>
             {multiline ? (
                 <textarea
                     {...common}
                     rows={3}
                     onChange={(event) => setValue(event.target.value)}
-                    className="w-full rounded-md border border-line-strong bg-surface p-3 text-sm text-ink"
+                    className={['w-full rounded-md border bg-surface p-3 text-sm text-ink', border(look)].join(' ')}
                 />
             ) : (
-                <Input {...common} onChange={(event) => setValue(event.target.value)} />
+                <Input {...common} className={border(look)} onChange={(event) => setValue(event.target.value)} />
             )}
             {flagged ? (
-                <p className="mt-1 text-xs text-bad" data-test="flagged">
+                <p className="text-xs text-bad" data-test="flagged">
                     {t('b2b::company.flagged')}
                 </p>
             ) : null}
-            <Progress id={`${id}-progress`} saving={saving} />
-        </Field>
+            <FieldState id={`${id}-state`} look={look} message={look === 'refused' ? (refusal?.message ?? null) : problem} />
+        </div>
     );
 }
 
 /**
  * The company type: one of the home store's, or "Other" and the company's own words (§1.3). A
  * greyed type is shown and cannot be chosen. Choosing "Other" saves nothing until the words are
- * left — the type chosen before stays until then, and Send waits.
+ * valid and left — the type chosen before stays until then, and Send waits. Going back to
+ * "Choose…" is not a choice, and is not sent.
  */
 function TypeChoice({
     options,
     draft,
+    rule,
     flagged,
     locale,
 }: {
     options: CompanyTypeOptionData[];
     draft: CompanyDraftData;
+    rule: CompanyFieldRuleData | undefined;
     flagged: boolean;
     locale: 'ar' | 'en';
 }) {
@@ -457,53 +558,72 @@ function TypeChoice({
     const savedWords = draft.values.companyTypeOther ?? '';
     const [choice, setChoice] = useState(savedChoice);
     const [words, setWords] = useState(savedWords);
-    const [refusal, setRefusal] = useState<string | null>(null);
+    const [left, setLeft] = useState(false);
+    const [refusal, setRefusal] = useState<Refusal | null>(null);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => setChoice(savedChoice), [savedChoice]);
     useEffect(() => setWords(savedWords), [savedWords]);
 
-    const unsaved = choice !== savedChoice || (choice === OTHER && words !== savedWords);
+    const other = choice === OTHER;
+    // What the page would send, so a refusal is known to be about what is on screen.
+    const shown = other ? `${OTHER}:${words}` : choice;
+    const refused = refusal !== null && refusal.value === shown;
+    const unsaved = choice !== savedChoice || (other && normal(words) !== normal(savedWords));
+    const choiceProblem = choice === '' ? t('b2b::company.check.required') : null;
+    const wordsProblem = other ? check(words, rule, true, t) : null;
 
-    useEffect(() => {
-        report('company_type', saving ? 'saving' : refusal !== null ? 'refused' : unsaved ? 'unsaved' : null);
-    }, [report, saving, refusal, unsaved]);
+    const selectLook = other
+        ? 'idle'
+        : lookOf({ saving, refused, invalid: choiceProblem !== null && (left || savedChoice !== ''), unsaved, saved: savedChoice !== '' });
+    const wordsLook = lookOf({
+        saving,
+        refused,
+        invalid: wordsProblem !== null && (left || words.trim() !== '' || savedWords !== ''),
+        unsaved,
+        saved: savedChoice === OTHER,
+    });
+
+    useEffect(() => report('company_type', standingOf(other ? wordsLook : selectLook)), [report, other, wordsLook, selectLook]);
 
     useEffect(() => () => report('company_type', null), [report]);
 
-    const save = (fields: Record<string, string | null>) => {
+    const save = (fields: Record<string, string | null>, sent: string) => {
         setSaving(true);
         send(
             link('storefront.company.save'),
             fields,
-            (refused) => {
-                setRefusal(refused);
+            (refusedWith) => {
+                setRefusal(refusedWith === null ? null : { value: sent, message: refusedWith });
                 setSaving(false);
             },
             'company_type',
         );
     };
 
-    const describedBy = `company-type-progress${refusal !== null ? ' company-type-error' : ''}`;
-
     return (
         <div className="grid gap-3">
-            <Field id="company-type" label={t('b2b::company.field.company_type')} error={choice === OTHER ? undefined : (refusal ?? undefined)}>
+            <div className="grid gap-1.5">
+                <Label htmlFor="company-type" className="text-ink">
+                    {t('b2b::company.field.company_type')}
+                </Label>
                 <select
                     id="company-type"
                     data-test="field-company_type"
+                    data-look={selectLook}
                     value={choice}
-                    aria-invalid={refusal !== null && choice !== OTHER ? true : undefined}
-                    aria-describedby={describedBy}
+                    aria-invalid={selectLook === 'invalid' || selectLook === 'refused' ? true : undefined}
+                    aria-describedby="company-type-state"
                     onChange={(event) => {
                         const chosen = event.target.value;
                         setChoice(chosen);
+                        setLeft(true);
 
-                        if (chosen !== OTHER) {
-                            save({ company_type_id: chosen === '' ? null : chosen, company_type_other: null });
+                        if (chosen !== OTHER && chosen !== '') {
+                            save({ company_type_id: chosen, company_type_other: null }, chosen);
                         }
                     }}
-                    className="h-9 w-full rounded-md border border-line-strong bg-surface px-3 text-sm text-ink"
+                    className={['h-9 w-full rounded-md border bg-surface px-3 text-sm text-ink', border(selectLook)].join(' ')}
                 >
                     <option value="">{t('b2b::company.field.choose')}</option>
                     {options.map((option) => (
@@ -515,35 +635,97 @@ function TypeChoice({
                     <option value={OTHER}>{t('b2b::company.field.other')}</option>
                 </select>
                 {draft.typeNoLongerAccepted ? (
-                    <p className="mt-1 text-xs text-bad" data-test="type-no-longer">
+                    <p className="text-xs text-bad" data-test="type-no-longer">
                         {t('b2b::company.type_no_longer')}
                     </p>
                 ) : null}
                 {flagged ? (
-                    <p className="mt-1 text-xs text-bad" data-test="flagged">
+                    <p className="text-xs text-bad" data-test="flagged">
                         {t('b2b::company.flagged')}
                     </p>
                 ) : null}
-                <Progress id="company-type-progress" saving={saving && choice !== OTHER} />
-            </Field>
+                <FieldState id="company-type-state" look={selectLook} message={selectLook === 'refused' ? (refusal?.message ?? null) : choiceProblem} />
+            </div>
 
-            {choice === OTHER ? (
-                <Field id="company-type-other" label={t('b2b::company.field.other_words')} error={refusal ?? undefined}>
+            {other ? (
+                <div className="grid gap-1.5">
+                    <Label htmlFor="company-type-other" className="text-ink">
+                        {t('b2b::company.field.other_words')}
+                    </Label>
                     <Input
                         id="company-type-other"
                         data-test="field-company_type_other"
+                        data-look={wordsLook}
                         value={words}
-                        aria-invalid={refusal !== null ? true : undefined}
-                        aria-describedby={`company-type-other-progress${refusal !== null ? ' company-type-other-error' : ''}`}
+                        className={border(wordsLook)}
+                        aria-invalid={wordsLook === 'invalid' || wordsLook === 'refused' ? true : undefined}
+                        aria-describedby="company-type-other-state"
                         onChange={(event) => setWords(event.target.value)}
                         onBlur={() => {
-                            if (unsaved && words.trim() !== '') {
-                                save({ company_type_id: null, company_type_other: words });
+                            setLeft(true);
+
+                            if (unsaved && wordsProblem === null) {
+                                save({ company_type_id: null, company_type_other: words }, `${OTHER}:${words}`);
                             }
                         }}
                     />
-                    <Progress id="company-type-other-progress" saving={saving} />
-                </Field>
+                    <FieldState
+                        id="company-type-other-state"
+                        look={wordsLook}
+                        message={wordsLook === 'refused' ? (refusal?.message ?? null) : wordsProblem}
+                    />
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+/**
+ * The address, picked from the account's saved addresses and saved the moment it is picked
+ * (amendment 16(f)). A pick the server refuses leaves the one saved before, and says why in red.
+ */
+function DraftAddress({ page, draft, flagged, locale }: { page: CompanyPage; draft: CompanyDraftData; flagged: boolean; locale: 'ar' | 'en' }) {
+    const t = useTranslator();
+    const link = useLink();
+    const send = useSend();
+    const { report } = useChanges();
+    const [picking, setPicking] = useState<string | null>(null);
+    const [refusal, setRefusal] = useState<string | null>(null);
+    const look = lookOf({ saving: picking !== null, refused: refusal !== null, invalid: false, unsaved: false, saved: draft.values.address !== null });
+
+    // Only a save under way keeps Send waiting: a refused pick changes nothing that was saved.
+    useEffect(() => report('address', picking !== null ? 'saving' : null), [report, picking]);
+
+    useEffect(() => () => report('address', null), [report]);
+
+    return (
+        <div className="grid gap-1.5">
+            <AddressPicker
+                addresses={page.savedAddresses}
+                pickedId={picking ?? draft.values.addressId}
+                kept={draft.values.address}
+                look={look}
+                message={refusal}
+                disabled={picking !== null}
+                locale={locale}
+                onPick={(addressId) => {
+                    setPicking(addressId);
+                    setRefusal(null);
+                    send(
+                        link('storefront.company.save'),
+                        { address_id: addressId },
+                        (refused) => {
+                            setRefusal(refused);
+                            setPicking(null);
+                        },
+                        'address',
+                    );
+                }}
+            />
+            {flagged ? (
+                <p className="text-xs text-bad" data-test="flagged">
+                    {t('b2b::company.flagged')}
+                </p>
             ) : null}
         </div>
     );
@@ -554,18 +736,28 @@ function useFilePicker(
     url: string,
     maxBytes: number,
     errorKey: string,
-): { input: RefObject<HTMLInputElement | null>; pick: () => void; onChange: (event: ChangeEvent<HTMLInputElement>) => void; sending: boolean; refusal: string | null } {
+    precheck: (file: File) => string | null = () => null,
+): {
+    input: RefObject<HTMLInputElement | null>;
+    pick: () => void;
+    onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+    sending: boolean;
+    refusal: string | null;
+    warning: string | null;
+} {
     const t = useTranslator();
     const send = useSend();
     const input = useRef<HTMLInputElement | null>(null);
     const [sending, setSending] = useState(false);
     const [refusal, setRefusal] = useState<string | null>(null);
+    const [warning, setWarning] = useState<string | null>(null);
 
     return {
         input,
         pick: () => input.current?.click(),
         sending,
         refusal,
+        warning,
         onChange: (event) => {
             const file = event.target.files?.[0];
             event.target.value = '';
@@ -574,14 +766,22 @@ function useFilePicker(
                 return;
             }
 
+            setRefusal(null);
+
             // Said at once, rather than after sending ten megabytes the server will refuse.
             if (file.size > maxBytes) {
-                setRefusal(t('b2b::company.too_large', { size: Math.round(maxBytes / MEGABYTE) }));
+                setWarning(t('b2b::company.too_large', { size: Math.round(maxBytes / MEGABYTE) }));
 
                 return;
             }
 
-            setRefusal(null);
+            const problem = precheck(file);
+            setWarning(problem);
+
+            if (problem !== null) {
+                return;
+            }
+
             setSending(true);
             send(
                 url,
@@ -599,6 +799,7 @@ function useFilePicker(
 function DocumentRow({
     type,
     file,
+    others,
     flagged,
     sentMediaId,
     maxBytes,
@@ -606,6 +807,8 @@ function DocumentRow({
 }: {
     type: CompanyTypeOptionData;
     file: CompanyFileData | undefined;
+    /** The papers under the draft's other document types: none of them may be the same file. */
+    others: CompanyFileData[];
     flagged: boolean;
     sentMediaId: string | null;
     maxBytes: number;
@@ -615,7 +818,15 @@ function DocumentRow({
     const link = useLink();
     const send = useSend();
     const errorKey = `documents.${type.id}`;
-    const picker = useFilePicker(link('storefront.company.attach', { type: type.id }), maxBytes, errorKey);
+    // The same file in two sections is a mistake (amendment 16(c)): by its name, exactly, before
+    // anything is uploaded. The section's own file may be replaced by one of the same name.
+    const picker = useFilePicker(link('storefront.company.attach', { type: type.id }), maxBytes, errorKey, (chosen) => {
+        const same = others.find((other) => other.fileName === chosen.name);
+
+        return same === undefined
+            ? null
+            : t('b2b::company.duplicate_file', { section: nameOf({ nameAr: same.documentTypeNameAr ?? '', nameEn: same.documentTypeNameEn ?? '' }, locale) });
+    });
     const [removal, setRemoval] = useState<string | null>(null);
     const name = nameOf(type, locale);
     // Replaced once the file under the type is not the one the rejection saw; a type no longer
@@ -686,6 +897,11 @@ function DocumentRow({
                     {t('b2b::company.flagged_document')}
                 </p>
             ) : null}
+            {picker.warning !== null ? (
+                <p role="alert" className="text-xs text-warn" data-test="file-warning">
+                    {picker.warning}
+                </p>
+            ) : null}
             {refusal !== null ? (
                 <p role="alert" className="text-xs text-bad">
                     {refusal}
@@ -695,7 +911,17 @@ function DocumentRow({
     );
 }
 
-function RequestRow({ request, answer, maxBytes }: { request: CompanyRequestData; answer: CompanyAnswerData | null; maxBytes: number }) {
+function RequestRow({
+    request,
+    answer,
+    rule,
+    maxBytes,
+}: {
+    request: CompanyRequestData;
+    answer: CompanyAnswerData | null;
+    rule: CompanyFieldRuleData | undefined;
+    maxBytes: number;
+}) {
     const t = useTranslator();
     const link = useLink();
     const send = useSend();
@@ -705,22 +931,32 @@ function RequestRow({ request, answer, maxBytes }: { request: CompanyRequestData
     const picker = useFilePicker(url, maxBytes, errorKey);
     const savedText = answer?.text ?? '';
     const [text, setText] = useState(savedText);
-    const [refusal, setRefusal] = useState<string | null>(null);
+    const [left, setLeft] = useState(false);
+    const [refusal, setRefusal] = useState<Refusal | null>(null);
+    const [removal, setRemoval] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const labelId = `request-${request.id}-label`;
-    const errorId = `request-${request.id}-error`;
+    const stateId = `request-${request.id}-state`;
+    const written = request.kind === 'TEXT';
 
     useEffect(() => setText(savedText), [savedText]);
 
-    const unsaved = request.kind === 'TEXT' && text !== savedText;
+    const problem = written ? check(text, rule, true, t) : null;
+    const look = written
+        ? lookOf({
+              saving,
+              refused: refusal !== null && refusal.value === text,
+              invalid: problem !== null && (left || text.trim() !== '' || savedText !== ''),
+              unsaved: normal(text) !== normal(savedText),
+              saved: savedText !== '',
+          })
+        : 'idle';
 
-    useEffect(() => {
-        report(`answers.${request.id}`, saving ? 'saving' : refusal !== null ? 'refused' : unsaved ? 'unsaved' : null);
-    }, [report, request.id, saving, refusal, unsaved]);
+    useEffect(() => report(`answers.${request.id}`, standingOf(look)), [report, request.id, look]);
 
     useEffect(() => () => report(`answers.${request.id}`, null), [report, request.id]);
 
-    const shown = picker.refusal ?? refusal;
+    const shown = picker.refusal ?? removal;
 
     return (
         <li className="grid gap-2" data-test={`request-${request.id}`}>
@@ -728,35 +964,39 @@ function RequestRow({ request, answer, maxBytes }: { request: CompanyRequestData
                 {request.label}
             </p>
 
-            {request.kind === 'TEXT' ? (
+            {written ? (
                 <>
                     <textarea
                         aria-labelledby={labelId}
-                        aria-invalid={shown !== null ? true : undefined}
-                        aria-describedby={`request-${request.id}-progress${shown !== null ? ` ${errorId}` : ''}`}
+                        aria-invalid={look === 'invalid' || look === 'refused' ? true : undefined}
+                        aria-describedby={stateId}
+                        data-look={look}
                         rows={3}
                         value={text}
                         onChange={(event) => setText(event.target.value)}
                         onBlur={() => {
-                            if (!unsaved) {
+                            setLeft(true);
+
+                            // An empty answer is no answer, and is not sent: it stays yellow (16(a)).
+                            if (normal(text) === normal(savedText) || problem !== null) {
                                 return;
                             }
 
+                            const sent = text;
                             setSaving(true);
-                            const empty = text.trim() === '';
                             send(
-                                empty ? link('storefront.company.unanswer', { answered: request.id }) : url,
-                                empty ? {} : { text },
+                                url,
+                                { text: sent },
                                 (refused) => {
-                                    setRefusal(refused);
+                                    setRefusal(refused === null ? null : { value: sent, message: refused });
                                     setSaving(false);
                                 },
                                 errorKey,
                             );
                         }}
-                        className="w-full rounded-md border border-line-strong bg-surface p-3 text-sm text-ink"
+                        className={['w-full rounded-md border bg-surface p-3 text-sm text-ink', border(look)].join(' ')}
                     />
-                    <Progress id={`request-${request.id}-progress`} saving={saving} />
+                    <FieldState id={stateId} look={look} message={look === 'refused' ? (refusal?.message ?? null) : problem} />
                 </>
             ) : (
                 <div className="flex flex-wrap gap-2">
@@ -788,7 +1028,7 @@ function RequestRow({ request, answer, maxBytes }: { request: CompanyRequestData
                                 variant="ghost"
                                 size="sm"
                                 aria-label={`${t('b2b::company.remove')}: ${request.label}`}
-                                onClick={() => send(link('storefront.company.unanswer', { answered: request.id }), {}, setRefusal, errorKey)}
+                                onClick={() => send(link('storefront.company.unanswer', { answered: request.id }), {}, setRemoval, errorKey)}
                             >
                                 {t('b2b::company.remove')}
                             </Button>
@@ -797,8 +1037,13 @@ function RequestRow({ request, answer, maxBytes }: { request: CompanyRequestData
                 </div>
             )}
 
+            {picker.warning !== null ? (
+                <p role="alert" className="text-xs text-warn">
+                    {picker.warning}
+                </p>
+            ) : null}
             {shown !== null ? (
-                <p id={errorId} role="alert" className="text-xs text-bad">
+                <p role="alert" className="text-xs text-bad">
                     {shown}
                 </p>
             ) : null}

@@ -1,123 +1,75 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { useTranslator } from '@/lib/t';
 import type { CompanyPage } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { Card, Figure } from './parts';
 
 /*
-| The company page's side column (b2b.md §4.5, the design's): what happens after sending, how a
-| company pays, and what it may do before it is approved.
+| The company page's side column (b2b.md §4.5, amendment 16(e)): **the application's lifecycle and
+| nothing else** — three steps, with a pointer on the one the latest application has reached. The
+| page leaves it out while the company is suspended.
 */
 
-const STEPS = ['send', 'review', 'decision', 'prices'] as const;
+const STEPS = ['send', 'review', 'decision'] as const;
 
 export function CompanySide({ page }: { page: CompanyPage }) {
     const t = useTranslator();
     const status = page.company?.status ?? null;
-    const approved = status === 'APPROVED';
+    const decided = status === 'APPROVED' || status === 'REJECTED';
 
-    // How far along the steps the company is: none sent, waiting, decided, or ordering.
-    const reached = status === null ? 0 : status === 'PENDING' ? 1 : status === 'REJECTED' ? 2 : approved ? 4 : 0;
+    // No application or a draft open: the first step — a company applying again starts there too.
+    // Sent and waiting: the second. Decided: the third, with its result.
+    const current = status === 'PENDING' ? 1 : decided && page.draft === null ? 2 : 0;
 
     return (
         <aside className="grid content-start gap-4">
             <Card title={t('b2b::company.steps.title')} test="steps">
                 <ol className="grid gap-3">
-                    {STEPS.map((step, index) => (
-                        <li key={step} className="flex gap-3" data-test={`step-${step}`} data-reached={index < reached ? 'yes' : 'no'}>
-                            <span
-                                aria-hidden
-                                className={[
-                                    'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold',
-                                    index < reached ? 'bg-brand text-ink-on-brand' : 'border border-line-strong text-ink-muted',
-                                ].join(' ')}
+                    {STEPS.map((step, index) => {
+                        const here = index === current;
+
+                        return (
+                            <li
+                                key={step}
+                                className="flex gap-3"
+                                data-test={`step-${step}`}
+                                data-state={index < current ? 'done' : here ? 'current' : 'ahead'}
+                                aria-current={here ? 'step' : undefined}
                             >
-                                <Figure>{index + 1}</Figure>
-                            </span>
-                            <span className="grid gap-0.5">
-                                <span className="text-sm font-medium text-ink">{t(`b2b::company.steps.${step}.title`)}</span>
-                                <span className="text-xs text-ink-muted">{t(`b2b::company.steps.${step}.body`)}</span>
-                            </span>
-                        </li>
-                    ))}
+                                <span
+                                    aria-hidden
+                                    className={[
+                                        'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold',
+                                        index < current
+                                            ? 'bg-brand text-ink-on-brand'
+                                            : here
+                                              ? 'bg-brand text-ink-on-brand ring-4 ring-brand/25'
+                                              : 'border border-line-strong text-ink-muted',
+                                    ].join(' ')}
+                                >
+                                    <Figure>{index + 1}</Figure>
+                                </span>
+                                <span className="grid gap-0.5">
+                                    <span className={['text-sm text-ink', here ? 'font-semibold' : 'font-medium'].join(' ')}>
+                                        {t(`b2b::company.steps.${step}.title`)}
+                                    </span>
+                                    <span className="text-xs text-ink-muted">{t(`b2b::company.steps.${step}.body`)}</span>
+                                    {here && step === 'decision' ? (
+                                        <span
+                                            data-test="step-result"
+                                            className={['w-fit rounded-md px-2 py-0.5 text-xs font-medium', status === 'APPROVED' ? 'bg-good-soft text-good' : 'bg-bad-soft text-bad'].join(' ')}
+                                        >
+                                            {t(status === 'APPROVED' ? 'b2b::company.steps.approved' : 'b2b::company.steps.rejected')}
+                                        </span>
+                                    ) : here ? (
+                                        <span className="text-xs font-medium text-brand" data-test="step-now">
+                                            {t('b2b::company.steps.now')}
+                                        </span>
+                                    ) : null}
+                                </span>
+                            </li>
+                        );
+                    })}
                 </ol>
             </Card>
-
-            <Card title={t('b2b::company.payment.title')} test="payment">
-                <Payment page={page} />
-            </Card>
-
-            {/* Not for a suspended company: some were approved before, and none may order now (15(d)). */}
-            {approved || status === 'SUSPENDED' ? null : (
-                <Card title={t('b2b::company.before.title')} test="before-approval">
-                    <p className="text-sm text-ink">{t('b2b::company.before.body')}</p>
-                </Card>
-            )}
         </aside>
-    );
-}
-
-/**
- * How a company pays, by its state (amendment 14(h)): never online, the account only once approved,
- * and "temporarily unavailable" while the store has not filled in all three (amendment 13(c)); a
- * suspended company is told its ordering is stopped (amendment 15(d)).
- */
-function Payment({ page }: { page: CompanyPage }) {
-    const t = useTranslator();
-    const [copied, setCopied] = useState(false);
-
-    if (page.company?.status === 'SUSPENDED') {
-        return (
-            <p className="text-sm text-ink" data-test="payment-suspended">
-                {t('b2b::company.payment.suspended')}
-            </p>
-        );
-    }
-
-    if (page.company?.status !== 'APPROVED') {
-        return <p className="text-sm text-ink">{t('b2b::company.payment.before')}</p>;
-    }
-
-    const account = page.bankAccount;
-
-    if (account === null) {
-        return (
-            <p className="text-sm text-ink" data-test="bank-transfer-off">
-                {t('b2b::company.payment.off')}
-            </p>
-        );
-    }
-
-    return (
-        <div className="grid gap-3" data-test="bank-account">
-            <p className="text-sm text-ink">{t('b2b::company.payment.approved')}</p>
-            <dl className="grid gap-2 text-sm">
-                <div className="grid gap-0.5">
-                    <dt className="text-xs text-ink-muted">{t('b2b::company.payment.iban')}</dt>
-                    <dd className="flex flex-wrap items-center gap-2 text-ink">
-                        <Figure>{account.iban}</Figure>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            data-test="copy-iban"
-                            onClick={() => {
-                                void navigator.clipboard?.writeText(account.iban).then(() => setCopied(true));
-                            }}
-                        >
-                            {copied ? t('b2b::company.payment.copied') : t('b2b::company.payment.copy')}
-                        </Button>
-                    </dd>
-                </div>
-                <div className="grid gap-0.5">
-                    <dt className="text-xs text-ink-muted">{t('b2b::company.payment.bank')}</dt>
-                    <dd className="text-ink">{account.bank}</dd>
-                </div>
-                <div className="grid gap-0.5">
-                    <dt className="text-xs text-ink-muted">{t('b2b::company.payment.holder')}</dt>
-                    <dd className="text-ink">{account.holder}</dd>
-                </div>
-            </dl>
-        </div>
     );
 }

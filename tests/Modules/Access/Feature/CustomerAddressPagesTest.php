@@ -6,6 +6,9 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
+use Modules\Access\Public\Dto\CustomerAccountPageDto;
+use Modules\Access\Public\Enums\AccountType;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -183,6 +186,49 @@ describe('the address book (F9)', function () {
         expect(AdminBrowser::formError($refused))->not->toBeNull()
             ->and(DB::table('access.addresses')->count())->toBe(0);
     });
+});
+
+describe('back to the page that sent them (amendment 51)', function () {
+    /*
+    | Pages of this test's own, so Access is tested without any other module's: one for this
+    | customer's type, on the shop's home route, and one for companies only.
+    */
+    beforeEach(function () {
+        app(CustomerAccountPages::class)->register(
+            new CustomerAccountPageDto('test', 'orders', 'storefront.home', AccountType::Individual),
+            new CustomerAccountPageDto('test', 'companies', 'storefront.account.sign-out', AccountType::Company),
+        );
+    });
+
+    it('carries a page registered for them to the tab, and lands them on it once an address is saved', function () {
+        [, $browser] = addressPageCustomer();
+
+        $browser->get('/sa/en/account?tab=addresses&return=test.orders')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('returnTo', 'test.orders'));
+
+        $saved = $browser->post('/sa/en/account/addresses', addressForm(Fx::storeId('sa'), ['return' => 'test.orders']))
+            ->assertRedirect('/sa/en');
+
+        expect(AdminBrowser::flashed($saved, 'status'))->toBe('Your address was saved.');
+    });
+
+    it('ignores anything else, so it can never send anybody off the shop', function (string $return) {
+        [, $browser] = addressPageCustomer();
+
+        $browser->get('/sa/en/account?tab=addresses&return='.urlencode($return))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('returnTo', null));
+
+        $browser->post('/sa/en/account/addresses', addressForm(Fx::storeId('sa'), ['return' => $return]))
+            ->assertRedirect('/sa/en/account?tab=addresses');
+    })->with([
+        'another site' => ['https://example.com/sa/en'],
+        'a path' => ['/sa/en/account/company'],
+        'a route name' => ['storefront.home'],
+        'a page for another type of account' => ['test.companies'],
+        'a page nobody registered' => ['test.invoices'],
+    ]);
 });
 
 describe('closing the account (F10)', function () {

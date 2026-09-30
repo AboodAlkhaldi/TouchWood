@@ -17,6 +17,7 @@ use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
 use Modules\B2B\Application\Query\ShopLine\CompanyStandings;
 use Modules\B2B\Application\Settings\BankAccountSettings;
+use Modules\B2B\Application\Settings\FormRules;
 use Modules\B2B\Domain\Repository\ApplicationReferenceCounter;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
@@ -76,6 +77,8 @@ final class B2BServiceProvider extends ServiceProvider
 
         // The bank account an approved company transfers to, one per store (amendment 12(b)).
         $this->app->make(SettingsRegistry::class)->define('b2b', ...BankAccountSettings::definitions());
+        // The company form's minimums, one set for every store (amendment 16(b)).
+        $this->app->make(SettingsRegistry::class)->define('b2b', ...FormRules::definitions());
         // Bank transfer is on only while all three are filled in; the section says which (13(c)).
         $this->app->make(SettingsSectionLines::class)->register('b2b', BankTransferLine::class);
 

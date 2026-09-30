@@ -131,7 +131,7 @@ final readonly class ShareStorefrontPage
             ),
             'pages' => array_map(
                 static fn (CustomerAccountPageDto $page): array => [
-                    'key' => "{$page->module}.{$page->key}",
+                    'key' => $page->name(),
                     'label' => self::words($page->labelKey()),
                     'routeName' => $page->routeName,
                 ],

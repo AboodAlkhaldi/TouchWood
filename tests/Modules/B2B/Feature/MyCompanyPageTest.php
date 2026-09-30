@@ -126,7 +126,7 @@ function myCompanyBankAccount(): void
 
 function myCompanyPdf(): UploadedFile
 {
-    return new UploadedFile(B2BFixtures::pdf(), 'certificate.pdf', 'application/pdf', null, true);
+    return new UploadedFile(B2BFixtures::pdf(), 'certificate-'.uniqid().'.pdf', 'application/pdf', null, true);
 }
 
 it('offers a company account its page from the account, and tells it on every shop page to continue its application', function () {
@@ -216,7 +216,7 @@ it('refuses an empty address in the page\'s own language', function () {
     B2BFixtures::approved($customerId);
     $browser = myCompanySignedIn($customerId);
 
-    $refused = $browser->post('/sa/ar/account/company/address', ['address' => '']);
+    $refused = $browser->post('/sa/ar/account/company/address', ['address_id' => '']);
 
     expect(myCompanyErrors($refused))->toHaveKey('address')
         ->and(myCompanyErrors($refused)['address'])->toBe(trans('b2b::errors.invalid_company_attribute.detail', ['attribute' => trans('b2b::errors.fields.address', [], 'ar')], 'ar'));
@@ -275,7 +275,7 @@ it('sends a complete draft: the company is under review, the application has its
         'company_type_id' => B2BFixtures::companyTypes()[0]->id(),
         'cr_number' => '1010123456',
         'tax_number' => '300123456700003',
-        'address' => "King Fahd Road\nRiyadh",
+        'address_id' => B2BFixtures::savedAddress($customerId),
     ]);
 
     foreach (B2BFixtures::documentTypes() as $type) {
@@ -340,16 +340,19 @@ it('shows an approved company its account to transfer to only while bank transfe
 it('lets an approved company change its address at once, and start a change of its details without losing its line', function () {
     $customerId = B2BFixtures::verifiedCompanyAccount();
     B2BFixtures::approved($customerId);
+    $addressId = B2BFixtures::savedAddress($customerId, street: 'Olaya Street');
     $browser = myCompanySignedIn($customerId);
 
-    $saved = $browser->post('/sa/en/account/company/address', ['address' => "Olaya Street\nRiyadh"])->assertRedirect();
+    $saved = $browser->post('/sa/en/account/company/address', ['address_id' => $addressId])->assertRedirect();
     $browser->post('/sa/en/account/company/draft/start');
     $props = myCompanyProps($browser);
 
     expect(AdminBrowser::flashed($saved, 'status'))->toBe('Address saved.')
-        ->and($props['company']['details']['address'])->toBe("Olaya Street\nRiyadh")
+        ->and($props['company']['details']['address'])->toBe(B2BFixtures::addressText($addressId))
+        ->and($props['company']['details']['addressId'])->toBe($addressId)
         ->and($props['company']['status'])->toBe('APPROVED')
-        ->and($props['draft']['values']['address'])->toBe("Olaya Street\nRiyadh")
+        ->and($props['draft']['values']['address'])->toBe(B2BFixtures::addressText($addressId))
+        ->and($props['draft']['values']['addressId'])->toBe($addressId)
         // Still approved and still ordering: nothing to say on the shop pages (amendment 14(c)).
         ->and($props['shopperLines'])->toBe([]);
 });
@@ -383,4 +386,81 @@ it('writes every time in the home store\'s clock', function () {
     // 21:30 UTC is half past midnight the next day in Riyadh.
     expect($props['company']['statusChangedAt'])->toBe('2026-10-01T00:30:00+03:00')
         ->and($props['history'][0]['submittedAt'])->toBe('2026-10-01T00:30:00+03:00');
+});
+
+describe('what the page is told, and where each refusal lands (amendment 16)', function () {
+    it('hands the page every field\'s rules and the account\'s saved addresses, any store\'s but nobody else\'s', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        $home = B2BFixtures::savedAddress($customerId, 'sa', 'Head office');
+        $branch = B2BFixtures::savedAddress($customerId, 'eg', 'Branch');
+        B2BFixtures::savedAddress(B2BFixtures::companyAccount(), 'sa', 'Somebody else');
+        $props = myCompanyProps(myCompanySignedIn($customerId));
+
+        expect(array_keys($props['formRules']))->toBe(['name', 'cr_number', 'tax_number', 'company_type_other', 'answer', 'note'])
+            ->and($props['formRules']['name'])->toBe(['min' => 2, 'max' => 200, 'oneLine' => true, 'characters' => null])
+            ->and(array_column($props['savedAddresses'], 'id'))->toBe([$home, $branch])
+            ->and(array_column($props['savedAddresses'], 'storeNameEn'))->toBe(['Saudi Arabia', 'Egypt'])
+            ->and($props['savedAddresses'][0]['label'])->toBe('Head office')
+            ->and($props['savedAddresses'][0]['formatted'])->toBe(B2BFixtures::addressText($home))
+            ->and($props['savedAddresses'][0]['isComplete'])->toBeTrue();
+    });
+
+    it('tells the page which saved address the draft holds, and each paper\'s own file name', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        $addressId = B2BFixtures::savedAddress($customerId);
+        $browser = myCompanySignedIn($customerId);
+        $browser->post('/sa/en/account/company/draft/start');
+        $typeId = B2BFixtures::documentTypes()[0]->id();
+
+        $browser->post('/sa/en/account/company/draft', ['address_id' => $addressId])->assertSessionHasNoErrors();
+        $browser->post("/sa/en/account/company/draft/documents/{$typeId}", ['file' => new UploadedFile(B2BFixtures::pdf(), 'cr-certificate.pdf', 'application/pdf', null, true)]);
+        $draft = myCompanyProps($browser)['draft'];
+
+        expect($draft['values']['addressId'])->toBe($addressId)
+            ->and($draft['values']['address'])->toBe(B2BFixtures::addressText($addressId))
+            ->and($draft['documents'][0]['fileName'])->toBe('cr-certificate.pdf');
+    });
+
+    it('refuses the same file under a second document type on that type, in the page\'s language', function () {
+        $browser = myCompanySignedIn(B2BFixtures::verifiedCompanyAccount());
+        $browser->post('/sa/ar/account/company/draft/start');
+        [$first, $second] = array_map(static fn ($type): string => $type->id(), B2BFixtures::documentTypes());
+        $scan = static fn (): UploadedFile => new UploadedFile(B2BFixtures::pdf(), 'scan.pdf', 'application/pdf', null, true);
+
+        $browser->post("/sa/ar/account/company/draft/documents/{$first}", ['file' => $scan()])->assertSessionHasNoErrors();
+        $refused = $browser->post("/sa/ar/account/company/draft/documents/{$second}", ['file' => $scan()]);
+
+        expect(myCompanyErrors($refused))->toBe(["documents.{$second}" => trans('b2b::errors.duplicate_document_file.detail', [], 'ar')])
+            ->and(myCompanyProps($browser)['draft']['documents'])->toHaveCount(1);
+    });
+
+    it('refuses on the address a pick that is not the account\'s own', function () {
+        // Saved before the browser signs in: saved after, the fixture's address went to the signed-in
+        // account instead, and the pick was taken (savedAddress).
+        $theirs = B2BFixtures::savedAddress(B2BFixtures::companyAccount());
+        $browser = myCompanySignedIn(B2BFixtures::verifiedCompanyAccount());
+        $browser->post('/sa/en/account/company/draft/start');
+
+        $refused = $browser->post('/sa/en/account/company/draft', ['address_id' => $theirs]);
+
+        expect(array_keys(myCompanyErrors($refused)))->toBe(['address'])
+            ->and(myCompanyProps($browser)['draft']['values']['address'])->toBeNull();
+    });
+
+    it('brings a company back to its page once it saves an address from there, and nobody else (access.md amendment 51)', function (string $accountType, string $landsOn) {
+        $customerId = Fx::customer(strtolower((string) Str::ulid()).'@example.test', 'sa', $accountType);
+        $browser = myCompanySignedIn($customerId);
+
+        $browser->post('/sa/en/account/addresses', [
+            'store_id' => Fx::storeId('sa'),
+            'label' => 'Head office',
+            'recipient_name' => 'Sara Ali',
+            'phone' => '+966512345678',
+            'fields' => ['administrative_area' => 'Riyadh', 'city' => 'Riyadh', 'district' => 'Al Olaya', 'street' => 'King Fahd Road', 'building' => '7'],
+            'return' => 'b2b.company',
+        ])->assertRedirect($landsOn);
+    })->with([
+        'a company account' => ['company', '/sa/en/account/company'],
+        'an individual account' => ['individual', '/sa/en/account?tab=addresses'],
+    ]);
 });

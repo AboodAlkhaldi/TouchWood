@@ -72,6 +72,10 @@ return [
         'title' => 'Document not accepted',
         'detail' => 'This kind of document is not accepted. Choose one from the list.',
     ],
+    'duplicate_document_file' => [
+        'title' => 'The same file twice',
+        'detail' => 'A file with this name is already under another document. Choose the right file for this one.',
+    ],
     'application_file_not_found' => [
         'title' => 'File not found',
         'detail' => 'That file is not in any of your applications.',

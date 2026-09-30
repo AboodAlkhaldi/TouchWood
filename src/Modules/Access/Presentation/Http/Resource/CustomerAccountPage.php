@@ -36,6 +36,9 @@ final class CustomerAccountPage extends Data
      * @param  list<AddressBookStore>  $addresses  every country, with what they have in each (F9)
      * @param  int  $deletionDays  how long a closed account waits before it is anonymized, which
      *                             the screen says in words before anybody confirms (F10)
+     * @param  string|null  $returnTo  the page that sent them to their addresses, `{module}.{key}`,
+     *                                 which saving an address goes back to (amendment 51); only
+     *                                 ever one registered for their account type
      */
     public function __construct(
         public string $tab,
@@ -53,5 +56,6 @@ final class CustomerAccountPage extends Data
         public int $passwordMinimumLength,
         public array $addresses,
         public int $deletionDays,
+        public ?string $returnTo,
     ) {}
 }

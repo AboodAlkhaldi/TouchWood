@@ -46,4 +46,15 @@ final class InMemoryCustomerAccountPages implements CustomerAccountPages
 
         return $offered;
     }
+
+    public function find(AccountType $type, string $name): ?CustomerAccountPageDto
+    {
+        foreach ($this->for($type) as $page) {
+            if ($page->name() === $name) {
+                return $page;
+            }
+        }
+
+        return null;
+    }
 }

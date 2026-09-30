@@ -355,10 +355,12 @@ reviewer rejects it by hand.
 ## The company's own screens (step 6)
 
 **One page, the design's** (b2b.md §4.5, amendment 14), at `/{store}/{locale}/account/company`:
-a status box and, under it, the form or what was sent, and a side column — what happens after
-sending, how a company pays, what it may do before approval. Before the first send there is no
-company, only a draft, and the page shows the draft alone. The design is look and behaviour: its
-own fields, company types and structured address lose to the spec.
+a status box and, under it, the form or what was sent, and a side column holding the application's
+lifecycle alone — three steps, the pointer on the one the latest application has reached, hidden
+while the company is suspended (amendment 16(e)); an approved company's bank account is a card in
+the main column. Before the first send there is no company, only a draft, and the page shows the
+draft alone. The design is look and behaviour: its own fields, company types and structured address
+lose to the spec.
 
 **It reaches the shop's frame through Access** (access.md amendment 50), never by being written into
 it: `CustomerAccountPages` lists it beside the account's tabs for company accounts, and
@@ -378,10 +380,42 @@ before when another starts, so every save, upload and removal waits its turn in 
 page — none is ever lost — and each field keeps its own refusal until it is saved again, whatever
 the next field's answer says (the review of step 6).
 
-**Send waits for a clean form** (amendment 15(a)): not while anything is saving, nor while a field
-holds a refused value or one not yet saved, and not twice — what is sent is what the page shows.
-A press that leaves a field starts that field's save, so the press itself does nothing and a second
-one sends. Send then checks that the draft is complete.
+**Each field says where it stands** (amendment 16(a)): yellow while what it holds is not valid —
+and then it is never sent —, "Saving…", green "Saved" once the server holds it, red with the
+server's reason if it refuses all the same. The page checks with the server's own numbers:
+`CompanyPage::formRules`, from `FormRules::forPage()` — each field's minimum, maximum, whether it is
+one line, and the characters a CR or tax number takes. A refusal belongs to the value refused: a
+different value takes it away. Every answer brings the page's data again, so a minimum raised while
+the page is open reaches it with the first refusal.
+
+**Minimums are settings** (amendment 16(b)): `FormRules` declares five, one set for every store,
+changed under `platform.settings.update`, each from 1 to its field's maximum. They are held when a
+value is saved (`SaveApplicationDraft`, `AnswerApplicationRequest`) and **again when the
+application is sent** (`SubmitApplication`, before the number is taken), so a value saved before a
+minimum was raised is not sent. Code-only: a CHECK cannot read a setting. The maximums stay the
+domain's, and the database's.
+
+**The same file cannot go into two sections** (amendment 16(c)): `AttachApplicationDocument` refuses
+a paper named exactly as a file under another document type of the draft (`DuplicateDocumentFile`),
+before anything is stored, reading the names from Platform's media; the page says so first, before
+uploading. Replacing a section's own file with one of the same name is allowed; answers are not
+compared. Code-only too: the names are Platform's.
+
+**The address is picked from the account's saved addresses** (amendment 16(f)), any store's, through
+`SavedAddresses` over Access's contract: the company and the application keep a copy — the text as
+the store's format writes it, up to 6,000 characters, and `address_id`, which saved address it was.
+Another account's address answers as one that does not exist, and one its store's format no longer
+accepts cannot be picked. Editing the saved address changes neither copy; deleting it leaves the
+text and forgets the id (`ON DELETE SET NULL`). The company's own address change
+(`UpdateCompanyContact`) picks inside the account's lock, after the company is found. With none
+saved, **Add an address** opens the account's Addresses tab with `return=b2b.company`, and saving an
+address there comes straight back (access.md amendment 51).
+
+**Send is inactive until everything is complete** (amendments 15(a), 16(d)): what is missing is
+listed beside it — every value, a type still accepted, an address, every required paper, nothing no
+longer accepted, every marked item replaced, every request answered, and no field unsaved or not
+valid —, and it is inactive while anything is saving, and after one press. What is sent is what the
+page shows; the server refuses an incomplete send on its own as well.
 
 **Every application is numbered when it is sent** (§1.2, amendment 14(g)): `TW-CO-26-0001` — the
 year as the home store's clock reads it, and a count restarting at `0001` each year, across every

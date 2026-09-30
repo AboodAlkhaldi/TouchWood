@@ -9,6 +9,7 @@ use Modules\B2B\Application\Account\CurrentCompanyAccount;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Draft\OpenDrafts;
 use Modules\B2B\Application\Files\ApplicationFiles;
+use Modules\B2B\Application\Settings\FormRules;
 use Modules\B2B\Domain\Exception\AnswerKindMismatch;
 use Modules\B2B\Domain\Exception\ApplicationNotEditable;
 use Modules\B2B\Domain\Exception\ApplicationNotFound;
@@ -48,6 +49,7 @@ final readonly class AnswerApplicationRequestHandler
         private OpenDrafts $drafts,
         private ApplicationRepository $applications,
         private ApplicationFiles $files,
+        private FormRules $rules,
         private ConnectionInterface $db,
     ) {}
 
@@ -62,6 +64,8 @@ final readonly class AnswerApplicationRequestHandler
         $customerId = $this->account->get(self::PERMISSION)->id;
         $requestId = strtolower($command->requestId);
         [$text, $file] = self::given($command);
+        // A written answer is held to today's minimum (amendment 16(b)).
+        $this->rules->hold('answer', $text?->value);
 
         $this->db->transaction(function () use ($customerId, $requestId, $text, $file, $command): void {
             $inHand = $this->drafts->forChange($customerId);

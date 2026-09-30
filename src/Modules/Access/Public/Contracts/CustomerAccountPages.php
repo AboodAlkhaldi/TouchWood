@@ -28,4 +28,10 @@ interface CustomerAccountPages
      * @return list<CustomerAccountPageDto>
      */
     public function for(AccountType $type): array;
+
+    /**
+     * The page offered to an account of this type under its full name, `{module}.{key}` — as the
+     * Addresses tab's `return` names it (amendment 51); null for any other name.
+     */
+    public function find(AccountType $type, string $name): ?CustomerAccountPageDto;
 }

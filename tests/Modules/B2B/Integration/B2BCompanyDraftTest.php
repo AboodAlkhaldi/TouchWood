@@ -84,7 +84,7 @@ function companyDraftSave(array $fields): void
 
 function companyDraftAttach(string $documentTypeId): void
 {
-    app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument($documentTypeId, B2BFixtures::pdf(), 'certificate.pdf'));
+    app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument($documentTypeId, B2BFixtures::pdf(), 'certificate-'.$documentTypeId.'.pdf'));
 }
 
 function companyDraftOpen(string $customerId): Application
@@ -219,8 +219,9 @@ describe('saving the draft (§1.2, §3.1, amendments 4 and 5)', function () {
         $customerId = B2BFixtures::companyAccount();
         Fx::actAsCustomer($customerId);
         companyDraftStart();
+        $addressId = B2BFixtures::savedAddress($customerId);
 
-        companyDraftSave(['name' => 'Al Noor Trading', 'cr_number' => '1010123456', 'address' => "King Fahd Road\nRiyadh", 'note' => 'Our first application.']);
+        companyDraftSave(['name' => 'Al Noor Trading', 'cr_number' => '1010123456', 'address_id' => $addressId, 'note' => 'Our first application.']);
         companyDraftSave(['tax_number' => '300123456700003']);
 
         $draft = companyDraftOpen($customerId);
@@ -228,7 +229,8 @@ describe('saving the draft (§1.2, §3.1, amendments 4 and 5)', function () {
         expect($draft->name()?->value)->toBe('Al Noor Trading')
             ->and($draft->crNumber()?->value)->toBe('1010123456')
             ->and($draft->taxNumber()?->value)->toBe('300123456700003')
-            ->and($draft->address()?->value)->toBe("King Fahd Road\nRiyadh")
+            ->and($draft->address()?->value)->toBe(B2BFixtures::addressText($addressId))
+            ->and($draft->address()?->addressId)->toBe($addressId)
             ->and($draft->note()?->value)->toBe('Our first application.')
             ->and(DB::table('b2b.companies')->where('customer_id', $customerId)->exists())->toBeFalse();
     });
@@ -327,9 +329,10 @@ describe('saving the draft (§1.2, §3.1, amendments 4 and 5)', function () {
         $customerId = B2BFixtures::companyAccount();
         Fx::actAsCustomer($customerId);
         companyDraftStart();
+        $addressId = B2BFixtures::savedAddress($customerId);
         $levels = B2BFixtures::auditLevels();
 
-        companyDraftSave(['name' => 'Al Noor Trading', 'address' => 'Riyadh']);
+        companyDraftSave(['name' => 'Al Noor Trading', 'address_id' => $addressId]);
 
         expect($levels->getArrayCopy())->toBe([]);
     });

@@ -11,6 +11,7 @@ namespace Modules\B2B\Application\Command\UpdateCompanyContact;
 final readonly class UpdateCompanyContact
 {
     public function __construct(
-        public string $address,
+        /** One of the account's saved addresses (amendment 16(f)). */
+        public string $addressId,
     ) {}
 }

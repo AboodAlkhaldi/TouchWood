@@ -15,4 +15,11 @@ return [
     // three are filled in.
     'bank_transfer.on' => 'Bank transfer: on',
     'bank_transfer.off' => 'Bank transfer: temporarily off — fill in all three to turn it on.',
+
+    // The company form's minimums, in characters (FormRules, amendment 16(b)).
+    'form.name_min' => 'Company name: fewest characters',
+    'form.cr_number_min' => 'CR number: fewest characters',
+    'form.tax_number_min' => 'Tax number: fewest characters',
+    'form.company_type_other_min' => '"Other" type in words: fewest characters',
+    'form.answer_min' => 'A written answer: fewest characters',
 ];

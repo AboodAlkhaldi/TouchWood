@@ -22,6 +22,9 @@ return [
     'missing' => 'Still missing: :items',
     'missing_documents' => 'documents (:count)',
     'missing_answers' => 'answers (:count)',
+    'missing_not_accepted' => 'documents no longer accepted (:count)',
+    'missing_flagged' => 'items marked in the last decision (:count)',
+    'missing_marked' => 'fields not saved or not valid yet',
     'separator' => ', ',
 
     'start' => 'Start your application',
@@ -29,14 +32,11 @@ return [
     'change' => 'Change company details',
     'change_warning' => 'These changes go to our team as a new application. You keep ordering until you send them; from then until they are approved, you cannot order.',
     'send' => 'Send application',
-    'send_missing' => 'Complete the documents (:done/:total)',
     'discard' => 'Discard this draft',
     'discard_confirm' => 'Discard this draft? Any file only it holds is deleted too.',
     'discard_yes' => 'Discard',
     'cancel' => 'Cancel',
     'suspended_draft' => 'You have a draft that was not sent. While the account is suspended you can only discard it.',
-    // Send waits for a clean form (amendment 15(a)).
-    'send_blocked' => 'Finish the fields marked above before you send: each is saved when you leave it.',
     'answers_sent' => 'Answers sent',
     'document_gone' => 'A document no longer asked for',
 
@@ -65,6 +65,15 @@ return [
     ],
     'saving' => 'Saving…',
     'saved' => 'Saved',
+    // What the page says before sending a value it would not accept (amendment 16(a)).
+    'check' => [
+        'required' => 'Required.',
+        'min' => 'At least :count characters.',
+        'max' => 'At most :count characters.',
+        'one_line' => 'On one line, without special characters.',
+        'lines' => 'Without special characters.',
+        'characters' => 'Letters, digits, spaces and dashes only.',
+    ],
     'type_no_longer' => 'This type is no longer offered — choose again.',
     'flagged' => 'Marked in the last decision — change it before you send.',
     'flagged_document' => 'Marked in the last decision — upload a new file.',
@@ -81,6 +90,7 @@ return [
     'no_longer_accepted' => 'No longer accepted — remove it before you send.',
     'greyed' => 'No longer offered',
     'too_large' => 'This file is larger than :size MB.',
+    'duplicate_file' => 'A file with this name is already under ":section". The same file cannot go into two sections.',
     'file_added' => 'File added.',
     'no_file' => 'No file arrived. It may be larger than the server accepts.',
 
@@ -103,22 +113,29 @@ return [
     'sent_values' => 'What was sent',
 
     'address_hint' => 'A change of address is saved at once, without review.',
-    'address_save' => 'Save address',
     'address_saved' => 'Address saved.',
+    // Picked from the account's saved addresses, and kept as a copy (amendment 16(f)).
+    'address_pick' => 'Pick one of your saved addresses. Changing or deleting it there later does not change the one kept here.',
+    'address_kept' => 'Kept now',
+    'address_none' => 'You have no saved addresses yet. Add one, and you come straight back here to pick it.',
+    'address_add' => 'Add an address',
+    'address_incomplete' => "Its country's format no longer accepts it: update it in your addresses first.",
     'sent' => 'Your application was sent.',
     'discarded' => 'The draft was discarded.',
 
-    // The side column.
+    // The side column: the application's lifecycle and nothing else (amendment 16(e)).
     'steps' => [
-        'title' => 'What happens after you send',
-        'send' => ['title' => 'Send the application', 'body' => 'The details and the documents'],
+        'title' => 'Your application',
+        'send' => ['title' => 'Fill in and send', 'body' => 'The details and the documents'],
         'review' => ['title' => 'Our team reviews it', 'body' => 'Usually within two business days'],
         'decision' => ['title' => 'The decision', 'body' => 'Sent to you by email'],
-        'prices' => ['title' => 'Company prices', 'body' => 'Ordering at company prices'],
+        'now' => 'You are here',
+        'approved' => 'Approved',
+        'rejected' => 'Not approved',
     ],
+    // An approved company's bank account, in the main column (amendment 16(e)).
     'payment' => [
         'title' => 'Paying for company orders',
-        'before' => 'Company orders are never paid online: by bank transfer, or arranged with our team. The account details show once you are approved.',
         'approved' => 'Pay by bank transfer to:',
         'iban' => 'IBAN',
         'bank' => 'Bank',
@@ -126,10 +143,5 @@ return [
         'copy' => 'Copy',
         'copied' => 'Copied',
         'off' => 'Bank transfer is temporarily unavailable — our team will contact you to arrange payment.',
-        'suspended' => 'Company orders are never paid online. Ordering is stopped while the account is suspended.',
-    ],
-    'before' => [
-        'title' => 'Before approval',
-        'body' => 'You can browse, fill your cart and see company prices — ordering opens once you are approved.',
     ],
 ];

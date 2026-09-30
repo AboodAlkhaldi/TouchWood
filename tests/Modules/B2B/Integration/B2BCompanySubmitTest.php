@@ -37,6 +37,7 @@ use Modules\B2B\Domain\ValueObject\ApplicationFlag;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\FlaggedField;
 use Modules\B2B\Domain\ValueObject\RequestKind;
+use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -77,8 +78,9 @@ function companySubmitDiscard(): void
 }
 
 /**
- * The signed-in account's draft, started and filled in completely: every value, a listed type, and a
- * paper under every active document type — or under all but $leaveOut.
+ * The signed-in account's draft, started and filled in completely: every value, a listed type, one
+ * of its saved addresses, and a paper under every active document type, each its own file — or
+ * under all but $leaveOut.
  */
 function companySubmitFilledDraft(?string $leaveOut = null, ?string $typeId = null): void
 {
@@ -88,12 +90,12 @@ function companySubmitFilledDraft(?string $leaveOut = null, ?string $typeId = nu
         'company_type_id' => $typeId ?? B2BFixtures::companyTypes()[0]->id(),
         'cr_number' => '1010123456',
         'tax_number' => '300123456700003',
-        'address' => "King Fahd Road\nRiyadh",
+        'address_id' => B2BFixtures::savedAddress((string) app(ActorContext::class)->current()->id),
     ]));
 
     foreach (B2BFixtures::documentTypes() as $type) {
         if ($type->isActive() && $type->id() !== $leaveOut) {
-            app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument($type->id(), B2BFixtures::pdf(), 'paper.pdf'));
+            app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument($type->id(), B2BFixtures::pdf(), 'paper-'.$type->id().'.pdf'));
         }
     }
 }

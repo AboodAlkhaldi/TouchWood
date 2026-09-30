@@ -79,12 +79,12 @@ function applicationReferenceDraft(string $storeCode = 'sa', bool $papers = true
         'company_type_id' => B2BFixtures::companyTypes($storeCode)[0]->id(),
         'cr_number' => '1010123456',
         'tax_number' => '300123456700003',
-        'address' => "King Fahd Road\nRiyadh",
+        'address_id' => B2BFixtures::savedAddress($customerId, $storeCode),
     ]));
 
     foreach ($papers ? B2BFixtures::documentTypes($storeCode) : [] as $type) {
         if ($type->isActive()) {
-            app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument($type->id(), B2BFixtures::pdf(), 'paper.pdf'));
+            app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument($type->id(), B2BFixtures::pdf(), 'paper-'.$type->id().'.pdf'));
         }
     }
 

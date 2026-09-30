@@ -184,7 +184,7 @@ final readonly class MyCompanyController
     public function address(CompanyAddressRequest $request, UpdateCompanyContactHandler $handler): RedirectResponse
     {
         try {
-            $handler->handle(new UpdateCompanyContact($request->address()));
+            $handler->handle(new UpdateCompanyContact($request->addressId()));
         } catch (DomainError $error) {
             // The form beside it is only there while no draft is open, so the field is the address.
             return self::refused($request, $error, 'address');

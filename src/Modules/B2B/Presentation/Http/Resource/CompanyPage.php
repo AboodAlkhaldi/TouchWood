@@ -18,6 +18,8 @@ final class CompanyPage extends Data
      * @param  list<CompanyTypeOptionData>  $companyTypes  what the form offers, in order
      * @param  list<CompanyTypeOptionData>  $documentTypes  what the form offers, in order
      * @param  list<CompanyApplicationData>  $history  newest first
+     * @param  array<string, CompanyFieldRuleData>  $formRules  each field's rules, by the field's key
+     * @param  list<CompanySavedAddressData>  $savedAddresses  store by store, each store's default first
      */
     public function __construct(
         /** Before there is a company: EMAIL_NOT_CONFIRMED, NO_APPLICATION or DRAFT_OPEN (§4.3). */
@@ -31,5 +33,9 @@ final class CompanyPage extends Data
         public ?CompanyBankAccountData $bankAccount,
         /** The largest paper the form may send: Platform's limit for a private file (platform.md §1.4). */
         public int $maxFileBytes,
+        /** What each field accepts, so the page checks before sending (amendment 16(a)). */
+        public array $formRules,
+        /** The account's saved addresses, which the address is picked from (amendment 16(f)). */
+        public array $savedAddresses,
     ) {}
 }

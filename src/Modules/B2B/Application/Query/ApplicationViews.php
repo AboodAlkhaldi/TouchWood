@@ -17,6 +17,7 @@ use Modules\B2B\Domain\Model\DocumentType;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\AttachedDocument;
+use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\RequestAnswer;
 
@@ -33,14 +34,14 @@ final class ApplicationViews
     {
         return self::values(
             $application->name()?->value, $application->type(), $application->crNumber()?->value,
-            $application->taxNumber()?->value, $application->address()?->value, $application->note()?->value, $companyTypes,
+            $application->taxNumber()?->value, $application->address(), $application->note()?->value, $companyTypes,
         );
     }
 
     /**
      * @param  array<string, CompanyType>  $companyTypes
      */
-    public static function values(?string $name, ?CompanyTypeChoice $type, ?string $crNumber, ?string $taxNumber, ?string $address, ?string $note, array $companyTypes): ApplicationValues
+    public static function values(?string $name, ?CompanyTypeChoice $type, ?string $crNumber, ?string $taxNumber, ?CompanyAddress $address, ?string $note, array $companyTypes): ApplicationValues
     {
         $listed = $type?->typeId === null ? null : ($companyTypes[$type->typeId] ?? null);
 
@@ -52,7 +53,8 @@ final class ApplicationViews
             $type?->other,
             $crNumber,
             $taxNumber,
-            $address,
+            $address?->value,
+            $address?->addressId,
             $note,
         );
     }

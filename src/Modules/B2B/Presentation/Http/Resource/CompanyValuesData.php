@@ -23,6 +23,8 @@ final class CompanyValuesData extends Data
         public ?string $crNumber,
         public ?string $taxNumber,
         public ?string $address,
+        /** Which saved address it was picked from, while that address exists (amendment 16(f)). */
+        public ?string $addressId,
         public ?string $note,
     ) {}
 }

@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { router, useForm } from '@inertiajs/react';
-import { Field } from '@/components/Field';
+import { router } from '@inertiajs/react';
 import { FormError } from '@/components/FormError';
 import { Button } from '@/components/ui/button';
 import { AccountLayout } from '@/layouts/AccountLayout';
@@ -12,16 +11,17 @@ import type {
     CompanyPage,
     CompanyStatusData,
 } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
-import { CompanyForm, DiscardConfirmation } from './CompanyForm';
+import { CompanyForm, DiscardConfirmation, missingItems } from './CompanyForm';
 import { CompanyHistory, SentApplication } from './CompanyHistory';
 import { CompanySide } from './CompanySide';
+import { AddressPicker, type Look } from './fields';
 import { Card, Figure, Line, StatusBox, typeOf, useLocale } from './parts';
 
 /*
 | F11 — the company's own page (b2b.md §4.5, amendment 14; the design's company screen).
 |
-| Two columns: the status box and, under it, the form or what was sent; beside them, what happens
-| after sending, how a company pays, and what it may do before approval.
+| Two columns: the status box and, under it, the form or what was sent; beside them, the
+| application's lifecycle and nothing else (amendment 16(e)) — hidden while the company is suspended.
 |
 | **Before the first send there is no company, only a draft** (§1.1), and the page shows the draft
 | alone — not sent yet, what is still missing, Continue or Discard. Once there is a company, what it
@@ -32,10 +32,11 @@ import { Card, Figure, Line, StatusBox, typeOf, useLocale } from './parts';
 
 export default function Company(page: CompanyPage) {
     const t = useTranslator();
+    const suspended = page.company?.status === 'SUSPENDED';
 
     return (
         <AccountLayout title={t('b2b::company.title')} subtitle={t('b2b::company.subtitle')} page="b2b.company">
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+            <div className={['grid gap-6', suspended ? '' : 'lg:grid-cols-[minmax(0,1fr)_18rem]'].join(' ')}>
                 <div className="grid content-start gap-6">
                     <FormError />
                     {page.company === null ? <BeforeACompany page={page} /> : <WithACompany page={page} company={page.company} />}
@@ -46,7 +47,7 @@ export default function Company(page: CompanyPage) {
                     />
                 </div>
 
-                <CompanySide page={page} />
+                {suspended ? null : <CompanySide page={page} />}
             </div>
         </AccountLayout>
     );
@@ -93,7 +94,7 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
                             <SentApplication application={lastSent} previous={page.history[1] ?? null} documentTypes={page.documentTypes} open />
                         </Card>
                     ) : null}
-                    <AddressForm saved={company.details.address ?? ''} />
+                    <CompanyAddress page={page} company={company} />
                 </>
             );
 
@@ -104,9 +105,10 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
                         <p>{t('b2b::company.status.approved.body')}</p>
                     </StatusBox>
                     <CompanyCard company={company} reference={lastApproved(page.history)?.reference ?? null} />
+                    <BankAccount page={page} />
                     {page.draft === null ? (
                         <>
-                            <AddressForm saved={company.details.address ?? ''} />
+                            <CompanyAddress page={page} company={company} />
                             <StartButton label={t('b2b::company.change')} variant="outline" test="change" />
                         </>
                     ) : (
@@ -123,7 +125,7 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
                     </StatusBox>
                     {page.draft === null ? (
                         <>
-                            <AddressForm saved={company.details.address ?? ''} />
+                            <CompanyAddress page={page} company={company} />
                             <StartButton label={t('b2b::company.apply_again')} test="apply-again" />
                         </>
                     ) : (
@@ -151,21 +153,10 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
     }
 }
 
-/** What is still missing before a first send can go (§4.5). */
+/** What is still missing before a first send can go (§4.5): the list beside Send, without the fields' own states. */
 function Missing({ page, draft }: { page: CompanyPage; draft: CompanyDraftData }) {
     const t = useTranslator();
-    const values = draft.values;
-    const empty = [
-        values.name === null ? t('b2b::company.field.name') : null,
-        values.companyTypeId === null && values.companyTypeOther === null ? t('b2b::company.field.company_type') : null,
-        values.crNumber === null ? t('b2b::company.field.cr_number') : null,
-        values.taxNumber === null ? t('b2b::company.field.tax_number') : null,
-        values.address === null ? t('b2b::company.field.address') : null,
-    ].filter((item): item is string => item !== null);
-    const documents = page.documentTypes.filter(
-        (type) => type.required && !type.greyed && !draft.documents.some((document) => document.documentTypeId === type.id),
-    ).length;
-    const items = [...empty, ...(documents > 0 ? [t('b2b::company.missing_documents', { count: documents })] : [])];
+    const items = missingItems(page, draft, null, t);
 
     return items.length === 0 ? null : (
         <p className="text-ink-muted" data-test="missing">
@@ -202,37 +193,88 @@ function CompanyCard({ company, reference }: { company: CompanyStatusData; refer
     );
 }
 
-/** The address alone, saved at once and without review (§1.1, amendment 14(e)). */
-function AddressForm({ saved }: { saved: string }) {
+/**
+ * The company's address alone, picked from the account's saved addresses and saved the moment it is
+ * picked, without review (§1.1, amendments 15(c) and 16(f)).
+ */
+function CompanyAddress({ page, company }: { page: CompanyPage; company: CompanyStatusData }) {
     const t = useTranslator();
     const link = useLink();
-    const form = useForm({ address: saved });
+    const locale = useLocale();
+    const [picking, setPicking] = useState<string | null>(null);
+    const [refusal, setRefusal] = useState<string | null>(null);
+    const look: Look = picking !== null ? 'saving' : refusal !== null ? 'refused' : company.details.address !== null ? 'saved' : 'idle';
 
     return (
         <Card title={t('b2b::company.section.address')} hint={t('b2b::company.address_hint')} test="address">
-            <form
-                className="grid gap-3"
-                onSubmit={(event) => {
-                    event.preventDefault();
-                    form.post(link('storefront.company.address'), { preserveScroll: true });
+            <AddressPicker
+                addresses={page.savedAddresses}
+                pickedId={picking ?? company.details.addressId}
+                kept={company.details.address}
+                look={look}
+                message={refusal}
+                disabled={picking !== null}
+                locale={locale}
+                onPick={(addressId) => {
+                    setPicking(addressId);
+                    setRefusal(null);
+                    router.post(
+                        link('storefront.company.address'),
+                        { address_id: addressId },
+                        {
+                            preserveScroll: true,
+                            preserveState: true,
+                            onError: (errors) => setRefusal(errors.address ?? errors.form ?? Object.values(errors)[0] ?? null),
+                            onFinish: () => setPicking(null),
+                        },
+                    );
                 }}
-            >
-                <Field id="company-address" label={t('b2b::company.field.address')} error={form.errors.address}>
-                    <textarea
-                        id="company-address"
-                        name="address"
-                        rows={3}
-                        value={form.data.address}
-                        onChange={(event) => form.setData('address', event.target.value)}
-                        className="w-full rounded-md border border-line-strong bg-surface p-3 text-sm text-ink"
-                    />
-                </Field>
-                <div>
-                    <Button type="submit" variant="outline" disabled={form.processing}>
-                        {t('b2b::company.address_save')}
-                    </Button>
+            />
+        </Card>
+    );
+}
+
+/**
+ * Where an approved company transfers its payment (§2.3, amendment 12(b)), in the main column
+ * (amendment 16(e)): the IBAN, the bank and the holder while bank transfer is on; that it is
+ * temporarily unavailable while the store has not filled in all three (amendment 13(c)).
+ */
+function BankAccount({ page }: { page: CompanyPage }) {
+    const t = useTranslator();
+    const [copied, setCopied] = useState(false);
+    const account = page.bankAccount;
+
+    return (
+        <Card title={t('b2b::company.payment.title')} test="payment">
+            {account === null ? (
+                <p className="text-sm text-ink" data-test="bank-transfer-off">
+                    {t('b2b::company.payment.off')}
+                </p>
+            ) : (
+                <div className="grid gap-3" data-test="bank-account">
+                    <p className="text-sm text-ink">{t('b2b::company.payment.approved')}</p>
+                    <dl className="grid gap-2">
+                        <Line label={t('b2b::company.payment.iban')}>
+                            <span className="flex flex-wrap items-center gap-2">
+                                <Figure>{account.iban}</Figure>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="xs"
+                                    data-test="copy-iban"
+                                    onClick={() => {
+                                        void navigator.clipboard?.writeText(account.iban).then(() => setCopied(true));
+                                    }}
+                                >
+                                    {copied ? t('b2b::company.payment.copied') : t('b2b::company.payment.copy')}
+                                </Button>
+                            </span>
+                        </Line>
+                        <Line label={t('b2b::company.payment.bank')}>{account.bank}</Line>
+                        <Line label={t('b2b::company.payment.holder')}>{account.holder}</Line>
+                    </dl>
                 </div>
-            </form>
+            )}
         </Card>
     );
 }

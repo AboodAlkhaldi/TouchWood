@@ -10,6 +10,10 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use LogicException;
+use Modules\Access\Application\Command\SaveAddress\SaveAddress;
+use Modules\Access\Application\Command\SaveAddress\SaveAddressHandler;
+use Modules\Access\Public\Contracts\AccessApi;
 use Modules\B2B\Application\Types\GiveEveryStoreTheStartingTypes;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Model\Company;
@@ -29,6 +33,7 @@ use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
+use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
 /**
@@ -72,7 +77,54 @@ final class B2BFixtures
     }
 
     /**
+     * One of the account's saved addresses, in the store's starting format, saved through Access's
+     * own use case as the account itself — what the company form picks its address from (b2b.md
+     * amendment 16(f)). Whoever the test was acting as, it acts as again afterwards.
+     *
+     * In an HTTP test, save another account's address before the browser signs in: saved after a
+     * signed-in request, it went to the signed-in account instead (step 6, round 3).
+     */
+    public static function savedAddress(string $customerId, string $storeCode = 'sa', string $label = 'Head office', string $street = 'King Fahd Road'): string
+    {
+        $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+        Fx::actAsCustomer($customerId);
+
+        try {
+            return app(SaveAddressHandler::class)->handle(new SaveAddress(
+                storeId: Fx::storeId($storeCode),
+                label: $label,
+                recipientName: 'Sara Ali',
+                phone: '+966501234567',
+                fields: ['administrative_area' => 'Riyadh', 'city' => 'Riyadh', 'district' => 'Al Olaya', 'street' => $street, 'building' => '7'],
+                latitude: null,
+                longitude: null,
+                isDefault: false,
+                addressId: null,
+            ));
+        } finally {
+            if ($previous !== null) {
+                app()->scoped(ActorContext::class, $previous);
+                app()->forgetScopedInstances();
+            }
+        }
+    }
+
+    /**
+     * A saved address as its store's format writes it: the copy a company keeps when it picks it.
+     */
+    public static function addressText(string $addressId): string
+    {
+        return app(AccessApi::class)->address($addressId)->formatted ?? throw new LogicException("No saved address {$addressId}.");
+    }
+
+    /**
      * A private file, as Platform stores one: a company's papers are never public (b2b.md §1.4).
+     * Each is named for itself, as a person's own files are: two papers of one name in one draft
+     * are refused (amendment 16(c)).
+     *
+     * Stamped as an upload is: a row without `created_at` sorts first in the library's "newest
+     * first", and the browser suite, which keeps its data, once filled the library's first page with
+     * these and hid the file a media test had just uploaded.
      */
     public static function privateFile(): string
     {
@@ -83,10 +135,12 @@ final class B2BFixtures
             'visibility' => 'PRIVATE',
             'disk' => 'local',
             'object_key' => 'media/'.$id.'.pdf',
-            'original_filename' => 'certificate.pdf',
+            'original_filename' => 'certificate-'.$id.'.pdf',
             'mime' => 'application/pdf',
             'bytes' => 120_000,
             'checksum' => hash('sha256', $id),
+            'created_at' => CarbonImmutable::now(),
+            'updated_at' => CarbonImmutable::now(),
         ]);
 
         return $id;

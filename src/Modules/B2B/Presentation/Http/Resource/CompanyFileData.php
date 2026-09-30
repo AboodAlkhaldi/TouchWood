@@ -18,6 +18,8 @@ final class CompanyFileData extends Data
         public ?string $documentTypeNameAr,
         public ?string $documentTypeNameEn,
         public string $mediaId,
+        /** As the person's browser named it: two sections may not hold files of one name (amendment 16(c)). */
+        public string $fileName,
         /** In the home store's time (HANDOFF §4). */
         public string $uploadedAt,
         /** Under a type deactivated since: to be removed before sending (§1.3). */

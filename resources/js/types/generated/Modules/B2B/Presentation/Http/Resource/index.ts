@@ -30,11 +30,18 @@ flags: CompanyFlagData[],
 requests: CompanyRequestData[],
 answers: CompanyAnswerData[],
 };
+export type CompanyFieldRuleData = {
+min: number,
+max: number,
+oneLine: boolean,
+characters: string | null,
+};
 export type CompanyFileData = {
 documentTypeId: string,
 documentTypeNameAr: string | null,
 documentTypeNameEn: string | null,
 mediaId: string,
+fileName: string,
 uploadedAt: string,
 noLongerAccepted: boolean,
 };
@@ -51,11 +58,21 @@ documentTypes: CompanyTypeOptionData[],
 history: CompanyApplicationData[],
 bankAccount: CompanyBankAccountData | null,
 maxFileBytes: number,
+formRules: Record<string, CompanyFieldRuleData>,
+savedAddresses: CompanySavedAddressData[],
 };
 export type CompanyRequestData = {
 id: string,
 kind: string,
 label: string,
+};
+export type CompanySavedAddressData = {
+id: string,
+storeNameAr: string,
+storeNameEn: string,
+label: string,
+formatted: string,
+isComplete: boolean,
 };
 export type CompanyStatusData = {
 id: string,
@@ -81,5 +98,6 @@ companyTypeOther: string | null,
 crNumber: string | null,
 taxNumber: string | null,
 address: string | null,
+addressId: string | null,
 note: string | null,
 };

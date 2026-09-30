@@ -12,8 +12,10 @@ use Modules\B2B\Application\Query\ViewMyCompany\FileView;
 use Modules\B2B\Application\Query\ViewMyCompany\FlagView;
 use Modules\B2B\Application\Query\ViewMyCompany\MyCompanyView;
 use Modules\B2B\Application\Query\ViewMyCompany\RequestView;
+use Modules\B2B\Application\Query\ViewMyCompany\SavedAddressView;
 use Modules\B2B\Application\Query\ViewMyCompany\SentApplicationView;
 use Modules\B2B\Application\Query\ViewMyCompany\TypeOption;
+use Modules\B2B\Application\Settings\FormRules;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -31,15 +33,17 @@ final readonly class CompanyPages
 
     public function __construct(
         private PlatformApi $platform,
+        private FormRules $rules,
     ) {}
 
     public function page(MyCompanyView $view): CompanyPage
     {
         $zone = $this->platform->store(StoreId::fromString($view->homeStoreId))->timezone ?? 'UTC';
         $time = static fn (?string $at): ?string => $at === null ? null : CarbonImmutable::parse($at)->setTimezone($zone)->format(DateTimeInterface::ATOM);
-        $files = static fn (array $files): array => array_values(array_map(
-            static fn (FileView $file): CompanyFileData => new CompanyFileData(
+        $files = fn (array $files): array => array_values(array_map(
+            fn (FileView $file): CompanyFileData => new CompanyFileData(
                 $file->documentTypeId, $file->documentTypeNameAr, $file->documentTypeNameEn, $file->mediaId,
+                $this->platform->media($file->mediaId)->originalFilename ?? '',
                 (string) $time($file->uploadedAt), $file->noLongerAccepted,
             ),
             $files,
@@ -70,6 +74,16 @@ final readonly class CompanyPages
             ),
             $view->bankAccount === null ? null : new CompanyBankAccountData($view->bankAccount->iban, $view->bankAccount->bank, $view->bankAccount->holder),
             $this->platform->setting(self::MAX_PRIVATE_BYTES)->int(),
+            array_map(
+                static fn (array $rule): CompanyFieldRuleData => new CompanyFieldRuleData($rule['min'], $rule['max'], $rule['oneLine'], $rule['characters']),
+                $this->rules->forPage(),
+            ),
+            array_map(
+                static fn (SavedAddressView $saved): CompanySavedAddressData => new CompanySavedAddressData(
+                    $saved->id, $saved->storeNameAr, $saved->storeNameEn, $saved->label, $saved->formatted, $saved->isComplete,
+                ),
+                $view->savedAddresses,
+            ),
         );
     }
 
@@ -77,7 +91,7 @@ final readonly class CompanyPages
     {
         return new CompanyValuesData(
             $values->name, $values->companyTypeId, $values->companyTypeNameAr, $values->companyTypeNameEn,
-            $values->companyTypeOther, $values->crNumber, $values->taxNumber, $values->address, $values->note,
+            $values->companyTypeOther, $values->crNumber, $values->taxNumber, $values->address, $values->addressId, $values->note,
         );
     }
 

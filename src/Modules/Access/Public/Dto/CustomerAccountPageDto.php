@@ -30,6 +30,12 @@ final readonly class CustomerAccountPageDto
         public int $position = 0,
     ) {}
 
+    /** The page's full name, `{module}.{key}`: how the account menu and `return` name it. */
+    public function name(): string
+    {
+        return "{$this->module}.{$this->key}";
+    }
+
     public function labelKey(): string
     {
         return "{$this->module}::account_pages.{$this->key}";

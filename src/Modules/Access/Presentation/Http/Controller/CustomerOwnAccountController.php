@@ -40,7 +40,10 @@ use Modules\Access\Presentation\Http\Resource\AddressBookStore;
 use Modules\Access\Presentation\Http\Resource\AddressFieldRow;
 use Modules\Access\Presentation\Http\Resource\AddressRow;
 use Modules\Access\Presentation\Http\Resource\CustomerAccountPage;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Dto\AddressDto;
+use Modules\Access\Public\Dto\CustomerAccountPageDto;
+use Modules\Access\Public\Enums\AccountType;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
@@ -66,6 +69,7 @@ final readonly class CustomerOwnAccountController
         private MyAddressesForCustomer $addresses,
         private CustomerSecuritySettings $settings,
         private PlatformApi $platform,
+        private CustomerAccountPages $accountPages,
         private Application $app,
     ) {}
 
@@ -145,7 +149,12 @@ final readonly class CustomerOwnAccountController
             return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'phone', 'fields']);
         }
 
-        return $this->backTo('addresses', 'access::account.address_saved');
+        // Back to the page that sent them here, if it is one of their account's (amendment 51).
+        $return = $this->returnPage($request->input('return'), $this->accounts->forCurrentCustomer()->accountType);
+
+        return $return === null
+            ? $this->backTo('addresses', 'access::account.address_saved')
+            : redirect()->route($return->routeName)->with('status', __('access::account.address_saved'));
     }
 
     /** F9 - the one a courier is given unless the customer picks another at checkout. */
@@ -223,7 +232,17 @@ final readonly class CustomerOwnAccountController
             passwordMinimumLength: $this->settings->passwordMinLength(),
             addresses: $this->addressBook($locale),
             deletionDays: RequestAccountDeletionHandler::DAYS,
+            returnTo: $this->returnPage($request->query('return'), $account->accountType)?->name(),
         );
+    }
+
+    /**
+     * The page `return` names (amendment 51): one registered for this account's type, or nothing -
+     * any other value is ignored, so the parameter can never send anybody off the shop.
+     */
+    private function returnPage(mixed $name, AccountType $type): ?CustomerAccountPageDto
+    {
+        return is_string($name) ? $this->accountPages->find($type, $name) : null;
     }
 
     /**

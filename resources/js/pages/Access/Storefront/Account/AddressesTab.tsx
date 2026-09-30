@@ -28,6 +28,10 @@ import type {
 |
 | **No map.** The pin is left empty in this stage - a map needs a paid provider and none is chosen
 | (decided 2026-09-19) - so what a courier gets is exactly what is written here.
+|
+| Opened from another page to add an address - the company form, say - the tab carries that page's
+| name, and saving an address goes back to it (access.md amendment 51). The server decides whether
+| the name is one of this account's pages; the tab only passes it on.
 */
 
 type Props = {
@@ -42,13 +46,19 @@ export function AddressesTab({ account }: Props) {
             <p className="text-sm text-ink-muted">{t('access::account.addresses_hint')}</p>
 
             {account.addresses.map((store) => (
-                <StoreAddresses key={store.storeId} store={store} />
+                <StoreAddresses key={store.storeId} store={store} returnTo={account.returnTo} />
             ))}
         </div>
     );
 }
 
-function StoreAddresses({ store }: { store: AddressBookStore }) {
+function StoreAddresses({
+    store,
+    returnTo,
+}: {
+    store: AddressBookStore;
+    returnTo: string | null;
+}) {
     const t = useTranslator();
     const [editing, setEditing] = useState<AddressRow | 'new' | null>(null);
 
@@ -102,6 +112,7 @@ function StoreAddresses({ store }: { store: AddressBookStore }) {
                         <AddressForm
                             store={store}
                             address={editing === 'new' ? null : editing}
+                            returnTo={returnTo}
                             onDone={() => setEditing(null)}
                         />
                     )}
@@ -245,10 +256,12 @@ function SavedAddress({ address, onEdit }: { address: AddressRow; onEdit: () => 
 function AddressForm({
     store,
     address,
+    returnTo,
     onDone,
 }: {
     store: AddressBookStore;
     address: AddressRow | null;
+    returnTo: string | null;
     onDone: () => void;
 }) {
     const t = useTranslator();
@@ -261,6 +274,7 @@ function AddressForm({
         recipient_name: address?.recipientName ?? '',
         phone: address?.phone ?? '',
         is_default: address?.isDefault ?? false,
+        return: returnTo ?? '',
         fields: Object.fromEntries(
             store.fields.map((field) => [field.key, address?.fields[field.key] ?? '']),
         ) as Record<string, string>,

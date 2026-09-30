@@ -74,12 +74,32 @@ describe('values written in lines', function () {
     })->with([
         'no address' => [fn () => CompanyAddress::of("\n \n"), ['address', 'required']],
         'a tab in an address' => [fn () => CompanyAddress::of("King Fahd Road\tRiyadh"), ['address', 'without control characters']],
-        'an address one character too long' => [fn () => CompanyAddress::of(str_repeat('a', CompanyAddress::MAX + 1)), ['address', 'at most 500 characters']],
+        'an address one character too long' => [fn () => CompanyAddress::of(str_repeat('a', CompanyAddress::MAX + 1)), ['address', 'at most 6000 characters']],
         // In the middle: one at the end is trimmed away, like a pasted trailing newline.
         'a NUL in a reason' => [fn () => Remark::of('reason', "Miss\0ing"), ['reason', 'without control characters']],
         'a note one character too long' => [fn () => Remark::of('note', str_repeat('a', Remark::MAX + 1)), ['note', 'at most 1000 characters']],
         'bytes that are not text' => [fn () => Remark::of('reason', "Missing \xC3\x28"), ['reason', 'text']],
     ]);
+
+    it('keeps a picked address as its store wrote it, up to 6,000 characters, and which saved address it was (amendment 16(f))', function () {
+        $formatted = "7 King Fahd Road\r\nAl Olaya\nRiyadh";
+        $picked = CompanyAddress::saved('01J9ZC8Q0V4K6M2N8P0R2T4V6X', $formatted);
+
+        expect($picked->value)->toBe("7 King Fahd Road\nAl Olaya\nRiyadh")
+            ->and($picked->addressId)->toBe('01j9zc8q0v4k6m2n8p0r2t4v6x')
+            ->and(mb_strlen(CompanyAddress::saved('01j9zc8q0v4k6m2n8p0r2t4v6x', str_repeat('ش', CompanyAddress::MAX))->value))->toBe(6000)
+            // The placeholder anonymizing leaves has no saved address behind it.
+            ->and(CompanyAddress::of('Deleted')->addressId)->toBeNull();
+    });
+
+    it('counts another saved address that reads the same as another pick', function () {
+        $first = CompanyAddress::saved('01j9zc8q0v4k6m2n8p0r2t4v6x', 'Riyadh');
+
+        expect($first->equals(CompanyAddress::saved('01J9ZC8Q0V4K6M2N8P0R2T4V6X', 'Riyadh')))->toBeTrue()
+            ->and($first->equals(CompanyAddress::saved('01j9zc8q0v4k6m2n8p0r2t4v6y', 'Riyadh')))->toBeFalse()
+            ->and($first->equals(CompanyAddress::saved('01j9zc8q0v4k6m2n8p0r2t4v6x', 'Jeddah')))->toBeFalse()
+            ->and($first->equals(CompanyAddress::of('Riyadh')))->toBeFalse();
+    });
 
     it('takes a remark of exactly 1000 characters, line breaks counted', function () {
         $text = str_repeat("ab\n", 333).'a';
