@@ -52,7 +52,7 @@ country: an approved company orders in KSA, Egypt and UAE alike.
 | `company_type_id`, `company_type_other` | **Exactly one of the two** (amendment 2): one of the types staff manage (§1.3), **or "Other"** — the company's own words for what it is, one line, at most 100 characters. Staff may correct either: rewrite the words, or move the company to a listed type (§3.2). |
 | `cr_number` | Commercial Registration number, required (handoff §8.1). **Loose** (amendment 2): one line, at most 50 characters of letters, digits, spaces and dashes; staff check it against the certificate. |
 | `tax_number` | Tax number, required (handoff §8.1). Loose, as the CR number (amendment 2). |
-| `address` | The registered address: **one block of text** **[DECIDED 2026-09-27, amendment 2]** — required, at most 500 characters, line breaks allowed and no other control characters, read by staff as typed. No map pin. It is the company's and lives as long as the company; a delivery address is the person's, a separate thing, and keeps Access's structured form. *(Replaces 2026-09-25's "B2B's own record in Access's address scheme": nothing downstream reads the address — invoices come from the external accounting system, handoff §12.6 — so its shape is the screen's business, and the screen may change it later.)* |
+| `address` | The registered address. **[DECIDED 2026-09-30] Picked from the account's saved addresses** (amendment 16(f)) — any store's, each in its store's format (access.md §1.9), and only one its format still accepts — **and kept as a copy**: its text as the format writes it, plus which saved address it came from (§5.1). Editing or deleting that address in the address book changes neither the company nor an application; picking another is how the company's address changes. No map pin. *(Replaces amendment 2's "one block of text", typed on the company page, which itself had replaced 2026-09-25's "B2B's own record in Access's address scheme": the owner wants the address in the country's own format, entered once in the address book and chosen from there.)* |
 | ~~`contact_name`, `contact_phone`~~ | **Not columns. The responsible person is the account holder** **[DECIDED 2026-09-25]**, read from Access (`AccessApi::customer`). Handoff §8.1 asks registration for "the responsible person and their phone"; the account already carries both, and the phone is **verified by SMS**, which a typed-in second number would not be. Two phone numbers that can disagree is a support case nobody can settle. |
 | `status` | `PENDING`, `APPROVED`, `REJECTED` or `SUSPENDED` — **these four only** (handoff §8.2). Controls ordering and pricing, never sign-in. |
 | `status_reason` | Why it was rejected, suspended **or reinstated** — **required for all three** **[DECIDED 2026-09-19, 2026-09-26]**; shown to the customer. A reinstatement carries one too, so the history reads as a conversation rather than one side of it. At most 1000 characters, line breaks allowed (amendment 3). |
@@ -499,7 +499,7 @@ account, checked where it cannot be walked around.
 | `SubmitApplication` — takes the company to `PENDING` | every customer | `b2b.company.apply` | Global |
 | `DiscardApplicationDraft` — throws an unsent draft away, with the files only it holds (amendment 3) | company accounts only | `b2b.company.apply` | Own data |
 | `ViewMyCompany` — details, status, reason, history | every customer | `b2b.company.apply` | Own data |
-| `UpdateCompanyContact` — address and contact details | every customer | `b2b.company.update` | Own data |
+| `UpdateCompanyContact` — the address, picked from the account's saved addresses (amendment 16(f)) | every customer | `b2b.company.update` | Own data |
 | ~~`UpdateCompanyDetails`~~ — **not a use case of its own** (amendment 3): the name, CR number, tax number, type and documents change only by a **new application** — `SaveApplicationDraft`, then `SubmitApplication` — which sends the company back to `PENDING` | — | — | — |
 
 **[DECIDED 2026-09-28] What the company's own actions leave in the audit log** (amendment 4):
@@ -630,48 +630,81 @@ account's pages and from the strip. Company accounts only. The design is look an
 its fields, its company types or its address differ from this spec, the spec holds (§1.1, §1.3).
 
 - **Two columns.** The main one holds a status box and, under it, the form or what was sent; the
-  side one holds what happens after sending, how a company pays, and what it may do before
-  approval.
+  side one holds **the application's lifecycle and nothing else** (amendment 16(e)).
 - **Before the first send there is no company, only a draft**, and the page shows the draft alone:
   not sent yet, what is still missing, and Continue or Discard. This is §4.3's third row on the
   page itself.
 - **The form** — company details (name; type, "Other" always last and then its words; CR number;
-  tax number; address), documents (every active type of the home store, required ones marked, one
-  file each to open, replace or remove, a greyed type and anything "no longer accepted" marked,
-  §1.3), what the last rejection asked for (only when it asked), and the note — then **Send**.
+  tax number; the address, **picked from the account's saved addresses**, amendment 16(f)),
+  documents (every active type of the home store, required ones marked, one file each to open,
+  replace or remove, a greyed type and anything "no longer accepted" marked, §1.3), what the last
+  rejection asked for (only when it asked), and the note — then **Send**.
   **It saves itself** (amendment 14(a)): each field when the person leaves it, each file when it is
   uploaded, so a wrong value is shown on its own field at once (amendment 4) and nothing is lost by
   leaving; Send checks that it is complete. **Send waits for a clean form** (amendment 15(a)): it
   cannot be pressed while anything is still saving, or while a field holds a value that was refused
   or not saved yet — the page says to finish the marked fields first — and it cannot be pressed
   twice; what is sent is always what the page shows.
+- **Each field says where it stands** (amendment 16(a)), in colour and in words: **yellow** while
+  what it holds is not valid — empty when it is required, shorter than its minimum, longer than its
+  maximum, or with characters it does not take — and such a value is **never sent**: the page checks
+  it first, and the server checks it again on its own; **"Saving…"** while its save is out, which
+  never stops the person filling the other fields; **green, "Saved"**, once the server holds it; and
+  **red**, with the server's reason, if the server refuses it all the same. The page takes each
+  field's minimum, maximum and allowed characters from the server, the same rules the server checks.
+- **Minimums** (amendment 16(b)): the company's name at least 2 characters, the CR number and the
+  tax number at least 5, "Other"'s words at least 3, a text answer at least 2; the note has none.
+  They are **settings, one set for every store**, in the Companies section of the settings page,
+  changed under `platform.settings.update`; each is at least 1 and at most its field's maximum. A
+  value is held to them when it is saved and **again when the application is sent**, so a value
+  saved before a minimum was raised turns yellow and stops Send until it is changed. Nothing already
+  sent is touched. The maximums stay as §1.1 sets them.
+- **The same file twice** (amendment 16(c)): a paper whose file name is **exactly** that of a file
+  already under another document type of the draft is refused — "the same file cannot go into two
+  sections" — by the page at once, before uploading, and by the server (`DuplicateDocumentFile`).
+  Replacing a section's own file with one of the same name is allowed. Answers to what staff asked
+  for are not compared.
+- **Send is inactive until everything is complete** (amendment 16(d)): every required value valid
+  and saved, a type chosen and still accepted, an address picked, every required paper, nothing
+  "no longer accepted", every marked item replaced, every request answered. What is still missing is
+  listed beside it. The server refuses an incomplete send on its own as well (§1.2).
 - **Rejected** (amendment 14(d)): the reason, and **Apply again**, which opens the form from the
   company as it is now and the files of the last application sent (§1.2), the flagged items marked,
   and a section for what staff asked for. **The reason is the last rejection's** (amendment 15(b)),
   and a company reinstated since sees the reinstatement's words on a line of their own.
 - **Suspended**: the suspension's reason; everything read-only; no applying. Discarding an unsent
-  draft is the one thing left (§1.1). **No "before approval" card, and the payment card says
-  ordering is stopped while the account is suspended** (amendment 15(d)).
+  draft is the one thing left (§1.1). **The lifecycle is hidden** while suspended (amendment
+  16(e)).
 - **Approved**: the details, and **Change company details**, which opens the form at once, filled
   in (amendment 14(e)). **The form says, at its top and again above Send**, that the changes go to
   staff as a new application, that the company keeps ordering until it sends them, and that from
-  then until they are approved it cannot order (§1.1).
-- **The address** has its own small form, saved at once without review (`UpdateCompanyContact`),
+  then until they are approved it cannot order (§1.1). **Its bank account** is a card in the main
+  column (amendment 16(e)): the IBAN, the bank and the holder, with Copy, while bank transfer is on;
+  that it is temporarily unavailable and our team will contact them, while it is off (§2.3,
+  amendment 13(c)).
+- **The address** has its own small picker, saved at once without review (`UpdateCompanyContact`),
   **for every company but a suspended one — pending, approved or rejected — while no draft is
-  open** (amendment 15(c)); while one is, the address is changed in the form, and that changes the
+  open** (amendment 15(c)); while one is, the address is picked in the form, and that changes the
   company too (§3.1).
+- **The address is picked from the account's saved addresses** (amendment 16(f)) — **any store's**,
+  each written in its store's format (access.md §1.9) — never typed here. An address its store's
+  format no longer accepts cannot be picked. **With none saved**, the section says so and offers
+  **Add an address**, which opens the account's Addresses page and, once one is saved, brings the
+  person back to the application to pick it (access.md amendment 51). **The application and the
+  company keep a copy** of the address as it was when picked: editing or deleting it in the address
+  book changes neither; picking another is how the company's address changes.
 - **Every application sent**, newest first (amendment 14(f)): one row each — its reference, the
   date it was sent, its result — opening onto what was sent, its papers (each opened by a
   30-minute link, §1.4), the reason or note it got, and what it flagged or asked for. No staff
   names (§3.1).
-- **What happens after sending**, the design's four steps: sending; **our team reviews it, usually
-  within two business days**; the decision, **by email**; ordering at company prices (amendment
-  14(h)). The design's "email and mobile" is not kept: the decision is emailed only (§2.3).
-- **How a company pays**, by the company's state (amendment 14(h)): before approval, that company
-  orders are never paid online — by bank transfer, or arranged with our team — and that the
-  account details show once approved; approved with bank transfer on, the IBAN, the bank and the
-  holder, with Copy; approved with it temporarily off, that bank transfer is temporarily
-  unavailable and our team will contact them to arrange payment (§2.3, amendment 13(c)).
+- **The lifecycle** (amendment 16(e), which replaces 14(h)'s four steps and its two cards): **three
+  steps** — filling and sending the application; **under review**, usually within two business
+  days; **the decision**, approved or not approved, sent by email — with a pointer on the step the
+  latest application has reached: no application or a draft open, the first; sent and waiting, the
+  second; decided, the third, showing its result. A company applying again after a decision starts
+  again at the first. **Hidden while the company is suspended.** The side column holds nothing
+  else: "How a company pays" and "Before approval" are gone, and an approved company's bank account
+  is in the main column (above).
 - **Times** on the page, and the year in a reference, are the **home store's** (HANDOFF §4: UTC
   underneath, the store's time zone on the screen; owner, 2026-09-29).
 - **After registering**, a company account goes to the confirm-email page as anyone does (amendment
@@ -686,8 +719,8 @@ All in schema `b2b`. Every id is `char(26)` (ULID); timestamps are `timestamptz`
 
 | Table | Columns |
 |---|---|
-| `b2b.companies` | `id` PK · `customer_id` **unique** FK → `access.customers` · `name` · `company_type_id` NULL FK · `company_type_other` NULL — exactly one of the two · `cr_number` · `tax_number` · `address` (§5.1) · `home_store_id` FK → `platform.stores` · `status` · `status_before_suspension` NULL · `status_reason` NULL · `status_changed_at` NULL · `status_changed_by` NULL FK → `access.staff_users` · timestamps · CHECK `companies_approved_type_listed`: an approved company, or one suspended from approved, holds a listed type, never "Other" (amendment 13(d)) |
-| `b2b.applications` | `id` PK · `customer_id` FK · `company_id` NULL FK · `state` · the snapshot, each NULL while a draft: `name`, `company_type_id`, `company_type_other`, `cr_number`, `tax_number`, `address` · `note` NULL · `submitted_at` NULL · `reference` NULL — present exactly when the application is no longer a draft (CHECK `applications_reference_when_sent`), shaped `TW-CO-` two digits `-` four or more digits (CHECK `applications_reference_format`) (amendment 14(g)) · `decided_at` NULL · `decided_by` NULL FK · `decision_reason` NULL · timestamps |
+| `b2b.companies` | `id` PK · `customer_id` **unique** FK → `access.customers` · `name` · `company_type_id` NULL FK · `company_type_other` NULL — exactly one of the two · `cr_number` · `tax_number` · `address` · `address_id` NULL FK → `access.addresses` ON DELETE SET NULL (§5.1, amendment 16(f)) · `home_store_id` FK → `platform.stores` · `status` · `status_before_suspension` NULL · `status_reason` NULL · `status_changed_at` NULL · `status_changed_by` NULL FK → `access.staff_users` · timestamps · CHECK `companies_approved_type_listed`: an approved company, or one suspended from approved, holds a listed type, never "Other" (amendment 13(d)) |
+| `b2b.applications` | `id` PK · `customer_id` FK · `company_id` NULL FK · `state` · the snapshot, each NULL while a draft: `name`, `company_type_id`, `company_type_other`, `cr_number`, `tax_number`, `address`, `address_id` (FK → `access.addresses` ON DELETE SET NULL, §5.1) · `note` NULL · `submitted_at` NULL · `reference` NULL — present exactly when the application is no longer a draft (CHECK `applications_reference_when_sent`), shaped `TW-CO-` two digits `-` four or more digits (CHECK `applications_reference_format`) (amendment 14(g)) · `decided_at` NULL · `decided_by` NULL FK · `decision_reason` NULL · timestamps |
 | `b2b.application_documents` | `id` PK · `application_id` FK ON DELETE CASCADE · `document_type_id` FK · `media_id` FK → `platform.media` **RESTRICT** · `uploaded_at` |
 | `b2b.application_flags` (amendment 4) | `id` PK · `application_id` FK ON DELETE CASCADE — **the rejected application** · `field` NULL (`name`, `company_type`, `cr_number`, `tax_number`, `address`; CHECK `application_flags_field`) · `document_type_id` NULL FK **RESTRICT** — exactly one of the two (CHECK `application_flags_one_item`); one flag per field or document type per application (§5.2) |
 | `b2b.application_requests` (amendment 4) | `id` PK · `application_id` FK ON DELETE CASCADE — **the rejected application** · `kind` (`TEXT`, `FILE`; CHECK `application_requests_kind`) · `label` — the staff member's words, one line, at most 200 characters (CHECK `application_requests_label_text`) · `position` 0–10,000 (CHECK `application_requests_position_range`) |
@@ -699,9 +732,16 @@ All in schema `b2b`. Every id is `char(26)` (ULID); timestamps are `timestamptz`
 
 ### 5.1 The address
 
-One `text` column, at most 500 characters, line breaks allowed (§1.1, amendment 2). No map pin, no
-`recipient_name` and no `phone` — the responsible person is the account holder (§1.1). It lives on
-the company, and as part of the snapshot on each application.
+**[DECIDED 2026-09-30] A saved address of the account, kept as a copy** (amendment 16(f)): the
+`address` `text` column holds the picked address as its store's format writes it (Access's
+`AddressDto::formatted`) — at most 6,000 characters, what Access's own limits let a formatted
+address reach (4,000 of values in a template of at most 2,000); the column is widened from
+`varchar(500)` —, and `address_id` NULL FK → `access.addresses`
+ON DELETE SET NULL says which saved address it was picked from — on the company and, as part of the
+snapshot, on each application. The copy is what staff read and what an application keeps; the id
+only tells the page which saved address is picked now, and goes when that address is deleted.
+Addresses written before amendment 16 keep their text and have no id. No map pin, no
+`recipient_name` and no `phone` shown — the responsible person is the account holder (§1.1).
 
 ### 5.2 Indexes
 
@@ -758,12 +798,13 @@ type string and HTTP status (handoff §11).
 | `RequestNotAnswered` | UNPROCESSABLE | Sending while a request of the last rejection has no answer (§1.2, amendment 4) |
 | `DocumentTypeInactive` | CONFLICT | Uploading under a document type that is inactive or does not exist (§1.4, amendment 4) |
 | `DocumentNoLongerAccepted` | UNPROCESSABLE | Sending a draft that still holds a file under a document type deactivated since (§1.3, amendment 5); a company type deactivated since is `CompanyTypeInactive` |
+| `DuplicateDocumentFile` | CONFLICT | A paper whose file name is exactly that of a file under another document type of the draft (§4.5, amendment 16(c)) |
 | `RequestNotFound` | NOT_FOUND | Answering a request that is not one of the last rejection's (§3.1, amendment 5) |
 | `AnswerKindMismatch` | UNPROCESSABLE | A text answer to a file request, or a file to a text request (§3.1, amendment 5) |
 | `ApplicationFileNotFound` | NOT_FOUND | Opening a file that is not one of the account's own applications' — answered the same whether or not such a file exists (§1.4, amendment 9(c)) |
 | `CompanySuspended` | CONFLICT | Anything the company does while suspended but discard its draft (§1.1, §3.1, amendments 5, 9(a), (d) and (e)): starting, saving, uploading, answering, removing a file or an answer, sending, and changing the address — and a staff correction of its type (amendment 10(h)) |
 | `InvalidCompanyStatus` | CONFLICT | A change the company's status does not allow: deciding a company with no application waiting, suspending one already suspended, reinstating one that is not (§4.1, amendment 3) |
-| `InvalidCompanyAttribute` | UNPROCESSABLE | A value the domain refuses — a CR number too long, an unknown company type, or a listed type that is not one of the home store's (§1.3, amendment 6(d)) |
+| `InvalidCompanyAttribute` | UNPROCESSABLE | A value the domain refuses — a CR number too long, or shorter than today's minimum (amendment 16(b)), an unknown company type, a listed type that is not one of the home store's (§1.3, amendment 6(d)), or an address that is not one of the account's saved addresses or that its store's format no longer accepts (amendment 16(f)) |
 | ~~`DocumentTypeInUse`~~ | — | **Removed** (amendment 10): a type is never deleted, so nothing can refuse deleting one (§1.3) |
 | `TypeNameTaken` | CONFLICT | Adding or renaming a type to a name another type of its kind already has, in either language, ignoring case (§1.3, amendment 2) |
 | `CompanyTypeInactive` | CONFLICT | Submitting a draft whose chosen type staff have deactivated since; choose again (§1.3, amendment 2). Also a staff correction to a deactivated type **not yet confirmed** — the screen then says the type becomes active again (amendment 8(b)) — and a replacement, when deactivating a type, or a type companies are moved from or to (amendment 11(c)), that is itself inactive (amendment 10). A replacement or a transfer's target that is unknown, another store's, or the same type is `InvalidCompanyAttribute`, as everywhere; the type the action is about — the one deactivated, or moved from — answers `TypeNotFound` when it is unknown or another store's (10(k)) |
@@ -833,7 +874,13 @@ type string and HTTP status (handoff §11).
 33. Rejected: the reason and Apply again, which opens the form from the company now and the last files, the flagged items marked and the requests to answer. Suspended: the reason, everything read-only, and only discarding an unsent draft.
 34. Change company details opens the filled-in form at once, which says at its top and above Send what sending will do; the address alone saves at once, without review.
 35. Each application sent takes the next reference of its year, in its home store's time zone — `TW-CO-26-0001` onwards, `0001` again in a new year; a failed send takes none; a draft has none; two sends at once never share one; staff find the company by it.
-36. The payment side card by state: before approval, never online and the account shown once approved; approved, the IBAN, bank and holder only while bank transfer is on, else temporarily unavailable.
+36. ~~The payment side card by state~~ — replaced by 42 (amendment 16(e)).
+37. Each field is yellow while not valid — required and empty, under its minimum, over its maximum, or with characters it does not take — and is then not sent; green and "Saved" once the server holds it; red with the server's reason if the server refuses it; "Saving…" never stops the other fields (amendment 16(a)).
+38. The minimums are settings, one set for every store, changed under `platform.settings.update` and bounded by each field's maximum; a value is held to them when saved and again when sent, so a value saved before a minimum was raised stops the send until it is changed (amendment 16(b)).
+39. A paper whose file name is exactly that of a file under another document type of the draft is refused, by the page and by the server; replacing a section's own file with the same name is allowed; answers are not compared (amendment 16(c)).
+40. Send is inactive until everything is complete, with what is missing listed; the server refuses an incomplete send on its own (amendment 16(d)).
+41. The address is picked from the account's saved addresses, any store's, and only one its format accepts; another account's address is refused as unknown; the application and the company keep a copy that editing or deleting the saved address does not change; with none saved, Add an address goes to the Addresses page and back to the application once one is saved (amendment 16(f); access.md amendment 51).
+42. The side column is the lifecycle alone — sending, under review, the decision with its result — with the pointer on the step the latest application has reached, back at the first when a company applies again, hidden while suspended; an approved company's bank account is a card in the main column, or "temporarily unavailable" (amendment 16(e)).
 
 ---
 
@@ -871,3 +918,4 @@ place in the sections named; this table records what changed and why.
 | 13 | §1.1, §1.3, §2.1, §2.2, §2.3, §3.2, §5, §6, §7, §8 (14, 18, 29), §9 (7) | **Step 5, after its review** — the owner's answers to what the independent review of step 5 raised. (a) **Anonymizing, completed**: a company still "Other" gives up its own words for its type too, to the placeholder; an application still waiting stays in staff's queue, emptied, and a reviewer rejects it by hand; B2B's part **runs from the queue, retried when it fails, and is done once** however many times it runs. (b) **"Other" is never approved**: approving is refused while the company is "Other" (`CompanyTypeNotSet`); staff correct it first to a listed type, existing or added by an admin; an approved company is never corrected to "Other"; other modules see an "Other" company's type as **not set yet** — `CompanyDto` carries neither type name and never the words. (c) **Bank transfer is on only while all three bank settings are filled in**, else **temporarily off**: a company then pays only through staff; `B2BApi::bankAccount(store)` answers null, so checkout (Sales, stage 6) disables paying by transfer and the server refuses it; the settings page shows one line in the Companies section, on or temporarily off — a second Platform addition (platform.md §1.3, §9.4). (d) **The database backs (b)**: CHECK `companies_approved_type_listed` refuses an approved company, or one suspended from approved, that is "Other". (e) **Approving the waiting application of an erased account is refused** (`CompanyAccountDeleted`); staff reject it. | (a) B2B's part ran in Access's after-commit callbacks: a failure there was never retried, and Access logged the account as not anonymized although its own part was done (the review of step 5). (b) The words are a hint to the reviewer, not a type: "whatever company types in other, the staff still must replace the other with valid type from us" (owner). (c) Bank transfer stays stopped until the store enters its account, and the server refuses what the button would not offer (owner). (d), (e) Asked after the second review of step 5: the module backs its one-table rules with CHECKs, and an approval nobody can ever use is no decision (owner). | Owner, 2026-09-29 |
 | 14 | §1.2, §3.2, §4.4, §4.5, §5, §5.2, §8 (30–36) | **Step 6, before it is built** — the owner's answers for the company's own screens. (a) **One company page, the design's** (`TouchWood Screens.dc.html`), at `/{store}/{lang}/account/company`, with a Company entry in the account's pages: a status box, the form or what was sent, and a side column. Before the first send it shows the draft alone. **The form saves itself**: each field when it is left, each file when it is uploaded. (b) **After registering, a company account goes to the confirm-email page** as anyone does; the page is reached from the strip or the account's pages — the two stay two pages, which replaces frontend.md F3's "one wizard". (c) **A line on every shop page** for a company account that cannot order, one per stage and status, and nothing once approved, even with an unsent change (§4.4). (d) **Rejected: the reason and Apply again**, the form opened from the company now and the last files, flags marked, requests to answer; **suspended: the reason, read-only**, only discarding a draft. (e) **Change company details opens the filled-in form at once**, and the form says at its top and above Send what sending does (§1.1's warning); the address has its own small form, saved at once. (f) **Every application sent is listed**, newest first, each with what was sent, its papers, its reason or note and its flags and requests. (g) **Every application gets a reference when it is sent**: `TW-CO-`, the year as two digits in its home store's time zone, and a count restarting at `0001` each year — shown to the company and to staff, who can search the company list by it; a new column and a counter table, backed by CHECKs and a unique index. (h) **The side column**: the design's four steps, keeping **"usually within two business days"**, the decision said to come **by email**; how a company pays, by state — neutral before approval, the bank account while approved and bank transfer is on, "temporarily unavailable" while it is off. Times on the page, and a reference's year, are the home store's. | (a) The design is look and behaviour; the spec's rules, fields and types hold where they differ from it. (c) A company that cannot order should know why wherever it is in the shop. (f), (g) The owner asked for the whole history and a number a customer can quote (design: `TW-CO-2291`), with the year: "add year as 26". (h) Only email is sent today; the owner chose to keep the two-day promise. The time zone: "each store will have its own time" (owner) — UTC underneath, as HANDOFF §4 already says. | Owner, 2026-09-29 (B2B step 6) |
 | 15 | §4.5 | **Step 6, after its review** — the owner's answers to what the independent review of step 6 raised. (a) **Send waits for a clean form**: it cannot be pressed while anything is still saving, or while a field holds a refused or unsaved value — the page says to finish the marked fields first — nor twice; what is sent is what the page shows. (b) **A rejected company is shown the last rejection's reason**, and, when it was reinstated since, the reinstatement's words on a line of their own. (c) **The address form is there for every company but a suspended one** — pending, approved or rejected — while no draft is open. (d) **A suspended company sees no "before approval" card**, and the payment card says ordering is stopped while it is suspended. | (a) The review proved a company could send the old value while the page showed a refused new one — an approved company then went back to review over a change that never happened. (b) The company's reason is overwritten by a reinstatement, which then read as the reason it was rejected. (c) The spec already lets a pending or rejected company change its address. (d) "Once you are approved" is wrong for a suspended company that was approved. | Owner, 2026-09-30 |
+| 16 | §1.1, §3.1, §4.5, §5, §5.1, §7, §8 (36–42) | **Step 6, after the owner used the page** — the owner's changes. (a) **Each field says where it stands**: yellow while not valid, and then never sent — the page checks first, the server again; "Saving…" never stops the other fields; green and "Saved" once the server holds it; red with the server's reason if it refuses. The page takes each field's rules from the server. (b) **Minimums**: name 2, CR number 5, tax number 5, "Other"'s words 3, a text answer 2, the note none — **settings, one set for every store**, changed under `platform.settings.update`, bounded by each field's maximum; held on save and again on send. (c) **The same file twice**: a paper named exactly as a file under another document type of the draft is refused (`DuplicateDocumentFile`), by the page and the server; answers are not compared. (d) **Send is inactive until everything is complete**, with what is missing listed; the server refuses an incomplete send too. (e) **The side column is the application's lifecycle alone**: three steps — filling and sending, under review, the decision with its result — the pointer on the latest application's step, hidden while suspended; "How a company pays" and "Before approval" go, and an approved company's bank account is a card in the main column. This replaces amendment 14(h)'s side column and 15(d). (f) **The address is picked from the account's saved addresses**, any store's, and kept as a copy — its formatted text and which saved address it was — which editing or deleting the saved address does not change; with none saved, Add an address goes to the Addresses page and back (access.md amendment 51). This replaces amendment 2's typed address; the copy may be as long as Access writes it (6,000). | The owner, having used the page: a person must see what is saved and what is wrong before sending; the numbers are the owner's, and admins change them; a scanned file put in two sections is a mistake; the side column should show where the application is and nothing else; an address belongs in the country's own format, entered once. | Owner, 2026-09-30 |
