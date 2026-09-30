@@ -479,7 +479,8 @@ account, checked where it cannot be walked around.
 - **While a draft is open**, changing the company's address writes it into the draft too; a staff
   correction of the type goes into the draft only if the draft's type is still the one the company
   had.
-- A flagged field counts as replaced when its value differs **exactly, after trimming**, from what
+- A flagged field counts as replaced when its value differs **exactly, after trimming** (the page's
+  and the server's one rule, amendment 17(a)), from what
   the rejected application sent — an address change or a staff correction since included. A flag on
   a document type deactivated since stops blocking; its file is then removed (§1.3).
 - Answering a request that is not the last rejection's → `RequestNotFound`; with the wrong kind
@@ -650,8 +651,12 @@ its fields, its company types or its address differ from this spec, the spec hol
   maximum, or with characters it does not take — and such a value is **never sent**: the page checks
   it first, and the server checks it again on its own; **"Saving…"** while its save is out, which
   never stops the person filling the other fields; **green, "Saved"**, once the server holds it; and
-  **red**, with the server's reason, if the server refuses it all the same. The page takes each
-  field's minimum, maximum and allowed characters from the server, the same rules the server checks.
+  **red**, with the reason, if the server refuses it all the same — the page's own reason when the
+  refusal's answer lets it name one (amendment 17(g)). The page takes each field's minimum, maximum
+  and allowed characters from the server, the same rules the server checks, and both trim the same
+  characters at either end (17(a)). A field's own answer never overwrites what the person has typed
+  since (17(c)). A field the last decision marked, and not yet changed, shows its red mark and never
+  green "Saved" (17(f)).
 - **Minimums** (amendment 16(b)): the company's name at least 2 characters, the CR number and the
   tax number at least 5, "Other"'s words at least 3, a text answer at least 2; the note has none.
   They are **settings, one set for every store**, in the Companies section of the settings page,
@@ -660,7 +665,8 @@ its fields, its company types or its address differ from this spec, the spec hol
   saved before a minimum was raised turns yellow and stops Send until it is changed. Nothing already
   sent is touched. The maximums stay as §1.1 sets them.
 - **The same file twice** (amendment 16(c)): a paper whose file name is **exactly** that of a file
-  already under another document type of the draft is refused — "the same file cannot go into two
+  already under another document type of the draft — both as the media library keeps names
+  (amendment 17(d)) — is refused — "the same file cannot go into two
   sections" — by the page at once, before uploading, and by the server (`DuplicateDocumentFile`).
   Replacing a section's own file with one of the same name is allowed. Answers to what staff asked
   for are not compared.
@@ -684,15 +690,17 @@ its fields, its company types or its address differ from this spec, the spec hol
   amendment 13(c)).
 - **The address** has its own small picker, saved at once without review (`UpdateCompanyContact`),
   **for every company but a suspended one — pending, approved or rejected — while no draft is
-  open** (amendment 15(c)); while one is, the address is picked in the form, and that changes the
-  company too (§3.1).
+  open** (amendment 15(c)); while one is, the address is picked in the form, and it becomes the
+  company's address when the application is sent (amendment 17(j)), as every value in it does.
 - **The address is picked from the account's saved addresses** (amendment 16(f)) — **any store's**,
   each written in its store's format (access.md §1.9) — never typed here. An address its store's
-  format no longer accepts cannot be picked. **With none saved**, the section says so and offers
-  **Add an address**, which opens the account's Addresses page and, once one is saved, brings the
-  person back to the application to pick it (access.md amendment 51). **The application and the
+  format no longer accepts cannot be picked. **With none saved**, the section says so; **Add an
+  address** — offered with saved addresses too (amendment 17(k)) — opens the account's Addresses
+  page and, once one is saved, brings the person back to the application to pick it (access.md
+  amendment 51); in the form it waits for the saves still going (17(i)). **The application and the
   company keep a copy** of the address as it was when picked: editing or deleting it in the address
-  book changes neither; picking another is how the company's address changes.
+  book changes neither; picking another is how the company's address changes — or picking the same
+  one again once it was edited: it then shows unpicked, with a note (17(b)).
 - **Every application sent**, newest first (amendment 14(f)): one row each — its reference, the
   date it was sent, its result — opening onto what was sent, its papers (each opened by a
   30-minute link, §1.4), the reason or note it got, and what it flagged or asked for. No staff
@@ -734,8 +742,9 @@ All in schema `b2b`. Every id is `char(26)` (ULID); timestamps are `timestamptz`
 
 **[DECIDED 2026-09-30] A saved address of the account, kept as a copy** (amendment 16(f)): the
 `address` `text` column holds the picked address as its store's format writes it (Access's
-`AddressDto::formatted`) — at most 6,000 characters, what Access's own limits let a formatted
-address reach (4,000 of values in a template of at most 2,000); the column is widened from
+`AddressDto::formatted`) — at most 6,000 characters, the column's bound: Access's own limits keep
+a formatted address within it unless its template repeats a field, and a longer one is refused as
+too long (amendment 17(e)); the column is widened from
 `varchar(500)` —, and `address_id` NULL FK → `access.addresses`
 ON DELETE SET NULL says which saved address it was picked from — on the company and, as part of the
 snapshot, on each application. The copy is what staff read and what an application keeps; the id
@@ -919,3 +928,4 @@ place in the sections named; this table records what changed and why.
 | 14 | §1.2, §3.2, §4.4, §4.5, §5, §5.2, §8 (30–36) | **Step 6, before it is built** — the owner's answers for the company's own screens. (a) **One company page, the design's** (`TouchWood Screens.dc.html`), at `/{store}/{lang}/account/company`, with a Company entry in the account's pages: a status box, the form or what was sent, and a side column. Before the first send it shows the draft alone. **The form saves itself**: each field when it is left, each file when it is uploaded. (b) **After registering, a company account goes to the confirm-email page** as anyone does; the page is reached from the strip or the account's pages — the two stay two pages, which replaces frontend.md F3's "one wizard". (c) **A line on every shop page** for a company account that cannot order, one per stage and status, and nothing once approved, even with an unsent change (§4.4). (d) **Rejected: the reason and Apply again**, the form opened from the company now and the last files, flags marked, requests to answer; **suspended: the reason, read-only**, only discarding a draft. (e) **Change company details opens the filled-in form at once**, and the form says at its top and above Send what sending does (§1.1's warning); the address has its own small form, saved at once. (f) **Every application sent is listed**, newest first, each with what was sent, its papers, its reason or note and its flags and requests. (g) **Every application gets a reference when it is sent**: `TW-CO-`, the year as two digits in its home store's time zone, and a count restarting at `0001` each year — shown to the company and to staff, who can search the company list by it; a new column and a counter table, backed by CHECKs and a unique index. (h) **The side column**: the design's four steps, keeping **"usually within two business days"**, the decision said to come **by email**; how a company pays, by state — neutral before approval, the bank account while approved and bank transfer is on, "temporarily unavailable" while it is off. Times on the page, and a reference's year, are the home store's. | (a) The design is look and behaviour; the spec's rules, fields and types hold where they differ from it. (c) A company that cannot order should know why wherever it is in the shop. (f), (g) The owner asked for the whole history and a number a customer can quote (design: `TW-CO-2291`), with the year: "add year as 26". (h) Only email is sent today; the owner chose to keep the two-day promise. The time zone: "each store will have its own time" (owner) — UTC underneath, as HANDOFF §4 already says. | Owner, 2026-09-29 (B2B step 6) |
 | 15 | §4.5 | **Step 6, after its review** — the owner's answers to what the independent review of step 6 raised. (a) **Send waits for a clean form**: it cannot be pressed while anything is still saving, or while a field holds a refused or unsaved value — the page says to finish the marked fields first — nor twice; what is sent is what the page shows. (b) **A rejected company is shown the last rejection's reason**, and, when it was reinstated since, the reinstatement's words on a line of their own. (c) **The address form is there for every company but a suspended one** — pending, approved or rejected — while no draft is open. (d) **A suspended company sees no "before approval" card**, and the payment card says ordering is stopped while it is suspended. | (a) The review proved a company could send the old value while the page showed a refused new one — an approved company then went back to review over a change that never happened. (b) The company's reason is overwritten by a reinstatement, which then read as the reason it was rejected. (c) The spec already lets a pending or rejected company change its address. (d) "Once you are approved" is wrong for a suspended company that was approved. | Owner, 2026-09-30 |
 | 16 | §1.1, §3.1, §4.5, §5, §5.1, §7, §8 (36–42) | **Step 6, after the owner used the page** — the owner's changes. (a) **Each field says where it stands**: yellow while not valid, and then never sent — the page checks first, the server again; "Saving…" never stops the other fields; green and "Saved" once the server holds it; red with the server's reason if it refuses. The page takes each field's rules from the server. (b) **Minimums**: name 2, CR number 5, tax number 5, "Other"'s words 3, a text answer 2, the note none — **settings, one set for every store**, changed under `platform.settings.update`, bounded by each field's maximum; held on save and again on send. (c) **The same file twice**: a paper named exactly as a file under another document type of the draft is refused (`DuplicateDocumentFile`), by the page and the server; answers are not compared. (d) **Send is inactive until everything is complete**, with what is missing listed; the server refuses an incomplete send too. (e) **The side column is the application's lifecycle alone**: three steps — filling and sending, under review, the decision with its result — the pointer on the latest application's step, hidden while suspended; "How a company pays" and "Before approval" go, and an approved company's bank account is a card in the main column. This replaces amendment 14(h)'s side column and 15(d). (f) **The address is picked from the account's saved addresses**, any store's, and kept as a copy — its formatted text and which saved address it was — which editing or deleting the saved address does not change; with none saved, Add an address goes to the Addresses page and back (access.md amendment 51). This replaces amendment 2's typed address; the copy may be as long as Access writes it (6,000). | The owner, having used the page: a person must see what is saved and what is wrong before sending; the numbers are the owner's, and admins change them; a scanned file put in two sections is a mistake; the side column should show where the application is and nothing else; an address belongs in the country's own format, entered once. | Owner, 2026-09-30 |
+| 17 | §1.1, §1.2, §3.1, §4.5, §5.1 | **Step 6, after the review of amendment 16** — the owner's answers ("the recommended fix for each", 2026-10-01). (a) **One rule for what "at either end" means**: the page and the server trim the same characters — tabs, line breaks, the vertical tab and form feed, every Unicode space separator (a no-break space included) and U+FEFF — so a value pasted with an invisible space at its end is never shown valid and then refused, nor the other way round; flags compare after the same trim (§1.2). (b) **An edited saved address can be picked again**: an address shows as picked only when it is the one picked **and** it still reads as the kept copy; once edited in the address book it is shown unpicked, with a note, and picking it again takes the new text. (c) **A field's own answer never overwrites a newer edit**: while the person has typed on since, the field keeps what they typed. (d) **Two papers of one name are compared as the media library keeps names** (Platform's `MediaFilename::kept`): an invisible character or a space at the ends does not make a second name. (e) **The copy's bound is 6,000 characters**, the column's; Access's limits keep a formatted address within it unless its template repeats a field, and a longer one is refused as too long. (f) **The last decision's marks stay red**, and a marked field that has not been changed never shows green "Saved" (owner). (g) **A refusal says why**: when the page, given the rules again with the refusal, knows the reason, it shows that reason in red rather than only "not valid". (h) **The draft is checked before its values**: a suspended company or an account with no draft is told so before any value is weighed; a saved address deleted while it is being picked is refused on the address, not answered with an error page. (i) **Leaving the form waits its turn**: Add an address goes after the saves still waiting, and Discard waits for them. (j) **§4.5 corrected** (owner): while a draft is open, the address picked in the form changes the company's address **when the application is sent**, not before; the address card, while no draft is open, changes it at once (15(c)). (k) **Confirmed as built** (owner, 2026-09-30): an empty required field turns yellow once it is left or its saved value is cleared, and an untouched one is listed beside Send instead; Add an address is offered with saved addresses too. | The independent review of amendment 16 found the page and the server trimming different characters, an edited saved address that could not be picked again, a field's answer overwriting a newer edit, file names Platform cleans slipping past the check, and a wrong reason for the 6,000 bound; the owner took the recommended fix for each, and answered the two open questions. | Owner, 2026-10-01 |
