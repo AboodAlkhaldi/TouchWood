@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\B2B\Application\Command\AttachApplicationDocument\AttachApplicationDocument;
 use Modules\B2B\Application\Command\AttachApplicationDocument\AttachApplicationDocumentHandler;
+use Modules\B2B\Application\Command\UpdateCompanyContact\UpdateCompanyContact;
+use Modules\B2B\Application\Command\UpdateCompanyContact\UpdateCompanyContactHandler;
 use Modules\B2B\Application\Settings\FormRules;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
@@ -83,6 +85,23 @@ function companyScreenPapers(string $customerId): void
                 app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument($type->id(), B2BFixtures::pdf(), 'paper-'.$type->id().'.pdf'));
             }
         }
+    } finally {
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+    }
+}
+
+/**
+ * The company's address picked as the customer picks it — and the actor given back after, so the
+ * browser's requests go on reading who is signed in.
+ */
+function companyScreenMoveTo(string $customerId, string $addressId): void
+{
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+    Fx::actAsCustomer($customerId);
+
+    try {
+        app(UpdateCompanyContactHandler::class)->handle(new UpdateCompanyContact($addressId));
     } finally {
         app()->scoped(ActorContext::class, $previous);
         app()->forgetScopedInstances();
@@ -271,8 +290,11 @@ it('shows a company that was not approved why, and applying again marks what to 
         ->assertSee('Who signs for the company?')
         ->assertNoJavaScriptErrors();
 
-    // Applying again starts again at the first step.
-    expect(companyScreenUntil($page, "document.querySelector('[data-test=step-send]').dataset.state === 'current'"))->toBeTrue();
+    // Applying again starts again at the first step; the marked CR number keeps its red mark and
+    // is not shown "Saved" beside it, while a field nobody marked is (amendment 17(f)).
+    expect(companyScreenUntil($page, "document.querySelector('[data-test=step-send]').dataset.state === 'current'"))->toBeTrue()
+        ->and(companyScreenUntil($page, companyScreenLook('#company-cr_number').' === "idle"'))->toBeTrue()
+        ->and(companyScreenUntil($page, companyScreenLook('#company-name').' === "saved"'))->toBeTrue();
 });
 
 it('warns an approved company, before it sends a change, that sending it stops its ordering until approved', function () {
@@ -328,7 +350,9 @@ it('shows a server\'s refusal in red on its own field through the next field\'s 
         write('#company-cr_number', '2020123456');
         JS);
 
-    $page->assertSee('The tax number is not valid.');
+    // Red, and saying why: the refusal's answer gave the page the raised minimum, so it names the
+    // reason rather than only "not valid" (amendment 17(g)).
+    $page->assertSee('At least 20 characters.');
 
     expect(companyScreenUntil($page, companyScreenLook('#company-tax_number').' === "refused"'))->toBeTrue()
         ->and(companyScreenUntil($page, companyScreenLook('#company-cr_number').' === "saved"'))->toBeTrue()
@@ -337,13 +361,11 @@ it('shows a server\'s refusal in red on its own field through the next field\'s 
     $page->assertPresent('[data-test="send-missing"]')
         ->assertButtonDisabled('[data-test="send"]');
 
-    // The refusal's answer brought the page today's rules: a value short of the new minimum now
-    // turns yellow on the page itself, and is not sent.
+    // Another value short of the new minimum now turns yellow on the page itself, and is not sent.
     $page->clear('#company-tax_number')
         ->type('#company-tax_number', '300123456700088')
         ->keys('#company-tax_number', 'Tab')
-        ->assertSee('At least 20 characters.')
-        ->assertDontSee('The tax number is not valid.');
+        ->assertSee('At least 20 characters.');
 
     expect(companyScreenUntil($page, companyScreenLook('#company-tax_number').' === "invalid"'))->toBeTrue();
 
@@ -369,8 +391,12 @@ it('keeps "Other" chosen until its words are left, and saves them as the type', 
         ->click('[data-test="change"]')
         ->select('#company-type', 'other')
         ->assertPresent('#company-type-other')
-        ->assertPresent('[data-test="send-missing"]')
-        ->type('#company-type-other', 'Cooperative society')
+        ->assertPresent('[data-test="send-missing"]');
+
+    // Chosen, not yet left: plain — not saved yet, and not yellow (the owner's choice, 17(k)).
+    expect(companyScreenUntil($page, companyScreenLook('#company-type-other').' === "unsaved"'))->toBeTrue();
+
+    $page->type('#company-type-other', 'Cooperative society')
         ->keys('#company-type-other', 'Tab')
         ->assertValue('#company-type', 'other')
         ->assertMissing('[data-test="send-missing"]')
@@ -444,4 +470,63 @@ it('hides the lifecycle and the address from a suspended company', function () {
         ->assertMissing('[data-test="payment"]')
         ->assertMissing('[data-test="address"]')
         ->assertNoJavaScriptErrors();
+});
+
+it('shows a saved address edited since unpicked, with a note, and takes its new text when picked again', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::sent($customerId);
+    $addressId = B2BFixtures::savedAddress($customerId, street: 'Olaya Street');
+    companyScreenMoveTo($customerId, $addressId);
+    // Edited in the address book: the same saved address, another street.
+    DB::table('access.addresses')->where('id', $addressId)->update(['fields' => json_encode([
+        'administrative_area' => 'Riyadh', 'city' => 'Riyadh', 'district' => 'Al Olaya', 'street' => 'Tahlia Street', 'building' => '7',
+    ])]);
+    $page = companyScreenSignIn($customerId);
+
+    $page->navigate('/sa/en/account/company')
+        ->assertSeeIn('[data-test="address-kept"]', 'Olaya Street')
+        ->assertPresent('[data-test="address-changed"]');
+
+    expect($page->script("document.querySelector('[data-test=pick-address-{$addressId}]').checked"))->toBeFalse();
+
+    $page->click("[data-test=\"pick-address-{$addressId}\"]")
+        ->assertSee('Address saved.')
+        ->assertSeeIn('[data-test="address-kept"]', 'Tahlia Street')
+        ->assertMissing('[data-test="address-changed"]')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script("document.querySelector('[data-test=pick-address-{$addressId}]').checked"))->toBeTrue();
+});
+
+it('keeps what was typed after a save went out, and shows its own refusal in red (amendment 17(c))', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::approved($customerId);
+    $page = companyScreenSignIn($customerId);
+
+    $page->navigate('/sa/en/account/company')
+        ->click('[data-test="change"]')
+        ->assertPresent('[data-test="company-form"]');
+
+    // The page still holds a minimum of 5; the server now asks 20.
+    companyScreenMinimum(FormRules::TAX_NUMBER_MIN, 20);
+
+    // Two saves of one field, the second typed before the first came back: the first is taken,
+    // the second refused. The first's answer must not put its value back over the second.
+    $page->script(<<<'JS'
+        const write = (value) => {
+            const input = document.querySelector('#company-tax_number');
+            input.focus();
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.blur();
+        };
+        write('30012345670008812345');
+        write('300123456700099');
+        JS);
+
+    expect(companyScreenUntil($page, companyScreenLook('#company-tax_number').' === "refused"'))->toBeTrue()
+        ->and($page->value('#company-tax_number'))->toBe('300123456700099')
+        ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->where('state', 'DRAFT')->value('tax_number'))->toBe('30012345670008812345');
+
+    $page->assertNoJavaScriptErrors();
 });

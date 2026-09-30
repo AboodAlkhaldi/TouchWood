@@ -84,6 +84,7 @@ function StoreAddresses({
                                 <li key={address.id}>
                                     <SavedAddress
                                         address={address}
+                                        returnTo={returnTo}
                                         onEdit={() => setEditing(address)}
                                     />
                                 </li>
@@ -128,10 +129,20 @@ function StoreAddresses({
  * An address the country has outgrown says so here rather than at checkout, where it would stop an
  * order somebody is in the middle of placing (amendment 41).
  */
-function SavedAddress({ address, onEdit }: { address: AddressRow; onEdit: () => void }) {
+function SavedAddress({
+    address,
+    returnTo,
+    onEdit,
+}: {
+    address: AddressRow;
+    returnTo: string | null;
+    onEdit: () => void;
+}) {
     const t = useTranslator();
     const link = useLink();
     const [confirming, setConfirming] = useState(false);
+    // The way back goes on with the tab after these changes too (amendment 52).
+    const carried = returnTo === null ? {} : { return: returnTo };
 
     return (
         <div className="grid gap-2 rounded-lg border border-line p-4">
@@ -171,7 +182,7 @@ function SavedAddress({ address, onEdit }: { address: AddressRow; onEdit: () => 
                                     link('storefront.account.addresses.default', {
                                         address: address.id,
                                     }),
-                                    {},
+                                    carried,
                                     { preserveScroll: true },
                                 )
                             }
@@ -223,7 +234,7 @@ function SavedAddress({ address, onEdit }: { address: AddressRow; onEdit: () => 
                                     link('storefront.account.addresses.delete', {
                                         address: address.id,
                                     }),
-                                    {},
+                                    carried,
                                     { preserveScroll: true },
                                 )
                             }

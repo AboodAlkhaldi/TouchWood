@@ -70,22 +70,22 @@ final readonly class DatabaseCompanyRepository implements CompanyRepository
     {
         $now = CarbonImmutable::now();
 
-        $this->db->table(self::TABLE)->insert([
+        SavedAddressWrite::guard(fn () => $this->db->table(self::TABLE)->insert([
             'id' => $company->id(),
             'customer_id' => $company->customerId(),
             'home_store_id' => $company->homeStoreId(),
             ...self::toRow($company),
             'created_at' => $now,
             'updated_at' => $now,
-        ]);
+        ]));
     }
 
     public function update(Company $company): void
     {
-        $this->db->table(self::TABLE)->where('id', $company->id())->update([
+        SavedAddressWrite::guard(fn () => $this->db->table(self::TABLE)->where('id', $company->id())->update([
             ...self::toRow($company),
             'updated_at' => CarbonImmutable::now(),
-        ]);
+        ]));
     }
 
     private function one(string $column, string $id, bool $lock): ?Company

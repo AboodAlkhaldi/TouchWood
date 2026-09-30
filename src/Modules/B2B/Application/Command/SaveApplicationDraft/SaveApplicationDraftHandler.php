@@ -21,6 +21,7 @@ use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyName;
+use Modules\B2B\Domain\ValueObject\CompanyText;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
@@ -70,22 +71,24 @@ final readonly class SaveApplicationDraftHandler
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $account = $this->account->get(self::PERMISSION);
-        $sent = self::values($command->fields);
 
-        // Today's minimums (amendment 16(b)), on the field that falls short.
-        $this->rules->hold('name', array_key_exists('name', $sent) ? $sent['name']?->value : null);
-        $this->rules->hold('cr_number', array_key_exists('cr_number', $sent) ? $sent['cr_number']?->value : null);
-        $this->rules->hold('tax_number', array_key_exists('tax_number', $sent) ? $sent['tax_number']?->value : null);
-        $this->rules->hold('company_type_other', array_key_exists('type', $sent) ? $sent['type']?->other : null);
-
-        // Picked from the account's saved addresses, and kept as a copy (amendment 16(f)).
-        if (array_key_exists('address_id', $command->fields)) {
-            $picked = $command->fields['address_id'];
-            $sent['address'] = $picked === null || trim($picked) === '' ? null : $this->addresses->pick($account->id, $picked);
-        }
-
-        $this->db->transaction(function () use ($account, $sent): void {
+        $this->db->transaction(function () use ($account, $command): void {
+            // The draft first (amendment 17(h)): a suspended company, or an account with nothing
+            // open, is told so before any value is weighed.
             $draft = $this->drafts->forChange($account->id)->draft;
+            $sent = self::values($command->fields);
+
+            // Today's minimums (amendment 16(b)), on the field that falls short.
+            $this->rules->hold('name', array_key_exists('name', $sent) ? $sent['name']?->value : null);
+            $this->rules->hold('cr_number', array_key_exists('cr_number', $sent) ? $sent['cr_number']?->value : null);
+            $this->rules->hold('tax_number', array_key_exists('tax_number', $sent) ? $sent['tax_number']?->value : null);
+            $this->rules->hold('company_type_other', array_key_exists('type', $sent) ? $sent['type']?->other : null);
+
+            // Picked from the account's saved addresses, and kept as a copy (amendment 16(f)).
+            if (array_key_exists('address_id', $command->fields)) {
+                $picked = $command->fields['address_id'];
+                $sent['address'] = $picked === null || trim($picked) === '' ? null : $this->addresses->pick($account->id, $picked);
+            }
 
             $type = array_key_exists('type', $sent) ? $sent['type'] : $draft->type();
 
@@ -147,7 +150,8 @@ final readonly class SaveApplicationDraftHandler
         $given = static function (string $field) use ($fields): ?string {
             $value = $fields[$field] ?? null;
 
-            return $value === null || trim($value) === '' ? null : $value;
+            // Empty as the page sees it (amendment 17(a)): only spaces is nothing.
+            return $value === null || CompanyText::trimmed($value) === '' ? null : $value;
         };
 
         $sent = [];

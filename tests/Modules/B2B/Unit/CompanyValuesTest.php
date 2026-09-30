@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyName;
+use Modules\B2B\Domain\ValueObject\CompanyText;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
@@ -90,6 +91,25 @@ describe('values written in lines', function () {
             ->and(mb_strlen(CompanyAddress::saved('01j9zc8q0v4k6m2n8p0r2t4v6x', str_repeat('ش', CompanyAddress::MAX))->value))->toBe(6000)
             // The placeholder anonymizing leaves has no saved address behind it.
             ->and(CompanyAddress::of('Deleted')->addressId)->toBeNull();
+    });
+
+    it('trims exactly what the page\'s trim() does, and nothing more (amendment 17(a))', function (string $given, string $kept) {
+        expect(CompanyText::trimmed($given))->toBe($kept);
+    })->with([
+        'spaces, tabs and line breaks' => [" \t\n\r 12345 \r\n\t ", '12345'],
+        'a vertical tab and a form feed' => ["\x0B\f12345\f\x0B", '12345'],
+        'a no-break space' => ["12345\u{00A0}", '12345'],
+        'an ideographic space' => ["\u{3000}12345", '12345'],
+        'a byte-order mark' => ["\u{FEFF}12345", '12345'],
+        'a line and a paragraph separator' => ["12345\u{2028}\u{2029}", '12345'],
+        'a NUL is not a space: it stays, and is refused' => ["12345\0", "12345\0"],
+        'what is between is kept' => ["King\u{00A0}Fahd  Road", "King\u{00A0}Fahd  Road"],
+        'not text at all is given back as it came' => ["12345\xC3\x28 ", "12345\xC3\x28 "],
+    ]);
+
+    it('takes a number pasted with an invisible space at its end, and refuses one ending in a NUL', function () {
+        expect(RegistrationNumber::of('cr_number', "1010123456\u{00A0}")->value)->toBe('1010123456')
+            ->and(companyValueRefusal(fn () => RegistrationNumber::of('cr_number', "1010123456\0")))->toBe(['cr_number', 'on one line, without control characters']);
     });
 
     it('counts another saved address that reads the same as another pick', function () {

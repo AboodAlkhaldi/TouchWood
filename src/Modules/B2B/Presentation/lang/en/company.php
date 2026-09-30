@@ -120,6 +120,8 @@ return [
     'address_none' => 'You have no saved addresses yet. Add one, and you come straight back here to pick it.',
     'address_add' => 'Add an address',
     'address_incomplete' => "Its country's format no longer accepts it: update it in your addresses first.",
+    // The saved address the copy came from was changed since (amendment 17(b)).
+    'address_changed' => 'The address kept here was changed in your addresses since. Pick it again to use the new one.',
     'sent' => 'Your application was sent.',
     'discarded' => 'The draft was discarded.',
 
@@ -130,6 +132,7 @@ return [
         'review' => ['title' => 'Our team reviews it', 'body' => 'Usually within two business days'],
         'decision' => ['title' => 'The decision', 'body' => 'Sent to you by email'],
         'now' => 'You are here',
+        'done' => 'Done',
         'approved' => 'Approved',
         'rejected' => 'Not approved',
     ],

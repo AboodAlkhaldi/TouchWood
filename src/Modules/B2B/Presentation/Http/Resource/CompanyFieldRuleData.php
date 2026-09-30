@@ -9,7 +9,9 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
  * What one field of the company form accepts (b2b.md §4.5, amendment 16(a)): the same numbers the
- * server holds it to, so the page never sends a value the server would refuse for its length.
+ * server holds it to, counted after the same trim (amendment 17(a)), so the page never sends a
+ * value the server would refuse for its length — unless a minimum was raised since the page was
+ * given it.
  */
 #[TypeScript]
 final class CompanyFieldRuleData extends Data

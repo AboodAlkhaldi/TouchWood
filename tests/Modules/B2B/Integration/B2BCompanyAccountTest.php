@@ -314,7 +314,9 @@ describe('the address (§1.1, amendments 4, 5, 9(d) and 16(f))', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
         Fx::actAsCustomer($customerId);
 
-        expect(fn () => companyAccountMove(B2BFixtures::savedAddress($customerId)))->toThrow(CompanyNotFound::class);
+        // Whatever it is sent: the company is looked for before the address is (amendment 17).
+        expect(fn () => companyAccountMove(B2BFixtures::savedAddress($customerId)))->toThrow(CompanyNotFound::class)
+            ->and(fn () => companyAccountMove($picked($customerId)))->toThrow(CompanyNotFound::class);
 
         B2BFixtures::rejected($customerId);
         $addressId = $picked($customerId);

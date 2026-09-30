@@ -21,11 +21,15 @@ use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraftH
 use Modules\B2B\Application\Command\SubmitApplication\SubmitApplication;
 use Modules\B2B\Application\Command\SubmitApplication\SubmitApplicationHandler;
 use Modules\B2B\Application\Settings\FormRules;
+use Modules\B2B\Domain\Exception\ApplicationNotFound;
+use Modules\B2B\Domain\Exception\CompanySuspended;
 use Modules\B2B\Domain\Exception\DuplicateDocumentFile;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
+use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
+use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\RequestKind;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
@@ -362,5 +366,89 @@ describe('the address, picked from the saved addresses (amendment 16(f))', funct
 
         expect(DB::table('b2b.applications')->where('id', $id)->value('address'))->toBe($long)
             ->and(fn () => DB::table('b2b.applications')->where('id', $id)->update(['address' => $long.'a']))->toThrow(QueryException::class, 'applications_address_length');
+    });
+});
+
+describe('after the review of amendment 16 (amendment 17)', function () {
+    it('holds each value again when it is sent, whichever was saved before its minimum was raised', function (string $setting, string $field, array $values) {
+        $customerId = formRulesDraft();
+        formRulesSave([
+            'name' => 'Al Noor Trading',
+            'company_type_id' => B2BFixtures::companyTypes()[0]->id(),
+            'cr_number' => '1010123456',
+            'tax_number' => '300123456700003',
+            'address_id' => B2BFixtures::savedAddress($customerId),
+            ...$values,
+        ]);
+
+        foreach (formRulesDocumentTypeIds() as $typeId) {
+            formRulesAttach($typeId, "paper-{$typeId}.pdf");
+        }
+
+        formRulesMinimum($setting, 40);
+        $refused = formRulesRefusal(fn () => app(SubmitApplicationHandler::class)->handle(new SubmitApplication));
+
+        expect($refused?->attribute)->toBe($field)
+            ->and(formRulesOpen($customerId)->submittedAt())->toBeNull();
+    })->with([
+        'the name' => [FormRules::NAME_MIN, 'name', []],
+        'the CR number' => [FormRules::CR_NUMBER_MIN, 'cr_number', []],
+        'the tax number' => [FormRules::TAX_NUMBER_MIN, 'tax_number', []],
+        '"Other"\'s words' => [FormRules::TYPE_WORDS_MIN, 'company_type_other', ['company_type_id' => null, 'company_type_other' => 'Cooperative society']],
+    ]);
+
+    it('trims what the page trims: a value pasted with an invisible space at its end is taken, and kept without it (17(a))', function () {
+        $customerId = formRulesDraft();
+
+        formRulesSave(['name' => "Al Noor Trading\u{00A0}", 'cr_number' => "\u{FEFF}1010123456\u{3000}"]);
+
+        expect(formRulesOpen($customerId)->name()?->value)->toBe('Al Noor Trading')
+            ->and(formRulesOpen($customerId)->crNumber()?->value)->toBe('1010123456')
+            // One letter and a no-break space is one letter: short, on the page and here alike.
+            ->and(formRulesRefusal(fn () => formRulesSave(['name' => "A\u{00A0}"]))?->attribute)->toBe('name');
+    });
+
+    it('compares a paper\'s name as the media library keeps it (17(d))', function (string $again) {
+        $customerId = formRulesDraft();
+        [$first, $second] = formRulesDocumentTypeIds();
+        formRulesAttach($first, 'scan.pdf');
+
+        expect(fn () => formRulesAttach($second, $again))->toThrow(DuplicateDocumentFile::class)
+            ->and(array_keys(formRulesOpen($customerId)->documents()))->toBe([$first]);
+    })->with([
+        'with a right-to-left mark' => ["scan\u{200F}.pdf"],
+        'with spaces at the ends' => ['  scan.pdf '],
+        'from a folder' => ['C:\Scans\scan.pdf'],
+    ]);
+
+    it('tells a suspended company, or an account with nothing open, so before weighing any value (17(h))', function () {
+        $none = B2BFixtures::verifiedCompanyAccount();
+        Fx::actAsCustomer($none);
+
+        expect(fn () => formRulesSave(['name' => 'A', 'cr_number' => 'CR#1']))->toThrow(ApplicationNotFound::class);
+
+        $suspended = B2BFixtures::verifiedCompanyAccount();
+        [$company] = B2BFixtures::rejected($suspended);
+        Fx::actAsCustomer($suspended);
+        app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
+        B2BFixtures::suspend($company);
+
+        expect(fn () => formRulesSave(['name' => 'A', 'address_id' => 'not an address']))->toThrow(CompanySuspended::class);
+    });
+
+    it('refuses on the address a write naming a saved address deleted meanwhile, rather than failing (17(h))', function () {
+        $customerId = formRulesDraft();
+        $draft = formRulesOpen($customerId);
+        $gone = strtolower((string) Str::ulid());
+        $draft->describe(null, null, null, null, CompanyAddress::reconstitute('7 King Fahd Road', $gone), null);
+
+        // In a transaction of its own, as every use case writes: a refused statement ends it.
+        $refused = formRulesRefusal(fn () => DB::transaction(fn () => app(ApplicationRepository::class)->update($draft)));
+
+        [$company] = B2BFixtures::approved(B2BFixtures::verifiedCompanyAccount());
+        $company->moveTo(CompanyAddress::reconstitute('7 King Fahd Road', $gone));
+
+        expect($refused?->attribute)->toBe('address')
+            ->and(formRulesRefusal(fn () => DB::transaction(fn () => app(CompanyRepository::class)->update($company)))?->attribute)->toBe('address');
     });
 });

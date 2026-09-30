@@ -166,7 +166,7 @@ final readonly class CustomerOwnAccountController
             return FormErrors::back($request, $error);
         }
 
-        return $this->backTo('addresses', 'access::account.address_default_set');
+        return $this->backTo('addresses', 'access::account.address_default_set', $this->returnName($request));
     }
 
     /**
@@ -181,7 +181,7 @@ final readonly class CustomerOwnAccountController
             return FormErrors::back($request, $error);
         }
 
-        return $this->backTo('addresses', 'access::account.address_deleted');
+        return $this->backTo('addresses', 'access::account.address_deleted', $this->returnName($request));
     }
 
     /**
@@ -288,8 +288,27 @@ final readonly class CustomerOwnAccountController
      * Back to the tab they were on. A save that drops somebody at the top of the first tab reads
      * as the page having forgotten what they were doing (the panel's own lesson, §3.2).
      */
-    private function backTo(string $tab, string $message): RedirectResponse
+    /**
+     * @param  string|null  $return  the page the tab goes on carrying (amendment 52), already one of
+     *                               this account's
+     */
+    private function backTo(string $tab, string $message, ?string $return = null): RedirectResponse
     {
-        return redirect()->route('storefront.account', ['tab' => $tab])->with('status', __($message));
+        $query = $return === null ? ['tab' => $tab] : ['tab' => $tab, 'return' => $return];
+
+        return redirect()->route('storefront.account', $query)->with('status', __($message));
+    }
+
+    /**
+     * The `return` a change on the Addresses tab came with, kept for the tab it goes back to
+     * (amendment 52) — only a page registered for this account's type.
+     */
+    private function returnName(Request $request): ?string
+    {
+        if (! is_string($request->input('return'))) {
+            return null;
+        }
+
+        return $this->returnPage($request->input('return'), $this->accounts->forCurrentCustomer()->accountType)?->name();
     }
 }

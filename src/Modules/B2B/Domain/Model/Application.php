@@ -24,6 +24,7 @@ use Modules\B2B\Domain\ValueObject\AttachedDocument;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyDetails;
 use Modules\B2B\Domain\ValueObject\CompanyName;
+use Modules\B2B\Domain\ValueObject\CompanyText;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\FlaggedField;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
@@ -704,7 +705,8 @@ final class Application
             FlaggedField::Address => $this->address?->value,
         };
 
-        return $value === null ? null : trim($value);
+        // Compared after the page's and the server's one trim (amendment 17(a)).
+        return $value === null ? null : CompanyText::trimmed($value);
     }
 
     /**

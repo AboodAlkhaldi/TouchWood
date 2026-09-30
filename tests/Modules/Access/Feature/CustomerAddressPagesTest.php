@@ -213,6 +213,24 @@ describe('back to the page that sent them (amendment 51)', function () {
         expect(AdminBrowser::flashed($saved, 'status'))->toBe('Your address was saved.');
     });
 
+    it('keeps the way back on the tab through a new default and a delete (amendment 52)', function () {
+        [$customerId, $browser] = addressPageCustomer();
+        $storeId = Fx::storeId('sa');
+        $browser->post('/sa/en/account/addresses', addressForm($storeId));
+        $browser->post('/sa/en/account/addresses', addressForm($storeId, ['label' => 'Work']));
+        $work = (string) DB::table('access.addresses')->where('customer_id', $customerId)->where('label', 'Work')->value('id');
+
+        $browser->post("/sa/en/account/addresses/{$work}/default", ['return' => 'test.orders'])
+            ->assertRedirect('/sa/en/account?tab=addresses&return=test.orders');
+        // Only a page registered for their type is carried, here as anywhere.
+        $browser->post("/sa/en/account/addresses/{$work}/default", ['return' => 'test.companies'])
+            ->assertRedirect('/sa/en/account?tab=addresses');
+        $browser->post("/sa/en/account/addresses/{$work}/delete", ['return' => 'test.orders'])
+            ->assertRedirect('/sa/en/account?tab=addresses&return=test.orders');
+
+        expect(DB::table('access.addresses')->where('id', $work)->exists())->toBeFalse();
+    });
+
     it('ignores anything else, so it can never send anybody off the shop', function (string $return) {
         [, $browser] = addressPageCustomer();
 

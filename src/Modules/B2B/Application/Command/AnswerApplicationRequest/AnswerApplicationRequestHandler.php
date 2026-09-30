@@ -21,6 +21,7 @@ use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
+use Modules\B2B\Domain\ValueObject\CompanyText;
 use Modules\B2B\Domain\ValueObject\Remark;
 use Modules\B2B\Domain\ValueObject\RequestAnswer;
 use Modules\B2B\Domain\ValueObject\RequestKind;
@@ -119,7 +120,7 @@ final readonly class AnswerApplicationRequestHandler
      */
     private static function given(AnswerApplicationRequest $command): array
     {
-        $text = $command->text === null || trim($command->text) === '' ? null : $command->text;
+        $text = $command->text === null || CompanyText::trimmed($command->text) === '' ? null : $command->text;
         $file = $command->path !== null && $command->path !== '';
 
         if (($text === null) === ! $file) {

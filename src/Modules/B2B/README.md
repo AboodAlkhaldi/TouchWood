@@ -384,9 +384,15 @@ the next field's answer says (the review of step 6).
 and then it is never sent —, "Saving…", green "Saved" once the server holds it, red with the
 server's reason if it refuses all the same. The page checks with the server's own numbers:
 `CompanyPage::formRules`, from `FormRules::forPage()` — each field's minimum, maximum, whether it is
-one line, and the characters a CR or tax number takes. A refusal belongs to the value refused: a
-different value takes it away. Every answer brings the page's data again, so a minimum raised while
-the page is open reaches it with the first refusal.
+one line, and the characters a CR or tax number takes. **Both trim the same characters** at either
+end (amendment 17(a)): `CompanyText::trimmed` removes exactly what JavaScript's `trim()` does — so
+a no-break space pasted at the end of a number is taken, on both sides, and a NUL is refused on
+both. A refusal belongs to the value refused: a different value takes it away, and a red line says
+the page's own reason when it has one. Every answer brings the page's data again, so a minimum
+raised while the page is open reaches it with the first refusal. **A field's own answer never
+overwrites a newer edit** (17(c)): each field remembers what it last sent, and follows the server
+only while it still shows that. A field the last decision marked, not yet changed, keeps its red
+mark and is never "Saved" (17(f)).
 
 **Minimums are settings** (amendment 16(b)): `FormRules` declares five, one set for every store,
 changed under `platform.settings.update`, each from 1 to its field's maximum. They are held when a
@@ -397,19 +403,26 @@ domain's, and the database's.
 
 **The same file cannot go into two sections** (amendment 16(c)): `AttachApplicationDocument` refuses
 a paper named exactly as a file under another document type of the draft (`DuplicateDocumentFile`),
-before anything is stored, reading the names from Platform's media; the page says so first, before
-uploading. Replacing a section's own file with one of the same name is allowed; answers are not
+before anything is stored, reading the names from Platform's media and comparing both as the
+library keeps names — Platform's public `MediaFilename::kept`, which the media model itself uses
+(17(d)); the page says so first, before uploading. Replacing a section's own file with one of the same name is allowed; answers are not
 compared. Code-only too: the names are Platform's.
 
 **The address is picked from the account's saved addresses** (amendment 16(f)), any store's, through
 `SavedAddresses` over Access's contract: the company and the application keep a copy — the text as
 the store's format writes it, up to 6,000 characters, and `address_id`, which saved address it was.
 Another account's address answers as one that does not exist, and one its store's format no longer
-accepts cannot be picked. Editing the saved address changes neither copy; deleting it leaves the
-text and forgets the id (`ON DELETE SET NULL`). The company's own address change
+accepts cannot be picked. Editing the saved address changes neither copy — the page then shows it
+unpicked, with a note, and picking it again takes the new text (17(b)); deleting it leaves the text
+and forgets the id (`ON DELETE SET NULL`). A saved address deleted while it is being picked is
+refused on the address, not answered with an error page: `SavedAddressWrite` turns its foreign
+key's refusal into `InvalidCompanyAttribute` (17(h)). The company's own address change
 (`UpdateCompanyContact`) picks inside the account's lock, after the company is found. With none
 saved, **Add an address** opens the account's Addresses tab with `return=b2b.company`, and saving an
-address there comes straight back (access.md amendment 51).
+address there comes straight back (access.md amendments 51 and 52); in the form it waits for the
+saves still going, and so does Discard (17(i)). `SaveApplicationDraft` finds the draft before it
+weighs any value, so a suspended company or an account with nothing open is told so first (17(h)).
+A pick in the form becomes the company's address when the application is sent (17(j)).
 
 **Send is inactive until everything is complete** (amendments 15(a), 16(d)): what is missing is
 listed beside it — every value, a type still accepted, an address, every required paper, nothing no

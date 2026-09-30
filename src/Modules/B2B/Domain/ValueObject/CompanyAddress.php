@@ -13,8 +13,9 @@ use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
  * later changes neither the company nor an application: an application is a snapshot, and the
  * company's address changes only when another is picked.
  *
- * At most 6,000 characters: what Access's own limits let a formatted address reach (4,000 of
- * values in a template of at most 2,000). Line breaks kept, no map pin.
+ * At most 6,000 characters, the column's bound (amendment 17(e)): Access's own limits keep a
+ * formatted address within it unless its template repeats a field, and a longer one is refused as
+ * too long. Line breaks kept, no map pin.
  *
  * Addresses written before amendment 16 — typed, one block of text — and the placeholder
  * anonymizing leaves have no saved address behind them.

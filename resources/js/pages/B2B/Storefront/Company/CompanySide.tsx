@@ -50,6 +50,8 @@ export function CompanySide({ page }: { page: CompanyPage }) {
                                 <span className="grid gap-0.5">
                                     <span className={['text-sm text-ink', here ? 'font-semibold' : 'font-medium'].join(' ')}>
                                         {t(`b2b::company.steps.${step}.title`)}
+                                        {/* The filled circle says it to the eye; this says it aloud (17, L8). */}
+                                        {index < current ? <span className="sr-only"> — {t('b2b::company.steps.done')}</span> : null}
                                     </span>
                                     <span className="text-xs text-ink-muted">{t(`b2b::company.steps.${step}.body`)}</span>
                                     {here && step === 'decision' ? (

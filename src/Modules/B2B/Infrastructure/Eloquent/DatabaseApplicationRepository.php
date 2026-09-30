@@ -118,13 +118,13 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
         $now = CarbonImmutable::now();
 
         try {
-            $this->db->table(self::TABLE)->insert([
+            SavedAddressWrite::guard(fn () => $this->db->table(self::TABLE)->insert([
                 'id' => $application->id(),
                 'customer_id' => $application->customerId(),
                 ...self::toRow($application),
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]);
+            ]));
         } catch (UniqueConstraintViolationException $e) {
             // The partial unique index behind the account lock (lesson 64): a violation is not
             // retried, so it is answered here rather than reaching the person as a database error.
@@ -154,10 +154,10 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
 
     public function update(Application $application): void
     {
-        $this->db->table(self::TABLE)->where('id', $application->id())->update([
+        SavedAddressWrite::guard(fn () => $this->db->table(self::TABLE)->where('id', $application->id())->update([
             ...self::toRow($application),
             'updated_at' => CarbonImmutable::now(),
-        ]);
+        ]));
 
         $this->writeHeld($application);
     }

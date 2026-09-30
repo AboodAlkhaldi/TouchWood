@@ -209,11 +209,11 @@ function CompanyAddress({ page, company }: { page: CompanyPage; company: Company
         <Card title={t('b2b::company.section.address')} hint={t('b2b::company.address_hint')} test="address">
             <AddressPicker
                 addresses={page.savedAddresses}
-                pickedId={picking ?? company.details.addressId}
+                pickedId={company.details.addressId}
+                pending={picking}
                 kept={company.details.address}
                 look={look}
                 message={refusal}
-                disabled={picking !== null}
                 locale={locale}
                 onPick={(addressId) => {
                     setPicking(addressId);

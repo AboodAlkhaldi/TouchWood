@@ -19,6 +19,7 @@ use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\MediaFilename;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Domain\Error\DomainError;
@@ -33,8 +34,8 @@ use Shared\Domain\Error\DomainError;
  * application, such as the last one sent, still holds it.
  *
  * **Nor a file named exactly as one under another document type of the draft** (DuplicateDocumentFile,
- * amendment 16(c)), also before anything is stored. The type's own file is not compared: uploading
- * again under the same type replaces it.
+ * amendment 16(c)), also before anything is stored — both names as the media library keeps them
+ * (17(d)). The type's own file is not compared: uploading again under the same type replaces it.
  *
  * Not audited (amendment 4); Platform keeps its own entry for the upload.
  */
@@ -73,9 +74,13 @@ final readonly class AttachApplicationDocumentHandler
                 throw new DocumentTypeInactive($typeId);
             }
 
+            // Compared as the library keeps names (amendment 17(d)): a space at the ends or an
+            // invisible mark does not make a second name.
+            $name = MediaFilename::kept($command->originalFilename);
+
             foreach ($draft->documents() as $document) {
                 if ($document->documentTypeId !== $typeId
-                    && $this->platform->media($document->mediaId)?->originalFilename === $command->originalFilename) {
+                    && $this->platform->media($document->mediaId)?->originalFilename === $name) {
                     throw new DuplicateDocumentFile;
                 }
             }

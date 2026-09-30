@@ -16,7 +16,7 @@ import type {
     CompanyRequestData,
     CompanyTypeOptionData,
 } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
-import { AddressPicker, border, check, FieldState, type Look } from './fields';
+import { AddressPicker, border, check, FieldState, type Look, normal } from './fields';
 import { Card, nameOf, useLocale, when } from './parts';
 
 /*
@@ -243,7 +243,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                     {changing ? <Warning /> : null}
 
                     {missing.length > 0 ? (
-                        <p role="status" className="text-sm text-ink-muted" data-test="send-missing">
+                        <p className="text-sm text-ink-muted" data-test="send-missing">
                             {t('b2b::company.missing', { items: missing.join(t('b2b::company.separator')) })}
                         </p>
                     ) : null}
@@ -260,12 +260,19 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                         >
                             {t('b2b::company.send')}
                         </Button>
-                        <Button type="button" variant="outline" data-test="discard" onClick={() => setConfirmingDiscard((open) => !open)}>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            data-test="discard"
+                            // Not while a save is out: its page request would cancel the saves (17(i)).
+                            disabled={waiting > 0}
+                            onClick={() => setConfirmingDiscard((open) => !open)}
+                        >
                             {t('b2b::company.discard')}
                         </Button>
                     </div>
 
-                    {confirmingDiscard ? <DiscardConfirmation onCancel={() => setConfirmingDiscard(false)} /> : null}
+                    {confirmingDiscard ? <DiscardConfirmation busy={waiting > 0} onCancel={() => setConfirmingDiscard(false)} /> : null}
                 </div>
             </div>
         </ChangesContext.Provider>
@@ -282,11 +289,6 @@ function fieldValues(values: CompanyDraftData['values']): Record<string, string 
         address: values.address,
         note: values.note,
     };
-}
-
-/** A value as the server keeps it: line breaks as one, and nothing at either end. */
-function normal(value: string): string {
-    return value.replace(/\r\n?/g, '\n').trim();
 }
 
 /** Marked by the last rejection and not replaced: the same, after trimming, as what it saw (§3.1). */
@@ -372,7 +374,7 @@ function Warning() {
 }
 
 /** Asked in the page, never with the browser's own box (owner, 2026-09-24). */
-export function DiscardConfirmation({ onCancel }: { onCancel: () => void }) {
+export function DiscardConfirmation({ onCancel, busy = false }: { onCancel: () => void; busy?: boolean }) {
     const t = useTranslator();
     const link = useLink();
     const [discarding, setDiscarding] = useState(false);
@@ -386,7 +388,7 @@ export function DiscardConfirmation({ onCancel }: { onCancel: () => void }) {
                     variant="destructive"
                     size="sm"
                     data-test="discard-confirm"
-                    disabled={discarding}
+                    disabled={discarding || busy}
                     onClick={() => {
                         setDiscarding(true);
                         router.post(link('storefront.company.discard'), {}, { onFinish: () => setDiscarding(false) });
@@ -428,6 +430,59 @@ function useSend(): (url: string, data: Record<string, string | File | null>, do
         });
 }
 
+/**
+ * A field's value, following what the server holds — but never over what the person has typed
+ * since the save the server is answering (amendment 17(c)). `sending` says what was sent; a refusal
+ * lets it go, since the server then holds nothing new.
+ */
+function useFollowed(saved: string): { value: string; setValue: (value: string) => void; sending: (value: string) => void; refused: () => void } {
+    const [value, setValue] = useState(saved);
+    const screen = useRef(value);
+    const before = useRef(saved);
+    const awaited = useRef<string | null>(null);
+
+    screen.current = value;
+
+    useEffect(() => {
+        const previous = before.current;
+        const waited = awaited.current;
+
+        before.current = saved;
+
+        if (waited !== null) {
+            // An earlier save's answer: what is on screen is newer, and its own answer will come.
+            if (normal(saved) !== normal(waited)) {
+                return;
+            }
+
+            awaited.current = null;
+
+            // The answer to what was sent last — taken only if nothing was typed since.
+            if (normal(screen.current) === normal(waited)) {
+                setValue(saved);
+            }
+
+            return;
+        }
+
+        // Changed from elsewhere: taken unless the person has an edit of their own in the field.
+        if (normal(screen.current) === normal(previous)) {
+            setValue(saved);
+        }
+    }, [saved]);
+
+    return {
+        value,
+        setValue,
+        sending: (sent) => {
+            awaited.current = sent;
+        },
+        refused: () => {
+            awaited.current = null;
+        },
+    };
+}
+
 type SavedTextProps = {
     field: string;
     label: string;
@@ -448,23 +503,23 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
     const link = useLink();
     const send = useSend();
     const { report } = useChanges();
-    const [value, setValue] = useState(saved ?? '');
+    // The draft as the server holds it — never over what the person typed since (17(c)).
+    const followed = useFollowed(saved ?? '');
+    const { value, setValue } = followed;
     const [left, setLeft] = useState(false);
     const [refusal, setRefusal] = useState<Refusal | null>(null);
-    const [saving, setSaving] = useState(false);
-
-    // The draft as the server now holds it, whenever that changes — not on every re-render, which
-    // would throw away a value the person is still correcting.
-    useEffect(() => setValue(saved ?? ''), [saved]);
+    // How many of its saves are out: one answering does not mean the next has.
+    const [out, setOut] = useState(0);
 
     const unsaved = normal(value) !== normal(saved ?? '');
     const problem = check(value, rule, required, t);
     const look = lookOf({
-        saving,
+        saving: out > 0,
         refused: refusal !== null && refusal.value === value,
         invalid: problem !== null && (left || value.trim() !== '' || (saved ?? '') !== ''),
         unsaved,
-        saved: (saved ?? '') !== '',
+        // A field the last decision marked, not yet changed, is not "Saved" (17(f)).
+        saved: (saved ?? '') !== '' && !flagged,
     });
 
     useEffect(() => report(field, standingOf(look)), [report, field, look]);
@@ -481,13 +536,18 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
         }
 
         const sent = value;
-        setSaving(true);
+        followed.sending(sent);
+        setOut((count) => count + 1);
         send(
             link('storefront.company.save'),
             { [field]: normal(sent) === '' ? null : sent },
             (refused) => {
+                if (refused !== null) {
+                    followed.refused();
+                }
+
                 setRefusal(refused === null ? null : { value: sent, message: refused });
-                setSaving(false);
+                setOut((count) => count - 1);
             },
             field,
         );
@@ -526,7 +586,8 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
                     {t('b2b::company.flagged')}
                 </p>
             ) : null}
-            <FieldState id={`${id}-state`} look={look} message={look === 'refused' ? (refusal?.message ?? null) : problem} />
+            {/* A refusal says why: the page's own reason when the answer lets it name one (17(g)). */}
+            <FieldState id={`${id}-state`} look={look} message={look === 'refused' ? (problem ?? refusal?.message ?? null) : problem} />
         </div>
     );
 }
@@ -556,14 +617,16 @@ function TypeChoice({
     const { report } = useChanges();
     const savedChoice = draft.values.companyTypeId ?? (draft.values.companyTypeOther !== null ? OTHER : '');
     const savedWords = draft.values.companyTypeOther ?? '';
-    const [choice, setChoice] = useState(savedChoice);
-    const [words, setWords] = useState(savedWords);
-    const [left, setLeft] = useState(false);
+    const followedChoice = useFollowed(savedChoice);
+    const followedWords = useFollowed(savedWords);
+    const { value: choice, setValue: setChoice } = followedChoice;
+    const { value: words, setValue: setWords } = followedWords;
+    // Each its own: choosing "Other" does not mark its empty words yellow (17, L4).
+    const [choiceLeft, setChoiceLeft] = useState(false);
+    const [wordsLeft, setWordsLeft] = useState(false);
     const [refusal, setRefusal] = useState<Refusal | null>(null);
-    const [saving, setSaving] = useState(false);
-
-    useEffect(() => setChoice(savedChoice), [savedChoice]);
-    useEffect(() => setWords(savedWords), [savedWords]);
+    const [out, setOut] = useState(0);
+    const saving = out > 0;
 
     const other = choice === OTHER;
     // What the page would send, so a refusal is known to be about what is on screen.
@@ -575,13 +638,13 @@ function TypeChoice({
 
     const selectLook = other
         ? 'idle'
-        : lookOf({ saving, refused, invalid: choiceProblem !== null && (left || savedChoice !== ''), unsaved, saved: savedChoice !== '' });
+        : lookOf({ saving, refused, invalid: choiceProblem !== null && (choiceLeft || savedChoice !== ''), unsaved, saved: savedChoice !== '' && !flagged });
     const wordsLook = lookOf({
         saving,
         refused,
-        invalid: wordsProblem !== null && (left || words.trim() !== '' || savedWords !== ''),
+        invalid: wordsProblem !== null && (wordsLeft || words.trim() !== '' || savedWords !== ''),
         unsaved,
-        saved: savedChoice === OTHER,
+        saved: savedChoice === OTHER && !flagged,
     });
 
     useEffect(() => report('company_type', standingOf(other ? wordsLook : selectLook)), [report, other, wordsLook, selectLook]);
@@ -589,13 +652,25 @@ function TypeChoice({
     useEffect(() => () => report('company_type', null), [report]);
 
     const save = (fields: Record<string, string | null>, sent: string) => {
-        setSaving(true);
+        const chosen = fields.company_type_id ?? OTHER;
+        followedChoice.sending(chosen);
+
+        if (fields.company_type_other !== null && fields.company_type_other !== undefined) {
+            followedWords.sending(fields.company_type_other);
+        }
+
+        setOut((count) => count + 1);
         send(
             link('storefront.company.save'),
             fields,
             (refusedWith) => {
+                if (refusedWith !== null) {
+                    followedChoice.refused();
+                    followedWords.refused();
+                }
+
                 setRefusal(refusedWith === null ? null : { value: sent, message: refusedWith });
-                setSaving(false);
+                setOut((count) => count - 1);
             },
             'company_type',
         );
@@ -617,7 +692,7 @@ function TypeChoice({
                     onChange={(event) => {
                         const chosen = event.target.value;
                         setChoice(chosen);
-                        setLeft(true);
+                        setChoiceLeft(true);
 
                         if (chosen !== OTHER && chosen !== '') {
                             save({ company_type_id: chosen, company_type_other: null }, chosen);
@@ -644,7 +719,7 @@ function TypeChoice({
                         {t('b2b::company.flagged')}
                     </p>
                 ) : null}
-                <FieldState id="company-type-state" look={selectLook} message={selectLook === 'refused' ? (refusal?.message ?? null) : choiceProblem} />
+                <FieldState id="company-type-state" look={selectLook} message={selectLook === 'refused' ? (choiceProblem ?? refusal?.message ?? null) : choiceProblem} />
             </div>
 
             {other ? (
@@ -662,7 +737,7 @@ function TypeChoice({
                         aria-describedby="company-type-other-state"
                         onChange={(event) => setWords(event.target.value)}
                         onBlur={() => {
-                            setLeft(true);
+                            setWordsLeft(true);
 
                             if (unsaved && wordsProblem === null) {
                                 save({ company_type_id: null, company_type_other: words }, `${OTHER}:${words}`);
@@ -672,7 +747,7 @@ function TypeChoice({
                     <FieldState
                         id="company-type-other-state"
                         look={wordsLook}
-                        message={wordsLook === 'refused' ? (refusal?.message ?? null) : wordsProblem}
+                        message={wordsLook === 'refused' ? (wordsProblem ?? refusal?.message ?? null) : wordsProblem}
                     />
                 </div>
             ) : null}
@@ -688,10 +763,10 @@ function DraftAddress({ page, draft, flagged, locale }: { page: CompanyPage; dra
     const t = useTranslator();
     const link = useLink();
     const send = useSend();
-    const { report } = useChanges();
+    const { report, queue } = useChanges();
     const [picking, setPicking] = useState<string | null>(null);
     const [refusal, setRefusal] = useState<string | null>(null);
-    const look = lookOf({ saving: picking !== null, refused: refusal !== null, invalid: false, unsaved: false, saved: draft.values.address !== null });
+    const look = lookOf({ saving: picking !== null, refused: refusal !== null, invalid: false, unsaved: false, saved: draft.values.address !== null && !flagged });
 
     // Only a save under way keeps Send waiting: a refused pick changes nothing that was saved.
     useEffect(() => report('address', picking !== null ? 'saving' : null), [report, picking]);
@@ -702,12 +777,14 @@ function DraftAddress({ page, draft, flagged, locale }: { page: CompanyPage; dra
         <div className="grid gap-1.5">
             <AddressPicker
                 addresses={page.savedAddresses}
-                pickedId={picking ?? draft.values.addressId}
+                pickedId={draft.values.addressId}
+                pending={picking}
                 kept={draft.values.address}
                 look={look}
                 message={refusal}
-                disabled={picking !== null}
                 locale={locale}
+                // After the saves still waiting: leaving now would cancel them (17(i)).
+                onAdd={() => queue(() => router.visit(link('storefront.account', { tab: 'addresses', return: 'b2b.company' })))}
                 onPick={(addressId) => {
                     setPicking(addressId);
                     setRefusal(null);
@@ -930,21 +1007,20 @@ function RequestRow({
     const errorKey = `answers.${request.id}`;
     const picker = useFilePicker(url, maxBytes, errorKey);
     const savedText = answer?.text ?? '';
-    const [text, setText] = useState(savedText);
+    const followed = useFollowed(savedText);
+    const { value: text, setValue: setText } = followed;
     const [left, setLeft] = useState(false);
     const [refusal, setRefusal] = useState<Refusal | null>(null);
     const [removal, setRemoval] = useState<string | null>(null);
-    const [saving, setSaving] = useState(false);
+    const [out, setOut] = useState(0);
     const labelId = `request-${request.id}-label`;
     const stateId = `request-${request.id}-state`;
     const written = request.kind === 'TEXT';
 
-    useEffect(() => setText(savedText), [savedText]);
-
     const problem = written ? check(text, rule, true, t) : null;
     const look = written
         ? lookOf({
-              saving,
+              saving: out > 0,
               refused: refusal !== null && refusal.value === text,
               invalid: problem !== null && (left || text.trim() !== '' || savedText !== ''),
               unsaved: normal(text) !== normal(savedText),
@@ -983,20 +1059,25 @@ function RequestRow({
                             }
 
                             const sent = text;
-                            setSaving(true);
+                            followed.sending(sent);
+                            setOut((count) => count + 1);
                             send(
                                 url,
                                 { text: sent },
                                 (refused) => {
+                                    if (refused !== null) {
+                                        followed.refused();
+                                    }
+
                                     setRefusal(refused === null ? null : { value: sent, message: refused });
-                                    setSaving(false);
+                                    setOut((count) => count - 1);
                                 },
                                 errorKey,
                             );
                         }}
                         className={['w-full rounded-md border bg-surface p-3 text-sm text-ink', border(look)].join(' ')}
                     />
-                    <FieldState id={stateId} look={look} message={look === 'refused' ? (refusal?.message ?? null) : problem} />
+                    <FieldState id={stateId} look={look} message={look === 'refused' ? (problem ?? refusal?.message ?? null) : problem} />
                 </>
             ) : (
                 <div className="flex flex-wrap gap-2">

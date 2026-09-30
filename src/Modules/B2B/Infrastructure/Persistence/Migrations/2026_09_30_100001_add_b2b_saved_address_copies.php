@@ -11,8 +11,9 @@ use Illuminate\Support\Facades\Schema;
 | b2b.md §5, §5.1, amendment 16(f): the address is picked from the account's saved addresses and
 | kept as a copy — its text as the store's format writes it, and which saved address it was.
 |
-| The text column is widened from varchar(500) to text, at most 6,000 characters: what Access's own
-| limits let a formatted address reach. The addresses already written keep their text and have no
+| The text column is widened from varchar(500) to text, at most 6,000 characters: Access's own
+| limits keep a formatted address within that unless its template repeats a field (amendment
+| 17(e)), and a longer one is refused as too long. The addresses already written keep their text and have no
 | saved address behind them. Deleting a saved address leaves every copy as it is and only forgets
 | where it came from (ON DELETE SET NULL).
 |

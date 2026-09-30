@@ -7,6 +7,7 @@ namespace Modules\B2B\Application\Settings;
 use LogicException;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\ValueObject\CompanyName;
+use Modules\B2B\Domain\ValueObject\CompanyText;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
@@ -25,8 +26,10 @@ use Modules\Platform\Public\PlatformPermissions;
  * The maximums and the characters a field takes stay the domain's own (§1.1); only the minimums
  * move, and a database CHECK cannot read a setting, so they are held here in code alone.
  *
- * `forPage()` hands the company page every field's rules — the same numbers this class checks — so
- * the page and the server can never disagree about what is valid (amendment 16(a)).
+ * `forPage()` hands the company page every field's rules — the same numbers this class checks —,
+ * and both trim the same characters (CompanyText::trimmed, amendment 17(a)), so the page and the
+ * server agree about what is valid (amendment 16(a)). A minimum raised while the page is open is the
+ * one exception, and the page learns it from the refusal's answer.
  */
 final readonly class FormRules
 {
@@ -95,7 +98,7 @@ final readonly class FormRules
 
         $minimum = $this->minimum($field);
 
-        if (mb_strlen(trim($value)) < $minimum) {
+        if (mb_strlen(CompanyText::trimmed($value)) < $minimum) {
             throw new InvalidCompanyAttribute($field, "at least {$minimum} characters");
         }
     }
