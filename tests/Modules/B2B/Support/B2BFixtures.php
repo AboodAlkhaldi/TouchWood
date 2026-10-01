@@ -249,7 +249,7 @@ final class B2BFixtures
      */
     public static function uploads(): string
     {
-        return sys_get_temp_dir().'/tw-b2b-uploads';
+        return sys_get_temp_dir().'/tw-b2b-uploads-'.getmypid();
     }
 
     /**
