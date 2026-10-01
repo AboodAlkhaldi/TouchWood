@@ -7,6 +7,7 @@ namespace Modules\B2B\Application\Query\ViewMyCompany;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\B2B\Application\Account\CurrentCompanyAccount;
+use Modules\B2B\Application\Account\SavedAddresses;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ApplicationViews;
 use Modules\B2B\Application\Settings\StoreBankAccount;
@@ -35,7 +36,8 @@ use Shared\Domain\ValueObject\StoreId;
  * - once there is a company, its details, status and reason, and its **history** — the applications
  *   it sent, newest first, each with its values, papers and dates, its state, its reason or note, and
  *   its flags and requests. **No staff names.**
- * - while the company is approved, the bank account to transfer to (amendment 12(b)).
+ * - while the company is approved, the bank account to transfer to (amendment 12(b));
+ * - the account's saved addresses, any store's, which the address is picked from (amendment 16(f)).
  *
  * Everything is the home store's (amendment 5): a company is offered its home store's lists.
  */
@@ -52,6 +54,7 @@ final readonly class ViewMyCompanyHandler
         private DocumentTypeRepository $documentTypes,
         private ConnectionInterface $db,
         private StoreBankAccount $storeBankAccount,
+        private SavedAddresses $savedAddresses,
     ) {}
 
     /**
@@ -99,7 +102,7 @@ final readonly class ViewMyCompanyHandler
                 $company->id(),
                 ApplicationViews::values(
                     $company->details()->name->value, $company->details()->type, $company->details()->crNumber->value,
-                    $company->details()->taxNumber->value, $company->details()->address->value, null, $companyTypes,
+                    $company->details()->taxNumber->value, $company->details()->address, null, $companyTypes,
                 ),
                 $company->status()->value,
                 $company->statusReason()?->value,
@@ -114,6 +117,14 @@ final readonly class ViewMyCompanyHandler
                 $this->applications->historyOf($company->id()),
             ),
             $company === null ? null : $this->bankAccount($company),
+            $homeStoreId,
+            array_map(
+                static fn (array $saved): SavedAddressView => new SavedAddressView(
+                    $saved['address']->id, $saved['store']->name->ar, $saved['store']->name->en,
+                    $saved['address']->label, $saved['address']->formatted, $saved['address']->isComplete,
+                ),
+                $this->savedAddresses->of($account->id),
+            ),
         );
     }
 
@@ -174,6 +185,7 @@ final readonly class ViewMyCompanyHandler
         return new SentApplicationView(
             $sent->id(),
             $sent->state()->value,
+            ApplicationViews::reference($sent),
             ApplicationViews::applicationValues($sent, $companyTypes),
             ApplicationViews::time($sent->submittedAt()),
             ApplicationViews::time($sent->decidedAt()),

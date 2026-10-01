@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\B2B\Application\Query;
 
 use DateTimeInterface;
+use LogicException;
 use Modules\B2B\Application\Query\ViewMyCompany\AnswerView;
 use Modules\B2B\Application\Query\ViewMyCompany\ApplicationValues;
 use Modules\B2B\Application\Query\ViewMyCompany\FileView;
@@ -16,6 +17,7 @@ use Modules\B2B\Domain\Model\DocumentType;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\AttachedDocument;
+use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\RequestAnswer;
 
@@ -32,14 +34,14 @@ final class ApplicationViews
     {
         return self::values(
             $application->name()?->value, $application->type(), $application->crNumber()?->value,
-            $application->taxNumber()?->value, $application->address()?->value, $application->note()?->value, $companyTypes,
+            $application->taxNumber()?->value, $application->address(), $application->note()?->value, $companyTypes,
         );
     }
 
     /**
      * @param  array<string, CompanyType>  $companyTypes
      */
-    public static function values(?string $name, ?CompanyTypeChoice $type, ?string $crNumber, ?string $taxNumber, ?string $address, ?string $note, array $companyTypes): ApplicationValues
+    public static function values(?string $name, ?CompanyTypeChoice $type, ?string $crNumber, ?string $taxNumber, ?CompanyAddress $address, ?string $note, array $companyTypes): ApplicationValues
     {
         $listed = $type?->typeId === null ? null : ($companyTypes[$type->typeId] ?? null);
 
@@ -51,7 +53,8 @@ final class ApplicationViews
             $type?->other,
             $crNumber,
             $taxNumber,
-            $address,
+            $address?->value,
+            $address?->addressId,
             $note,
         );
     }
@@ -112,5 +115,14 @@ final class ApplicationViews
     public static function time(?DateTimeInterface $at): ?string
     {
         return $at?->format(DATE_ATOM);
+    }
+
+    /**
+     * A sent application's number (amendment 14(g)). Every sent one has one — Application's own rule
+     * and the table's CHECK — so a missing one is a bug, not a blank to show.
+     */
+    public static function reference(Application $sent): string
+    {
+        return $sent->reference()->value ?? throw new LogicException("The sent application {$sent->id()} has no reference.");
     }
 }

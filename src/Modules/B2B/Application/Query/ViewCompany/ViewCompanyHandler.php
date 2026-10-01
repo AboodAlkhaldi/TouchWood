@@ -87,7 +87,7 @@ final readonly class ViewCompanyHandler
 
         return new StaffCompanyView(
             $company->id(),
-            ApplicationViews::values($details->name->value, $details->type, $details->crNumber->value, $details->taxNumber->value, $details->address->value, null, $companyTypes),
+            ApplicationViews::values($details->name->value, $details->type, $details->crNumber->value, $details->taxNumber->value, $details->address, null, $companyTypes),
             $company->status()->value,
             $company->statusBeforeSuspension()?->value,
             $company->statusReason()?->value,
@@ -116,6 +116,7 @@ final readonly class ViewCompanyHandler
         return new StaffApplicationView(
             $sent->id(),
             $sent->state()->value,
+            ApplicationViews::reference($sent),
             ApplicationViews::applicationValues($sent, $companyTypes),
             ApplicationViews::time($sent->submittedAt()),
             ApplicationViews::time($sent->decidedAt()),

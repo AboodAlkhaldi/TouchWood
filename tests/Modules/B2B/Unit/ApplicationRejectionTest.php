@@ -15,6 +15,7 @@ use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Model\CompanyType;
 use Modules\B2B\Domain\Model\DocumentType;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
+use Modules\B2B\Domain\ValueObject\ApplicationReference;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\AttachedDocument;
@@ -131,7 +132,7 @@ function rejectionTestSent(string $companyId = REJECTION_TEST_COMPANY, ?CompanyT
     $application->attach(REJECTION_TEST_VAT, REJECTION_TEST_VAT_FILE, CarbonImmutable::now());
     $application->attach(REJECTION_TEST_CR, REJECTION_TEST_CR_FILE, CarbonImmutable::now());
     $application->attach(REJECTION_TEST_LETTER, REJECTION_TEST_LETTER_FILE, CarbonImmutable::now());
-    $application->submit($companyId, rejectionTestCompanyTypes(), rejectionTestDocumentTypes(), null, CarbonImmutable::now());
+    $application->submit($companyId, rejectionTestCompanyTypes(), rejectionTestDocumentTypes(), null, CarbonImmutable::now(), ApplicationReference::of(2026, 1));
 
     return $application;
 }
@@ -179,6 +180,7 @@ function rejectionTestReconstituted(ApplicationState $state, array $flags, array
             REJECTION_TEST_LETTER => new AttachedDocument(REJECTION_TEST_LETTER, REJECTION_TEST_LETTER_FILE, $at),
         ],
         $at,
+        ApplicationReference::of(2026, 1),
         $at,
         REJECTION_TEST_STAFF,
         null,
@@ -228,7 +230,7 @@ function rejectionTestText(string $requestId = REJECTION_TEST_TEXT_REQUEST, stri
  */
 function rejectionTestSend(Application $draft, ?Application $lastSent, ?array $documentTypes = null): void
 {
-    $draft->submit(REJECTION_TEST_COMPANY, rejectionTestCompanyTypes(), $documentTypes ?? rejectionTestDocumentTypes(), $lastSent, CarbonImmutable::now());
+    $draft->submit(REJECTION_TEST_COMPANY, rejectionTestCompanyTypes(), $documentTypes ?? rejectionTestDocumentTypes(), $lastSent, CarbonImmutable::now(), ApplicationReference::of(2026, 1));
 }
 
 /**

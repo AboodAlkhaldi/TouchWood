@@ -38,12 +38,15 @@ with each step.
 | `Application/Draft` | `OpenDrafts`: the account's open draft, read under its locks, refused in the one order every draft action shares |
 | `Application/Files` | `ApplicationFiles`: B2B's own uploads (private, under its own permission) and letting go of what no application holds |
 | `Application/Audit` | `CompanyAccountAudit`: the three company actions the audit log keeps, and the company emptied when its account is anonymized; `StaffCompanyAudit` and `TypeAudit`: staff's |
-| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `TypeNames`, the one "is this name taken" query both lists share; `Ulids` |
+| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `DatabaseCompanyStandings`, the shop line's one query; `DatabaseApplicationReferenceCounter`, the year's count of application numbers; `TypeNames`, the one "is this name taken" query both lists share; `Ulids` |
 | `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated`; `AnonymizeCompany`, on Access's `CustomerAnonymized`, from the queue |
 | `Infrastructure/Media` | `ApplicationFilesUsage`: B2B's answer when Platform asks where a file is used |
 | `Infrastructure/Settings` | `BankTransferLine`: the line at the top of the Companies settings section — bank transfer on, or temporarily off |
-| `Infrastructure/Persistence/Migrations` | The `b2b` schema; the two type tables and the stores' "copied" flags; the companies, applications and their files; a rejection's flags and requests and a draft's answers |
-| `Presentation/lang` | The error messages, the permissions' names, the audited actions' names and the settings' names, in Arabic and English |
+| `Infrastructure/Persistence/Migrations` | The `b2b` schema; the two type tables and the stores' "copied" flags; the companies, applications and their files; a rejection's flags and requests and a draft's answers; the applications' numbers and the yearly counter behind them |
+| `Presentation/Http` | The company's own page (step 6): `MyCompanyController`, its two form requests, and the page's data (`CompanyPage` and its parts, built by `CompanyPages` in the home store's clock) |
+| `Presentation/Storefront` | `CompanyShopperLine`: the line under the shop's header while a company account cannot order |
+| `Presentation/routes.php` | The page and its posts, under `/{store}/{locale}/account/company`, signed-in customers only |
+| `Presentation/lang` | The error messages, the permissions' names, the audited actions' names, the settings' names, and the company page's and its line's words, in Arabic and English |
 
 ## How it is built
 
@@ -348,3 +351,99 @@ reviewer rejects it by hand.
 **"Never approved as Other" is backed by the database** (13(d)): CHECK
 `companies_approved_type_listed` refuses an approved company, or one suspended from approved, that is
 "Other".
+
+## The company's own screens (step 6)
+
+**One page, the design's** (b2b.md §4.5, amendment 14), at `/{store}/{locale}/account/company`:
+a status box and, under it, the form or what was sent, and a side column holding the application's
+lifecycle alone — three steps, the pointer on the one the latest application has reached, hidden
+while the company is suspended (amendment 16(e)); an approved company's bank account is a card in
+the main column. Before the first send there is no company, only a draft, and the page shows the
+draft alone. The design is look and behaviour: its own fields, company types and structured address
+lose to the spec.
+
+**It reaches the shop's frame through Access** (access.md amendment 50), never by being written into
+it: `CustomerAccountPages` lists it beside the account's tabs for company accounts, and
+`CompanyShopperLine` says one line under the header on every shop page while the company cannot
+order — continue, finish, under review, not approved, suspended with its reason — and nothing once
+approved. It answers from what Access hands it before reading anything (an individual account, or
+an email not confirmed yet, costs no query), and then asks `CompanyStandings` for one row.
+
+**The form saves itself.** Each field is posted alone when the person leaves it, each file the
+moment it is chosen; `SaveApplicationDraft` changes only the fields sent. A value the domain
+refuses comes back on its own field (`InvalidCompanyAttribute`'s attribute — "Other"'s words on the
+type's), a paper's refusal beside its document type, an answer's beside its request, and anything
+else at the top of the form — the shop's usual toast and message.
+
+**One change at a time.** Inertia runs one ordinary page request at a time and cancels the one
+before when another starts, so every save, upload and removal waits its turn in one queue in the
+page — none is ever lost — and each field keeps its own refusal until it is saved again, whatever
+the next field's answer says (the review of step 6).
+
+**Each field says where it stands** (amendment 16(a)): yellow while what it holds is not valid —
+and then it is never sent —, "Saving…", green "Saved" once the server holds it, red with the
+server's reason if it refuses all the same. The page checks with the server's own numbers:
+`CompanyPage::formRules`, from `FormRules::forPage()` — each field's minimum, maximum, whether it is
+one line, and the characters a CR or tax number takes. **Both trim the same characters** at either
+end (amendment 17(a)): `CompanyText::trimmed` removes exactly what JavaScript's `trim()` does — so
+a no-break space pasted at the end of a number is taken, on both sides, and a NUL is refused on
+both. A refusal belongs to the value refused: a different value takes it away, and a red line says
+the page's own reason when it has one. Every answer brings the page's data again, so a minimum
+raised while the page is open reaches it with the first refusal. **A field's own answer never
+overwrites a newer edit** (17(c)): each field remembers what it last sent, and follows the server
+only while it still shows that. A field the last decision marked, not yet changed, keeps its red
+mark and is never "Saved" (17(f)).
+
+**Minimums are settings** (amendment 16(b)): `FormRules` declares five, one set for every store,
+changed under `platform.settings.update`, each from 1 to its field's maximum. They are held when a
+value is saved (`SaveApplicationDraft`, `AnswerApplicationRequest`) and **again when the
+application is sent** (`SubmitApplication`, before the number is taken), so a value saved before a
+minimum was raised is not sent. Code-only: a CHECK cannot read a setting. The maximums stay the
+domain's, and the database's.
+
+**The same file cannot go into two sections** (amendment 16(c)): `AttachApplicationDocument` refuses
+a paper named exactly as a file under another document type of the draft (`DuplicateDocumentFile`),
+before anything is stored, reading the names from Platform's media and comparing both as the
+library keeps names — Platform's public `MediaFilename::kept`, which the media model itself uses
+(17(d)); the page says so first, before uploading. Replacing a section's own file with one of the same name is allowed; answers are not
+compared. Code-only too: the names are Platform's.
+
+**The address is picked from the account's saved addresses** (amendment 16(f)), any store's, through
+`SavedAddresses` over Access's contract: the company and the application keep a copy — the text as
+the store's format writes it, up to 6,000 characters, and `address_id`, which saved address it was.
+Another account's address answers as one that does not exist, and one its store's format no longer
+accepts cannot be picked. Editing the saved address changes neither copy — the page then shows it
+unpicked, with a note, and picking it again takes the new text (17(b)); deleting it leaves the text
+and forgets the id (`ON DELETE SET NULL`). A saved address deleted while it is being picked is
+refused on the address, not answered with an error page: `SavedAddressWrite` turns its foreign
+key's refusal into `InvalidCompanyAttribute` (17(h)). The company's own address change
+(`UpdateCompanyContact`) picks inside the account's lock, after the company is found. With none
+saved, **Add an address** opens the account's Addresses tab with `return=b2b.company`, and saving an
+address there comes straight back (access.md amendments 51 and 52); in the form it waits for the
+saves still going, and so does Discard (17(i)). `SaveApplicationDraft` finds the draft before it
+weighs any value, so a suspended company or an account with nothing open is told so first (17(h)).
+A pick in the form becomes the company's address when the application is sent (17(j)).
+
+**Send is inactive until everything is complete** (amendments 15(a), 16(d)): what is missing is
+listed beside it — every value, a type still accepted, an address, every required paper, nothing no
+longer accepted, every marked item replaced, every request answered, and no field unsaved or not
+valid —, and it is inactive while anything is saving, and after one press. What is sent is what the
+page shows; the server refuses an incomplete send on its own as well.
+
+**Every application is numbered when it is sent** (§1.2, amendment 14(g)): `TW-CO-26-0001` — the
+year as the home store's clock reads it, and a count restarting at `0001` each year, across every
+store. The count is a row per year in `b2b.application_reference_counters`, moved on by one
+statement inside the send's own transaction (`DatabaseApplicationReferenceCounter`, which refuses to
+run outside one): the row stays locked until the send commits, so two sends never share a number,
+and a refused send gives its number back — a year has no gaps. The company sees every number in its
+history; staff see them on their screens (step 7) and find a company by one, whole and ignoring
+case. The database backs it: a unique index, and CHECKs that a sent application has a number, a
+draft none, all of one shape. Anonymizing keeps the number: it names nobody.
+
+**Times are the home store's.** `CompanyPages` writes every time in the home store's time zone
+(HANDOFF §4): UTC underneath, the store's clock on the screen, and the page never converts again.
+
+**Uploads cannot be tested in a real browser here**: the browser plugin's test server drops the
+files of a multipart body. They are tested over HTTP (`MyCompanyPageTest`); the browser test puts
+the papers in through the use case and checks the page around them.
+

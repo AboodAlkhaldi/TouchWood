@@ -19,6 +19,8 @@ final readonly class ApplicationValues
         public ?string $crNumber,
         public ?string $taxNumber,
         public ?string $address,
+        /** The saved address it was picked from, while that address exists; null for older text (amendment 16(f)). */
+        public ?string $addressId,
         public ?string $note,
     ) {}
 }

@@ -6,7 +6,7 @@ namespace Modules\B2B\Application\Query\ListCompanies;
 
 /**
  * The staff list of companies (b2b.md §3.2, amendment 10(g)): filtered by status and by store,
- * searched by company name, CR number or tax number.
+ * searched by company name, CR number, tax number or the reference of an application it sent.
  */
 final readonly class ListCompanies
 {

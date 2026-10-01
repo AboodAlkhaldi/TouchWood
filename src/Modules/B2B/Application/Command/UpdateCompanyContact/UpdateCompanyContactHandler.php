@@ -6,6 +6,7 @@ namespace Modules\B2B\Application\Command\UpdateCompanyContact;
 
 use Illuminate\Database\ConnectionInterface;
 use Modules\B2B\Application\Account\CurrentCompanyAccount;
+use Modules\B2B\Application\Account\SavedAddresses;
 use Modules\B2B\Application\Audit\CompanyAccountAudit;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Domain\Exception\CompanyNotFound;
@@ -15,7 +16,6 @@ use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
-use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -31,8 +31,11 @@ use Shared\Application\PermissionScope;
  * - **While a draft is open, the change is written into it too** (amendment 5), so the next
  *   application does not send the old one.
  *
- * Audited on the company, the address as "changed" (amendment 4); an address that is the same as
- * before changes nothing and writes nothing.
+ * The address is **one of the account's saved addresses**, kept as a copy (amendment 16(f),
+ * SavedAddresses::pick): another account's, or one its store's format no longer accepts, is refused.
+ *
+ * Audited on the company, the address as "changed" (amendment 4); picking the address already
+ * picked changes nothing and writes nothing.
  */
 final readonly class UpdateCompanyContactHandler
 {
@@ -43,6 +46,7 @@ final readonly class UpdateCompanyContactHandler
         private CurrentCompanyAccount $account,
         private CompanyRepository $companies,
         private ApplicationRepository $applications,
+        private SavedAddresses $addresses,
         private PlatformApi $platform,
         private ConnectionInterface $db,
     ) {}
@@ -54,11 +58,11 @@ final readonly class UpdateCompanyContactHandler
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $customerId = $this->account->get(self::PERMISSION)->id;
-        $address = CompanyAddress::of($command->address);
 
-        $this->db->transaction(function () use ($customerId, $address): void {
+        $this->db->transaction(function () use ($customerId, $command): void {
             $this->applications->lockAccount($customerId);
             $company = $this->companies->forCustomerLocked($customerId) ?? throw new CompanyNotFound;
+            $address = $this->addresses->pick($customerId, $command->addressId);
 
             $company->moveTo($address);
 

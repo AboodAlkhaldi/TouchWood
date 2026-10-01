@@ -70,22 +70,22 @@ final readonly class DatabaseCompanyRepository implements CompanyRepository
     {
         $now = CarbonImmutable::now();
 
-        $this->db->table(self::TABLE)->insert([
+        SavedAddressWrite::guard(fn () => $this->db->table(self::TABLE)->insert([
             'id' => $company->id(),
             'customer_id' => $company->customerId(),
             'home_store_id' => $company->homeStoreId(),
             ...self::toRow($company),
             'created_at' => $now,
             'updated_at' => $now,
-        ]);
+        ]));
     }
 
     public function update(Company $company): void
     {
-        $this->db->table(self::TABLE)->where('id', $company->id())->update([
+        SavedAddressWrite::guard(fn () => $this->db->table(self::TABLE)->where('id', $company->id())->update([
             ...self::toRow($company),
             'updated_at' => CarbonImmutable::now(),
-        ]);
+        ]));
     }
 
     private function one(string $column, string $id, bool $lock): ?Company
@@ -114,6 +114,7 @@ final readonly class DatabaseCompanyRepository implements CompanyRepository
             'cr_number' => $details->crNumber->value,
             'tax_number' => $details->taxNumber->value,
             'address' => $details->address->value,
+            'address_id' => $details->address->addressId,
             'status' => $company->status()->value,
             'status_before_suspension' => $company->statusBeforeSuspension()?->value,
             'status_reason' => $company->statusReason()?->value,
@@ -136,7 +137,7 @@ final readonly class DatabaseCompanyRepository implements CompanyRepository
                 ),
                 RegistrationNumber::reconstitute((string) $row->cr_number),
                 RegistrationNumber::reconstitute((string) $row->tax_number),
-                CompanyAddress::reconstitute((string) $row->address),
+                CompanyAddress::reconstitute((string) $row->address, $row->address_id === null ? null : (string) $row->address_id),
             ),
             CompanyStatus::from((string) $row->status),
             $row->status_before_suspension === null ? null : CompanyStatus::from((string) $row->status_before_suspension),

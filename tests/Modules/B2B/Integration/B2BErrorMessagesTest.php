@@ -15,6 +15,7 @@ use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Model\CompanyType;
 use Modules\B2B\Domain\Model\DocumentType;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
+use Modules\B2B\Domain\ValueObject\ApplicationReference;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyName;
@@ -95,6 +96,7 @@ function b2bErrorMessagesSend(Application $draft, ?Application $lastSent, ?array
         $documentTypes ?? b2bErrorMessagesDocumentTypes(),
         $lastSent,
         CarbonImmutable::now(),
+        ApplicationReference::of(2026, 1),
     );
 }
 

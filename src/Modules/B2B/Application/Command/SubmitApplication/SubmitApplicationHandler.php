@@ -6,11 +6,13 @@ namespace Modules\B2B\Application\Command\SubmitApplication;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use LogicException;
 use Modules\B2B\Application\Account\CurrentCompanyAccount;
 use Modules\B2B\Application\Audit\CompanyAccountAudit;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Draft\OpenDrafts;
 use Modules\B2B\Application\Events\CompanyEvents;
+use Modules\B2B\Application\Settings\FormRules;
 use Modules\B2B\Domain\Exception\ApplicationNotEditable;
 use Modules\B2B\Domain\Exception\ApplicationNotFound;
 use Modules\B2B\Domain\Exception\CompanySuspended;
@@ -23,6 +25,7 @@ use Modules\B2B\Domain\Exception\MissingRequiredDocument;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Modules\B2B\Domain\Exception\RequestNotAnswered;
 use Modules\B2B\Domain\Model\Company;
+use Modules\B2B\Domain\Repository\ApplicationReferenceCounter;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
@@ -30,6 +33,7 @@ use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Sends the open draft (b2b.md §1.2, §3.1, §4.1). The company comes to exist here, `PENDING`, with
@@ -46,7 +50,8 @@ use Shared\Application\PermissionScope;
  *
  * One company per account: the company is created only when none exists, under the account's lock
  * (ApplicationRepository::lockAccount), so two first sends cannot both create one. Audited on the
- * application, in the same transaction (amendment 4).
+ * application, in the same transaction (amendment 4). **The application takes its number here**, in
+ * the same transaction — the year's count as the home store's clock reads it (amendment 14(g)).
  */
 final readonly class SubmitApplicationHandler
 {
@@ -62,6 +67,8 @@ final readonly class SubmitApplicationHandler
         private DocumentTypeRepository $documentTypes,
         private CompanyEvents $events,
         private PlatformApi $platform,
+        private ApplicationReferenceCounter $references,
+        private FormRules $rules,
         private ConnectionInterface $db,
     ) {}
 
@@ -91,12 +98,25 @@ final readonly class SubmitApplicationHandler
             $homeStoreId = $company?->homeStoreId() ?? $account->homeStoreId;
             $companyId = $company?->id() ?? $this->companies->nextId();
 
+            // Every value again, against today's minimums: one saved before a minimum was raised
+            // is not sent (amendment 16(b)). Before the number is taken, so a refusal takes none.
+            $this->rules->hold('name', $draft->name()?->value);
+            $this->rules->hold('cr_number', $draft->crNumber()?->value);
+            $this->rules->hold('tax_number', $draft->taxNumber()?->value);
+            $this->rules->hold('company_type_other', $draft->type()?->other);
+
+            foreach ($draft->answers() as $answer) {
+                $this->rules->hold('answer', $answer->text?->value);
+            }
+
             $details = $draft->submit(
                 $companyId,
                 $this->companyTypes->all($homeStoreId),
                 $this->documentTypes->all($homeStoreId),
                 $company === null ? null : $this->applications->lastSent($company->id()),
                 $now,
+                // Its number, in this transaction: a refused send gives it back (amendment 14(g)).
+                $this->references->next($this->yearIn($homeStoreId, $now)),
             );
 
             $before = $company?->status();
@@ -115,5 +135,18 @@ final readonly class SubmitApplicationHandler
             $this->events->submitted($company, $draft);
             $this->events->statusChanged($company, $before);
         }, 3);
+    }
+
+    /**
+     * The year the application is sent in, as its home store's clock reads it (amendment 14(g)): a
+     * company whose store is three hours ahead of UTC, sending at half past midnight on the first of
+     * January, gets the new year's number, although the server, on UTC, is still in the old one.
+     */
+    private function yearIn(string $homeStoreId, CarbonImmutable $at): int
+    {
+        $store = $this->platform->store(StoreId::fromString($homeStoreId))
+            ?? throw new LogicException("The home store {$homeStoreId} does not exist.");
+
+        return (int) $at->setTimezone($store->timezone)->format('Y');
     }
 }

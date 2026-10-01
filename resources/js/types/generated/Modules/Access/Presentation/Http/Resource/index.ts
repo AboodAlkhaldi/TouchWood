@@ -89,6 +89,7 @@ homeStore: string,
 passwordMinimumLength: number,
 addresses: AddressBookStore[],
 deletionDays: number,
+returnTo: string | null,
 };
 export type CustomerAddressGroup = {
 storeId: string,

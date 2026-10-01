@@ -6,6 +6,8 @@
 | what the last request wants to say to them.
 */
 
+import type { ShopperLineTone } from '@/types/generated/Modules/Access/Public/Enums';
+
 export type Locale = 'ar' | 'en';
 export type Direction = 'rtl' | 'ltr';
 /** Light or dark. A campaign has one of each. */
@@ -61,6 +63,19 @@ export type Shopper = {
     emailVerified: boolean;
 };
 
+/** The account's side list: its own tabs, and the pages other modules add (access.md amendment 50). */
+export type AccountMenu = {
+    tabs: { key: string; label: string }[];
+    pages: { key: string; label: string; routeName: string }[];
+};
+
+/** A line under the shop's header, from another module (access.md amendment 50). */
+export type ShopperLine = {
+    text: string;
+    routeName: string;
+    tone: ShopperLineTone;
+};
+
 export type Store = {
     id: string;
     name: string;
@@ -114,6 +129,9 @@ export type SharedProps = {
     /** Shop pages only; the panel shares its own "store", which is a different thing. */
     shop?: Shop | null;
     shopper?: Shopper | null;
+    /** Shop pages only, and only for somebody signed in. */
+    accountMenu?: AccountMenu | null;
+    shopperLines?: ShopperLine[];
     /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */
     sidebarOpen: boolean;
     store: CurrentStore | null;

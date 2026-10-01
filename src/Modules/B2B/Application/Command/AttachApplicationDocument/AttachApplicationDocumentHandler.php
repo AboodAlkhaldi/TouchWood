@@ -14,9 +14,12 @@ use Modules\B2B\Domain\Exception\ApplicationNotEditable;
 use Modules\B2B\Domain\Exception\ApplicationNotFound;
 use Modules\B2B\Domain\Exception\CompanySuspended;
 use Modules\B2B\Domain\Exception\DocumentTypeInactive;
+use Modules\B2B\Domain\Exception\DuplicateDocumentFile;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\MediaFilename;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Domain\Error\DomainError;
@@ -29,6 +32,10 @@ use Shared\Domain\Error\DomainError;
  * of another store, or one that does not exist is refused with DocumentTypeInactive **before the
  * file is stored**. A file the new upload replaces is let go of — deleted unless another
  * application, such as the last one sent, still holds it.
+ *
+ * **Nor a file named exactly as one under another document type of the draft** (DuplicateDocumentFile,
+ * amendment 16(c)), also before anything is stored — both names as the media library keeps them
+ * (17(d)). The type's own file is not compared: uploading again under the same type replaces it.
  *
  * Not audited (amendment 4); Platform keeps its own entry for the upload.
  */
@@ -43,11 +50,12 @@ final readonly class AttachApplicationDocumentHandler
         private ApplicationRepository $applications,
         private DocumentTypeRepository $documentTypes,
         private ApplicationFiles $files,
+        private PlatformApi $platform,
         private ConnectionInterface $db,
     ) {}
 
     /**
-     * @throws NotACompanyAccount|DocumentTypeInactive
+     * @throws NotACompanyAccount|DocumentTypeInactive|DuplicateDocumentFile
      * @throws ApplicationNotFound|CompanySuspended|ApplicationNotEditable
      * @throws DomainError Platform's refusal of the file itself (type or size)
      */
@@ -64,6 +72,17 @@ final readonly class AttachApplicationDocumentHandler
 
             if ($type === null || strtolower($type->storeId()) !== strtolower($account->homeStoreId) || ! $type->isActive()) {
                 throw new DocumentTypeInactive($typeId);
+            }
+
+            // Compared as the library keeps names (amendment 17(d)): a space at the ends or an
+            // invisible mark does not make a second name.
+            $name = MediaFilename::kept($command->originalFilename);
+
+            foreach ($draft->documents() as $document) {
+                if ($document->documentTypeId !== $typeId
+                    && $this->platform->media($document->mediaId)?->originalFilename === $name) {
+                    throw new DuplicateDocumentFile;
+                }
             }
 
             $mediaId = $this->files->upload($command->path, $command->originalFilename);

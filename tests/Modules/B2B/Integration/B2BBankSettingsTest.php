@@ -106,7 +106,7 @@ it('takes a bank and a holder of one line, up to 100 characters', function (stri
         ->and(fn () => bankSettingSave($key, 'sa', '   '))->toThrow(InvalidSettingValue::class);
 })->with([BankAccountSettings::BANK, BankAccountSettings::HOLDER]);
 
-it('names the section and the three settings on the settings screen, in Arabic and English', function () {
+it('names the section and every one of its settings on the settings screen, in Arabic and English: the bank account\'s three and the form\'s five minimums (amendment 16(b))', function () {
     foreach (['ar', 'en'] as $locale) {
         $keys = ['b2b::settings.module'];
 
@@ -116,7 +116,7 @@ it('names the section and the three settings on the settings screen, in Arabic a
             }
         }
 
-        expect($keys)->toHaveCount(4);
+        expect($keys)->toHaveCount(9);
 
         foreach ($keys as $key) {
             $name = trans($key, [], $locale);

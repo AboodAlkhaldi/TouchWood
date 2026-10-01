@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Modules\Access\Application\Command\DeleteAddress\DeleteAddress;
+use Modules\Access\Application\Command\DeleteAddress\DeleteAddressHandler;
+use Modules\Access\Application\Command\SaveAddress\SaveAddress;
+use Modules\Access\Application\Command\SaveAddress\SaveAddressHandler;
 use Modules\B2B\Application\Command\AnswerApplicationRequest\AnswerApplicationRequest;
 use Modules\B2B\Application\Command\AnswerApplicationRequest\AnswerApplicationRequestHandler;
 use Modules\B2B\Application\Command\AttachApplicationDocument\AttachApplicationDocument;
@@ -97,7 +101,7 @@ function companyAccountUseCases(): array
         'discarding' => [fn () => app(DiscardApplicationDraftHandler::class)->handle(new DiscardApplicationDraft)],
         'opening a file' => [fn () => app(OpenMyApplicationFileHandler::class)->handle(new OpenMyApplicationFile(strtolower((string) Str::ulid())))],
         'viewing the company' => [fn () => app(ViewMyCompanyHandler::class)->handle(new ViewMyCompany)],
-        'changing the address' => [fn () => app(UpdateCompanyContactHandler::class)->handle(new UpdateCompanyContact('Riyadh'))],
+        'changing the address' => [fn () => app(UpdateCompanyContactHandler::class)->handle(new UpdateCompanyContact(strtolower((string) Str::ulid())))],
     ];
 }
 
@@ -106,9 +110,9 @@ function companyAccountView(): MyCompanyView
     return app(ViewMyCompanyHandler::class)->handle(new ViewMyCompany);
 }
 
-function companyAccountMove(string $address): void
+function companyAccountMove(string $addressId): void
 {
-    app(UpdateCompanyContactHandler::class)->handle(new UpdateCompanyContact($address));
+    app(UpdateCompanyContactHandler::class)->handle(new UpdateCompanyContact($addressId));
 }
 
 describe('who reaches the company\'s own side (§3.1)', function () {
@@ -177,27 +181,31 @@ describe('the account\'s lock (§1.1, §1.2: one company and one open applicatio
     });
 });
 
-describe('the address (§1.1, amendments 4, 5 and 9(d))', function () {
-    it('changes after a rejection, and never sends the company back to PENDING', function () {
+describe('the address (§1.1, amendments 4, 5, 9(d) and 16(f))', function () {
+    it('changes after a rejection, to a copy of the saved address picked, and never sends the company back to PENDING', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
         B2BFixtures::rejected($customerId);
+        $addressId = B2BFixtures::savedAddress($customerId, street: 'Olaya Street');
         Fx::actAsCustomer($customerId);
 
-        companyAccountMove("Olaya Street\nRiyadh");
+        companyAccountMove($addressId);
         $moved = app(CompanyRepository::class)->forCustomer($customerId);
 
-        expect($moved?->details()->address->value)->toBe("Olaya Street\nRiyadh")
+        expect($moved?->details()->address->value)->toBe(B2BFixtures::addressText($addressId))
+            ->and($moved?->details()->address->addressId)->toBe($addressId)
+            ->and(DB::table('b2b.companies')->where('customer_id', $customerId)->value('address_id'))->toBe($addressId)
             ->and($moved?->status()->value)->toBe('REJECTED');
     });
 
     it('changes while a sent application waits, and leaves that application as it was sent (the review of step 3b)', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
         [, $waiting] = B2BFixtures::sent($customerId);
+        $addressId = B2BFixtures::savedAddress($customerId, street: 'Olaya Street');
         Fx::actAsCustomer($customerId);
 
-        companyAccountMove("Olaya Street\nRiyadh");
+        companyAccountMove($addressId);
 
-        expect(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->value)->toBe("Olaya Street\nRiyadh")
+        expect(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->value)->toBe(B2BFixtures::addressText($addressId))
             ->and(app(CompanyRepository::class)->forCustomer($customerId)?->status()->value)->toBe('PENDING')
             ->and(app(ApplicationRepository::class)->find($waiting->id())?->address()?->value)->toBe("King Fahd Road\nRiyadh");
     });
@@ -205,12 +213,13 @@ describe('the address (§1.1, amendments 4, 5 and 9(d))', function () {
     it('is refused while the company is suspended, and nothing is written — the company, its draft, the log (amendment 9(d))', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
         [$company] = B2BFixtures::rejected($customerId);
+        $addressId = B2BFixtures::savedAddress($customerId, street: 'Olaya Street');
         Fx::actAsCustomer($customerId);
         app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
         B2BFixtures::suspend($company);
         $levels = B2BFixtures::auditLevels();
 
-        expect(fn () => companyAccountMove("Olaya Street\nRiyadh"))->toThrow(CompanySuspended::class)
+        expect(fn () => companyAccountMove($addressId))->toThrow(CompanySuspended::class)
             ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->value)->toBe("King Fahd Road\nRiyadh")
             ->and(app(ApplicationRepository::class)->openFor($customerId)?->address()?->value)->toBe("King Fahd Road\nRiyadh")
             ->and(array_filter($levels->getArrayCopy(), static fn (array $entry): bool => str_starts_with($entry[0], 'b2b.')))->toBe([]);
@@ -219,10 +228,11 @@ describe('the address (§1.1, amendments 4, 5 and 9(d))', function () {
     it('is audited on the company, as "changed", inside its own transaction (amendment 4)', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
         [$company] = B2BFixtures::rejected($customerId);
+        $addressId = B2BFixtures::savedAddress($customerId, street: 'Olaya Street');
         Fx::actAsCustomer($customerId);
         $levels = B2BFixtures::auditLevels();
 
-        companyAccountMove('Riyadh, Olaya');
+        companyAccountMove($addressId);
         $entry = DB::table('platform.audit_entries')->where('action', 'b2b.company.address_changed')->first();
 
         expect($levels->getArrayCopy())->toBe([['b2b.company.address_changed', 2]])
@@ -232,39 +242,102 @@ describe('the address (§1.1, amendments 4, 5 and 9(d))', function () {
             ->and(json_decode((string) $entry?->changes, true))->toBe(['address' => 'changed']);
     });
 
-    it('is written into the open draft too (amendment 5)', function () {
+    it('is written into the open draft too, with the saved address it came from (amendment 5)', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
         B2BFixtures::rejected($customerId);
+        $addressId = B2BFixtures::savedAddress($customerId, street: 'Olaya Street');
         Fx::actAsCustomer($customerId);
         app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
 
-        companyAccountMove('Riyadh, Olaya');
+        companyAccountMove($addressId);
 
-        expect(app(ApplicationRepository::class)->openFor($customerId)?->address()?->value)->toBe('Riyadh, Olaya');
+        expect(app(ApplicationRepository::class)->openFor($customerId)?->address()?->value)->toBe(B2BFixtures::addressText($addressId))
+            ->and(app(ApplicationRepository::class)->openFor($customerId)?->address()?->addressId)->toBe($addressId);
     });
 
-    it('changes nothing, and writes nothing, when it is the same address', function () {
+    it('changes nothing, and writes nothing, when the address already picked is picked again', function () {
         $customerId = B2BFixtures::verifiedCompanyAccount();
         B2BFixtures::rejected($customerId);
+        $addressId = B2BFixtures::savedAddress($customerId);
         Fx::actAsCustomer($customerId);
+        companyAccountMove($addressId);
         $levels = B2BFixtures::auditLevels();
 
-        companyAccountMove("King Fahd Road\nRiyadh");
+        companyAccountMove($addressId);
 
         expect($levels->getArrayCopy())->toBe([]);
     });
 
-    it('refuses before there is a company, and an address that is not one', function () {
+    it('takes another saved address that reads the same: it is another pick, and the page shows it picked', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::rejected($customerId);
+        $first = B2BFixtures::savedAddress($customerId, label: 'Head office');
+        $second = B2BFixtures::savedAddress($customerId, label: 'Warehouse');
+        Fx::actAsCustomer($customerId);
+        companyAccountMove($first);
+        $levels = B2BFixtures::auditLevels();
+
+        companyAccountMove($second);
+
+        expect(B2BFixtures::addressText($first))->toBe(B2BFixtures::addressText($second))
+            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->addressId)->toBe($second)
+            ->and($levels->getArrayCopy())->toBe([['b2b.company.address_changed', 2]]);
+    });
+
+    it('keeps its copy when the saved address is changed or deleted in the address book', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::rejected($customerId);
+        $addressId = B2BFixtures::savedAddress($customerId);
+        $kept = B2BFixtures::addressText($addressId);
+        Fx::actAsCustomer($customerId);
+        companyAccountMove($addressId);
+
+        app(SaveAddressHandler::class)->handle(new SaveAddress(
+            storeId: Fx::storeId('sa'), label: 'Head office', recipientName: 'Sara Ali', phone: '+966501234567',
+            fields: ['administrative_area' => 'Riyadh', 'city' => 'Riyadh', 'district' => 'Al Malqa', 'street' => 'Anas Ibn Malik Road', 'building' => '9'],
+            latitude: null, longitude: null, isDefault: false, addressId: $addressId,
+        ));
+        $afterEdit = app(CompanyRepository::class)->forCustomer($customerId)?->details()->address;
+        $edited = B2BFixtures::addressText($addressId);
+        app(DeleteAddressHandler::class)->handle(new DeleteAddress($addressId));
+        $afterDelete = app(CompanyRepository::class)->forCustomer($customerId)?->details()->address;
+
+        expect($edited)->not->toBe($kept)
+            ->and($afterEdit?->value)->toBe($kept)
+            ->and($afterEdit?->addressId)->toBe($addressId)
+            ->and($afterDelete?->value)->toBe($kept)
+            // Where it came from is forgotten with it (ON DELETE SET NULL, §5.1).
+            ->and($afterDelete?->addressId)->toBeNull();
+    });
+
+    it('refuses before there is a company, and any address that is not one of the account\'s own it may pick — writing nothing', function (Closure $picked) {
         $customerId = B2BFixtures::verifiedCompanyAccount();
         Fx::actAsCustomer($customerId);
 
-        expect(fn () => companyAccountMove('Riyadh'))->toThrow(CompanyNotFound::class);
+        // Whatever it is sent: the company is looked for before the address is (amendment 17).
+        expect(fn () => companyAccountMove(B2BFixtures::savedAddress($customerId)))->toThrow(CompanyNotFound::class)
+            ->and(fn () => companyAccountMove($picked($customerId)))->toThrow(CompanyNotFound::class);
 
         B2BFixtures::rejected($customerId);
+        $addressId = $picked($customerId);
+        $levels = B2BFixtures::auditLevels();
 
-        expect(fn () => companyAccountMove('   '))->toThrow(InvalidCompanyAttribute::class)
-            ->and(fn () => companyAccountMove(str_repeat('a', 501)))->toThrow(InvalidCompanyAttribute::class);
-    });
+        expect(fn () => companyAccountMove($addressId))->toThrow(InvalidCompanyAttribute::class)
+            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->value)->toBe("King Fahd Road\nRiyadh")
+            ->and($levels->getArrayCopy())->toBe([]);
+    })->with([
+        'none picked' => [fn (string $customerId): string => '   '],
+        'one that does not exist' => [fn (string $customerId): string => strtolower((string) Str::ulid())],
+        'not an id at all' => [fn (string $customerId): string => 'King Fahd Road'],
+        'another account\'s' => [fn (string $customerId): string => B2BFixtures::savedAddress(B2BFixtures::companyAccount())],
+        // Its store's format now asks for more than it holds (access.md amendment 41).
+        'one its format no longer accepts' => [function (string $customerId): string {
+            $addressId = B2BFixtures::savedAddress($customerId);
+            DB::table('access.addresses')->where('id', $addressId)->update(['fields' => json_encode(['administrative_area' => 'Riyadh', 'city' => 'Riyadh'])]);
+
+            return $addressId;
+        }],
+    ]);
 });
 
 describe('the account\'s own files (§1.4, amendments 5 and 9(c))', function () {

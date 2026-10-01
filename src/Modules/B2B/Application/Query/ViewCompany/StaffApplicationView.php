@@ -24,6 +24,8 @@ final readonly class StaffApplicationView
     public function __construct(
         public string $id,
         public string $state,
+        /** Its number, given when it was sent: TW-CO-26-0001 (amendment 14(g)). */
+        public string $reference,
         public ApplicationValues $values,
         public ?string $submittedAt,
         public ?string $decidedAt,

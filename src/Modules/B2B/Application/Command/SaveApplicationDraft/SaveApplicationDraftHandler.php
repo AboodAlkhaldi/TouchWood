@@ -7,8 +7,10 @@ namespace Modules\B2B\Application\Command\SaveApplicationDraft;
 use Illuminate\Database\ConnectionInterface;
 use LogicException;
 use Modules\B2B\Application\Account\CurrentCompanyAccount;
+use Modules\B2B\Application\Account\SavedAddresses;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Draft\OpenDrafts;
+use Modules\B2B\Application\Settings\FormRules;
 use Modules\B2B\Domain\Exception\ApplicationNotEditable;
 use Modules\B2B\Domain\Exception\ApplicationNotFound;
 use Modules\B2B\Domain\Exception\CompanySuspended;
@@ -19,6 +21,7 @@ use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyName;
+use Modules\B2B\Domain\ValueObject\CompanyText;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
@@ -31,6 +34,9 @@ use Shared\Application\PermissionScope;
  * - **Each value is checked when it is saved** (amendment 4): a value that is there must already be
  *   a valid one, refused on its own field. Only completeness waits for sending.
  * - **Only the fields sent change** (amendment 5).
+ * - **Minimums**, settings every store shares, are held on each value sent (amendment 16(b)).
+ * - **The address is picked** from the account's saved addresses, by its id, and kept as a copy
+ *   (amendment 16(f)); another account's, or one its format no longer accepts, is refused.
  * - **A newly chosen listed type** must be one of the home store's (InvalidCompanyAttribute,
  *   amendment 6(d)) and still offered (CompanyTypeInactive). One the draft already holds is left as
  *   it is when sent again, deactivated or not: it is marked "no longer accepted" until the company
@@ -44,7 +50,7 @@ final readonly class SaveApplicationDraftHandler
     public const string PERMISSION = B2BPermissions::APPLY;
 
     /** Every key a save may carry. */
-    public const array FIELDS = ['name', 'company_type_id', 'company_type_other', 'cr_number', 'tax_number', 'address', 'note'];
+    public const array FIELDS = ['name', 'company_type_id', 'company_type_other', 'cr_number', 'tax_number', 'address_id', 'note'];
 
     public function __construct(
         private Authorizer $authorizer,
@@ -52,6 +58,8 @@ final readonly class SaveApplicationDraftHandler
         private OpenDrafts $drafts,
         private ApplicationRepository $applications,
         private CompanyTypeRepository $companyTypes,
+        private FormRules $rules,
+        private SavedAddresses $addresses,
         private ConnectionInterface $db,
     ) {}
 
@@ -63,10 +71,24 @@ final readonly class SaveApplicationDraftHandler
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $account = $this->account->get(self::PERMISSION);
-        $sent = self::values($command->fields);
 
-        $this->db->transaction(function () use ($account, $sent): void {
+        $this->db->transaction(function () use ($account, $command): void {
+            // The draft first (amendment 17(h)): a suspended company, or an account with nothing
+            // open, is told so before any value is weighed.
             $draft = $this->drafts->forChange($account->id)->draft;
+            $sent = self::values($command->fields);
+
+            // Today's minimums (amendment 16(b)), on the field that falls short.
+            $this->rules->hold('name', array_key_exists('name', $sent) ? $sent['name']?->value : null);
+            $this->rules->hold('cr_number', array_key_exists('cr_number', $sent) ? $sent['cr_number']?->value : null);
+            $this->rules->hold('tax_number', array_key_exists('tax_number', $sent) ? $sent['tax_number']?->value : null);
+            $this->rules->hold('company_type_other', array_key_exists('type', $sent) ? $sent['type']?->other : null);
+
+            // Picked from the account's saved addresses, and kept as a copy (amendment 16(f)).
+            if (array_key_exists('address_id', $command->fields)) {
+                $picked = $command->fields['address_id'];
+                $sent['address'] = $picked === null || trim($picked) === '' ? null : $this->addresses->pick($account->id, $picked);
+            }
 
             $type = array_key_exists('type', $sent) ? $sent['type'] : $draft->type();
 
@@ -128,7 +150,8 @@ final readonly class SaveApplicationDraftHandler
         $given = static function (string $field) use ($fields): ?string {
             $value = $fields[$field] ?? null;
 
-            return $value === null || trim($value) === '' ? null : $value;
+            // Empty as the page sees it (amendment 17(a)): only spaces is nothing.
+            return $value === null || CompanyText::trimmed($value) === '' ? null : $value;
         };
 
         $sent = [];
@@ -158,10 +181,6 @@ final readonly class SaveApplicationDraftHandler
 
         if (array_key_exists('tax_number', $fields)) {
             $sent['tax_number'] = ($value = $given('tax_number')) === null ? null : RegistrationNumber::of('tax_number', $value);
-        }
-
-        if (array_key_exists('address', $fields)) {
-            $sent['address'] = ($value = $given('address')) === null ? null : CompanyAddress::of($value);
         }
 
         if (array_key_exists('note', $fields)) {

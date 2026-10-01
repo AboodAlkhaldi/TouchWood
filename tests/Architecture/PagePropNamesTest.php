@@ -19,7 +19,7 @@ declare(strict_types=1);
 const SHARED_PAGE_PROPS = [
     'errors', 'locale', 'direction', 'theme', 'translations', 'flash', 'csrfToken',
     'viewer', 'menu', 'sidebarOpen', 'store', 'routes',
-    'shop', 'shopper',
+    'shop', 'shopper', 'accountMenu', 'shopperLines',
 ];
 
 /**

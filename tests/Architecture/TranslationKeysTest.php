@@ -70,7 +70,18 @@ function translationFile(string $group, string $locale): ?array
 
     if (str_contains($group, '::')) {
         [$module, $file] = explode('::', $group, 2);
-        $path = $root.'/src/Modules/'.ucfirst($module).'/Presentation/lang/'.$locale.'/'.$file.'.php';
+        // The module's folder whatever its case: "b2b" lives in B2B, which ucfirst() never gives,
+        // and Linux, unlike Windows, tells the two apart (CI failed on it, B2B step 6).
+        $folder = array_values(array_filter(
+            glob($root.'/src/Modules/*', GLOB_ONLYDIR) ?: [],
+            static fn (string $path): bool => strtolower(basename($path)) === strtolower($module),
+        ))[0] ?? null;
+
+        if ($folder === null) {
+            return null;
+        }
+
+        $path = $folder.'/Presentation/lang/'.$locale.'/'.$file.'.php';
     } else {
         $path = $root.'/lang/'.$locale.'/'.$group.'.php';
     }
@@ -109,6 +120,8 @@ it('resolves a key to the file behind it', function () {
     expect(translationExists('access::auth.sign_in', 'en'))->toBeTrue()
         ->and(translationExists('access::auth.sign_in', 'ar'))->toBeTrue()
         ->and(translationExists('admin.home.title', 'en'))->toBeTrue()
+        // A module whose folder is not its name with a capital first: B2B, not B2b.
+        ->and(translationExists('b2b::company.field.name', 'ar'))->toBeTrue()
         ->and(translationExists('access::auth.no_such_line', 'en'))->toBeFalse()
         ->and(translationExists('nosuchfile.at_all', 'en'))->toBeFalse()
         ->and(translationExists('nodot', 'en'))->toBeFalse();

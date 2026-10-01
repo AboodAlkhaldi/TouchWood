@@ -81,6 +81,28 @@ $addresses = $this->access->addresses($customerId, $storeId);           // list<
 - Ops will send the security messages by binding its own `SecurityMessages`; until then Access's
   temporary sender uses Laravel mail and its `SmsGateway`.
 
+```php
+// A page of your own in the customer's account, for one account type or every account; it is
+// listed above the account's own tabs. Name it at {module}::account_pages.{key}.
+$this->app->make(CustomerAccountPages::class)->register(
+    new CustomerAccountPageDto('b2b', 'company', 'storefront.company', AccountType::Company),
+);
+
+// A line under the shop's header for the customer signed in: a ShopperLine answers one or null.
+$this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
+```
+
+- Both are registered in your provider's `boot()` (amendment 50). A page's route is a shop route
+  (`storefront.*`), and its handler still checks the account: being listed is not being allowed.
+- **To send a customer to add an address and bring them back**, link to the Addresses tab with
+  `return` naming your page — `/{store}/{locale}/account?tab=addresses&return=b2b.company`
+  (amendment 51). Saving an address there lands them on that page; making one the default or
+  deleting one keeps `return` on the tab (amendment 52). Only a page registered for the
+  customer's account type is honoured (`CustomerAccountPages::find`); anything else is ignored, so
+  the parameter never sends anybody off the shop.
+- A `ShopperLine` is asked on **every shop page** a customer opens. Answer from what it is handed
+  — the account type, whether the email is confirmed — before reading anything of your own.
+
 ---
 
 ## What is inside

@@ -13,6 +13,7 @@ use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Model\CompanyType;
 use Modules\B2B\Domain\Model\DocumentType;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
+use Modules\B2B\Domain\ValueObject\ApplicationReference;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
@@ -88,7 +89,7 @@ function completeDraft(?CompanyTypeChoice $type = null, ?string $companyId = nul
 function sentApplication(): Application
 {
     $application = completeDraft();
-    $application->submit(APPLICATION_TEST_COMPANY, applicationTestCompanyTypes(), applicationTestDocumentTypes(), null, CarbonImmutable::now());
+    $application->submit(APPLICATION_TEST_COMPANY, applicationTestCompanyTypes(), applicationTestDocumentTypes(), null, CarbonImmutable::now(), ApplicationReference::of(2026, 1));
 
     return $application;
 }
@@ -101,7 +102,7 @@ function sentApplication(): Application
  */
 function applicationTestSend(Application $draft, ?array $companyTypes = null, ?array $documentTypes = null): void
 {
-    $draft->submit(APPLICATION_TEST_COMPANY, $companyTypes ?? applicationTestCompanyTypes(), $documentTypes ?? applicationTestDocumentTypes(), null, CarbonImmutable::now());
+    $draft->submit(APPLICATION_TEST_COMPANY, $companyTypes ?? applicationTestCompanyTypes(), $documentTypes ?? applicationTestDocumentTypes(), null, CarbonImmutable::now(), ApplicationReference::of(2026, 1));
 }
 
 describe('a draft', function () {
@@ -139,7 +140,7 @@ describe('a draft', function () {
 describe('sending it', function () {
     it('sends a complete draft, which then belongs to its company and is the staff\'s', function () {
         $application = completeDraft();
-        $details = $application->submit(APPLICATION_TEST_COMPANY, applicationTestCompanyTypes(), applicationTestDocumentTypes(), null, CarbonImmutable::parse('2026-09-27 12:00'));
+        $details = $application->submit(APPLICATION_TEST_COMPANY, applicationTestCompanyTypes(), applicationTestDocumentTypes(), null, CarbonImmutable::parse('2026-09-27 12:00'), ApplicationReference::of(2026, 1));
 
         expect($application->state())->toBe(ApplicationState::Submitted)
             ->and($application->companyId())->toBe(APPLICATION_TEST_COMPANY)
@@ -191,7 +192,7 @@ describe('sending it', function () {
     it('takes "Other" whatever types are offered: it is not a row staff can switch off', function () {
         $application = completeDraft(CompanyTypeChoice::other('Cooperative society'));
 
-        expect($application->submit(APPLICATION_TEST_COMPANY, [], applicationTestDocumentTypes(), null, CarbonImmutable::now())->type->other)
+        expect($application->submit(APPLICATION_TEST_COMPANY, [], applicationTestDocumentTypes(), null, CarbonImmutable::now(), ApplicationReference::of(2026, 1))->type->other)
             ->toBe('Cooperative society');
     });
 
@@ -218,7 +219,7 @@ describe('sending it', function () {
         // Complete, so nothing else refuses it first.
         $draft = completeDraft(companyId: APPLICATION_TEST_COMPANY);
 
-        expect(fn () => $draft->submit('01j8z3k4m5n6p7q8r9s0t1v2c9', applicationTestCompanyTypes(), applicationTestDocumentTypes(), null, CarbonImmutable::now()))
+        expect(fn () => $draft->submit('01j8z3k4m5n6p7q8r9s0t1v2c9', applicationTestCompanyTypes(), applicationTestDocumentTypes(), null, CarbonImmutable::now(), ApplicationReference::of(2026, 1)))
             ->toThrow(LogicException::class)
             ->and($draft->state())->toBe(ApplicationState::Draft);
     });
@@ -261,7 +262,7 @@ describe('once it is sent', function () {
         'a file added' => [fn (Application $application) => $application->attach(APPLICATION_TEST_VAT, '01j8z3k4m5n6p7q8r9s0t1v2m7', CarbonImmutable::now())],
         'a file removed' => [fn (Application $application) => $application->detach(APPLICATION_TEST_VAT)],
         'thrown away' => [fn (Application $application) => $application->ensureDiscardable()],
-        'sent again' => [fn (Application $application) => $application->submit(APPLICATION_TEST_COMPANY, applicationTestCompanyTypes(), applicationTestDocumentTypes(), null, CarbonImmutable::now())],
+        'sent again' => [fn (Application $application) => $application->submit(APPLICATION_TEST_COMPANY, applicationTestCompanyTypes(), applicationTestDocumentTypes(), null, CarbonImmutable::now(), ApplicationReference::of(2026, 1))],
     ]);
 
     it('is approved with the staff member\'s note, if any, and is then closed for good', function () {

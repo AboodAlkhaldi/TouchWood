@@ -13,6 +13,7 @@ use Modules\Platform\Public\Enums\ImageFormat;
 use Modules\Platform\Public\Enums\MediaSize;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
 use Modules\Platform\Public\Enums\MediaVisibility;
+use Modules\Platform\Public\MediaFilename;
 
 /**
  * An uploaded file in object storage (Platform spec §1.4).
@@ -374,8 +375,9 @@ final class Media
         }
 
         // Keep only the name itself: no directories, no control characters, and no invisible
-        // formatting characters such as a right-to-left override that disguises the extension.
-        $name = trim((string) preg_replace('/[\p{Cc}\p{Cf}]/u', '', basename(str_replace('\\', '/', $filename))));
+        // formatting characters such as a right-to-left override that disguises the extension —
+        // one rule, public, so a module compares names as the library keeps them (MediaFilename).
+        $name = MediaFilename::kept($filename);
 
         if ($name === '' || mb_strlen($name) > self::MAX_TEXT_LENGTH) {
             throw new InvalidMediaAttribute('original_filename', 'expected a file name of 1 to 255 characters');

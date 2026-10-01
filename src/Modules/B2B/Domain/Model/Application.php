@@ -17,12 +17,14 @@ use Modules\B2B\Domain\Exception\MissingRequiredDocument;
 use Modules\B2B\Domain\Exception\RequestNotAnswered;
 use Modules\B2B\Domain\Exception\RequestNotFound;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
+use Modules\B2B\Domain\ValueObject\ApplicationReference;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\AttachedDocument;
 use Modules\B2B\Domain\ValueObject\CompanyAddress;
 use Modules\B2B\Domain\ValueObject\CompanyDetails;
 use Modules\B2B\Domain\ValueObject\CompanyName;
+use Modules\B2B\Domain\ValueObject\CompanyText;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\FlaggedField;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
@@ -72,6 +74,7 @@ final class Application
         private ?Remark $note,
         private array $documents,
         private ?DateTimeImmutable $submittedAt,
+        private ?ApplicationReference $reference,
         private ?DateTimeImmutable $decidedAt,
         private ?string $decidedBy,
         private ?Remark $decisionReason,
@@ -85,7 +88,7 @@ final class Application
      */
     public static function draft(string $id, string $customerId, ?string $companyId): self
     {
-        return new self($id, $customerId, $companyId, ApplicationState::Draft, null, null, null, null, null, null, [], null, null, null, null, [], [], []);
+        return new self($id, $customerId, $companyId, ApplicationState::Draft, null, null, null, null, null, null, [], null, null, null, null, null, [], [], []);
     }
 
     /**
@@ -109,7 +112,7 @@ final class Application
             $id, $company->customerId(), $company->id(), ApplicationState::Draft,
             $details->name, $details->type, $details->crNumber, $details->taxNumber, $details->address, null,
             $lastSent === null ? [] : $lastSent->documents,
-            null, null, null, null, [], [], [],
+            null, null, null, null, null, [], [], [],
         );
     }
 
@@ -132,6 +135,7 @@ final class Application
         ?Remark $note,
         array $documents,
         ?DateTimeImmutable $submittedAt,
+        ?ApplicationReference $reference,
         ?DateTimeImmutable $decidedAt,
         ?string $decidedBy,
         ?Remark $decisionReason,
@@ -139,6 +143,12 @@ final class Application
         array $requests,
         array $answers,
     ): self {
+        // A sent application always has its number, and a draft never one (§1.2); the database's
+        // CHECK holds the same.
+        if (($state === ApplicationState::Draft) !== ($reference === null)) {
+            throw new LogicException("Application {$id} is {$state->value} and ".($reference === null ? 'has no reference.' : 'already has one.'));
+        }
+
         $byRequest = [];
 
         foreach ($answers as $answer) {
@@ -147,7 +157,7 @@ final class Application
 
         return new self(
             $id, $customerId, $companyId, $state, $name, $type, $crNumber, $taxNumber, $address, $note, $documents,
-            $submittedAt, $decidedAt, $decidedBy, $decisionReason, self::byKey($flags), self::byId($requests), $byRequest,
+            $submittedAt, $reference, $decidedAt, $decidedBy, $decisionReason, self::byKey($flags), self::byId($requests), $byRequest,
         );
     }
 
@@ -301,6 +311,8 @@ final class Application
      * @param  list<DocumentType>  $documentTypes  every document type of the home store, active or not
      * @param  Application|null  $lastSent  the account's last application sent; its flags and
      *                                      requests apply only when it was rejected
+     * @param  ApplicationReference  $reference  its number (amendment 14(g)), taken in the send's own
+     *                                           transaction so a refused send gives it back
      * @return CompanyDetails what the company now holds
      *
      * @throws ApplicationNotEditable
@@ -311,7 +323,7 @@ final class Application
      * @throws FlaggedItemNotReplaced
      * @throws RequestNotAnswered
      */
-    public function submit(string $companyId, array $companyTypes, array $documentTypes, ?Application $lastSent, DateTimeImmutable $at): CompanyDetails
+    public function submit(string $companyId, array $companyTypes, array $documentTypes, ?Application $lastSent, DateTimeImmutable $at, ApplicationReference $reference): CompanyDetails
     {
         $this->requireDraft();
         $this->requireLastSentOfThisCompany($lastSent);
@@ -365,6 +377,7 @@ final class Application
         $this->companyId = $companyId;
         $this->state = ApplicationState::Submitted;
         $this->submittedAt = $at;
+        $this->reference = $reference;
         $this->markChanged('state');
 
         return $details;
@@ -552,6 +565,12 @@ final class Application
         return $this->submittedAt;
     }
 
+    /** Its number, from the moment it is sent; a draft has none (amendment 14(g)). */
+    public function reference(): ?ApplicationReference
+    {
+        return $this->reference;
+    }
+
     public function decidedAt(): ?DateTimeImmutable
     {
         return $this->decidedAt;
@@ -686,7 +705,8 @@ final class Application
             FlaggedField::Address => $this->address?->value,
         };
 
-        return $value === null ? null : trim($value);
+        // Compared after the page's and the server's one trim (amendment 17(a)).
+        return $value === null ? null : CompanyText::trimmed($value);
     }
 
     /**

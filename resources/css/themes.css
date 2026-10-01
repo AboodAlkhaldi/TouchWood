@@ -79,7 +79,7 @@
     --tw-good-soft: #e9f1ee;
     --tw-bad: #9a3a32;
     --tw-bad-soft: #fbecea;
-    --tw-warn: #a8814f;
+    --tw-warn: #86653b; /* 5.33:1 on white, 4.89:1 on warn-soft: small text reads (2026-10-01). */
     --tw-warn-soft: #fdf4e6;
     --tw-info: #2e7fa3;
     --tw-info-soft: #f4f8fb;

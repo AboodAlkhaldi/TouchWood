@@ -14,6 +14,7 @@ use Modules\B2B\Domain\Exception\ApplicationAlreadyOpen;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
+use Modules\B2B\Domain\ValueObject\ApplicationReference;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\AttachedDocument;
@@ -117,13 +118,13 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
         $now = CarbonImmutable::now();
 
         try {
-            $this->db->table(self::TABLE)->insert([
+            SavedAddressWrite::guard(fn () => $this->db->table(self::TABLE)->insert([
                 'id' => $application->id(),
                 'customer_id' => $application->customerId(),
                 ...self::toRow($application),
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]);
+            ]));
         } catch (UniqueConstraintViolationException $e) {
             // The partial unique index behind the account lock (lesson 64): a violation is not
             // retried, so it is answered here rather than reaching the person as a database error.
@@ -153,10 +154,10 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
 
     public function update(Application $application): void
     {
-        $this->db->table(self::TABLE)->where('id', $application->id())->update([
+        SavedAddressWrite::guard(fn () => $this->db->table(self::TABLE)->where('id', $application->id())->update([
             ...self::toRow($application),
             'updated_at' => CarbonImmutable::now(),
-        ]);
+        ]));
 
         $this->writeHeld($application);
     }
@@ -380,8 +381,10 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             'cr_number' => $application->crNumber()?->value,
             'tax_number' => $application->taxNumber()?->value,
             'address' => $application->address()?->value,
+            'address_id' => $application->address()?->addressId,
             'note' => $application->note()?->value,
             'submitted_at' => self::time($application->submittedAt()),
+            'reference' => $application->reference()?->value,
             'decided_at' => self::time($application->decidedAt()),
             'decided_by' => $application->decidedBy(),
             'decision_reason' => $application->decisionReason()?->value,
@@ -429,10 +432,11 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             $typeId === null && $other === null ? null : CompanyTypeChoice::reconstitute($typeId, $other),
             $row->cr_number === null ? null : RegistrationNumber::reconstitute((string) $row->cr_number),
             $row->tax_number === null ? null : RegistrationNumber::reconstitute((string) $row->tax_number),
-            $row->address === null ? null : CompanyAddress::reconstitute((string) $row->address),
+            $row->address === null ? null : CompanyAddress::reconstitute((string) $row->address, $row->address_id === null ? null : (string) $row->address_id),
             $row->note === null ? null : Remark::reconstitute((string) $row->note),
             $documents,
             $row->submitted_at === null ? null : CarbonImmutable::parse((string) $row->submitted_at),
+            $row->reference === null ? null : ApplicationReference::reconstitute((string) $row->reference),
             $row->decided_at === null ? null : CarbonImmutable::parse((string) $row->decided_at),
             $row->decided_by === null ? null : (string) $row->decided_by,
             $row->decision_reason === null ? null : Remark::reconstitute((string) $row->decision_reason),

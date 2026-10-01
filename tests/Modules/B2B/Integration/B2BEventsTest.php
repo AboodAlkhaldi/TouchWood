@@ -249,8 +249,9 @@ describe('telling nobody', function () {
         companyEventsFake();
 
         app(CorrectCompanyTypeHandler::class)->handle(new CorrectCompanyType($company->id(), B2BFixtures::companyTypes()[0]->id()));
+        $addressId = B2BFixtures::savedAddress($customerId, street: 'Olaya Street');
         Fx::actAsCustomer($customerId);
-        app(UpdateCompanyContactHandler::class)->handle(new UpdateCompanyContact('Olaya Street'));
+        app(UpdateCompanyContactHandler::class)->handle(new UpdateCompanyContact($addressId));
 
         Event::assertNothingDispatched();
     });

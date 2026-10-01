@@ -13,6 +13,7 @@ final readonly class MyCompanyView
      * @param  list<TypeOption>  $companyTypes  what the form offers, in order
      * @param  list<TypeOption>  $documentTypes  what the form offers, in order
      * @param  list<SentApplicationView>  $history  newest first; empty before the first is sent
+     * @param  list<SavedAddressView>  $savedAddresses  store by store, each store's default first
      */
     public function __construct(
         /** Before there is a company, which step the account is on (§4.3); null once there is one. */
@@ -28,5 +29,9 @@ final readonly class MyCompanyView
          * store has filled in all three (amendment 12(b)); null otherwise.
          */
         public ?BankAccountView $bankAccount,
+        /** The company's store, or the account's before there is one: its clock is the page's (HANDOFF §4). */
+        public string $homeStoreId,
+        /** The account's saved addresses, which the address is picked from (amendment 16(f)). */
+        public array $savedAddresses,
     ) {}
 }

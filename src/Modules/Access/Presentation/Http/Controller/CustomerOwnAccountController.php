@@ -30,6 +30,7 @@ use Modules\Access\Application\Query\MyAccount\MyAccountForCustomer;
 use Modules\Access\Application\Query\MyAccount\MyAddressesForCustomer;
 use Modules\Access\Application\Query\MyAccount\MyAddressesInStoreDto;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
+use Modules\Access\Presentation\Http\CustomerAccountTabs;
 use Modules\Access\Presentation\Http\Request\CurrentPasswordRequest;
 use Modules\Access\Presentation\Http\Request\CustomerAddressRequest;
 use Modules\Access\Presentation\Http\Request\CustomerCodeRequest;
@@ -39,7 +40,10 @@ use Modules\Access\Presentation\Http\Resource\AddressBookStore;
 use Modules\Access\Presentation\Http\Resource\AddressFieldRow;
 use Modules\Access\Presentation\Http\Resource\AddressRow;
 use Modules\Access\Presentation\Http\Resource\CustomerAccountPage;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Dto\AddressDto;
+use Modules\Access\Public\Dto\CustomerAccountPageDto;
+use Modules\Access\Public\Enums\AccountType;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
@@ -59,15 +63,13 @@ final readonly class CustomerOwnAccountController
     /** @var list<string> */
     private const array WORDS = [...StorefrontArea::WORDS, 'access::account', 'access::errors'];
 
-    /** The tabs this page has, and the one anybody arriving without asking gets. */
-    private const array TABS = ['profile', 'security', 'phone', 'addresses', 'close'];
-
     public function __construct(
         private Page $page,
         private MyAccountForCustomer $accounts,
         private MyAddressesForCustomer $addresses,
         private CustomerSecuritySettings $settings,
         private PlatformApi $platform,
+        private CustomerAccountPages $accountPages,
         private Application $app,
     ) {}
 
@@ -147,7 +149,12 @@ final readonly class CustomerOwnAccountController
             return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'phone', 'fields']);
         }
 
-        return $this->backTo('addresses', 'access::account.address_saved');
+        // Back to the page that sent them here, if it is one of their account's (amendment 51).
+        $return = $this->returnPage($request->input('return'), $this->accounts->forCurrentCustomer()->accountType);
+
+        return $return === null
+            ? $this->backTo('addresses', 'access::account.address_saved')
+            : redirect()->route($return->routeName)->with('status', __('access::account.address_saved'));
     }
 
     /** F9 - the one a courier is given unless the customer picks another at checkout. */
@@ -159,7 +166,7 @@ final readonly class CustomerOwnAccountController
             return FormErrors::back($request, $error);
         }
 
-        return $this->backTo('addresses', 'access::account.address_default_set');
+        return $this->backTo('addresses', 'access::account.address_default_set', $this->returnName($request));
     }
 
     /**
@@ -174,7 +181,7 @@ final readonly class CustomerOwnAccountController
             return FormErrors::back($request, $error);
         }
 
-        return $this->backTo('addresses', 'access::account.address_deleted');
+        return $this->backTo('addresses', 'access::account.address_deleted', $this->returnName($request));
     }
 
     /**
@@ -209,7 +216,7 @@ final readonly class CustomerOwnAccountController
         $store = $this->platform->store(StoreId::fromString($account->homeStoreId));
 
         return new CustomerAccountPage(
-            tab: is_string($tab) && in_array($tab, self::TABS, true) ? $tab : self::TABS[0],
+            tab: is_string($tab) && in_array($tab, CustomerAccountTabs::ALL, true) ? $tab : CustomerAccountTabs::ALL[0],
             firstName: $account->firstName,
             lastName: $account->lastName,
             email: $account->email,
@@ -225,7 +232,17 @@ final readonly class CustomerOwnAccountController
             passwordMinimumLength: $this->settings->passwordMinLength(),
             addresses: $this->addressBook($locale),
             deletionDays: RequestAccountDeletionHandler::DAYS,
+            returnTo: $this->returnPage($request->query('return'), $account->accountType)?->name(),
         );
+    }
+
+    /**
+     * The page `return` names (amendment 51): one registered for this account's type, or nothing -
+     * any other value is ignored, so the parameter can never send anybody off the shop.
+     */
+    private function returnPage(mixed $name, AccountType $type): ?CustomerAccountPageDto
+    {
+        return is_string($name) ? $this->accountPages->find($type, $name) : null;
     }
 
     /**
@@ -271,8 +288,27 @@ final readonly class CustomerOwnAccountController
      * Back to the tab they were on. A save that drops somebody at the top of the first tab reads
      * as the page having forgotten what they were doing (the panel's own lesson, §3.2).
      */
-    private function backTo(string $tab, string $message): RedirectResponse
+    /**
+     * @param  string|null  $return  the page the tab goes on carrying (amendment 52), already one of
+     *                               this account's
+     */
+    private function backTo(string $tab, string $message, ?string $return = null): RedirectResponse
     {
-        return redirect()->route('storefront.account', ['tab' => $tab])->with('status', __($message));
+        $query = $return === null ? ['tab' => $tab] : ['tab' => $tab, 'return' => $return];
+
+        return redirect()->route('storefront.account', $query)->with('status', __($message));
+    }
+
+    /**
+     * The `return` a change on the Addresses tab came with, kept for the tab it goes back to
+     * (amendment 52) — only a page registered for this account's type.
+     */
+    private function returnName(Request $request): ?string
+    {
+        if (! is_string($request->input('return'))) {
+            return null;
+        }
+
+        return $this->returnPage($request->input('return'), $this->accounts->forCurrentCustomer()->accountType)?->name();
     }
 }
