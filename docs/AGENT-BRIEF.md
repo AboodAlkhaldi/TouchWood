@@ -1,12 +1,13 @@
 # Brief for an agent joining TouchWood
 
 Rewritten 2026-10-02 for an agent starting **stage 4, Catalog**, in parallel with the agent finishing
-**stage 3, B2B**. Read this whole file, then **Read these first** (§3), before you write a line of
-anything — code or spec.
+**stage 3, B2B**; brought up to date the same day, once the owner accepted "step 1" (§4). Read this
+whole file, then **Read these first** (§3), before you write a line of anything — code or spec.
 
 You are joining work in progress. Most of what is known is in this repository. What is **not** in it
-is here: the owner's working rules, the method, the decisions not yet written into the specs, how to
-work beside the other agent without colliding, and the traps that have cost real time.
+is here: the owner's working rules, the method, a short guide to the owner's new direction and where
+the specs now hold it, how to work beside the other agent without colliding, and the traps that have
+cost real time.
 
 ---
 
@@ -61,11 +62,11 @@ Also:
 
 | File | What it is |
 |---|---|
-| `docs/HANDOFF.md` | **The source of truth.** §2 non-negotiable rules; §9 Catalog; §6 the two axes; §12 Inventory and Sync; §15 open; §16 rejected (do not re-propose); §17 build order; §18 the nine sections every module spec has. **Parts of it are outdated by §5 below** until the B2B agent writes the amendments. |
+| `docs/HANDOFF.md` | **The source of truth.** §2 non-negotiable rules; §9 Catalog; §6 the two axes; §12 Inventory and Sync; §15 open; §16 rejected (do not re-propose); §17 build order; §18 the nine sections every module spec has. The owner's new direction (§5 below) is written into it — §0.1 lists each change. |
 | `docs/CONVENTIONS.md` | How work proceeds, the layout, the rules that bite. |
 | `docs/STRUCTURE.md` | Where code goes. |
 | `docs/modules/platform.md`, `access.md`, `b2b.md` | Finished or nearly finished specs — the model for how a spec reads, its amendment table, and the contracts Catalog will call (stores, settings, media, audit; the account; the company status). |
-| `docs/modules/frontend.md` | The frontend foundation. **Its look is being replaced** (§5.4). |
+| `docs/modules/frontend.md` | The frontend foundation. **§1.8 now makes Geist the design system** (§5.4); the screens built so far move to it. |
 | `src/Modules/*/README.md` | How each built module is put together. |
 | The owner's memory folder (§9) | Decisions not in the repo, and the **lessons file — every mistake made so far**. Read the lessons before each step. |
 
@@ -78,19 +79,23 @@ The owner's **latest word overrides the handoff**; when that happens, the handof
 | 1 | Platform | Done, on `main` |
 | 2 | Access | Done, on `main` (plus staff sessions, PR #59) |
 | 2b | Frontend foundation and the screens built so far | Done, on `main` |
-| **3** | **B2B** | **In progress on the `b2b` branch** (not merged to `main`). Steps 1–5 and the Failed jobs screen are merged into `b2b`; step 6 (the company's own screens) is PR #67, CI green, waiting for the owner. Still to do: a company per store, what an off store means for companies, step 7 (staff screens). |
+| **3** | **B2B** | **In progress.** Steps 1–6 and the Failed jobs screen are merged into `main` (the `b2b` branch was merged into `main` on 2026-10-02). Still to do: a company per store (`b2b.md` amendment 18, a step of its own), step 7 (staff screens, in Geist). |
 | **4** | **Catalog** | **Yours.** Nothing built — `src/Modules/Catalog` is an empty skeleton. No longer blocked on Odoo's schema (§5.1). |
 | 5–9 | Pricing, Inventory, Sync; Sales, Promotions, Loyalty, Feedback; Payments, Shipping; Content, Ops; migration | Not started. Payments and Shipping still wait on vendor data (HANDOFF §15.1). |
 
-The B2B agent works in the worktree `C:\Users\Abood\Documents\GitHub\TouchWood-b2b`. Its next job
-is **"step 1": writing the decisions in §5 into the specs** — HANDOFF, `platform.md`, `access.md`,
-`b2b.md`, `frontend.md`. **Do not write `docs/modules/catalog.md` against the old HANDOFF: start it
-once the owner has accepted step 1**, or ask the owner how to coordinate. Until then, read, map the
-code you will call, and prepare your questions.
+The B2B agent works in the worktree `C:\Users\Abood\Documents\GitHub\TouchWood-b2b`. **"Step 1" is
+done**: the decisions in §5 are written into HANDOFF, `platform.md`, `access.md`, `b2b.md` and
+`frontend.md`, accepted by the owner on 2026-10-02 and committed on `main`. **Write
+`docs/modules/catalog.md` against `main` as it is now.** The other work the new direction brings —
+the Geist foundation (HANDOFF §17), the store on/off switch (`platform.md` §9.5), a company per
+store (`b2b.md` amendment 18) — is not yours unless the owner says so.
 
-## 5 · The new direction (owner, 2026-10-01/02) — decided, NOT yet in the specs
+## 5 · The new direction (owner, 2026-10-01/02) — now in the specs
 
-Treat these as the owner's word. They override the HANDOFF where they differ.
+A short guide. **The specs hold the full text and win wherever this summary differs.** HANDOFF §0.1
+lists every change and the sections it touched — chiefly §1, §9.1–§9.2, §12.1–§12.3, §13.1, §14,
+§16, §17; then `platform.md` §1.1, §1.6, §9.5; `access.md` amendments 53 and 54; `b2b.md`
+amendment 18; `frontend.md` §1.8.
 
 ### 5.1 Odoo, per store, one way
 
@@ -105,15 +110,16 @@ Treat these as the owner's word. They override the HANDOFF where they differ.
 - **A wired store, ordinary products:** an order does not touch stock, and a customer may order more
   than the stock shows. Staff reduce stock in Odoo by hand.
 - **Stock-dependent products** (a flag, off by default, **per product per store**): our figure is
-  `Odoo stock − the quantities of orders not yet ticked "reduced in Odoo" by staff`. No guessing
+  `Odoo stock − the quantities of orders not yet ticked "reduced in the provider" by staff`
+  (HANDOFF §12.1, §12.3). No guessing
   shipment versus refill: Odoo's number simply replaces ours, and the formula stays right. Gift
   products count on stock.
 - **Stock still matters for:** an "ending soon" label (only when an admin turns it on), gifts, and
   **low-stock alerts** — a threshold per product per store — sent to that store's **admins and staff**.
 - **An unwired store** keeps today's rule: our system is the only source, and nobody orders beyond
   stock.
-- This reverses HANDOFF §12.2 (two-way sync, last write wins), §12.1 and §16 ("cannot order what is
-  unavailable"), and §15.1/§17 (Catalog blocked on the provider schema).
+- This reversed HANDOFF §12.2 (two-way sync, last write wins), §12.1 and §16 ("cannot order what is
+  unavailable"), and §15.1/§17 (Catalog blocked on the provider schema); those sections are rewritten.
 
 ### 5.2 Out of stock never shows (owner, 2026-10-02)
 
@@ -121,7 +127,9 @@ Treat these as the owner's word. They override the HANDOFF where they differ.
 - Out of stock means: **stock-dependent ON** and its stock is used up; or, **stock-dependent OFF**,
   set by hand — **or automatically when Odoo reports 0**. The automatic part is provisional: "let it
   checked for now"; the owner may change it later.
-- This replaces HANDOFF §12.1's "in stock / low stock / out of stock" display bands.
+- **A direct link** to an out-of-stock product shows a **"Not available now"** page — no Add to Cart;
+  never listed, searched or suggested (HANDOFF §9.2).
+- This replaced HANDOFF §12.1's "in stock / low stock / out of stock" display bands.
 
 ### 5.3 Products, stores, the JSON import
 
@@ -136,15 +144,19 @@ Treat these as the owner's word. They override the HANDOFF where they differ.
 - **The file's format: ask the owner when the time comes** — the owner said they will be asked for it
   then, not before.
 - **Store on/off switch, Super Admin only.** An off store disappears — its route, the store chooser,
-  its addresses, staff screens — except in history and logs. **KSA, the base store, can never be
-  off.** A new store is created **off**. Customers of an off store still sign in and shop elsewhere;
-  its open orders stay with staff. This reverses HANDOFF §16 "per-store launch lifecycle" and
-  `platform.md`'s "a store is live the moment it exists".
+  its addresses, staff screens — except in history and logs; its paths answer 404 like an unknown
+  code. **The base store can never be off**: a mark on the store row (`is_base`), seeded on KSA,
+  never a store code in business code. A new store is created **off**. Customers of an off store
+  still sign in and shop elsewhere; its open orders stay with staff (`platform.md` §1.1, §1.6).
+  This reversed HANDOFF §16 "per-store launch lifecycle" and `platform.md`'s "a store is live the
+  moment it exists".
 - **Reviews are global per product**: a review written in one store shows in every store selling the
   product (Feedback).
 - **Super Admins are invisible** to admins and staff — not listed, not their existence; only Super
-  Admins see each other, in their own section.
-- B2B: **a company per store** (one account may hold a company in each store it applies to).
+  Admins see each other, in their own section. To anyone else, an action a Super Admin took reads
+  **"System administrator"**, with no name (`access.md` amendment 54).
+- B2B: **a company per store** (one account may hold a company in each store it applies to), and a
+  company orders **only where that store's company is approved** (`b2b.md` amendment 18).
 
 ### 5.4 The design system: Geist
 
@@ -171,7 +183,7 @@ Treat these as the owner's word. They override the HANDOFF where they differ.
 | Dev database | **Not the shared `touchwood`** — the main checkout and the B2B worktree both use it, and migrating it needs the owner's word (lesson 116). Give your worktree its own: create `touchwood_catalog` in the Postgres container and set `DB_DATABASE=touchwood_catalog` in **your worktree's `.env`** (not committed). |
 | Test database | **Not the shared `touchwood_test`** — two test runs on one database wipe each other's data, and the browser suite keeps its rows between runs. `phpunit.xml` forces `DB_DATABASE=touchwood_test`; in your worktree only, change that value to `touchwood_test_catalog` and run `git update-index --skip-worktree phpunit.xml` so it is never committed. Create the database first. |
 | Dev server port | 8002 is the B2B worktree's. Use another (8003). Start servers through the app's preview tool with `.claude/launch.json` in the main checkout (that folder is excluded from git). |
-| Shared files | Expect small conflicts in `docs/HANDOFF.md`, `deptrac.yaml`, `composer.json`/`.lock`, `package.json`, the generated TypeScript types and `resources/js/types/typescript-transformer-manifest.json`, the permission lists, `resources/css/themes.css`. **The HANDOFF amendments of §5 are the B2B agent's step 1** — do not edit those sections yourself; put what you need to the owner. |
+| Shared files | Expect small conflicts in `docs/HANDOFF.md`, `deptrac.yaml`, `composer.json`/`.lock`, `package.json`, the generated TypeScript types and `resources/js/types/typescript-transformer-manifest.json`, the permission lists, `resources/css/themes.css`. A change you need in HANDOFF or in another module's spec goes to the owner first; do not edit those sections yourself. |
 | Who asks the owner | You ask about Catalog. Anything that changes another module (a new method on `PlatformApi`, a field on an Access DTO) is that module's amendment: say so and ask. |
 
 ## 7 · Environment (Windows)
