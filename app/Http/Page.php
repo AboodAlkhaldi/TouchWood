@@ -33,7 +33,14 @@ final readonly class Page
     {
         return Inertia::render($component, [
             ...$props,
-            'translations' => $this->translations->of($needs, $this->app->getLocale()),
+            'translations' => $this->translations->of([...$needs, self::DESIGN_SYSTEM], $this->app->getLocale()),
         ]);
     }
+
+    /**
+     * The design system's own words - Cancel, Close, Previous, Next, the typed confirmation's
+     * prompt - which a page's components may say whichever screen they sit on (frontend.md 1.10).
+     * The one file no screen names, because no screen can know which of them it will draw.
+     */
+    public const string DESIGN_SYSTEM = 'ui';
 }

@@ -51,38 +51,38 @@
     --tw-overlay: rgba(255, 255, 255, 0.94);
 
     /* Text. */
-    --tw-ink: #14293a;
-    --tw-ink-muted: #64737c;
-    --tw-ink-subtle: #9aa6ac;
+    --tw-ink: #0b2031;
+    --tw-ink-muted: #53626b;
+    --tw-ink-subtle: #87949a;
     --tw-ink-on-brand: #ffffff;
 
     /* Lines. */
-    --tw-line: #e3e6e7;
-    --tw-line-strong: #d3d9dd;
+    --tw-line: #dcdfe1;
+    --tw-line-strong: #c7ced2;
 
     /* The brand: navy, and the copper it is answered with. */
-    --tw-brand: #0b3b63;
-    --tw-brand-strong: #082c4b;
-    --tw-brand-soft: #e8f0f7;
-    --tw-accent: #8a5130;
-    --tw-accent-soft: #f5efe9;
+    --tw-brand: #02365e;
+    --tw-brand-strong: #002747;
+    --tw-brand-soft: #e7f0f8;
+    --tw-accent: #864720;
+    --tw-accent-soft: #f6efe8;
 
     /* The admin sidebar, which is dark in both themes by design. */
-    --tw-sidebar: #07273e;
+    --tw-sidebar: #01233c;
     --tw-sidebar-ink: #ffffff;
-    --tw-sidebar-ink-muted: #8fb0ca;
+    --tw-sidebar-ink-muted: #9bbeda;
     --tw-sidebar-line: rgba(255, 255, 255, 0.12);
-    --tw-sidebar-active: #124f7f;
+    --tw-sidebar-active: #024f84;
 
     /* What the interface says about an outcome. */
-    --tw-good: #2f6b4f;
-    --tw-good-soft: #e9f1ee;
-    --tw-bad: #9a3a32;
-    --tw-bad-soft: #fbecea;
-    --tw-warn: #86653b; /* 5.33:1 on white, 4.89:1 on warn-soft: small text reads (2026-10-01). */
-    --tw-warn-soft: #fdf4e6;
-    --tw-info: #2e7fa3;
-    --tw-info-soft: #f4f8fb;
+    --tw-good: #1d6546;
+    --tw-good-soft: #e8f1ee;
+    --tw-bad: #982b24;
+    --tw-bad-soft: #fdebe9;
+    --tw-warn: #815d2c; /* 5.94:1 on white, 5.45:1 on warn-soft: small text reads (set B, 2026-10-02). */
+    --tw-warn-soft: #fef4e4;
+    --tw-info: #07779f;
+    --tw-info-soft: #f4f8fc;
 
     /* Shape and depth. */
     --tw-radius-sm: 6px;
@@ -92,6 +92,19 @@
     --tw-shadow-card: 0 1px 2px rgba(11, 59, 99, 0.05);
     --tw-shadow-pop: 0 18px 38px -22px rgba(7, 39, 62, 0.45);
     --tw-ring: rgba(11, 59, 99, 0.14);
+
+    /*
+    | Geist's materials (frontend.md 1.10): its own shadow recipes, read from its stylesheet on
+    | 2026-10-02 - a one-pixel ring that draws the edge, then the lift. The material classes in
+    | app.css pair each with its corner; a campaign changes depth here and nowhere else.
+    */
+    --tw-shadow-border: 0 0 0 1px rgba(0, 0, 0, 0.08);
+    --tw-shadow-small: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 2px rgba(0, 0, 0, 0.04);
+    --tw-shadow-medium: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 2px rgba(0, 0, 0, 0.04), 0 8px 8px -8px rgba(0, 0, 0, 0.04);
+    --tw-shadow-large: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 2px rgba(0, 0, 0, 0.04), 0 8px 16px -4px rgba(0, 0, 0, 0.04);
+    --tw-shadow-tooltip: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px rgba(0, 0, 0, 0.04);
+    --tw-shadow-menu: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04), 0 16px 24px -8px rgba(0, 0, 0, 0.06);
+    --tw-shadow-modal: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 1px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(0, 0, 0, 0.04), 0 24px 32px -8px rgba(0, 0, 0, 0.06);
 
     /*
     | What the shop sits on (owner, 2026-09-22).
@@ -110,39 +123,39 @@
 }
 
 [data-mode='dark'] {
-    --tw-page: #121c25;
-    --tw-surface: #16222e;
+    --tw-page: #101a23;
+    --tw-surface: #14202c;
     --tw-surface-sunken: #1e2b38;
     --tw-surface-raised: #1a2632;
     --tw-overlay: rgba(14, 25, 34, 0.88);
 
-    --tw-ink: #e8eef3;
-    --tw-ink-muted: #93a1ab;
-    --tw-ink-subtle: #74838d;
+    --tw-ink: #eff5fa;
+    --tw-ink-muted: #a2b1bb;
+    --tw-ink-subtle: #82929d;
     --tw-ink-on-brand: #0c1a26;
 
-    --tw-line: #2a3742;
-    --tw-line-strong: #33414c;
+    --tw-line: #303e49;
+    --tw-line-strong: #3a4955;
 
-    --tw-brand: #6ba3d6;
-    --tw-brand-strong: #8fbbe4;
+    --tw-brand: #6aaae3;
+    --tw-brand-strong: #90c2f0;
     --tw-brand-soft: #17293a;
-    --tw-accent: #d19c72;
+    --tw-accent: #dca071;
     --tw-accent-soft: #131e27;
 
     --tw-sidebar: #0a151e;
     --tw-sidebar-ink: #eaf2f8;
-    --tw-sidebar-ink-muted: #7e9eb8;
+    --tw-sidebar-ink-muted: #8aacc8;
     --tw-sidebar-line: rgba(255, 255, 255, 0.1);
-    --tw-sidebar-active: #5c97cc;
+    --tw-sidebar-active: #5a9dd9;
 
-    --tw-good: #63b894;
+    --tw-good: #5ec198;
     --tw-good-soft: #16302a;
-    --tw-bad: #e08a80;
+    --tw-bad: #ed8c81;
     --tw-bad-soft: #3a201d;
-    --tw-warn: #c9a472;
+    --tw-warn: #d3a970;
     --tw-warn-soft: #33291b;
-    --tw-info: #6fb4d2;
+    --tw-info: #6cbbdd;
     --tw-info-soft: #1d2e3d;
 
     --tw-radius-sm: 6px;
@@ -152,6 +165,16 @@
     --tw-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
     --tw-shadow-pop: 0 18px 38px -22px rgba(0, 0, 0, 0.7);
     --tw-ring: rgba(143, 187, 228, 0.22);
+
+    /* Geist's dark recipes: a light ring, a heavier lift. Its stylesheet gives no dark "large",
+    | so large takes medium's dark weights over large's spread (2026-10-02). */
+    --tw-shadow-border: 0 0 0 1px rgba(255, 255, 255, 0.145);
+    --tw-shadow-small: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 1px 2px rgba(0, 0, 0, 0.16);
+    --tw-shadow-medium: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 2px 2px rgba(0, 0, 0, 0.32), 0 8px 8px -8px rgba(0, 0, 0, 0.16);
+    --tw-shadow-large: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 2px 2px rgba(0, 0, 0, 0.32), 0 8px 16px -4px rgba(0, 0, 0, 0.16);
+    --tw-shadow-tooltip: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px rgba(0, 0, 0, 0.04);
+    --tw-shadow-menu: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04), 0 16px 24px -8px rgba(0, 0, 0, 0.06);
+    --tw-shadow-modal: 0 0 0 1px rgba(255, 255, 255, 0.145), 0 1px 1px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(0, 0, 0, 0.04), 0 24px 32px -8px rgba(0, 0, 0, 0.06);
 
     --tw-backdrop: var(--tw-page);
 }
