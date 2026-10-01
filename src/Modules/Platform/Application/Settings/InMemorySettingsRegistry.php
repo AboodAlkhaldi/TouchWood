@@ -73,6 +73,10 @@ final class InMemorySettingsRegistry implements SettingsRegistry
                 throw new InvalidSettingDefinition("The setting \"{$key}\" is already declared.");
             }
 
+            if ($definition->mayBeEmpty && $definition->type !== SettingType::Text) {
+                throw new InvalidSettingDefinition("\"{$key}\" may be empty only as a text setting.");
+            }
+
             $problem = $this->validationProblem($definition, $definition->default);
 
             if ($problem !== null) {
@@ -104,6 +108,12 @@ final class InMemorySettingsRegistry implements SettingsRegistry
      */
     public function validationProblem(SettingDefinitionDto $definition, mixed $value): ?string
     {
+        // "Not set yet" (platform.md §1.3): the empty text, for a setting that says it may be empty.
+        // Its rules describe a value, so they are not asked of the absence of one.
+        if ($definition->mayBeEmpty && $value === '') {
+            return null;
+        }
+
         $typeProblem = match ($definition->type) {
             SettingType::Integer => is_int($value) ? null : 'must be a whole number',
             SettingType::Boolean => is_bool($value) ? null : 'must be true or false',

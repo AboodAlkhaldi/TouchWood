@@ -24,6 +24,8 @@ it('has the generated types the PHP would produce right now', function () {
     expect(is_dir($directory))->toBeTrue();
 
     $committed = generatedTypeFiles($directory);
+    $manifest = base_path('resources/js/types/typescript-transformer-manifest.json');
+    $committedManifest = is_file($manifest) ? file_get_contents($manifest) : false;
 
     // Something must be there, or this test is about nothing.
     expect($committed)->not->toBeEmpty();
@@ -38,6 +40,13 @@ it('has the generated types the PHP would produce right now', function () {
 
     foreach ($committed as $path => $contents) {
         file_put_contents($directory.'/'.$path, $contents);
+    }
+
+    // The manifest too: it holds a hash of each file as last generated, and the transformer skips a
+    // file whose hash it already has. Left as this run wrote it, the next run would skip every file
+    // this one found out of date, and pass over them (found 2026-09-30).
+    if ($committedManifest !== false) {
+        file_put_contents($manifest, $committedManifest);
     }
 
     expect(array_keys($fresh))->toBe(array_keys($committed), 'Run "php artisan typescript:transform" and commit the result.');

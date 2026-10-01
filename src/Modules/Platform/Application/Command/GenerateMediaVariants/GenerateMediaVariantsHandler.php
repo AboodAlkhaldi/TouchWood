@@ -12,6 +12,7 @@ use Modules\Platform\Application\Media\ImageVariantGenerator;
 use Modules\Platform\Application\Media\MediaStorage;
 use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
+use Modules\Platform\Public\Enums\MediaVisibility;
 use Modules\Platform\Public\Events\MediaVariantsReady;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
@@ -41,8 +42,11 @@ final readonly class GenerateMediaVariantsHandler
 
         $media = $this->media->byId($command->mediaId);
 
-        // Deleted meanwhile, already done, or already failed: nothing to do.
-        if ($media === null || $media->variantsStatus() !== MediaVariantsStatus::Pending) {
+        // Deleted meanwhile, already done, or already failed: nothing to do. Nor for a private file,
+        // whatever its row says: its sizes would land on the public disk (b2b.md amendment 8(d)).
+        if ($media === null
+            || $media->variantsStatus() !== MediaVariantsStatus::Pending
+            || $media->visibility() === MediaVisibility::Private) {
             return;
         }
 

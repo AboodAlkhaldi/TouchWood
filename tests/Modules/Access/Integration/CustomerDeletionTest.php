@@ -305,6 +305,9 @@ describe('the deletion sweep (spec §1.10, amendment 43)', function () {
         $dto = app(AccessApi::class)->customer($due);
 
         expect($dto?->anonymized)->toBeTrue()
+            // The home store stays readable: a company outlives its account's anonymizing, and
+            // the store's staff still answer for it (b2b.md §1.1).
+            ->and($dto?->homeStoreId)->toBe(Fx::storeId('sa'))
             ->and(app(AccessApi::class)->customer($waiting)?->anonymized)->toBeFalse();
     });
 

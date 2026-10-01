@@ -21,11 +21,17 @@ return [
         'upload' => 'Upload files',
         'update' => 'Edit file descriptions',
         'delete' => 'Delete files',
+        'private' => [
+            'view' => 'View private files',
+        ],
         'variants' => [
             'generate' => 'Generate image sizes',
         ],
     ],
     'audit' => [
         'view' => 'View the audit log',
+    ],
+    'jobs' => [
+        'manage' => 'See, retry and delete failed jobs',
     ],
 ];

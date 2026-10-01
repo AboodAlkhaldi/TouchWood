@@ -81,6 +81,28 @@ $addresses = $this->access->addresses($customerId, $storeId);           // list<
 - Ops will send the security messages by binding its own `SecurityMessages`; until then Access's
   temporary sender uses Laravel mail and its `SmsGateway`.
 
+```php
+// A page of your own in the customer's account, for one account type or every account; it is
+// listed above the account's own tabs. Name it at {module}::account_pages.{key}.
+$this->app->make(CustomerAccountPages::class)->register(
+    new CustomerAccountPageDto('b2b', 'company', 'storefront.company', AccountType::Company),
+);
+
+// A line under the shop's header for the customer signed in: a ShopperLine answers one or null.
+$this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
+```
+
+- Both are registered in your provider's `boot()` (amendment 50). A page's route is a shop route
+  (`storefront.*`), and its handler still checks the account: being listed is not being allowed.
+- **To send a customer to add an address and bring them back**, link to the Addresses tab with
+  `return` naming your page — `/{store}/{locale}/account?tab=addresses&return=b2b.company`
+  (amendment 51). Saving an address there lands them on that page; making one the default or
+  deleting one keeps `return` on the tab (amendment 52). Only a page registered for the
+  customer's account type is honoured (`CustomerAccountPages::find`); anything else is ignored, so
+  the parameter never sends anybody off the shop.
+- A `ShopperLine` is asked on **every shop page** a customer opens. Answer from what it is handed
+  — the account type, whether the email is confirmed — before reading anything of your own.
+
 ---
 
 ## What is inside
@@ -130,7 +152,10 @@ declares it. Names come from translations, read only when a screen shows them.
 A role is an **admin** or a **staff** role. The management actions (`staff.invite`, `staff.update`,
 `staff.assign_role`, `staff.disable`, `role.manage`), the two that reach a customer's account
 (`customer.block`, `customer.delete`, amendment 43) and `staff_settings.update` — the numbers that
-decide how staff sign in (owner, 2026-09-21) — go only into admin roles. A store's own settings are
+decide how staff sign in (owner, 2026-09-21) — go only into admin roles. So does Platform's
+`platform.media.private.view`, which lists private files in the media library (B2B step 3,
+amendment 5): Platform flags it `adminOnly` in `PlatformPermissions`, and `AccessPermissions::adminOnly()`
+adds every action so flagged to Access's own list. A store's own settings are
 `settings.update`, an ordinary action a staff role may hold. Only a Super Admin
 creates, edits or gives admin roles and manages admins; nobody changes their own role. An admin
 manages a staff member only when holding **assign roles** in **all** of their stores — a staff
@@ -299,6 +324,11 @@ queued job would store the link in the `jobs` table. SMS goes through `SmsGatewa
 `ACCESS_SMS_DRIVER`; only `log` exists until the SMS provider is chosen, and an unknown driver
 fails loudly rather than sending nothing. `log` writes codes to the log, so it refuses to run in
 production. Every message is in the person's communication language.
+
+It also carries **B2B's three decision emails** — approved (with the staff member's optional
+note), rejected and suspended (each with its reason) — because until Ops exists this is the one
+sender a customer's email goes through (amendment 48). They carry one plain link, the shop's front
+door on `APP_URL` (`CustomerLinks::shopFrontDoor`), the same for every customer.
 
 ### Super Admins: the console only
 

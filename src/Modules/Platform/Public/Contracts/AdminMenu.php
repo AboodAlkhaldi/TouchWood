@@ -37,4 +37,10 @@ interface AdminMenu
      * @return array<string, list<MenuEntryDto>> group => its entries
      */
     public function forCurrentActor(): array;
+
+    /**
+     * How many wait behind the entry, when it counts anything (MenuEntryDto::$count); null when it
+     * does not. Ask only for an entry forCurrentActor() offered: the count is that person's to see.
+     */
+    public function countOf(MenuEntryDto $entry): ?int;
 }

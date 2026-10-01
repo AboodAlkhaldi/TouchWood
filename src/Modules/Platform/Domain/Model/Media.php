@@ -13,6 +13,7 @@ use Modules\Platform\Public\Enums\ImageFormat;
 use Modules\Platform\Public\Enums\MediaSize;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
 use Modules\Platform\Public\Enums\MediaVisibility;
+use Modules\Platform\Public\MediaFilename;
 
 /**
  * An uploaded file in object storage (Platform spec §1.4).
@@ -215,9 +216,16 @@ final class Media
     /**
      * Queues generation again: FAILED → PENDING, or a stale PENDING stays PENDING with a new
      * queue time. A recent PENDING is refused — its job may still be running.
+     *
+     * A private file never has sizes (platform.md §5.4): whatever its row says, it has none to retry,
+     * because its sizes would be written to the public disk (b2b.md amendment 8(d)).
      */
     public function retryVariants(DateTimeImmutable $now): void
     {
+        if ($this->visibility === MediaVisibility::Private) {
+            throw new InvalidMediaVariantsTransition('NONE', MediaVariantsStatus::Pending->value);
+        }
+
         if ($this->variantsStatus === MediaVariantsStatus::Failed) {
             $this->transition(MediaVariantsStatus::Failed, MediaVariantsStatus::Pending);
         } elseif (! $this->isStalePending($now)) {
@@ -367,8 +375,9 @@ final class Media
         }
 
         // Keep only the name itself: no directories, no control characters, and no invisible
-        // formatting characters such as a right-to-left override that disguises the extension.
-        $name = trim((string) preg_replace('/[\p{Cc}\p{Cf}]/u', '', basename(str_replace('\\', '/', $filename))));
+        // formatting characters such as a right-to-left override that disguises the extension —
+        // one rule, public, so a module compares names as the library keeps them (MediaFilename).
+        $name = MediaFilename::kept($filename);
 
         if ($name === '' || mb_strlen($name) > self::MAX_TEXT_LENGTH) {
             throw new InvalidMediaAttribute('original_filename', 'expected a file name of 1 to 255 characters');

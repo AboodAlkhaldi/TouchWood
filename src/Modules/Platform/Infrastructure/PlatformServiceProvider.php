@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\Platform\Application\AuditLog;
+use Modules\Platform\Application\FailedJobs\FailedJobs;
+use Modules\Platform\Application\FailedJobs\FailedJobsCount;
 use Modules\Platform\Application\Media\ImageVariantGenerator;
 use Modules\Platform\Application\Media\InMemoryMediaUsages;
 use Modules\Platform\Application\Media\MediaInspector;
@@ -31,6 +33,7 @@ use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
+use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
 use Modules\Platform\Application\Settings\SettingValues;
 use Modules\Platform\Domain\Repository\CurrencyRepository;
 use Modules\Platform\Domain\Repository\MediaRepository;
@@ -46,6 +49,7 @@ use Modules\Platform\Infrastructure\Eloquent\EloquentStoreRepository;
 use Modules\Platform\Infrastructure\External\FinfoMediaInspector;
 use Modules\Platform\Infrastructure\External\InterventionImageVariantGenerator;
 use Modules\Platform\Infrastructure\External\LaravelMediaStorage;
+use Modules\Platform\Infrastructure\Queue\DatabaseFailedJobs;
 use Modules\Platform\Infrastructure\Queue\JobActorState;
 use Modules\Platform\Infrastructure\Queue\JobAwareActorContext;
 use Modules\Platform\Infrastructure\Queue\LaravelMediaVariantsQueue;
@@ -63,6 +67,7 @@ use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\SettingsSectionLines;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\PlatformPermissions;
 use Psr\Log\LoggerInterface;
@@ -89,6 +94,7 @@ final class PlatformServiceProvider extends ServiceProvider
         MediaInspector::class => FinfoMediaInspector::class,
         ImageVariantGenerator::class => InterventionImageVariantGenerator::class,
         MediaVariantsQueue::class => LaravelMediaVariantsQueue::class,
+        FailedJobs::class => DatabaseFailedJobs::class,
         // Process-wide on purpose: the queue worker runs jobs one after another in one process.
         JobActorState::class => JobActorState::class,
     ];
@@ -109,6 +115,10 @@ final class PlatformServiceProvider extends ServiceProvider
         // Modules that store media ids register here, so deleting media detaches or refuses.
         $this->app->singleton(InMemoryMediaUsages::class);
         $this->app->alias(InMemoryMediaUsages::class, MediaUsages::class);
+
+        // A module may put one line at the top of its settings section (platform.md §1.3).
+        $this->app->singleton(InMemorySettingsSectionLines::class);
+        $this->app->alias(InMemorySettingsSectionLines::class, SettingsSectionLines::class);
 
         // Modules register their admin menu entries here, Platform included: the menu is built from
         // what each person may do, and grows module by module (stage 2b, P6).
@@ -191,6 +201,8 @@ final class PlatformServiceProvider extends ServiceProvider
             new MenuEntryDto('platform', 'settings', 'store_settings', 'platform.admin.settings', PlatformPermissions::SETTINGS_VIEW, 30, icon: 'dashboard'),
             new MenuEntryDto('platform', 'media', 'media', 'platform.admin.media', PlatformPermissions::MEDIA_UPLOAD, 10, icon: 'media'),
             new MenuEntryDto('platform', 'audit', 'audit', 'platform.admin.audit', PlatformPermissions::AUDIT_VIEW, 10, icon: 'audit'),
+            // With the number waiting beside it, and on the admin home (owner, 2026-09-29).
+            new MenuEntryDto('platform', 'failed_jobs', 'system', 'platform.admin.failed_jobs', PlatformPermissions::JOBS_MANAGE, 10, icon: 'failed_jobs', count: FailedJobsCount::class),
         );
 
         // Images whose variant job was lost are queued again (owner's decision, 2026-09-16). Scheduled

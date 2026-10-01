@@ -21,11 +21,17 @@ import type { MediaFileRow, MediaPage } from '@/types/generated/Modules/Platform
 | A **delete says where the file is used first**, and Platform refuses it while a use blocks it
 | (platform.md §1.4): a company's registration document is not something a tidy-up may remove. The
 | screen shows the uses and does not offer the button at all when one of them blocks it.
+|
+| A **private file** - a company's papers - reaches this page only for a holder of the private-files
+| permission, and shows **its name, its upload date and where it is used** (B2B step 3, amendment
+| 6): no picture, no type or size, and no retry, since it never has sizes made. It offers Describe
+| and Delete to whoever may, as any other file (amendment 8). "Private" is offered when uploading
+| only to someone who may also see private files.
 */
 
 type Props = MediaPage;
 
-export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpdate, mayDelete }: Props) {
+export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpdate, mayDelete, mayUploadPrivate }: Props) {
     const t = useTranslator();
     const [asGrid, setAsGrid] = useState(false);
     const [describing, setDescribing] = useState<string | null>(null);
@@ -39,7 +45,7 @@ export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpda
                     <Button variant="outline" data-test="view-switch" onClick={() => setAsGrid((grid) => !grid)}>
                         {t(asGrid ? 'platform::admin_media.table' : 'platform::admin_media.grid')}
                     </Button>
-                    {mayUpload ? <UploadForm /> : null}
+                    {mayUpload ? <UploadForm mayUploadPrivate={mayUploadPrivate} /> : null}
                 </div>
             }
         >
@@ -52,18 +58,35 @@ export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpda
                     </p>
                 ) : asGrid ? (
                     <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                        {media.map((file) => (
-                            <li
-                                key={file.id}
-                                className="grid gap-2 rounded-lg border border-line bg-surface p-2"
-                            >
-                                <Thumbnail file={file} />
-                                <span className="truncate text-xs text-ink" title={file.filename}>
-                                    {file.filename}
-                                </span>
-                                <span className="tw-figure text-xs text-ink-muted">{file.size}</span>
-                            </li>
-                        ))}
+                        {media.map((file) =>
+                            isPrivate(file) ? (
+                                // Its name, its date and where it is used, in place of the picture
+                                // and the size (amendment 6).
+                                <li
+                                    key={file.id}
+                                    className="grid content-start gap-2 rounded-lg border border-line bg-surface p-2"
+                                >
+                                    <span className="truncate text-xs text-ink" title={file.filename}>
+                                        {file.filename}
+                                    </span>
+                                    <span className="tw-figure text-xs text-ink-muted" dir="ltr">
+                                        {file.uploadedAt.slice(0, 10)}
+                                    </span>
+                                    <span className="text-xs text-ink-muted">{usedIn(file, t)}</span>
+                                </li>
+                            ) : (
+                                <li
+                                    key={file.id}
+                                    className="grid gap-2 rounded-lg border border-line bg-surface p-2"
+                                >
+                                    <Thumbnail file={file} />
+                                    <span className="truncate text-xs text-ink" title={file.filename}>
+                                        {file.filename}
+                                    </span>
+                                    <span className="tw-figure text-xs text-ink-muted">{file.size}</span>
+                                </li>
+                            ),
+                        )}
                     </ul>
                 ) : (
                     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
@@ -151,6 +174,19 @@ function statusKey(status: string): string {
     return `platform::admin_media.variants_${status.toLowerCase()}`;
 }
 
+/**
+ * A company's papers and the like: listed by name, never shown (amendment 6). Only someone who may
+ * see private files is sent one, and they describe or delete it with the usual permissions, as any
+ * other file (amendment 8).
+ */
+function isPrivate(file: MediaFileRow): boolean {
+    return file.visibility === 'PRIVATE';
+}
+
+function usedIn(file: MediaFileRow, t: (key: string) => string): string {
+    return file.usedIn.length === 0 ? t('platform::admin_media.not_used') : file.usedIn.join('، ');
+}
+
 type RowProps = {
     file: MediaFileRow;
     mayUpdate: boolean;
@@ -172,25 +208,31 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
                 <td className="px-4 py-3">
                     {/* The picture belongs in the table too, not only in the grid (owner,
                         2026-09-24): a library of file names is a list of strings, and the one
-                        question somebody has about a file is what it looks like. */}
-                    <div className="flex items-center gap-3">
-                        <span className="w-12 shrink-0">
-                            <Thumbnail file={file} />
-                        </span>
+                        question somebody has about a file is what it looks like. A private file
+                        is the exception: its name only (amendment 6). Its type and size never
+                        reach the page, and it offers no retry. */}
+                    {isPrivate(file) ? (
+                        <span className="text-ink">{file.filename}</span>
+                    ) : (
+                        <div className="flex items-center gap-3">
+                            <span className="w-12 shrink-0">
+                                <Thumbnail file={file} />
+                            </span>
 
-                        <span className="grid gap-0.5">
-                            <span className="text-ink">{file.filename}</span>
-                            {file.variantsStatus === null ? null : (
-                                <span className="text-xs text-ink-muted">{t(statusKey(file.variantsStatus))}</span>
-                            )}
-                        </span>
-                    </div>
+                            <span className="grid gap-0.5">
+                                <span className="text-ink">{file.filename}</span>
+                                {file.variantsStatus === null ? null : (
+                                    <span className="text-xs text-ink-muted">
+                                        {t(statusKey(file.variantsStatus))}
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+                    )}
                 </td>
                 <td className="px-4 py-3 text-xs text-ink-muted">{file.mime}</td>
                 <td className="tw-figure px-4 py-3 text-xs text-ink-muted">{file.size}</td>
-                <td className="px-4 py-3 text-xs text-ink-muted">
-                    {file.usedIn.length === 0 ? t('platform::admin_media.not_used') : file.usedIn.join('، ')}
-                </td>
+                <td className="px-4 py-3 text-xs text-ink-muted">{usedIn(file, t)}</td>
                 <td className="tw-figure px-4 py-3 text-xs text-ink-muted" dir="ltr">
                     {file.uploadedAt.slice(0, 10)}
                 </td>
@@ -333,7 +375,7 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
     );
 }
 
-function UploadForm() {
+function UploadForm({ mayUploadPrivate }: { mayUploadPrivate: boolean }) {
     const t = useTranslator();
     const form = useForm<{ file: File | null; visibility: string }>({ file: null, visibility: 'PUBLIC' });
 
@@ -359,7 +401,11 @@ function UploadForm() {
                 className="h-9 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
             >
                 <option value="PUBLIC">{t('platform::admin_media.visibility_public')}</option>
-                <option value="PRIVATE">{t('platform::admin_media.visibility_private')}</option>
+                {/* Only for someone who may also see private files: the upload refuses anyone
+                    else (amendment 6). */}
+                {mayUploadPrivate ? (
+                    <option value="PRIVATE">{t('platform::admin_media.visibility_private')}</option>
+                ) : null}
             </select>
 
             <Button type="submit" disabled={form.processing || form.data.file === null}>

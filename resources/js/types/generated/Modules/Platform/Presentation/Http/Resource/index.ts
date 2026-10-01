@@ -18,7 +18,7 @@ occurredAt: string,
 action: string,
 actionLabel: string,
 subjectType: string,
-subjectId: string,
+subjectId: string | null,
 source: string,
 actorType: string,
 actorId: string | null,
@@ -28,6 +28,7 @@ requestedById: string | null,
 storeName: string | null,
 ipAddress: string | null,
 changes: AuditChangeRow[],
+withheld: boolean,
 };
 export type ChooseStorePage = {
 stores: StoreChoiceRow[],
@@ -48,17 +49,35 @@ exponent: number,
 storeCount: number,
 exponentLocked: boolean,
 };
+export type FailedJobPage = {
+job: FailedJobRowData,
+error: string,
+};
+export type FailedJobRowData = {
+id: string,
+name: string,
+failedAt: string,
+triesAllowed: number | null,
+queue: string,
+errorLine: string,
+retryable: boolean,
+};
+export type FailedJobsPage = {
+jobs: FailedJobRowData[],
+nextFailedAt: string | null,
+nextId: string | null,
+};
 export type MediaFileRow = {
 id: string,
 filename: string,
-mime: string,
-bytes: number,
-size: string,
+mime: string | null,
+bytes: number | null,
+size: string | null,
 width: number | null,
 height: number | null,
 visibility: string,
 variantsStatus: string | null,
-retryable: boolean,
+retryable: boolean | null,
 uploadedAt: string,
 altAr: string | null,
 altEn: string | null,
@@ -73,10 +92,12 @@ nextId: string | null,
 mayUpload: boolean,
 mayUpdate: boolean,
 mayDelete: boolean,
+mayUploadPrivate: boolean,
 };
 export type SettingGroup = {
 module: string,
 label: string,
+line: string | null,
 settings: SettingRowData[],
 };
 export type SettingRowData = {

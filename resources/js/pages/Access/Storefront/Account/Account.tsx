@@ -13,7 +13,8 @@ import type { CustomerAccountPage } from '@/types/generated/Modules/Access/Prese
 |
 | One screen with tabs, as the panel's is, because it is one person's account: Details, Password,
 | Phone, Addresses, and closing it. It only ever shows the person looking at it - there is no id in
-| any route behind it.
+| any route behind it. The server keeps the same list (CustomerAccountTabs) and sends it with every
+| shop page, so another module's account page can link back to these tabs.
 |
 | Which tab is open is this browser's business while the person is here, and the server's when they
 | arrive: a form that saved comes back to `?tab=phone` rather than dropping them at the top of the
@@ -43,9 +44,10 @@ export default function Account(account: Props) {
         <AccountLayout
             title={t('access::account.shop_title')}
             subtitle={t('access::account.shop_subtitle')}
-            sections={TABS.map((tab) => ({ key: tab, label: t(`access::account.shop_tab.${tab}`) }))}
-            open={open}
-            onOpen={setOpen}
+            // The headings themselves arrive with every shop page (amendment 50), beside the pages
+            // other modules add; this page only says which is open.
+            tab={open}
+            onTab={(key) => setOpen(asTab(key))}
         >
             {open === 'profile' ? <ProfileTab account={account} /> : null}
             {open === 'security' ? <SecurityTab account={account} /> : null}

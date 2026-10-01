@@ -11,6 +11,7 @@ return [
     'store_settings' => 'Store settings and tax',
     'media' => 'Media library',
     'audit' => 'Audit log',
+    'system' => 'System',
     'catalog' => 'Catalog and variants',
     'pricing' => 'Pricing and campaigns',
     'orders' => 'Orders and fulfilment',

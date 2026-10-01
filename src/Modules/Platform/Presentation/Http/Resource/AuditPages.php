@@ -84,6 +84,7 @@ final readonly class AuditPages
             $entry->storeId === null ? null : ($stores[$entry->storeId] ?? $entry->storeId),
             $entry->ipAddress,
             $this->changes($entry->changes),
+            $entry->withheld,
         );
     }
 

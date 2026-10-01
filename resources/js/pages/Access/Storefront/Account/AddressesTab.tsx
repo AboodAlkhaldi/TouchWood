@@ -28,6 +28,10 @@ import type {
 |
 | **No map.** The pin is left empty in this stage - a map needs a paid provider and none is chosen
 | (decided 2026-09-19) - so what a courier gets is exactly what is written here.
+|
+| Opened from another page to add an address - the company form, say - the tab carries that page's
+| name, and saving an address goes back to it (access.md amendment 51). The server decides whether
+| the name is one of this account's pages; the tab only passes it on.
 */
 
 type Props = {
@@ -42,13 +46,19 @@ export function AddressesTab({ account }: Props) {
             <p className="text-sm text-ink-muted">{t('access::account.addresses_hint')}</p>
 
             {account.addresses.map((store) => (
-                <StoreAddresses key={store.storeId} store={store} />
+                <StoreAddresses key={store.storeId} store={store} returnTo={account.returnTo} />
             ))}
         </div>
     );
 }
 
-function StoreAddresses({ store }: { store: AddressBookStore }) {
+function StoreAddresses({
+    store,
+    returnTo,
+}: {
+    store: AddressBookStore;
+    returnTo: string | null;
+}) {
     const t = useTranslator();
     const [editing, setEditing] = useState<AddressRow | 'new' | null>(null);
 
@@ -74,6 +84,7 @@ function StoreAddresses({ store }: { store: AddressBookStore }) {
                                 <li key={address.id}>
                                     <SavedAddress
                                         address={address}
+                                        returnTo={returnTo}
                                         onEdit={() => setEditing(address)}
                                     />
                                 </li>
@@ -102,6 +113,7 @@ function StoreAddresses({ store }: { store: AddressBookStore }) {
                         <AddressForm
                             store={store}
                             address={editing === 'new' ? null : editing}
+                            returnTo={returnTo}
                             onDone={() => setEditing(null)}
                         />
                     )}
@@ -117,10 +129,20 @@ function StoreAddresses({ store }: { store: AddressBookStore }) {
  * An address the country has outgrown says so here rather than at checkout, where it would stop an
  * order somebody is in the middle of placing (amendment 41).
  */
-function SavedAddress({ address, onEdit }: { address: AddressRow; onEdit: () => void }) {
+function SavedAddress({
+    address,
+    returnTo,
+    onEdit,
+}: {
+    address: AddressRow;
+    returnTo: string | null;
+    onEdit: () => void;
+}) {
     const t = useTranslator();
     const link = useLink();
     const [confirming, setConfirming] = useState(false);
+    // The way back goes on with the tab after these changes too (amendment 52).
+    const carried = returnTo === null ? {} : { return: returnTo };
 
     return (
         <div className="grid gap-2 rounded-lg border border-line p-4">
@@ -160,7 +182,7 @@ function SavedAddress({ address, onEdit }: { address: AddressRow; onEdit: () => 
                                     link('storefront.account.addresses.default', {
                                         address: address.id,
                                     }),
-                                    {},
+                                    carried,
                                     { preserveScroll: true },
                                 )
                             }
@@ -212,7 +234,7 @@ function SavedAddress({ address, onEdit }: { address: AddressRow; onEdit: () => 
                                     link('storefront.account.addresses.delete', {
                                         address: address.id,
                                     }),
-                                    {},
+                                    carried,
                                     { preserveScroll: true },
                                 )
                             }
@@ -245,10 +267,12 @@ function SavedAddress({ address, onEdit }: { address: AddressRow; onEdit: () => 
 function AddressForm({
     store,
     address,
+    returnTo,
     onDone,
 }: {
     store: AddressBookStore;
     address: AddressRow | null;
+    returnTo: string | null;
     onDone: () => void;
 }) {
     const t = useTranslator();
@@ -261,6 +285,7 @@ function AddressForm({
         recipient_name: address?.recipientName ?? '',
         phone: address?.phone ?? '',
         is_default: address?.isDefault ?? false,
+        return: returnTo ?? '',
         fields: Object.fromEntries(
             store.fields.map((field) => [field.key, address?.fields[field.key] ?? '']),
         ) as Record<string, string>,

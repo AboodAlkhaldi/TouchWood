@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\Platform\Application;
 
 use DateTimeImmutable;
+use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
+use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
 use Modules\Platform\Application\Command\UploadMedia\UploadMedia;
 use Modules\Platform\Application\Command\UploadMedia\UploadMediaHandler;
 use Modules\Platform\Application\Query\MediaReader;
@@ -15,6 +17,7 @@ use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Dto\CurrencyDto;
 use Modules\Platform\Public\Dto\MediaDto;
 use Modules\Platform\Public\Dto\MediaUrlsDto;
+use Modules\Platform\Public\Dto\ModuleDeleteDto;
 use Modules\Platform\Public\Dto\ModuleUploadDto;
 use Modules\Platform\Public\Dto\SettingValueDto;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -29,6 +32,7 @@ final readonly class PlatformApiImpl implements PlatformApi
         private ReadSetting $readSetting,
         private MediaReader $mediaReader,
         private UploadMediaHandler $uploadMedia,
+        private DeleteMediaHandler $deleteMedia,
     ) {}
 
     public function store(StoreId $id): ?StoreDto
@@ -66,6 +70,14 @@ final readonly class PlatformApiImpl implements PlatformApi
             $upload->originalFilename,
             forModule: $upload,
         ));
+    }
+
+    public function deleteMediaFor(ModuleDeleteDto $delete): void
+    {
+        // The same use case as the staff delete — the lock, the savepoint, the files after commit,
+        // the event, the audit entry — with the module's own permission checked, private files
+        // only, and any remaining use refusing it (B2B step 3, amendments 4 and 5).
+        $this->deleteMedia->handle(new DeleteMedia($delete->mediaId, forModule: $delete));
     }
 
     public function media(string $mediaId): ?MediaDto

@@ -80,6 +80,14 @@ hours to verify a bank transfer, and so on.
 - Keys are named `{module}.{area}.{name}` — for example `loyalty.points.expiry_days`. The prefix
   must be the declaring module.
 - Values are validated against the definition on every write.
+- **[DECIDED 2026-09-29] A text setting may be marked "may be empty"** (B2B step 5, §9.4): its value
+  may then be the empty text — "not set yet" — and its default usually is. Every other text setting
+  stays refused when empty. The rules still apply to a value that is not empty.
+- **[DECIDED 2026-09-29] A module may show one line at the top of its section of the settings page**
+  (B2B step 5, §9.4): what its settings add up to in the store the page shows, in the reader's
+  language — B2B's says whether bank transfer is on or temporarily off. The module answers when the
+  page is shown; Platform only places the line. It is shown with the section, so only to someone who
+  sees one of its settings.
 - Reading a declared key that has no stored row returns the definition's default. Reading a
   declared key never fails.
 - A `STORE` key is never stored without a store, and a `GLOBAL` key never with one.
@@ -334,7 +342,7 @@ builder. spatie/laravel-data stays available for the presentation layer (forms, 
 |---|---|
 | `StoreDto` | `id`, `code`, `name` (ar, en), `countryCode`, `currencyCode`, `currencyExponent`, `currencySign`, `currencyAbbreviation` (ar, en), `taxRateBasisPoints`, `timezone`, `position` |
 | `CurrencyDto` | `code`, `exponent`, `name` (ar, en), `abbreviation` (ar, en), `sign`; `displaySymbol(locale)` returns the sign, or the abbreviation when there is no sign |
-| `SettingDefinitionDto` | `key`, `scope`, `type` (checked strictly before any rule), `rules` (further Laravel validation rules), `default`, `permission`, `sensitive` (audited only as "changed") |
+| `SettingDefinitionDto` | `key`, `scope`, `type` (checked strictly before any rule), `rules` (further Laravel validation rules), `default`, `permission`, `sensitive` (audited only as "changed"), `mayBeEmpty` (a text setting whose empty text means "not set yet"; its rules then apply only to a value that is not empty, §1.3) |
 | `SettingValueDto` | `key`, `storeId`, `isDefault`; typed readers `int()`, `bool()`, `string()`, `list()` that throw if the stored type does not match |
 | `MediaDto` | `id`, `visibility`, `mime`, `bytes`, `width`, `height`, `originalFilename`¹, `altAr`, `altEn`¹, `variantsStatus` |
 | `MediaUrlsDto` | `original` (PRIVATE only: the expiring link; null for a public image, whose original is never served), `variants` (size slug → format extension → CDN URL, empty until ready), `expiresAt` (PRIVATE only) |
@@ -397,6 +405,9 @@ stay reserved: each reaches every store at once.
 | `RequeueStuckMediaVariants` — every 10 minutes | Scheduler | System — `platform.media.variants.generate` (reserved) | Global |
 | `ViewAuditLog` | Staff | `platform.audit.view` | Entries for stores in scope; entries with no store need all-stores access |
 | `RecordAuditEntry` | Other modules | System — called inside an already-authorized handler | Global |
+| `ListFailedJobs` / `ViewFailedJob` — the queue's failed work, and one job's whole error | Admin | `platform.jobs.manage` (**admin-only**) | Global (a job belongs to no store) |
+| `RetryFailedJob` — puts that one job back on its queue | Admin | `platform.jobs.manage` | Global |
+| `DeleteFailedJob` — removes that one job for good, unrun | Admin | `platform.jobs.manage` | Global |
 | `ResolveStoreContext` | Every storefront request | None | — |
 | `ChooseStore` — the country page at `brand.com/`, and the cookie redirect | Any visitor | None | — |
 
@@ -405,6 +416,32 @@ public contract, and console commands to create stores and currencies (seeding `
 Admin screens for these use cases arrive once Access (login, permissions) and the frontend
 exist, because a screen with no login cannot be protected. Until the Content module builds the
 real homepage, `brand.com/sa/ar` shows a placeholder page with the store's name.
+
+**[DECIDED 2026-09-29] Failed jobs** (owner, during the B2B stage — so they are reached at once,
+not by reading logs). A job that fails its last attempt waits in Laravel's `failed_jobs` (§5.6);
+Platform shows them on an admin screen (frontend.md E7):
+
+- **One permission, `platform.jobs.manage`, admin-only** — a Super Admin always, an admin when a
+  Super Admin gives it to their role — covers seeing, retrying and deleting. A failed job's error
+  can quote the values it was writing, personal data among them, and a job belongs to no store, so
+  it is global. It sits in a new business area, **System**.
+- **The list**: what the job was, in the words of the module that owns it (a job no module names
+  shows its technical name), when it failed, how many tries it was allowed, and the error's first line —
+  oldest first, **50 at a time** with "Show more", as the media library and the audit log page.
+  **Opening one** shows its whole error and the queue it ran on.
+- **Every queued job states its own tries** (second review of the screen): the worker's default
+  otherwise applies, and the screen could not say what it was. A test holds every queued class to it.
+- **Retry one**: the job goes back on its own queue, attempts counted afresh, and leaves the list;
+  if it fails again it comes back. **Only a job that failed on the database queue is retried** —
+  the queue in the same database, so the retry and the list change together; any other (none today)
+  can only be deleted, and its Retry is not offered (`FailedJobNotRetryable`). **Delete one**: gone
+  for good, unrun. No bulk actions.
+- **Kept until handled**: nothing deletes a failed job on its own.
+- **Noticed without opening the screen**, by those who hold the permission: the menu entry shows how
+  many are waiting — as a dot on its icon while the sidebar is collapsed — and the admin home says so
+  while any is.
+- Retrying and deleting are audited, with the job's name and when it failed — **never its error or
+  its data**, which may hold personal data (the audit log is kept forever).
 
 ---
 
@@ -576,7 +613,7 @@ and from this plumbing, so the need is visible before its code starts.
 |---|---|
 | `processed_events` | `(event_id uuid, listener varchar)` PK, `processed_at` — the idempotent-consumer rule (handoff §4.5) |
 | `outbox_messages` | The transactional outbox for the ~8 critical events |
-| `failed_jobs`, `job_batches` | Laravel queue bookkeeping |
+| `failed_jobs`, `job_batches` | Laravel queue bookkeeping. A failed job stays until an admin retries or deletes it on the Failed jobs screen (§3, **[DECIDED 2026-09-29]**) |
 | `sessions`, `cache`, `cache_locks`, `jobs` | **[DECIDED 2026-09-18]** Sessions, cache and queues run on PostgreSQL — no Redis until traffic needs it. The cache version is written inside the transaction of each change, so cached data is never stale. `sessions.user_id` is a ULID, like every account id. |
 
 **[DECIDED 2026-09-18]** Laravel's starter `users` and `password_reset_tokens` tables, the
@@ -718,7 +755,9 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── MediaTooLarge                         TOO_LARGE
 ├── MediaInUse                            CONFLICT
 ├── InvalidMediaVariantsTransition        CONFLICT    e.g. retrying an image that did not fail  ¹
-└── InvalidMediaAttribute                 INVALID     file name or alt text too long / empty, bad checksum  ¹
+├── InvalidMediaAttribute                 INVALID     file name or alt text too long / empty, bad checksum  ¹
+├── FailedJobNotFound                     NOT_FOUND   retried or deleted already, or never there (2026-09-29)
+└── FailedJobNotRetryable                 CONFLICT    it failed on a queue other than the database one: delete it (2026-09-29)
 ```
 
 ¹ Added during implementation, **[DECIDED 2026-09-18]** kept. The approved list had no error for
@@ -824,6 +863,13 @@ stack traces, SQL, or another customer's data.
   HTTP status; an unexpected exception returns a generic 500 with no internal detail.
 - Admin-permission scenarios (403 for a staff member scoped to `sa` editing `ae`) are written in
   Stage 2, when Access provides real roles.
+- **Failed jobs (2026-09-29):** a job that fails its last attempt is listed, oldest first, with its
+  owner's name for it, when it failed, the tries it was allowed and the error's first line; opening it shows the
+  whole error. Retrying puts it back on its queue and off the list, and it runs; deleting removes it
+  unrun; each is audited without the error or the data; the same job retried or deleted twice
+  answers `FailedJobNotFound` the second time. Nothing is ever deleted on its own. Only a holder of
+  `platform.jobs.manage` — never a staff role, since it is admin-only — sees the screen, the menu
+  count or the home notice.
 
 ### Architecture
 
@@ -911,3 +957,18 @@ With the frontend milestone:
 - **Error pages** for 409, 413, 415 and 422. Laravel has no page for these statuses, so a page
   request shows only the status text (for example "Conflict"); JSON requests already get the
   translated title and detail.
+
+### 9.4 Additions asked for by later modules
+
+Platform changes made while another module was being built, each agreed with the owner and recorded
+in full in that module's specification.
+
+| Added | For | What | Recorded in |
+|---|---|---|---|
+| Stage 2b | Access (staff avatars), B2B (company papers) | `PlatformApi::uploadMediaFor(ModuleUploadDto)`: a module uploads a file for its own use, checked against a permission the module names | `docs/modules/frontend-step-0.md` (P1) |
+| B2B step 3 | B2B (replaced and discarded papers; later, anonymized accounts) | **`PlatformApi::deleteMediaFor`**, the mirror of `uploadMediaFor`: a module deletes a **private** file it created, checked against the permission it names; refused while any use of the file remains, and never detaching another module's use; logged as an upload is. Staff deletion of media is unchanged, except that a private file does not exist for staff who may not see private files (next row) | `docs/modules/b2b.md` amendments 4, 5 and 8 |
+| B2B step 3 | B2B (company papers) | **Private files leave the media library**: listed only to holders of a new **admin-only** permission, `platform.media.private.view` — a Super Admin always, an admin when a Super Admin gives it to their role — who can already open the library (the permission opens it to nobody); a private row shows its name, upload date and where it is used, and the file is never opened there. **To anyone without the permission a private file does not exist**: describing, retrying or deleting it answers exactly as for an id that never existed. **A holder describes or deletes one with the library's usual permissions on top** (`platform.media.update`, `platform.media.delete`); a use that blocks a delete still refuses it. A private file never has sizes made, so it is never retried and never written to the public disk (§5.4, `variants_status`). **Choosing "private" when uploading in the library** needs the permission too: it is offered only to holders and refused from anyone else. **In the audit log**, a reader without the permission sees each entry about a private file with what was done, when, by whom and from where, but not which file nor what changed. A module's own upload (`uploadMediaFor`) and delete (`deleteMediaFor`) are unchanged | `docs/modules/b2b.md` amendments 5, 6 and 8; `docs/modules/access.md` amendment 49 |
+| B2B step 5 | B2B (the bank account an approved company transfers to) | **A text setting may be marked "may be empty"** (§1.3): its value may be the empty text, meaning "not set yet", so a store whose bank account nobody has entered holds no made-up value. Nothing else about settings changes | `docs/modules/b2b.md` amendment 12(b) |
+| B2B step 5 | B2B (whether bank transfer is on) | **A module's line in its settings section** (§1.3): one line at the top of the module's section of the settings page, answered by the module for the store shown — "Bank transfer: on", or "Bank transfer: temporarily off — fill in all three to turn it on". Shown only with the section. Nothing else about settings changes | `docs/modules/b2b.md` amendment 13(c) |
+| B2B step 6 | B2B (the same file in two sections) | **How the library keeps a file name, public** (§1.4): `Modules\Platform\Public\MediaFilename::kept()` answers a name as the media library would keep it — the name alone, without folders, control characters or invisible formatting characters, trimmed of spaces — so a module can compare a name it is given with the names of files it holds. The media model keeps names by the same function; nothing about what is kept changes | `docs/modules/b2b.md` amendment 17(d) |
+| During the B2B stage | Everyone who runs the shop (owner, 2026-09-29) | **Failed jobs** (§3): an admin screen for the queue's failed work — the list, one job's whole error, retry one, delete one — under one admin-only permission, `platform.jobs.manage`, in a new **System** area; a count in the menu and a notice on the admin home while any waits; nothing deleted on its own. The menu entry's count and the home's notice are small additions to the panel, built with it | This section, §3; `docs/modules/frontend.md` E7 |

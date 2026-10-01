@@ -40,6 +40,11 @@ final readonly class UrlCustomerLinks implements CustomerLinks
         ));
     }
 
+    public function shopFrontDoor(): string
+    {
+        return $this->onAppUrl(fn (): string => $this->urls->to('/'));
+    }
+
     /**
      * @param  callable(): string  $build
      */

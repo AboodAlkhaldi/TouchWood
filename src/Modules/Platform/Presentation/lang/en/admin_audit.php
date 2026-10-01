@@ -15,6 +15,8 @@ return [
     'store' => 'Store',
     'ip' => 'From',
     'no_store' => 'The whole system',
+    // A private file's entry, for somebody who may not see private files (b2b.md amendment 8(c)).
+    'private_file' => 'a private file — which one, and what changed, is shown to those who may see private files',
 
     'source_web' => 'The panel',
     'source_integration' => 'An integration',

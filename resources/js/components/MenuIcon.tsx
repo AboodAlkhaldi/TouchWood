@@ -10,6 +10,7 @@ import {
     ShieldCheck,
     ShoppingCart,
     Store,
+    TriangleAlert,
     Users,
 } from 'lucide-react';
 
@@ -37,6 +38,7 @@ const ICONS = {
     media: Image,
     audit: ScrollText,
     billing: Receipt,
+    failed_jobs: TriangleAlert,
 } as const;
 
 type Props = {

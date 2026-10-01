@@ -7,8 +7,10 @@ namespace Modules\Platform\Infrastructure\Eloquent;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use JsonException;
+use Modules\Platform\Application\Audit\MediaAudit;
 use Modules\Platform\Application\Query\ListAudit\AuditReader;
 use Modules\Platform\Application\Query\ListAudit\ListAudit;
+use Modules\Platform\Public\Enums\MediaVisibility;
 use stdClass;
 
 /**
@@ -56,6 +58,37 @@ final readonly class DatabaseAuditReader implements AuditReader
             ->pluck('action');
 
         return array_values(array_map(static fn (mixed $action): string => (string) $action, $rows->all()));
+    }
+
+    /**
+     * @param  list<string>  $mediaIds
+     * @return list<string>
+     */
+    public function privateMedia(array $mediaIds): array
+    {
+        $ids = array_values(array_unique($mediaIds));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $live = $this->db->table('platform.media')
+            ->whereIn('id', $ids)
+            ->where('visibility', MediaVisibility::Private->value)
+            ->pluck('id');
+
+        // A deleted file has no row left, but its upload entry says what it was: [from, to].
+        $gone = $this->db->table('platform.audit_entries')
+            ->where('subject_type', MediaAudit::SUBJECT)
+            ->where('action', MediaAudit::UPLOADED)
+            ->whereIn('subject_id', $ids)
+            ->whereRaw("changes->'visibility'->>1 = ?", [MediaVisibility::Private->value])
+            ->pluck('subject_id');
+
+        return array_values(array_unique(array_map(
+            static fn (mixed $id): string => (string) $id,
+            [...$live->all(), ...$gone->all()],
+        )));
     }
 
     /**

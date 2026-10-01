@@ -48,8 +48,10 @@ export default function Index({ groups, storeName }: Props) {
                 ) : (
                     groups.map((group) => (
                         <section key={group.module} className="rounded-lg border border-line bg-surface">
-                            <header className="border-b border-line px-4 py-3">
+                            <header className="grid gap-1 border-b border-line px-4 py-3">
                                 <h2 className="text-sm font-semibold text-ink">{group.label}</h2>
+                                {/* What the module's settings add up to in this store (platform.md §1.3). */}
+                                {group.line !== null ? <p className="text-xs text-ink-muted">{group.line}</p> : null}
                             </header>
 
                             <ul className="divide-y divide-line">
@@ -111,7 +113,8 @@ function Row({ setting, storeName }: { setting: SettingRowData; storeName: strin
 
                     {setting.sensitive ? ` · ${t('platform::admin_settings.sensitive')}` : ''}
 
-                    {!setting.sensitive && setting.isDefault
+                    {/* A default that is empty means "not set yet": there is no value in force to name (owner, 2026-09-29). */}
+                    {!setting.sensitive && setting.isDefault && String(setting.default ?? '') !== ''
                         ? ` · ${t('platform::admin_settings.is_default', { value: String(setting.default ?? '') })}`
                         : ''}
                 </p>

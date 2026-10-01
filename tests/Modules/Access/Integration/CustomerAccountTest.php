@@ -156,6 +156,20 @@ describe('registering (spec §1.2)', function () {
             ->and(RecordingSecurityMessages::installed()->emailVerifications[1]['link'])->toContain('/sa/en/account/verify-email/');
     });
 
+    it('tells other modules the store each account registered in', function () {
+        // B2B's reviewers are that store's staff (b2b.md §3.2), so the contract has to say which
+        // store it is. Two stores, so a value that was always the same one would fail.
+        $inEmirates = customerRegister('ae@example.test', storeCode: 'ae');
+        $inSaudi = customerRegister('sa@example.test');
+
+        // And the home store, not the last one used: the two are the same until the customer
+        // shops somewhere else, which is exactly when mixing them up would start to matter.
+        DB::table('access.customers')->where('id', $inSaudi)->update(['last_store_id' => Fx::storeId('eg')]);
+
+        expect(app(AccessApi::class)->customer($inEmirates)?->homeStoreId)->toBe(Fx::storeId('ae'))
+            ->and(app(AccessApi::class)->customer($inSaudi)?->homeStoreId)->toBe(Fx::storeId('sa'));
+    });
+
     it('builds the link on APP_URL, whatever host or scheme the request carries', function () {
         config(['app.url' => 'https://panel.touchwood.test']);
         // As a request carrying "Host: attacker.example" over plain http would leave the generator.

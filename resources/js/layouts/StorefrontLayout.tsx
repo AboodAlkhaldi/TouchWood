@@ -6,7 +6,7 @@ import { ThemeToggle } from '@/components/Preferences';
 import { Logo } from '@/components/Logo';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
-import type { SharedProps } from '@/types/page';
+import type { SharedProps, ShopperLine } from '@/types/page';
 
 /*
 | The shop's frame (frontend.md §2.3).
@@ -29,7 +29,7 @@ type Props = {
 
 export function StorefrontLayout({ title, children }: Props) {
     const page = usePage<SharedProps>();
-    const { shop, shopper, locale } = page.props;
+    const { shop, shopper, shopperLines, locale } = page.props;
 
     return (
         <>
@@ -66,6 +66,8 @@ export function StorefrontLayout({ title, children }: Props) {
                         </div>
                     </div>
                 </header>
+
+                <ShopperLines lines={shopperLines ?? []} />
 
                 <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
 
@@ -129,6 +131,43 @@ function Shopper({ shopper }: { shopper: SharedProps['shopper'] }) {
                 {t('access::auth.sign_out')}
             </button>
         </span>
+    );
+}
+
+/**
+ * What other modules have to tell the customer signed in, on every page of the shop (access.md
+ * amendment 50): B2B saying why a company account cannot order yet. Each line is a link to where it
+ * can be dealt with. The words are the module's, already in the page's language.
+ */
+function ShopperLines({ lines }: { lines: ShopperLine[] }) {
+    const link = useLink();
+
+    if (lines.length === 0) {
+        return null;
+    }
+
+    // The background says the tone; the words stay in the page's own ink, which reads on every one
+    // of them — warn's own colour on its soft background did not (3.25:1, the review of step 6).
+    const tones: Record<ShopperLine['tone'], string> = {
+        info: 'bg-brand-soft text-ink',
+        warn: 'bg-warn-soft text-ink',
+        bad: 'bg-bad-soft text-ink',
+    };
+
+    return (
+        <div className="grid">
+            {lines.map((line) => (
+                <Link
+                    key={line.routeName + line.text}
+                    href={link(line.routeName)}
+                    data-test="shopper-line"
+                    data-tone={line.tone}
+                    className={['block border-b border-line', tones[line.tone]].join(' ')}
+                >
+                    <span className="mx-auto block w-full max-w-6xl px-4 py-2 text-sm hover:underline">{line.text}</span>
+                </Link>
+            ))}
+        </div>
     );
 }
 

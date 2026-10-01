@@ -11,6 +11,7 @@ use Modules\Platform\Public\Enums\ImageFormat;
 use Modules\Platform\Public\Enums\MediaSize;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
 use Modules\Platform\Public\Enums\MediaVisibility;
+use Modules\Platform\Public\MediaFilename;
 
 const TEST_CHECKSUM = 'a3f1c9d2e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1';
 
@@ -96,6 +97,16 @@ describe('uploading', function () {
         // U+202E RIGHT-TO-LEFT OVERRIDE would display "invoice\u{202E}gpj.exe" as "invoiceexe.jpg".
         expect(mediaForTest(filename: "invoice\u{202E}gpj.exe")->originalFilename())->toBe('invoicegpj.exe');
     });
+
+    it('keeps a name exactly as the public rule says, for a module to compare names by (B2B amendment 17(d))', function (string $given) {
+        expect(mediaForTest(filename: $given)->originalFilename())->toBe(MediaFilename::kept($given));
+    })->with([
+        'a path' => ['../../etc/hinge.jpg'],
+        'a Windows path' => ['C:\\Users\\me\\hinge.jpg'],
+        'a right-to-left mark' => ["hinge\u{200F}.jpg"],
+        'spaces at the ends' => ['  hinge.jpg '],
+        'a tab inside' => ["hin\tge.jpg"],
+    ]);
 
     it('refuses a file name or alt text that is not valid UTF-8', function (Closure $make) {
         $make();

@@ -105,6 +105,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-20 | §7.5, §7.9 | Confirming a deletion signs the customer out of every device (signing in again is the only way back, and cancels it); revoking a Super Admin closes the account and frees its email and phone at once, so no staff member is ever left without a role; `customers.remember_token` dropped | Access step 6, owner decision |
 | 2026-09-21 | §7.5, §7.6, §7.9 | From the reviews of the whole Access module: the settings permission is split — the staff security numbers are admin-only (`access.staff_settings.update`), a store's own settings stay ordinary; a staff member changing their own phone gives their current password first; anonymizing deletes the account's session rows, so the storefront's rows now carry the customer they belong to; an admin's status is not shown to ordinary staff either; one email belongs to one account in both directions (a staff account cannot take a customer's address) | Access step 7, owner decision |
 | 2026-09-22 | §17 | The frontend foundation (stage 2b) has an approved specification, `docs/modules/frontend.md`, revised against the merged Access. It builds in five steps: step 0 the six changes other modules must make, then the foundation with the admin sign-in, the admin screens, Platform's screens, and the storefront with the customer's account | Stage 2b plan, owner decision |
+| 2026-09-26 | §6, §8.2 | Every company account sees company prices from the moment it exists — before its email is confirmed, before any application, and in every company status, `REJECTED` and `SUSPENDED` included (was: `PENDING` only). Ordering still needs `APPROVED`. The prices shown follow the account type (Access), the right to order the company status (B2B) | B2B spec review, owner decision |
 
 ---
 
@@ -509,7 +510,8 @@ They combine freely:
 
 `COMPANY` means `company.status == APPROVED`. Everyone else — guests, individuals,
 pending, rejected and suspended companies — is `PUBLIC` for pricing eligibility, with one
-exception noted in §8.2.
+exception noted in §8.2: **the prices shown follow the account type**, so every company
+account sees company prices whatever its company's status.
 
 **Wholesale is public.** Any customer can buy a wholesale-only product if they meet the
 minimum order quantity. Wholesale is a quantity concept, not a permission.
@@ -807,8 +809,9 @@ commercial registration certificate, authorised signatory ID.
 ```
 PENDING     Can log in, browse, build a cart. CANNOT order. Sees company prices.
 APPROVED    Can order. Company prices. IBAN visible.
-REJECTED    Can log in, edit company info, reapply. CANNOT order.
+REJECTED    Can log in, edit company info, reapply. CANNOT order. Sees company prices.
 SUSPENDED   Can log in, view past orders and the suspension notice. CANNOT order.
+            Sees company prices.
 ```
 
 **Ordering rule, no special cases:** `company.status === APPROVED`.
@@ -820,9 +823,13 @@ SUSPENDED   Can log in, view past orders and the suspension notice. CANNOT order
 - `SUSPENDED` is assigned manually by staff from any state. It does not block login.
 - To block a person entirely, use `customers.status = BLOCKED`. Never use company status
   for that.
-- **A `PENDING` company sees company prices, not public prices.** It simply cannot check
-  out. This is the one exception to "`COMPANY` means approved" in §6, and it applies to
-  price display only.
+- **Every company account sees company prices, not public prices** — from the moment the
+  account exists: before its email is confirmed, before any application, and in every
+  status afterwards. Only `APPROVED` can check out. This is the one exception to
+  "`COMPANY` means approved" in §6, and it applies to price display only. The price shown
+  follows the account type, which Access owns and which never changes; the right to order
+  follows the company status, which B2B owns — so Pricing never asks B2B anything
+  (`docs/modules/b2b.md` §1.1).
 
 `AWAITING_DOCUMENTS`, `REJECTED_ONCE`, `REJECTED_BLOCKED` and every account-type
 transition do not exist. Do not build them.

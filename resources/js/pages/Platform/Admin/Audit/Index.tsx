@@ -233,9 +233,18 @@ function Entry({ entry }: { entry: AuditRow }) {
                 )}
             </p>
 
-            <p className="text-xs text-ink-muted">
-                {t('platform::admin_audit.subject')}: <span className="tw-figure">{entry.subjectType}</span>{' '}
-                <span className="tw-figure">{entry.subjectId}</span>
+            {/* A private file's entry, for somebody who may not see private files: what was done,
+                when and by whom, but not which file nor what changed (amendment 8(c)). */}
+            <p className="text-xs text-ink-muted" data-test={entry.withheld ? `withheld-${entry.id}` : undefined}>
+                {t('platform::admin_audit.subject')}:{' '}
+                {entry.withheld ? (
+                    t('platform::admin_audit.private_file')
+                ) : (
+                    <>
+                        <span className="tw-figure">{entry.subjectType}</span>{' '}
+                        <span className="tw-figure">{entry.subjectId}</span>
+                    </>
+                )}
             </p>
 
             {entry.changes.length === 0 ? null : (

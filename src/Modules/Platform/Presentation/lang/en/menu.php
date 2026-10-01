@@ -9,4 +9,5 @@ return [
     'settings' => 'Settings',
     'media' => 'Media library',
     'audit' => 'Audit log',
+    'failed_jobs' => 'Failed jobs',
 ];

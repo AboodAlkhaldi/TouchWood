@@ -14,4 +14,6 @@ return [
     'media.deleted' => 'حُذف ملف',
     'media.alt_text_changed' => 'عُدّل وصف ملف',
     'media.variants_retried' => 'أُعيدت معالجة صورة',
+    'failed_job.retried' => 'أُعيد تشغيل مهمة متعثّرة',
+    'failed_job.deleted' => 'حُذفت مهمة متعثّرة',
 ];

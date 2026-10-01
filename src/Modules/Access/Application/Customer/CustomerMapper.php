@@ -25,6 +25,7 @@ final readonly class CustomerMapper
             $customer->emailVerifiedAt() !== null,
             $customer->phoneVerifiedAt() !== null,
             $customer->language()->value,
+            $customer->homeStoreId(),
             $customer->deletionScheduledFor()?->format(DATE_ATOM),
             $customer->isAnonymized(),
         );

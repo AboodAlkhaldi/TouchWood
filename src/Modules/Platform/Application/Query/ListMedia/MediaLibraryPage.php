@@ -11,6 +11,8 @@ final readonly class MediaLibraryPage
 {
     /**
      * @param  list<MediaRow>  $media
+     * @param  bool  $mayUploadPrivate  whether "private" is offered when uploading here: the upload
+     *                                  permission and the private-files one (amendment 6)
      */
     public function __construct(
         public array $media,
@@ -19,5 +21,6 @@ final readonly class MediaLibraryPage
         public bool $mayUpload,
         public bool $mayUpdate,
         public bool $mayDelete,
+        public bool $mayUploadPrivate,
     ) {}
 }

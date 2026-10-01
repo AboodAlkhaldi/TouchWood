@@ -85,7 +85,11 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'access.super_admin.manage',
         'platform.currency.create',
         'platform.currency.update',
+        // Admin-only; a job belongs to no store (owner, 2026-09-29).
+        'platform.jobs.manage',
         'platform.media.delete',
+        // Admin-only, and store-free like every media action (B2B step 3, amendment 5).
+        'platform.media.private.view',
         'platform.media.update',
         'platform.media.upload',
         'platform.media.variants.generate',
@@ -106,6 +110,11 @@ it('keeps the management actions out of staff roles, and viewing staff in them',
         // The staff security settings decide how everyone signs in; a store's own settings do not
         // (owner, 2026-09-21).
         AccessPermissions::STAFF_SETTINGS_UPDATE,
+        // Platform's own, flagged in PlatformPermissions: private files in the media library
+        // (B2B step 3, amendment 5), and the failed jobs, whose errors can hold personal data
+        // (owner, 2026-09-29).
+        PlatformPermissions::MEDIA_PRIVATE_VIEW,
+        PlatformPermissions::JOBS_MANAGE,
     ]);
     expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::SETTINGS_UPDATE);
     expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::STAFF_VIEW);
@@ -196,9 +205,10 @@ it('gives every action a role can hold a business area, and names every area in 
         }
     }
 
-    // The areas Access and Platform actually use today (owner, 2026-09-19 and 2026-09-22).
+    // The areas the modules actually use today (owner, 2026-09-19 and 2026-09-22); B2B's staff jobs
+    // fill Companies (b2b.md amendment 10), the failed jobs System (owner, 2026-09-29).
     ksort($used);
-    expect(array_keys($used))->toBe(['audit', 'customers', 'media', 'staff_and_permissions', 'store_settings']);
+    expect(array_keys($used))->toBe(['audit', 'companies', 'customers', 'media', 'staff_and_permissions', 'store_settings', 'system']);
 });
 
 it('names every permission in Arabic and English', function () {
