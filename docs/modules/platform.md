@@ -44,10 +44,14 @@ A country storefront: `sa`, `eg`, `ae`, and any added later.
 | `tax_rate_basis_points` | 0–10000 (15% = `1500`). **[DECIDED 2026-09-18]** stored as basis points, an integer, so no DECIMAL and no float ever holds it. Changing it affects only quotes computed afterwards; orders keep their own snapshot (Sales). |
 | `timezone` | A valid IANA identifier (`Asia/Riyadh`). Used at the presentation edge to show local times. |
 | `position` | Display order in store switchers. |
+| `is_active` | **On or off** (owner, 2026-10-01; §9.5). Only a Super Admin turns a store either way. A new store is created **off**. |
+| `is_base` | **The base store** (owner, 2026-10-02): exactly one store carries the mark — seeded on KSA, never named in code (handoff §2 rule 2) — and it is **always on**: turning it off is refused. The mark is set by the seed and does not move. |
 
-- **No status column and no lifecycle** (handoff §1, §16). Because of that, a store is created
-  **complete, in one command** — every required attribute at once — so a store can never exist
-  half-configured. The moment the row exists, the store is live.
+- **[DECIDED 2026-10-01, owner] A store is on or off**, which reverses the 2026-09-18 "no status
+  column and no lifecycle" (handoff §1, §16). A store is still created **complete, in one command**
+  — every required attribute at once — so it can never exist half-configured; but it is created
+  **off**, and a Super Admin turns it on once its products, prices and stock are in. An off store
+  is not visible outside the admin (§1.6).
 - Stores are never deleted.
 
 ### 1.2 Currency
@@ -230,6 +234,16 @@ Not an aggregate — a rule that holds for every request, job and command.
 
 - A storefront request resolves exactly one store from the first path segment:
   `brand.com/sa/...` → the `sa` store. An unknown code returns 404.
+- **[DECIDED 2026-10-01, owner] An off store is as if it were never there** for everyone outside
+  the admin's history:
+  - its storefront paths answer **404, exactly as an unknown code** — nothing says it exists;
+  - the country chooser and every store switcher, the shop's and the panel's, list **on** stores
+    only; a cookie naming an off store counts as no store;
+  - staff screens about it disappear: it is not offered as a store to work in, and its settings are
+    not shown. It remains **only in history** — orders, the audit log — where it is named as it was;
+  - **a Super Admin** still sees it, in the stores screen, to turn it back on;
+  - work already under way in it continues: its open orders stay with staff to finish, and jobs
+    dispatched in it still run.
 - **[DECIDED 2026-09-18] The language is the second segment:** `brand.com/sa/ar/...` and
   `brand.com/sa/en/...`, so search engines see one address per language. The supported languages
   are `ar` and `en` (every name in the system has both); anything else is a 404. The page, its
@@ -390,9 +404,10 @@ stay reserved: each reaches every store at once.
 
 | Use case | Who | Permission | Store-checked |
 |---|---|---|---|
-| `CreateStore` — all attributes at once | Super Admin | `platform.store.create` (reserved) | Global |
+| `CreateStore` — all attributes at once; created **off** (§1.1, 2026-10-01) | Super Admin | `platform.store.create` (reserved) | Global |
+| `ActivateStore` / `DeactivateStore` — the on/off switch; the base store cannot be turned off (`BaseStoreAlwaysActive`); audited (owner, 2026-10-01) | Super Admin | `platform.store.switch` (reserved) | Global |
 | `UpdateStore` — name, tax rate, timezone, position | Staff | `platform.store.update` | That store |
-| `ListStores` / `ViewStore` (admin) | Staff | `platform.store.view` | Only stores in the actor's scope |
+| `ListStores` / `ViewStore` (admin) | Staff | `platform.store.view` | Only stores in the actor's scope; an **off** store only to a Super Admin (§1.6) |
 | `CreateCurrency` | Super Admin | `platform.currency.create` (reserved) | Global |
 | `UpdateCurrency` — name, abbreviation, sign (including clearing it); exponent only while no store uses it | Super Admin | `platform.currency.update` (reserved) | Global |
 | `ViewSettings` | Staff | `platform.settings.view` | That store; ``GLOBAL` keys need all-stores access |
@@ -475,7 +490,8 @@ Files without variants — PDFs and every private file — have no status (empty
 
 ### 4.2 No other state machines
 
-- **Store:** none, by design (handoff §16 rejects a per-store lifecycle).
+- **Store:** **off ⇄ on** (owner, 2026-10-01; was "none, by design"). Created off; a Super Admin
+  turns it either way; the base store is always on, so it never leaves on.
 - **Currency:** the exponent lock is derived from "is any store using it", not a stored state.
 - **Setting, audit entry:** no states.
 
@@ -509,6 +525,8 @@ strings. IDs are ULIDs (`char(26)`) except where noted.
 | `tax_rate_basis_points` | `integer` NOT NULL | `CHECK (tax_rate_basis_points BETWEEN 0 AND 10000)` |
 | `timezone` | `varchar(64)` NOT NULL | |
 | `position` | `smallint` NOT NULL DEFAULT 0 | |
+| `is_active` | `boolean` NOT NULL DEFAULT false | 2026-10-01. The stores that exist when the column is added are **on**: they are live today |
+| `is_base` | `boolean` NOT NULL DEFAULT false | 2026-10-02. Unique where true (`stores_one_base`); `CHECK (NOT is_base OR is_active)` (`stores_base_always_active`). The migration marks KSA (`sa`) as the base store, and the seed does the same — infrastructure may name a store; `Domain/` and `Application/` never do (handoff §2 rule 2) |
 | `created_at`, `updated_at` | `timestamptz` | |
 
 Indexes: unique `(code)`.
@@ -670,6 +688,7 @@ the critical outbox events.
 |---|---|---|
 | `StoreCreated` | `eventId`, `storeId`, `occurredAt` | Ops |
 | `StoreUpdated` | `eventId`, `storeId`, `changed` (attribute names), `occurredAt` | Pricing (tax rate), Content (cached homepage), Ops |
+| `StoreActivated` / `StoreDeactivated` (2026-10-01) | `eventId`, `storeId`, `occurredAt` | Content (cached pages), Ops. Nothing is deleted or rewritten when a store goes off: every read filters on the switch (§1.6) |
 | `CurrencyUpdated` | `eventId`, `currencyCode`, `changed` (attribute names), `occurredAt` | Content, Ops |
 | `SettingChanged` | `eventId`, `key`, `storeId`, `occurredAt` | Whichever module owns the key |
 | `MediaVariantsReady` | `eventId`, `mediaId`, `occurredAt` | Catalog (refresh image URLs in `product_search`), Content |
@@ -757,7 +776,8 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── InvalidMediaVariantsTransition        CONFLICT    e.g. retrying an image that did not fail  ¹
 ├── InvalidMediaAttribute                 INVALID     file name or alt text too long / empty, bad checksum  ¹
 ├── FailedJobNotFound                     NOT_FOUND   retried or deleted already, or never there (2026-09-29)
-└── FailedJobNotRetryable                 CONFLICT    it failed on a queue other than the database one: delete it (2026-09-29)
+├── FailedJobNotRetryable                 CONFLICT    it failed on a queue other than the database one: delete it (2026-09-29)
+└── BaseStoreAlwaysActive                 CONFLICT    turning the base store off (2026-10-02)
 ```
 
 ¹ Added during implementation, **[DECIDED 2026-09-18]** kept. The approved list had no error for
@@ -972,3 +992,13 @@ in full in that module's specification.
 | B2B step 5 | B2B (whether bank transfer is on) | **A module's line in its settings section** (§1.3): one line at the top of the module's section of the settings page, answered by the module for the store shown — "Bank transfer: on", or "Bank transfer: temporarily off — fill in all three to turn it on". Shown only with the section. Nothing else about settings changes | `docs/modules/b2b.md` amendment 13(c) |
 | B2B step 6 | B2B (the same file in two sections) | **How the library keeps a file name, public** (§1.4): `Modules\Platform\Public\MediaFilename::kept()` answers a name as the media library would keep it — the name alone, without folders, control characters or invisible formatting characters, trimmed of spaces — so a module can compare a name it is given with the names of files it holds. The media model keeps names by the same function; nothing about what is kept changes | `docs/modules/b2b.md` amendment 17(d) |
 | During the B2B stage | Everyone who runs the shop (owner, 2026-09-29) | **Failed jobs** (§3): an admin screen for the queue's failed work — the list, one job's whole error, retry one, delete one — under one admin-only permission, `platform.jobs.manage`, in a new **System** area; a count in the menu and a notice on the admin home while any waits; nothing deleted on its own. The menu entry's count and the home's notice are small additions to the panel, built with it | This section, §3; `docs/modules/frontend.md` E7 |
+
+### 9.5 The owner's new direction — 2026-10-01 and 2026-10-02
+
+Decided by the owner after a client request; applied in place in the sections named. Handoff §0.1
+records the same change for the whole system.
+
+| Date | Sections | Change | Why |
+|---|---|---|---|
+| 2026-10-01 | §1.1, §1.6, §3, §4.2, §5.2, §6.1, §7.3 | **A store is on or off**, switched by a Super Admin only (`ActivateStore` / `DeactivateStore`, the reserved `platform.store.switch`). A new store is created off. An off store answers 404 like an unknown code, leaves every chooser and switcher, and disappears from staff screens except history and the audit log; a Super Admin still sees it to turn it on. Work under way in it continues. Reverses the 2026-09-18 "no status, no lifecycle" | A store is set up before it opens, and may be closed without losing its history |
+| 2026-10-02 | §1.1, §5.2, §7.3 | **The base store**: one store carries the mark (KSA, set by migration and seed), and it is always on (`BaseStoreAlwaysActive`, a CHECK behind it) | The owner: KSA is the main store; the others may all be on, never all off. A mark on the row, not a store code in the business code (handoff §2) |

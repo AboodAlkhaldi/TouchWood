@@ -40,6 +40,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §0 | Everything Access changed between 2026-09-19 and its merge, and the step list | Owner, 2026-09-22 |
 | §1.8, §2.3, §8.3 | The design of record is the handoff of 2026-09-22, which includes a storefront | Owner, 2026-09-22 |
 | §1.8 | A theme is data: campaign themes must be possible without touching a component | Owner, 2026-09-22 |
+| §1.8, §3.6 F1 | **Geist is the design system**: its components, behaviour and all its rules (writing rules included), in TouchWood's look — today's colours a bit sharper, IBM Plex fonts, 10 px corners. Built before any new screen; every built screen moves to it. The store chooser and switchers list **on** stores only (platform.md §1.6) | Owner, 2026-10-01/02 (the new direction) |
 
 ---
 
@@ -213,6 +214,27 @@ How these messages look is in §2.1. *Open (§4):* `FormErrors` is inside Access
 admin screens need the same thing; where the shared version lives is decided with the owner.
 
 ### 1.8 Look: fonts, colours, digits
+
+**[DECIDED 2026-10-01/02, owner] Geist is the design system** (https://vercel.com/geist), for the
+whole system — admin panel and storefront, light and dark:
+
+- **Geist supplies the components, their behaviour and all its rules**, everywhere, its writing rules
+  included: Title Case English buttons that name what happens ("Approve Company", not "Submit"), a
+  destructive action paired with its toast ("Delete Product" → "Product deleted"), `loading` on a
+  button rather than a spinner in its place, a disabled control explained by a tooltip, and the rest
+  on each component's page. Arabic follows the same structure. Where a screen needs something Geist
+  has no component for, it is built from Geist's own parts and rules.
+- **The look stays TouchWood's** (owner's pick from a side-by-side comparison, 2026-10-02): today's
+  colours — navy, copper, blue-grey, the navy admin sidebar — **made a bit sharper** (more contrast),
+  today's fonts (IBM Plex Sans Arabic for both languages, IBM Plex Mono for figures) and today's
+  10 px corners. The colour tokens keep today's names and roles; only their values are sharpened.
+- **A theme is still data** (below): Geist's components read our tokens, so light, dark and campaign
+  themes keep working without touching a component.
+- **Order:** the Geist foundation is built before any new screen (B2B step 7 included), and every
+  screen built so far moves to it, in batches. Some of Geist's pages need the owner's Vercel login.
+- The paragraphs below stand where they do not contradict these: the v2 design's **colours, fonts and
+  layouts** remain the source of the look; its **components and their behaviour** give way to
+  Geist's.
 
 **[DECIDED 2026-09-19, design of record replaced 2026-09-22]** The owner's design decides fonts,
 colours, spacing and layouts. The design of record is now the handoff of 2026-09-22 in

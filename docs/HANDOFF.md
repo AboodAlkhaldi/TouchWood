@@ -106,6 +106,14 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-09-21 | §7.5, §7.6, §7.9 | From the reviews of the whole Access module: the settings permission is split — the staff security numbers are admin-only (`access.staff_settings.update`), a store's own settings stay ordinary; a staff member changing their own phone gives their current password first; anonymizing deletes the account's session rows, so the storefront's rows now carry the customer they belong to; an admin's status is not shown to ordinary staff either; one email belongs to one account in both directions (a staff account cannot take a customer's address) | Access step 7, owner decision |
 | 2026-09-22 | §17 | The frontend foundation (stage 2b) has an approved specification, `docs/modules/frontend.md`, revised against the merged Access. It builds in five steps: step 0 the six changes other modules must make, then the foundation with the admin sign-in, the admin screens, Platform's screens, and the storefront with the customer's account | Stage 2b plan, owner decision |
 | 2026-09-26 | §6, §8.2 | Every company account sees company prices from the moment it exists — before its email is confirmed, before any application, and in every company status, `REJECTED` and `SUSPENDED` included (was: `PENDING` only). Ordering still needs `APPROVED`. The prices shown follow the account type (Access), the right to order the company status (B2B) | B2B spec review, owner decision |
+| 2026-10-01 | §1, §14, §16 | **Each store has an on/off switch**, Super Admin only. The base store (KSA) is marked as such on its row and can never be off; a new store is created off. An off store disappears everywhere but history and the audit log. Reverses "all three launch together, no per-store lifecycle" | Owner, after a client request (the new direction) |
+| 2026-10-01 | §4.2, §12.1, §12.2, §12.3, §15.1, §16, §17 | **A provider (Odoo) is wired per store, one way, Super Admin only**: stock and the base price come in by product code, nothing is ever written back. In a wired store an ordinary product's stock does not limit ordering; a **stock-dependent** product (a flag per product per store) counts the provider's stock minus the orders staff have not yet ticked "reduced in the provider". Unwired stores keep today's rules. Low-stock alerts reach admins and staff. Catalog no longer waits for the provider's schema. Was: two-way sync, last write wins | Owner, the new direction |
+| 2026-10-01 | §6, §9.1 | **One shared product table; each store chooses its products**, with its own price and stock. A **Super Admin JSON import** for the first migration and big batches; its format is agreed when Catalog is built | Owner, the new direction |
+| 2026-10-02 | §9.2, §12.1 | **Out of stock is never shown**: lists, search and suggestions hold only what can be ordered now; a direct link shows "Not available now". What "out of stock" means, including "the provider reports 0" — automatic, provisional | Owner, 2026-10-02 |
+| 2026-10-02 | §8.1 | **A company per store**: an account may hold a company in each store it applies in, each with its own application, approval and status | Owner, 2026-10-02 |
+| 2026-10-02 | §13.1 | **Reviews are global per product**: a review shows in every store selling the product | Owner, 2026-10-02 |
+| 2026-10-02 | §14 | **Super Admins are invisible** to admins and staff; only Super Admins see each other; their actions read "System administrator" to anyone else | Owner, 2026-10-02 |
+| 2026-10-01 | §3, §17 | **Geist is the design system** (vercel.com/geist): its components, their behaviour and all its rules, writing rules included, in TouchWood's own look. Built before any new screen; every screen built so far moves to it | Owner, the new direction |
 
 ---
 
@@ -136,7 +144,20 @@ about read models, pagination and query counts in this document traces back to t
 | Egypt (`eg`) | EGP | 14% | Launch |
 | UAE (`ae`) | AED | 5% | Launch |
 
-All three launch together. There is no per-store launch lifecycle.
+**Each store has an on/off switch** (owner, 2026-10-01), and only a **Super Admin** uses it.
+
+- **KSA is the base store** — marked as such on its own row, never named in code (§2 rule 2) — and
+  can never be turned off. Every other store can.
+- **A store added later is created off**, and is turned on once its products, prices and stock are
+  in (§9.1).
+- **An off store disappears**, as if it were never there: its storefront routes, the store chooser,
+  its customers' addresses in it, and the staff screens about it. It remains only in history and the
+  audit log.
+- Customers whose home store is off still sign in and shop in the stores that are on. The off store's
+  open orders stay with staff to finish. A company of an off store cannot order there, and may apply
+  in another store (§8.1).
+
+Was: all three launch together, with no per-store launch lifecycle (§16).
 
 ---
 
@@ -165,7 +186,7 @@ Memorize these. Most defects in a system like this are one of these being violat
 | | |
 |---|---|
 | Backend | Laravel 13, PHP 8.4 |
-| Frontend | Inertia + React + shadcn/ui, SSR enabled |
+| Frontend | Inertia + React + shadcn/ui, SSR enabled. **The design system is Geist** (vercel.com/geist, owner, 2026-10-01): its components, their behaviour and **all its rules, its writing rules included**, everywhere — admin panel and storefront, light and dark — in TouchWood's own look (`docs/modules/frontend.md` §1.8) |
 | Database | PostgreSQL 17 |
 | Cache / queue / sessions | PostgreSQL (Laravel `database` drivers) for now. Redis + Laravel Horizon only when real traffic needs it (owner, 2026-09-18). |
 | Search | PostgreSQL FTS + `pg_trgm`. **No Elasticsearch.** |
@@ -241,7 +262,8 @@ TIER 2 — identity & support
   Shipping     Carriers, fixed rate tables, packaging engine, shipments, tracking
   Payments     Gateway adapters, transactions, manual refunds, bank transfer verification
   Feedback     Reviews, ratings, product questions & answers
-  Sync         External inventory provider adapters, mapping, outbox, conflict log
+  Sync         External provider adapters (one way, per store), code mapping, pull schedule,
+               sync report
 
 TIER 1 — commerce core
   Catalog      Products, variants, categories, brands, attributes, per-store
@@ -804,6 +826,12 @@ Commercial Registration number, Tax Number, plus a document upload area.
 Document types are a **configurable table**, not hardcoded. Known types: VAT certificate,
 commercial registration certificate, authorised signatory ID.
 
+**A company per store** (owner, 2026-10-02, "a two-regions company"). One company account may hold
+a company in **each store it applies in** — each with its own application, approval, status and
+right to order there. Ordering in a store needs **that store's** company to be `APPROVED`. A company
+whose store is turned off cannot order there, and may apply in another store. The details are
+`docs/modules/b2b.md`'s.
+
 ### 8.2 Status — four values only
 
 ```
@@ -862,6 +890,24 @@ pricing, stock, cart and order.
 Product data is identical across every store — name, slug, photos, description,
 attributes — **except price and stock**.
 
+**One shared product table; each store chooses** (owner, 2026-10-01). A store sells only the
+products it has chosen, each with its own price and stock. A store taking up a product another
+store already sells adds only its price and stock — never a second product, photos or text.
+**Product codes** belong to variants, one each, and are the same codes an external provider uses,
+which is how its stock and prices are matched (§12.2).
+
+**The JSON import** (Super Admin only), for the first migration and big batches — staff still add
+products one at a time in the panel:
+
+- **new products** with their details, images and codes, the stores each is chosen in, and each of
+  those stores' price and stock — in one file, so a product and its stores arrive together;
+- **a store's choice** of products that already exist, with its prices and stock.
+
+A preview first, then all-or-nothing. A code that already exists is updated, not refused. In a store
+wired to a provider, the file's prices and stock are ignored with a warning: the provider is their
+source there (§12.2). **The file's format is agreed with the owner when Catalog is built**, not
+before.
+
 Attributes are one of three kinds: informational, filterable, or variant-generating.
 Price is per combination, **never additive**. The backend resolves the variant from the
 selected attribute values; the frontend never computes it.
@@ -878,10 +924,26 @@ force_unavailable  boolean, per store, own permission
 pricing errors and legal holds — stock exists but must not be sold. It does not touch
 stock.
 
+**Out of stock is never shown** (owner, 2026-10-02). A category, a search result, a suggestion —
+every list a customer sees — holds only what can be ordered now; an out-of-stock product does not
+appear at all. Opened directly — an old link, a search engine — its page says **"Not available
+now"**, with no Add to Cart.
+
+A product is out of stock in a store when:
+
+- the store has **no provider**: its stock is used up, as always (§12.1);
+- the store is **wired** (§12.2) and the product is **stock-dependent**: its stock, as §12.1 counts
+  it, is used up;
+- the store is wired and the product is **not** stock-dependent: staff mark it so
+  (`force_unavailable`), **or the provider reports 0** — automatically. This last rule is
+  provisional (owner, 2026-10-02: "let it checked for now"); the owner may change it.
+
+In every store, a product staff mark "Not available now" (`force_unavailable`) is hidden the same way.
+
 Stock consumed by an offline sale is a **movement** with `reason = OFFLINE_SALE`,
-recordable in our admin in **every** store. Where an external provider is connected, it
-can also arrive from there; the idempotency key on `external_ref` prevents double-counting
-when both paths fire.
+recordable in our admin in a store with **no provider**. In a wired store the provider's number
+is the stock (§12.2), so an offline sale is recorded there and arrives with the next pull
+(owner, 2026-10-01: the provider writes to us, never the other way).
 
 ### 9.3 Categories
 
@@ -1130,7 +1192,8 @@ tier system, no per-product earn rate.** Points are the cashback.
 
 Both admin-configured thresholds, nothing more:
 
-- **Gift:** when the order reaches an admin-set amount, a defined gift is attached.
+- **Gift:** when the order reaches an admin-set amount, a defined gift is attached. A gift counts
+  on its stock in every store, wired to a provider or not (owner, 2026-10-01, §12.1).
 - **Free shipping:** when `goods_total` reaches an admin-set amount per store per carrier.
 
 ---
@@ -1142,60 +1205,83 @@ Both admin-configured thresholds, nothing more:
 **One stock pool per store. There is no warehouse entity. Physical locations are outside
 this system's scope.** Do not model warehouses, branches, bins or transfers.
 
+**Two ways a store keeps stock** (owner, 2026-10-01):
+
+- **No provider** — our system is the only source. Every product counts on its stock: orders
+  reserve and reduce it as below, and nobody orders what is not available.
+- **Wired to a provider** (§12.2) — the provider's stock is read in, by product code. **An ordinary
+  product's stock does not limit ordering**: placing an order neither reserves nor reduces it, and a
+  customer may order more than it shows. Staff reduce stock **in the provider**, by hand, as they ship.
+  The product goes out of stock only when the provider reports 0 or staff mark it (§9.2).
+- **Stock-dependent products** — a flag, **off by default, per product per store**, for a wired
+  store's products that must not be oversold. Our figure is **the provider's stock minus the
+  quantities of this store's orders not yet ticked "reduced in the provider"** by staff (§12.3).
+  Staff tick an order once they have reduced its stock in the provider. Whatever the provider sends
+  — a shipment or a refill — simply replaces its number, and the formula stays right; nothing is
+  guessed. With 20 in stock and two orders of one: 20 − 2 = 18. Staff reduce the provider to 19 and
+  tick one: 19 − 1 = 18. A refill to 69: 69 − 1 = 68. The second reduced to 68 and ticked: 68. A
+  stock-dependent product cannot be ordered beyond that figure.
+- **Gift products** (§11.6) count on stock in every store.
+
+**What stock still does for an ordinary product of a wired store:** an **"ending soon"** label for
+customers, only where an admin turns it on; gifts; and **low-stock alerts** — a threshold per product
+per store — to that store's **admins and staff**. Low-stock alerts work the same way in a store with
+no provider.
+
 ```
 available_to_sell = on_hand − reserved − safety_buffer
 ```
 
 Reservation is an **atomic conditional UPDATE** — zero affected rows means insufficient
-stock. No explicit lock, no race, no deadlock.
+stock. No explicit lock, no race, no deadlock. (Reserving applies where stock limits ordering: a
+store with no provider, and stock-dependent products.)
 
-`stock_movements` is an **append-only ledger** with a unique `external_ref`. It doubles as
-the sync mechanism. Reservations expire; a scheduled job releases them.
+`stock_movements` is an **append-only ledger** with a unique `external_ref`. It records what the
+provider sends, too (§12.2). Reservations expire; a scheduled job releases them.
 
-Customers see display bands (in stock / low stock / out of stock), never raw counts.
+Customers never see raw counts. An out-of-stock product is not listed at all (§9.2); a low one may
+say "ending soon" where an admin has turned that on.
 
 **No pre-order, no backorder, no incoming stock column.** A customer cannot order what is
-not available.
+not available — **except** an ordinary product of a wired store, whose stock does not limit
+ordering (above).
 
-### 12.2 External inventory providers (Sync)
+### 12.2 External providers (Sync) — one way, per store
 
-Every store **always reads stock from our own tables**. An external provider is a
-synchronization partner, never a read-time source. **No external call ever happens inside a
-web request.**
+**Rewritten 2026-10-01 (owner).** Was: two-way sync, prices and product details last-write-wins,
+stock as signed movements both ways, a conflict log.
 
-Any store may optionally connect a provider. Odoo is one adapter, not the domain. A store
-with no connection row has the sync layer dormant.
+A store may be **wired** to an external provider. Odoo is the one wanted; it is one adapter, not
+the domain. **Only a Super Admin** wires a store, changes its credentials (the API key) or removes
+the wiring; admins and staff have nothing to do with it. **Each store has its own connection and is
+isolated** — wiring one store changes nothing in another — and every wired store behaves the same
+way. A store with no connection has the sync layer dormant.
 
-**Connection is all-or-nothing per store** — if a provider is connected, every product in
-that store syncs.
+- **One way: provider → us.** By **product code** (one per variant, the same in both systems), we
+  read each product's **stock** and its **base retail price** — with the provider's discount and its
+  expiry, where it has one. **We never write to the provider**: not stock, not prices, not orders.
+- **We pull**, every few minutes, with the store's credentials, plus a **"Sync now"** action.
+  The storefront always reads our own tables: **no external call ever happens inside a web request.**
+- A code the provider sends that we do not have is **reported, never created**. A product of ours
+  the provider does not know keeps its own values, and is reported too.
+- **Stock** arrives as the provider's number for the product. It is recorded through the ledger
+  (§12.1) — a movement to the new value, with an idempotency ref — never silently lost. What a wired
+  store does with it is §12.1's.
+- Bulk changes are batched, never one job per product. A failure is retried, then halts that one
+  entity, tells staff, and offers a screen to retry; nothing is rolled back.
 
-Rules:
+**Price mapping.** Only two rows ever come from the provider, and both are **read-only in our panel**
+for a wired store. Everything else is ours exclusively:
 
-- **Stock** syncs as **signed movements** with idempotency refs, never absolute quantities.
-  Absolute values are used only for nightly reconciliation and never silently overwrite.
-- **Prices and product details** sync **last-write-wins in both directions**. Neither side
-  "wins" by rule; the most recent edit applies. Every resolution writes a
-  `sync_conflicts` row so a lost edit is visible rather than silent.
-- Event-driven both ways on edit, a 15-minute cursor poll as a safety net, a nightly full
-  reconciliation that **reports** drift without auto-correcting.
-- FIFO **per entity**, not one global queue.
-- Failure is halt-and-escalate, never rollback: four attempts, then dead-letter, halt that
-  entity's FIFO only, notify staff, admin screen to retry or resolve.
-- Loop prevention by origin tagging **plus** content checksum. Both required.
-
-**Price mapping.** Only two rows ever sync. Everything else is ours exclusively:
-
-| External field | Maps to |
+| Provider field | Maps to |
 |---|---|
 | Product price | `kind = BASE`, `audience = PUBLIC`, min_qty 1, no dates |
 | Discount + expiry | `kind = SALE`, `audience = PUBLIC`, dated |
-| — | Wholesale tiers, company prices, campaign prices — **never synced** |
+| — | Wholesale tiers, company prices, campaign prices — **ours, never from the provider** |
 
-When an external discount expires, the SALE row's window closes and BASE resolves again on
+When a provider discount expires, the SALE row's window closes and BASE resolves again on
 its own. The original price was never overwritten, so there is nothing to restore and
 nothing to lose.
-
-Bulk external price changes must batch, not fire one job per product.
 
 ### 12.3 Sales
 
@@ -1215,6 +1301,12 @@ something. All validation happens at Quote.
 All orders, individual and company, pass **manual staff approval**. Historical orders never
 change when the catalog changes — everything is snapshotted.
 
+**Orders in a wired store** (owner, 2026-10-01, §12.1): placing one neither reserves nor reduces an
+ordinary product's stock; staff reduce stock in the provider by hand. An order holding a
+**stock-dependent** product carries a **"reduced in the provider"** tick, which staff set once they
+have reduced its stock there, and which shows them which orders are still to be reduced — the
+product's stock figure counts on it.
+
 **Four independent state machines:** order, payment, fulfilment (per shipment), return.
 The customer sees **one derived status**; staff see all four.
 
@@ -1222,7 +1314,7 @@ Customer-facing statuses from the design: New · Processing · Shipped · Delive
 Cancelled · Refunded.
 
 **Cancellation.** The customer clicks cancel, selects a reason, confirms. Status → 
-`CANCELLED`, staff notified, stock released, points reversed. The self-serve window
+`CANCELLED`, staff notified, stock released where it was reserved (§12.1), points reversed. The self-serve window
 **closes at `SHIPPED`** — once the parcel is with the carrier it becomes a return, not a
 cancellation. If the order was paid, the refund is manual (§12.4).
 
@@ -1287,7 +1379,8 @@ external system — do not rebuild invoicing here.
 ### 13.1 Feedback
 
 **Reviews.** Rating plus text, tied to a verified purchase, showing the purchased variant.
-Aggregated rating and count cached on the product. Staff moderation. A translate button
+**Global per product** (owner, 2026-10-02): a review written in one store shows in every store that
+sells the product, and its rating counts in each. Aggregated rating and count cached on the product. Staff moderation. A translate button
 appears only when the review's language differs from the interface language, and after
 translating it becomes "show original".
 
@@ -1377,6 +1470,15 @@ Everything is **store-scoped**. An admin may own KSA and Egypt and have no autho
 UAE; their staff inherit that boundary. Only a Super Admin (created by console command) assigns
 admins and their scopes. Navigation renders from the permission set.
 
+**Super Admins are invisible** to admins and staff (owner, 2026-10-02) — not listed, not counted,
+not named: not even their existence. Only Super Admins see each other, in a **Super Admins section**
+of their own; a Super Admin never appears in the admins section. In the audit log, an action a Super
+Admin took reads, to anyone else, as **"System administrator"**, with no name — the entry itself
+stays. The details are `docs/modules/access.md`'s.
+
+**Super Admin only:** the store switch (§1) and a store's provider wiring (§12.2), besides what
+was already theirs.
+
 **Dashboard** — charts giving a quick read on the store: sales and goods for the month,
 three months and year; total orders; orders not yet shipped; completed orders; cancelled
 orders; low stock; pending company approvals; recent orders. Plus a monthly sales target
@@ -1421,7 +1523,7 @@ Example roles: Owner · Catalog manager · Order fulfilment · Company accounts 
 
 | Item | Blocks |
 |---|---|
-| **External provider schema, credentials, real product sample** | Catalog, Pricing, Inventory, Sync — the longest pole |
+| **External provider: API access for each wired store, and a real product sample** | **Sync only.** Since 2026-10-01 products come from our own JSON import (§9.1) and the provider only feeds stock and the base price by code (§12.2), so Catalog, Pricing and Inventory no longer wait for it |
 | MyFatoorah API docs and sandbox | Payments |
 | Egypt and UAE gateway choice | Payments |
 | Box list with inner dimensions and max weights | Shipping packaging |
@@ -1489,14 +1591,14 @@ that is the signal to stop.
 | Company-restricted wholesale | Wholesale is public, gated by MOQ |
 | Warehouses, branches, stock locations | One pool per store |
 | Per-product tax classes, zero-rating | Fixed percentage per store |
-| Pre-order / backorder / incoming stock | Cannot order what is unavailable |
+| Pre-order / backorder / incoming stock | Cannot order what is unavailable — **except** an ordinary product of a store wired to a provider, whose stock does not limit ordering (owner, 2026-10-01, §12.1) |
 | A boolean out-of-stock flag | Stock movements |
 | Live chat, ticketing, contact channels | Product Q&A + a WhatsApp link |
 | Cost of goods, profit reporting | Revenue reporting only |
 | Favourites ranking report | The wishlist feature alone |
 | A table per brand | One `brand_id` column |
 | A separate Tallsen category tree | One global tree, filtered by brand |
-| Per-store launch lifecycle | All three launch together |
+| ~~Per-store launch lifecycle~~ | **Reversed by the owner, 2026-10-01:** each store has an on/off switch, the base store always on (§1) |
 | Two coupons on one order | One code per order |
 | All-or-nothing coupon rejection on mixed carts | Line-level application |
 
@@ -1510,9 +1612,11 @@ STAGE 2   Access        identity, auth, verification, RBAC, staff, addresses, 2F
 STAGE 2b  Frontend      Inertia + React + shadcn with SSR; auth pages, admin sign-in,
           foundation    Platform's admin screens
 STAGE 3   B2B           company lifecycle
+          Geist         the design system (§3) — before any new screen, B2B step 7 included;
+          foundation    every screen built so far moves to it
 ──────── everything above depends on nothing external ────────
-STAGE 4   Catalog       BLOCKED on the external provider schema
-STAGE 5   Pricing · Inventory · Sync
+STAGE 4   Catalog       products from our own JSON import (§9.1) — no longer blocked
+STAGE 5   Pricing · Inventory · Sync   (Sync waits for provider API access, §15.1)
 STAGE 6   Sales · Promotions · Loyalty · Feedback
 STAGE 7   Payments · Shipping     (blocked on vendor data)
 STAGE 8   Content · Ops
@@ -1528,8 +1632,10 @@ accounts (4a); customer sign-in and guests (4b); addresses; deletion, blocking
 and staff views; its README and review. Its HTTP endpoints are those of the sign-in flows; staff
 and role management endpoints come with their screens in stage 2b.
 
-Stages 1–3 depend on nothing external, which is why they run first while the provider
-schema is being chased.
+Stages 1–3 depend on nothing external, which is why they ran first while the provider
+schema was being chased. Since 2026-10-01 (owner) the provider no longer shapes the catalog —
+products come from our own import, and the provider only feeds stock and the base price by code —
+so Catalog may start while B2B finishes, in its own worktree (`docs/AGENT-BRIEF.md`).
 
 Feedback is built with Sales: a review needs a verified purchase (Sales) and a question is
 attached to a product (Catalog), so it cannot be built before both exist.

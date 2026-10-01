@@ -57,8 +57,8 @@ is global).
 | `phone` | E.164 (`+9665…`), **any country, unique across customers** **[DECIDED 2026-09-18]**. Null until the first phone is verified; **never null again** once set (handoff §7.3). |
 | `phone_verified_at` | Set with `phone`. |
 | `locale` | `ar` or `en`: the page's language at registration, editable. Emails and SMS use it (handoff §5.2). |
-| `home_store_id` | **The store the account was registered in, fixed [DECIDED 2026-09-19].** It decides which store's staff see the customer (§3.3). The customer can shop in every store. |
-| `last_store_id` | The last store the customer used. After signing in — on any device — they land there **[DECIDED 2026-09-19]**; emails sent later (not during a request) link to it. |
+| `home_store_id` | **The store the account was registered in, fixed [DECIDED 2026-09-19].** It decides which store's staff see the customer (§3.3). The customer can shop in every store. **When it is off** (owner, 2026-10-01, amendment 53), the account keeps working: they sign in and shop in the stores that are on; their home store's pages are closed to them like to everyone. |
+| `last_store_id` | The last store the customer used. After signing in — on any device — they land there **[DECIDED 2026-09-19]**; emails sent later (not during a request) link to it. When that store is off, they land on the store chooser instead (amendment 53). |
 | `terms_version`, `terms_accepted_at` | The terms and privacy policy accepted at registration, and when **[DECIDED 2026-09-19]**. |
 | `deletion_scheduled_for` | Set while a deletion is pending (§1.10). |
 | `anonymized_at` | Set once the account is anonymized. |
@@ -303,6 +303,13 @@ creates admins and sets their store scope.
   remove a Super Admin there, so a hijacked admin session cannot mint or remove one. A Super Admin
   edits only their own profile, password and phone. More than one may exist.
 - A Super Admin holds every permission in every store, including reserved ones. They have no role.
+- **Invisible to admins and staff** (amendment 43(a); owner, 2026-10-02, amendment 54): not
+  listed, not counted, not named — not even their existence — and asked for by id, the answer is
+  the one for an id that never existed. Only Super Admins see each other, in a **Super Admins
+  section of their own**, never inside the admins section. Wherever a staff member is named to
+  someone else — the audit log's actor, "invited by", a decision's "decided by" in another module —
+  a Super Admin reads, to anyone but a Super Admin, as **"System administrator"**, with no name, no
+  id and no link. The entry or the record itself stays.
 
 ### 1.7 Guest
 
@@ -372,6 +379,10 @@ another. **[DECIDED 2026-09-19]:**
 
 - **The customer first picks the country**, from our stores' countries only (KSA, UAE, Egypt). The
   address belongs to that country's store, and **that store's scheme** appears.
+- **An off store** (platform.md §1.6, owner 2026-10-01, amendment 53): its country is not offered,
+  and the addresses saved in it are **hidden, not deleted** — the address book, checkout and every
+  other module's read (`AccessApi::address()`, `addresses()`) leave them out while the store is off,
+  and they return as they were when it is turned back on.
 - **One scheme for all three today**, but each store keeps its own copy, so one country's scheme
   can change later — as data, with no deploy — without touching the others.
 - The scheme's fields: `country_code` (from the chosen store), `administrative_area` (region,
@@ -615,7 +626,7 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | Use case | Audience | Permission | Scope |
 |---|---|---|---|
 | `ListCustomers` / `ViewCustomer` — the account, contacts and addresses (amendment 43) | role | `access.customer.view` | The customer's home store |
-| `ListStaff` / `ViewStaff` — an admin as a name and a role only, with no contact details, stores, joining date or status (amendments 43, 44(e), 46(d)); a Super Admin not at all (amendment 43) | role | `access.staff.view` | Every store of the staff member |
+| `ListStaff` / `ViewStaff` — an admin as a name and a role only, with no contact details, stores, joining date or status (amendments 43, 44(e), 46(d)); a Super Admin not at all (amendment 43); to a Super Admin, the Super Admins as a section of their own, never among the admins (amendment 54) | role | `access.staff.view` | Every store of the staff member |
 | `BlockCustomer` / `UnblockCustomer` — with a reason | role, **admin-only** (amendment 43) | `access.customer.block` | The customer's home store |
 | `DeleteCustomerOnRequest` / `CancelCustomerDeletion` — the same 14-day deletion, with a reason | role, **admin-only** (amendment 43) | `access.customer.delete` | The customer's home store |
 | `UpdateStoreAddressFormat` | role | `access.address_format.update` | That store |
@@ -1027,3 +1038,5 @@ admin's name and role only, and a Super Admin not at all (owner, 2026-09-20; ame
 | 50 | §2.4 | **What other modules add to the shop's frame** (B2B step 6; b2b.md amendment 14(a), (c)): two registries in Access's public contract. (a) **`CustomerAccountPages`**: a module registers a page for the account's side list — its route, the account type it is for (or every account), its position; every shop page shares the account's own tabs and the pages for the signed-in customer's type as `accountMenu`, and the list shows the pages above the tabs, as links, the tabs becoming links on another module's page. (b) **`ShopperLines`**: a module registers a `ShopperLine`, asked for the signed-in customer — their id, account type and whether their email is confirmed — for one line under the header or none, shared as `shopperLines` with its text, the route it links to and its tone (`info`, `warn`, `bad`); a visitor is asked nothing. (c) The account's tabs move from the page's controller to `CustomerAccountTabs`, one list for the page and the frame. The three shared values read the customer once. | B2B's company page needs a place in the account and a line on every shop page for a company that cannot order; the frame is Access's, and a registry keeps it from knowing B2B, as Platform's admin menu does for the panel. | Owner, 2026-09-30 |
 | 51 | §2.4, frontend.md F9 | **Back to the page that sent the customer to their addresses** (B2B step 6; b2b.md amendment 16(f)): the account's Addresses tab accepts `return`, naming one of the pages other modules registered for the customer's account type (`CustomerAccountPages`, amendment 50) — `b2b.company`, say. After an address is saved there, the customer lands on that page instead of back on the tab. Any other value is ignored, so the parameter can never send anybody off the shop. | A company picks its registered address from its saved addresses; with none saved, it adds one and must come straight back to the application it was filling. | Owner, 2026-09-30 |
 | 52 | §2.4, frontend.md F9 | **The way back survives the other changes on the tab** (B2B step 6; b2b.md amendment 17): making an address the default or deleting one keeps `return` on the Addresses tab, so a customer who came from another page, tidies their addresses and then saves one still lands back on that page. Only a page registered for the account's type is carried, as in amendment 51. | The review of b2b.md amendment 16 found the way back lost after a delete or a new default; the owner took the recommended fix. | Owner, 2026-10-01 |
+| 53 | §1.1, §1.9, §3.3 | **An off store** (platform.md §1.6; owner, 2026-10-01, the new direction): its country is not offered for a new address, and the addresses saved in it are **hidden, not deleted** — from the address book, checkout and every other module's read — until it is on again. **Customers whose home store is off** keep their account: they sign in and shop in the stores that are on, landing on the store chooser when their last store is off. **Staff whose only stores are off** still sign in, and see no store data until one is on again. | A store may be closed without losing its customers, their addresses or its history. | Owner, 2026-10-01 |
+| 54 | §1.6, §3.3 | **Super Admins are invisible** (owner, 2026-10-02), extending amendment 43(a): only Super Admins see each other, in a **Super Admins section of their own**, never among the admins. Wherever a staff member is named to someone else — the audit log's actor, "invited by", a decision's "decided by" in another module — a Super Admin reads, to anyone but a Super Admin, as **"System administrator"**, with no name, no id and no link; the entry itself stays. Access supplies the names other modules show, so the rule is kept in one place. | "No one can see the super admin account or his existence, not admins, not staff." | Owner, 2026-10-02 |
