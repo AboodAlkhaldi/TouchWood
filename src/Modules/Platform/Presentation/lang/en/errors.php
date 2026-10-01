@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 return [
+    'base_store_always_active' => [
+        'title' => 'Base store is always on',
+        'detail' => 'Couldn\'t turn off the store ":code". The base store is always on.',
+    ],
     'store_not_found' => [
         'title' => 'Store not found',
         'detail' => 'There is no store with the code ":code".',

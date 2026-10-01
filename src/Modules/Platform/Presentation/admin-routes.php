@@ -25,6 +25,9 @@ Route::prefix(AdminArea::PREFIX)
     ->group(function (): void {
         Route::get('stores', [StoresController::class, 'index'])->name('platform.admin.stores');
         Route::post('stores/{store}', [StoresController::class, 'update'])->name('platform.admin.stores.update');
+        // The on/off switch: a Super Admin only, and never the base store off (owner, 2026-10-01).
+        Route::post('stores/{store}/activate', [StoresController::class, 'activate'])->name('platform.admin.stores.activate');
+        Route::post('stores/{store}/deactivate', [StoresController::class, 'deactivate'])->name('platform.admin.stores.deactivate');
 
         // Currencies belong to no store, and both permissions are reserved, so only a Super Admin
         // ever sees this screen [DECIDED 2026-09-19].

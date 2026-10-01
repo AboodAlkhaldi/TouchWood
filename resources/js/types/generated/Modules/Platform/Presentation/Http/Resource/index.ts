@@ -143,8 +143,12 @@ taxRatePercent: string,
 timezone: string,
 position: number,
 editable: boolean,
+isActive: boolean,
+isBase: boolean,
+switchable: boolean,
 };
 export type StoresPage = {
 stores: StoreRow[],
 timezones: string[],
+maySwitch: boolean,
 };

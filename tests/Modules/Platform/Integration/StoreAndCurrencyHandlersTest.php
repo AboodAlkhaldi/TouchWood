@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Modules\Platform\Application\Command\ActivateStore\ActivateStore;
+use Modules\Platform\Application\Command\ActivateStore\ActivateStoreHandler;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
@@ -37,9 +39,14 @@ function givenCurrency(string $code = 'XTS', ?string $sign = "\u{20C1}"): void
     app(CreateCurrencyHandler::class)->handle(new CreateCurrency($code, 2, 'عملة', 'Currency', 'ع.ت', $code, $sign));
 }
 
+/**
+ * A store, created and then turned on, as a Super Admin opens one: a new store is created off, and
+ * an off store is as if it were never there to other modules (platform.md §1.6, owner 2026-10-01).
+ */
 function givenStore(string $code = 'xa', string $currency = 'XTS', int $position = 1): void
 {
     app(CreateStoreHandler::class)->handle(new CreateStore($code, 'متجر '.$code, 'Store '.$code, 'XA', $currency, 1500, 'Asia/Riyadh', $position));
+    app(ActivateStoreHandler::class)->handle(new ActivateStore($code));
 }
 
 function platform(): PlatformApi

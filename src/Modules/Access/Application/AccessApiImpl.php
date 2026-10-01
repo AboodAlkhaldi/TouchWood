@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Application;
 
 use Modules\Access\Application\Address\AddressMapper;
+use Modules\Access\Application\Address\OpenStores;
 use Modules\Access\Application\Customer\CustomerMapper;
 use Modules\Access\Application\Staff\StaffMapper;
 use Modules\Access\Domain\Repository\AddressRepository;
@@ -27,6 +28,7 @@ final readonly class AccessApiImpl implements AccessApi
         private CustomerMapper $customerMapper,
         private AddressRepository $addresses,
         private AddressMapper $addressMapper,
+        private OpenStores $openStores,
     ) {}
 
     public function customer(string $customerId): ?CustomerDto
@@ -63,15 +65,26 @@ final readonly class AccessApiImpl implements AccessApi
         return $preferences;
     }
 
+    /**
+     * An address in an off store is hidden, not deleted (amendment 53): it answers as no address
+     * until the store is on again.
+     */
     public function address(string $addressId): ?AddressDto
     {
         $address = $this->addresses->find($addressId);
 
-        return $address === null ? null : $this->addressMapper->toDto($address);
+        return $address === null || ! $this->openStores->isOn($address->storeId()) ? null : $this->addressMapper->toDto($address);
     }
 
+    /**
+     * None while the store is off (amendment 53); they come back as they were when it is on again.
+     */
     public function addresses(string $customerId, string $storeId): array
     {
+        if (! $this->openStores->isOn($storeId)) {
+            return [];
+        }
+
         return $this->addressMapper->toDtos($this->addresses->forCustomerInStore($customerId, $storeId));
     }
 }

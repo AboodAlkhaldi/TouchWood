@@ -8,6 +8,7 @@ return [
         'create' => 'Create stores',
         'update' => 'Edit stores',
         'view' => 'View stores',
+        'switch' => 'Turn stores on and off',
     ],
     'currency' => [
         'create' => 'Create currencies',
