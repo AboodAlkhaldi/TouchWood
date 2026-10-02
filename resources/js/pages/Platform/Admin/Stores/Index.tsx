@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useForm } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { FormError } from '@/components/FormError';
-import { Button, Description, EmptyState, Input, Select } from '@/components/geist';
+import { DialogError, FormError } from '@/components/FormError';
+import { Badge, Button, Description, EmptyState, Input, Modal, ModalCancel, Note, Select } from '@/components/geist';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { StoreRow, StoresPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
@@ -22,11 +22,16 @@ import type { StoreRow, StoresPage } from '@/types/generated/Modules/Platform/Pr
 | *is*. Platform refuses an attempt to change them rather than ignoring it, and the card says so -
 | as Geist's Description, beside the sentence that explains them, in the footer by the save button
 | as Geist's Fieldset lays a section out.
+|
+| The on/off switch (platform.md §1.1, §9.5; owner, 2026-10-01) is a Super Admin's alone, so only
+| they see a store's state and an off store at all. Turning one on just posts; turning one off is
+| asked first, in a destructive dialog whose button and toast share the verb ("Turn Store Off" →
+| "Store turned off"). The base store is never off: its button stays, disabled, saying why.
 */
 
 type Props = StoresPage;
 
-export default function Index({ stores, timezones }: Props) {
+export default function Index({ stores, timezones, maySwitch }: Props) {
     const t = useTranslator();
     const [editing, setEditing] = useState<string | null>(null);
 
@@ -45,6 +50,7 @@ export default function Index({ stores, timezones }: Props) {
                         <Card
                             key={store.id}
                             store={store}
+                            maySwitch={maySwitch}
                             timezones={timezones}
                             open={editing === store.id}
                             onOpen={() => setEditing(editing === store.id ? null : store.id)}
@@ -61,14 +67,25 @@ export default function Index({ stores, timezones }: Props) {
 
 type CardProps = {
     store: StoreRow;
+    maySwitch: boolean;
     timezones: string[];
     open: boolean;
     onOpen: () => void;
     onDone: () => void;
 };
 
-function Card({ store, timezones, open, onOpen, onDone }: CardProps) {
+function Card({ store, maySwitch, timezones, open, onOpen, onDone }: CardProps) {
     const t = useTranslator();
+    const [confirmingOff, setConfirmingOff] = useState(false);
+    const [switching, setSwitching] = useState(false);
+
+    const turn = (way: 'activate' | 'deactivate', onSuccess?: () => void) =>
+        router.post(`/admin/stores/${store.code}/${way}`, {}, {
+            preserveScroll: true,
+            onStart: () => setSwitching(true),
+            onSuccess,
+            onFinish: () => setSwitching(false),
+        });
 
     const form = useForm({
         name_ar: store.nameAr,
@@ -82,7 +99,16 @@ function Card({ store, timezones, open, onOpen, onDone }: CardProps) {
         <section className="material-base overflow-hidden">
             <header className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                 <div className="grid gap-0.5">
-                    <h2 className="text-heading-16 text-ink">{store.name}</h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-heading-16 text-ink">{store.name}</h2>
+                        {/* The state is only a Super Admin's to see, as an off store is (§1.6). */}
+                        {maySwitch ? (
+                            <Badge variant={store.isActive ? 'green-subtle' : 'gray-subtle'} data-test={`state-${store.code}`}>
+                                {t(store.isActive ? 'platform::admin_stores.on' : 'platform::admin_stores.off')}
+                            </Badge>
+                        ) : null}
+                        {maySwitch && store.isBase ? <Badge variant="blue-subtle">{t('platform::admin_stores.base')}</Badge> : null}
+                    </div>
                     <p className="text-copy-13 text-ink-muted">
                         <span className="tw-figure">{store.code.toUpperCase()}</span> ·{' '}
                         {store.currencyCode} {store.currencySymbol} ·{' '}
@@ -90,12 +116,66 @@ function Card({ store, timezones, open, onOpen, onDone }: CardProps) {
                     </p>
                 </div>
 
-                {store.editable ? (
-                    <Button type="secondary" data-test={`edit-${store.code}`} onClick={onOpen}>
-                        {t(open ? 'platform::admin_stores.cancel' : 'platform::admin_stores.edit')}
-                    </Button>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                    {maySwitch && !store.isActive ? (
+                        <Button
+                            type="secondary"
+                            loading={switching}
+                            disabledReason={store.switchable ? undefined : t('platform::admin_stores.base_hint')}
+                            data-test={`turn-on-${store.code}`}
+                            onClick={() => turn('activate')}
+                        >
+                            {t('platform::admin_stores.turn_on')}
+                        </Button>
+                    ) : null}
+                    {maySwitch && store.isActive ? (
+                        <Button
+                            type="error"
+                            disabledReason={store.switchable ? undefined : t('platform::admin_stores.base_hint')}
+                            data-test={`turn-off-${store.code}`}
+                            onClick={() => setConfirmingOff(true)}
+                        >
+                            {t('platform::admin_stores.turn_off')}
+                        </Button>
+                    ) : null}
+                    {store.editable ? (
+                        <Button type="secondary" data-test={`edit-${store.code}`} onClick={onOpen}>
+                            {t(open ? 'platform::admin_stores.cancel' : 'platform::admin_stores.edit')}
+                        </Button>
+                    ) : null}
+                </div>
             </header>
+
+            {maySwitch && !store.isActive ? (
+                <div className="px-5 pb-4">
+                    <Note variant="secondary" size="small">
+                        {t('platform::admin_stores.off_hint')}
+                    </Note>
+                </div>
+            ) : null}
+
+            <Modal
+                open={confirmingOff}
+                onOpenChange={(next) => (switching ? undefined : setConfirmingOff(next))}
+                destructive
+                title={t('platform::admin_stores.turn_off')}
+                description={t('platform::admin_stores.turn_off_confirm', { name: store.name })}
+                actions={
+                    <>
+                        <ModalCancel onClick={() => setConfirmingOff(false)} disabled={switching} />
+                        <Button
+                            type="error"
+                            loading={switching}
+                            data-test={`confirm-turn-off-${store.code}`}
+                            onClick={() => turn('deactivate', () => setConfirmingOff(false))}
+                        >
+                            {t('platform::admin_stores.turn_off')}
+                        </Button>
+                    </>
+                }
+            >
+                <DialogError open={confirmingOff} />
+            </Modal>
 
             {open ? (
                 <form
