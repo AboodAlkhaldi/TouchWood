@@ -16,7 +16,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 final class StaffApplicationData extends Data
 {
     /**
-     * @param  list<CompanyFileData>  $documents
+     * @param  list<StaffFileData>  $documents
      * @param  list<CompanyFlagData>  $flags  what this application's rejection marked
      * @param  list<CompanyRequestData>  $requests  what this application's rejection asked for
      * @param  list<StaffAnswerData>  $answers  this application's answers to the previous one's requests

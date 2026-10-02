@@ -105,6 +105,7 @@ export type StaffAnswerData = {
 requestId: string,
 label: string | null,
 text: string | null,
+isFile: boolean,
 mediaId: string | null,
 fileName: string | null,
 };
@@ -117,7 +118,7 @@ submittedAt: string | null,
 decidedAt: string | null,
 decidedBy: string | null,
 decisionReason: string | null,
-documents: CompanyFileData[],
+documents: StaffFileData[],
 flags: CompanyFlagData[],
 requests: CompanyRequestData[],
 answers: StaffAnswerData[],
@@ -170,6 +171,14 @@ storeName: string,
 waitingSince: string | null,
 typeDeactivatedSinceSent: boolean,
 statusChangedAt: string | null,
+};
+export type StaffFileData = {
+documentTypeId: string,
+documentTypeNameAr: string | null,
+documentTypeNameEn: string | null,
+mediaId: string | null,
+fileName: string,
+uploadedAt: string,
 };
 export type StaffHolderData = {
 name: string,

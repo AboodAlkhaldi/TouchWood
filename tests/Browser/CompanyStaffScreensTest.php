@@ -177,10 +177,34 @@ it('rejects with a marked item and a request, then suspends from the menu and re
     $page->assertNoJavaScriptErrors();
 });
 
-it('marks a store\'s lists reviewed, adds a company type and deactivates it from its row', function () {
+it('says why Approve and Open File are disabled, beside each', function () {
+    // A company still "Other", read by a reviewer who may not open company papers.
+    $company = companyStaffBrowserWaiting();
+    DB::table('b2b.companies')->where('id', $company->id())->update(['company_type_id' => null, 'company_type_other' => 'Trading house']);
+    $page = companyStaffBrowserSignIn([B2BPermissions::COMPANY_VIEW, B2BPermissions::COMPANY_REVIEW]);
+    $page->navigate("/admin/companies/{$company->id()}");
+
+    // Disabled, and still there to point at, so the reason can be read (Geist's Button rules). A real
+    // pointer over it, not a scripted focus(), which did not reliably reach React here.
+    expect(companyStaffBrowserUntil($page, "document.querySelector('[data-test=\"approve\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
+    $page->hover('[data-test="approve"]');
+    expect(companyStaffBrowserUntil($page, "document.body.innerText.includes('Correct the company type to a listed type first.')"))->toBeTrue();
+
+    $paper = B2BFixtures::documentTypes()[0]->id();
+    expect(companyStaffBrowserUntil($page, "document.querySelector('[data-test=\"open-{$paper}\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue()
+        // Nothing on the page names the file: no link to it, no id in an attribute (amendment 8(c)).
+        ->and($page->script("document.querySelectorAll('a[href*=\"/files/\"]').length"))->toBe(0);
+    $page->hover("[data-test=\"open-{$paper}\"]");
+    expect(companyStaffBrowserUntil($page, "document.body.innerText.includes('Opening company papers is not one of your jobs.')"))->toBeTrue();
+
+    $page->assertNoJavaScriptErrors();
+});
+
+it('marks a store\'s lists reviewed, adds a company type, moves its holders off it and deactivates it', function () {
     // The third store's lists, which no other browser test reads; shown as copied again for this run.
     DB::table('b2b.store_type_lists')->where('store_id', Fx::storeId('ae'))->update(['copied_not_reviewed' => true]);
     $english = 'Browser Type '.substr((string) Str::ulid(), -8);
+    $holder = companyStaffBrowserWaiting();
     $page = companyStaffBrowserSignIn([
         B2BPermissions::COMPANY_TYPE_CREATE,
         B2BPermissions::COMPANY_TYPE_UPDATE,
@@ -207,12 +231,22 @@ it('marks a store\'s lists reviewed, adds a company type and deactivates it from
     $typeId = (string) DB::table('b2b.company_types')->where('store_id', Fx::storeId('ae'))->where('name_en', $english)->value('id');
     expect($typeId)->not->toBe('');
 
-    $page->click("[data-test=\"type-actions-{$typeId}\"]")
+    // A company of this store holds the new type, so deactivating it asks what happens to it.
+    DB::table('b2b.companies')->where('id', $holder->id())->update(['home_store_id' => Fx::storeId('ae'), 'company_type_id' => $typeId]);
+    $replacement = collect(B2BFixtures::companyTypes('ae'))->first(fn ($type): bool => $type->isActive() && $type->id() !== $typeId)?->id();
+    expect($replacement)->not->toBeNull();
+
+    $page->navigate('/admin/company-types')
+        ->click("[data-test=\"type-actions-{$typeId}\"]")
         ->click('[data-test="deactivate-type"]')
+        ->assertVisible('[data-test="holders-choice"]')
+        ->click('#holders-replace')
+        ->select('#deactivate-replacement', (string) $replacement)
         ->click('[data-test="confirm-deactivate"]');
 
     expect(companyStaffBrowserUntil($page, companyStaffBrowserText("[data-test=\"type-{$typeId}\"] [data-test=\"type-state\"]").".includes('Hidden')"))->toBeTrue()
-        ->and((bool) DB::table('b2b.company_types')->where('id', $typeId)->value('is_active'))->toBeFalse();
+        ->and((bool) DB::table('b2b.company_types')->where('id', $typeId)->value('is_active'))->toBeFalse()
+        ->and(DB::table('b2b.companies')->where('id', $holder->id())->value('company_type_id'))->toBe($replacement);
 
     $page->assertNoJavaScriptErrors();
 });

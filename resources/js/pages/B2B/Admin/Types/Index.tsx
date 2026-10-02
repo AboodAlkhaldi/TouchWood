@@ -43,6 +43,7 @@ export default function Index({ kind: listed, storeName, copiedNotReviewed, type
     const t = useTranslator();
     const kind: Kind = listed === 'document' ? 'document' : 'company';
     const [dialog, setDialog] = useState<Dialog>(null);
+    const [reviewing, setReviewing] = useState(false);
     const close = (open: boolean) => (open ? undefined : setDialog(null));
 
     const tabs: TabItem[] = [
@@ -83,7 +84,14 @@ export default function Index({ kind: listed, storeName, copiedNotReviewed, type
                                 <Button
                                     type="secondary"
                                     size="small"
-                                    onClick={() => router.post('/admin/type-lists/reviewed', {}, { preserveScroll: true })}
+                                    loading={reviewing}
+                                    onClick={() =>
+                                        router.post(
+                                            '/admin/type-lists/reviewed',
+                                            {},
+                                            { preserveScroll: true, onStart: () => setReviewing(true), onFinish: () => setReviewing(false) },
+                                        )
+                                    }
                                     data-test="mark-reviewed"
                                 >
                                     {t('b2b::admin_types.copied.button')}
@@ -96,7 +104,11 @@ export default function Index({ kind: listed, storeName, copiedNotReviewed, type
                 ) : null}
 
                 {types.length === 0 ? (
-                    <EmptyState title={t('b2b::admin_types.empty.title')} description={t('b2b::admin_types.empty.body')} data-test="types-empty" />
+                    <EmptyState
+                        title={t(`b2b::admin_types.empty.${kind}`)}
+                        description={actions.mayAdd ? t('b2b::admin_types.empty.add') : t('b2b::admin_types.empty.none')}
+                        data-test="types-empty"
+                    />
                 ) : (
                     <Table aria-label={t(`b2b::admin_types.title.${kind}`)}>
                         <TableHeader>
@@ -161,8 +173,14 @@ function Row({
     const transfer = kind === 'company' && actions.mayTransfer && type.active;
     const require = kind === 'document' && actions.mayUpdate && type.required !== null;
     const anything = actions.mayUpdate || actions.mayDeactivate || transfer;
+    const activate = actions.mayDeactivate && !type.active;
+    const deactivate = actions.mayDeactivate && type.active;
+    // An action taken at once from the menu says it is under way on the row's own trigger, as Geist's
+    // `loading` does on a button.
+    const [busy, setBusy] = useState(false);
 
-    const at = (path: string, data: Record<string, boolean> = {}) => router.post(`${url}/${path}`, data, { preserveScroll: true });
+    const at = (path: string, data: Record<string, boolean> = {}) =>
+        router.post(`${url}/${path}`, data, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
 
     return (
         <TableRow data-test={`type-${type.id}`}>
@@ -193,6 +211,7 @@ function Row({
                                 type="tertiary"
                                 size="small"
                                 svgOnly
+                                loading={busy}
                                 aria-label={t('b2b::admin_types.row_actions', { name: nameIn(locale, type.nameAr, type.nameEn) })}
                                 data-test={`type-actions-${type.id}`}
                             >
@@ -224,18 +243,18 @@ function Row({
                                 {t('b2b::admin_types.list.company.transfer')}
                             </MenuItem>
                         ) : null}
-                        {actions.mayDeactivate ? (
+                        {activate ? (
+                            <MenuItem onSelect={() => at('activate')} data-test="activate-type">
+                                {t(`b2b::admin_types.list.${kind}.activate`)}
+                            </MenuItem>
+                        ) : null}
+                        {/* The destructive item last, after a divider (Geist's menu rules). */}
+                        {deactivate ? (
                             <>
                                 {actions.mayUpdate || transfer ? <MenuDivider /> : null}
-                                {type.active ? (
-                                    <MenuItem type="error" onSelect={() => open('deactivate')} data-test="deactivate-type">
-                                        {t(`b2b::admin_types.list.${kind}.deactivate`)}
-                                    </MenuItem>
-                                ) : (
-                                    <MenuItem onSelect={() => at('activate')} data-test="activate-type">
-                                        {t(`b2b::admin_types.list.${kind}.activate`)}
-                                    </MenuItem>
-                                )}
+                                <MenuItem type="error" onSelect={() => open('deactivate')} data-test="deactivate-type">
+                                    {t(`b2b::admin_types.list.${kind}.deactivate`)}
+                                </MenuItem>
                             </>
                         ) : null}
                     </Menu>

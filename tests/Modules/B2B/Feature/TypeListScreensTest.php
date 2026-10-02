@@ -205,7 +205,7 @@ describe('adding, renaming and moving', function () {
         $browser = typeListScreens([B2BPermissions::COMPANY_TYPE_UPDATE, B2BPermissions::DOCUMENT_TYPE_UPDATE]);
 
         expect(AdminBrowser::flashed($browser->post("/admin/company-types/{$mine}/rename", ['name_ar' => 'منشأة', 'name_en' => 'Establishment']), 'status'))->toBe('Company type renamed')
-            ->and(AdminBrowser::flashed($browser->post("/admin/company-types/{$mine}/move", ['position' => '900']), 'status'))->toBe('Company type moved')
+            ->and(AdminBrowser::flashed($browser->post("/admin/company-types/{$mine}/move", ['position' => '900']), 'status'))->toBe('Position changed')
             ->and(DB::table('b2b.company_types')->where('id', $mine)->first(['name_en', 'position']))->toEqual((object) ['name_en' => 'Establishment', 'position' => 900])
             ->and(AdminBrowser::formError($browser->post("/admin/document-types/{$theirs}/rename", ['name_ar' => 'ورقة', 'name_en' => 'Paper'])))->toBe(typeListScreensNotFound());
     });

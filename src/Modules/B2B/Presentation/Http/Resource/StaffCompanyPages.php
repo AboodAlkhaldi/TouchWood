@@ -152,15 +152,16 @@ final readonly class StaffCompanyPages
             $at($application->decidedAt),
             $application->decidedBy,
             $application->decisionReason,
-            array_map(fn (FileView $file): CompanyFileData => new CompanyFileData(
+            array_map(fn (FileView $file): StaffFileData => new StaffFileData(
                 $file->documentTypeId,
                 $file->documentTypeNameAr,
                 $file->documentTypeNameEn,
-                $file->mediaId,
-                // The file's own name is the company's; it goes only to whoever may open it.
+                // A file's id and its name go only to whoever may open it: a reader without the
+                // private-files permission is never told which file exists (amendment 8(c)), and
+                // the name is the company's own.
+                $mayOpen ? $file->mediaId : null,
                 $mayOpen ? ($this->platform->media($file->mediaId)->originalFilename ?? '') : '',
                 (string) $at($file->uploadedAt),
-                false,
             ), $application->documents),
             array_map(static fn (FlagView $flag): CompanyFlagData => new CompanyFlagData($flag->field, $flag->documentTypeId), $application->flags),
             array_map(static fn (RequestView $request): CompanyRequestData => new CompanyRequestData($request->id, $request->kind, $request->label), $application->requests),
@@ -168,7 +169,8 @@ final readonly class StaffCompanyPages
                 $answer->requestId,
                 $labels[$answer->requestId] ?? null,
                 $answer->text,
-                $answer->mediaId,
+                $answer->mediaId !== null,
+                $mayOpen ? $answer->mediaId : null,
                 $answer->mediaId !== null && $mayOpen ? ($this->platform->media($answer->mediaId)->originalFilename ?? null) : null,
             ), $application->answers),
             $application->typeDeactivatedSinceSent,

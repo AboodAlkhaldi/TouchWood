@@ -11,7 +11,8 @@ return [
     'subtitle' => 'Companies of your stores, the ones waiting for a decision first.',
 
     'filters' => 'Filters',
-    'search' => 'Search Companies',
+    'search' => 'Search',
+    'search_placeholder' => 'TW-CO-26-0001',
     'search_helper' => 'By name, CR number, tax number or application reference.',
     'search_button' => 'Search Companies',
     'status_filter' => 'Status',
@@ -43,6 +44,11 @@ return [
     'no_match' => [
         'title' => 'No Companies Match Your Filters',
         'body' => 'Clear the filters to see every company.',
+    ],
+    'past_end' => [
+        'title' => 'No Companies on This Page',
+        'body' => 'This page is past the last one.',
+        'first' => 'Go to First Page',
     ],
 
     'subtitle_company' => 'Company',
@@ -76,10 +82,9 @@ return [
     ],
     'confirmed' => 'Confirmed',
     'not_confirmed' => 'Not confirmed',
-    'other' => 'Other',
     'other_words' => 'Other: :words',
-    'other_hint' => 'Not a listed type. Correct it before approving.',
-    'holder_erased' => 'This account was deleted. Its name and email are placeholders.',
+    'other_hint' => 'This is not a listed type, so correct it before approving.',
+    'holder_erased' => 'This account was deleted, and its name and email are placeholders.',
     'holder_label' => 'Deleted Account',
 
     'application' => [
@@ -119,7 +124,7 @@ return [
         'paper' => 'Paper',
         'type_changed' => [
             'label' => 'Type Deactivated',
-            'body' => 'The company type this application sent was deactivated after it was sent. The company now holds :type.',
+            'body' => 'The company type this application sent was deactivated after it was sent, and the company now holds :type.',
         ],
     ],
 
@@ -130,7 +135,7 @@ return [
         'title' => 'Approve Company',
         'body' => 'The company can order once it is approved.',
         'note' => 'Note',
-        'note_helper' => 'Optional. It is emailed to the customer with the approval.',
+        'note_helper' => 'Optional, and emailed to the customer with the approval.',
         'type_not_set' => 'Correct the company type to a listed type first.',
         'account_deleted' => 'The account was deleted. Reject the application instead.',
     ],
@@ -171,6 +176,7 @@ return [
         'other' => 'Other',
         'other_words' => 'Type in Words',
         'deactivated' => ':name (deactivated)',
+        'choose_first' => 'Choose a type other than the one the company holds.',
         'reactivates_label' => 'Deactivated Type',
         'reactivates' => 'This type is deactivated. Correcting to it makes it active again for the whole store.',
         'button' => 'Correct Company Type',

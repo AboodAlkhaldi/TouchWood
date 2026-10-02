@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, router } from '@inertiajs/react';
-import { Search } from 'lucide-react';
+import { AlertTriangle, Search } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import {
     Badge,
     Button,
+    ButtonLink,
     EmptyState,
     Input,
     Pager,
@@ -87,7 +88,7 @@ export default function Index({ companies, total, page, perPage, search, status,
                         type="search"
                         className="w-full sm:w-72"
                         label={t('b2b::admin_companies.search')}
-                        placeholder={t('b2b::admin_companies.search')}
+                        placeholder={t('b2b::admin_companies.search_placeholder')}
                         prefix={<Search aria-hidden="true" className="size-4" />}
                         value={form.search}
                         onChange={(event) => setForm({ ...form, search: event.target.value })}
@@ -161,7 +162,19 @@ export default function Index({ companies, total, page, perPage, search, status,
                 </form>
 
                 {companies.length === 0 ? (
-                    filtered ? (
+                    total > 0 ? (
+                        // An address past the last page: the list is not empty, this page is.
+                        <EmptyState
+                            title={t('b2b::admin_companies.past_end.title')}
+                            description={t('b2b::admin_companies.past_end.body')}
+                            actions={
+                                <ButtonLink type="secondary" href={href(1)} data-test="first-page">
+                                    {t('b2b::admin_companies.past_end.first')}
+                                </ButtonLink>
+                            }
+                            data-test="companies-empty"
+                        />
+                    ) : filtered ? (
                         <EmptyState
                             title={t('b2b::admin_companies.no_match.title')}
                             description={t('b2b::admin_companies.no_match.body')}
@@ -193,7 +206,7 @@ export default function Index({ companies, total, page, perPage, search, status,
                     </Table>
                 )}
 
-                {total > 0 ? (
+                {companies.length > 0 ? (
                     <Pager
                         from={from}
                         to={to}
@@ -217,12 +230,18 @@ function Row({ company }: { company: StaffCompanyRowData }) {
                     <Link href={`${LIST}/${company.id}`} data-test={`company-${company.id}`} className="font-medium text-ink hover:text-brand">
                         {company.name}
                     </Link>
+                    {/* A mark, not a second badge in the row (Geist's badge rules): the status is the
+                        row's one badge. */}
                     {company.typeDeactivatedSinceSent ? (
                         <Tooltip text={t('b2b::admin_companies.type_deactivated_tooltip')}>
-                            <span tabIndex={0}>
-                                <Badge variant="amber-subtle" size="small" data-test="type-deactivated">
-                                    {t('b2b::admin_companies.type_deactivated')}
-                                </Badge>
+                            <span
+                                tabIndex={0}
+                                role="img"
+                                aria-label={t('b2b::admin_companies.type_deactivated')}
+                                className="inline-flex text-warn"
+                                data-test="type-deactivated"
+                            >
+                                <AlertTriangle aria-hidden="true" className="size-4" />
                             </span>
                         </Tooltip>
                     ) : null}

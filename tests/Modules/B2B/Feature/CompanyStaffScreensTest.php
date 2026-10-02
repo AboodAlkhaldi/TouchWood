@@ -8,12 +8,22 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
 use Modules\B2B\Application\B2BPermissions;
+use Modules\B2B\Application\Command\AnswerApplicationRequest\AnswerApplicationRequest;
+use Modules\B2B\Application\Command\AnswerApplicationRequest\AnswerApplicationRequestHandler;
+use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraft;
+use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraftHandler;
+use Modules\B2B\Application\Command\SubmitApplication\SubmitApplication;
+use Modules\B2B\Application\Command\SubmitApplication\SubmitApplicationHandler;
 use Modules\B2B\Domain\Model\Company;
 use Modules\B2B\Domain\Repository\CompanyRepository;
+use Modules\B2B\Domain\ValueObject\ApplicationRequest;
+use Modules\B2B\Domain\ValueObject\RequestKind;
+use Shared\Application\ActorContext;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
@@ -202,6 +212,9 @@ describe('one company', function () {
                 ->has('applications.0.documents', 3)
                 // The file's own name goes only to whoever may open it (19(e)).
                 ->where('applications.0.documents.0.fileName', '')
+                // Nor the file's id: a reader without the private-files permission is never told
+                // which file exists (amendment 8(c)).
+                ->where('applications.0.documents.0.mediaId', null)
                 ->where('actions.mayApprove', true)
                 ->where('actions.mayReject', true)
                 ->where('actions.approveRefusal', null)
@@ -213,6 +226,41 @@ describe('one company', function () {
             );
     });
 
+    it('says an answer is a file, giving its id and name only to whoever may open papers (amendment 8(c))', function () {
+        // Made before any browser signs in, as the account itself (lesson 120).
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        $requestId = strtolower((string) Str::ulid());
+        [$company] = B2BFixtures::rejected($customerId, [], [ApplicationRequest::add($requestId, RequestKind::File, 'A bank letter', 1)]);
+        $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+        Fx::actAsCustomer($customerId);
+        app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
+        app(AnswerApplicationRequestHandler::class)->handle(new AnswerApplicationRequest($requestId, path: B2BFixtures::pdf(), originalFilename: 'bank.pdf'));
+        app(SubmitApplicationHandler::class)->handle(new SubmitApplication);
+        // And no longer acting as the customer, or the panel's sign-in is refused as theirs.
+        if ($previous !== null) {
+            app()->scoped(ActorContext::class, $previous);
+            app()->forgetScopedInstances();
+        }
+
+        companyStaffScreens([B2BPermissions::COMPANY_VIEW])->get("/admin/companies/{$company->id()}")
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('applications.0.answers.0.requestId', $requestId)
+                ->where('applications.0.answers.0.label', 'A bank letter')
+                ->where('applications.0.answers.0.isFile', true)
+                ->where('applications.0.answers.0.mediaId', null)
+                ->where('applications.0.answers.0.fileName', null)
+            );
+
+        companyStaffScreens([B2BPermissions::COMPANY_VIEW, B2BPermissions::COMPANY_DOCUMENT_VIEW])->get("/admin/companies/{$company->id()}")
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('applications.0.answers.0.isFile', true)
+                ->where('applications.0.answers.0.mediaId', fn (?string $id): bool => is_string($id) && strlen($id) === 26)
+                ->where('applications.0.answers.0.fileName', 'bank.pdf')
+            );
+    });
+
     it('names the papers and offers the type correction to whoever holds those jobs', function () {
         $company = companyStaffScreensWaiting();
         $browser = companyStaffScreens([B2BPermissions::COMPANY_VIEW, B2BPermissions::COMPANY_DOCUMENT_VIEW, B2BPermissions::COMPANY_CORRECT_TYPE], ['sa']);
@@ -221,6 +269,7 @@ describe('one company', function () {
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('applications.0.documents.0.fileName', fn (string $name): bool => str_starts_with($name, 'certificate-'))
+                ->where('applications.0.documents.0.mediaId', fn (?string $id): bool => is_string($id) && strlen($id) === 26)
                 ->where('actions.mayOpenDocuments', true)
                 ->where('actions.mayCorrectType', true)
                 ->where('actions.mayChooseOther', true)

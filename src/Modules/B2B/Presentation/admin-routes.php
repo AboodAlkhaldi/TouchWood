@@ -29,7 +29,7 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('companies/{company}/reinstate', [StaffCompaniesController::class, 'reinstate'])->name('b2b.admin.companies.reinstate');
         Route::post('companies/{company}/type', [StaffCompaniesController::class, 'correctType'])->name('b2b.admin.companies.type');
         // A paper or a file answer, through a link that lasts 30 minutes; each opening is audited
-        // (amendment 10(f)). A GET, as the company's own file is: it opens in a new tab.
+        // (amendment 10(f)). A GET, as the company's own file is: a link, followed to the file.
         Route::get('companies/{company}/files/{file}', [StaffCompaniesController::class, 'file'])->name('b2b.admin.companies.file');
 
         // The store's two lists: always the store in the panel's header, never one in the request.

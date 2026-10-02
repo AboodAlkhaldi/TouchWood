@@ -217,11 +217,8 @@ export function DeactivateModal({
                             options={[
                                 { value: 'leave', label: t('b2b::admin_types.holders.leave') },
                                 { value: 'replace', label: t('b2b::admin_types.holders.replace') },
-                                {
-                                    value: 'new',
-                                    label: t('b2b::admin_types.holders.new'),
-                                    disabledReason: mayIntoNew ? undefined : t('b2b::admin_types.holders.new_locked'),
-                                },
+                                // Offered only to someone who may add types as well (§4.6, scenario 49).
+                                ...(mayIntoNew ? [{ value: 'new', label: t('b2b::admin_types.holders.new') }] : []),
                             ]}
                         />
                         <p className="tw-figure text-copy-13 text-ink-muted">{t('b2b::admin_types.holders.count', { count: figure(locale, holders) })}</p>

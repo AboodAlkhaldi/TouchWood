@@ -4,6 +4,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import {
     Badge,
     Button,
+    ButtonLink,
     Collapse,
     Description,
     Entity,
@@ -152,7 +153,7 @@ export default function Show({ company, holder, applications, actions, typeChoic
                                 columns={2}
                                 items={[
                                     { title: t('b2b::admin_companies.field.holder_name'), content: holder.name },
-                                    { title: t('b2b::admin_companies.field.email'), content: ltr(holder.email) },
+                                    { title: t('b2b::admin_companies.field.email'), content: ltr(holder.email, false) },
                                     { title: t('b2b::admin_companies.field.phone'), content: ltr(holder.phone ?? '') },
                                     {
                                         title: t('b2b::admin_companies.field.email_confirmed'),
@@ -205,6 +206,7 @@ export default function Show({ company, holder, applications, actions, typeChoic
                     open={dialog === 'reject'}
                     onOpenChange={opened('reject')}
                     companyId={company.id}
+                    typeNote={typeNote}
                     papers={waiting?.documents ?? []}
                     locale={locale}
                 />
@@ -245,10 +247,13 @@ function Section({ title, test, children }: { title: string; test: string; child
     );
 }
 
-/** A value that reads left to right — a number, an email, a time — kept whole on an Arabic page. */
-function ltr(value: string | null): ReactNode {
+/**
+ * A value that reads left to right — a number, an email, a time — kept whole on an Arabic page; in
+ * the figures' face unless it is words, as an email is.
+ */
+function ltr(value: string | null, figures = true): ReactNode {
     return value === null || value === '' ? null : (
-        <bdi dir="ltr" className="tw-figure">
+        <bdi dir="ltr" className={figures ? 'tw-figure' : undefined}>
             {value}
         </bdi>
     );
@@ -339,7 +344,7 @@ function Application({
                                 description={[paper.fileName, t('b2b::admin_companies.application.uploaded', { date: when(paper.uploadedAt) })]
                                     .filter((part) => part !== '')
                                     .join(' · ')}
-                                actions={<OpenFile companyId={companyId} mediaId={paper.mediaId} mayOpen={mayOpen} />}
+                                actions={<OpenFile companyId={companyId} mediaId={paper.mediaId} mayOpen={mayOpen} test={`open-${paper.documentTypeId}`} />}
                             />
                         ))}
                     </EntityList>
@@ -383,7 +388,7 @@ function Application({
                                 key={answer.requestId}
                                 title={answer.label ?? t('b2b::admin_companies.application.answer')}
                                 description={answer.text ?? answer.fileName ?? undefined}
-                                actions={answer.mediaId === null ? undefined : <OpenFile companyId={companyId} mediaId={answer.mediaId} mayOpen={mayOpen} />}
+                                actions={answer.isFile ? <OpenFile companyId={companyId} mediaId={answer.mediaId} mayOpen={mayOpen} test={`open-answer-${answer.requestId}`} /> : undefined}
                             />
                         ))}
                     </EntityList>
@@ -400,22 +405,25 @@ function paperName(application: StaffApplicationData, documentTypeId: string | n
 }
 
 /**
- * A paper opens in a new tab through a link that lasts 30 minutes, and the opening is audited
- * (amendment 10(f)). Without the job, the button stays, disabled, saying why.
+ * A paper opens through a link that lasts 30 minutes, and the opening is audited (amendment 10(f)).
+ * Without the job the file's id never reaches the page (amendment 8(c)): the button stays, disabled,
+ * saying why, and is named after the paper's type or the request rather than the file.
  */
-function OpenFile({ companyId, mediaId, mayOpen }: { companyId: string; mediaId: string; mayOpen: boolean }) {
+function OpenFile({ companyId, mediaId, mayOpen, test }: { companyId: string; mediaId: string | null; mayOpen: boolean; test: string }) {
     const t = useTranslator();
+    const open = mayOpen && mediaId !== null;
 
     return (
-        <Button
+        <ButtonLink
+            external
             type="secondary"
             size="small"
+            href={open ? `/admin/companies/${companyId}/files/${mediaId}` : ''}
             prefix={<ExternalLink className="size-4" />}
-            disabledReason={mayOpen ? undefined : t('b2b::admin_companies.application.open_locked')}
-            onClick={() => window.open(`/admin/companies/${companyId}/files/${mediaId}`, '_blank', 'noopener,noreferrer')}
-            data-test={`open-${mediaId}`}
+            disabledReason={open ? undefined : t('b2b::admin_companies.application.open_locked')}
+            data-test={test}
         >
             {t('b2b::admin_companies.application.open')}
-        </Button>
+        </ButtonLink>
     );
 }

@@ -19,8 +19,11 @@ final class StaffAnswerData extends Data
         /** The staff-written label of the request it answers; null if that request is not found. */
         public ?string $label,
         public ?string $text,
+        /** A file answer, whether or not the reader may open it. */
+        public bool $isFile,
+        /** The file's id, only for someone who may open company papers (amendment 8(c)). */
         public ?string $mediaId,
-        /** The file's name, for a file answer. */
+        /** The file's name, for a file answer, only for someone who may open company papers. */
         public ?string $fileName,
     ) {}
 }

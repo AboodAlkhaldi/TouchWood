@@ -483,7 +483,9 @@ type and "Reviewed" name it, and every other change reads the store from the typ
 type's holders are counted in one grouped query, from the type's own store.
 
 **Times** on these screens are each company's home store's, written once by the page builder and never
-converted again in the browser. **A paper's file name** goes only to someone who may open it; to
-anyone else the paper shows its type and date, and its Open button is disabled with the reason. Each
-opening is a GET in a new tab, audited by `DownloadCompanyDocument` before the link is handed back.
+converted again in the browser. **A paper's file name and its id** go only to someone who may open
+it — the id, because a reader without the private-files permission is never told which file exists
+(amendment 8(c)); to anyone else the paper shows its type and date, and its Open button is disabled
+with the reason. Each opening is a plain GET, audited by `DownloadCompanyDocument` before the link is
+handed back.
 

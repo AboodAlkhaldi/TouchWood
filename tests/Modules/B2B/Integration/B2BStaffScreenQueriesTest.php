@@ -291,6 +291,24 @@ describe('what the reader may do next to one company (§4.6)', function () {
             ->and($offered[0]->active)->toBeFalse();
     });
 
+    it('has words, in Arabic and in English, for every reason Approve may be shown disabled', function () {
+        $reasons = array_values(array_filter(
+            (new ReflectionClass(StaffCompanyActions::class))->getConstants(),
+            static fn (string $name): bool => str_starts_with($name, 'APPROVE_'),
+            ARRAY_FILTER_USE_KEY,
+        ));
+
+        // The screen draws t(`b2b::admin_companies.approve.${approveRefusal}`): a reason without words
+        // would show the key itself beside a disabled button.
+        expect($reasons)->toHaveCount(2);
+
+        foreach ($reasons as $reason) {
+            foreach (['ar', 'en'] as $locale) {
+                expect(trans()->has("b2b::admin_companies.approve.{$reason}", $locale, false))->toBeTrue("{$reason} ({$locale})");
+            }
+        }
+    });
+
     it('names the stores the list may be filtered by: the reader\'s own, every one for a Super Admin', function () {
         staffScreenQueriesAs([B2BPermissions::COMPANY_VIEW], ['sa', 'eg']);
         expect(app(StaffCompanyActionsForReader::class)->listStores())->toEqualCanonicalizing([Fx::storeId('sa'), Fx::storeId('eg')]);

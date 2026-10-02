@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, type InertiaFormProps } from '@inertiajs/react';
 import { Plus, X } from 'lucide-react';
 import {
@@ -13,7 +13,7 @@ import {
 } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type {
-    CompanyFileData,
+    StaffFileData,
     StaffTypeChoiceData,
 } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { nameIn, type Locale } from '../shared';
@@ -101,7 +101,14 @@ type RejectForm = {
  * A reason, and what the next application must fix or add (§1.2, amendment 4): any of the five
  * fields, any paper the waiting application sent, and requests for a text or a file under a label.
  */
-export function RejectModal({ open, onOpenChange, companyId, papers, locale }: Base & { papers: CompanyFileData[]; locale: Locale }) {
+export function RejectModal({
+    open,
+    onOpenChange,
+    companyId,
+    papers,
+    locale,
+    typeNote,
+}: Base & { papers: StaffFileData[]; locale: Locale; typeNote: string | null }) {
     const t = useTranslator();
     const form = useForm<RejectForm>({ reason: '', flags: [], documents: [], requests: [] });
 
@@ -144,6 +151,13 @@ export function RejectModal({ open, onOpenChange, companyId, papers, locale }: B
             }
         >
             <div className="grid gap-5">
+                {/* The reviewer decides with the type's deactivation in front of them, rejecting as
+                    much as approving (§3.2). */}
+                {typeNote === null ? null : (
+                    <Note variant="warning" size="small" label={t('b2b::admin_companies.application.type_changed.label')}>
+                        {typeNote}
+                    </Note>
+                )}
                 <Textarea
                     id="reject-reason"
                     rows={3}
@@ -392,8 +406,24 @@ export function CorrectTypeModal({
     locale: Locale;
 }) {
     const t = useTranslator();
-    const [choice, setChoice] = useState<string>(currentOther !== null && mayChooseOther ? OTHER : (currentTypeId ?? ''));
+    // Nothing chosen when it opens: pressing the button without choosing must never post the type
+    // the company holds - which, deactivated, would be activated for the whole store and change
+    // nothing here (the review of step 7).
+    const [choice, setChoice] = useState<string>('');
     const form = useForm({ type_id: '', other: currentOther ?? '', confirm_reactivation: false });
+
+    useEffect(() => {
+        if (open) {
+            setChoice('');
+            form.setData('other', currentOther ?? '');
+            form.clearErrors();
+        }
+        // Keyed on the opening only: the form itself changes on every keystroke.
+    }, [open]);
+
+    const unchanged =
+        choice === '' ||
+        (choice === OTHER ? form.data.other.trim() === '' || form.data.other.trim() === (currentOther ?? '').trim() : choice === currentTypeId);
     const chosen = choices.find((each) => each.id === choice) ?? null;
     const reactivates = chosen !== null && !chosen.active;
 
@@ -420,7 +450,12 @@ export function CorrectTypeModal({
             actions={
                 <>
                     <ModalCancel onClick={() => onOpenChange(false)} />
-                    <Button loading={form.processing} onClick={submit} data-test="confirm-correct-type">
+                    <Button
+                        loading={form.processing}
+                        disabledReason={unchanged ? t('b2b::admin_companies.correct.choose_first') : undefined}
+                        onClick={submit}
+                        data-test="confirm-correct-type"
+                    >
                         {t('b2b::admin_companies.correct.button')}
                     </Button>
                 </>
