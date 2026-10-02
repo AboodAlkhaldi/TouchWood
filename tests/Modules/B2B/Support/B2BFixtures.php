@@ -246,10 +246,14 @@ final class B2BFixtures
 
     /**
      * Where pdf() writes; a test file removes it after each test.
+     *
+     * One folder per test process: the system's temp folder is shared by every run on the machine,
+     * and a test removing the folder after itself took the files another run was still reading
+     * (three failures with three suites running at once, 2026-10-02).
      */
     public static function uploads(): string
     {
-        return sys_get_temp_dir().'/tw-b2b-uploads';
+        return sys_get_temp_dir().'/tw-b2b-uploads-'.getmypid();
     }
 
     /**
