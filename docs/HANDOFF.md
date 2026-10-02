@@ -114,6 +114,10 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-02 | §13.1 | **Reviews are global per product**: a review shows in every store selling the product | Owner, 2026-10-02 |
 | 2026-10-02 | §14 | **Super Admins are invisible** to admins and staff; only Super Admins see each other; their actions read "System administrator" to anyone else | Owner, 2026-10-02 |
 | 2026-10-01 | §3, §17 | **Geist is the design system** (vercel.com/geist): its components, their behaviour and all its rules, writing rules included, in TouchWood's own look. Built before any new screen; every screen built so far moves to it | Owner, the new direction |
+| 2026-10-02 | §4.4 | **Catalog → Platform, Access**: Catalog uses Access's public surface only to declare its permissions; any other use goes to the owner first | Catalog spec, owner decision |
+| 2026-10-02 | §4.1 | **Slugs are global**: one Arabic and one English slug per product, category and brand, used in every store (§9.1 already said so; §4.1 had listed slugs as store-scoped) | Catalog spec, owner decision |
+| 2026-10-02 | §9.1, §9.2 | **A product-wide stage** (`DRAFT`, `READY`, `ARCHIVED`) **and each store's Active row**: a store chooses whole products or single variants; "Not available now" on a product or a variant, per store; the JSON import lives in Catalog, its prices and stock waiting for Pricing and Inventory | Catalog spec, owner decision |
+| 2026-10-02 | §9.3, §9.4, §9.5, §15.2 | **One category per product**, at the end of the tree; empty categories hidden per store; categories and brands deactivated (each product's fate chosen) or deleted when unused; a movable default brand; shared search word pairs and a 12-month search log with no person; custom labels and warranty built with Catalog; a product video left open | Catalog spec, owner decision |
 
 ---
 
@@ -233,10 +237,11 @@ paths are a registry: each module adds its own in its service provider, and Plat
 store route pattern from it at boot.
 
 **Global (not store-scoped):** product identity, SKU, variants, attribute definitions,
-categories, brands, translations, media, staff users, roles, permissions, customer
+categories, brands, translations, **slugs** (one per language, used in every store — owner,
+2026-10-02; `docs/modules/catalog.md` §1.1), media, staff users, roles, permissions, customer
 identity, wishlists.
 
-**Store-scoped:** availability, visibility, prices, stock, slugs, tax, payment
+**Store-scoped:** availability, visibility, prices, stock, tax, payment
 configuration, carriers, coupons, promotions, homepage content, loyalty configuration and
 balances, carts, orders, payments, reviews, questions.
 
@@ -327,7 +332,7 @@ Consequences that are easy to get wrong:
 Platform   → (nothing)
 Access     → Platform
 B2B        → Platform, Access
-Catalog    → Platform
+Catalog    → Platform, Access   (Access only to declare its permissions)
 Pricing    → Platform, Catalog, B2B
 Inventory  → Platform, Catalog
 Promotions → Platform, Access, Catalog, Pricing
@@ -340,6 +345,11 @@ Sales      → everything above except Feedback and Sync
 Content    → Platform, Catalog, Pricing
 Ops        → every Public surface
 ```
+
+**Catalog → Access** (owner, 2026-10-02): every permission is declared in Access's
+`PermissionCatalog`, which Catalog could not reach. The arrow points down a tier and Access never
+needs Catalog, so no cycle can form; Catalog uses Access's public surface for that alone, and any
+other use goes to the owner first (`docs/modules/catalog.md` §2.4).
 
 Two modules have a wide fan-in for opposite reasons. **Sales** is the transaction and
 legitimately needs price, stock, discount, points, shipping and payment in one flow.
@@ -896,6 +906,13 @@ store already sells adds only its price and stock — never a second product, ph
 **Product codes** belong to variants, one each, and are the same codes an external provider uses,
 which is how its stock and prices are matched (§12.2).
 
+**What a store chooses, and the code** (owner, 2026-10-02; `docs/modules/catalog.md` §1.2, §1.3). In
+the panel a store chooses **a whole product or single variants**; a variant added later is chosen in
+no store until each chooses it. The code is a variant's **only identifier** — the SKU customers see —
+unique across every variant ignoring letter case, **never given to another variant**, and correctable
+by staff under its own permission. Each store sets, per variant, whether it sells **retail,
+wholesale or both**, and, per product, a **minimum and maximum for each mode**.
+
 **The JSON import** (Super Admin only), for the first migration and big batches — staff still add
 products one at a time in the panel:
 
@@ -908,21 +925,37 @@ wired to a provider, the file's prices and stock are ignored with a warning: the
 source there (§12.2). **The file's format is agreed with the owner when Catalog is built**, not
 before.
 
+**The import lives in Catalog** (owner, 2026-10-02). Until Pricing and Inventory exist (stage 5), the
+file's prices and stock are not imported; those modules then add their parts of the file to the same
+preview and the same all-or-nothing step. The format waits for the owner's sample file
+(`docs/modules/catalog.md` §1.12).
+
 Attributes are one of three kinds: informational, filterable, or variant-generating.
+**One shared library** (owner, 2026-10-02): an attribute and its values are defined once, "Black" and
+"black" being one value; colours carry a swatch; attribute sets build a product's variants.
 Price is per combination, **never additive**. The backend resolves the variant from the
 selected attribute values; the frontend never computes it.
 
 ### 9.2 Status — three independent axes
 
 ```
-editorial          DRAFT | ACTIVE | ARCHIVED
+stage              DRAFT | READY | ARCHIVED     ← one for the product, every store
+active             per store, per variant       ← the store's choice
 availability       derived from stock — never stored as a flag
-force_unavailable  boolean, per store, own permission
+force_unavailable  boolean, per store, on a product or a variant, own permission
 ```
+
+**A product-wide stage and each store's Active row** (owner, 2026-10-02; was `editorial DRAFT |
+ACTIVE | ARCHIVED`): a draft is shown nowhere; a ready product is shown in each store that made it
+Active; an archived one is retired everywhere and may be restored. One product page shows a row per
+store, and each row is changed only by someone holding the permission in that store. What every store
+shares — the text, photos, variants — is changed by someone holding the permission in every store
+where the product is Active (`docs/modules/catalog.md` §1.1, §1.3).
 
 `force_unavailable` surfaces in the admin as **"Not available now."** It is for recalls,
 pricing errors and legal holds — stock exists but must not be sold. It does not touch
-stock.
+stock. It is set on a whole product (every variant, later ones included) or on one variant, per
+store (owner, 2026-10-02).
 
 **Out of stock is never shown** (owner, 2026-10-02). A category, a search result, a suggestion —
 every list a customer sees — holds only what can be ordered now; an out-of-stock product does not
@@ -954,6 +987,13 @@ Nest without limit. Each carries an admin-set rank per store. **One global categ
 Known top-level categories: Handles · Slides and runners · Hinges · Wardrobe organizers ·
 Lighting and electrical · Fittings and fixings.
 
+**Where products sit** (owner, 2026-10-02; `docs/modules/catalog.md` §1.5): **one category per
+product**, and only at the end of the tree — a category with sub-categories holds none itself; a
+parent lists everything below it. A category appears in a store only while something in it can be
+ordered there. A category is **deactivated** — staff choosing for each of its products to hide it,
+leave it reachable but unlisted, or move it, with its sub-categories going with it — or **deleted**
+once nothing is in it.
+
 ### 9.4 Brands
 
 ```
@@ -969,6 +1009,11 @@ brands                                  ← global, not store-scoped
 `products.brand_id` is **NOT NULL**; the admin form pre-selects TouchWood so staff never
 think about it for house goods. One brand per product.
 
+**The default brand moves; a brand retires** (owner, 2026-10-02; `docs/modules/catalog.md` §1.6):
+exactly one brand is the default at any time, a mark on its row an admin may move. A brand is
+**deactivated** — staff choosing for each of its products to hide it or move it to another brand,
+never leaving a product without one — or **deleted** once no product carries it.
+
 **Do not create a table per brand.** 840 products filtered on an indexed integer is
 sub-millisecond work. Separate tables would force UNIONs in search, double the external
 mapping, and turn "add a brand" into a migration.
@@ -983,8 +1028,9 @@ filter facet:   brand_id IN (...)
 ```
 
 Indexes: `(store_id, locale, brand_visible_by_default, sales_rank)` and
-`(store_id, locale, brand_id)`. Toggling a brand's visibility fires a re-stamp job for that
-brand's rows — a rare action, a cheap job.
+`(store_id, locale, brand_id)`. Toggling a brand's visibility re-stamps that brand's rows — a rare
+action, a cheap one — inside the change itself, as every change to the listing is (owner,
+2026-10-02; Catalog names the table `catalog.listing`, `docs/modules/catalog.md` §5.4).
 
 Known brands: Tallsen (China, exclusive agent, **hidden from default listings**),
 TouchWood (Saudi Arabia, house brand), Hettich (Germany), Blum (Austria), Häfele.
@@ -998,19 +1044,21 @@ PostgreSQL FTS + `pg_trgm`. Ranking, in one SQL expression:
 2. prefix match
 3. trigram similarity          ← "nearest to what they typed"
 4. synonym match
-   tiebreakers: in stock, then sales_rank
+   tiebreaker: sales_rank    (was "in stock, then sales_rank": only what can be ordered is listed, §9.2)
 ```
 
-Per-product **alternative search names** (synonyms), entered by staff or seeded.
+Per-product **alternative search names** (synonyms), entered by staff or seeded, and **shared word
+pairs** that apply to every product (owner, 2026-10-02).
 
 A **`search_queries` log** records every search including zero-result ones. The zero-result
 list is the source material for the synonym table — it is the highest-value report in the
-system.
+system. It keeps **no person**, and an entry **12 months** (owner, 2026-10-02; `catalog.search_log`).
 
 ### 9.6 Listing filters
 
 From the storefront design, on the category page: sale mode, brand, variant attributes
-(length, finish…), price range, availability (in stock only). Sorting includes
+(length, finish…), price range. (The design's "availability, in stock only" is not needed: only
+what can be ordered is listed, §9.2.) Sorting includes
 best-selling. Grid view and a technical list view with SKU and finish columns.
 
 ---
@@ -1539,7 +1587,10 @@ Decide these when the owning module is reached; do not design them now.
 - **Bundles / kits.** Confirmed as wanted but never specified — there is no prior
   definition to build from. Out of scope until Catalog and Sales are underway.
 - **Category discounts, custom labels, colour library, warranty records, product add-ons,
-  CSV product import.** Most will be built; the details are open.
+  CSV product import.** Most will be built; the details are open. **Settled for Catalog** (owner,
+  2026-10-02; `docs/modules/catalog.md` §1.7–§1.9): custom labels, the colour library and warranty
+  records are built with Catalog; category discounts belong to Pricing; product add-ons wait.
+- **A product video** (owner, 2026-10-02): a product may carry one, optionally — "leave it for now".
 - **Save for later, abandoned cart, grid/technical-list toggle, branches page, public
   order tracking, technical catalog PDF, guest price visibility toggle.**
 

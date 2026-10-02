@@ -1,12 +1,13 @@
 # Catalog — Module Specification
 
-> **DRAFT — being written with the owner.** The owner's answers of 2026-10-02 are recorded below as
-> **[DECIDED 2026-10-02]** and listed in §9.1. **[ACCEPTED 2026-10-02, §9.3 #n]** marks a proposal of
-> mine the owner accepted ("anything else is accepted"), #10 replaced by the owner's own answer.
-> Points that surfaced while completing §5–§8 are marked **[TO CONFIRM]** and listed in §9.5. The
-> JSON import's file format waits for the owner's sample file (§1.12, §9.2).
+> **Written with the owner on 2026-10-02.** The owner's answers are recorded as **[DECIDED
+> 2026-10-02]** and listed in §9.1. **[ACCEPTED 2026-10-02, §9.3 #n]** and **[ACCEPTED 2026-10-02,
+> §9.5 #n]** mark proposals of mine the owner accepted (§9.3 #10 replaced by the owner's own answer).
+> **One section is not written yet:** the JSON import's file format, which waits for the owner's
+> sample file (§1.12, §9.2).
 
-**Status:** DRAFT. **Tier:** 1 (commerce core). **Build stage:** 4 (handoff §17).
+**Status:** complete but for the import's file format; **waiting for the owner's approval**.
+**Tier:** 1 (commerce core). **Build stage:** 4 (handoff §17).
 **Depends on:** Platform, and Access's public surface for declaring permissions only (§2.4,
 **[DECIDED 2026-10-02]** — a change to handoff §4.4 and `deptrac.yaml`).
 **Needs from shared plumbing:** nothing new. Catalog consumes events (§6.2), but each of its listeners
@@ -117,7 +118,7 @@ Per store, per **product**:
 | Attribute | Invariant |
 |---|---|
 | `not_available_now` | **"Not available now" for the whole product** — every variant, including ones added later **[DECIDED 2026-10-02]**: "both, like the choice". |
-| `retail_minimum`, `retail_maximum`, `wholesale_minimum`, `wholesale_maximum` | **Each product has its own minimums and maximums, per store, each selling mode its own** **[DECIDED 2026-10-02]** (the owner's answer to §9.3 #10, which it replaces: "each product has its minimums and maxes"). They limit the quantity of one variant on one order in that mode; Sales refuses outside them (stage 6). Retail's minimum is 1 unless set; each maximum is optional; the wholesale minimum is required while any of the product's variants sells wholesale in the store. Wholesale prices and tiers are Pricing's. **[TO CONFIRM]** each a whole number from 1 to 100,000, and a maximum never below its minimum. |
+| `retail_minimum`, `retail_maximum`, `wholesale_minimum`, `wholesale_maximum` | **Each product has its own minimums and maximums, per store, each selling mode its own** **[DECIDED 2026-10-02]** (the owner's answer to §9.3 #10, which it replaces: "each product has its minimums and maxes"). They limit the quantity of one variant on one order in that mode; Sales refuses outside them (stage 6). Retail's minimum is 1 unless set; each maximum is optional; the wholesale minimum is required while any of the product's variants sells wholesale in the store. Wholesale prices and tiers are Pricing's. **[ACCEPTED 2026-10-02, §9.5 #1]** each a whole number from 1 to 100,000, and a maximum never below its minimum. |
 | labels | **Custom labels attached in this store** (§1.8) **[DECIDED 2026-10-02]**. |
 
 **A product is Active in a store** while at least one of its variants is Active there — that is the
@@ -374,7 +375,7 @@ Every change is audited (Platform), **by value**: product data names no person.
 | `ARCHIVED` | `RestoreProduct` — Inactive everywhere | `READY` |
 
 **[ACCEPTED 2026-10-02, §9.3 #19]** no way from `READY` back to `DRAFT` (a store hides a product by making it
-Inactive), and a `DRAFT` is archived or deleted when abandoned. **[TO CONFIRM]** Deleting a draft
+Inactive), and a `DRAFT` is archived or deleted when abandoned. **[ACCEPTED 2026-10-02, §9.5 #2]** Deleting a draft
 (`DeleteDraftProduct`, under `catalog.product.archive`) removes it whole, with its variants, photos'
 links and slugs: it was never shown or sold, so its slugs and codes become free again — the one
 exception to "a code is never given to another variant".
@@ -622,6 +623,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 | 38 | Stock flags (stock-dependent, low-stock threshold, ending soon) | Asked what Catalog then contains; on the list, **Inventory, stage 5** |
 | 39 | My 22 proposals (§9.3) | **"Anything else is accepted"** — all but #10 |
 | 40 | §9.3 #10, the wholesale minimum | **"Each product has its minimums and maxes"**: asked again — **per product, per store**, and **each mode its own minimum and maximum** (§1.3) |
+| 41 | The four points of §9.5 | **"Accept all four"** |
+| 42 | The changes §9.4 lists for other documents | **Written in this spec's pull request** (`deptrac.yaml` with the first code that needs it) |
 
 ### 9.2 Left open
 
@@ -680,7 +683,7 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 | `docs/HANDOFF.md` §9.3, §9.4, §9.5, §15.2 | One category per product at the end of the tree; deactivating and deleting categories and brands; shared word pairs; the 12-month search log; labels and warranty in this stage; the video left open |
 | `docs/STRUCTURE.md`, `docs/modules/README.md` | Still say Catalog is blocked on the provider's schema; Sync's line still names a conflict log |
 
-### 9.5 To confirm — points that surfaced while completing §5–§8
+### 9.5 Points that surfaced while completing §5–§8 — accepted by the owner, 2026-10-02 ("accept all four")
 
 1. **The quantity limits' range**: each minimum and maximum a whole number from 1 to 100,000, a
    maximum never below its minimum (§1.3).
