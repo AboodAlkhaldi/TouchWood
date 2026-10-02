@@ -19,9 +19,12 @@ use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraft;
 use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraftHandler;
 use Modules\B2B\Application\Command\SubmitApplication\SubmitApplication;
 use Modules\B2B\Application\Command\SubmitApplication\SubmitApplicationHandler;
+use Modules\B2B\Application\Query\OpenMyApplicationFile\OpenMyApplicationFile;
+use Modules\B2B\Application\Query\OpenMyApplicationFile\OpenMyApplicationFileHandler;
 use Modules\B2B\Application\Query\ShopLine\CompanyStandings;
 use Modules\B2B\Application\Query\ViewMyCompany\ViewMyCompany;
 use Modules\B2B\Application\Query\ViewMyCompany\ViewMyCompanyHandler;
+use Modules\B2B\Domain\Exception\ApplicationFileNotFound;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
@@ -277,5 +280,65 @@ describe('the migration', function () {
 
         expect(DB::table('b2b.applications')->where('id', $sent->id())->value('store_id'))->toBe(Fx::storeId('eg'))
             ->and(DB::table('b2b.applications')->where('id', $draft->id())->value('store_id'))->toBe(Fx::storeId('sa'));
+    });
+});
+
+describe('what the review of amendment 18 found', function () {
+    it('neither names nor carries over a company whose store is off (platform.md §1.6)', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::approved($customerId, 'ae');
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('ae')));
+        Fx::actAsCustomer($customerId);
+
+        $page = perStoreIn('eg', fn () => app(ViewMyCompanyHandler::class)->handle(new ViewMyCompany));
+        perStoreIn('eg', fn () => app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft));
+
+        expect($page->elsewhere)->toBe([])
+            ->and($page->prefill)->toBeNull()
+            ->and(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('eg'))?->name())->toBeNull();
+    });
+
+    it('opens a company\'s file only in the store being browsed', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        [, $saudiApplication] = B2BFixtures::sent($customerId);
+        $mediaId = (string) DB::table('b2b.application_documents')->where('application_id', $saudiApplication->id())->value('media_id');
+        $applications = app(ApplicationRepository::class);
+
+        expect($mediaId)->not->toBe('')
+            ->and($applications->accountHolds($customerId, Fx::storeId('sa'), $mediaId))->toBeTrue()
+            ->and($applications->accountHolds($customerId, Fx::storeId('eg'), $mediaId))->toBeFalse();
+
+        Fx::actAsCustomer($customerId);
+        perStoreIn('eg', fn () => app(OpenMyApplicationFileHandler::class)->handle(new OpenMyApplicationFile($mediaId)));
+    })->throws(ApplicationFileNotFound::class);
+
+    it('leaves the type empty when two types here match it by one name each (amendment 20(a))', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        [$saudi] = B2BFixtures::approved($customerId);
+        $theirs = app(CompanyTypeRepository::class)->find((string) $saudi->details()->type->typeId) ?? throw new LogicException('No type.');
+        [$first, $second] = array_slice(B2BFixtures::companyTypes('eg'), 0, 2);
+        DB::table('b2b.company_types')->where('store_id', Fx::storeId('eg'))->update(['name_en' => DB::raw("'Egypt only ' || id"), 'name_ar' => DB::raw("'مصر ' || id")]);
+        // One shares the English name, the other the Arabic one: either would be a guess.
+        DB::table('b2b.company_types')->where('id', $first->id())->update(['name_en' => $theirs->name()->en]);
+        DB::table('b2b.company_types')->where('id', $second->id())->update(['name_ar' => $theirs->name()->ar]);
+        Fx::actAsCustomer($customerId);
+
+        perStoreIn('eg', fn () => app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft));
+
+        expect(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('eg'))?->type())->toBeNull();
+    });
+
+    it('takes the one type matching by a single name when it is the only one (amendment 20(a))', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        [$saudi] = B2BFixtures::approved($customerId);
+        $theirs = app(CompanyTypeRepository::class)->find((string) $saudi->details()->type->typeId) ?? throw new LogicException('No type.');
+        [$first] = B2BFixtures::companyTypes('eg');
+        DB::table('b2b.company_types')->where('store_id', Fx::storeId('eg'))->update(['name_en' => DB::raw("'Egypt only ' || id"), 'name_ar' => DB::raw("'مصر ' || id")]);
+        DB::table('b2b.company_types')->where('id', $first->id())->update(['name_en' => strtoupper($theirs->name()->en)]);
+        Fx::actAsCustomer($customerId);
+
+        perStoreIn('eg', fn () => app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft));
+
+        expect(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('eg'))?->type()?->typeId)->toBe($first->id());
     });
 });

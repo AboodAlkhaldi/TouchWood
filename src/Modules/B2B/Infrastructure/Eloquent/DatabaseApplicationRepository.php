@@ -186,14 +186,16 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
         $this->db->table(self::TABLE)->where('id', strtolower($applicationId))->delete();
     }
 
-    public function accountHolds(string $customerId, string $mediaId): bool
+    public function accountHolds(string $customerId, string $storeId, string $mediaId): bool
     {
         if (! Ulids::valid($customerId) || ! Ulids::valid($mediaId)) {
             return false;
         }
 
         $mediaId = strtolower($mediaId);
-        $own = $this->db->table(self::TABLE)->select('id')->where('customer_id', strtolower($customerId));
+        $own = $this->db->table(self::TABLE)->select('id')
+            ->where('customer_id', strtolower($customerId))
+            ->where('store_id', strtolower($storeId));
 
         return $this->db->table(self::DOCUMENTS)->where('media_id', $mediaId)->whereIn('application_id', $own)->exists()
             || $this->db->table(self::ANSWERS)->where('media_id', $mediaId)->whereIn('application_id', clone $own)->exists();

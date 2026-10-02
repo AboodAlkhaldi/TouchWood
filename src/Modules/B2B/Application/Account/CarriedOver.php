@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Modules\B2B\Application\Account;
 
 use Modules\B2B\Domain\Model\Company;
-use Modules\B2B\Domain\Model\CompanyType;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\ValueObject\CompanyName;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Public\Enums\CompanyStatus;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **Applying in a second store** (b2b.md amendments 19(b), 20(a) and (b)): the form starts with the
@@ -18,17 +19,22 @@ use Modules\B2B\Public\Enums\CompanyStatus;
  * address, the CR number, the tax number and the papers are entered fresh — they belong to that
  * country.
  *
- * - **Which company**: an approved one first, otherwise the newest (20(b)).
+ * - **Which company**: an approved one first, otherwise the newest (20(b)) — of the stores that are
+ *   **on** only: an off store is as if it were never there (platform.md §1.6), so nothing is
+ *   carried from it and the page never names it (review of amendment 18).
  * - **The type**: company types are each store's own list, so the other store's type is carried
- *   over only as its **counterpart** here — an active type of this store with the same Arabic or
- *   English name, ignoring case and the spaces at either end — and left empty when there is none;
- *   a company still "Other" brings its own words (20(a)).
+ *   over only as its **counterpart** here — an active type of this store with the same names,
+ *   ignoring case and the spaces at either end. A type matching both its Arabic and its English
+ *   name wins; failing that, the one type matching either name; if two match by one name each, the
+ *   choice would be a guess, and the type is left empty (20(a), as amended after the review). A
+ *   company still "Other" brings its own words.
  */
 final readonly class CarriedOver
 {
     public function __construct(
         private CompanyRepository $companies,
         private CompanyTypeRepository $companyTypes,
+        private PlatformApi $platform,
     ) {}
 
     /**
@@ -41,7 +47,10 @@ final readonly class CarriedOver
      */
     public function source(string $customerId): ?Company
     {
-        $elsewhere = $this->companies->allForCustomer($customerId);
+        $elsewhere = array_values(array_filter(
+            $this->companies->allForCustomer($customerId),
+            fn (Company $company): bool => $this->platform->store(StoreId::fromString($company->homeStoreId()))?->isActive === true,
+        ));
 
         foreach ($elsewhere as $company) {
             if ($company->status() === CompanyStatus::Approved) {
@@ -76,19 +85,35 @@ final readonly class CarriedOver
             return null;
         }
 
+        $both = [];
+        $either = [];
+
         foreach ($this->companyTypes->all($storeId) as $candidate) {
-            if ($candidate->isActive() && self::sameName($candidate, $type)) {
-                return CompanyTypeChoice::listed($candidate->id());
+            if (! $candidate->isActive()) {
+                continue;
+            }
+
+            $ar = self::same($candidate->name()->ar, $type->name()->ar);
+            $en = self::same($candidate->name()->en, $type->name()->en);
+
+            if ($ar && $en) {
+                $both[] = $candidate;
+            } elseif ($ar || $en) {
+                $either[] = $candidate;
             }
         }
 
-        return null;
+        $counterpart = match (true) {
+            $both !== [] => $both[0],
+            count($either) === 1 => $either[0],
+            default => null,
+        };
+
+        return $counterpart === null ? null : CompanyTypeChoice::listed($counterpart->id());
     }
 
-    private static function sameName(CompanyType $here, CompanyType $there): bool
+    private static function same(string $a, string $b): bool
     {
-        $same = static fn (string $a, string $b): bool => mb_strtolower(trim($a)) === mb_strtolower(trim($b));
-
-        return $same($here->name()->ar, $there->name()->ar) || $same($here->name()->en, $there->name()->en);
+        return mb_strtolower(trim($a)) === mb_strtolower(trim($b));
     }
 }

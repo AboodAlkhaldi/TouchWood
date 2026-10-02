@@ -152,10 +152,17 @@ final readonly class ViewMyCompanyHandler
             }
 
             $store = $this->platform->store(StoreId::fromString($company->homeStoreId()));
+
+            // An off store is as if it were never there (platform.md §1.6): not named, and not
+            // shown as "Approved" where nothing can be ordered (review of amendment 18).
+            if ($store === null || ! $store->isActive) {
+                continue;
+            }
+
             $elsewhere[] = new ElsewhereView(
                 $company->homeStoreId(),
-                $store->name->ar ?? '',
-                $store->name->en ?? '',
+                $store->name->ar,
+                $store->name->en,
                 $company->details()->name->value,
                 $company->status()->value,
             );

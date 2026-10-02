@@ -81,10 +81,11 @@ interface ApplicationRepository
     public function stillHeld(array $mediaIds): array;
 
     /**
-     * Whether one of the account's own applications holds this file, as a document or an answer —
-     * the only files the company may open (§1.4, amendment 5).
+     * Whether one of the account's own applications **in this store** holds this file, as a document
+     * or an answer — the only files the company may open (§1.4, amendment 5), and only where it is
+     * browsing, as every other customer route (a company per store, review of amendment 18).
      */
-    public function accountHolds(string $customerId, string $mediaId): bool;
+    public function accountHolds(string $customerId, string $storeId, string $mediaId): bool;
 
     /**
      * A draft thrown away by the customer (owner, 2026-09-27). Its references to its files go with

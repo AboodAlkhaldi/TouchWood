@@ -48,6 +48,11 @@ return new class extends Migration
         DB::statement("CREATE UNIQUE INDEX applications_one_open_per_store ON b2b.applications (customer_id, store_id) WHERE state IN ('DRAFT','SUBMITTED')");
     }
 
+    /**
+     * Only while no account holds companies in two stores (or two open applications): the old
+     * one-per-account keys cannot be put back over data they never allowed. Laravel migrates
+     * PostgreSQL in a transaction, so such a rollback fails whole and changes nothing.
+     */
     public function down(): void
     {
         DB::statement('DROP INDEX IF EXISTS b2b.applications_one_open_per_store');
