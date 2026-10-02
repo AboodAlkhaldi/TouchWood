@@ -216,7 +216,7 @@ export default function Invite(page: Props) {
                             label={t('access::staff.phone')}
                             error={form.errors.phone}
                             dir="ltr"
-                            className="tw-figure"
+                            inputClassName="tw-figure"
                             required
                             value={form.data.phone}
                             onChange={(event) => form.setData('phone', event.target.value)}

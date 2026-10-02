@@ -19,7 +19,7 @@ return [
     'error' => 'Error',
 
     'retry' => 'Retry Job',
-    'retried' => 'Job retried',
+    'retried' => 'Job requeued',
     'delete' => 'Delete Job',
     'confirm_delete' => 'The job will not run. This cannot be undone.',
     'deleted' => 'Job deleted',

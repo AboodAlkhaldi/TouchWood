@@ -11,7 +11,7 @@ return [
     'next' => 'التالي',
     'pages' => 'الصفحات',
     'range' => ':from–:to من :total',
-    'load_more' => 'تحميل المزيد',
+    'load_more' => 'عرض المزيد',
     'breadcrumbs' => 'مسار التنقل',
     'request_id' => 'رقم الطلب',
     'show_password' => 'إظهار كلمة المرور',

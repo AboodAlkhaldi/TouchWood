@@ -34,7 +34,7 @@ export function EmptyState({ title, description, icon, actions, ...rest }: Empty
     return (
         <div {...rest} aria-live="polite" className="material-base flex flex-col items-center gap-3 px-6 py-12 text-center">
             {icon === undefined ? null : (
-                <span aria-hidden="true" className="flex size-10 items-center justify-center rounded-full bg-surface-sunken text-ink-muted [&_svg]:size-5">
+                <span aria-hidden="true" className="flex size-10 items-center justify-center rounded-[var(--tw-radius-pill)] bg-surface-sunken text-ink-muted [&_svg]:size-5">
                     {icon}
                 </span>
             )}
@@ -203,7 +203,7 @@ export function Skeleton({ width, height = 16, shape = 'rounded' }: { width?: nu
             aria-hidden="true"
             className={cx(
                 'block animate-pulse bg-surface-sunken motion-reduce:animate-none',
-                shape === 'pill' ? 'rounded-full' : shape === 'rounded' ? 'rounded-[var(--tw-radius-sm)]' : 'rounded-none',
+                shape === 'pill' ? 'rounded-[var(--tw-radius-pill)]' : shape === 'rounded' ? 'rounded-[var(--tw-radius-sm)]' : 'rounded-none',
             )}
             style={{ width: width ?? '100%', height }}
         />

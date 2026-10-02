@@ -147,7 +147,9 @@
     --tw-sidebar-ink: #eaf2f8;
     --tw-sidebar-ink-muted: #8aacc8;
     --tw-sidebar-line: rgba(255, 255, 255, 0.1);
-    --tw-sidebar-active: #5a9dd9;
+    /* Deeper than set B's #5a9dd9, which held the sidebar's white text at 2.56:1; this is 6.37:1
+    | (review of the Geist move, 2026-10-02). */
+    --tw-sidebar-active: #1d5a8f;
 
     --tw-good: #5ec198;
     --tw-good-soft: #16302a;

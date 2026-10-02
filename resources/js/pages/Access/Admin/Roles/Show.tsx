@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { router, useForm, usePage } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { FormError } from '@/components/FormError';
+import { FormError, useFreshRefusal } from '@/components/FormError';
 import {
     Button,
     ButtonLink,
@@ -13,7 +13,6 @@ import {
     Select,
 } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
-import type { SharedProps } from '@/types/page';
 import type { RolePage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -48,8 +47,9 @@ export default function Show({
     replacements,
 }: Props) {
     const t = useTranslator();
-    const { errors } = usePage<SharedProps>().props;
     const [deleting, setDeleting] = useState(false);
+    // Only the delete's own refusal, never an older one from Refresh or Clone (useFreshRefusal).
+    const deleteRefusal = useFreshRefusal(deleting);
     const [cloning, setCloning] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -143,7 +143,7 @@ export default function Show({
                     verificationPhrase={name}
                     verificationLabel={t('access::roles.verification_label')}
                     loading={remove.processing}
-                    error={errors.form ?? remove.errors.replacement}
+                    error={deleteRefusal ?? remove.errors.replacement}
                     onConfirm={() => remove.post(`/admin/roles/${id}/delete`)}
                     description={
                         <div className="grid gap-3">

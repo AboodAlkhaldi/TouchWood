@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react';
 import { cx } from './cx';
 
@@ -56,7 +56,7 @@ export function Badge({ variant = 'gray-subtle', size = 'medium', icon, children
     return (
         <span
             {...rest}
-            className={cx('inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full font-medium [&_svg]:size-3', BADGE[variant], BADGE_SIZE[size])}
+            className={cx('inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--tw-radius-pill)] font-medium [&_svg]:size-3', BADGE[variant], BADGE_SIZE[size])}
         >
             {icon}
             {children}
@@ -114,7 +114,10 @@ export function Note({ variant = 'default', label, children, action, size = 'med
 
 /** One key - a letter, a digit or a named key. Modifiers are props, and Ctrl is shown off a Mac. */
 export function Kbd({ children, meta, shift, alt, ctrl, small }: { children?: ReactNode; meta?: boolean; shift?: boolean; alt?: boolean; ctrl?: boolean; small?: boolean }) {
-    const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+    // Read after the first paint: the server cannot know the device, and reading it while rendering
+    // made the server's page and the browser's first render disagree on a Mac.
+    const [mac, setMac] = useState(false);
+    useEffect(() => setMac(/Mac|iPhone|iPad/.test(navigator.platform)), []);
     const keys = [meta ? (mac ? '⌘' : 'Ctrl') : null, ctrl ? 'Ctrl' : null, alt ? (mac ? '⌥' : 'Alt') : null, shift ? '⇧' : null, children]
         .filter((key) => key !== null && key !== undefined);
 

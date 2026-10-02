@@ -89,7 +89,7 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
         ->assertSee('RuntimeException: The disk did not answer.');
 
     $page->click("[data-test=\"retry-{$retried}\"]")
-        ->assertSee('Job retried')
+        ->assertSee('Job requeued')
         ->assertNoJavaScriptErrors();
 
     $page->click("[data-test=\"delete-{$deleted}\"]")

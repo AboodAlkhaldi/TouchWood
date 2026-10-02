@@ -134,8 +134,9 @@ it('walks the invitation through its three steps, sending nothing before the las
         ->type('#date_of_birth', '1994-02-17')
         ->click('button[type="submit"]');
 
-    // Step two: still nobody in the table, because the form has not been sent.
-    $page->assertSee('Role')->assertNoJavaScriptErrors();
+    // Step two: still nobody in the table, because the form has not been sent. The step's number,
+    // not a word: "Role" is on every step (the stepper) and in the sidebar too.
+    $page->assertSee('Step 2 of 3')->assertNoJavaScriptErrors();
     expect(DB::table('access.staff_users')->where('email', $email)->exists())->toBeFalse();
 
     // Step three, and still nobody: the whole form is one request, sent at the end.

@@ -43,8 +43,10 @@ export function Menu({ trigger, children, align = 'end', side = 'bottom', matchT
     );
 }
 
+// The keyboard's place in the menu is a brand ring inside the item: the highlight's tint alone was
+// 1.10:1 against the menu (the review of the move).
 const ITEM =
-    'flex h-9 cursor-pointer select-none items-center gap-2 rounded-[var(--tw-radius-sm)] px-2 outline-none data-[highlighted]:bg-surface-sunken [&_svg]:size-4 [&_svg]:shrink-0';
+    'flex h-9 cursor-pointer select-none items-center gap-2 rounded-[var(--tw-radius-sm)] px-2 outline-none data-[highlighted]:bg-surface-sunken focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand [&_svg]:size-4 [&_svg]:shrink-0';
 
 type ItemProps = {
     children: ReactNode;

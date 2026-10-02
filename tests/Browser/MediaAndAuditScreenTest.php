@@ -114,7 +114,7 @@ it('asks before deleting a file, in the page, and then deletes it', function () 
     // Asked in the page, so a test can answer it. The browser's own confirm box could not be
     // driven at all, which is why this went uncovered and then went wrong (owner, 2026-09-24).
     $page->click("[data-test=\"delete-{$id}\"]")
-        ->assertSee('Nothing uses it')
+        ->assertSee('Nothing uses this file.')
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('platform.media')->where('id', $id)->exists())->toBeTrue();

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Tooltip as TooltipPrimitive } from 'radix-ui';
 
 /*
@@ -12,7 +12,9 @@ import { Tooltip as TooltipPrimitive } from 'radix-ui';
 |
 | `text` may be absent: the tooltip then stays shut but stays in the tree. A control that gains or
 | loses its reason - a button disabled while a save runs - is therefore never re-mounted, and never
-| loses the keyboard focus it had (found in the Geist move, 2026-10-02).
+| loses the keyboard focus it had (found in the Geist move, 2026-10-02). It is always controlled:
+| switching Radix between controlled and uncontrolled let a tooltip whose reason had gone keep its
+| own "open" and pop up by itself the next time a reason came (the review of the move).
 */
 
 type Props = {
@@ -22,11 +24,12 @@ type Props = {
 };
 
 export function Tooltip({ text, children, side = 'top' }: Props) {
+    const [open, setOpen] = useState(false);
     const silent = text === undefined || text === null || text === '';
 
     return (
         <TooltipPrimitive.Provider delayDuration={150}>
-            <TooltipPrimitive.Root open={silent ? false : undefined}>
+            <TooltipPrimitive.Root open={!silent && open} onOpenChange={setOpen}>
                 <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
                 <TooltipPrimitive.Portal>
                     <TooltipPrimitive.Content

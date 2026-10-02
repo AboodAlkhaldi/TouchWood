@@ -64,12 +64,10 @@ export function Toasts() {
         // says the same thing as the last one.
     }, [visit, showing.length]);
 
-    if (showing.length === 0) {
-        return null;
-    }
-
     // Geist's toast (frontend.md 1.10): a raised surface in the page's own ink, the tone carried by
     // its icon, stacked at the bottom end of the screen - centred on a phone, where there is no end.
+    // The live region is always there, empty or not: one that arrives together with its message is
+    // skipped by most screen readers (the review of the move).
     return (
         <div
             className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6"

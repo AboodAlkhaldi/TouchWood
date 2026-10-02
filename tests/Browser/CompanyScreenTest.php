@@ -197,7 +197,7 @@ it('takes a company from the line under the header through its application to "u
     // does for a file too large for the server. The papers go in as the customer instead; the
     // upload itself is MyCompanyPageTest's.
     $page->attach('[data-test="file-'.B2BFixtures::documentTypes()[0]->id().'"]', B2BFixtures::pdf())
-        ->assertSee('No file arrived.');
+        ->assertSee("Couldn't upload the file.");
     companyScreenPapers($customerId);
 
     $page->navigate('/sa/en/account/company')

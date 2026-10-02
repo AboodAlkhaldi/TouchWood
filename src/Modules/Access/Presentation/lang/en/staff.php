@@ -116,6 +116,6 @@ return [
     'none_title' => 'No Staff Members',
     'no_role_title' => 'Nothing Allowed Yet',
     'verification_label' => 'member name',
-    'cancel_invitation_body' => 'The link in the invitation stops working, and this invitation cannot be sent again.',
+    'cancel_invitation_body' => 'The link in the invitation stops working. A new invitation can still be sent.',
     'keep_invitation' => 'Keep Invitation',
 ];

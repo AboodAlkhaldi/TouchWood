@@ -21,7 +21,7 @@ return [
     'variants_ready' => 'Ready',
     'variants_failed' => 'Processing Failed',
     'retry' => 'Retry Processing',
-    'retrying' => 'Processing retried',
+    'retrying' => 'Processing restarted',
 
     'upload' => 'Upload File',
     'uploaded_ok' => 'File uploaded',

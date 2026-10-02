@@ -213,7 +213,7 @@ function Editor({
                                         min={1}
                                         max={maxLength}
                                         dir="ltr"
-                                        className="tw-figure"
+                                        inputClassName="tw-figure"
                                         required
                                         value={row.max_length}
                                         onChange={(event) => edit(index, { max_length: Number(event.target.value) })}

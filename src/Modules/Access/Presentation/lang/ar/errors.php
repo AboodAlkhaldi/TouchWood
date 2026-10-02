@@ -78,7 +78,7 @@ return [
     ],
     'customer_blocked' => [
         'title' => 'الحساب موقوف',
-        'detail' => 'حسابك موقوف. تواصل معنا لرفع الإيقاف.',
+        'detail' => 'حسابك موقوف. تواصل معنا.',
     ],
     'email_already_registered' => [
         'title' => 'لديك حساب بالفعل',

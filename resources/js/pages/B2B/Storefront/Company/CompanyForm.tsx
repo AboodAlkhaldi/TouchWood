@@ -1,6 +1,7 @@
 import { type ChangeEvent, createContext, type RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { router } from '@inertiajs/react';
 import { ChevronDown } from 'lucide-react';
+import { DialogError } from '@/components/FormError';
 import { Button, Label, Modal, ModalCancel, Note } from '@/components/geist';
 import { isolate } from '@/lib/bidi';
 import { useLink } from '@/lib/routes';
@@ -419,7 +420,11 @@ export function DiscardModal({ open, onOpenChange, busy = false }: { open: boole
                     </Button>
                 </>
             }
-        />
+        >
+            {/* A refusal keeps the dialog open; it is said inside it, not only in a toast hidden
+                under the backdrop (the review of the move). */}
+            <DialogError open={open} />
+        </Modal>
     );
 }
 

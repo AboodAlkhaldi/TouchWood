@@ -78,7 +78,7 @@ return [
     ],
     'customer_blocked' => [
         'title' => 'Account Blocked',
-        'detail' => 'Your account is blocked. Contact us to have it unblocked.',
+        'detail' => 'Your account is blocked. Contact us.',
     ],
     'email_already_registered' => [
         'title' => 'You Already Have an Account',

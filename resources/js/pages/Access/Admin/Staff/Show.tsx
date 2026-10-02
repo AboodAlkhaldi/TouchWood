@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { router, useForm, usePage } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { FormError } from '@/components/FormError';
+import { DialogError, FormError, useFreshRefusal } from '@/components/FormError';
 import {
     Badge,
     Button,
@@ -17,7 +17,6 @@ import {
     type DescriptionItem,
 } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
-import type { SharedProps } from '@/types/page';
 import type { StaffMemberPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -41,11 +40,12 @@ type Props = StaffMemberPage;
 
 export default function Show(person: Props) {
     const t = useTranslator();
-    const { errors } = usePage<SharedProps>().props;
     const [editing, setEditing] = useState(false);
     const [changingEmail, setChangingEmail] = useState(false);
     const [disabling, setDisabling] = useState(false);
     const [cancelling, setCancelling] = useState(false);
+    // Only Disable's own refusal, never an older one from Refresh or Resend (useFreshRefusal).
+    const disableRefusal = useFreshRefusal(disabling);
     // The path of the action on its way to the server, so its own button says it is busy.
     const [busy, setBusy] = useState<string | null>(null);
 
@@ -218,7 +218,7 @@ export default function Show(person: Props) {
                                 label={t('access::staff.phone')}
                                 error={profile.errors.phone}
                                 dir="ltr"
-                                className="tw-figure"
+                                inputClassName="tw-figure"
                                 value={profile.data.phone}
                                 onChange={(event) => profile.setData('phone', event.target.value)}
                             />
@@ -293,7 +293,7 @@ export default function Show(person: Props) {
                 verificationPhrase={person.name}
                 verificationLabel={t('access::staff.verification_label')}
                 loading={busy === '/disable'}
-                error={errors.form}
+                error={disableRefusal}
                 onConfirm={() => post('/disable', () => setDisabling(false))}
             />
 
@@ -321,7 +321,7 @@ export default function Show(person: Props) {
                 }
             >
                 {/* A refusal keeps the dialog open, so it is said here, where the person is looking. */}
-                {errors.form ? <FormError /> : undefined}
+                <DialogError open={cancelling} />
             </Modal>
         </AdminLayout>
     );

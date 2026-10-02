@@ -10,7 +10,7 @@ return [
     'verification_sent' => 'Confirmation link sent',
     'email_verified' => 'Email address confirmed',
     'code_sent' => 'Code sent to your phone',
-    'reset_link_sent' => 'Reset link sent, if this email belongs to an account',
+    'reset_link_sent' => 'If this email belongs to an account, a reset link is on its way',
     'password_reset' => 'Password changed. Sign in with your new password.',
     'password_changed' => 'Password changed. Every other session was signed out.',
     'email_changed' => 'Email changed. Sign in with your new email.',

@@ -116,6 +116,6 @@ return [
     'none_title' => 'لا موظفين',
     'no_role_title' => 'لا صلاحيات بعد',
     'verification_label' => 'اسم الموظف',
-    'cancel_invitation_body' => 'يتوقف رابط الدعوة عن العمل، ولا يمكن إرسال هذه الدعوة من جديد.',
+    'cancel_invitation_body' => 'يتوقف رابط الدعوة عن العمل، ويمكن إرسال دعوة جديدة لاحقًا.',
     'keep_invitation' => 'الإبقاء على الدعوة',
 ];

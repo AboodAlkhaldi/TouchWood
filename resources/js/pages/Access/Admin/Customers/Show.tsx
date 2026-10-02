@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { useForm, usePage } from '@inertiajs/react';
+import { useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { FormError } from '@/components/FormError';
+import { DialogError, FormError } from '@/components/FormError';
 import { Badge, Button, Description, EmptyState, Input, Modal, ModalCancel } from '@/components/geist';
 import { isolate } from '@/lib/bidi';
 import { useTranslator } from '@/lib/t';
-import type { SharedProps } from '@/types/page';
 import type {
     AddressRow,
     CustomerAddressGroup,
@@ -244,7 +243,6 @@ function Action({
     danger?: boolean;
 }) {
     const t = useTranslator();
-    const { errors } = usePage<SharedProps>().props;
     const [open, setOpen] = useState(false);
     const form = useForm({ reason: '' });
     const formId = `action-${name}`;
@@ -299,8 +297,8 @@ function Action({
                     className="grid gap-3"
                 >
                     {/* A refusal keeps the dialog open, so it is said here, where the person is
-                        looking. */}
-                    {errors.form ? <FormError /> : null}
+                        looking - this dialog's own, never one left over from another action. */}
+                    <DialogError open={open} />
 
                     <Input
                         id={`reason-${name}`}

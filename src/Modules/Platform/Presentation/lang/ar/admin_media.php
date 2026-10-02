@@ -21,7 +21,7 @@ return [
     'variants_ready' => 'جاهزة',
     'variants_failed' => 'فشلت المعالجة',
     'retry' => 'إعادة المعالجة',
-    'retrying' => 'تمت إعادة المعالجة',
+    'retrying' => 'بدأت إعادة المعالجة',
 
     'upload' => 'رفع ملف',
     'uploaded_ok' => 'تم رفع الملف',

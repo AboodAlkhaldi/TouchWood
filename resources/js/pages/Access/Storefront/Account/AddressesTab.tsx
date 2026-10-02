@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
-import { FormError } from '@/components/FormError';
+import { DialogError, FormError } from '@/components/FormError';
 import { Badge, Button, Checkbox, EmptyState, Input, Modal, ModalCancel, Note } from '@/components/geist';
 import { toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
@@ -246,7 +246,7 @@ function SavedAddress({
                                         preserveScroll: true,
                                         onStart: () => setDeleting(true),
                                         // Closed once it is gone; a refusal keeps it open, with the
-                                        // reason in the toast, so the person can try again.
+                                        // reason inside it, so the person can try again.
                                         onSuccess: () => setConfirming(false),
                                         onFinish: () => setDeleting(false),
                                     },
@@ -257,7 +257,11 @@ function SavedAddress({
                         </Button>
                     </>
                 }
-            />
+            >
+                {/* Inside the dialog: the toast sits under its backdrop and is hidden from screen
+                    readers while it is open (the review of the move). */}
+                <DialogError open={confirming} />
+            </Modal>
         </div>
     );
 }

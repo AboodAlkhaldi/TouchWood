@@ -92,7 +92,7 @@ type Props = {
 
 // The look of Geist's MenuItem, for the checkbox items the Menu does not have a component for.
 const CHECK_ITEM =
-    'flex h-9 cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-label-14 text-ink outline-none data-[highlighted]:bg-surface-sunken';
+    'flex h-9 cursor-pointer select-none items-center gap-2 rounded-[var(--tw-radius-sm)] px-2 text-label-14 text-ink outline-none data-[highlighted]:bg-surface-sunken focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand';
 
 export function PermissionsByRole({ roles, groups, permissions, permissionsByRole }: Props) {
     const t = useTranslator();
@@ -265,9 +265,10 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
                                                     spans the whole table never leaves the screen,
                                                     so sticking it does nothing and the name inside
                                                     it scrolls away regardless (owner, 2026-09-24).
-                                                    Held at the cell's own padding, so it does not
+                                                    Held at the cell's own padding - Geist's table
+                                                    cell has 16 px, so start-4 - so it does not
                                                     jump on the first pixel of scrolling. */}
-                                                <span className="sticky start-2 inline-block">{row.original.groupLabel}</span>
+                                                <span className="sticky start-4 inline-block">{row.original.groupLabel}</span>
                                             </TableCell>
                                         </TableRow>
                                     )}

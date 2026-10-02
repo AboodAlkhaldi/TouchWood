@@ -65,7 +65,7 @@ function classes(common: Common, svgOnly: boolean, unavailable: boolean): string
         'relative inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap transition-[background-color,box-shadow,opacity] duration-150 [&_svg]:shrink-0',
         s.text,
         svgOnly || shape === 'square' || shape === 'circle' ? cx(s.square, 'p-0') : s.box,
-        shape === 'circle' || shape === 'rounded' ? 'rounded-full' : 'rounded-[var(--tw-radius)]',
+        shape === 'circle' || shape === 'rounded' ? 'rounded-[var(--tw-radius-pill)]' : 'rounded-[var(--tw-radius)]',
         unavailable ? UNAVAILABLE : LOOK[type],
         className,
     );

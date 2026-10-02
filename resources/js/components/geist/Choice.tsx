@@ -21,19 +21,25 @@ const BOX_FOCUS = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-
 /**
  * A control and the reason it can't be used, in a wrapper of its own (found in the Geist move,
  * 2026-10-02): the tooltip's trigger writes its own data-state, which on the Radix control itself
- * overwrote "checked" and drew a ticked, locked box as unticked; a disabled control cannot take
- * focus, so the wrapper takes it while there is a reason, and the keyboard can read why; and the
- * wrapper is always there, so gaining or losing a reason never re-mounts the control.
+ * overwrote "checked" and drew a ticked, locked box as unticked; and the wrapper is always there,
+ * so gaining or losing a reason never re-mounts the control.
+ *
+ * A control with a reason is aria-disabled, never disabled: it keeps its tab stop, a screen reader
+ * still hears its name and its state, and its focus opens the tooltip through the wrapper (focus
+ * events bubble). A natively disabled control dropped out of the tab order with its reason, and a
+ * focusable wrapper around it had no name at all (the review of the move).
  */
 function explained(node: ReactNode, reason?: string): ReactNode {
     return (
         <Tooltip text={reason}>
-            <span className="inline-flex shrink-0" tabIndex={reason === undefined ? undefined : 0}>
-                {node}
-            </span>
+            <span className="inline-flex shrink-0">{node}</span>
         </Tooltip>
     );
 }
+
+/** The edge of an unticked box or an off toggle: ink-subtle, 3.12:1 on a card (line-strong was 1.59:1). */
+const EDGE = 'shadow-[0_0_0_1px_var(--tw-ink-subtle)]';
+const UNAVAILABLE = 'aria-disabled:cursor-not-allowed aria-disabled:opacity-50';
 
 type CheckboxProps = {
     id: string;
@@ -42,6 +48,9 @@ type CheckboxProps = {
     children?: ReactNode;
     disabledReason?: string;
     'aria-label'?: string;
+    /** The id of the error or helper under it, so a screen reader hears it with the box. */
+    'aria-describedby'?: string;
+    'aria-invalid'?: boolean;
     name?: string;
     value?: string;
     'data-test'?: string;
@@ -57,10 +66,12 @@ export function Checkbox({ id, checked, onChange, children, disabledReason, ...r
                     {...rest}
                     id={id}
                     checked={checked}
-                    disabled={disabled}
-                    onCheckedChange={(next) => onChange(next === true)}
+                    aria-disabled={disabled || undefined}
+                    onCheckedChange={(next) => (disabled ? undefined : onChange(next === true))}
                     className={cx(
-                        'mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-surface text-ink-on-brand shadow-[0_0_0_1px_var(--tw-line-strong)] transition-colors data-[state=checked]:bg-brand data-[state=checked]:shadow-none data-[state=indeterminate]:bg-brand data-[state=indeterminate]:shadow-none disabled:cursor-not-allowed disabled:opacity-50',
+                        'mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[calc(var(--tw-radius-sm)_-_2px)] bg-surface text-ink-on-brand transition-colors data-[state=checked]:bg-brand data-[state=checked]:shadow-none data-[state=indeterminate]:bg-brand data-[state=indeterminate]:shadow-none',
+                        EDGE,
+                        UNAVAILABLE,
                         BOX_FOCUS,
                     )}
                 >
@@ -92,10 +103,17 @@ type RadioGroupProps = {
 };
 
 export function RadioGroup({ name, legend, value, onChange, options, error }: RadioGroupProps) {
+    const locked = new Set(options.filter((option) => option.disabledReason !== undefined).map((option) => option.value));
+
     return (
-        <fieldset className="grid gap-2">
+        <fieldset className="grid gap-2" aria-describedby={error === undefined || error === '' ? undefined : `${name}-error`}>
             <legend className="mb-1 text-label-14 font-medium text-ink">{legend}</legend>
-            <RadioPrimitive.Root name={name} value={value} onValueChange={onChange} className="grid gap-2">
+            <RadioPrimitive.Root
+                name={name}
+                value={value}
+                onValueChange={(next) => (locked.has(next) ? undefined : onChange(next))}
+                className="grid gap-2"
+            >
                 {options.map((option) => {
                     const id = `${name}-${option.value}`;
 
@@ -105,13 +123,15 @@ export function RadioGroup({ name, legend, value, onChange, options, error }: Ra
                                 <RadioPrimitive.Item
                                     id={id}
                                     value={option.value}
-                                    disabled={option.disabledReason !== undefined}
+                                    aria-disabled={option.disabledReason === undefined ? undefined : true}
                                     className={cx(
-                                        'flex size-4 shrink-0 items-center justify-center rounded-full bg-surface shadow-[0_0_0_1px_var(--tw-line-strong)] data-[state=checked]:shadow-[0_0_0_1px_var(--tw-brand)] disabled:cursor-not-allowed disabled:opacity-50',
+                                        'flex size-4 shrink-0 items-center justify-center rounded-[var(--tw-radius-pill)] bg-surface data-[state=checked]:shadow-[0_0_0_1px_var(--tw-brand)]',
+                                        EDGE,
+                                        UNAVAILABLE,
                                         BOX_FOCUS,
                                     )}
                                 >
-                                    <RadioPrimitive.Indicator className="block size-2 rounded-full bg-brand" />
+                                    <RadioPrimitive.Indicator className="block size-2 rounded-[var(--tw-radius-pill)] bg-brand" />
                                 </RadioPrimitive.Item>,
                                 option.disabledReason,
                             )}
@@ -123,7 +143,7 @@ export function RadioGroup({ name, legend, value, onChange, options, error }: Ra
                 })}
             </RadioPrimitive.Root>
             {error === undefined || error === '' ? null : (
-                <p role="alert" className="text-copy-13 text-bad">
+                <p id={`${name}-error`} role="alert" className="text-copy-13 text-bad">
                     {error}
                 </p>
             )}
@@ -141,28 +161,34 @@ type ToggleProps = {
     description?: ReactNode;
     disabledReason?: string;
     'aria-label'?: string;
+    /** An error's id, read with the toggle; the description's own id is added to it. */
+    'aria-describedby'?: string;
+    'aria-invalid'?: boolean;
     'data-test'?: string;
 };
 
 export function Toggle({ id, checked, onChange, children, description, disabledReason, ...rest }: ToggleProps) {
     const disabled = disabledReason !== undefined;
+    const described = [rest['aria-describedby'], description === undefined ? undefined : `${id}-description`].filter(Boolean).join(' ');
 
     return (
         <div className="inline-flex items-start gap-3">
             {explained(
+                // 24 by 44 pixels, the touch target frontend.md §6 asks for (Geist's own is smaller).
                 <SwitchPrimitive.Root
                     {...rest}
                     id={id}
                     checked={checked}
-                    disabled={disabled}
-                    onCheckedChange={onChange}
-                    aria-describedby={description === undefined ? undefined : `${id}-description`}
+                    aria-disabled={disabled || undefined}
+                    onCheckedChange={(next) => (disabled ? undefined : onChange(next))}
+                    aria-describedby={described === '' ? undefined : described}
                     className={cx(
-                        'inline-flex h-5 w-9 shrink-0 items-center justify-start rounded-full bg-line-strong p-0.5 transition-colors data-[state=checked]:justify-end data-[state=checked]:bg-brand disabled:cursor-not-allowed disabled:opacity-50',
+                        'inline-flex h-6 w-11 shrink-0 items-center justify-start rounded-[var(--tw-radius-pill)] bg-ink-subtle p-0.5 transition-colors data-[state=checked]:justify-end data-[state=checked]:bg-brand',
+                        UNAVAILABLE,
                         BOX_FOCUS,
                     )}
                 >
-                    <SwitchPrimitive.Thumb className="block size-4 rounded-full bg-surface shadow-[var(--tw-shadow-small)]" />
+                    <SwitchPrimitive.Thumb className="block size-5 rounded-[var(--tw-radius-pill)] bg-surface shadow-[var(--tw-shadow-small)]" />
                 </SwitchPrimitive.Root>,
                 disabledReason,
             )}
@@ -214,7 +240,7 @@ export function Switch({ name, value, onChange, options, size = 'medium', ...res
                         data-test={option['data-test']}
                         aria-label={option.icon === undefined ? undefined : option.label}
                         className={cx(
-                            'inline-flex items-center justify-center gap-1.5 rounded-[calc(var(--tw-radius)-2px)] px-3 text-button-14 text-ink-muted transition-colors hover:text-ink data-[state=checked]:bg-surface data-[state=checked]:text-ink data-[state=checked]:shadow-[var(--tw-shadow-small)]',
+                            'inline-flex items-center justify-center gap-1.5 rounded-[calc(var(--tw-radius)_-_2px)] px-3 text-button-14 text-ink-muted transition-colors hover:text-ink data-[state=checked]:bg-surface data-[state=checked]:text-ink data-[state=checked]:shadow-[var(--tw-shadow-small)]',
                             size === 'small' ? 'h-7' : 'h-8',
                             BOX_FOCUS,
                         )}

@@ -23,10 +23,21 @@ export type FieldSize = 'small' | 'medium' | 'large';
 
 const HEIGHT: Record<FieldSize, string> = { small: 'h-8', medium: 'h-9', large: 'h-10' };
 
-const BOX =
-    'w-full min-w-0 rounded-[var(--tw-radius)] bg-surface text-copy-14 text-ink shadow-[0_0_0_1px_var(--tw-line-strong)] transition-shadow placeholder:text-ink-subtle hover:shadow-[0_0_0_1px_var(--tw-ink-subtle)] focus-within:shadow-[0_0_0_1px_var(--tw-brand)]';
-const BOX_ERROR = 'shadow-[0_0_0_1px_var(--tw-bad)] hover:shadow-[0_0_0_1px_var(--tw-bad)]';
-const BOX_OFF = 'cursor-not-allowed bg-surface-sunken text-ink-subtle hover:shadow-[0_0_0_1px_var(--tw-line-strong)]';
+const BOX = 'w-full min-w-0 rounded-[var(--tw-radius)] text-copy-14 transition-shadow placeholder:text-ink-subtle';
+
+/*
+| One edge per state, never two on one element: with the normal ring and the error ring both on
+| a field, the stylesheet's order decided, and an invalid field kept its grey edge (the review of the
+| move). Hover lightens only a field that is not being typed in.
+*/
+const RING =
+    'bg-surface text-ink shadow-[0_0_0_1px_var(--tw-line-strong)] hover:not-focus-within:shadow-[0_0_0_1px_var(--tw-ink-subtle)] focus-within:shadow-[0_0_0_1px_var(--tw-brand)]';
+const RING_ERROR = 'bg-surface text-ink shadow-[0_0_0_1px_var(--tw-bad)]';
+const RING_OFF = 'cursor-not-allowed bg-surface-sunken text-ink-subtle shadow-[0_0_0_1px_var(--tw-line-strong)]';
+
+function ring(invalid: boolean, disabled: boolean | undefined): string {
+    return disabled ? RING_OFF : invalid ? RING_ERROR : RING;
+}
 
 export function Label({ htmlFor, children, className }: { htmlFor?: string; children: ReactNode; className?: string }) {
     return (
@@ -75,15 +86,17 @@ type InputProps = Shared &
     Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'prefix' | 'className'> & {
         prefix?: ReactNode;
         suffix?: ReactNode;
+        /** Classes for the typed text alone - `tw-figure` for codes and numbers - not the label. */
+        inputClassName?: string;
     };
 
-export function Input({ id, label, helper, error, size = 'medium', className, prefix, suffix, disabled, ...rest }: InputProps) {
+export function Input({ id, label, helper, error, size = 'medium', className, prefix, suffix, disabled, inputClassName, ...rest }: InputProps) {
     const invalid = error !== undefined && error !== '';
 
     return (
         <div className={cx('grid min-w-0 gap-1.5', className)}>
             {label === undefined ? null : <Label htmlFor={id}>{label}</Label>}
-            <div className={cx('flex items-center gap-2 px-3', HEIGHT[size], BOX, invalid && BOX_ERROR, disabled && BOX_OFF)}>
+            <div className={cx('flex items-center gap-2 px-3', HEIGHT[size], BOX, ring(invalid, disabled))}>
                 {prefix === undefined ? null : <span className="flex shrink-0 items-center text-ink-muted">{prefix}</span>}
                 <input
                     {...rest}
@@ -91,7 +104,7 @@ export function Input({ id, label, helper, error, size = 'medium', className, pr
                     disabled={disabled}
                     aria-invalid={invalid || undefined}
                     aria-describedby={describedBy(id, helper, error)}
-                    className="h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink-subtle disabled:cursor-not-allowed"
+                    className={cx('h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink-subtle disabled:cursor-not-allowed', inputClassName)}
                 />
                 {suffix === undefined ? null : <span className="flex shrink-0 items-center text-ink-muted">{suffix}</span>}
             </div>
@@ -115,7 +128,7 @@ export function Textarea({ id, label, helper, error, className, rows = 4, disabl
                 disabled={disabled}
                 aria-invalid={invalid || undefined}
                 aria-describedby={describedBy(id, helper, error)}
-                className={cx('block resize-y px-3 py-2 outline-none', BOX, invalid && BOX_ERROR, disabled && BOX_OFF)}
+                className={cx('block resize-y px-3 py-2 outline-none', BOX, ring(invalid, disabled))}
             />
             <FieldMessage id={id} helper={helper} error={error} />
         </div>
@@ -141,7 +154,7 @@ export function Select({ id, label, helper, error, size = 'medium', className, p
                     disabled={disabled}
                     aria-invalid={invalid || undefined}
                     aria-describedby={describedBy(id, helper, error)}
-                    className={cx('appearance-none pe-9 ps-3 outline-none', HEIGHT[size], BOX, invalid && BOX_ERROR, disabled && BOX_OFF)}
+                    className={cx('appearance-none pe-9 ps-3 outline-none', HEIGHT[size], BOX, ring(invalid, disabled))}
                 >
                     {placeholder === undefined ? null : (
                         <option value="" disabled>
