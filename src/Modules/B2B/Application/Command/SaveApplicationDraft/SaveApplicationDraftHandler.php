@@ -72,10 +72,13 @@ final readonly class SaveApplicationDraftHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $account = $this->account->get(self::PERMISSION);
 
-        $this->db->transaction(function () use ($account, $command): void {
+        $store = $this->account->store($account);
+
+        $this->db->transaction(function () use ($account, $command, $store): void {
             // The draft first (amendment 17(h)): a suspended company, or an account with nothing
-            // open, is told so before any value is weighed.
-            $draft = $this->drafts->forChange($account->id)->draft;
+            // open, is told so before any value is weighed. The draft of the store being browsed
+            // (amendment 18).
+            $draft = $this->drafts->forChange($account->id, $store)->draft;
             $sent = self::values($command->fields);
 
             // Today's minimums (amendment 16(b)), on the field that falls short.
@@ -93,7 +96,7 @@ final readonly class SaveApplicationDraftHandler
             $type = array_key_exists('type', $sent) ? $sent['type'] : $draft->type();
 
             if ($type?->typeId !== null && $type->typeId !== $draft->type()?->typeId) {
-                $this->requireChoosable($type->typeId, $account->homeStoreId);
+                $this->requireChoosable($type->typeId, $draft->storeId());
             }
 
             $draft->describe(

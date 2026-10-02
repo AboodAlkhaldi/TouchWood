@@ -10,4 +10,6 @@ return [
     'pending' => 'Your account is under review — you can browse and fill your cart; ordering opens once it is approved.',
     'rejected' => 'Your company application was not approved — see why, and apply again.',
     'suspended' => 'Your company account is suspended: :reason',
+    // A company in another store, none here: each store approves its own (amendment 19(c)).
+    'apply_here' => 'Apply in this store to order here: each store approves its own companies.',
 ];

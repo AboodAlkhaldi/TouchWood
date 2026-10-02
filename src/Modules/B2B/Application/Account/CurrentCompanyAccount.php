@@ -10,6 +10,7 @@ use Modules\Access\Public\Enums\AccountType;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
+use Shared\Application\StoreContext;
 use Shared\Application\Unauthorized;
 
 /**
@@ -22,7 +23,18 @@ final readonly class CurrentCompanyAccount
     public function __construct(
         private ActorContext $actors,
         private AccessApi $access,
+        private StoreContext $stores,
     ) {}
+
+    /**
+     * The store the account is applying in: **the store it is browsing** (b2b.md amendment 19(a)) —
+     * every company page sits under a store. Outside a storefront request (the console, a test), the
+     * account's home store (amendment 20(e)).
+     */
+    public function store(CustomerDto $account): string
+    {
+        return $this->stores->has() ? $this->stores->current()->value : strtolower($account->homeStoreId);
+    }
 
     /**
      * @param  string  $permission  the one the caller was about to check, so a refusal names the

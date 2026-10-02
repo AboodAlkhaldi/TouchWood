@@ -30,6 +30,13 @@ flags: CompanyFlagData[],
 requests: CompanyRequestData[],
 answers: CompanyAnswerData[],
 };
+export type CompanyElsewhereData = {
+storeId: string,
+storeNameAr: string,
+storeNameEn: string,
+name: string,
+status: string,
+};
 export type CompanyFieldRuleData = {
 min: number,
 max: number,
@@ -60,6 +67,17 @@ bankAccount: CompanyBankAccountData | null,
 maxFileBytes: number,
 formRules: Record<string, CompanyFieldRuleData>,
 savedAddresses: CompanySavedAddressData[],
+storeNameAr: string,
+storeNameEn: string,
+elsewhere: CompanyElsewhereData[],
+prefill: CompanyPrefillData | null,
+};
+export type CompanyPrefillData = {
+name: string,
+companyTypeId: string | null,
+companyTypeOther: string | null,
+fromStoreNameAr: string,
+fromStoreNameEn: string,
 };
 export type CompanyRequestData = {
 id: string,

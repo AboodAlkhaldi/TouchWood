@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Modules\B2B\Application\Query\ViewMyCompany\AnswerView;
 use Modules\B2B\Application\Query\ViewMyCompany\ApplicationValues;
+use Modules\B2B\Application\Query\ViewMyCompany\ElsewhereView;
 use Modules\B2B\Application\Query\ViewMyCompany\FileView;
 use Modules\B2B\Application\Query\ViewMyCompany\FlagView;
 use Modules\B2B\Application\Query\ViewMyCompany\MyCompanyView;
@@ -38,7 +39,13 @@ final readonly class CompanyPages
 
     public function page(MyCompanyView $view): CompanyPage
     {
-        $zone = $this->platform->store(StoreId::fromString($view->homeStoreId))->timezone ?? 'UTC';
+        $store = $this->platform->store(StoreId::fromString($view->homeStoreId));
+        $zone = $store->timezone ?? 'UTC';
+        $storeName = function (string $storeId): array {
+            $named = $this->platform->store(StoreId::fromString($storeId))?->name;
+
+            return [$named->ar ?? '', $named->en ?? ''];
+        };
         $time = static fn (?string $at): ?string => $at === null ? null : CarbonImmutable::parse($at)->setTimezone($zone)->format(DateTimeInterface::ATOM);
         $files = fn (array $files): array => array_values(array_map(
             fn (FileView $file): CompanyFileData => new CompanyFileData(
@@ -83,6 +90,20 @@ final readonly class CompanyPages
                     $saved->id, $saved->storeNameAr, $saved->storeNameEn, $saved->label, $saved->formatted, $saved->isComplete,
                 ),
                 $view->savedAddresses,
+            ),
+            $store->name->ar ?? '',
+            $store->name->en ?? '',
+            array_map(
+                static fn (ElsewhereView $there): CompanyElsewhereData => new CompanyElsewhereData(
+                    $there->storeId, $there->storeNameAr, $there->storeNameEn, $there->name, $there->status,
+                ),
+                $view->elsewhere,
+            ),
+            $view->prefill === null ? null : new CompanyPrefillData(
+                $view->prefill->name,
+                $view->prefill->companyTypeId,
+                $view->prefill->companyTypeOther,
+                ...$storeName($view->prefill->fromStoreId),
             ),
         );
     }

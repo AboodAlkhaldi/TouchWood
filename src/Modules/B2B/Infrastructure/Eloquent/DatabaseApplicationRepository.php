@@ -59,18 +59,34 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
         return $this->one($applicationId, lock: true);
     }
 
-    public function openFor(string $customerId): ?Application
+    public function openFor(string $customerId, string $storeId): ?Application
     {
-        if (! Ulids::valid($customerId)) {
+        if (! Ulids::valid($customerId) || ! Ulids::valid($storeId)) {
             return null;
         }
 
         $row = $this->db->table(self::TABLE)
             ->where('customer_id', strtolower($customerId))
+            ->where('store_id', strtolower($storeId))
             ->whereIn('state', [ApplicationState::Draft->value, ApplicationState::Submitted->value])
             ->first();
 
         return $row instanceof stdClass ? $this->toApplication($row) : null;
+    }
+
+    public function openAllFor(string $customerId): array
+    {
+        if (! Ulids::valid($customerId)) {
+            return [];
+        }
+
+        $rows = $this->db->table(self::TABLE)
+            ->where('customer_id', strtolower($customerId))
+            ->whereIn('state', [ApplicationState::Draft->value, ApplicationState::Submitted->value])
+            ->orderBy('store_id')
+            ->get();
+
+        return array_values(array_map(fn (stdClass $row): Application => $this->toApplication($row), $rows->all()));
     }
 
     public function historyOf(string $companyId): array
@@ -121,6 +137,8 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             SavedAddressWrite::guard(fn () => $this->db->table(self::TABLE)->insert([
                 'id' => $application->id(),
                 'customer_id' => $application->customerId(),
+                // Written once: an application stays in the store it was made in (amendment 18).
+                'store_id' => $application->storeId(),
                 ...self::toRow($application),
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -128,7 +146,7 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
         } catch (UniqueConstraintViolationException $e) {
             // The partial unique index behind the account lock (lesson 64): a violation is not
             // retried, so it is answered here rather than reaching the person as a database error.
-            throw str_contains($e->getMessage(), 'applications_one_open_per_customer') ? new ApplicationAlreadyOpen : $e;
+            throw str_contains($e->getMessage(), 'applications_one_open_per_store') ? new ApplicationAlreadyOpen : $e;
         }
 
         $this->writeHeld($application);
@@ -443,6 +461,7 @@ final readonly class DatabaseApplicationRepository implements ApplicationReposit
             $flags,
             $requests,
             $answers,
+            (string) $row->store_id,
         );
     }
 

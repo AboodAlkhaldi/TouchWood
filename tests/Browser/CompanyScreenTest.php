@@ -213,7 +213,7 @@ it('takes a company from the line under the header through its application to "u
         ->assertSee('TW-CO-')
         ->assertNoJavaScriptErrors();
 
-    expect(app(CompanyRepository::class)->forCustomer($customerId)?->status()->value)->toBe('PENDING')
+    expect(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->status()->value)->toBe('PENDING')
         ->and(companyScreenUntil($page, "document.querySelector('[data-test=step-review]').dataset.state === 'current'"))->toBeTrue();
 });
 

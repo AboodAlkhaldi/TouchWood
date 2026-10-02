@@ -27,6 +27,7 @@ use Modules\B2B\Domain\ValueObject\Remark;
 use Modules\B2B\Domain\ValueObject\RequestAnswer;
 use Modules\B2B\Domain\ValueObject\RequestKind;
 use Modules\B2B\Domain\ValueObject\TypeName;
+use Tests\Modules\Access\Support\AccessFixtures;
 
 /*
 | What the person reads when sending or answering is refused (b2b.md §7, amendment 6(e)): each new
@@ -70,7 +71,7 @@ function b2bErrorMessagesDocumentTypes(): array
  */
 function b2bErrorMessagesDraft(string $id, ?string $companyId, ?CompanyTypeChoice $type = null): Application
 {
-    $draft = Application::draft($id, B2B_ERROR_MESSAGES_CUSTOMER, $companyId);
+    $draft = Application::draft($id, B2B_ERROR_MESSAGES_CUSTOMER, $companyId, AccessFixtures::storeId('sa'));
     $draft->describe(
         CompanyName::of('Al Noor Trading'),
         $type ?? CompanyTypeChoice::listed(B2B_ERROR_MESSAGES_LLC),

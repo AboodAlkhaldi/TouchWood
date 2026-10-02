@@ -62,14 +62,16 @@ final readonly class AnswerApplicationRequestHandler
     public function handle(AnswerApplicationRequest $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $customerId = $this->account->get(self::PERMISSION)->id;
+        $account = $this->account->get(self::PERMISSION);
+        $customerId = $account->id;
+        $store = $this->account->store($account);
         $requestId = strtolower($command->requestId);
         [$text, $file] = self::given($command);
         // A written answer is held to today's minimum (amendment 16(b)).
         $this->rules->hold('answer', $text?->value);
 
-        $this->db->transaction(function () use ($customerId, $requestId, $text, $file, $command): void {
-            $inHand = $this->drafts->forChange($customerId);
+        $this->db->transaction(function () use ($customerId, $store, $requestId, $text, $file, $command): void {
+            $inHand = $this->drafts->forChange($customerId, $store);
             $draft = $inHand->draft;
             $lastSent = $inHand->company === null ? null : $this->applications->lastSent($inHand->company->id());
 

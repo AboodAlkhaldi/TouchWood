@@ -77,6 +77,9 @@ return [
         ],
         'action' => 'Go to the shop',
     ],
+    // Which store's company a decision is about: an account may hold a company in each store
+    // (b2b.md amendments 19(c), 20(i)).
+    'company_store' => 'This is about your company in our :store store.',
     'phone_code' => 'Your verification code is :code. Do not share it with anyone.',
     'sign_in_code' => 'Your admin panel sign-in code is :code. If you did not try to sign in, change your password now.',
 ];

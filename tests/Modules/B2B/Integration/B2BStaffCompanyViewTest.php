@@ -274,7 +274,7 @@ describe('one company (§3.2)', function () {
 
         $view = staffCompanyViewOf($company->id());
 
-        expect(app(ApplicationRepository::class)->openFor($customerId)?->state()->value)->toBe('DRAFT')
+        expect(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->state()->value)->toBe('DRAFT')
             ->and(array_map(static fn ($sent): string => $sent->id, $view->applications))->toBe([$rejected->id()]);
     });
 
@@ -331,7 +331,7 @@ describe('a company\'s papers (§1.4, §3.2, amendment 10(f))', function () {
         Fx::actAsCustomer($customerId);
         app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
         app(AnswerApplicationRequestHandler::class)->handle(new AnswerApplicationRequest($requestId, path: B2BFixtures::pdf(), originalFilename: 'bank.pdf'));
-        $mediaId = (string) app(ApplicationRepository::class)->openFor($customerId)?->answers()[$requestId]->mediaId;
+        $mediaId = (string) app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->answers()[$requestId]->mediaId;
         app(SubmitApplicationHandler::class)->handle(new SubmitApplication);
         staffCompanyViewReader([B2BPermissions::COMPANY_DOCUMENT_VIEW]);
 
@@ -348,7 +348,7 @@ describe('a company\'s papers (§1.4, §3.2, amendment 10(f))', function () {
         app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
         $typeId = B2BFixtures::documentTypes()[0]->id();
         app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument($typeId, B2BFixtures::pdf(), 'new.pdf'));
-        $draftFile = (string) app(ApplicationRepository::class)->openFor($customerId)?->documents()[$typeId]->mediaId;
+        $draftFile = (string) app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->documents()[$typeId]->mediaId;
         expect($draftFile)->not->toBe('');
         [, $other] = B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
         $othersFile = array_values($other->documents())[0]->mediaId;

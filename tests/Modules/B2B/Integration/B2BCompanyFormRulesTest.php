@@ -94,7 +94,7 @@ function formRulesDraft(): string
 
 function formRulesOpen(string $customerId): Application
 {
-    return app(ApplicationRepository::class)->openFor($customerId) ?? throw new LogicException('No open application.');
+    return app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa')) ?? throw new LogicException('No open application.');
 }
 
 function formRulesAttach(string $documentTypeId, string $filename): void

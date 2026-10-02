@@ -99,8 +99,24 @@ sends the company back to `PENDING`. Only the address (`moveTo`) and a staff cor
 the application beside it holds, and `Application` is a snapshot — its own copy of each — never a
 pointer to the company.
 
-**One company and one open application per account, decided under the account's lock.** The
-database holds both (a unique `customer_id`; a partial unique index on the open states). Their code
+**A company per store** (amendments 18–20, 2026-10-02). An account holds a company in each store
+it applies in, and orders in a store only while that store's company is approved. The company side
+always works in **the store being browsed** (`CurrentCompanyAccount::store()`: the store context of
+the storefront request; the account's home store only outside one, for the console and tests):
+`OpenDrafts::forChange`, `CompanyRepository::forCustomer(customerId, storeId)` and
+`ApplicationRepository::openFor(customerId, storeId)` all take it. An application carries the store it
+was made in (`applications.store_id`), since a first draft has no company yet. A first draft in a
+second store starts with the name and type of a company elsewhere (`CarriedOver`: approved first,
+else the newest; the type only as an active same-named counterpart in this store's list). Staff
+actions find the company by its id. `B2BApi` answers per store, and `isApproved` is false while the
+store is off. The shop line (`CompanyStandings`) is the store's, and offers applying here when the
+account has a company only elsewhere. The decision emails name the store. Anonymizing reaches every
+store.
+
+**One company and one open application per account and store, decided under the account's lock.**
+The database holds both (`companies_one_per_store` on `(customer_id, home_store_id)`;
+`applications_one_open_per_store`, a partial unique index on the open states). The lock stays one
+per account, across its stores. Their code
 halves are the company's own use cases (step 3b): each takes `ApplicationRepository::lockAccount` —
 a transaction-scoped advisory lock, since a row lock locks nothing while the account has no row yet
 — then reads, so two first starts or two first sends of one account run one after the other, and

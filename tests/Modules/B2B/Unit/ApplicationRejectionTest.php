@@ -127,7 +127,7 @@ function rejectionTestFillIn(Application $application, array $values = [], ?Comp
  */
 function rejectionTestSent(string $companyId = REJECTION_TEST_COMPANY, ?CompanyTypeChoice $type = null): Application
 {
-    $application = Application::draft(REJECTION_TEST_FIRST, REJECTION_TEST_CUSTOMER, null);
+    $application = Application::draft(REJECTION_TEST_FIRST, REJECTION_TEST_CUSTOMER, null, '01j8z3k4m5n6p7q8r9s0t1v2s5');
     rejectionTestFillIn($application, [], $type);
     $application->attach(REJECTION_TEST_VAT, REJECTION_TEST_VAT_FILE, CarbonImmutable::now());
     $application->attach(REJECTION_TEST_CR, REJECTION_TEST_CR_FILE, CarbonImmutable::now());
@@ -187,6 +187,7 @@ function rejectionTestReconstituted(ApplicationState $state, array $flags, array
         $flags,
         $requests,
         [],
+        '01j8z3k4m5n6p7q8r9s0t1v2s5',
     );
 }
 
@@ -196,7 +197,7 @@ function rejectionTestReconstituted(ApplicationState $state, array $flags, array
  */
 function rejectionTestNextDraft(): Application
 {
-    $draft = Application::draft(REJECTION_TEST_NEXT, REJECTION_TEST_CUSTOMER, REJECTION_TEST_COMPANY);
+    $draft = Application::draft(REJECTION_TEST_NEXT, REJECTION_TEST_CUSTOMER, REJECTION_TEST_COMPANY, '01j8z3k4m5n6p7q8r9s0t1v2s5');
     rejectionTestFillIn($draft);
     $draft->attach(REJECTION_TEST_VAT, REJECTION_TEST_VAT_FILE, CarbonImmutable::now());
     $draft->attach(REJECTION_TEST_CR, REJECTION_TEST_CR_FILE, CarbonImmutable::now());
@@ -579,7 +580,7 @@ describe('sending after a rejection (amendments 4, 5 and 6)', function () {
         $afterApproval = rejectionTestNextDraft();
         rejectionTestSend($afterApproval, $approved);
 
-        $first = Application::draft(REJECTION_TEST_FIRST, REJECTION_TEST_CUSTOMER, null);
+        $first = Application::draft(REJECTION_TEST_FIRST, REJECTION_TEST_CUSTOMER, null, '01j8z3k4m5n6p7q8r9s0t1v2s5');
         rejectionTestFillIn($first);
         $first->attach(REJECTION_TEST_VAT, REJECTION_TEST_VAT_FILE, CarbonImmutable::now());
         $first->attach(REJECTION_TEST_CR, REJECTION_TEST_CR_FILE, CarbonImmutable::now());

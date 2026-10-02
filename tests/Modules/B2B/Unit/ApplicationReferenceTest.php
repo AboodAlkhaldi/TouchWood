@@ -45,17 +45,17 @@ it('reads back only its own shape', function (string $value, bool $accepted) {
 it('is given to an application when it is sent, and never to a draft read back', function () {
     $sent = Application::reconstitute(
         '01j8z3k4m5n6p7q8r9s0t1v2w3', '01j8z3k4m5n6p7q8r9s0t1v2w4', '01j8z3k4m5n6p7q8r9s0t1v2w5', ApplicationState::Submitted,
-        null, null, null, null, null, null, [], CarbonImmutable::now(), ApplicationReference::of(2026, 3), null, null, null, [], [], [],
+        null, null, null, null, null, null, [], CarbonImmutable::now(), ApplicationReference::of(2026, 3), null, null, null, [], [], [], '01j8z3k4m5n6p7q8r9s0t1v2s5',
     );
 
     expect($sent->reference()?->value)->toBe('TW-CO-26-0003')
         ->and(fn () => Application::reconstitute(
             '01j8z3k4m5n6p7q8r9s0t1v2w3', '01j8z3k4m5n6p7q8r9s0t1v2w4', null, ApplicationState::Draft,
-            null, null, null, null, null, null, [], null, ApplicationReference::of(2026, 3), null, null, null, [], [], [],
+            null, null, null, null, null, null, [], null, ApplicationReference::of(2026, 3), null, null, null, [], [], [], '01j8z3k4m5n6p7q8r9s0t1v2s5',
         ))->toThrow(LogicException::class)
         ->and(fn () => Application::reconstitute(
             '01j8z3k4m5n6p7q8r9s0t1v2w3', '01j8z3k4m5n6p7q8r9s0t1v2w4', '01j8z3k4m5n6p7q8r9s0t1v2w5', ApplicationState::Rejected,
-            null, null, null, null, null, null, [], CarbonImmutable::now(), null, null, null, null, [], [], [],
+            null, null, null, null, null, null, [], CarbonImmutable::now(), null, null, null, null, [], [], [], '01j8z3k4m5n6p7q8r9s0t1v2s5',
         ))->toThrow(LogicException::class)
-        ->and(Application::draft('01j8z3k4m5n6p7q8r9s0t1v2w6', '01j8z3k4m5n6p7q8r9s0t1v2w4', null)->reference())->toBeNull();
+        ->and(Application::draft('01j8z3k4m5n6p7q8r9s0t1v2w6', '01j8z3k4m5n6p7q8r9s0t1v2w4', null, '01j8z3k4m5n6p7q8r9s0t1v2s5')->reference())->toBeNull();
 });

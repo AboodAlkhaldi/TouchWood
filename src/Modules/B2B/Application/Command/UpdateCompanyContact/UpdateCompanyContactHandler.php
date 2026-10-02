@@ -57,11 +57,14 @@ final readonly class UpdateCompanyContactHandler
     public function handle(UpdateCompanyContact $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $customerId = $this->account->get(self::PERMISSION)->id;
+        $account = $this->account->get(self::PERMISSION);
+        $customerId = $account->id;
+        // The company of the store being browsed (amendment 19(c)).
+        $store = $this->account->store($account);
 
-        $this->db->transaction(function () use ($customerId, $command): void {
+        $this->db->transaction(function () use ($customerId, $store, $command): void {
             $this->applications->lockAccount($customerId);
-            $company = $this->companies->forCustomerLocked($customerId) ?? throw new CompanyNotFound;
+            $company = $this->companies->forCustomerLocked($customerId, $store) ?? throw new CompanyNotFound;
             $address = $this->addresses->pick($customerId, $command->addressId);
 
             $company->moveTo($address);
@@ -73,7 +76,7 @@ final readonly class UpdateCompanyContactHandler
             $this->companies->update($company);
             $this->platform->recordAudit(CompanyAccountAudit::addressChanged($company));
 
-            $draft = $this->applications->openFor($customerId);
+            $draft = $this->applications->openFor($customerId, $store);
 
             if ($draft !== null && $draft->state() === ApplicationState::Draft) {
                 $draft->describe($draft->name(), $draft->type(), $draft->crNumber(), $draft->taxNumber(), $address, $draft->note());
