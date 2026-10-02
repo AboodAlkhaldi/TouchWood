@@ -3,8 +3,8 @@
 > **Written with the owner on 2026-10-02.** The owner's answers are recorded as **[DECIDED
 > 2026-10-02]** and listed in §9.1. **[ACCEPTED 2026-10-02, §9.3 #n]** and **[ACCEPTED 2026-10-02,
 > §9.5 #n]** mark proposals of mine the owner accepted (§9.3 #10 replaced by the owner's own answer).
-> **One section is not written yet:** the JSON import's file format, which waits for the owner's
-> sample file (§1.12, §9.2).
+> **One section is not written yet:** the JSON import's file format, which follows the product
+> tables once they are built; the import is built last (§1.12, §9.2).
 
 **Status:** complete but for the import's file format; **waiting for the owner's approval**.
 **Tier:** 1 (commerce core). **Build stage:** 4 (handoff §17).
@@ -265,8 +265,10 @@ on query (handoff §5.2).
 **Lives in Catalog** **[DECIDED 2026-10-02]**. Super Admin only (handoff §9.1). A **preview first, then
 all or nothing**; a code that exists is **updated, not refused** (handoff §9.1).
 
-- **The file's format waits for the owner's sample file** **[DECIDED 2026-10-02]**: "I'll send a sample
-  file". This section is completed from it.
+- **The file's format follows the product tables we build** **[DECIDED 2026-10-02]** (the owner, after
+  first choosing a sample file: "it's gonna be according to the products table that we're gonna
+  build … let this job to the end and not block us"). **The import is built last** (plan step 6), its
+  format written into this section from the finished tables and shown to the owner before it is built.
 - **Prices and stock in the file are ignored for now** **[DECIDED 2026-10-02]** ("any future things it
   must ignore for now"): Catalog offers a registry where **Pricing and Inventory add their sections in
   stage 5**, joining the same preview and the same all-or-nothing transaction ("mostly with 1").
@@ -619,7 +621,7 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 | 34 | Deactivating a category with products | **Per product: hide, leave (still reachable), or move — one by one or all**; sub-categories go with it (§1.5) |
 | 35 | Deactivating a brand with products | **Hide them with it, or move them to another brand; never a product with no brand** (§1.6) |
 | 36 | Shared lists | **Changed only by All-stores holders; one permission per list** (§1.5–§1.11, §3) |
-| 37 | The import's file format | **The owner sends a sample file** (§1.12) |
+| 37 | The import's file format | First "I'll send a sample file"; then **it follows the product tables we build, and the import comes last** so it blocks nothing (§1.12) |
 | 38 | Stock flags (stock-dependent, low-stock threshold, ending soon) | Asked what Catalog then contains; on the list, **Inventory, stage 5** |
 | 39 | My 22 proposals (§9.3) | **"Anything else is accepted"** — all but #10 |
 | 40 | §9.3 #10, the wholesale minimum | **"Each product has its minimums and maxes"**: asked again — **per product, per store**, and **each mode its own minimum and maximum** (§1.3) |
@@ -630,7 +632,7 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 
 | # | What | Waits for |
 |---|---|---|
-| 1 | The import's file format (§1.12) | The owner's sample file |
+| 1 | The import's file format (§1.12) | The product tables (steps 1–5); written into §1.12 and shown to the owner before step 6 |
 | 2 | A product video (§1.1) | The owner: "leave it for now" — a link to a hosted video, or a Platform amendment for uploaded video |
 | 3 | Product add-ons ("Product apps"), bundles | A later stage (handoff §15.2) |
 
