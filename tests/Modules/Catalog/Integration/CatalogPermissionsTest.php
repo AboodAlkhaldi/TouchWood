@@ -29,30 +29,30 @@ beforeEach(function () {
 });
 
 /**
- * @return list<string> the names Catalog declared, sorted
+ * @return list<string> the names Catalog declared with that reservation, sorted
  */
-function catalogDeclaredPermissions(): array
+function catalogDeclaredPermissions(bool $reserved): array
 {
     $names = array_values(array_map(
         static fn (PermissionDefinitionDto $permission): string => $permission->name,
-        array_filter(app(InMemoryPermissionCatalog::class)->all(), static fn (PermissionDefinitionDto $permission): bool => str_starts_with($permission->name, 'catalog.')),
+        array_filter(app(InMemoryPermissionCatalog::class)->all(), static fn (PermissionDefinitionDto $permission): bool => str_starts_with($permission->name, 'catalog.') && $permission->reserved === $reserved),
     ));
     sort($names);
 
     return $names;
 }
 
-it('declares the seventeen jobs and the three reserved permissions of the spec, and nothing else', function () {
-    expect(catalogDeclaredPermissions())->toBe([
+// Two literal lists, split by the reservation, so a name moved from one list to the other is caught
+// (review of step 1): the union alone would let the import become a job any role may hold.
+it('declares the seventeen jobs of the spec as jobs, and nothing else', function () {
+    expect(catalogDeclaredPermissions(reserved: false))->toBe([
         'catalog.attribute.manage',
         'catalog.brand.manage',
         'catalog.category.manage',
         'catalog.category.rank',
-        'catalog.import.run',
         'catalog.label.manage',
         'catalog.listing.choose',
         'catalog.listing.labels',
-        'catalog.listing.rebuild',
         'catalog.listing.selling',
         'catalog.listing.unavailable',
         'catalog.product.archive',
@@ -60,10 +60,17 @@ it('declares the seventeen jobs and the three reserved permissions of the spec, 
         'catalog.product.publish',
         'catalog.product.update',
         'catalog.product.view',
-        'catalog.search_log.prune',
         'catalog.search_word.manage',
         'catalog.variant.correct_code',
         'catalog.warranty.manage',
+    ]);
+});
+
+it('reserves exactly the import and the two system jobs, and nothing else', function () {
+    expect(catalogDeclaredPermissions(reserved: true))->toBe([
+        'catalog.import.run',
+        'catalog.listing.rebuild',
+        'catalog.search_log.prune',
     ]);
 });
 
@@ -86,9 +93,18 @@ it('keeps every job open to staff roles as well as admin roles: none is admin-on
         ->and(Fx::rolePermissions($roleId))->toEqualCanonicalizing(CatalogPermissions::jobs());
 });
 
-it('lists the six shared-list jobs among the jobs, each checked with All stores by its handlers', function () {
-    expect(CatalogPermissions::sharedLists())->toHaveCount(6)
-        ->and(array_diff(CatalogPermissions::sharedLists(), CatalogPermissions::jobs()))->toBe([]);
+it('names exactly the six shared-list jobs of the spec, which their handlers will check with All stores', function () {
+    $shared = CatalogPermissions::sharedLists();
+    sort($shared);
+
+    expect($shared)->toBe([
+        'catalog.attribute.manage',
+        'catalog.brand.manage',
+        'catalog.category.manage',
+        'catalog.label.manage',
+        'catalog.search_word.manage',
+        'catalog.warranty.manage',
+    ])->and(array_diff($shared, CatalogPermissions::jobs()))->toBe([]);
 });
 
 it('reserves the import and the system jobs to a Super Admin, store-free and never offered', function (string $name) {

@@ -6,7 +6,9 @@
 > **One section is not written yet:** the JSON import's file format, which follows the product
 > tables once they are built; the import is built last (§1.12, §9.2).
 
-**Status:** complete but for the import's file format; **waiting for the owner's approval**.
+**Status:** **APPROVED** by the owner, 2026-10-02 (§9.1 #43), complete but for the import's file
+format; **being built** from 2026-10-02 (`src/Modules/Catalog/README.md`). Changes from here on are
+amendments and need the owner's agreement.
 **Tier:** 1 (commerce core). **Build stage:** 4 (handoff §17).
 **Depends on:** Platform, and Access's public surface for declaring permissions only (§2.4,
 **[DECIDED 2026-10-02]** — a change to handoff §4.4 and `deptrac.yaml`).
@@ -359,7 +361,7 @@ none is admin-only. **The shared lists use one permission each.** Names below ar
 | Shared word pairs; reading the zero-result list | `catalog.search_word.manage` | All stores |
 | `ListProducts` / `ViewProduct` (admin) — every store's row shown only for the stores the reader covers | `catalog.product.view` | The reader's stores |
 | `PreviewImport` / `RunImport` | `catalog.import.run` (reserved: Super Admin only, handoff §9.1) | Global |
-| `RebuildListing` — a repair job; `PruneSearchLog` — nightly | System (reserved) | — |
+| `RebuildListing` — a repair job; `PruneSearchLog` — nightly | System (reserved): `catalog.listing.rebuild`, `catalog.search_log.prune` — *My naming, stated for the owner to reject (step 1, 2026-10-02): after Platform's `platform.media.variants.generate`, reserved and store-free* | — |
 
 Every change is audited (Platform), **by value**: product data names no person.
 
@@ -627,6 +629,7 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 | 40 | §9.3 #10, the wholesale minimum | **"Each product has its minimums and maxes"**: asked again — **per product, per store**, and **each mode its own minimum and maximum** (§1.3) |
 | 41 | The four points of §9.5 | **"Accept all four"** |
 | 42 | The changes §9.4 lists for other documents | **Written in this spec's pull request** (`deptrac.yaml` with the first code that needs it) |
+| 43 | The spec and the step list | **Approved** ("ok now all good … start building"), with the go for the baseline check and step 1; built solo, never by a workflow (owner, 2026-10-02) |
 
 ### 9.2 Left open
 

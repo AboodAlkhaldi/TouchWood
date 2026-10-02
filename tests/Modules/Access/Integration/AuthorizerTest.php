@@ -88,7 +88,7 @@ it('fails loudly when a check does not match the permission\'s kind, or names no
     'a store-free permission against a store' => [PlatformPermissions::MEDIA_UPLOAD, PermissionScope::store(StoreId::fromString('01j8z3k4m5n6p7q8r9s0t1v2w3'))],
     'a store-free permission against every store' => [PlatformPermissions::MEDIA_UPLOAD, PermissionScope::allStores()],
     'a per-store permission globally' => [PlatformPermissions::STORE_UPDATE, PermissionScope::global()],
-    'an undeclared permission' => ['catalog.product.update', PermissionScope::global()],
+    'an undeclared permission' => ['warehouse.bin.move', PermissionScope::global()],
 ]);
 
 it('lets a Super Admin do everything, everywhere, reserved permissions included', function () {

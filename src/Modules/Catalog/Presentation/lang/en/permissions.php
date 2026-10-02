@@ -9,8 +9,8 @@ return [
     'product' => [
         'create' => 'Add products',
         'update' => 'Edit products',
-        'publish' => 'Make products ready',
-        'archive' => 'Archive and restore products',
+        'publish' => 'Mark products ready',
+        'archive' => 'Archive and restore products, delete drafts',
         'view' => 'View products',
     ],
     'variant' => [
@@ -19,9 +19,9 @@ return [
     'listing' => [
         'choose' => 'Choose what the store sells',
         'selling' => 'Set selling modes and quantity limits',
-        'unavailable' => 'Mark products "Not available now"',
+        'unavailable' => 'Mark products and variants "Not available now", and clear it',
         'labels' => 'Attach labels to products',
-        'rebuild' => 'Rebuild the product listing (the system)',
+        'rebuild' => 'Rebuild the product listing',
     ],
     'category' => [
         'rank' => 'Order the store\'s categories',
@@ -31,7 +31,7 @@ return [
         'manage' => 'Manage brands',
     ],
     'attribute' => [
-        'manage' => 'Manage attributes, values and colours',
+        'manage' => 'Manage attributes, values, colours and attribute sets',
     ],
     'label' => [
         'manage' => 'Manage labels',
@@ -40,12 +40,12 @@ return [
         'manage' => 'Manage warranties',
     ],
     'search_word' => [
-        'manage' => 'Manage search word pairs',
+        'manage' => 'Manage search synonyms',
     ],
     'import' => [
         'run' => 'Import products from a file',
     ],
     'search_log' => [
-        'prune' => 'Remove old search log entries (the system)',
+        'prune' => 'Remove old search log entries',
     ],
 ];

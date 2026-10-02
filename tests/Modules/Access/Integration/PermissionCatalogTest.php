@@ -83,6 +83,10 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'access.account.anonymize',
         'access.role.manage',
         'access.super_admin.manage',
+        // Reserved: the import reaches every store at once, and a job belongs to none (catalog.md §3).
+        'catalog.import.run',
+        'catalog.listing.rebuild',
+        'catalog.search_log.prune',
         'platform.currency.create',
         'platform.currency.update',
         // Admin-only; a job belongs to no store (owner, 2026-09-29).
@@ -206,9 +210,10 @@ it('gives every action a role can hold a business area, and names every area in 
     }
 
     // The areas the modules actually use today (owner, 2026-09-19 and 2026-09-22); B2B's staff jobs
-    // fill Companies (b2b.md amendment 10), the failed jobs System (owner, 2026-09-29).
+    // fill Companies (b2b.md amendment 10), the failed jobs System (owner, 2026-09-29), Catalog's
+    // jobs Catalog (catalog.md §3).
     ksort($used);
-    expect(array_keys($used))->toBe(['audit', 'companies', 'customers', 'media', 'staff_and_permissions', 'store_settings', 'system']);
+    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'media', 'staff_and_permissions', 'store_settings', 'system']);
 });
 
 it('names every permission in Arabic and English', function () {
