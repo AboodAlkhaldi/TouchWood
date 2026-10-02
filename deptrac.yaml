@@ -181,9 +181,11 @@ deptrac:
     B2BPublic: [Shared, Vendor, PlatformPublic, AccessPublic]
     B2B: [+B2BPublic, AppHttp]
 
-    # Catalog → Platform
+    # Catalog → Platform, Access (owner, 2026-10-02): Access's public surface only to declare its
+    # permissions, from the module's interior — never from Catalog's own public surface, so nothing
+    # of Access can leak into what the modules above Catalog read.
     CatalogPublic: [Shared, Vendor, PlatformPublic]
-    Catalog: [+CatalogPublic]
+    Catalog: [+CatalogPublic, AccessPublic]
 
     # Pricing → Platform, Catalog, B2B (company approval status)
     PricingPublic: [Shared, Vendor, PlatformPublic, CatalogPublic, B2BPublic]
