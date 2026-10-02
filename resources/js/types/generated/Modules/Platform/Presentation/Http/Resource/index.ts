@@ -29,6 +29,8 @@ storeName: string | null,
 ipAddress: string | null,
 changes: AuditChangeRow[],
 withheld: boolean,
+requestedByName: string | null,
+subjectName: string | null,
 };
 export type ChooseStorePage = {
 stores: StoreChoiceRow[],

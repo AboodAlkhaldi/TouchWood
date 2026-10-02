@@ -131,6 +131,9 @@ final readonly class ViewCompanyHandler
     }
 
     /**
+     * Who decided, as Access names them to this reader: a Super Admin is "System administrator" to
+     * anyone but another Super Admin (access.md amendment 54). Asked of Access, never built here.
+     *
      * @param  array<string, string>  $names  each staff member looked up once
      */
     private function staffName(?string $staffId, array &$names): ?string
@@ -139,11 +142,12 @@ final readonly class ViewCompanyHandler
             return null;
         }
 
-        if (! isset($names[$staffId])) {
-            $staff = $this->access->staff($staffId);
-            $names[$staffId] = $staff === null ? '' : trim($staff->firstName.' '.$staff->lastName);
+        $key = strtolower($staffId);
+
+        if (! isset($names[$key])) {
+            $names[$key] = $this->access->staffDisplayNames([$key])[$key]->name ?? '';
         }
 
-        return $names[$staffId] === '' ? null : $names[$staffId];
+        return $names[$key] === '' ? null : $names[$key];
     }
 }

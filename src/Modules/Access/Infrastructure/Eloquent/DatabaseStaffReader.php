@@ -22,15 +22,13 @@ final readonly class DatabaseStaffReader implements StaffReader
         private ConnectionInterface $db,
     ) {}
 
-    public function staff(?array $readerStoreIds, bool $withSuperAdmins, ?string $search, ?string $status, int $page, int $perPage): array
+    public function staff(?array $readerStoreIds, bool $fullView, ?string $search, ?string $status, int $page, int $perPage): array
     {
-        $where = [];
-        $bindings = [];
-
-        if (! $withSuperAdmins) {
-            $where[] = 's.is_super_admin = ?';
-            $bindings[] = false;
-        }
+        // Never a Super Admin, whoever reads: to a Super Admin they are a section of their own, and
+        // to anyone else they do not exist (amendments 43(a), 54).
+        $where = ['s.is_super_admin = ?'];
+        $bindings = [false];
+        $withSuperAdmins = $fullView;
 
         if ($readerStoreIds !== null) {
             // Theirs only when every store of theirs is one of the reader's, and they have some:
@@ -69,7 +67,7 @@ final readonly class DatabaseStaffReader implements StaffReader
             $bindings = [...$bindings, $like, $like, $like, $like];
         }
 
-        $conditions = $where === [] ? 'TRUE' : implode(' AND ', $where);
+        $conditions = implode(' AND ', $where);
 
         $total = $this->db->selectOne(<<<SQL
             SELECT count(*) AS total
@@ -96,6 +94,30 @@ final readonly class DatabaseStaffReader implements StaffReader
             'total' => $total instanceof stdClass ? (int) $total->total : 0,
             'rows' => array_values(array_map($this->toRow(...), $rows)),
         ];
+    }
+
+    public function superAdmins(?string $search, ?string $status): array
+    {
+        $where = ['s.is_super_admin = ?'];
+        $bindings = [true];
+
+        if ($status !== null) {
+            $where[] = 's.status = ?';
+            $bindings[] = $status;
+        }
+
+        if ($search !== null && trim($search) !== '') {
+            $like = self::like($search);
+            $where[] = '(lower(s.first_name) LIKE ? OR lower(s.last_name) LIKE ? OR lower(s.email) LIKE ? OR s.phone LIKE ?)';
+            $bindings = [...$bindings, $like, $like, $like, $like];
+        }
+
+        $rows = $this->db->select(
+            $this->select().' WHERE '.implode(' AND ', $where).' ORDER BY s.created_at DESC, s.id DESC',
+            $bindings,
+        );
+
+        return array_values(array_map($this->toRow(...), $rows));
     }
 
     public function member(string $staffId): ?array

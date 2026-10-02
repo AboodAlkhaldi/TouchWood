@@ -48,6 +48,9 @@ final readonly class StaffPages
     /** Admins, in their own short section above the rest. */
     public const string ADMINS = 'admins';
 
+    /** Super Admins, above the admins and only for another Super Admin (amendment 54). */
+    public const string SUPER_ADMINS = 'super_admins';
+
     public function __construct(
         private Application $app,
         private GrantRules $rules,
@@ -73,8 +76,20 @@ final readonly class StaffPages
             $sections[$this->sectionFor($person)][] = $this->row($person);
         }
 
+        $groups = $this->arrange($sections, $stores);
+
+        // A Super Admin reads the Super Admins first, in a section of their own — never among the
+        // admins; anyone else is given none (amendment 54).
+        if ($page->superAdmins !== []) {
+            array_unshift($groups, new StaffGroup(
+                self::SUPER_ADMINS,
+                (string) __('access::staff.super_admins', [], $this->locale()),
+                array_map($this->row(...), $page->superAdmins),
+            ));
+        }
+
         return new StaffListPage(
-            $this->arrange($sections, $stores),
+            $groups,
             $page->total,
             $search,
             $status,

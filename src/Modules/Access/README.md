@@ -538,7 +538,14 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   because ordering by joining date would give an admin's away. A **Super
   Admin** is invisible to everyone but another Super Admin: not in a list,
   not in a count, and asked for by id the answer is the same as for an id that never existed
-  (amendment 43).
+  (amendment 43). To another Super Admin they come as a **section of their own**, first, never
+  among the admins (`StaffPage::superAdmins`, the `super_admins` group; amendments 54, 56).
+- **Naming a staff member to someone else** happens in one place, `StaffDisplayNames`: a Super
+  Admin, read by anyone but another Super Admin (or the console), is **"System administrator"**,
+  with no name and no id. Other modules ask `AccessApi::staffDisplayNames()` (B2B's "decided by");
+  Platform's audit log asks its own `StaffNames` contract, which Access binds to the same class, and
+  then also hides that entry's id, IP address and — for an entry about a Super Admin — its changes.
+  `AccessApi::staff()` is not masked: it is for other modules' work, never for display.
 
 ### The database is the last line of defence
 

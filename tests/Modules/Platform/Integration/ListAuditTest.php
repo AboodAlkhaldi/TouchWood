@@ -204,7 +204,9 @@ function auditEntriesAbout(string $mediaId): array
 
 describe('entries about a private file (b2b.md amendment 8(c))', function () {
     it('keeps what was done, when and by whom, and withholds which file and what changed, from a reader who may not see private files', function () {
-        $uploader = Fx::staff(superAdmin: true);
+        // A staff member, not a Super Admin: a Super Admin's own id and address are kept from this
+        // reader for another reason (access.md amendment 54), and this test is about the file.
+        $uploader = Fx::staff();
         $paper = auditMediaFile(MediaVisibility::Private);
         auditMediaEntry('platform.media.uploaded', $paper, ['visibility' => [null, 'PRIVATE'], 'mime' => [null, 'application/pdf'], 'for_module' => [null, 'b2b']], '2027-02-01 10:00:00+00', $uploader);
         auditMediaEntry('platform.media.alt_text_changed', $paper, ['alt_en' => [null, 'Commercial register of Company X']], '2027-02-01 11:00:00+00', $uploader);
