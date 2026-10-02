@@ -145,9 +145,19 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
                                             actions={
                                                 person.status ? (
                                                     <>
-                                                        <Badge variant={STATUS_BADGE[person.status] ?? 'red-subtle'}>
-                                                            {t(`access::staff.status_${person.status.toLowerCase()}`)}
-                                                        </Badge>
+                                                        {/* A former Super Admin - shown only to Super
+                                                            Admins (amendment 57) - says what they were
+                                                            rather than the cancelled account revoking
+                                                            left: one badge per row (Geist). */}
+                                                        {person.formerSuperAdmin ? (
+                                                            <Badge variant="gray-subtle" data-test={`former-${person.id}`}>
+                                                                {t('access::staff.former_super_admin')}
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant={STATUS_BADGE[person.status] ?? 'red-subtle'}>
+                                                                {t(`access::staff.status_${person.status.toLowerCase()}`)}
+                                                            </Badge>
+                                                        )}
 
                                                         {/* Isolated, or an Arabic line turns
                                                             2026-09-24 around and shows 24-09-2026

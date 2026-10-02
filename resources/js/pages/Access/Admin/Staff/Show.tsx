@@ -79,7 +79,8 @@ export default function Show(person: Props) {
         { title: t('access::staff.address'), content: person.address },
         {
             title: t('access::staff.communication_language'),
-            content: person.communicationLocale === 'en' ? 'English' : 'العربية',
+            // Not sent when the summary is closed (amendment 57): no line then, never a guess.
+            content: person.communicationLocale === null ? null : person.communicationLocale === 'en' ? 'English' : 'العربية',
         },
     ].filter((fact) => fact.content !== null && fact.content !== '');
 
