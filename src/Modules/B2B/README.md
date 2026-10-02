@@ -32,21 +32,22 @@ with each step.
 | `Application/Settings` | `BankAccountSettings`: the three per-store bank settings, declared into Platform's registry at boot; `IbanRule`, an IBAN's shape and check digits; `StoreBankAccount`, the one reader of the three — no account while any is empty |
 | `Application/Events` | `CompanyEvents`: the two events, dispatched inside a use case's transaction |
 | `Application/Command` | The company's own side (step 3b): `StartApplicationDraft`, `SaveApplicationDraft`, `AttachApplicationDocument`, `RemoveApplicationDocument`, `AnswerApplicationRequest`, `RemoveApplicationAnswer`, `SubmitApplication`, `DiscardApplicationDraft`, `UpdateCompanyContact`. Staff (step 4): `ApproveCompany`, `RejectCompany`, `SuspendCompany`, `ReinstateCompany`, `CorrectCompanyType`, `TransferCompanyType`, `DownloadCompanyDocument`; the lists: `Add`/`Rename`/`Move`/`Deactivate`/`ActivateCompanyType`, the same for `DocumentType` with `RequireDocumentType`, and `MarkTypeListsReviewed` |
-| `Application/Query` | `ViewMyCompany` and its read classes — what the account is shown; `OpenMyApplicationFile`, a 30-minute link to one of its own files; staff's `ListCompanies` and `ViewCompany`; `ApplicationViews`, how an application is shown to both |
+| `Application/Query` | `ViewMyCompany` and its read classes — what the account is shown; `OpenMyApplicationFile`, a 30-minute link to one of its own files; staff's `ListCompanies` and `ViewCompany`; `ApplicationViews`, how an application is shown to both; for the staff screens (step 7), `StaffCompanyActionsForReader` — what a reader may do next to one company, and which stores the list may be filtered by — and `ViewTypeLists`, one store's list of one kind with what the reader may do to it |
 | `Application/Staff` | `StaffCompanyAction` (which store, what a stranger is told, who decides), `CompanyTypeCorrection` (every change of a company's type), `CompanyTypeHolders` (every holder of a type moved to another), `CompanyMessages` (the decision emails, after commit) |
 | `Application/Account` | `CurrentCompanyAccount`: the signed-in company account every use case above starts from; `CompanyAnonymizer`: what anonymizing an account reaches here |
 | `Application/Draft` | `OpenDrafts`: the account's open draft, read under its locks, refused in the one order every draft action shares |
 | `Application/Files` | `ApplicationFiles`: B2B's own uploads (private, under its own permission) and letting go of what no application holds |
 | `Application/Audit` | `CompanyAccountAudit`: the three company actions the audit log keeps, and the company emptied when its account is anonymized; `StaffCompanyAudit` and `TypeAudit`: staff's |
-| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `DatabaseCompanyStandings`, the shop line's one query; `DatabaseApplicationReferenceCounter`, the year's count of application numbers; `TypeNames`, the one "is this name taken" query both lists share; `Ulids` |
+| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `DatabaseCompanyStandings`, the shop line's one query; `DatabaseApplicationReferenceCounter`, the year's count of application numbers; `TypeNames`, the one "is this name taken" query both lists share; `DatabaseTypeHolders`, how many companies hold each company type of a store, in one query; `Ulids` |
 | `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated`; `AnonymizeCompany`, on Access's `CustomerAnonymized`, from the queue |
 | `Infrastructure/Media` | `ApplicationFilesUsage`: B2B's answer when Platform asks where a file is used |
 | `Infrastructure/Settings` | `BankTransferLine`: the line at the top of the Companies settings section — bank transfer on, or temporarily off |
 | `Infrastructure/Persistence/Migrations` | The `b2b` schema; the two type tables and the stores' "copied" flags; the companies, applications and their files; a rejection's flags and requests and a draft's answers; the applications' numbers and the yearly counter behind them |
-| `Presentation/Http` | The company's own page (step 6): `MyCompanyController`, its two form requests, and the page's data (`CompanyPage` and its parts, built by `CompanyPages` in the home store's clock) |
+| `Presentation/Http` | The company's own page (step 6): `MyCompanyController`, its two form requests, and the page's data (`CompanyPage` and its parts, built by `CompanyPages` in the home store's clock). The staff screens (step 7): `StaffCompaniesController` and `StaffTypesController`, `StaffRefusals` (where a refusal is said), the `Staff…Request` form requests, shape only, and the pages' data (`StaffCompanyListPage`, `StaffCompanyPage`, `StaffTypeListPage` and their parts, built by `StaffCompanyPages` and `StaffTypePages`) |
 | `Presentation/Storefront` | `CompanyShopperLine`: the line under the shop's header while a company account cannot order |
 | `Presentation/routes.php` | The page and its posts, under `/{store}/{locale}/account/company`, signed-in customers only |
-| `Presentation/lang` | The error messages, the permissions' names, the audited actions' names, the settings' names, and the company page's and its line's words, in Arabic and English |
+| `Presentation/admin-routes.php` | The staff screens and their posts, under `/admin`, named `b2b.admin.*` (the panel's route list carries them, `config/ziggy.php`) |
+| `Presentation/lang` | The error messages, the permissions' names, the audited actions' names, the settings' names, the company page's and its line's words, and the staff screens' words and menu entries (`admin_companies`, `admin_types`, `menu`), in Arabic and English |
 
 ## How it is built
 
@@ -446,4 +447,43 @@ draft none, all of one shape. Anonymizing keeps the number: it names nobody.
 **Uploads cannot be tested in a real browser here**: the browser plugin's test server drops the
 files of a multipart body. They are tested over HTTP (`MyCompanyPageTest`); the browser test puts
 the papers in through the use case and checks the page around them.
+
+## The staff screens (step 7)
+
+**Three entries in the menu's Companies group** (b2b.md §4.6, amendment 19 — every pick in it
+provisional until the owner confirms it): **Companies**, offered for `b2b.company.view`; **Company
+Types** and **Document Types**, one types page with a tab each, offered for each list's update job.
+The menu gives an entry one permission, so a holder of only another job on a list — adding,
+deactivating, moving companies — opens the page by its address but is not offered the entry; offering
+it would need a Platform addition (an entry for any of several permissions), the owner's call. Built
+in Geist (`resources/js/components/geist`, frontend.md §1.10): a Table with the pager and an Empty
+State for the list; Description, Note, Entity and Collapse on the company page; Modal for every
+decision; a Menu for the page's and each row's other actions.
+
+**Offering is never allowing.** A screen never asks the authorizer (`AccessDecisionsTest`): it is
+told what it may offer by `StaffCompanyActionsForReader` and `ViewTypeLists`, which ask for each job
+in the right store — a company's home store, the type list's store — and offer only what can happen
+next (an application waiting, the company suspended or not). Every handler asks again, so a button
+drawn by mistake is refused all the same, on the screen it was pressed on (`StaffRefusals`): beside
+the field the domain names — a reason, a note, a name, a position, a replacement — or at the top of
+the page and in a toast. A page someone may not open is the error page; a company of another store,
+like one that does not exist, is not found.
+
+**Approve is shown disabled, with its reason**, while the company is still "Other" or its account was
+erased (`StaffCompanyActions::approveRefusal`); the handler refuses either way (13(b), 13(e)).
+**Reject and Suspend** use the destructive Modal — focus on Cancel, the button disabled until a
+reason is written — not the typed confirmation, since both can be undone. **Correct Company Type**
+offers deactivated types only to someone who may also activate them, and says the type becomes
+active again before it is assigned (8(b)); "Other" is not offered once the company is approved.
+
+**Reading a type list is part of every job on it**, in that store (19(c)): `ViewTypeLists` lets in
+anyone holding any of the list's jobs there, and says which of them they hold. The store is always
+the panel's — the one in the header (`App\Http\PanelStore`) — never one from the request; adding a
+type and "Reviewed" name it, and every other change reads the store from the type itself. A company
+type's holders are counted in one grouped query, from the type's own store.
+
+**Times** on these screens are each company's home store's, written once by the page builder and never
+converted again in the browser. **A paper's file name** goes only to someone who may open it; to
+anyone else the paper shows its type and date, and its Open button is disabled with the reason. Each
+opening is a GET in a new tab, audited by `DownloadCompanyDocument` before the link is handed back.
 
