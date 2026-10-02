@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ use Modules\B2B\Application\Command\StartApplicationDraft\StartApplicationDraftH
 use Modules\B2B\Application\Command\SubmitApplication\SubmitApplication;
 use Modules\B2B\Application\Command\SubmitApplication\SubmitApplicationHandler;
 use Modules\B2B\Domain\Model\Company;
+use Modules\B2B\Domain\Repository\ApplicationRepository;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\RequestKind;
@@ -501,5 +503,34 @@ describe('the menu', function () {
             ->and($menu(companyStaffScreens([B2BPermissions::COMPANY_TYPE_UPDATE, B2BPermissions::DOCUMENT_TYPE_UPDATE])))
             ->toBe(['companies/company_types /admin/company-types', 'companies/document_types /admin/document-types'])
             ->and($menu(companyStaffScreens([B2BPermissions::COMPANY_REVIEW])))->toBe([]);
+    });
+});
+
+describe('a Super Admin who decided (access.md amendments 54, 57)', function () {
+    it('reads as "System administrator", with no name, to a reader who is not a Super Admin', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        [$company, $application] = B2BFixtures::sent($customerId);
+        $superAdminId = Fx::staff(superAdmin: true, firstName: 'Hidden');
+        $application->approve($superAdminId, null, CarbonImmutable::now());
+        app(ApplicationRepository::class)->update($application);
+        $company->approve($superAdminId, CarbonImmutable::now());
+        app(CompanyRepository::class)->update($company);
+
+        companyStaffScreens([B2BPermissions::COMPANY_VIEW], ['sa'])
+            ->get("/admin/companies/{$company->id()}")
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('applications.0.decidedBy', 'System administrator')
+                ->where('company.statusChangedBy', 'System administrator')
+            )
+            ->assertDontSee('Hidden');
+
+        // Another Super Admin is told who it was.
+        companyStaffScreensSignIn(Fx::staff(superAdmin: true))
+            ->get("/admin/companies/{$company->id()}")
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('applications.0.decidedBy', fn (?string $name): bool => $name !== null && str_contains($name, 'Hidden'))
+            );
     });
 });
