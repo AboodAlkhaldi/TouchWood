@@ -154,4 +154,11 @@ return [
     'saving_wait' => 'Wait until your changes are saved.',
     'send_incomplete' => 'Complete everything still missing before you send.',
     'address_none_title' => 'No Saved Addresses',
+
+    // A company per store (b2b.md amendments 18-20; owner, 2026-10-02).
+    'subtitle_in_store' => 'Your company in :store, its applications, and how it pays.',
+    'apply_here' => 'Apply in This Store',
+    'prefill_label' => 'Carried Over',
+    'prefill' => "The name and the type come from your company in :store; the address, the numbers and the documents are this store's own.",
+    'elsewhere' => 'Your Companies in Other Stores',
 ];

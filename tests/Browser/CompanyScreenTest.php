@@ -532,3 +532,19 @@ it('keeps what was typed after a save went out, and shows its own refusal in red
 
     $page->assertNoJavaScriptErrors();
 });
+
+it('shows a company of another store, and applies in this one with its name carried over (amendments 18-20)', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::approved($customerId);
+
+    // Approved in KSA, nothing yet in Egypt: the page is about the store being browsed, and says so.
+    companyScreenSignIn($customerId)
+        ->navigate('/eg/en/account/company')
+        ->assertSee('Your company in Egypt')
+        ->assertPresent('[data-test="carried-over"]')
+        ->assertSee('Apply in This Store')
+        ->assertPresent('[data-test="elsewhere"]')
+        ->assertSeeIn('[data-test="elsewhere"]', 'Saudi Arabia')
+        ->assertSeeIn('[data-test="elsewhere"]', 'Approved')
+        ->assertNoJavaScriptErrors();
+});

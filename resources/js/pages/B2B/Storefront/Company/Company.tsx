@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router } from '@inertiajs/react';
-import { Button, Description } from '@/components/geist';
+import { Badge, type BadgeVariant, Button, Description, Entity, EntityList, Note } from '@/components/geist';
 import { FormError } from '@/components/FormError';
 import { AccountLayout } from '@/layouts/AccountLayout';
 import { useLink } from '@/lib/routes';
@@ -32,14 +32,21 @@ import { Card, Figure, figureOr, StatusBox, typeOf, useLocale, writtenOr } from 
 | On Geist's parts (frontend.md 1.10): the status box is a Note coloured by the status, the
 | company's details and its bank account are Geist's Description (an em dash where a value is not
 | given), and a button that posts is `loading` until the page answers, so it cannot be pressed twice.
+|
+| **A company per store** (b2b.md amendments 18-20; owner, 2026-10-02): the page is about the store
+| being browsed, and says which. An account with a company in another store but none here applies
+| here, with the name and the type carried over and everything else this store's own; its
+| companies in other stores are listed under the page, each with its status.
 */
 
 export default function Company(page: CompanyPage) {
     const t = useTranslator();
+    const locale = useLocale();
     const suspended = page.company?.status === 'SUSPENDED';
+    const store = locale === 'ar' ? page.storeNameAr : page.storeNameEn;
 
     return (
-        <AccountLayout title={t('b2b::company.title')} subtitle={t('b2b::company.subtitle')} page="b2b.company">
+        <AccountLayout title={t('b2b::company.title')} subtitle={t('b2b::company.subtitle_in_store', { store })} page="b2b.company">
             <div className={['grid gap-6', suspended ? '' : 'lg:grid-cols-[minmax(0,1fr)_18rem]'].join(' ')}>
                 <div className="grid content-start gap-6">
                     <FormError />
@@ -49,6 +56,7 @@ export default function Company(page: CompanyPage) {
                         history={page.company?.status === 'PENDING' ? page.history.slice(1) : page.history}
                         documentTypes={page.documentTypes}
                     />
+                    <Elsewhere page={page} />
                 </div>
 
                 {suspended ? null : <CompanySide page={page} />}
@@ -73,12 +81,65 @@ function BeforeACompany({ page }: { page: CompanyPage }) {
                 {page.draft !== null ? <Missing page={page} draft={page.draft} /> : null}
             </StatusBox>
 
+            {page.draft === null && page.prefill !== null ? <CarriedOver prefill={page.prefill} /> : null}
+
             {page.draft === null ? (
-                <StartButton label={t('b2b::company.start')} />
+                // A company elsewhere applies here, by name (owner, 2026-10-02: "Apply in this store").
+                <StartButton label={t(page.prefill === null ? 'b2b::company.start' : 'b2b::company.apply_here')} />
             ) : (
                 <CompanyForm page={page} draft={page.draft} lastSent={null} changing={false} />
             )}
         </>
+    );
+}
+
+/** What the new draft starts with, and what it does not (owner, 2026-10-02; amendment 19). */
+function CarriedOver({ prefill }: { prefill: NonNullable<CompanyPage['prefill']> }) {
+    const t = useTranslator();
+    const locale = useLocale();
+
+    return (
+        <Note label={t('b2b::company.prefill_label')} data-test="carried-over">
+            {t('b2b::company.prefill', { store: locale === 'ar' ? prefill.fromStoreNameAr : prefill.fromStoreNameEn })}
+        </Note>
+    );
+}
+
+const ELSEWHERE_BADGE: Record<string, BadgeVariant> = {
+    APPROVED: 'green-subtle',
+    PENDING: 'amber-subtle',
+    REJECTED: 'red-subtle',
+    SUSPENDED: 'red-subtle',
+};
+
+/** The account's companies in the other stores: each store approves its own (amendment 18). */
+function Elsewhere({ page }: { page: CompanyPage }) {
+    const t = useTranslator();
+    const locale = useLocale();
+
+    if (page.elsewhere.length === 0) {
+        return null;
+    }
+
+    return (
+        <section className="grid gap-3" data-test="elsewhere">
+            <h2 className="text-heading-16 text-ink">{t('b2b::company.elsewhere')}</h2>
+            <EntityList>
+                {page.elsewhere.map((other) => (
+                    <Entity
+                        key={other.storeId}
+                        data-test={`elsewhere-${other.storeId}`}
+                        title={other.name}
+                        description={locale === 'ar' ? other.storeNameAr : other.storeNameEn}
+                        actions={
+                            <Badge variant={ELSEWHERE_BADGE[other.status] ?? 'gray-subtle'}>
+                                {t(`b2b::company.status.${other.status.toLowerCase()}.title`)}
+                            </Badge>
+                        }
+                    />
+                ))}
+            </EntityList>
+        </section>
     );
 }
 
