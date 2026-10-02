@@ -9,18 +9,21 @@ import {
     useTable,
     type ColumnDef,
 } from '@tanstack/react-table';
-import { Check, Columns3, Minus } from 'lucide-react';
+import { Check, Columns3, Minus, Search } from 'lucide-react';
+import { DropdownMenu as MenuPrimitive } from 'radix-ui';
 import {
-    DropdownMenu,
-    DropdownMenuCheckboxItem,
-    DropdownMenuContent,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+    Button,
+    EmptyState,
+    Input,
+    Menu,
+    MenuSection,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 
 /*
@@ -35,6 +38,12 @@ import { useTranslator } from '@/lib/t';
 |   "Store settings and tax" rather than as an anonymous column of dots.
 | - **Roles can be filtered and hidden.** A person comparing two roles hides the other eight rather
 |   than scrolling past them, and the area filter narrows the rows to the ones they care about.
+|
+| Drawn with Geist's Table, Input and Menu (frontend.md 1.10). The roles menu is Geist's Menu with
+| a tick per role: Geist's own multi-pick is MultiSelect, which the foundation has not built, so its
+| items are Radix's checkbox items in the Menu's look - one choice per role, kept open while ticking.
+| When the filter leaves nothing, the table gives way to an Empty State rather than an empty body,
+| as Geist's Table asks.
 |
 | Only the features used are registered: anything not listed here is left out of the bundle, which
 | is what TanStack's v9 feature list is for.
@@ -81,6 +90,10 @@ type Props = {
     permissionsByRole: Record<string, string[]>;
 };
 
+// The look of Geist's MenuItem, for the checkbox items the Menu does not have a component for.
+const CHECK_ITEM =
+    'flex h-9 cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-label-14 text-ink outline-none data-[highlighted]:bg-surface-sunken';
+
 export function PermissionsByRole({ roles, groups, permissions, permissionsByRole }: Props) {
     const t = useTranslator();
     const [hidden, setHidden] = useState<Record<string, boolean>>({});
@@ -118,11 +131,11 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
                     header: role.name,
                     enableColumnFilter: false,
                     cell: ({ row }) =>
-                        // In the same green box the system says "active" in, rather than a bare
-                        // tick floating in a cell (owner, 2026-09-24): a wall of marks reads as a
-                        // pattern when each one has a shape, and as noise when they do not.
+                        // In the same green the system says "active" in, rather than a bare tick
+                        // floating in a cell (owner, 2026-09-24): a wall of marks reads as a pattern
+                        // when each one has a shape, and as noise when they do not.
                         row.original.reach[role.id] === true ? (
-                            <span className="grid size-6 place-items-center rounded-md bg-good-soft text-good">
+                            <span className="grid size-6 place-items-center rounded-sm bg-good-soft text-good">
                                 <Check className="size-4" aria-label={t('access::roles.reaches')} />
                             </span>
                         ) : (
@@ -149,52 +162,66 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
 
     const hideable = table.getAllColumns().filter((column) => column.getCanHide());
     const shown = hideable.filter((column) => column.getIsVisible()).length;
+    const rows = table.getRowModel().rows;
 
     return (
         <div className="grid gap-3">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-end gap-3">
+                {/* Geist's search field: a scoped placeholder and no visible label, so the label
+                    is given to the screen reader instead. */}
                 <Input
+                    id="filter-areas"
                     value={filter}
                     onChange={(event) => setFilter(event.target.value)}
                     placeholder={t('access::roles.filter_areas')}
                     aria-label={t('access::roles.filter_areas')}
+                    prefix={<Search aria-hidden="true" className="size-4" />}
                     className="w-64"
                 />
 
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" data-test="columns">
-                            <Columns3 />
+                <Menu
+                    align="start"
+                    trigger={
+                        <Button type="secondary" prefix={<Columns3 aria-hidden="true" className="size-4" />} data-test="columns">
                             {t('access::roles.columns', { shown, total: hideable.length })}
                         </Button>
-                    </DropdownMenuTrigger>
-
-                    <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
-                        <DropdownMenuLabel>{t('access::roles.columns_hint')}</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-
-                        {hideable.map((column) => (
-                            <DropdownMenuCheckboxItem
-                                key={column.id}
-                                checked={column.getIsVisible()}
-                                // Kept open: hiding six of ten roles one at a time is the whole
-                                // point, and a menu that shuts after each is six trips.
-                                onSelect={(event) => event.preventDefault()}
-                                onCheckedChange={(on) => column.toggleVisibility(on === true)}
-                            >
-                                {roles.find((role) => role.id === column.id)?.name ?? column.id}
-                            </DropdownMenuCheckboxItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                    }
+                >
+                    <MenuSection title={t('access::roles.columns_hint')}>
+                        <div className="max-h-80 overflow-y-auto">
+                            {hideable.map((column) => (
+                                <MenuPrimitive.CheckboxItem
+                                    key={column.id}
+                                    checked={column.getIsVisible()}
+                                    // Kept open: hiding six of ten roles one at a time is the whole
+                                    // point, and a menu that shuts after each is six trips.
+                                    onSelect={(event) => event.preventDefault()}
+                                    onCheckedChange={(on) => column.toggleVisibility(on === true)}
+                                    className={CHECK_ITEM}
+                                >
+                                    <span className="grid size-4 shrink-0 place-items-center">
+                                        <MenuPrimitive.ItemIndicator>
+                                            <Check aria-hidden="true" className="size-4" />
+                                        </MenuPrimitive.ItemIndicator>
+                                    </span>
+                                    {roles.find((role) => role.id === column.id)?.name ?? column.id}
+                                </MenuPrimitive.CheckboxItem>
+                            ))}
+                        </div>
+                    </MenuSection>
+                </Menu>
             </div>
 
-            {/* Both directions, with the labels kept: the header row sticks to the top and the area
-                column to the start edge - which is the left in English and the right in Arabic,
-                because it is written as a logical offset. */}
-            <div className="max-h-[32rem] overflow-auto rounded-lg border border-line bg-surface">
-                <Table className="min-w-max">
-                    <TableHeader className="sticky top-0 z-20 bg-surface">
+            {rows.length === 0 ? (
+                <EmptyState title={t('access::roles.no_areas_title')} description={t('access::roles.no_areas')} />
+            ) : (
+                /* Both directions, with the labels kept: the header cells stick to the top and the
+                   area column to the start edge - which is the left in English and the right in
+                   Arabic, because it is written as a logical offset. The table's own frame is the
+                   scroller (its parent element is what the browser test scrolls), so it is the one
+                   given a height. */
+                <Table className="max-h-[32rem]">
+                    <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
                             <TableRow key={headerGroup.id}>
                                 {headerGroup.headers.map((header) => (
@@ -202,8 +229,8 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
                                         key={header.id}
                                         className={
                                             header.column.id === 'area'
-                                                ? 'sticky start-0 z-30 bg-surface text-xs font-semibold text-ink-muted uppercase'
-                                                : 'text-xs font-semibold whitespace-nowrap text-ink-muted'
+                                                ? 'sticky start-0 top-0 z-30 bg-surface-sunken'
+                                                : 'sticky top-0 z-20 bg-surface-sunken'
                                         }
                                     >
                                         {header.isPlaceholder
@@ -216,66 +243,55 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
                     </TableHeader>
 
                     <TableBody>
-                        {table.getRowModel().rows.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={columns.length} className="text-sm text-ink-muted">
-                                    {t('access::roles.no_areas')}
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            table.getRowModel().rows.map((row, index) => {
-                                // A heading each time the area changes, worked out from the rows
-                                // that survived the filter - so a heading never stands over
-                                // nothing (owner, 2026-09-24).
-                                const previous = table.getRowModel().rows[index - 1]?.original.group;
+                        {rows.map((row, index) => {
+                            // A heading each time the area changes, worked out from the rows that
+                            // survived the filter - so a heading never stands over nothing (owner,
+                            // 2026-09-24).
+                            const previous = rows[index - 1]?.original.group;
 
-                                return (
-                                    <Fragment key={row.id}>
-                                        {/* A band, not a slightly greyer row: it was there before
-                                            and could not be seen (owner, 2026-09-24). It carries
-                                            the area's name at the start edge and stays legible
-                                            while the table is scrolled sideways. */}
-                                        {previous === row.original.group ? null : (
-                                            <TableRow className="border-y border-brand-soft bg-brand-soft/60 hover:bg-brand-soft/60">
-                                                <TableCell
-                                                    colSpan={row.getVisibleCells().length}
-                                                    className="py-2 text-xs font-semibold tracking-wide text-brand uppercase"
-                                                >
-                                                    {/* The name sticks, not the cell: a cell that
-                                                        spans the whole table never leaves the
-                                                        screen, so sticking it does nothing and the
-                                                        name inside it scrolls away regardless
-                                                        (owner, 2026-09-24). Held at the cell's own
-                                                        padding, so it does not jump on the first
-                                                        pixel of scrolling. */}
-                                                    <span className="sticky start-2 inline-block">
-                                                        {row.original.groupLabel}
-                                                    </span>
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-
-                                        <TableRow className="transition-colors hover:bg-surface-sunken">
-                                            {row.getVisibleCells().map((cell) => (
-                                                <TableCell
-                                                    key={cell.id}
-                                                    className={
-                                                        cell.column.id === 'area'
-                                                            ? 'sticky start-0 z-10 bg-surface whitespace-nowrap'
-                                                            : ''
-                                                    }
-                                                >
-                                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                </TableCell>
-                                            ))}
+                            return (
+                                <Fragment key={row.id}>
+                                    {/* A band, not a slightly greyer row: it was there before and
+                                        could not be seen (owner, 2026-09-24). It carries the area's
+                                        name at the start edge and stays legible while the table is
+                                        scrolled sideways. */}
+                                    {previous === row.original.group ? null : (
+                                        <TableRow className="bg-brand-soft/60">
+                                            <TableCell
+                                                colSpan={row.getVisibleCells().length}
+                                                className="py-2 text-label-13 font-medium text-brand"
+                                            >
+                                                {/* The name sticks, not the cell: a cell that
+                                                    spans the whole table never leaves the screen,
+                                                    so sticking it does nothing and the name inside
+                                                    it scrolls away regardless (owner, 2026-09-24).
+                                                    Held at the cell's own padding, so it does not
+                                                    jump on the first pixel of scrolling. */}
+                                                <span className="sticky start-2 inline-block">{row.original.groupLabel}</span>
+                                            </TableCell>
                                         </TableRow>
-                                    </Fragment>
-                                );
-                            })
-                        )}
+                                    )}
+
+                                    <TableRow className="hover:bg-surface-sunken">
+                                        {row.getVisibleCells().map((cell) => (
+                                            <TableCell
+                                                key={cell.id}
+                                                className={
+                                                    cell.column.id === 'area'
+                                                        ? 'sticky start-0 z-10 whitespace-nowrap bg-surface'
+                                                        : undefined
+                                                }
+                                            >
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                </Fragment>
+                            );
+                        })}
                     </TableBody>
                 </Table>
-            </div>
+            )}
         </div>
     );
 }

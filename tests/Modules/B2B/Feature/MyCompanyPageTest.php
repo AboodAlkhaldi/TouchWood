@@ -138,8 +138,8 @@ it('offers a company account its page from the account, and tells it on every sh
         ->and($props['draft'])->toBeNull()
         ->and($props['maxFileBytes'])->toBe(10 * 1024 * 1024)
         ->and(array_column($props['companyTypes'], 'nameEn'))->toContain('Limited Liability Company')
-        ->and($props['accountMenu']['pages'])->toBe([['key' => 'b2b.company', 'label' => 'Company account', 'routeName' => 'storefront.company']])
-        ->and($props['shopperLines'])->toBe([['text' => 'Continue your company application', 'routeName' => 'storefront.company', 'tone' => 'info']]);
+        ->and($props['accountMenu']['pages'])->toBe([['key' => 'b2b.company', 'label' => 'Company Account', 'routeName' => 'storefront.company']])
+        ->and($props['shopperLines'])->toBe([['text' => 'Continue Company Application', 'routeName' => 'storefront.company', 'tone' => 'info']]);
 });
 
 it('says nothing of its own before the email is confirmed, where Access\'s mark already says it', function () {
@@ -186,7 +186,7 @@ it('starts the draft, saves one field at a time, and answers a wrong value on it
         ->and($props['draft']['values']['crNumber'])->toBeNull()
         // A field left out of a save keeps its value.
         ->and($props['draft']['values']['taxNumber'])->toBe('300123456700003')
-        ->and($props['shopperLines'][0]['text'])->toBe('Finish and send your company application');
+        ->and($props['shopperLines'][0]['text'])->toBe('Finish and Send Company Application');
 });
 
 it('keeps "Other" as the company\'s own words, and a listed type as its id', function () {
@@ -285,7 +285,7 @@ it('sends a complete draft: the company is under review, the application has its
     $sent = $browser->post('/sa/en/account/company/draft/send')->assertRedirect('/sa/en/account/company');
     $props = myCompanyProps($browser);
 
-    expect(AdminBrowser::flashed($sent, 'status'))->toBe('Your application was sent.')
+    expect(AdminBrowser::flashed($sent, 'status'))->toBe('Application sent')
         ->and($props['company']['status'])->toBe('PENDING')
         ->and($props['draft'])->toBeNull()
         ->and($props['history'])->toHaveCount(1)
@@ -347,7 +347,7 @@ it('lets an approved company change its address at once, and start a change of i
     $browser->post('/sa/en/account/company/draft/start');
     $props = myCompanyProps($browser);
 
-    expect(AdminBrowser::flashed($saved, 'status'))->toBe('Address saved.')
+    expect(AdminBrowser::flashed($saved, 'status'))->toBe('Address saved')
         ->and($props['company']['details']['address'])->toBe(B2BFixtures::addressText($addressId))
         ->and($props['company']['details']['addressId'])->toBe($addressId)
         ->and($props['company']['status'])->toBe('APPROVED')

@@ -13,19 +13,23 @@ return [
     'code' => 'Code',
     'country' => 'Country',
     'currency' => 'Currency',
-    'tax_rate' => 'Tax rate',
+    'tax_rate' => 'Tax Rate',
     'tax_rate_hint' => 'A percentage. 15 is fifteen per cent.',
     'timezone' => 'Timezone',
     'position' => 'Position',
     'position_hint' => 'Where this store sits in the list a visitor chooses from.',
 
-    'edit' => 'Edit',
-    'save' => 'Save',
+    'edit' => 'Edit Store',
+    'save' => 'Save Store',
     'cancel' => 'Cancel',
-    'saved' => 'The store was saved.',
+    'saved' => 'Store saved',
 
     // Said on the screen, so nobody hunts for a button that was never there.
     'immutable' => 'The code, the country and the currency are fixed when the store is opened.',
     'no_new_store' => 'A store is opened by console command, so it is created complete.',
     'no_stores' => 'No store here is yours to see.',
+
+    // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
+    // buttons' reasons and dialogs' own words.
+    'none_title' => 'No Stores to Show',
 ];

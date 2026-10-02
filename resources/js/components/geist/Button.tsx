@@ -131,7 +131,9 @@ export function Button(props: ButtonProps) {
         </button>
     );
 
-    return disabledReason === undefined ? button : <Tooltip text={disabledReason}>{button}</Tooltip>;
+    // Always inside its tooltip, shut while there is no reason: a button that gains or loses one
+    // (Send, while a save runs) keeps its place in the tree and the keyboard focus on it.
+    return <Tooltip text={disabledReason}>{button}</Tooltip>;
 }
 
 type ButtonLinkProps = Common &

@@ -1,8 +1,7 @@
 import { type ChangeEvent, createContext, type RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { router } from '@inertiajs/react';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { ChevronDown } from 'lucide-react';
+import { Button, Label, Modal, ModalCancel, Note } from '@/components/geist';
 import { isolate } from '@/lib/bidi';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
@@ -16,7 +15,7 @@ import type {
     CompanyRequestData,
     CompanyTypeOptionData,
 } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
-import { AddressPicker, border, check, FieldState, type Look, normal } from './fields';
+import { AddressPicker, check, control, FieldState, type Look, normal } from './fields';
 import { Card, nameOf, useLocale, when } from './parts';
 
 /*
@@ -42,6 +41,11 @@ import { Card, nameOf, useLocale, when } from './parts';
 | After a rejection, what it marked is marked here until it is replaced — a field once it differs
 | from what was sent, a paper once a new file is under its type (§1.2). A mark on a document type no
 | longer offered stops counting (§3.1), so it is not shown.
+|
+| On Geist's parts (frontend.md 1.10): each field is Geist's box ringed in the colour of where it
+| stands (fields.tsx); a button that sends is `loading` while it does, and one that cannot be pressed
+| yet says why in its tooltip rather than greying out in silence; discarding the draft is confirmed
+| in Geist's destructive Modal; the warning to an approved company is Geist's warning Note.
 */
 
 type Props = {
@@ -149,7 +153,9 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
         ...missingItems(page, draft, lastSent, t),
         ...(Object.keys(standings).length > 0 ? [t('b2b::company.missing_marked')] : []),
     ];
-    const blocked = missing.length > 0 || waiting > 0 || sending;
+    // Why Send cannot be pressed now, if it cannot: a save still out, or something still missing.
+    // While it sends it is `loading` instead, which also stops a second press.
+    const blocked = waiting > 0 ? t('b2b::company.saving_wait') : missing.length > 0 ? t('b2b::company.send_incomplete') : undefined;
 
     return (
         <ChangesContext.Provider value={changes}>
@@ -188,7 +194,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                     hint={t('b2b::company.documents_hint', { size: Math.round(page.maxFileBytes / MEGABYTE) })}
                     test="documents"
                 >
-                    <p className="text-xs text-ink-muted" data-test="documents-done">
+                    <p className="text-copy-13 text-ink-muted" data-test="documents-done">
                         {t('b2b::company.documents_done', { done, total: required.length })}
                     </p>
                     <ul className="grid gap-3">
@@ -243,16 +249,16 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                     {changing ? <Warning /> : null}
 
                     {missing.length > 0 ? (
-                        <p className="text-sm text-ink-muted" data-test="send-missing">
+                        <p className="text-copy-14 text-ink-muted" data-test="send-missing">
                             {t('b2b::company.missing', { items: missing.join(t('b2b::company.separator')) })}
                         </p>
                     ) : null}
 
                     <div className="flex flex-wrap items-center gap-3">
                         <Button
-                            type="button"
                             data-test="send"
-                            disabled={blocked}
+                            loading={sending}
+                            disabledReason={blocked}
                             onClick={() => {
                                 setSending(true);
                                 router.post(link('storefront.company.send'), {}, { preserveScroll: true, onFinish: () => setSending(false) });
@@ -261,18 +267,17 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                             {t('b2b::company.send')}
                         </Button>
                         <Button
-                            type="button"
-                            variant="outline"
+                            type="secondary"
                             data-test="discard"
                             // Not while a save is out: its page request would cancel the saves (17(i)).
-                            disabled={waiting > 0}
-                            onClick={() => setConfirmingDiscard((open) => !open)}
+                            disabledReason={waiting > 0 ? t('b2b::company.saving_wait') : undefined}
+                            onClick={() => setConfirmingDiscard(true)}
                         >
                             {t('b2b::company.discard')}
                         </Button>
                     </div>
 
-                    {confirmingDiscard ? <DiscardConfirmation busy={waiting > 0} onCancel={() => setConfirmingDiscard(false)} /> : null}
+                    <DiscardModal open={confirmingDiscard} onOpenChange={setConfirmingDiscard} busy={waiting > 0} />
                 </div>
             </div>
         </ChangesContext.Provider>
@@ -362,45 +367,59 @@ function standingOf(look: Look): Standing | null {
     return look === 'saving' || look === 'refused' || look === 'invalid' || look === 'unsaved' ? look : null;
 }
 
-/** What sending a change does to an approved company, before it is sent (§1.1, amendment 14(e)). */
+/**
+ * What sending a change does to an approved company, before it is sent (§1.1, amendment 14(e)): a
+ * consequence to take in, so Geist's warning Note.
+ */
 function Warning() {
     const t = useTranslator();
 
     return (
-        <p data-test="change-warning" className="rounded-md border border-warn/40 bg-warn-soft px-4 py-3 text-sm text-ink">
+        <Note variant="warning" data-test="change-warning">
             {t('b2b::company.change_warning')}
-        </p>
+        </Note>
     );
 }
 
-/** Asked in the page, never with the browser's own box (owner, 2026-09-24). */
-export function DiscardConfirmation({ onCancel, busy = false }: { onCancel: () => void; busy?: boolean }) {
+/**
+ * Discarding the draft, asked in the page, never with the browser's own box (owner, 2026-09-24) —
+ * in Geist's Modal, which confirms what destroys: the draft goes, and any file only it holds. Being
+ * destructive, it opens on Cancel, so Enter never discards by accident. A plain Modal, not a typed
+ * confirmation: Geist keeps that friction for what is hard to undo, and a draft is started again
+ * with one press.
+ */
+export function DiscardModal({ open, onOpenChange, busy = false }: { open: boolean; onOpenChange: (open: boolean) => void; busy?: boolean }) {
     const t = useTranslator();
     const link = useLink();
     const [discarding, setDiscarding] = useState(false);
 
     return (
-        <div className="grid gap-3 rounded-lg border border-bad/30 bg-bad-soft p-4" data-test="discard-confirmation">
-            <p className="text-sm text-ink">{t('b2b::company.discard_confirm')}</p>
-            <div className="flex flex-wrap gap-2">
-                <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    data-test="discard-confirm"
-                    disabled={discarding || busy}
-                    onClick={() => {
-                        setDiscarding(true);
-                        router.post(link('storefront.company.discard'), {}, { onFinish: () => setDiscarding(false) });
-                    }}
-                >
-                    {t('b2b::company.discard_yes')}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-                    {t('b2b::company.cancel')}
-                </Button>
-            </div>
-        </div>
+        <Modal
+            open={open}
+            // Not closed under a discard still out: its answer decides what the page shows next.
+            onOpenChange={(next) => (discarding ? undefined : onOpenChange(next))}
+            title={t('b2b::company.discard_title')}
+            description={<span data-test="discard-confirmation">{t('b2b::company.discard_confirm')}</span>}
+            destructive
+            actions={
+                <>
+                    <ModalCancel onClick={() => onOpenChange(false)} disabled={discarding} />
+                    <Button
+                        type="error"
+                        data-test="discard-confirm"
+                        loading={discarding}
+                        // Not while a save is out: its page request would cancel the saves (17(i)).
+                        disabledReason={busy ? t('b2b::company.saving_wait') : undefined}
+                        onClick={() => {
+                            setDiscarding(true);
+                            router.post(link('storefront.company.discard'), {}, { onFinish: () => setDiscarding(false) });
+                        }}
+                    >
+                        {t('b2b::company.discard_yes')}
+                    </Button>
+                </>
+            }
+        />
     );
 }
 
@@ -568,21 +587,14 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
 
     return (
         <div className="grid gap-1.5">
-            <Label htmlFor={id} className="text-ink">
-                {label}
-            </Label>
+            <Label htmlFor={id}>{label}</Label>
             {multiline ? (
-                <textarea
-                    {...common}
-                    rows={3}
-                    onChange={(event) => setValue(event.target.value)}
-                    className={['w-full rounded-md border bg-surface p-3 text-sm text-ink', border(look)].join(' ')}
-                />
+                <textarea {...common} rows={3} onChange={(event) => setValue(event.target.value)} className={control(look, 'lines')} />
             ) : (
-                <Input {...common} className={border(look)} onChange={(event) => setValue(event.target.value)} />
+                <input {...common} onChange={(event) => setValue(event.target.value)} className={control(look, 'line')} />
             )}
             {flagged ? (
-                <p className="text-xs text-bad" data-test="flagged">
+                <p className="text-copy-13 text-bad" data-test="flagged">
                     {t('b2b::company.flagged')}
                 </p>
             ) : null}
@@ -679,43 +691,45 @@ function TypeChoice({
     return (
         <div className="grid gap-3">
             <div className="grid gap-1.5">
-                <Label htmlFor="company-type" className="text-ink">
-                    {t('b2b::company.field.company_type')}
-                </Label>
-                <select
-                    id="company-type"
-                    data-test="field-company_type"
-                    data-look={selectLook}
-                    value={choice}
-                    aria-invalid={selectLook === 'invalid' || selectLook === 'refused' ? true : undefined}
-                    aria-describedby="company-type-state"
-                    onChange={(event) => {
-                        const chosen = event.target.value;
-                        setChoice(chosen);
-                        setChoiceLeft(true);
+                <Label htmlFor="company-type">{t('b2b::company.field.company_type')}</Label>
+                {/* Geist's Select, built by hand for its ring: "Choose…" stays a real option here. */}
+                <div className="relative">
+                    <select
+                        id="company-type"
+                        data-test="field-company_type"
+                        data-look={selectLook}
+                        value={choice}
+                        aria-invalid={selectLook === 'invalid' || selectLook === 'refused' ? true : undefined}
+                        aria-describedby="company-type-state"
+                        onChange={(event) => {
+                            const chosen = event.target.value;
+                            setChoice(chosen);
+                            setChoiceLeft(true);
 
-                        if (chosen !== OTHER && chosen !== '') {
-                            save({ company_type_id: chosen, company_type_other: null }, chosen);
-                        }
-                    }}
-                    className={['h-9 w-full rounded-md border bg-surface px-3 text-sm text-ink', border(selectLook)].join(' ')}
-                >
-                    <option value="">{t('b2b::company.field.choose')}</option>
-                    {options.map((option) => (
-                        <option key={option.id} value={option.id} disabled={option.greyed}>
-                            {option.greyed ? `${nameOf(option, locale)} — ${t('b2b::company.greyed')}` : nameOf(option, locale)}
-                        </option>
-                    ))}
-                    {/* Always last, whatever staff set up: it is not a type (§1.3). */}
-                    <option value={OTHER}>{t('b2b::company.field.other')}</option>
-                </select>
+                            if (chosen !== OTHER && chosen !== '') {
+                                save({ company_type_id: chosen, company_type_other: null }, chosen);
+                            }
+                        }}
+                        className={control(selectLook, 'choice')}
+                    >
+                        <option value="">{t('b2b::company.field.choose')}</option>
+                        {options.map((option) => (
+                            <option key={option.id} value={option.id} disabled={option.greyed}>
+                                {option.greyed ? `${nameOf(option, locale)} — ${t('b2b::company.greyed')}` : nameOf(option, locale)}
+                            </option>
+                        ))}
+                        {/* Always last, whatever staff set up: it is not a type (§1.3). */}
+                        <option value={OTHER}>{t('b2b::company.field.other')}</option>
+                    </select>
+                    <ChevronDown aria-hidden="true" className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+                </div>
                 {draft.typeNoLongerAccepted ? (
-                    <p className="text-xs text-bad" data-test="type-no-longer">
+                    <p className="text-copy-13 text-bad" data-test="type-no-longer">
                         {t('b2b::company.type_no_longer')}
                     </p>
                 ) : null}
                 {flagged ? (
-                    <p className="text-xs text-bad" data-test="flagged">
+                    <p className="text-copy-13 text-bad" data-test="flagged">
                         {t('b2b::company.flagged')}
                     </p>
                 ) : null}
@@ -724,15 +738,13 @@ function TypeChoice({
 
             {other ? (
                 <div className="grid gap-1.5">
-                    <Label htmlFor="company-type-other" className="text-ink">
-                        {t('b2b::company.field.other_words')}
-                    </Label>
-                    <Input
+                    <Label htmlFor="company-type-other">{t('b2b::company.field.other_words')}</Label>
+                    <input
                         id="company-type-other"
                         data-test="field-company_type_other"
                         data-look={wordsLook}
                         value={words}
-                        className={border(wordsLook)}
+                        className={control(wordsLook, 'line')}
                         aria-invalid={wordsLook === 'invalid' || wordsLook === 'refused' ? true : undefined}
                         aria-describedby="company-type-other-state"
                         onChange={(event) => setWords(event.target.value)}
@@ -800,7 +812,7 @@ function DraftAddress({ page, draft, flagged, locale }: { page: CompanyPage; dra
                 }}
             />
             {flagged ? (
-                <p className="text-xs text-bad" data-test="flagged">
+                <p className="text-copy-13 text-bad" data-test="flagged">
                     {t('b2b::company.flagged')}
                 </p>
             ) : null}
@@ -910,12 +922,17 @@ function DocumentRow({
     // offered stops counting (§3.1).
     const stillFlagged = flagged && !type.greyed && (file === undefined || file.mediaId === sentMediaId);
     const refusal = picker.refusal ?? removal;
+    // The buttons keep their own words and are described by the paper's name, so three "Replace"
+    // buttons still say which paper each is for (Geist: no aria-label over visible text).
+    const nameId = `document-${type.id}-name`;
 
     return (
-        <li className="grid gap-2 rounded-md border border-line p-3" data-test={`document-${type.id}`}>
+        <li className="grid gap-2 rounded-[var(--tw-radius)] border border-line p-3" data-test={`document-${type.id}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium text-ink">{name}</span>
-                <span className="text-xs text-ink-muted">
+                <span id={nameId} className="text-label-14 font-medium text-ink">
+                    {name}
+                </span>
+                <span className="text-copy-13 text-ink-muted">
                     {file !== undefined
                         ? t('b2b::company.uploaded', { date: isolate(when(file.uploadedAt)) })
                         : type.greyed
@@ -926,40 +943,32 @@ function DocumentRow({
                 </span>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
                 {type.greyed ? null : (
                     <>
                         <input ref={picker.input} type="file" accept={ACCEPT} className="hidden" onChange={picker.onChange} data-test={`file-${type.id}`} />
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={picker.sending}
-                            aria-label={`${file === undefined ? t('b2b::company.choose_file') : t('b2b::company.replace')}: ${name}`}
-                            onClick={picker.pick}
-                        >
-                            {picker.sending ? t('b2b::company.saving') : file === undefined ? t('b2b::company.choose_file') : t('b2b::company.replace')}
+                        <Button type="secondary" size="small" loading={picker.sending} aria-describedby={nameId} onClick={picker.pick}>
+                            {file === undefined ? t('b2b::company.choose_file') : t('b2b::company.replace')}
                         </Button>
                     </>
                 )}
                 {file !== undefined ? (
                     <>
-                        <Button asChild variant="ghost" size="sm">
-                            <a
-                                href={link('storefront.company.file', { file: file.mediaId })}
-                                target="_blank"
-                                rel="noreferrer"
-                                aria-label={`${t('b2b::company.open')}: ${name}`}
-                            >
-                                {t('b2b::company.open')}
-                            </a>
-                        </Button>
+                        {/* A new tab, so the form and the saves it is waiting on stay where they are. */}
+                        <a
+                            href={link('storefront.company.file', { file: file.mediaId })}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-describedby={nameId}
+                            className="inline-flex h-8 items-center px-2 text-label-14 text-brand hover:underline"
+                        >
+                            {t('b2b::company.open')}
+                        </a>
                         <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
+                            type="tertiary"
+                            size="small"
                             data-test={`remove-${type.id}`}
-                            aria-label={`${t('b2b::company.remove')}: ${name}`}
+                            aria-describedby={nameId}
                             onClick={() => send(link('storefront.company.detach', { type: type.id }), {}, setRemoval, errorKey)}
                         >
                             {t('b2b::company.remove')}
@@ -968,19 +977,19 @@ function DocumentRow({
                 ) : null}
             </div>
 
-            {file?.noLongerAccepted ? <p className="text-xs text-bad">{t('b2b::company.no_longer_accepted')}</p> : null}
+            {file?.noLongerAccepted ? <p className="text-copy-13 text-bad">{t('b2b::company.no_longer_accepted')}</p> : null}
             {stillFlagged ? (
-                <p className="text-xs text-bad" data-test="flagged">
+                <p className="text-copy-13 text-bad" data-test="flagged">
                     {t('b2b::company.flagged_document')}
                 </p>
             ) : null}
             {picker.warning !== null ? (
-                <p role="alert" className="text-xs text-warn" data-test="file-warning">
+                <p role="alert" className="text-copy-13 text-warn" data-test="file-warning">
                     {picker.warning}
                 </p>
             ) : null}
             {refusal !== null ? (
-                <p role="alert" className="text-xs text-bad">
+                <p role="alert" className="text-copy-13 text-bad">
                     {refusal}
                 </p>
             ) : null}
@@ -1036,7 +1045,7 @@ function RequestRow({
 
     return (
         <li className="grid gap-2" data-test={`request-${request.id}`}>
-            <p id={labelId} className="text-sm font-medium text-ink">
+            <p id={labelId} className="text-label-14 font-medium text-ink">
                 {request.label}
             </p>
 
@@ -1075,40 +1084,32 @@ function RequestRow({
                                 errorKey,
                             );
                         }}
-                        className={['w-full rounded-md border bg-surface p-3 text-sm text-ink', border(look)].join(' ')}
+                        className={control(look, 'lines')}
                     />
                     <FieldState id={stateId} look={look} message={look === 'refused' ? (problem ?? refusal?.message ?? null) : problem} />
                 </>
             ) : (
-                <div className="flex flex-wrap gap-2">
+                // The buttons keep their own words and are described by what was asked (as DocumentRow).
+                <div className="flex flex-wrap items-center gap-2">
                     <input ref={picker.input} type="file" accept={ACCEPT} className="hidden" onChange={picker.onChange} />
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={picker.sending}
-                        aria-label={`${answer?.mediaId ? t('b2b::company.replace') : t('b2b::company.choose_file')}: ${request.label}`}
-                        onClick={picker.pick}
-                    >
-                        {picker.sending ? t('b2b::company.saving') : answer?.mediaId ? t('b2b::company.replace') : t('b2b::company.choose_file')}
+                    <Button type="secondary" size="small" loading={picker.sending} aria-describedby={labelId} onClick={picker.pick}>
+                        {answer?.mediaId ? t('b2b::company.replace') : t('b2b::company.choose_file')}
                     </Button>
                     {answer?.mediaId ? (
                         <>
-                            <Button asChild variant="ghost" size="sm">
-                                <a
-                                    href={link('storefront.company.file', { file: answer.mediaId })}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    aria-label={`${t('b2b::company.open')}: ${request.label}`}
-                                >
-                                    {t('b2b::company.open')}
-                                </a>
-                            </Button>
+                            <a
+                                href={link('storefront.company.file', { file: answer.mediaId })}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-describedby={labelId}
+                                className="inline-flex h-8 items-center px-2 text-label-14 text-brand hover:underline"
+                            >
+                                {t('b2b::company.open')}
+                            </a>
                             <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                aria-label={`${t('b2b::company.remove')}: ${request.label}`}
+                                type="tertiary"
+                                size="small"
+                                aria-describedby={labelId}
                                 onClick={() => send(link('storefront.company.unanswer', { answered: request.id }), {}, setRemoval, errorKey)}
                             >
                                 {t('b2b::company.remove')}
@@ -1119,12 +1120,12 @@ function RequestRow({
             )}
 
             {picker.warning !== null ? (
-                <p role="alert" className="text-xs text-warn">
+                <p role="alert" className="text-copy-13 text-warn">
                     {picker.warning}
                 </p>
             ) : null}
             {shown !== null ? (
-                <p role="alert" className="text-xs text-bad">
+                <p role="alert" className="text-copy-13 text-bad">
                     {shown}
                 </p>
             ) : null}

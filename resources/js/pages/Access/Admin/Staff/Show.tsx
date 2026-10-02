@@ -1,11 +1,23 @@
-import { useState } from 'react';
-import { Link, router, useForm } from '@inertiajs/react';
+import { useState, type ReactNode } from 'react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { Field } from '@/components/Field';
 import { FormError } from '@/components/FormError';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import {
+    Badge,
+    Button,
+    ButtonLink,
+    Description,
+    DestructiveActionModal,
+    EmptyState,
+    Fieldset,
+    Input,
+    Modal,
+    ModalCancel,
+    Note,
+    type DescriptionItem,
+} from '@/components/geist';
 import { useTranslator } from '@/lib/t';
+import type { SharedProps } from '@/types/page';
 import type { StaffMemberPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -17,14 +29,25 @@ import type { StaffMemberPage } from '@/types/generated/Modules/Access/Presentat
 |
 | A Super Admin shows no management buttons at all - they are made and removed by console command
 | only (access.md §1.6) - and nobody manages themselves.
+|
+| In Geist's parts (frontend.md 1.10). The two actions that take something away are confirmed in a
+| Modal first, as Geist asks of every destructive action: disabling somebody ends their sessions at
+| once, so the person types their name before it happens (the Destructive Action Modal); cancelling
+| an invitation kills its link but a new one can still be sent (access.md amendment 29), so a plain
+| destructive Modal. Every button that posts shows it is busy until the answer is back.
 */
 
 type Props = StaffMemberPage;
 
 export default function Show(person: Props) {
     const t = useTranslator();
+    const { errors } = usePage<SharedProps>().props;
     const [editing, setEditing] = useState(false);
     const [changingEmail, setChangingEmail] = useState(false);
+    const [disabling, setDisabling] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
+    // The path of the action on its way to the server, so its own button says it is busy.
+    const [busy, setBusy] = useState<string | null>(null);
 
     const profile = useForm({
         first_name: person.firstName,
@@ -37,7 +60,28 @@ export default function Show(person: Props) {
     });
 
     const email = useForm({ email: '' });
-    const post = (path: string) => router.post(`/admin/staff/${person.id}${path}`);
+
+    function post(path: string, done?: () => void) {
+        router.post(
+            `/admin/staff/${person.id}${path}`,
+            {},
+            { onStart: () => setBusy(path), onFinish: () => setBusy(null), onSuccess: done },
+        );
+    }
+
+    // What is known about them, and only that: an admin seen by somebody who is not a Super Admin
+    // arrives with these empty, and an empty line would only say that something is hidden.
+    const facts: DescriptionItem[] = [
+        { title: t('access::staff.email'), content: ltr(person.email) },
+        { title: t('access::staff.phone'), content: ltr(person.phone) },
+        { title: t('access::staff.job_title'), content: person.jobTitle },
+        { title: t('access::staff.country'), content: person.country },
+        { title: t('access::staff.address'), content: person.address },
+        {
+            title: t('access::staff.communication_language'),
+            content: person.communicationLocale === 'en' ? 'English' : 'العربية',
+        },
+    ].filter((fact) => fact.content !== null && fact.content !== '');
 
     return (
         <AdminLayout
@@ -47,42 +91,48 @@ export default function Show(person: Props) {
             action={
                 <div className="flex flex-wrap gap-2">
                     {person.mayEditProfile ? (
-                        <Button variant="outline" onClick={() => setEditing((open) => !open)}>
+                        <Button type="secondary" onClick={() => setEditing((open) => !open)}>
                             {t('access::staff.edit_profile')}
                         </Button>
                     ) : null}
                     {person.mayChangeEmail ? (
-                        <Button variant="outline" onClick={() => setChangingEmail((open) => !open)}>
+                        <Button type="secondary" onClick={() => setChangingEmail((open) => !open)}>
                             {t('access::staff.change_email')}
                         </Button>
                     ) : null}
                     {person.mayChangeRole ? (
-                        <Button variant="outline" asChild>
-                            <Link href={`/admin/staff/${person.id}/role`}>{t('access::staff.change_role')}</Link>
-                        </Button>
+                        <ButtonLink href={`/admin/staff/${person.id}/role`} type="secondary">
+                            {t('access::staff.change_role')}
+                        </ButtonLink>
                     ) : null}
                     {person.mayRefresh ? (
-                        <Button variant="outline" onClick={() => post('/refresh')}>
+                        <Button type="secondary" loading={busy === '/refresh'} onClick={() => post('/refresh')}>
                             {t('access::staff.refresh')}
                         </Button>
                     ) : null}
                     {person.mayResendInvitation ? (
-                        <Button variant="outline" onClick={() => post('/invitation/resend')}>
+                        <Button
+                            type="secondary"
+                            loading={busy === '/invitation/resend'}
+                            onClick={() => post('/invitation/resend')}
+                        >
                             {t('access::staff.resend_invitation')}
                         </Button>
                     ) : null}
                     {person.mayCancelInvitation ? (
-                        <Button variant="outline" onClick={() => post('/invitation/cancel')}>
+                        <Button type="secondary" onClick={() => setCancelling(true)}>
                             {t('access::staff.cancel_invitation')}
                         </Button>
                     ) : null}
                     {person.mayDisable ? (
-                        <Button variant="destructive" onClick={() => post('/disable')}>
+                        <Button type="error" onClick={() => setDisabling(true)}>
                             {t('access::staff.disable')}
                         </Button>
                     ) : null}
                     {person.mayEnable ? (
-                        <Button onClick={() => post('/enable')}>{t('access::staff.enable')}</Button>
+                        <Button loading={busy === '/enable'} onClick={() => post('/enable')}>
+                            {t('access::staff.enable')}
+                        </Button>
                     ) : null}
                 </div>
             }
@@ -90,123 +140,107 @@ export default function Show(person: Props) {
             <div className="grid gap-6">
                 <FormError />
 
-                {person.isSuperAdmin ? (
-                    <p className="rounded-md border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-muted">
-                        {t('access::staff.super_admin_hint')}
-                    </p>
-                ) : null}
+                {person.isSuperAdmin ? <Note variant="secondary">{t('access::staff.super_admin_hint')}</Note> : null}
 
                 {changingEmail ? (
-                    <form
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            email.post(`/admin/staff/${person.id}/email`);
-                        }}
-                        className="grid max-w-md gap-4 rounded-lg border border-line bg-surface p-4"
-                    >
-                        <div className="grid gap-0.5">
-                            <h2 className="text-sm font-semibold text-ink">{t('access::staff.change_email')}</h2>
-                            <p className="text-xs text-ink-muted">{t('access::staff.change_email_hint')}</p>
-                        </div>
-
-                        <Field id="new_email" label={t('access::staff.new_email')} error={email.errors.email}>
+                    <div className="max-w-xl">
+                        <Fieldset
+                            as="form"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                email.post(`/admin/staff/${person.id}/email`);
+                            }}
+                            title={t('access::staff.change_email')}
+                            subtitle={t('access::staff.change_email_hint')}
+                            footerAction={
+                                <Button typeName="submit" loading={email.processing}>
+                                    {t('access::staff.save')}
+                                </Button>
+                            }
+                        >
                             <Input
                                 id="new_email"
                                 type="email"
+                                label={t('access::staff.new_email')}
+                                error={email.errors.email}
                                 dir="ltr"
                                 required
                                 value={email.data.email}
                                 onChange={(event) => email.setData('email', event.target.value)}
                             />
-                        </Field>
-
-                        <Button type="submit" disabled={email.processing}>
-                            {t('access::staff.save')}
-                        </Button>
-                    </form>
+                        </Fieldset>
+                    </div>
                 ) : null}
 
-                <section className="grid gap-3 rounded-lg border border-line bg-surface p-4">
-                    <h2 className="text-sm font-semibold text-ink">{t('access::staff.profile')}</h2>
-
-                    {editing ? (
-                        <form
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                profile.post(`/admin/staff/${person.id}/profile`);
-                            }}
-                            className="grid gap-4 sm:grid-cols-2"
-                        >
-                            <Field id="first_name" label={t('access::staff.first_name')} error={profile.errors.first_name}>
-                                <Input
-                                    id="first_name"
-                                    required
-                                    value={profile.data.first_name}
-                                    onChange={(event) => profile.setData('first_name', event.target.value)}
-                                />
-                            </Field>
-
-                            <Field id="last_name" label={t('access::staff.last_name')} error={profile.errors.last_name}>
-                                <Input
-                                    id="last_name"
-                                    required
-                                    value={profile.data.last_name}
-                                    onChange={(event) => profile.setData('last_name', event.target.value)}
-                                />
-                            </Field>
-
-                            <Field id="job_title" label={t('access::staff.job_title')} error={profile.errors.job_title}>
-                                <Input
-                                    id="job_title"
-                                    value={profile.data.job_title}
-                                    onChange={(event) => profile.setData('job_title', event.target.value)}
-                                />
-                            </Field>
-
-                            <Field id="phone" label={t('access::staff.phone')} error={profile.errors.phone}>
-                                <Input
-                                    id="phone"
-                                    dir="ltr"
-                                    className="tw-figure"
-                                    value={profile.data.phone}
-                                    onChange={(event) => profile.setData('phone', event.target.value)}
-                                />
-                            </Field>
-
-                            <div className="sm:col-span-2">
-                                <Button type="submit" disabled={profile.processing}>
-                                    {t('access::staff.save')}
-                                </Button>
-                            </div>
-                        </form>
-                    ) : (
-                        <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                            <Detail label={t('access::staff.email')} value={person.email} ltr />
-                            <Detail label={t('access::staff.phone')} value={person.phone} ltr />
-                            <Detail label={t('access::staff.job_title')} value={person.jobTitle} />
-                            <Detail label={t('access::staff.country')} value={person.country} />
-                            <Detail label={t('access::staff.address')} value={person.address} />
-                            <Detail
-                                label={t('access::staff.communication_language')}
-                                value={person.communicationLocale === 'en' ? 'English' : 'العربية'}
+                {editing ? (
+                    <Fieldset
+                        as="form"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            profile.post(`/admin/staff/${person.id}/profile`);
+                        }}
+                        title={t('access::staff.profile')}
+                        footerAction={
+                            <Button typeName="submit" loading={profile.processing}>
+                                {t('access::staff.save')}
+                            </Button>
+                        }
+                    >
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Input
+                                id="first_name"
+                                label={t('access::staff.first_name')}
+                                error={profile.errors.first_name}
+                                required
+                                value={profile.data.first_name}
+                                onChange={(event) => profile.setData('first_name', event.target.value)}
                             />
-                        </dl>
-                    )}
-                </section>
 
-                <section className="grid gap-2">
-                    <div className="grid gap-0.5">
-                        <h2 className="text-sm font-semibold text-ink">{t('access::staff.allows')}</h2>
-                        <p className="text-xs text-ink-muted">
+                            <Input
+                                id="last_name"
+                                label={t('access::staff.last_name')}
+                                error={profile.errors.last_name}
+                                required
+                                value={profile.data.last_name}
+                                onChange={(event) => profile.setData('last_name', event.target.value)}
+                            />
+
+                            <Input
+                                id="job_title"
+                                label={t('access::staff.job_title')}
+                                error={profile.errors.job_title}
+                                value={profile.data.job_title}
+                                onChange={(event) => profile.setData('job_title', event.target.value)}
+                            />
+
+                            <Input
+                                id="phone"
+                                label={t('access::staff.phone')}
+                                error={profile.errors.phone}
+                                dir="ltr"
+                                className="tw-figure"
+                                value={profile.data.phone}
+                                onChange={(event) => profile.setData('phone', event.target.value)}
+                            />
+                        </div>
+                    </Fieldset>
+                ) : (
+                    <Fieldset title={t('access::staff.profile')}>
+                        <Description items={facts} />
+                    </Fieldset>
+                )}
+
+                <section className="grid gap-3">
+                    <div className="grid gap-1">
+                        <h2 className="text-heading-16 text-ink">{t('access::staff.allows')}</h2>
+                        <p className="text-copy-13 text-ink-muted">
                             {t('access::staff.stores')}:{' '}
                             {person.allStores ? t('access::staff.every_store') : person.storeNames.join('، ')}
                         </p>
                     </div>
 
                     {person.actions.length === 0 ? (
-                        <p className="rounded-lg border border-line bg-surface p-4 text-sm text-ink-muted">
-                            {t('access::staff.no_role')}
-                        </p>
+                        <EmptyState title={t('access::staff.no_role_title')} description={t('access::staff.no_role')} />
                     ) : (
                         person.groups.map((group) => {
                             const inGroup = person.actions.filter((action) => action.group === group.key);
@@ -216,25 +250,26 @@ export default function Show(person: Props) {
                             }
 
                             return (
-                                <div key={group.key} className="rounded-lg border border-line bg-surface">
-                                    <h3 className="border-b border-line px-4 py-2 text-xs font-semibold text-ink-muted uppercase">
+                                <div key={group.key} className="material-base overflow-hidden">
+                                    <h3 className="border-b border-line px-4 py-2 text-label-13 font-medium text-ink-muted">
                                         {group.label}
                                     </h3>
-                                    <ul className="grid gap-1.5 p-4">
+                                    <ul className="grid gap-2 p-4">
                                         {inGroup.map((action) => (
-                                            <li key={action.name} className="grid gap-0.5 text-sm">
-                                                <span className="text-ink">
+                                            <li key={action.name} className="grid gap-0.5">
+                                                <span className="flex flex-wrap items-center gap-2 text-copy-14 text-ink">
                                                     {action.label}
                                                     {action.exception ? (
-                                                        <span
-                                                            className="ms-2 rounded-pill bg-warn-soft px-2 py-0.5 text-xs text-warn"
+                                                        <Badge
+                                                            variant="amber-subtle"
+                                                            size="small"
                                                             title={t('access::staff.exception_hint')}
                                                         >
                                                             {t('access::staff.exception')}
-                                                        </span>
+                                                        </Badge>
                                                     ) : null}
                                                 </span>
-                                                <span className="text-xs text-ink-muted">
+                                                <span className="text-copy-13 text-ink-muted">
                                                     {action.storeFree
                                                         ? t('access::staff.store_free')
                                                         : (action.storeNames ?? []).join('، ') ||
@@ -249,21 +284,50 @@ export default function Show(person: Props) {
                     )}
                 </section>
             </div>
+
+            <DestructiveActionModal
+                open={disabling}
+                onOpenChange={setDisabling}
+                title={t('access::staff.disable')}
+                description={t('access::staff.disable_hint')}
+                verificationPhrase={person.name}
+                verificationLabel={t('access::staff.verification_label')}
+                loading={busy === '/disable'}
+                error={errors.form}
+                onConfirm={() => post('/disable', () => setDisabling(false))}
+            />
+
+            <Modal
+                open={cancelling}
+                onOpenChange={setCancelling}
+                destructive
+                title={t('access::staff.cancel_invitation')}
+                description={t('access::staff.cancel_invitation_body')}
+                actions={
+                    <>
+                        <ModalCancel
+                            onClick={() => setCancelling(false)}
+                            label={t('access::staff.keep_invitation')}
+                            disabled={busy !== null}
+                        />
+                        <Button
+                            type="error"
+                            loading={busy === '/invitation/cancel'}
+                            onClick={() => post('/invitation/cancel', () => setCancelling(false))}
+                        >
+                            {t('access::staff.cancel_invitation')}
+                        </Button>
+                    </>
+                }
+            >
+                {/* A refusal keeps the dialog open, so it is said here, where the person is looking. */}
+                {errors.form ? <FormError /> : undefined}
+            </Modal>
         </AdminLayout>
     );
 }
 
-function Detail({ label, value, ltr = false }: { label: string; value: string | null; ltr?: boolean }) {
-    if (value === null || value === '') {
-        return null;
-    }
-
-    return (
-        <div className="grid gap-0.5">
-            <dt className="text-xs text-ink-muted">{label}</dt>
-            <dd className="text-ink" dir={ltr ? 'ltr' : undefined}>
-                {value}
-            </dd>
-        </div>
-    );
+/** A value read left to right inside an Arabic page - an address, a number - or nothing. */
+function ltr(value: string | null): ReactNode {
+    return value === null || value === '' ? null : <bdi dir="ltr">{value}</bdi>;
 }

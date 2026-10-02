@@ -15,6 +15,8 @@ import { Logo } from '@/components/Logo';
 | Nobody is signed in here, so there is no menu, no store and no person block. The language and theme
 | toggles are on the page itself, because a person who cannot read the interface has to be able to
 | change it before they can sign in.
+|
+| Dressed in Geist (frontend.md 1.10): its type scale for the title.
 */
 
 type Props = {
@@ -39,8 +41,8 @@ export function SignInLayout({ title, subtitle, children }: Props) {
                     </div>
 
                     <div className="grid gap-2">
-                        <h1 className="text-2xl font-semibold text-ink">{title}</h1>
-                        {subtitle ? <p className="text-sm text-ink-muted">{subtitle}</p> : null}
+                        <h1 className="text-heading-32 text-ink">{title}</h1>
+                        {subtitle ? <p className="text-copy-16 text-ink-muted">{subtitle}</p> : null}
                     </div>
 
                     <div className="grid max-w-md gap-5">{children}</div>

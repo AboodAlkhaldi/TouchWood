@@ -4,6 +4,7 @@ import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
 import { ThemeToggle } from '@/components/Preferences';
 import { Logo } from '@/components/Logo';
+import { Button, ButtonLink, Select } from '@/components/geist';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { SharedProps, ShopperLine } from '@/types/page';
@@ -20,6 +21,9 @@ import type { SharedProps, ShopperLine } from '@/types/page';
 | see three stores in two languages rather than one page that changes under it.
 |
 | Arabic mirrors the whole frame, because the page's dir is set on <html> by the server.
+|
+| Dressed in Geist (frontend.md 1.10): its Select for the country, its buttons for the way in and
+| out, its type scale throughout.
 */
 
 type Props = {
@@ -45,7 +49,7 @@ export function StorefrontLayout({ title, children }: Props) {
                             className="flex items-center gap-3"
                         >
                             <Logo className="text-brand" />
-                            <span className="text-sm font-semibold">TouchWood</span>
+                            <span className="text-heading-16">TouchWood</span>
                         </Link>
 
                         <div className="flex flex-wrap items-center gap-3">
@@ -72,7 +76,7 @@ export function StorefrontLayout({ title, children }: Props) {
                 <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
 
                 <footer className="border-t border-line bg-surface">
-                    <div className="mx-auto w-full max-w-6xl px-4 py-6 text-xs text-ink-muted">TouchWood</div>
+                    <div className="mx-auto w-full max-w-6xl px-4 py-6 text-label-12 text-ink-muted">TouchWood</div>
                 </footer>
             </div>
 
@@ -96,40 +100,31 @@ function Shopper({ shopper }: { shopper: SharedProps['shopper'] }) {
 
     if (shopper === null || shopper === undefined) {
         return (
-            <Link href={link('storefront.sign-in')} className="text-sm text-ink hover:text-brand">
+            <ButtonLink type="secondary" size="small" href={link('storefront.sign-in')}>
                 {t('access::auth.sign_in')}
-            </Link>
+            </ButtonLink>
         );
     }
 
     return (
-        <span className="flex items-center gap-3">
+        <span className="flex items-center gap-2">
             {shopper.emailVerified ? null : (
                 <Link
                     href={link('storefront.verify-email')}
                     data-test="verify-email"
-                    className="rounded-md bg-warn-soft px-2 py-1 text-xs text-warn hover:underline"
+                    className="inline-flex h-6 items-center rounded-full bg-warn-soft px-2.5 text-label-12 font-medium text-warn hover:underline"
                 >
                     {t('access::auth.verify_pending')}
                 </Link>
             )}
 
-            <Link
-                href={link('storefront.account')}
-                data-test="my-account"
-                className="text-sm text-ink hover:text-brand"
-            >
+            <Link href={link('storefront.account')} data-test="my-account" className="px-1 text-label-14 font-medium text-ink hover:text-brand">
                 {shopper.name}
             </Link>
 
-            <button
-                type="button"
-                data-test="sign-out"
-                onClick={() => router.post(link('storefront.account.sign-out'))}
-                className="text-sm text-ink-muted hover:text-brand"
-            >
+            <Button type="tertiary" size="small" data-test="sign-out" onClick={() => router.post(link('storefront.account.sign-out'))}>
                 {t('access::auth.sign_out')}
-            </button>
+            </Button>
         </span>
     );
 }
@@ -164,7 +159,7 @@ function ShopperLines({ lines }: { lines: ShopperLine[] }) {
                     data-tone={line.tone}
                     className={['block border-b border-line', tones[line.tone]].join(' ')}
                 >
-                    <span className="mx-auto block w-full max-w-6xl px-4 py-2 text-sm hover:underline">{line.text}</span>
+                    <span className="mx-auto block w-full max-w-6xl px-4 py-2 text-copy-14 hover:underline">{line.text}</span>
                 </Link>
             ))}
         </div>
@@ -179,19 +174,21 @@ function CountrySwitch({ shop, locale }: { shop: NonNullable<SharedProps['shop']
     const t = useTranslator();
 
     return (
-        <select
+        <Select
+            id="country-switch"
+            size="small"
             data-test="country-switch"
             value={shop.code}
             aria-label={t('platform::stores.choose_title')}
             onChange={(event) => router.visit(`/${event.target.value}/${locale}`)}
-            className="h-8 rounded-md border border-line bg-surface px-2 text-xs text-ink"
+            className="w-40"
         >
             {shop.available.map((store) => (
                 <option key={store.code} value={store.code}>
                     {store.name}
                 </option>
             ))}
-        </select>
+        </Select>
     );
 }
 
@@ -221,7 +218,7 @@ function LanguageSwitch({
                         // Written in the language being offered, never translated: somebody who
                         // cannot read the current one must still recognise it.
                         lang={language}
-                        className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:border-brand hover:text-brand"
+                        className="inline-flex h-8 items-center rounded-[var(--tw-radius)] bg-surface px-2.5 text-button-14 text-ink shadow-[0_0_0_1px_var(--tw-line-strong)] hover:bg-surface-sunken"
                     >
                         {language === 'ar' ? 'العربية' : 'English'}
                     </Link>

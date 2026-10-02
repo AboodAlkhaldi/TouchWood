@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { useForm } from '@inertiajs/react';
-import { Field } from '@/components/Field';
 import { FormError } from '@/components/FormError';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button, Description, Input } from '@/components/geist';
 import { toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { CustomerAccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
-| F7 - the phone tab (frontend.md §3.6).
+| F7 - the phone tab (frontend.md §3.6), on Geist's Description, fields and buttons (1.10).
 |
 | Two steps in one panel: the number, then the code that went to it. **No password is asked for**,
 | unlike the panel's. A staff member's number is where every sign-in code goes, so moving it moves
@@ -29,6 +27,15 @@ type Props = {
     account: CustomerAccountPage;
 };
 
+/*
+| The number and the code are typed in figures. Geist's Input puts a class on its frame, not on the
+| box itself, so the figure face is set on the box from the frame - the label and the helper above
+| and below it stay in the text face. Always the mono face, Arabic pages included: both fields only
+| ever hold Latin digits (they are converted as they are typed), which is all the mono face lacks
+| on an Arabic page (frontend.md 1.8).
+*/
+const FIGURES = '[&_input]:font-mono [&_input]:tabular-nums';
+
 export function PhoneTab({ account }: Props) {
     const t = useTranslator();
     const link = useLink();
@@ -39,33 +46,38 @@ export function PhoneTab({ account }: Props) {
 
     return (
         <div className="grid gap-6">
-            <div className="grid gap-0.5">
-                <p className="text-sm font-medium text-ink">{t('access::account.phone')}</p>
-
-                {/* Shown in full: this is their own account, and they cannot decide whether to
-                    change a number they are not allowed to read. Left to right and in Latin
-                    digits, as a dialled number is everywhere. */}
-                {account.phone === null ? (
-                    <p className="text-sm text-ink-muted">{t('access::account.shop_no_phone')}</p>
-                ) : (
-                    <p className="tw-figure text-sm text-ink-muted" dir="ltr">
-                        {account.phone}
-                    </p>
-                )}
-
-                <p className="text-xs text-ink-muted">{t('access::account.shop_phone_hint')}</p>
-            </div>
+            <Description
+                columns={1}
+                items={[
+                    {
+                        title: t('access::account.phone'),
+                        content: (
+                            <span className="grid gap-0.5">
+                                {/* Shown in full: this is their own account, and they cannot decide
+                                    whether to change a number they are not allowed to read. Left to
+                                    right and in Latin digits, as a dialled number is everywhere. */}
+                                {account.phone === null ? (
+                                    <span className="text-ink-muted">{t('access::account.shop_no_phone')}</span>
+                                ) : (
+                                    <span className="tw-figure" dir="ltr">
+                                        {account.phone}
+                                    </span>
+                                )}
+                                <span className="text-copy-13 text-ink-muted">{t('access::account.shop_phone_hint')}</span>
+                            </span>
+                        ),
+                    },
+                ]}
+            />
 
             <div className="grid gap-4 border-t border-line pt-6">
                 <div className="grid gap-1">
-                    <p className="text-sm font-medium text-ink">
+                    <h2 className="text-heading-16 text-ink">
                         {account.phone === null
                             ? t('access::account.shop_add_phone')
                             : t('access::account.shop_change_phone')}
-                    </p>
-                    <p className="text-xs text-ink-muted">
-                        {t('access::account.shop_phone_dialog_body')}
-                    </p>
+                    </h2>
+                    <p className="text-copy-13 text-ink-muted">{t('access::account.shop_phone_dialog_body')}</p>
                 </div>
 
                 {step === 'number' ? (
@@ -82,33 +94,29 @@ export function PhoneTab({ account }: Props) {
                     >
                         <FormError />
 
-                        <Field
+                        <Input
                             id="phone"
+                            name="phone"
+                            type="tel"
                             label={t('access::account.new_phone')}
-                            hint={t('access::account.new_phone_hint')}
+                            helper={t('access::account.new_phone_hint')}
                             error={request.errors.phone}
-                        >
-                            <Input
-                                id="phone"
-                                name="phone"
-                                type="tel"
-                                required
-                                dir="ltr"
-                                autoComplete="tel"
-                                className="tw-figure"
-                                value={request.data.phone}
-                                onChange={(event) =>
-                                    // Arabic-Indic digits are what an Arabic keyboard gives, and
-                                    // E.164 is Latin: converted here so a number typed in Arabic
-                                    // is not refused for how it was written.
-                                    request.setData('phone', toLatinDigits(event.target.value))
-                                }
-                            />
-                        </Field>
+                            required
+                            dir="ltr"
+                            autoComplete="tel"
+                            className={FIGURES}
+                            value={request.data.phone}
+                            onChange={(event) =>
+                                // Arabic-Indic digits are what an Arabic keyboard gives, and E.164 is
+                                // Latin: converted here so a number typed in Arabic is not refused
+                                // for how it was written.
+                                request.setData('phone', toLatinDigits(event.target.value))
+                            }
+                        />
 
                         <Button
-                            type="submit"
-                            disabled={request.processing}
+                            typeName="submit"
+                            loading={request.processing}
                             data-test="send-phone-code"
                             className="w-fit"
                         >
@@ -133,41 +141,30 @@ export function PhoneTab({ account }: Props) {
                     >
                         <FormError />
 
-                        <Field
+                        <Input
                             id="phone_code"
+                            name="code"
                             label={t('access::account.phone_code')}
                             error={confirm.errors.code}
-                        >
-                            <Input
-                                id="phone_code"
-                                name="code"
-                                inputMode="numeric"
-                                autoComplete="one-time-code"
-                                required
-                                autoFocus
-                                dir="ltr"
-                                className="tw-figure"
-                                value={confirm.data.code}
-                                onChange={(event) =>
-                                    confirm.setData('code', toLatinDigits(event.target.value))
-                                }
-                            />
-                        </Field>
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            required
+                            autoFocus
+                            dir="ltr"
+                            className={FIGURES}
+                            value={confirm.data.code}
+                            onChange={(event) => confirm.setData('code', toLatinDigits(event.target.value))}
+                        />
 
                         <div className="flex gap-2">
-                            <Button
-                                type="submit"
-                                disabled={confirm.processing}
-                                data-test="confirm-phone"
-                            >
+                            <Button typeName="submit" loading={confirm.processing} data-test="confirm-phone">
                                 {t('access::account.confirm_phone')}
                             </Button>
 
                             {/* Back to the number, for somebody who mistyped it: the code they are
                                 being asked for went to a number they cannot change from here. */}
                             <Button
-                                type="button"
-                                variant="ghost"
+                                type="tertiary"
                                 data-test="cancel-phone"
                                 onClick={() => {
                                     setStep('number');

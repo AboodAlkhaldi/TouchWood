@@ -1,5 +1,6 @@
 import { router, usePage } from '@inertiajs/react';
 import { Moon, Sun } from 'lucide-react';
+import { Button, Switch } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
@@ -43,21 +44,26 @@ function choose(preference: 'theme' | 'locale', value: string, to: string) {
 export function ThemeToggle({ to, className = '' }: { to: string; className?: string }) {
     const { theme } = usePage<SharedProps>().props;
     const t = useTranslator();
-    // Only the mode is a person's to choose. Which campaign the system is wearing belongs to the
-    // store, and every campaign has both (owner, 2026-09-22).
-    const next = theme.mode === 'dark' ? 'light' : 'dark';
 
+    // Geist's Theme Switcher: the choices side by side, the current one pressed, each an icon with
+    // its name for a screen reader and in a tooltip (frontend.md 1.10). Light and Dark only - the
+    // server decides the theme before the first paint and cannot see the device's own setting, so
+    // "System" is the owner's call. Only the mode is a person's to choose; which campaign the
+    // system is wearing belongs to the store, and every campaign has both (owner, 2026-09-22).
     return (
-        <button
-            type="button"
-            data-test="theme"
-            onClick={() => choose('theme', next, to)}
-            className={`inline-flex items-center gap-2 rounded-pill border border-line px-3 py-1.5 text-xs text-ink-muted transition-colors hover:border-brand hover:text-brand ${className}`}
-            title={t(`admin.theme.switch_to_${next}`)}
-        >
-            {theme.mode === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
-            <span>{t(`admin.theme.${next}`)}</span>
-        </button>
+        <div data-test="theme" className={className}>
+            <Switch
+                name="theme"
+                size="small"
+                aria-label={t('admin.theme.label')}
+                value={theme.mode}
+                onChange={(mode) => (mode === theme.mode ? undefined : choose('theme', mode, to))}
+                options={[
+                    { value: 'light', label: t('admin.theme.light'), icon: <Sun className="size-4" />, 'data-test': 'theme-light' },
+                    { value: 'dark', label: t('admin.theme.dark'), icon: <Moon className="size-4" />, 'data-test': 'theme-dark' },
+                ]}
+            />
+        </div>
     );
 }
 
@@ -66,15 +72,16 @@ export function LanguageToggle({ to, className = '' }: { to: string; className?:
     const next = locale === 'ar' ? 'en' : 'ar';
 
     return (
-        <button
-            type="button"
+        <Button
+            type="secondary"
+            size="small"
+            className={className}
             onClick={() => choose('locale', next, to)}
-            className={`inline-flex items-center rounded-pill border border-line px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-brand hover:text-brand ${className}`}
             // The label is the language being offered, written in that language - never translated,
             // because someone who cannot read the current language must still recognise it.
             lang={next}
         >
             {next === 'ar' ? 'العربية' : 'English'}
-        </button>
+        </Button>
     );
 }

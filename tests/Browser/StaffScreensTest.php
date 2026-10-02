@@ -76,9 +76,9 @@ it('draws the staff list grouped by store, and opens one person', function () {
         ->assertNoJavaScriptErrors();
 
     $page->navigate("/admin/staff/{$staffId}")
-        ->assertSee('What it allows')
+        ->assertSee('What It Allows')
         // Their role reaches one store, and the screen says which by name rather than by id.
-        ->assertSee('Store settings and tax')
+        ->assertSee('Store Settings and Tax')
         ->assertNoJavaScriptErrors();
 });
 
@@ -98,8 +98,8 @@ it('saves a role and its stores from the editor', function () {
         ->click('button[type="submit"]')
         ->navigate("/admin/staff/{$staffId}/role");
 
-    $page->assertSee('Role and stores')
-        ->assertSee('A role of their own')
+    $page->assertSee('Change Role and Stores')
+        ->assertSee('A Role of Their Own')
         // Where it reaches: the stores this reader may hand out, by name.
         ->assertSee('Saudi Arabia')
         ->click('button[type="submit"]')
@@ -124,7 +124,7 @@ it('walks the invitation through its three steps, sending nothing before the las
 
     $email = 'invited.'.Str::lower(Str::random(8)).'@touchwood.test';
 
-    $page->assertSee('Invite a member')
+    $page->assertSee('Invite Member')
         ->assertSee('Nothing is sent until the last step')
         ->type('#first_name', 'Hala')
         ->type('#last_name', 'Al-Otaibi')
@@ -135,12 +135,12 @@ it('walks the invitation through its three steps, sending nothing before the las
         ->click('button[type="submit"]');
 
     // Step two: still nobody in the table, because the form has not been sent.
-    $page->assertSee('The role')->assertNoJavaScriptErrors();
+    $page->assertSee('Role')->assertNoJavaScriptErrors();
     expect(DB::table('access.staff_users')->where('email', $email)->exists())->toBeFalse();
 
     // Step three, and still nobody: the whole form is one request, sent at the end.
     $page->click('button[type="submit"]')
-        ->assertSee('Where it reaches')
+        ->assertSee('Where It Reaches')
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('access.staff_users')->where('email', $email)->exists())->toBeFalse();

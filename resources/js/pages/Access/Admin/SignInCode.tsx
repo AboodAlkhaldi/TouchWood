@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { SignInLayout } from '@/layouts/SignInLayout';
-import { Button } from '@/components/ui/button';
 import { FormError } from '@/components/FormError';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Button, Checkbox, describedBy, FieldMessage } from '@/components/geist';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { SignInCodePage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
-| A3 - the SMS code (frontend.md §3.1), and A7, which is the same screen after an invitation.
+| A3 - the SMS code (frontend.md §3.1), and A7, which is the same screen after an invitation. In
+| Geist (1.10).
 |
 | One box per digit. How many boxes is a setting, 4 to 8 (Access amendment 22), so nothing here
 | assumes six. The number the code went to is named but never shown: Access masks it to its last
@@ -17,11 +17,19 @@ import type { SignInCodePage } from '@/types/generated/Modules/Access/Presentati
 | browser can read (stage 2b, P4).
 |
 | "Trust this browser" and the number of days are both the server's to decide; this only shows them.
+|
+| Geist has no one-box-per-digit field, so the boxes are drawn in its field's look (the same line,
+| hover and focus as its Input) and carry its message underneath: the error, tied to every box with
+| aria-describedby, as Geist's own fields do.
 */
 
 // The shape is generated from the PHP that produces it (frontend.md 1.6): renaming a field there
 // breaks this build rather than the live page.
 type Props = SignInCodePage;
+
+const BOX =
+    'tw-figure size-12 rounded-[var(--tw-radius)] bg-surface text-center text-label-20 text-ink shadow-[0_0_0_1px_var(--tw-line-strong)] outline-none transition-shadow hover:shadow-[0_0_0_1px_var(--tw-ink-subtle)] focus:shadow-[0_0_0_1px_var(--tw-brand)]';
+const BOX_ERROR = 'shadow-[0_0_0_1px_var(--tw-bad)] hover:shadow-[0_0_0_1px_var(--tw-bad)]';
 
 export default function SignInCode({
     maskedPhone,
@@ -36,6 +44,7 @@ export default function SignInCode({
     const [digits, setDigits] = useState<string[]>(() => Array.from({ length }, () => ''));
     const [waiting, setWaiting] = useState(resendIn);
     const boxes = useRef<(HTMLInputElement | null)[]>([]);
+    const invalid = form.errors.code !== undefined && form.errors.code !== '';
 
     useEffect(() => {
         if (waiting <= 0) {
@@ -109,6 +118,8 @@ export default function SignInCode({
                                 inputMode="numeric"
                                 autoComplete={index === 0 ? 'one-time-code' : 'off'}
                                 aria-label={t('access::auth.code_digit', { number: index + 1 })}
+                                aria-invalid={invalid || undefined}
+                                aria-describedby={describedBy('code', undefined, form.errors.code)}
                                 autoFocus={index === 0}
                                 value={digit}
                                 onChange={(event) => put(index, event.target.value)}
@@ -117,43 +128,40 @@ export default function SignInCode({
                                         boxes.current[index - 1]?.focus();
                                     }
                                 }}
-                                className="tw-figure size-12 rounded-md border border-line-strong bg-surface text-center text-lg text-ink"
+                                className={invalid ? `${BOX} ${BOX_ERROR}` : BOX}
                             />
                         ))}
                     </div>
 
-                    {form.errors.code ? (
-                        <p role="alert" className="text-xs text-bad">
-                            {form.errors.code}
-                        </p>
-                    ) : null}
+                    <FieldMessage id="code" error={form.errors.code} />
                 </div>
 
-                <label className="flex items-center gap-2 text-sm text-ink">
-                    <Checkbox
-                        checked={form.data.trust_browser}
-                        onCheckedChange={(checked) => form.setData('trust_browser', checked === true)}
-                    />
+                <Checkbox
+                    id="trust_browser"
+                    checked={form.data.trust_browser}
+                    onChange={(checked) => form.setData('trust_browser', checked)}
+                >
                     {t('access::auth.trust_browser', { days: trustDays })}
-                </label>
+                </Checkbox>
 
-                <Button type="submit" disabled={form.processing} className="w-full">
+                <Button typeName="submit" loading={form.processing} className="w-full">
                     {t('access::auth.confirm')}
                 </Button>
 
-                <button
-                    type="button"
-                    disabled={waiting > 0}
+                {/* Out of reach until the wait is over, and says why (Geist: a disabled button
+                    explains itself). The countdown in its label is the server's number. */}
+                <Button
+                    type="tertiary"
+                    disabledReason={waiting > 0 ? t('access::auth.resend_wait_reason') : undefined}
                     onClick={() => {
                         router.post(resendAction, {}, { preserveScroll: true });
                         setWaiting(resendIn);
                     }}
-                    className="text-sm text-brand disabled:text-ink-subtle"
                 >
                     {waiting > 0
                         ? t('access::auth.resend_in', { seconds: waiting })
                         : t('access::auth.resend')}
-                </button>
+                </Button>
             </form>
         </SignInLayout>
     );

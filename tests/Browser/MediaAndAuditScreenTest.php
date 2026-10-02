@@ -86,10 +86,10 @@ it('draws the media library and switches between the table and the grid', functi
         ->assertPathIs('/admin')
         ->navigate('/admin/media');
 
-    $page->assertSee('Media library')
+    $page->assertSee('Media Library')
         ->assertSee($filename)
         // No thumbnail for an image still being processed: Platform has nothing to give yet.
-        ->assertSee('Being processed')
+        ->assertSee('Being Processed')
         ->assertNoJavaScriptErrors();
 
     $page->click('[data-test="view-switch"]')
@@ -224,7 +224,7 @@ it('lets an admin given "see" and "describe" describe a private file through the
         ->assertNotPresent("[data-test=\"delete-{$paperId}\"]")
         ->click("[data-test=\"describe-{$paperId}\"]")
         ->type("[id=\"{$paperId}-alt_en\"]", 'The company paper')
-        ->press('Save');
+        ->press('Save Description');
 
     // The save is a request the page sends in the background, served by this same process: give
     // it its moment rather than read the row before it arrives.
@@ -357,7 +357,7 @@ it('draws the audit log with its filters', function () {
 
     // The seeder added three currencies, and every one was audited. Filtered to that action, they
     // stay on the first page however many sign-ins earlier runs have left in this database.
-    $page->assertSee('Audit log')
+    $page->assertSee('Audit Log')
         ->assertSee('Currency added')
         ->assertSee('Filters')
         ->assertNoJavaScriptErrors();

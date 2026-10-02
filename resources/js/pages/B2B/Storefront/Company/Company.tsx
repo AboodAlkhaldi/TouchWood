@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { router } from '@inertiajs/react';
+import { Button, Description } from '@/components/geist';
 import { FormError } from '@/components/FormError';
-import { Button } from '@/components/ui/button';
 import { AccountLayout } from '@/layouts/AccountLayout';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
@@ -11,11 +11,11 @@ import type {
     CompanyPage,
     CompanyStatusData,
 } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
-import { CompanyForm, DiscardConfirmation, missingItems } from './CompanyForm';
+import { CompanyForm, DiscardModal, missingItems } from './CompanyForm';
 import { CompanyHistory, SentApplication } from './CompanyHistory';
 import { CompanySide } from './CompanySide';
 import { AddressPicker, type Look } from './fields';
-import { Card, Figure, Line, StatusBox, typeOf, useLocale } from './parts';
+import { Card, Figure, figureOr, StatusBox, typeOf, useLocale, writtenOr } from './parts';
 
 /*
 | F11 — the company's own page (b2b.md §4.5, amendment 14; the design's company screen).
@@ -28,6 +28,10 @@ import { Card, Figure, Line, StatusBox, typeOf, useLocale } from './parts';
 | sees follows its status: under review, the application it sent; approved, its details, its
 | address and Change company details; rejected, why, and Apply again; suspended, why, and nothing
 | to change. Every application it sent is listed under that, newest first, with its number.
+|
+| On Geist's parts (frontend.md 1.10): the status box is a Note coloured by the status, the
+| company's details and its bank account are Geist's Description (an em dash where a value is not
+| given), and a button that posts is `loading` until the page answers, so it cannot be pressed twice.
 */
 
 export default function Company(page: CompanyPage) {
@@ -60,9 +64,9 @@ function BeforeACompany({ page }: { page: CompanyPage }) {
     return (
         <>
             <StatusBox tone="plain" title={t('b2b::company.status.new.title')}>
-                <p>{t('b2b::company.status.new.body')}</p>
+                {t('b2b::company.status.new.body')}
                 {page.stage === 'EMAIL_NOT_CONFIRMED' ? (
-                    <p className="text-warn" data-test="confirm-email-first">
+                    <p className="mt-2 text-warn" data-test="confirm-email-first">
                         {t('b2b::company.status.confirm_email')}
                     </p>
                 ) : null}
@@ -87,7 +91,7 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
             return (
                 <>
                     <StatusBox tone="warn" title={t('b2b::company.status.pending.title')}>
-                        <p>{t('b2b::company.status.pending.body')}</p>
+                        {t('b2b::company.status.pending.body')}
                     </StatusBox>
                     {lastSent !== null ? (
                         <Card title={t('b2b::company.section.sent')} test="sent">
@@ -102,14 +106,14 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
             return (
                 <>
                     <StatusBox tone="good" title={t('b2b::company.status.approved.title')}>
-                        <p>{t('b2b::company.status.approved.body')}</p>
+                        {t('b2b::company.status.approved.body')}
                     </StatusBox>
                     <CompanyCard company={company} reference={lastApproved(page.history)?.reference ?? null} />
                     <BankAccount page={page} />
                     {page.draft === null ? (
                         <>
                             <CompanyAddress page={page} company={company} />
-                            <StartButton label={t('b2b::company.change')} variant="outline" test="change" />
+                            <StartButton label={t('b2b::company.change')} type="secondary" test="change" />
                         </>
                     ) : (
                         <CompanyForm page={page} draft={page.draft} lastSent={null} changing />
@@ -144,7 +148,7 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
             return (
                 <>
                     <StatusBox tone="bad" title={t('b2b::company.status.suspended.title')}>
-                        <p data-test="status-reason">{t('b2b::company.status.suspended.body', { reason: company.statusReason ?? '' })}</p>
+                        <span data-test="status-reason">{t('b2b::company.status.suspended.body', { reason: company.statusReason ?? '' })}</span>
                     </StatusBox>
                     <CompanyCard company={company} reference={null} />
                     {page.draft !== null ? <FrozenDraft /> : null}
@@ -159,13 +163,13 @@ function Missing({ page, draft }: { page: CompanyPage; draft: CompanyDraftData }
     const items = missingItems(page, draft, null, t);
 
     return items.length === 0 ? null : (
-        <p className="text-ink-muted" data-test="missing">
+        <p className="mt-2" data-test="missing">
             {t('b2b::company.missing', { items: items.join(t('b2b::company.separator')) })}
         </p>
     );
 }
 
-/** The company as it stands: what it sent last, read-only. */
+/** The company as it stands: what it sent last, read-only, as Geist's Description. */
 function CompanyCard({ company, reference }: { company: CompanyStatusData; reference: string | null }) {
     const t = useTranslator();
     const locale = useLocale();
@@ -173,22 +177,16 @@ function CompanyCard({ company, reference }: { company: CompanyStatusData; refer
 
     return (
         <Card title={t('b2b::company.section.company')} test="company">
-            <dl className="grid gap-2">
-                {reference !== null ? (
-                    <Line label={t('b2b::company.reference')}>
-                        <Figure>{reference}</Figure>
-                    </Line>
-                ) : null}
-                <Line label={t('b2b::company.field.name')}>{details.name}</Line>
-                <Line label={t('b2b::company.field.company_type')}>{typeOf(details, locale)}</Line>
-                <Line label={t('b2b::company.field.cr_number')}>
-                    <Figure>{details.crNumber}</Figure>
-                </Line>
-                <Line label={t('b2b::company.field.tax_number')}>
-                    <Figure>{details.taxNumber}</Figure>
-                </Line>
-                <Line label={t('b2b::company.field.address')}>{details.address}</Line>
-            </dl>
+            <Description
+                items={[
+                    ...(reference !== null ? [{ title: t('b2b::company.reference'), content: <Figure>{reference}</Figure> }] : []),
+                    { title: t('b2b::company.field.name'), content: details.name },
+                    { title: t('b2b::company.field.company_type'), content: typeOf(details, locale) },
+                    { title: t('b2b::company.field.cr_number'), content: figureOr(details.crNumber) },
+                    { title: t('b2b::company.field.tax_number'), content: figureOr(details.taxNumber) },
+                    { title: t('b2b::company.field.address'), content: writtenOr(details.address) },
+                ]}
+            />
         </Card>
     );
 }
@@ -247,44 +245,59 @@ function BankAccount({ page }: { page: CompanyPage }) {
     return (
         <Card title={t('b2b::company.payment.title')} test="payment">
             {account === null ? (
-                <p className="text-sm text-ink" data-test="bank-transfer-off">
+                <p className="text-copy-14 text-ink" data-test="bank-transfer-off">
                     {t('b2b::company.payment.off')}
                 </p>
             ) : (
                 <div className="grid gap-3" data-test="bank-account">
-                    <p className="text-sm text-ink">{t('b2b::company.payment.approved')}</p>
-                    <dl className="grid gap-2">
-                        <Line label={t('b2b::company.payment.iban')}>
-                            <span className="flex flex-wrap items-center gap-2">
-                                <Figure>{account.iban}</Figure>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="xs"
-                                    data-test="copy-iban"
-                                    onClick={() => {
-                                        void navigator.clipboard?.writeText(account.iban).then(() => setCopied(true));
-                                    }}
-                                >
-                                    {copied ? t('b2b::company.payment.copied') : t('b2b::company.payment.copy')}
-                                </Button>
-                            </span>
-                        </Line>
-                        <Line label={t('b2b::company.payment.bank')}>{account.bank}</Line>
-                        <Line label={t('b2b::company.payment.holder')}>{account.holder}</Line>
-                    </dl>
+                    <p className="text-copy-14 text-ink">{t('b2b::company.payment.approved')}</p>
+                    <Description
+                        columns={1}
+                        items={[
+                            {
+                                title: t('b2b::company.payment.iban'),
+                                content: (
+                                    <span className="flex flex-wrap items-center gap-2">
+                                        <Figure>{account.iban}</Figure>
+                                        <Button
+                                            type="secondary"
+                                            size="small"
+                                            data-test="copy-iban"
+                                            onClick={() => {
+                                                void navigator.clipboard?.writeText(account.iban).then(() => setCopied(true));
+                                            }}
+                                        >
+                                            {copied ? t('b2b::company.payment.copied') : t('b2b::company.payment.copy')}
+                                        </Button>
+                                    </span>
+                                ),
+                            },
+                            { title: t('b2b::company.payment.bank'), content: account.bank },
+                            { title: t('b2b::company.payment.holder'), content: account.holder },
+                        ]}
+                    />
                 </div>
             )}
         </Card>
     );
 }
 
-function StartButton({ label, variant = 'default', test = 'start' }: { label: string; variant?: 'default' | 'outline'; test?: string }) {
+/** Starts a draft (or a change, or a new application); `loading` until the page comes back with it. */
+function StartButton({ label, type = 'default', test = 'start' }: { label: string; type?: 'default' | 'secondary'; test?: string }) {
     const link = useLink();
+    const [starting, setStarting] = useState(false);
 
     return (
         <div>
-            <Button type="button" variant={variant} data-test={test} onClick={() => router.post(link('storefront.company.start'), {}, { preserveScroll: true })}>
+            <Button
+                type={type}
+                data-test={test}
+                loading={starting}
+                onClick={() => {
+                    setStarting(true);
+                    router.post(link('storefront.company.start'), {}, { preserveScroll: true, onFinish: () => setStarting(false) });
+                }}
+            >
                 {label}
             </Button>
         </div>
@@ -298,13 +311,13 @@ function FrozenDraft() {
 
     return (
         <Card test="frozen-draft">
-            <p className="text-sm text-ink">{t('b2b::company.suspended_draft')}</p>
+            <p className="text-copy-14 text-ink">{t('b2b::company.suspended_draft')}</p>
             <div>
-                <Button type="button" variant="outline" data-test="discard" onClick={() => setConfirming((open) => !open)}>
+                <Button type="secondary" data-test="discard" onClick={() => setConfirming(true)}>
                     {t('b2b::company.discard')}
                 </Button>
             </div>
-            {confirming ? <DiscardConfirmation onCancel={() => setConfirming(false)} /> : null}
+            <DiscardModal open={confirming} onOpenChange={setConfirming} />
         </Card>
     );
 }
@@ -312,7 +325,8 @@ function FrozenDraft() {
 /**
  * Why it was not approved: the last rejection's own reason (amendment 15(b)). The company's reason
  * is what it was told last, which a reinstatement since has replaced — shown then on its own line,
- * never as the reason it was rejected.
+ * never as the reason it was rejected. The reason runs on from the status box's label; the
+ * reinstatement is a paragraph of its own.
  */
 function RejectedWhy({ company, history }: { company: CompanyStatusData; history: CompanyApplicationData[] }) {
     const t = useTranslator();
@@ -322,9 +336,11 @@ function RejectedWhy({ company, history }: { company: CompanyStatusData; history
 
     return (
         <>
-            <p data-test="status-reason">{t('b2b::company.status.rejected.body', { reason })}</p>
+            <span data-test="status-reason">{t('b2b::company.status.rejected.body', { reason })}</span>
             {since !== null ? (
-                <p data-test="reinstated">{t('b2b::company.status.reinstated', { reason: since })}</p>
+                <p className="mt-2" data-test="reinstated">
+                    {t('b2b::company.status.reinstated', { reason: since })}
+                </p>
             ) : null}
         </>
     );

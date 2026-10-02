@@ -43,7 +43,7 @@ it('registers somebody through the form and says who they are afterwards', funct
 
     $page = visit('/sa/en/register');
 
-    $page->assertSee('Create an account')
+    $page->assertSee('Create Account')
         ->type('#first_name', 'Noura')
         ->type('#last_name', 'Saleh')
         ->type('#email', $email)
@@ -56,7 +56,7 @@ it('registers somebody through the form and says who they are afterwards', funct
     $page->assertPathIs('/sa/en')
         ->assertSee('Noura Saleh')
         // The address is not confirmed yet, and the header is where they learn it.
-        ->assertSee('Confirm your email')
+        ->assertSee('Confirm Your Email')
         ->assertNoJavaScriptErrors();
 });
 
@@ -96,7 +96,7 @@ it('signs somebody out from the header, leaving the way back in', function () {
 
     $page->click('[data-test="sign-out"]')
         ->assertDontSee('Noura Saleh')
-        ->assertSee('Sign in')
+        ->assertSee('Sign In')
         ->assertNoJavaScriptErrors();
 });
 
@@ -180,12 +180,12 @@ it('opens the account from the header and shows what is still missing', function
 
     $page->click('[data-test="my-account"]')
         ->assertPathIs('/sa/en/account')
-        ->assertSee('My account')
+        ->assertSee('My Account')
         // Their own address, which they cannot change, said where it is rather than refused later.
         ->assertSee($email)
         ->assertSee('Your email address cannot be changed.')
         // Nothing verified yet, so this is the page that says what ordering waits for.
-        ->assertSeeIn('[data-test="before-ordering"]', 'Before you can order')
+        ->assertSeeIn('[data-test="before-ordering"]', 'Before You Can Order')
         ->assertNoJavaScriptErrors();
 });
 
@@ -218,7 +218,7 @@ it('adds a phone number in two steps', function () {
         // Waiting for the second step before reading the code: the click only dispatches the
         // submit, and the code is not recorded until the server has answered it. Reading it in the
         // same chain raced, and lost (2026-09-25) - the same lesson the panel's sign-in learned.
-        ->assertSee('The code we sent');
+        ->assertSee('Verification Code');
 
     $page->type('#phone_code', RecordingSecurityMessages::installed()->lastCode())
         ->click('[data-test="confirm-phone"]')
@@ -245,7 +245,7 @@ it('adds an address in the country it belongs to, and marks it as the usual one'
         ->type('#sa-building', '7')
         ->click('[data-test="save-address-sa"]')
         // The first address in a country becomes its usual one on its own.
-        ->assertSee('Usual address')
+        ->assertSee('Usual Address')
         ->assertSee('King Fahd Road')
         ->assertNoJavaScriptErrors();
 });
@@ -254,7 +254,7 @@ it('closes the account, and the shop forgets them at once', function () {
     [, $page] = shopSignedIn();
 
     $page->navigate('/sa/en/account?tab=close')
-        ->assertSee('Close my account')
+        ->assertSee('Close Account')
         ->click('[data-test="close-account"]')
         ->type('#close_password', 'a long enough password')
         ->click('[data-test="confirm-close-account"]')
@@ -262,6 +262,6 @@ it('closes the account, and the shop forgets them at once', function () {
         // is why there is no cancel button anywhere in the account.
         ->assertPathIs('/sa/en')
         ->assertDontSee('Noura Saleh')
-        ->assertSee('Sign in')
+        ->assertSee('Sign In')
         ->assertNoJavaScriptErrors();
 });

@@ -1,14 +1,13 @@
 import { useForm } from '@inertiajs/react';
-import { Field } from '@/components/Field';
 import { FormError } from '@/components/FormError';
 import { PasswordInput } from '@/components/PasswordInput';
-import { Button } from '@/components/ui/button';
+import { Button, Fieldset } from '@/components/geist';
 import { useRepeatedPassword } from '@/lib/passwords';
 import { useTranslator } from '@/lib/t';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
-| B3 - the security tab (frontend.md §3.2).
+| B3 - the security tab (frontend.md §3.2), in Geist (1.10).
 |
 | Changing the password, and nothing else. There is no two-factor switch, because there is no
 | two-factor choice: every staff member signs in with a code to their phone, always (§2.7). The tab
@@ -19,6 +18,9 @@ import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/
 |
 | The rule is the setting's, in words, before anyone types - not a message after they have chosen
 | something we then refuse.
+|
+| The password is a Geist Fieldset that is itself the form, its button in the footer; while the two
+| new boxes differ that button is out of reach and says why, in Geist's tooltip.
 */
 
 type Props = {
@@ -32,15 +34,17 @@ export function SecurityTab({ account }: Props) {
     // typing, and it has nothing to do with whether the password is acceptable. What makes a
     // password acceptable is Access's, and Access answers that (see lib/passwords).
     const repeat = useRepeatedPassword(form.data.password);
+    const differ = t('access::account.passwords_differ');
 
     return (
         <div className="grid gap-6">
-            <form
+            <Fieldset
+                as="form"
                 onSubmit={(event) => {
                     event.preventDefault();
 
-                    // The button is already disabled while the two differ; this is the same rule
-                    // again for a form sent by pressing Enter in a field.
+                    // The button is already out of reach while the two differ; this is the same
+                    // rule again for a form sent by pressing Enter in a field.
                     if (repeat.differs) {
                         return;
                     }
@@ -53,79 +57,60 @@ export function SecurityTab({ account }: Props) {
                         },
                     });
                 }}
-                className="grid gap-5 rounded-lg border border-line bg-surface p-6 shadow-card"
+                title={t('access::account.change_password')}
+                subtitle={t('access::account.password_note')}
+                footerAction={
+                    <Button
+                        typeName="submit"
+                        loading={form.processing}
+                        disabledReason={repeat.differs ? differ : undefined}
+                        data-test="save-password"
+                    >
+                        {t('access::account.save')}
+                    </Button>
+                }
             >
-                <div className="grid gap-1">
-                    <h2 className="text-base font-semibold text-ink">
-                        {t('access::account.change_password')}
-                    </h2>
-                    <p className="text-sm text-ink-muted">{t('access::account.password_note')}</p>
-                </div>
-
                 <FormError />
 
-                <Field
+                <PasswordInput
                     id="current_password"
+                    name="current_password"
                     label={t('access::account.current_password')}
                     error={form.errors.current_password}
-                >
-                    <PasswordInput
-                        id="current_password"
-                        name="current_password"
-                        autoComplete="current-password"
-                        required
-                        value={form.data.current_password}
-                        onChange={(event) => form.setData('current_password', event.target.value)}
-                    />
-                </Field>
+                    autoComplete="current-password"
+                    required
+                    value={form.data.current_password}
+                    onChange={(event) => form.setData('current_password', event.target.value)}
+                />
 
-                <Field
+                <PasswordInput
                     id="password"
+                    name="password"
                     label={t('access::account.new_password')}
-                    hint={t('access::account.password_rule', { count: account.passwordMinLength })}
+                    helper={t('access::account.password_rule', { count: account.passwordMinLength })}
                     error={form.errors.password}
-                >
-                    <PasswordInput
-                        id="password"
-                        name="password"
-                        autoComplete="new-password"
-                        required
-                        value={form.data.password}
-                        onChange={(event) => form.setData('password', event.target.value)}
-                    />
-                </Field>
+                    autoComplete="new-password"
+                    required
+                    value={form.data.password}
+                    onChange={(event) => form.setData('password', event.target.value)}
+                />
 
-                <Field
+                <PasswordInput
                     id="password_repeat"
+                    name="password_repeat"
                     label={t('access::account.confirm_password')}
-                    error={repeat.differs ? t('access::account.passwords_differ') : undefined}
-                >
-                    <PasswordInput
-                        id="password_repeat"
-                        name="password_repeat"
-                        autoComplete="new-password"
-                        required
-                        value={repeat.value}
-                        onChange={(event) => repeat.setValue(event.target.value)}
-                    />
-                </Field>
+                    error={repeat.differs ? differ : undefined}
+                    autoComplete="new-password"
+                    required
+                    value={repeat.value}
+                    onChange={(event) => repeat.setValue(event.target.value)}
+                />
+            </Fieldset>
 
-                <Button
-                    type="submit"
-                    disabled={form.processing || repeat.differs}
-                    className="w-fit"
-                    data-test="save-password"
-                >
-                    {t('access::account.save')}
-                </Button>
-            </form>
-
-            <div className="grid gap-1 rounded-lg border border-line bg-surface p-6 shadow-card">
-                <h2 className="text-base font-semibold text-ink">
-                    {t('access::account.two_factor_title')}
-                </h2>
-                <p className="text-sm text-ink-muted">{t('access::account.two_factor_body')}</p>
-            </div>
+            <section className="material-base grid gap-1 p-5 sm:p-6">
+                <h2 className="text-heading-20 text-ink">{t('access::account.two_factor_title')}</h2>
+                <p className="text-copy-14 text-ink-muted">{t('access::account.two_factor_body')}</p>
+            </section>
         </div>
     );
 }

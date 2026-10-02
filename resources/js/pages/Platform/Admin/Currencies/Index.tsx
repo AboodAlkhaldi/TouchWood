@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { Field } from '@/components/Field';
 import { FormError } from '@/components/FormError';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button, EmptyState, Fieldset, Input, Select } from '@/components/geist';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { CurrenciesPage, CurrencyRow } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 
 /*
-| E3 - the currencies (frontend.md §3.5).
+| E3 - the currencies (frontend.md §3.5), in Geist's parts (1.10).
 |
 | Created and edited here, by a Super Admin alone [DECIDED 2026-09-19]: both permissions are
 | reserved, so no role can carry them and nobody else reaches this screen at all.
@@ -24,7 +22,10 @@ import type { CurrenciesPage, CurrencyRow } from '@/types/generated/Modules/Plat
 | The **decimal places** are settled the moment any store charges in the currency (platform.md
 | §1.2). Changing the number afterwards would reinterpret every amount ever written in it: 1000 is
 | ten riyals at two places and a thousand at none. So the field is shown as settled, with the
-| reason, rather than offered and refused.
+| reason in its helper text, rather than offered and refused.
+|
+| A new currency is Geist's Fieldset, its one button in the footer; an existing one is a card whose
+| form opens under its header and saves from a footer of the same shape.
 */
 
 type Props = CurrenciesPage;
@@ -39,7 +40,13 @@ export default function Index({ currencies, exponents }: Props) {
             title={t('platform::admin_currencies.title')}
             subtitle={t('platform::admin_currencies.subtitle')}
             action={
-                <Button data-test="add-currency" onClick={() => setAdding((open) => !open)}>
+                // The page's main action while it is closed; once open it only closes, so it steps
+                // back to a supporting button.
+                <Button
+                    type={adding ? 'secondary' : 'default'}
+                    data-test="add-currency"
+                    onClick={() => setAdding((open) => !open)}
+                >
                     {t(adding ? 'platform::admin_currencies.cancel' : 'platform::admin_currencies.add')}
                 </Button>
             }
@@ -50,9 +57,10 @@ export default function Index({ currencies, exponents }: Props) {
                 {adding ? <AddForm exponents={exponents} onDone={() => setAdding(false)} /> : null}
 
                 {currencies.length === 0 ? (
-                    <p className="rounded-lg border border-line bg-surface p-6 text-sm text-ink-muted">
-                        {t('platform::admin_currencies.none')}
-                    </p>
+                    <EmptyState
+                        title={t('platform::admin_currencies.none_title')}
+                        description={t('platform::admin_currencies.none')}
+                    />
                 ) : (
                     currencies.map((currency) => (
                         <Card
@@ -76,9 +84,9 @@ function SignPreview({ sign, abbreviation }: { sign: string; abbreviation: strin
     const shown = sign.trim() === '' ? abbreviation : sign;
 
     return (
-        <div className="flex items-center gap-3 rounded-md border border-line bg-surface-sunken px-3 py-2">
-            <span className="text-xs text-ink-muted">{t('platform::admin_currencies.sign_preview')}</span>
-            <span className="tw-figure text-lg text-ink" dir="ltr">
+        <div className="flex items-center gap-3 rounded-[var(--tw-radius)] border border-line bg-surface-sunken px-3 py-2">
+            <span className="text-label-13 text-ink-muted">{t('platform::admin_currencies.sign_preview')}</span>
+            <span className="tw-figure text-label-18 text-ink" dir="ltr">
                 1,234.50 <span className="text-ink">{shown}</span>
             </span>
         </div>
@@ -118,13 +126,13 @@ function Card({ currency, exponents, open, onOpen, onDone }: CardProps) {
     }
 
     return (
-        <section className="rounded-lg border border-line bg-surface shadow-card">
-            <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <section className="material-base overflow-hidden">
+            <header className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                 <div className="grid gap-0.5">
-                    <h2 className="text-sm font-semibold text-ink">
+                    <h2 className="text-heading-16 text-ink">
                         <span className="tw-figure">{currency.code}</span> · {currency.name}
                     </h2>
-                    <p className="text-xs text-ink-muted">
+                    <p className="text-copy-13 text-ink-muted">
                         <span className="tw-figure">{currency.sign ?? currency.abbreviationEn}</span> ·{' '}
                         {t('platform::admin_currencies.exponent')}:{' '}
                         <span className="tw-figure">{currency.exponent}</span> ·{' '}
@@ -134,7 +142,7 @@ function Card({ currency, exponents, open, onOpen, onDone }: CardProps) {
                     </p>
                 </div>
 
-                <Button variant="outline" data-test={`edit-${currency.code}`} onClick={onOpen}>
+                <Button type="secondary" data-test={`edit-${currency.code}`} onClick={onOpen}>
                     {t(open ? 'platform::admin_currencies.cancel' : 'platform::admin_currencies.edit')}
                 </Button>
             </header>
@@ -145,55 +153,48 @@ function Card({ currency, exponents, open, onOpen, onDone }: CardProps) {
                         event.preventDefault();
                         save();
                     }}
-                    className="grid gap-4 border-t border-line p-4 sm:grid-cols-2"
+                    className="border-t border-line"
                 >
-                    <Names form={form} prefix={currency.code} />
+                    <div className="grid gap-4 p-5 sm:grid-cols-2">
+                        <Names form={form} prefix={currency.code} />
 
-                    <Field
-                        id={`${currency.code}-sign`}
-                        label={t('platform::admin_currencies.sign')}
-                        hint={t('platform::admin_currencies.sign_hint')}
-                        error={form.errors.sign}
-                    >
                         <Input
                             id={`${currency.code}-sign`}
+                            label={t('platform::admin_currencies.sign')}
+                            helper={t('platform::admin_currencies.sign_hint')}
+                            error={form.errors.sign}
                             value={form.data.sign}
                             onChange={(event) => form.setData('sign', event.target.value)}
                         />
-                    </Field>
 
-                    <div className="sm:col-span-2">
-                        <SignPreview sign={form.data.sign} abbreviation={form.data.abbreviation_en} />
-                    </div>
+                        <div className="sm:col-span-2">
+                            <SignPreview sign={form.data.sign} abbreviation={form.data.abbreviation_en} />
+                        </div>
 
-                    <Field
-                        id={`${currency.code}-exponent`}
-                        label={t('platform::admin_currencies.exponent')}
-                        hint={
-                            currency.exponentLocked
-                                ? t('platform::admin_currencies.exponent_locked', { count: currency.storeCount })
-                                : t('platform::admin_currencies.exponent_hint')
-                        }
-                        error={form.errors.exponent}
-                    >
-                        <select
+                        <Select
                             id={`${currency.code}-exponent`}
+                            label={t('platform::admin_currencies.exponent')}
+                            helper={
+                                currency.exponentLocked
+                                    ? t('platform::admin_currencies.exponent_locked', { count: currency.storeCount })
+                                    : t('platform::admin_currencies.exponent_hint')
+                            }
+                            error={form.errors.exponent}
                             dir="ltr"
                             disabled={currency.exponentLocked}
                             value={form.data.exponent}
                             onChange={(event) => form.setData('exponent', event.target.value)}
-                            className="tw-figure h-9 w-full rounded-md border border-line-strong bg-surface px-3 text-sm text-ink disabled:text-ink-muted"
                         >
                             {exponents.map((places) => (
                                 <option key={places} value={String(places)}>
                                     {places}
                                 </option>
                             ))}
-                        </select>
-                    </Field>
+                        </Select>
+                    </div>
 
-                    <div className="sm:col-span-2">
-                        <Button type="submit" disabled={form.processing}>
+                    <div className="flex justify-end border-t border-line bg-surface-sunken px-5 py-3">
+                        <Button typeName="submit" loading={form.processing}>
                             {t('platform::admin_currencies.save')}
                         </Button>
                     </div>
@@ -217,76 +218,65 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
     });
 
     return (
-        <form
+        <Fieldset
+            as="form"
             onSubmit={(event) => {
                 event.preventDefault();
                 form.post('/admin/currencies', { onSuccess: onDone });
             }}
-            className="grid gap-4 rounded-lg border border-line bg-surface p-4 sm:grid-cols-2"
+            title={t('platform::admin_currencies.add')}
+            footerAction={
+                <Button typeName="submit" data-test="create-currency" loading={form.processing}>
+                    {t('platform::admin_currencies.create')}
+                </Button>
+            }
         >
-            <Field
-                id="new-code"
-                label={t('platform::admin_currencies.code')}
-                hint={t('platform::admin_currencies.code_hint')}
-                error={form.errors.code}
-            >
+            <div className="grid gap-4 sm:grid-cols-2">
                 <Input
                     id="new-code"
+                    label={t('platform::admin_currencies.code')}
+                    helper={t('platform::admin_currencies.code_hint')}
+                    error={form.errors.code}
                     required
                     dir="ltr"
                     maxLength={3}
-                    className="tw-figure uppercase"
                     value={form.data.code}
+                    // Upper case as it is typed: a currency code has no other form.
                     onChange={(event) => form.setData('code', event.target.value.toUpperCase())}
                 />
-            </Field>
 
-            <Field
-                id="new-exponent"
-                label={t('platform::admin_currencies.exponent')}
-                hint={t('platform::admin_currencies.exponent_hint')}
-                error={form.errors.exponent}
-            >
-                <select
+                <Select
                     id="new-exponent"
+                    label={t('platform::admin_currencies.exponent')}
+                    helper={t('platform::admin_currencies.exponent_hint')}
+                    error={form.errors.exponent}
                     dir="ltr"
                     value={form.data.exponent}
                     onChange={(event) => form.setData('exponent', toLatinDigits(event.target.value))}
-                    className="tw-figure h-9 w-full rounded-md border border-line-strong bg-surface px-3 text-sm text-ink"
                 >
                     {exponents.map((places) => (
                         <option key={places} value={String(places)}>
                             {places}
                         </option>
                     ))}
-                </select>
-            </Field>
+                </Select>
 
-            <Names form={form} prefix="new" />
+                <Names form={form} prefix="new" />
 
-            <Field
-                id="new-sign"
-                label={t('platform::admin_currencies.sign')}
-                hint={t('platform::admin_currencies.sign_hint')}
-                error={form.errors.sign}
-            >
                 <Input
                     id="new-sign"
+                    label={t('platform::admin_currencies.sign')}
+                    helper={t('platform::admin_currencies.sign_hint')}
+                    error={form.errors.sign}
                     value={form.data.sign}
                     onChange={(event) => form.setData('sign', event.target.value)}
                 />
-            </Field>
 
-            <div className="sm:col-span-2">
-                <SignPreview sign={form.data.sign} abbreviation={form.data.abbreviation_en} />
+                <div className="sm:col-span-2">
+                    <SignPreview sign={form.data.sign} abbreviation={form.data.abbreviation_en} />
+                </div>
             </div>
-
-            <div className="sm:col-span-2">
-                <Button type="submit" data-test="create-currency" disabled={form.processing}>
-                    {t('platform::admin_currencies.create')}
-                </Button>
-            </div>
-        </form>
+        </Fieldset>
     );
 }
 
@@ -326,22 +316,18 @@ function Names({ form, prefix }: { form: NamesForm; prefix: string }) {
     return (
         <>
             {fields.map((field) => (
-                <Field
+                <Input
                     key={field.key}
                     id={`${prefix}-${field.key}`}
                     label={t(field.label)}
-                    hint={field.hint === undefined ? undefined : t(field.hint)}
+                    helper={field.hint === undefined ? undefined : t(field.hint)}
                     error={form.errors[field.key]}
-                >
-                    <Input
-                        id={`${prefix}-${field.key}`}
-                        required
-                        lang={field.lang}
-                        dir={field.lang === 'en' ? 'ltr' : undefined}
-                        value={form.data[field.key] ?? ''}
-                        onChange={(event) => form.setData(field.key as never, event.target.value as never)}
-                    />
-                </Field>
+                    required
+                    lang={field.lang}
+                    dir={field.lang === 'en' ? 'ltr' : undefined}
+                    value={form.data[field.key] ?? ''}
+                    onChange={(event) => form.setData(field.key as never, event.target.value as never)}
+                />
             ))}
         </>
     );

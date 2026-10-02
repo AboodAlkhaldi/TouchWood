@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useForm } from '@inertiajs/react';
+import { useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { Field } from '@/components/Field';
 import { FormError } from '@/components/FormError';
 import { PermissionPicker } from '@/components/PermissionPicker';
-import { ALL_STORES, ExceptionList, SELECTED_STORES, StoreChoice } from '@/components/RoleStores';
+import { ExceptionList, SELECTED_STORES, StoreChoice } from '@/components/RoleStores';
 import type { ExceptionRow } from '@/components/RoleStores';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
+import { Badge, Button, ButtonLink, Checkbox, Input, RadioGroup, Select } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type { InviteStaffPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -21,6 +18,11 @@ import type { InviteStaffPage } from '@/types/generated/Modules/Access/Presentat
 |
 | A refusal that belongs to an earlier step takes the person back to it, rather than showing a
 | message next to a field they cannot see.
+|
+| In Geist's fields and choices (frontend.md 1.10). Geist has no stepper, so the progress line is
+| built from its type and colours. The role is one choice of several, so a RadioGroup - a saved
+| role, or a role of their own. The button that moves on stays a submit, so Enter on any field
+| goes to the next step exactly as the button does.
 */
 
 type Props = InviteStaffPage;
@@ -38,6 +40,9 @@ const PROFILE_FIELDS = [
 ];
 
 const ROLE_FIELDS = ['saved_role_id', 'permissions'];
+
+/** The radio value for "a role of their own", which is no saved role at all. */
+const OWN_ROLE = 'own';
 
 export default function Invite(page: Props) {
     const t = useTranslator();
@@ -121,9 +126,9 @@ export default function Invite(page: Props) {
             subtitle={t('access::staff.invite_subtitle')}
             breadcrumbs={[{ label: t('access::staff.title'), href: '/admin/staff' }]}
             action={
-                <Button variant="ghost" asChild>
-                    <Link href="/admin/staff">{t('access::staff.cancel')}</Link>
-                </Button>
+                <ButtonLink href="/admin/staff" type="tertiary">
+                    {t('access::staff.cancel')}
+                </ButtonLink>
             }
         >
             <form
@@ -140,17 +145,21 @@ export default function Invite(page: Props) {
                 }}
                 className="grid max-w-3xl gap-6"
             >
-                <ol className="flex flex-wrap items-center gap-3 text-sm">
+                <ol className="flex flex-wrap items-center gap-3 text-label-14">
                     {steps.map((label, index) => {
                         const number = index + 1;
 
                         return (
-                            <li key={label} className="flex items-center gap-2">
+                            <li
+                                key={label}
+                                aria-current={number === step ? 'step' : undefined}
+                                className="flex items-center gap-2"
+                            >
                                 <span
                                     className={[
-                                        'tw-figure grid size-6 place-items-center rounded-pill text-xs',
+                                        'tw-figure grid size-6 place-items-center rounded-full text-label-12',
                                         number === step
-                                            ? 'bg-brand text-brand-ink'
+                                            ? 'bg-brand text-ink-on-brand'
                                             : number < step
                                               ? 'bg-brand-soft text-brand'
                                               : 'bg-surface-sunken text-ink-muted',
@@ -159,12 +168,12 @@ export default function Invite(page: Props) {
                                     {number}
                                 </span>
                                 <span className={number === step ? 'text-ink' : 'text-ink-muted'}>{label}</span>
-                                {number < steps.length ? <span className="text-ink-muted">·</span> : null}
+                                {number < steps.length ? <span className="text-ink-subtle">·</span> : null}
                             </li>
                         );
                     })}
 
-                    <li className="tw-figure ms-auto text-xs text-ink-muted">
+                    <li className="tw-figure ms-auto text-label-13 text-ink-muted">
                         {t('access::staff.step_of', { step, total: steps.length })}
                     </li>
                 </ol>
@@ -172,203 +181,183 @@ export default function Invite(page: Props) {
                 <FormError />
 
                 {step === 1 ? (
-                    <section className="grid gap-4 rounded-lg border border-line bg-surface p-4 sm:grid-cols-2">
-                        <Field id="first_name" label={t('access::staff.first_name')} error={form.errors.first_name}>
-                            <Input
-                                id="first_name"
-                                required
-                                value={form.data.first_name}
-                                onChange={(event) => form.setData('first_name', event.target.value)}
-                            />
-                        </Field>
+                    <section className="material-base grid gap-4 p-5 sm:grid-cols-2">
+                        <Input
+                            id="first_name"
+                            label={t('access::staff.first_name')}
+                            error={form.errors.first_name}
+                            required
+                            value={form.data.first_name}
+                            onChange={(event) => form.setData('first_name', event.target.value)}
+                        />
 
-                        <Field id="last_name" label={t('access::staff.last_name')} error={form.errors.last_name}>
-                            <Input
-                                id="last_name"
-                                required
-                                value={form.data.last_name}
-                                onChange={(event) => form.setData('last_name', event.target.value)}
-                            />
-                        </Field>
+                        <Input
+                            id="last_name"
+                            label={t('access::staff.last_name')}
+                            error={form.errors.last_name}
+                            required
+                            value={form.data.last_name}
+                            onChange={(event) => form.setData('last_name', event.target.value)}
+                        />
 
-                        <Field id="email" label={t('access::staff.email')} error={form.errors.email}>
-                            <Input
-                                id="email"
-                                type="email"
-                                dir="ltr"
-                                required
-                                value={form.data.email}
-                                onChange={(event) => form.setData('email', event.target.value)}
-                            />
-                        </Field>
+                        <Input
+                            id="email"
+                            type="email"
+                            label={t('access::staff.email')}
+                            error={form.errors.email}
+                            dir="ltr"
+                            required
+                            value={form.data.email}
+                            onChange={(event) => form.setData('email', event.target.value)}
+                        />
 
-                        <Field id="phone" label={t('access::staff.phone')} error={form.errors.phone}>
-                            <Input
-                                id="phone"
-                                dir="ltr"
-                                className="tw-figure"
-                                required
-                                value={form.data.phone}
-                                onChange={(event) => form.setData('phone', event.target.value)}
-                            />
-                        </Field>
+                        <Input
+                            id="phone"
+                            label={t('access::staff.phone')}
+                            error={form.errors.phone}
+                            dir="ltr"
+                            className="tw-figure"
+                            required
+                            value={form.data.phone}
+                            onChange={(event) => form.setData('phone', event.target.value)}
+                        />
 
-                        <Field id="job_title" label={t('access::staff.job_title')} error={form.errors.job_title}>
-                            <Input
-                                id="job_title"
-                                required
-                                value={form.data.job_title}
-                                onChange={(event) => form.setData('job_title', event.target.value)}
-                            />
-                        </Field>
+                        <Input
+                            id="job_title"
+                            label={t('access::staff.job_title')}
+                            error={form.errors.job_title}
+                            required
+                            value={form.data.job_title}
+                            onChange={(event) => form.setData('job_title', event.target.value)}
+                        />
 
-                        <Field
+                        <Input
                             id="date_of_birth"
+                            type="date"
                             label={t('access::staff.date_of_birth')}
                             error={form.errors.date_of_birth}
+                            dir="ltr"
+                            required
+                            value={form.data.date_of_birth}
+                            onChange={(event) => form.setData('date_of_birth', event.target.value)}
+                        />
+
+                        <Select
+                            id="country"
+                            label={t('access::staff.country')}
+                            error={form.errors.country}
+                            required
+                            value={form.data.country}
+                            onChange={(event) => form.setData('country', event.target.value)}
                         >
-                            <Input
-                                id="date_of_birth"
-                                type="date"
-                                dir="ltr"
-                                required
-                                value={form.data.date_of_birth}
-                                onChange={(event) => form.setData('date_of_birth', event.target.value)}
-                            />
-                        </Field>
-
-                        <Field id="country" label={t('access::staff.country')} error={form.errors.country}>
-                            <select
-                                id="country"
-                                required
-                                value={form.data.country}
-                                onChange={(event) => form.setData('country', event.target.value)}
-                                className="h-9 w-full rounded-md border border-line-strong bg-surface px-3 text-sm text-ink"
-                            >
-                                {/* The countries our stores are in come first, under their own
-                                    heading; they appear in the long list too, so somebody looking
-                                    for Saudi Arabia under S still finds it (owner, 2026-09-24). */}
-                                <optgroup label={t('access::staff.countries_ours')}>
-                                    {page.countries
-                                        .filter((country) => country.ours)
-                                        .map((country) => (
-                                            <option key={`ours-${country.code}`} value={country.code}>
-                                                {country.name}
-                                            </option>
-                                        ))}
-                                </optgroup>
-
-                                <optgroup label={t('access::staff.countries_all')}>
-                                    {page.countries.map((country) => (
-                                        <option key={country.code} value={country.code}>
+                            {/* The countries our stores are in come first, under their own
+                                heading; they appear in the long list too, so somebody looking
+                                for Saudi Arabia under S still finds it (owner, 2026-09-24). */}
+                            <optgroup label={t('access::staff.countries_ours')}>
+                                {page.countries
+                                    .filter((country) => country.ours)
+                                    .map((country) => (
+                                        <option key={`ours-${country.code}`} value={country.code}>
                                             {country.name}
                                         </option>
                                     ))}
-                                </optgroup>
-                            </select>
-                        </Field>
+                            </optgroup>
 
-                        <Field
+                            <optgroup label={t('access::staff.countries_all')}>
+                                {page.countries.map((country) => (
+                                    <option key={country.code} value={country.code}>
+                                        {country.name}
+                                    </option>
+                                ))}
+                            </optgroup>
+                        </Select>
+
+                        <Select
                             id="locale"
                             label={t('access::staff.communication_language')}
-                            hint={t('access::staff.communication_language_hint')}
+                            helper={t('access::staff.communication_language_hint')}
                             error={form.errors.locale}
+                            value={form.data.locale}
+                            onChange={(event) => form.setData('locale', event.target.value)}
                         >
-                            <select
-                                id="locale"
-                                value={form.data.locale}
-                                onChange={(event) => form.setData('locale', event.target.value)}
-                                className="h-9 w-full rounded-md border border-line-strong bg-surface px-3 text-sm text-ink"
-                            >
-                                <option value="ar">العربية</option>
-                                <option value="en">English</option>
-                            </select>
-                        </Field>
+                            <option value="ar">العربية</option>
+                            <option value="en">English</option>
+                        </Select>
 
-                        <div className="sm:col-span-2">
-                            <Field id="address" label={t('access::staff.address')} error={form.errors.address}>
-                                <Input
-                                    id="address"
-                                    value={form.data.address}
-                                    onChange={(event) => form.setData('address', event.target.value)}
-                                />
-                            </Field>
-                        </div>
+                        <Input
+                            id="address"
+                            label={t('access::staff.address')}
+                            error={form.errors.address}
+                            value={form.data.address}
+                            onChange={(event) => form.setData('address', event.target.value)}
+                            className="sm:col-span-2"
+                        />
                     </section>
                 ) : null}
 
                 {step === 2 ? (
                     <div className="grid gap-6">
                         {page.maySetAdmin ? (
-                            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-surface px-4 py-3">
+                            <div className="material-base px-4 py-3">
                                 <Checkbox
+                                    id="as_admin"
                                     checked={admin}
-                                    onCheckedChange={(on) => {
-                                        setAdmin(on === true);
+                                    onChange={(on) => {
+                                        setAdmin(on);
                                         pick(null);
                                     }}
-                                />
-                                <span className="grid gap-0.5">
-                                    <span className="text-sm text-ink">{t('access::staff.as_admin')}</span>
-                                    <span className="text-xs text-ink-muted">{t('access::staff.as_admin_hint')}</span>
-                                </span>
-                            </label>
+                                >
+                                    <span className="grid gap-0.5">
+                                        <span>{t('access::staff.as_admin')}</span>
+                                        <span className="text-copy-13 text-ink-muted">{t('access::staff.as_admin_hint')}</span>
+                                    </span>
+                                </Checkbox>
+                            </div>
                         ) : null}
 
-                        <section className="grid gap-3">
-                            <div className="grid gap-0.5">
-                                <h2 className="text-sm font-semibold text-ink">{t('access::staff.pick_role')}</h2>
-                                <p className="text-xs text-ink-muted">{t('access::staff.pick_role_hint')}</p>
-                            </div>
-
-                            <ul className="grid gap-2 sm:grid-cols-2">
-                                {roles.map((role) => (
-                                    <li key={role.id}>
-                                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-surface px-4 py-3">
-                                            <input
-                                                type="radio"
-                                                name="role"
-                                                className="mt-1 accent-brand"
-                                                checked={roleId === role.id}
-                                                onChange={() => pick(role.id)}
-                                            />
+                        <section className="material-base p-5">
+                            <RadioGroup
+                                name="role"
+                                legend={
+                                    <span className="grid gap-1">
+                                        <span className="text-heading-16 text-ink">{t('access::staff.pick_role')}</span>
+                                        <span className="text-copy-13 font-normal text-ink-muted">
+                                            {t('access::staff.pick_role_hint')}
+                                        </span>
+                                    </span>
+                                }
+                                value={roleId ?? OWN_ROLE}
+                                onChange={(value) => pick(value === OWN_ROLE ? null : value)}
+                                options={[
+                                    ...roles.map((role) => ({
+                                        value: role.id,
+                                        label: (
                                             <span className="grid gap-0.5">
-                                                <span className="text-sm text-ink">
+                                                <span className="flex flex-wrap items-center gap-2">
                                                     {role.name}
                                                     {roleId === role.id && edited ? (
-                                                        <span className="ms-2 rounded-pill bg-warn-soft px-2 py-0.5 text-xs text-warn">
+                                                        <Badge variant="amber-subtle" size="small">
                                                             {t('access::staff.edited')}
-                                                        </span>
+                                                        </Badge>
                                                     ) : null}
                                                 </span>
-                                                <span className="tw-figure text-xs text-ink-muted">
-                                                    {t('access::staff.actions_count', {
-                                                        count: role.permissionCount,
-                                                    })}
+                                                <span className="tw-figure text-copy-13 text-ink-muted">
+                                                    {t('access::staff.actions_count', { count: role.permissionCount })}
                                                 </span>
                                             </span>
-                                        </label>
-                                    </li>
-                                ))}
-
-                                <li>
-                                    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-surface px-4 py-3">
-                                        <input
-                                            type="radio"
-                                            name="role"
-                                            className="mt-1 accent-brand"
-                                            checked={roleId === null}
-                                            onChange={() => pick(null)}
-                                        />
-                                        <span className="grid gap-0.5">
-                                            <span className="text-sm text-ink">{t('access::staff.own_role')}</span>
-                                            <span className="text-xs text-ink-muted">
-                                                {t('access::staff.own_role_hint')}
+                                        ),
+                                    })),
+                                    {
+                                        value: OWN_ROLE,
+                                        label: (
+                                            <span className="grid gap-0.5">
+                                                <span>{t('access::staff.own_role')}</span>
+                                                <span className="text-copy-13 text-ink-muted">{t('access::staff.own_role_hint')}</span>
                                             </span>
-                                        </span>
-                                    </label>
-                                </li>
-                            </ul>
+                                        ),
+                                    },
+                                ]}
+                            />
                         </section>
 
                         <PermissionPicker
@@ -383,9 +372,9 @@ export default function Invite(page: Props) {
                 {step === 3 ? (
                     <div className="grid gap-6">
                         <section className="grid gap-3">
-                            <div className="grid gap-0.5">
-                                <h2 className="text-sm font-semibold text-ink">{t('access::staff.where')}</h2>
-                                <p className="text-xs text-ink-muted">{t('access::staff.where_hint')}</p>
+                            <div className="grid gap-1">
+                                <h2 className="text-heading-16 text-ink">{t('access::staff.where')}</h2>
+                                <p className="text-copy-13 text-ink-muted">{t('access::staff.where_hint')}</p>
                             </div>
 
                             <StoreChoice
@@ -398,11 +387,9 @@ export default function Invite(page: Props) {
                         </section>
 
                         <section className="grid gap-3">
-                            <div className="grid gap-0.5">
-                                <h2 className="text-sm font-semibold text-ink">
-                                    {t('access::staff.exceptions_title')}
-                                </h2>
-                                <p className="text-xs text-ink-muted">{t('access::staff.exceptions_hint')}</p>
+                            <div className="grid gap-1">
+                                <h2 className="text-heading-16 text-ink">{t('access::staff.exceptions_title')}</h2>
+                                <p className="text-copy-13 text-ink-muted">{t('access::staff.exceptions_hint')}</p>
                             </div>
 
                             <ExceptionList
@@ -418,16 +405,16 @@ export default function Invite(page: Props) {
 
                 <div className="flex flex-wrap items-center gap-3">
                     {step > 1 ? (
-                        <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
+                        <Button type="secondary" onClick={() => setStep(step - 1)}>
                             {t('access::staff.back')}
                         </Button>
                     ) : null}
 
-                    <Button type="submit" disabled={form.processing}>
+                    <Button typeName="submit" loading={form.processing}>
                         {t(step < 3 ? 'access::staff.next' : 'access::staff.send_invitation')}
                     </Button>
 
-                    <span className="text-xs text-ink-muted">{t('access::staff.nothing_sent_yet')}</span>
+                    <span className="text-copy-13 text-ink-muted">{t('access::staff.nothing_sent_yet')}</span>
                 </div>
             </form>
         </AdminLayout>

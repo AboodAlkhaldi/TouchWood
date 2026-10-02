@@ -1,3 +1,4 @@
+import { Badge } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type { CompanyPage } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { Card, Figure } from './parts';
@@ -6,6 +7,9 @@ import { Card, Figure } from './parts';
 | The company page's side column (b2b.md §4.5, amendment 16(e)): **the application's lifecycle and
 | nothing else** — three steps, with a pointer on the one the latest application has reached. The
 | page leaves it out while the company is suspended.
+|
+| Geist has no stepper, so it is built from Geist's parts (frontend.md §1.8, 1.10): a card of base
+| material, Geist's type, and the decision's result as a Badge — green when approved, red when not.
 */
 
 const STEPS = ['send', 'review', 'decision'] as const;
@@ -22,7 +26,7 @@ export function CompanySide({ page }: { page: CompanyPage }) {
     return (
         <aside className="grid content-start gap-4">
             <Card title={t('b2b::company.steps.title')} test="steps">
-                <ol className="grid gap-3">
+                <ol className="grid gap-4">
                     {STEPS.map((step, index) => {
                         const here = index === current;
 
@@ -37,7 +41,7 @@ export function CompanySide({ page }: { page: CompanyPage }) {
                                 <span
                                     aria-hidden
                                     className={[
-                                        'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold',
+                                        'grid size-6 shrink-0 place-items-center rounded-full text-label-12 font-semibold',
                                         index < current
                                             ? 'bg-brand text-ink-on-brand'
                                             : here
@@ -47,22 +51,19 @@ export function CompanySide({ page }: { page: CompanyPage }) {
                                 >
                                     <Figure>{index + 1}</Figure>
                                 </span>
-                                <span className="grid gap-0.5">
-                                    <span className={['text-sm text-ink', here ? 'font-semibold' : 'font-medium'].join(' ')}>
+                                <span className="grid justify-items-start gap-1">
+                                    <span className={['text-label-14 text-ink', here ? 'font-semibold' : 'font-medium'].join(' ')}>
                                         {t(`b2b::company.steps.${step}.title`)}
                                         {/* The filled circle says it to the eye; this says it aloud (17, L8). */}
                                         {index < current ? <span className="sr-only"> — {t('b2b::company.steps.done')}</span> : null}
                                     </span>
-                                    <span className="text-xs text-ink-muted">{t(`b2b::company.steps.${step}.body`)}</span>
+                                    <span className="text-copy-13 text-ink-muted">{t(`b2b::company.steps.${step}.body`)}</span>
                                     {here && step === 'decision' ? (
-                                        <span
-                                            data-test="step-result"
-                                            className={['w-fit rounded-md px-2 py-0.5 text-xs font-medium', status === 'APPROVED' ? 'bg-good-soft text-good' : 'bg-bad-soft text-bad'].join(' ')}
-                                        >
+                                        <Badge variant={status === 'APPROVED' ? 'green-subtle' : 'red-subtle'} data-test="step-result">
                                             {t(status === 'APPROVED' ? 'b2b::company.steps.approved' : 'b2b::company.steps.rejected')}
-                                        </span>
+                                        </Badge>
                                     ) : here ? (
-                                        <span className="text-xs font-medium text-brand" data-test="step-now">
+                                        <span className="text-label-13 font-medium text-brand" data-test="step-now">
                                             {t('b2b::company.steps.now')}
                                         </span>
                                     ) : null}

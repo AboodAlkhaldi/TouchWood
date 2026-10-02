@@ -21,6 +21,8 @@ import type { SharedProps } from '@/types/page';
 |
 | On a phone the list sits above the panel rather than beside it; a fourteen-rem column next to a
 | form at 375px leaves room for neither.
+|
+| Dressed in Geist (frontend.md 1.10): its type scale, and the panel as a material surface.
 */
 
 type Props = {
@@ -42,9 +44,9 @@ type Props = {
       }
 );
 
-const ITEM = 'rounded-md px-3 py-2 text-start text-sm transition-colors';
-const CURRENT = 'bg-brand-soft font-medium text-brand';
-const OTHER = 'text-ink-muted hover:bg-surface-sunken';
+const ITEM = 'flex h-9 items-center rounded-[var(--tw-radius)] px-3 text-start text-label-14 transition-colors';
+const CURRENT = 'bg-surface-sunken font-medium text-ink';
+const OTHER = 'text-ink-muted hover:bg-surface-sunken hover:text-ink';
 
 export function AccountLayout({ title, subtitle, children, ...where }: Props) {
     const { accountMenu } = usePage<SharedProps>().props;
@@ -107,8 +109,8 @@ export function AccountLayout({ title, subtitle, children, ...where }: Props) {
                     // Another module's page draws its own cards (the company page has two columns).
                     <section className="grid content-start gap-4">
                         <div className="grid gap-1">
-                            <h1 className="text-lg font-semibold text-ink">{title}</h1>
-                            {subtitle ? <p className="text-sm text-ink-muted">{subtitle}</p> : null}
+                            <h1 className="text-heading-24 text-ink">{title}</h1>
+                            {subtitle ? <p className="text-copy-14 text-ink-muted">{subtitle}</p> : null}
                         </div>
 
                         {children}
@@ -118,11 +120,11 @@ export function AccountLayout({ title, subtitle, children, ...where }: Props) {
                         role="tabpanel"
                         id={`panel-${where.tab}`}
                         aria-labelledby={`tab-${where.tab}`}
-                        className="grid gap-4 rounded-lg border border-line bg-surface p-6 shadow-card"
+                        className="material-base grid gap-5 p-6"
                     >
                         <div className="grid gap-1">
-                            <h1 className="text-lg font-semibold text-ink">{title}</h1>
-                            {subtitle ? <p className="text-sm text-ink-muted">{subtitle}</p> : null}
+                            <h1 className="text-heading-20 text-ink">{title}</h1>
+                            {subtitle ? <p className="text-copy-14 text-ink-muted">{subtitle}</p> : null}
                         </div>
 
                         {children}

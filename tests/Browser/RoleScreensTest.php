@@ -73,9 +73,9 @@ it('draws the roles screen, and offers it from the menu', function () {
     $page->assertSee($name)
         ->assertSee('Roles')
         // The first real menu entry: the sidebar had nothing in it until roles shipped.
-        ->assertSee('Staff and permissions')
+        ->assertSee('Staff and Permissions')
         // The comparison table the design asked to keep: areas down the side, roles across.
-        ->assertSee('Permissions by role')
+        ->assertSee('Permissions by Role')
         ->assertNoJavaScriptErrors();
 });
 
@@ -93,8 +93,8 @@ it('groups the actions by business area in the editor, rather than by declaratio
         ->navigate('/admin/roles/new');
 
     // The areas staff think in (stage 2b, P2), not the order the modules happened to load.
-    $page->assertSee('Staff and permissions')
-        ->assertSee('Store settings and tax')
+    $page->assertSee('Staff and Permissions')
+        ->assertSee('Store Settings and Tax')
         ->assertNoJavaScriptErrors();
 });
 
@@ -168,7 +168,7 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
         ->click('button[type="submit"]')
         ->navigate('/admin/roles');
 
-    $page->assertSee('Permissions by role')->assertNoJavaScriptErrors();
+    $page->assertSee('Permissions by Role')->assertNoJavaScriptErrors();
 
     // Counted in the table itself rather than asserted as page text: every business area is also
     // a menu group, so each of these words is in the sidebar whatever the table is showing.
@@ -206,7 +206,7 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
 
     // And the columns menu opens with a row per role, so ten roles can become two.
     $page->click('[data-test="columns"]')
-        ->assertSee('Roles to show')
+        ->assertSee('Roles to Show')
         ->assertSee($hidden)
         ->assertNoJavaScriptErrors();
 });

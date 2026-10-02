@@ -3,14 +3,7 @@ import { ChevronsUpDown, LogOut, Moon, Settings, Sun } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { MenuIcon } from '@/components/MenuIcon';
 import { choosePreference } from '@/components/Preferences';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Menu, MenuDivider, MenuItem, MenuSection } from '@/components/geist';
 import {
     Sidebar,
     SidebarContent,
@@ -41,6 +34,9 @@ import type { SharedProps } from '@/types/page';
 |
 | Arabic mirrors the whole thing. The sidebar sits at side="left", which the component writes as
 | start-0 rather than left-0, so the page's own direction decides which edge that is.
+|
+| Geist has no sidebar, so this stays shadcn's frame, dressed in Geist's type and its Menu for the
+| person block (frontend.md 1.10: where Geist has no component, it is built from Geist's parts).
 */
 
 export function AppSidebar() {
@@ -61,8 +57,8 @@ export function AppSidebar() {
                             <Link href="/admin">
                                 <Logo className="size-5 shrink-0 text-sidebar-ink" />
                                 <span className="grid">
-                                    <span className="truncate text-sm font-semibold">TouchWood</span>
-                                    <span className="truncate text-xs text-sidebar-ink-muted">
+                                    <span className="truncate text-heading-14">TouchWood</span>
+                                    <span className="truncate text-label-12 text-sidebar-ink-muted">
                                         {t('admin.panel')}
                                     </span>
                                 </span>
@@ -133,8 +129,11 @@ export function AppSidebar() {
                             their own account, how the panel looks to them, and the way out (owner's
                             final word on the sidebar, 2026-09-23). On the rail there is no room for
                             any of it, which is the reason it is a menu rather than four buttons. */}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                        <Menu
+                            side="top"
+                            align="start"
+                            matchTriggerWidth
+                            trigger={
                                 <SidebarMenuButton size="lg" tooltip={viewer?.name ?? t('admin.panel')} data-test="person-menu">
                                     {viewer?.avatarUrl ? (
                                         <img
@@ -149,63 +148,49 @@ export function AppSidebar() {
                                     )}
 
                                     <span className="grid min-w-0 flex-1 text-start">
-                                        <span className="truncate text-sm">{viewer?.name}</span>
-                                        <span className="truncate text-xs text-sidebar-ink-muted">
+                                        <span className="truncate text-label-14">{viewer?.name}</span>
+                                        <span className="truncate text-label-12 text-sidebar-ink-muted">
                                             {viewer?.roleLabel ?? t('admin.super_admin')}
                                         </span>
                                     </span>
 
                                     <ChevronsUpDown className="ms-auto size-4 shrink-0" />
                                 </SidebarMenuButton>
-                            </DropdownMenuTrigger>
+                            }
+                        >
+                            {/* Their name again, because on the rail the trigger is only an avatar
+                                and this menu is the one place it is still written. */}
+                            <MenuSection title={<span className="block truncate">{viewer?.name}</span>}>
+                                <MenuItem href="/admin/account" prefix={<Settings />}>
+                                    {t('admin.account_settings')}
+                                </MenuItem>
 
-                            <DropdownMenuContent
-                                side="top"
-                                align="start"
-                                className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
-                            >
-                                {/* Their name again, because on the rail the trigger is only an
-                                    avatar and this menu is the one place it is still written. */}
-                                <DropdownMenuLabel className="truncate">{viewer?.name}</DropdownMenuLabel>
-
-                                <DropdownMenuSeparator />
-
-                                <DropdownMenuItem asChild>
-                                    <Link href="/admin/account">
-                                        <Settings />
-                                        {t('admin.account_settings')}
-                                    </Link>
-                                </DropdownMenuItem>
-
-                                <DropdownMenuItem
+                                <MenuItem
+                                    prefix={theme.mode === 'dark' ? <Sun /> : <Moon />}
                                     onSelect={() => choosePreference('theme', theme.mode === 'dark' ? 'light' : 'dark', '/admin/preferences')}
                                 >
-                                    {theme.mode === 'dark' ? <Sun /> : <Moon />}
-                                    {t(`admin.theme.${theme.mode === 'dark' ? 'light' : 'dark'}`)}
-                                </DropdownMenuItem>
+                                    {/* Verb + Noun, as every menu item (Geist's Menu). */}
+                                    {t(`admin.theme.switch_to_${theme.mode === 'dark' ? 'light' : 'dark'}`)}
+                                </MenuItem>
 
                                 {/* Written in the language being offered, never translated: somebody
                                     who cannot read the current language must still recognise it. */}
-                                <DropdownMenuItem
+                                <MenuItem
                                     data-test="language"
-                                    lang={locale === 'ar' ? 'en' : 'ar'}
                                     onSelect={() => choosePreference('locale', locale === 'ar' ? 'en' : 'ar', '/admin/preferences')}
                                 >
-                                    {locale === 'ar' ? 'English' : 'العربية'}
-                                </DropdownMenuItem>
+                                    <span lang={locale === 'ar' ? 'en' : 'ar'}>{locale === 'ar' ? 'English' : 'العربية'}</span>
+                                </MenuItem>
+                            </MenuSection>
 
-                                <DropdownMenuSeparator />
+                            <MenuDivider />
 
-                                {/* A9. A sign-out must change something, so it is a post. */}
-                                <DropdownMenuItem
-                                    variant="destructive"
-                                    onSelect={() => router.post('/admin/sign-out')}
-                                >
-                                    <LogOut />
-                                    {t('access::auth.sign_out')}
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                            {/* A9. A sign-out must change something, so it is a post. Destructive,
+                                so it is last, after the divider (Geist's Menu). */}
+                            <MenuItem type="error" prefix={<LogOut />} onSelect={() => router.post('/admin/sign-out')}>
+                                {t('access::auth.sign_out')}
+                            </MenuItem>
+                        </Menu>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarFooter>

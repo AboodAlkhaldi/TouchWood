@@ -1,18 +1,10 @@
-import { Fragment, type ReactNode } from 'react';
-import { Head, Link, usePage } from '@inertiajs/react';
+import type { ReactNode } from 'react';
+import { Head, usePage } from '@inertiajs/react';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
 import { StorePicker } from '@/components/StorePicker';
-import {
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
+import { Breadcrumbs } from '@/components/geist';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import type { SharedProps } from '@/types/page';
 
@@ -28,6 +20,8 @@ import type { SharedProps } from '@/types/page';
 |
 | Arabic mirrors the whole frame, sidebar included, because the page's dir is set on <html> by the
 | server and every offset here is written as start/end rather than left/right.
+|
+| Dressed in Geist (frontend.md 1.10): its Breadcrumbs for the trail, its type scale for the title.
 */
 
 /** One step of the trail back. The last step is the page itself and is never a link. */
@@ -72,29 +66,12 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
                 <AppSidebar />
 
                 <SidebarInset className="bg-page text-ink">
-                    <header className="flex items-center gap-3 border-b border-line bg-surface px-4 py-3 lg:px-6">
+                    <header className="flex h-14 items-center gap-3 border-b border-line bg-surface px-4 lg:px-6">
                         <SidebarTrigger className="text-ink-muted" />
 
-                        <Separator orientation="vertical" className="h-5 bg-line" />
+                        <span aria-hidden="true" className="h-5 w-px bg-line" />
 
-                        <Breadcrumb>
-                            <BreadcrumbList>
-                                {trail.map((crumb, index) => (
-                                    <Fragment key={`${crumb.label}-${index}`}>
-                                        {index > 0 ? <BreadcrumbSeparator /> : null}
-                                        <BreadcrumbItem>
-                                            {crumb.href === undefined ? (
-                                                <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                                            ) : (
-                                                <BreadcrumbLink asChild>
-                                                    <Link href={crumb.href}>{crumb.label}</Link>
-                                                </BreadcrumbLink>
-                                            )}
-                                        </BreadcrumbItem>
-                                    </Fragment>
-                                ))}
-                            </BreadcrumbList>
-                        </Breadcrumb>
+                        <Breadcrumbs items={trail} />
 
                         <div className="ms-auto">
                             <StorePicker />
@@ -106,8 +83,8 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
                     <div className="flex-1 px-4 py-6 lg:px-8">
                         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
                             <div className="grid gap-1">
-                                <h1 className="text-xl font-semibold text-ink">{title}</h1>
-                                {subtitle ? <p className="text-sm text-ink-muted">{subtitle}</p> : null}
+                                <h1 className="text-heading-24 text-ink">{title}</h1>
+                                {subtitle ? <p className="text-copy-14 text-ink-muted">{subtitle}</p> : null}
                             </div>
                             {action}
                         </div>

@@ -1,12 +1,13 @@
 import { Link } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { PermissionsByRole } from '@/components/PermissionsByRole';
-import { Button } from '@/components/ui/button';
+import { ButtonLink, EmptyState, Entity } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type { RolesPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
-| D1 - the saved roles (frontend.md §3.4).
+| D1 - the saved roles (frontend.md §3.4), in Geist's parts (1.10): an Entity row per role - its
+| name and what it holds, and at most one control - and an Empty State when there is none.
 |
 | Personal roles never appear: a role made for one person is that person's business, and this list
 | is about the ones an admin hands out.
@@ -24,61 +25,59 @@ export default function Index({ roles, groups, permissions, permissionsByRole, m
         <AdminLayout
             title={t('access::roles.title')}
             subtitle={t('access::roles.subtitle')}
-            action={
-                mayCreate ? (
-                    <Button asChild>
-                        <Link href="/admin/roles/new">{t('access::roles.new')}</Link>
-                    </Button>
-                ) : undefined
-            }
+            action={mayCreate ? <ButtonLink href="/admin/roles/new">{t('access::roles.new')}</ButtonLink> : undefined}
         >
             {roles.length === 0 ? (
-                <p className="rounded-lg border border-line bg-surface p-6 text-sm text-ink-muted">
-                    {t('access::roles.no_roles')}
-                </p>
+                <EmptyState title={t('access::roles.none_title')} description={t('access::roles.no_roles')} />
             ) : (
                 <div className="grid gap-8">
-                    <ul className="grid gap-2">
+                    {/* The list Geist's EntityList draws, kept a list so a screen reader counts the
+                        roles. */}
+                    <ul className="material-base divide-y divide-line">
                         {roles.map((role) => (
-                            /* The whole card opens the role, not just its name (owner,
+                            /* The whole row opens the role, not just its name (owner,
                                2026-09-24). Done by stretching the one link that is already
-                               there over the card, rather than wrapping the card in a second
-                               one: a link inside a link is invalid, and a card announced twice
-                               is worse to listen to than a card announced once. */
-                            <li
-                                key={role.id}
-                                className="relative flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3 shadow-card transition-colors hover:border-brand"
-                            >
-                                <div className="grid gap-0.5">
-                                    <Link
-                                        href={`/admin/roles/${role.id}`}
-                                        className="text-sm font-medium text-ink after:absolute after:inset-0 hover:text-brand"
-                                    >
-                                        {role.name}
-                                    </Link>
-                                    <span className="text-xs text-ink-muted">
-                                        {t(`access::roles.level_${role.level.toLowerCase()}`)} ·{' '}
-                                        {t('access::roles.actions_count', { count: role.permissionCount })} ·{' '}
-                                        {t('access::roles.holders_count', { count: role.holderCount })}
-                                    </span>
-                                </div>
-
-                                {/* Above the stretched link, or the card would swallow it. */}
-                                {role.editable ? (
-                                    <Button variant="outline" size="sm" className="relative" asChild>
-                                        <Link href={`/admin/roles/${role.id}/edit`}>{t('access::roles.edit')}</Link>
-                                    </Button>
-                                ) : null}
+                               there over the row, rather than wrapping the row in a second
+                               one: a link inside a link is invalid, and a row announced twice
+                               is worse to listen to than a row announced once. */
+                            <li key={role.id} className="relative transition-colors hover:bg-surface-sunken">
+                                <Entity
+                                    title={
+                                        <Link
+                                            href={`/admin/roles/${role.id}`}
+                                            className="text-ink after:absolute after:inset-0 hover:text-brand"
+                                        >
+                                            {role.name}
+                                        </Link>
+                                    }
+                                    description={
+                                        <>
+                                            {t(`access::roles.level_${role.level.toLowerCase()}`)} ·{' '}
+                                            {t('access::roles.actions_count', { count: role.permissionCount })} ·{' '}
+                                            {t('access::roles.holders_count', { count: role.holderCount })}
+                                        </>
+                                    }
+                                    actions={
+                                        /* Above the stretched link, or the row would swallow it:
+                                           Geist's buttons are positioned, and this one comes after
+                                           the link, so it is painted over it. */
+                                        role.editable ? (
+                                            <ButtonLink href={`/admin/roles/${role.id}/edit`} type="secondary" size="small">
+                                                {t('access::roles.edit')}
+                                            </ButtonLink>
+                                        ) : undefined
+                                    }
+                                />
                             </li>
                         ))}
                     </ul>
 
                     {/* The design's "Permissions by role", kept (decided 2026-09-19): areas down the
                         side, roles across the top, scrolling sideways as roles are added. */}
-                    <section className="grid gap-2">
-                        <div className="grid gap-0.5">
-                            <h2 className="text-sm font-semibold text-ink">{t('access::roles.comparison')}</h2>
-                            <p className="text-xs text-ink-muted">{t('access::roles.comparison_hint')}</p>
+                    <section className="grid gap-3">
+                        <div className="grid gap-1">
+                            <h2 className="text-heading-16 text-ink">{t('access::roles.comparison')}</h2>
+                            <p className="text-copy-13 text-ink-muted">{t('access::roles.comparison_hint')}</p>
                         </div>
 
                         <PermissionsByRole

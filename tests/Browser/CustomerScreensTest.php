@@ -58,7 +58,7 @@ it('draws the list, opens a customer, and blocks them with a reason', function (
         ->assertPathIs("/admin/customers/{$customerId}")
         // Read only, except for the actions: the screen says so in as many words.
         ->assertSee('A customer')
-        ->assertSee('Block the account');
+        ->assertSee('Block Account');
 
     // A reason is asked for before anything happens: the audit entry is only as useful as the
     // sentence somebody wrote in it.
@@ -67,7 +67,7 @@ it('draws the list, opens a customer, and blocks them with a reason', function (
         ->click('[data-test="confirm-block"]')
         ->assertSee('Blocked')
         // And what can happen next is the other way round now.
-        ->assertSee('Unblock the account')
+        ->assertSee('Unblock Account')
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('access.customers')->where('id', $customerId)->value('status'))->toBe('BLOCKED');

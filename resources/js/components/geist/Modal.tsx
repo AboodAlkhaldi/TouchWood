@@ -42,9 +42,32 @@ type ModalProps = {
 
 const WIDTH = { small: 'max-w-sm', medium: 'max-w-md', large: 'max-w-xl' };
 
+/**
+ * Focus goes back to whatever opened the dialog (Geist; frontend.md §6). Radix does that through
+ * its own Trigger, which these controlled dialogs never render, so it fell to the page's start
+ * (found in the Geist move, 2026-10-02). The opener is the element focused at the moment the dialog
+ * is about to take focus - Radix asks before it moves it.
+ */
+function useOpener() {
+    const opener = useRef<HTMLElement | null>(null);
+
+    return {
+        remember: () => {
+            opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        },
+        giveBack: (event: Event) => {
+            if (opener.current !== null && opener.current.isConnected) {
+                event.preventDefault();
+                opener.current.focus();
+            }
+        },
+    };
+}
+
 export function Modal({ open, onOpenChange, title, description, children, actions, destructive = false, size = 'medium' }: ModalProps) {
     const t = useTranslator();
     const body = useRef<HTMLDivElement>(null);
+    const opener = useOpener();
 
     return (
         <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -52,7 +75,9 @@ export function Modal({ open, onOpenChange, title, description, children, action
                 <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-ink/50" />
                 <DialogPrimitive.Content
                     ref={body}
+                    onCloseAutoFocus={opener.giveBack}
                     onOpenAutoFocus={(event) => {
+                        opener.remember();
                         if (!destructive) {
                             return;
                         }
@@ -140,6 +165,7 @@ export function DestructiveActionModal({
     const t = useTranslator();
     const [typed, setTyped] = useState('');
     const matches = typed === verificationPhrase;
+    const opener = useOpener();
 
     // Every opening starts empty: a phrase typed for one thing never confirms the next.
     useEffect(() => {
@@ -159,6 +185,8 @@ export function DestructiveActionModal({
                 <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-ink/50" />
                 <DialogPrimitive.Content
                     onInteractOutside={(event) => event.preventDefault()}
+                    onOpenAutoFocus={opener.remember}
+                    onCloseAutoFocus={opener.giveBack}
                     className="material-modal fixed inset-0 z-50 m-auto flex h-fit max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] max-w-md flex-col overflow-hidden"
                 >
                     <form
@@ -224,12 +252,15 @@ type SheetProps = {
 
 export function Sheet({ open, onOpenChange, title, side = 'end', children }: SheetProps) {
     const t = useTranslator();
+    const opener = useOpener();
 
     return (
         <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} modal={false}>
             <DialogPrimitive.Portal>
                 <DialogPrimitive.Content
                     onInteractOutside={(event) => event.preventDefault()}
+                    onOpenAutoFocus={opener.remember}
+                    onCloseAutoFocus={opener.giveBack}
                     className={cx(
                         'material-fullscreen fixed inset-y-2 z-40 flex w-[min(28rem,calc(100%-1rem))] flex-col overflow-hidden',
                         side === 'end' ? 'end-2' : 'start-2',

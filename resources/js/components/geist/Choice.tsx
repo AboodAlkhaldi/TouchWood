@@ -18,8 +18,21 @@ import { Tooltip } from './Tooltip';
 
 const BOX_FOCUS = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 
+/**
+ * A control and the reason it can't be used, in a wrapper of its own (found in the Geist move,
+ * 2026-10-02): the tooltip's trigger writes its own data-state, which on the Radix control itself
+ * overwrote "checked" and drew a ticked, locked box as unticked; a disabled control cannot take
+ * focus, so the wrapper takes it while there is a reason, and the keyboard can read why; and the
+ * wrapper is always there, so gaining or losing a reason never re-mounts the control.
+ */
 function explained(node: ReactNode, reason?: string): ReactNode {
-    return reason === undefined ? node : <Tooltip text={reason}>{node}</Tooltip>;
+    return (
+        <Tooltip text={reason}>
+            <span className="inline-flex shrink-0" tabIndex={reason === undefined ? undefined : 0}>
+                {node}
+            </span>
+        </Tooltip>
+    );
 }
 
 type CheckboxProps = {
@@ -171,7 +184,7 @@ export function Toggle({ id, checked, onChange, children, description, disabledR
     );
 }
 
-export type SwitchOption = { value: string; label: string; icon?: ReactNode };
+export type SwitchOption = { value: string; label: string; icon?: ReactNode; 'data-test'?: string };
 
 type SwitchProps = {
     name: string;
@@ -198,6 +211,7 @@ export function Switch({ name, value, onChange, options, size = 'medium', ...res
                     <RadioPrimitive.Item
                         key={option.value}
                         value={option.value}
+                        data-test={option['data-test']}
                         aria-label={option.icon === undefined ? undefined : option.label}
                         className={cx(
                             'inline-flex items-center justify-center gap-1.5 rounded-[calc(var(--tw-radius)-2px)] px-3 text-button-14 text-ink-muted transition-colors hover:text-ink data-[state=checked]:bg-surface data-[state=checked]:text-ink data-[state=checked]:shadow-[var(--tw-shadow-small)]',
@@ -209,7 +223,12 @@ export function Switch({ name, value, onChange, options, size = 'medium', ...res
                     </RadioPrimitive.Item>
                 );
 
-                return option.icon === undefined ? item : <Tooltip key={option.value} text={option.label}>{item}</Tooltip>;
+                // Wrapped, not the item itself: the tooltip's data-state would overwrite "checked".
+                return (
+                    <Tooltip key={option.value} text={option.icon === undefined ? undefined : option.label}>
+                        <span className="inline-flex">{item}</span>
+                    </Tooltip>
+                );
             })}
         </RadioPrimitive.Root>
     );

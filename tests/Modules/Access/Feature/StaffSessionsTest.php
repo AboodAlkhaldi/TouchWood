@@ -241,7 +241,7 @@ describe('trusted browsers', function () {
 
         $response = $browser->post('/admin/account/trusted-browsers/'.$id)->assertRedirect('/admin/account?tab=sessions');
 
-        expect(AdminBrowser::flashed($response, 'status'))->toBe('That browser will ask for a code next time.')
+        expect(AdminBrowser::flashed($response, 'status'))->toBe('Browser forgotten. It will ask for a code next time.')
             ->and(DB::table('access.staff_trusted_browsers')->where('id', $id)->count())->toBe(0)
             // It signs nobody out: a trusted browser is one allowed past the code, not one kept
             // signed in.
@@ -258,7 +258,7 @@ describe('trusted browsers', function () {
         expect(DB::table('access.staff_trusted_browsers')->where('staff_user_id', $staffId)->count())->toBe(0)
             // All of them, and the message says so: "that browser" here would leave somebody
             // thinking the others still skip the code (review of PR #59).
-            ->and(AdminBrowser::flashed($response, 'status'))->toBe('Every browser will ask for a code next time.');
+            ->and(AdminBrowser::flashed($response, 'status'))->toBe('All browsers forgotten. Each will ask for a code next time.');
     });
 
     it('cannot forget a browser belonging to somebody else', function () {

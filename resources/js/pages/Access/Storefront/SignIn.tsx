@@ -1,22 +1,22 @@
 import { Link, useForm } from '@inertiajs/react';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
 import { ShopCard } from '@/components/ShopCard';
-import { Field } from '@/components/Field';
 import { FormError } from '@/components/FormError';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/PasswordInput';
+import { Button, Checkbox, Input } from '@/components/geist';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { CustomerSignInPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
-| F5 - signing in to the shop (frontend.md §3.6).
+| F5 - signing in to the shop (frontend.md §3.6), on Geist's fields and button (1.10).
 |
 | Email, password, "keep me signed in" - which customers have and staff do not (access.md §1.8) -
 | and the way to a new password. One step: the code the panel asks for is a staff rule, and a
 | shopper is not asked for a phone to get in.
+|
+| "Keep me signed in" is a checkbox rather than Geist's Toggle: a Toggle takes effect the moment it
+| flips, and this one only means something once the form is sent.
 |
 | The answer never says whether the address has an account, so this page holds no logic about which
 | refusal it was: a blocked account and a pending deletion are Access's to word, and they arrive as
@@ -38,7 +38,7 @@ export default function SignIn({ rememberDays }: Props) {
                 footer={
                     <>
                         {t('access::auth.no_account')}{' '}
-                        <Link href={link('storefront.register')} className="text-brand hover:text-accent">
+                        <Link href={link('storefront.register')} className="text-brand hover:underline">
                             {t('access::auth.create_account')}
                         </Link>
                     </>
@@ -53,47 +53,47 @@ export default function SignIn({ rememberDays }: Props) {
                 >
                     <FormError />
 
-                    <Field id="email" label={t('access::auth.customer_email')} error={form.errors.email}>
-                        <Input
-                            id="email"
-                            name="email"
-                            type="email"
-                            autoComplete="username"
-                            required
-                            autoFocus
-                            dir="ltr"
-                            value={form.data.email}
-                            onChange={(event) => form.setData('email', event.target.value)}
-                        />
-                    </Field>
+                    <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        label={t('access::auth.customer_email')}
+                        error={form.errors.email}
+                        autoComplete="username"
+                        required
+                        autoFocus
+                        dir="ltr"
+                        value={form.data.email}
+                        onChange={(event) => form.setData('email', event.target.value)}
+                    />
 
-                    <Field id="password" label={t('access::auth.password')} error={form.errors.password}>
-                        <PasswordInput
-                            id="password"
-                            name="password"
-                            autoComplete="current-password"
-                            required
-                            value={form.data.password}
-                            onChange={(event) => form.setData('password', event.target.value)}
-                        />
-                    </Field>
+                    <PasswordInput
+                        id="password"
+                        name="password"
+                        label={t('access::auth.password')}
+                        error={form.errors.password}
+                        autoComplete="current-password"
+                        required
+                        value={form.data.password}
+                        onChange={(event) => form.setData('password', event.target.value)}
+                    />
 
-                    <label className="flex items-center gap-2 text-sm text-ink">
-                        <Checkbox
-                            data-test="remember"
-                            checked={form.data.remember}
-                            onCheckedChange={(checked) => form.setData('remember', checked === true)}
-                        />
+                    <Checkbox
+                        id="remember"
+                        data-test="remember"
+                        checked={form.data.remember}
+                        onChange={(checked) => form.setData('remember', checked)}
+                    >
                         {t('access::auth.remember_me', { days: rememberDays })}
-                    </label>
+                    </Checkbox>
 
-                    <Button type="submit" disabled={form.processing} className="w-full">
+                    <Button typeName="submit" loading={form.processing} className="w-full">
                         {t('access::auth.sign_in')}
                     </Button>
 
                     <Link
                         href={link('storefront.password.forgot')}
-                        className="text-sm text-brand hover:text-accent"
+                        className="w-fit text-label-14 text-brand hover:underline"
                     >
                         {t('access::auth.forgot_password')}
                     </Link>

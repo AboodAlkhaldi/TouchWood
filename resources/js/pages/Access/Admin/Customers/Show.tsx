@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { useForm } from '@inertiajs/react';
+import { useForm, usePage } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { Field } from '@/components/Field';
 import { FormError } from '@/components/FormError';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Badge, Button, Description, EmptyState, Input, Modal, ModalCancel } from '@/components/geist';
 import { isolate } from '@/lib/bidi';
 import { useTranslator } from '@/lib/t';
+import type { SharedProps } from '@/types/page';
 import type {
     AddressRow,
     CustomerAddressGroup,
@@ -25,6 +24,10 @@ import type {
 |
 | A reason is asked for before anything happens rather than after, because the audit entry is only
 | as useful as the sentence somebody wrote in it.
+|
+| In Geist's parts (frontend.md 1.10): the facts are a Description, the statuses Badges, and each
+| action is confirmed in a Modal that holds its reason - destructive for blocking and closing, whose
+| confirm button is red, plain for the two that undo them.
 */
 
 type Props = CustomerDetailsPage;
@@ -44,12 +47,12 @@ export default function Show({
     return (
         <AdminLayout title={customer.name} subtitle={t('access::customers.title')}>
             <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-                <div className="grid gap-6">
-                    <section className="grid gap-4 rounded-lg border border-line bg-surface p-6 shadow-card">
+                <div className="grid content-start gap-6">
+                    <section className="material-base grid gap-4 p-6">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="grid gap-1">
-                                <h2 className="text-base font-semibold text-ink">{customer.name}</h2>
-                                <bdi dir="ltr" className="text-sm text-ink-muted">
+                                <h2 className="text-heading-16 text-ink">{customer.name}</h2>
+                                <bdi dir="ltr" className="text-copy-14 text-ink-muted">
                                     {customer.email}
                                 </bdi>
                             </div>
@@ -61,62 +64,62 @@ export default function Show({
                             />
                         </div>
 
-                        <dl className="grid gap-4 sm:grid-cols-2">
-                            <Fact label={t('access::customers.type')}>
-                                {t(`access::customers.account_type.${customer.accountType}`)}
-                            </Fact>
+                        <Description
+                            items={[
+                                {
+                                    title: t('access::customers.type'),
+                                    content: t(`access::customers.account_type.${customer.accountType}`),
+                                },
+                                { title: t('access::customers.home_store'), content: customer.homeStore },
+                                {
+                                    // No number is an unknown value, which Geist writes as an em dash.
+                                    title: t('access::customers.phone'),
+                                    content:
+                                        customer.phone === null ? null : (
+                                            <bdi dir="ltr" className="tw-figure">
+                                                {customer.phone}
+                                            </bdi>
+                                        ),
+                                },
+                                {
+                                    title: t('access::customers.communication_language'),
+                                    content: t(`access::account.language.${communicationLocale}`),
+                                },
+                                {
+                                    title: t('access::customers.email_verified'),
+                                    content: customer.emailVerified
+                                        ? t('access::customers.verified')
+                                        : t('access::customers.not_verified'),
+                                },
+                                {
+                                    title: t('access::customers.phone_verified'),
+                                    content: customer.phoneVerified
+                                        ? t('access::customers.verified')
+                                        : t('access::customers.not_verified'),
+                                },
+                                { title: t('access::customers.registered'), content: isolate(customer.registeredAt) },
+                            ]}
+                        />
 
-                            <Fact label={t('access::customers.home_store')}>{customer.homeStore}</Fact>
-
-                            <Fact label={t('access::customers.phone')} ltr>
-                                {customer.phone ?? t('access::customers.no_phone')}
-                            </Fact>
-
-                            <Fact label={t('access::customers.communication_language')}>
-                                {t(`access::account.language.${communicationLocale}`)}
-                            </Fact>
-
-                            <Fact label={t('access::customers.email_verified')}>
-                                {customer.emailVerified
-                                    ? t('access::customers.verified')
-                                    : t('access::customers.not_verified')}
-                            </Fact>
-
-                            <Fact label={t('access::customers.phone_verified')}>
-                                {customer.phoneVerified
-                                    ? t('access::customers.verified')
-                                    : t('access::customers.not_verified')}
-                            </Fact>
-
-                            <Fact label={t('access::customers.registered')}>
-                                {isolate(customer.registeredAt)}
-                            </Fact>
-                        </dl>
-
-                        <p className="text-xs text-ink-muted">
-                            {t('access::customers.profile_is_theirs')}
-                        </p>
+                        <p className="text-copy-13 text-ink-muted">{t('access::customers.profile_is_theirs')}</p>
                     </section>
 
-                    <section className="grid gap-4 rounded-lg border border-line bg-surface p-6 shadow-card">
-                        <h2 className="text-base font-semibold text-ink">
-                            {t('access::customers.addresses')}
-                        </h2>
+                    <section className="grid gap-3">
+                        <h2 className="text-heading-16 text-ink">{t('access::customers.addresses')}</h2>
 
                         {addresses.length === 0 ? (
-                            <p className="text-sm text-ink-muted">
-                                {t('access::customers.no_addresses')}
-                            </p>
+                            <EmptyState
+                                title={t('access::customers.no_addresses_title')}
+                                description={t('access::customers.no_addresses')}
+                            />
                         ) : (
                             addresses.map((group) => <Addresses key={group.storeId} group={group} />)
                         )}
                     </section>
                 </div>
 
-                <aside className="grid gap-4">
-                    <h2 className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
-                        {t('access::customers.actions')}
-                    </h2>
+                <aside className="grid content-start gap-4">
+                    <h2 className="text-heading-16 text-ink">{t('access::customers.actions')}</h2>
 
                     <FormError />
 
@@ -166,23 +169,6 @@ export default function Show({
     );
 }
 
-function Fact({ label, children, ltr = false }: { label: string; children: string; ltr?: boolean }) {
-    return (
-        <div className="grid gap-0.5">
-            <dt className="text-xs text-ink-muted">{label}</dt>
-            <dd className="text-sm text-ink">
-                {ltr ? (
-                    <bdi dir="ltr" className="tw-figure">
-                        {children}
-                    </bdi>
-                ) : (
-                    children
-                )}
-            </dd>
-        </div>
-    );
-}
-
 function Status({
     status,
     anonymized,
@@ -195,31 +181,19 @@ function Status({
     const t = useTranslator();
 
     if (anonymized) {
-        return (
-            <span className="rounded-md bg-surface-sunken px-2 py-1 text-xs text-ink-muted">
-                {t('access::customers.anonymized')}
-            </span>
-        );
+        return <Badge variant="gray-subtle">{t('access::customers.anonymized')}</Badge>;
     }
 
     return (
         <span className="flex flex-wrap gap-2">
-            <span
-                className={[
-                    'rounded-md px-2 py-1 text-xs',
-                    status === 'BLOCKED' ? 'bg-bad-soft text-bad' : 'bg-good-soft text-good',
-                ].join(' ')}
-            >
+            <Badge variant={status === 'BLOCKED' ? 'red-subtle' : 'green-subtle'}>
                 {t(`access::customers.account_status.${status}`)}
-            </span>
+            </Badge>
 
             {closingOn === null ? null : (
-                <span
-                    data-test="deletion-pending"
-                    className="rounded-md bg-warn-soft px-2 py-1 text-xs text-warn"
-                >
+                <Badge variant="amber-subtle" data-test="deletion-pending">
                     {t('access::customers.deletion_pending', { date: isolate(closingOn) })}
-                </span>
+                </Badge>
             )}
         </span>
     );
@@ -229,19 +203,17 @@ function Status({
 function Addresses({ group }: { group: CustomerAddressGroup }) {
     return (
         <div className="grid gap-2">
-            <h3 className="text-sm font-medium text-ink">{group.storeName}</h3>
+            <h3 className="text-heading-14 text-ink">{group.storeName}</h3>
 
-            <ul className="grid gap-2">
+            <ul className="grid gap-2 sm:grid-cols-2">
                 {group.addresses.map((address: AddressRow) => (
-                    <li key={address.id} className="rounded-md border border-line p-3">
-                        <p className="text-sm font-medium text-ink">{address.label}</p>
-                        <p className="text-sm text-ink-muted">{address.recipientName}</p>
-                        <p className="tw-figure text-sm text-ink-muted" dir="ltr">
+                    <li key={address.id} className="material-base grid gap-0.5 p-4">
+                        <p className="text-label-14 font-medium text-ink">{address.label}</p>
+                        <p className="text-copy-14 text-ink-muted">{address.recipientName}</p>
+                        <p className="tw-figure text-copy-14 text-ink-muted" dir="ltr">
                             {address.phone}
                         </p>
-                        <p className="whitespace-pre-line text-sm text-ink-muted">
-                            {address.formatted}
-                        </p>
+                        <p className="whitespace-pre-line text-copy-14 text-ink-muted">{address.formatted}</p>
                     </li>
                 ))}
             </ul>
@@ -252,8 +224,11 @@ function Addresses({ group }: { group: CustomerAddressGroup }) {
 /**
  * One thing a staff member may do to this account, with the reason it asks for.
  *
- * Confirmed in the page rather than in the browser's own dialog: a window.confirm cannot be driven
- * by a test, which is how the panel's media delete went a whole step untested.
+ * Confirmed in a Geist Modal rather than in the browser's own dialog: a window.confirm cannot be
+ * driven by a test, which is how the panel's media delete went a whole step untested. The reason
+ * field takes the focus when the dialog opens, because nothing can happen until it is written; the
+ * confirm button repeats the action's own name rather than saying "Confirm" (Geist's writing
+ * rules), and it sits outside the form, so it names the form it submits.
  */
 function Action({
     name,
@@ -269,79 +244,76 @@ function Action({
     danger?: boolean;
 }) {
     const t = useTranslator();
+    const { errors } = usePage<SharedProps>().props;
     const [open, setOpen] = useState(false);
     const form = useForm({ reason: '' });
+    const formId = `action-${name}`;
+
+    function close() {
+        setOpen(false);
+        form.reset();
+    }
 
     return (
-        <section
-            className={[
-                'grid gap-2 rounded-lg border p-4',
-                danger ? 'border-bad/30 bg-bad-soft' : 'border-line bg-surface',
-            ].join(' ')}
-        >
-            <p className={['text-sm font-medium', danger ? 'text-bad' : 'text-ink'].join(' ')}>
-                {title}
-            </p>
-            <p className="text-xs text-ink-muted">{body}</p>
+        <section className="material-base grid gap-2 p-4">
+            <h3 className="text-heading-14 text-ink">{title}</h3>
+            <p className="text-copy-13 text-ink-muted">{body}</p>
 
-            {open ? (
+            <Button
+                type={danger ? 'error' : 'secondary'}
+                size="small"
+                className="w-fit"
+                data-test={name}
+                onClick={() => setOpen(true)}
+            >
+                {title}
+            </Button>
+
+            <Modal
+                open={open}
+                onOpenChange={(next) => (next ? setOpen(true) : close())}
+                destructive={danger}
+                title={title}
+                description={body}
+                actions={
+                    <>
+                        <ModalCancel onClick={close} disabled={form.processing} />
+                        <Button
+                            type={danger ? 'error' : 'default'}
+                            typeName="submit"
+                            form={formId}
+                            loading={form.processing}
+                            data-test={`confirm-${name}`}
+                        >
+                            {title}
+                        </Button>
+                    </>
+                }
+            >
                 <form
+                    id={formId}
                     onSubmit={(event) => {
                         event.preventDefault();
                         form.post(url, { preserveScroll: true, onSuccess: () => setOpen(false) });
                     }}
                     className="grid gap-3"
                 >
-                    <Field
+                    {/* A refusal keeps the dialog open, so it is said here, where the person is
+                        looking. */}
+                    {errors.form ? <FormError /> : null}
+
+                    <Input
                         id={`reason-${name}`}
                         label={t('access::customers.reason')}
-                        hint={t('access::customers.reason_hint')}
+                        helper={t('access::customers.reason_hint')}
                         error={form.errors.reason}
-                    >
-                        <Input
-                            id={`reason-${name}`}
-                            required
-                            autoFocus
-                            value={form.data.reason}
-                            onChange={(event) => form.setData('reason', event.target.value)}
-                        />
-                    </Field>
-
-                    <div className="flex gap-2">
-                        <Button
-                            type="submit"
-                            size="sm"
-                            disabled={form.processing}
-                            data-test={`confirm-${name}`}
-                        >
-                            {t('access::customers.confirm')}
-                        </Button>
-
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                                setOpen(false);
-                                form.reset();
-                            }}
-                        >
-                            {t('access::customers.cancel')}
-                        </Button>
-                    </div>
+                        required
+                        autoFocus
+                        value={form.data.reason}
+                        onChange={(event) => form.setData('reason', event.target.value)}
+                    />
                 </form>
-            ) : (
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-fit"
-                    data-test={name}
-                    onClick={() => setOpen(true)}
-                >
-                    {title}
-                </Button>
-            )}
+            </Modal>
         </section>
     );
 }

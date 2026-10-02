@@ -7,9 +7,9 @@ declare(strict_types=1);
 return [
     'module' => 'Companies',
 
-    'bank.iban' => 'IBAN companies transfer to',
-    'bank.name' => 'Bank name',
-    'bank.holder' => 'Account holder',
+    'bank.iban' => 'IBAN Companies Transfer To',
+    'bank.name' => 'Bank Name',
+    'bank.holder' => 'Account Holder',
 
     // The section's line (BankTransferLine, amendment 13(c)): bank transfer is on only while all
     // three are filled in.
@@ -17,9 +17,9 @@ return [
     'bank_transfer.off' => 'Bank transfer: temporarily off — fill in all three to turn it on.',
 
     // The company form's minimums, in characters (FormRules, amendment 16(b)).
-    'form.name_min' => 'Company name: fewest characters',
-    'form.cr_number_min' => 'CR number: fewest characters',
-    'form.tax_number_min' => 'Tax number: fewest characters',
-    'form.company_type_other_min' => '"Other" type in words: fewest characters',
-    'form.answer_min' => 'A written answer: fewest characters',
+    'form.name_min' => 'Company Name: Fewest Characters',
+    'form.cr_number_min' => 'CR Number: Fewest Characters',
+    'form.tax_number_min' => 'Tax Number: Fewest Characters',
+    'form.company_type_other_min' => '"Other" Type in Words: Fewest Characters',
+    'form.answer_min' => 'A Written Answer: Fewest Characters',
 ];

@@ -19,9 +19,13 @@ import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/
 | arrive: a form that saved comes back to `?tab=security` rather than dropping them at the top of the
 | first tab, which reads as the page having forgotten what they were doing.
 |
-| The tabs are three buttons and a panel rather than a component with a state machine. They carry
-| the roles a screen reader needs, arrow keys are not intercepted, and there is nothing to render
+| The tabs are buttons and a panel rather than a component with a state machine. They carry the
+| roles a screen reader needs, arrow keys are not intercepted, and there is nothing to render
 | differently on the server than in the browser.
+|
+| They wear Geist's Tabs look (frontend.md 1.10) - a Title Case noun each, the open one underlined
+| in ink - but stay buttons, not Geist's link tabs: the account arrives in one payload, and pressing
+| a heading should not cost a round trip (the shop's account works the same way, AccountLayout).
 */
 
 type Props = AccountPage;
@@ -46,7 +50,7 @@ export default function Account(account: Props) {
     return (
         <AdminLayout title={t('access::account.title')} subtitle={t('access::account.subtitle')}>
             <div className="grid gap-6">
-                <div role="tablist" className="flex flex-wrap gap-1 border-b border-line">
+                <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-line">
                     {TABS.map((tab) => (
                         <button
                             key={tab}
@@ -58,9 +62,9 @@ export default function Account(account: Props) {
                             data-test={`tab-${tab}`}
                             onClick={() => setOpen(tab)}
                             className={[
-                                '-mb-px border-b-2 px-4 py-2 text-sm transition-colors',
+                                '-mb-px inline-flex h-10 shrink-0 items-center border-b-2 px-3 text-label-14 transition-colors',
                                 open === tab
-                                    ? 'border-brand text-brand'
+                                    ? 'border-ink text-ink'
                                     : 'border-transparent text-ink-muted hover:text-ink',
                             ].join(' ')}
                         >

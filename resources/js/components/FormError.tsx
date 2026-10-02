@@ -1,8 +1,10 @@
 import { usePage } from '@inertiajs/react';
+import { Note } from '@/components/geist';
 import type { SharedProps } from '@/types/page';
 
 /*
-| The business error of a form, said where the person is looking (frontend.md §1.7, §2.1).
+| The business error of a form, said where the person is looking (frontend.md §1.7, §2.1), as
+| Geist's error Note (1.10).
 |
 | A refusal that belongs to no single field - a wrong password, a spent code, a number already in
 | use - arrives as `errors.form`. It shows **twice**: as a toast, which fades, and here, at the top
@@ -25,11 +27,8 @@ export function FormError() {
     }
 
     return (
-        <p
-            role="alert"
-            className="rounded-md border border-bad/30 bg-bad-soft px-4 py-3 text-sm text-bad"
-        >
+        <Note variant="error" alert data-test="form-error">
             {message}
-        </p>
+        </Note>
     );
 }

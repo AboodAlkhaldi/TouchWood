@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, router } from '@inertiajs/react';
+import { Search } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Badge, ButtonLink, EmptyState, Entity, Input, Select, type BadgeVariant } from '@/components/geist';
 import { isolate } from '@/lib/bidi';
 import { useTranslator } from '@/lib/t';
 import type { StaffListPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
@@ -20,9 +20,17 @@ import type { StaffListPage } from '@/types/generated/Modules/Access/Presentatio
 |
 | In place of the design's "last seen": the status and the day they joined or were invited. Nothing
 | is written on an ordinary page load just to fill a column.
+|
+| Each person is a Geist Entity row (frontend.md 1.10): who they are on the start side, their status
+| as a Badge - green for active, amber while invited, red otherwise - and the date on the end side.
 */
 
 type Props = StaffListPage;
+
+const STATUS_BADGE: Record<string, BadgeVariant> = {
+    ACTIVE: 'green-subtle',
+    INVITED: 'amber-subtle',
+};
 
 export default function Index({ groups, total, search, status, statuses, mayInvite }: Props) {
     const t = useTranslator();
@@ -40,13 +48,7 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
         <AdminLayout
             title={t('access::staff.title')}
             subtitle={t('access::staff.subtitle')}
-            action={
-                mayInvite ? (
-                    <Button asChild>
-                        <Link href="/admin/staff/invite">{t('access::staff.invite')}</Link>
-                    </Button>
-                ) : undefined
-            }
+            action={mayInvite ? <ButtonLink href="/admin/staff/invite">{t('access::staff.invite')}</ButtonLink> : undefined}
         >
             <div className="grid gap-6">
                 <div className="flex flex-wrap items-end gap-3">
@@ -55,127 +57,115 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
                             event.preventDefault();
                             filter({});
                         }}
-                        className="grid gap-1.5"
                     >
-                        <label htmlFor="search" className="text-xs text-ink-muted">
-                            {t('access::staff.search')}
-                        </label>
                         <Input
                             id="search"
+                            label={t('access::staff.search')}
+                            prefix={<Search aria-hidden="true" className="size-4" />}
                             value={term}
                             onChange={(event) => setTerm(event.target.value)}
                             className="w-64"
                         />
                     </form>
 
-                    <div className="grid gap-1.5">
-                        <label htmlFor="status" className="text-xs text-ink-muted">
-                            {t('access::staff.status')}
-                        </label>
-                        <select
-                            id="status"
-                            value={status ?? ''}
-                            onChange={(event) => filter({ status: event.target.value })}
-                            className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink"
-                        >
-                            <option value="">{t('access::staff.all_statuses')}</option>
-                            {statuses.map((each) => (
-                                <option key={each} value={each}>
-                                    {t(`access::staff.status_${each.toLowerCase()}`)}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <Select
+                        id="status"
+                        label={t('access::staff.status')}
+                        value={status ?? ''}
+                        onChange={(event) => filter({ status: event.target.value })}
+                    >
+                        <option value="">{t('access::staff.all_statuses')}</option>
+                        {statuses.map((each) => (
+                            <option key={each} value={each}>
+                                {t(`access::staff.status_${each.toLowerCase()}`)}
+                            </option>
+                        ))}
+                    </Select>
 
-                    <span className="tw-figure ms-auto text-xs text-ink-muted">
+                    <span className="tw-figure ms-auto text-label-13 text-ink-muted">
                         {t('access::staff.total', { count: total })}
                     </span>
                 </div>
 
                 {groups.length === 0 ? (
-                    <p className="rounded-lg border border-line bg-surface p-6 text-sm text-ink-muted">
-                        {t('access::staff.no_staff')}
-                    </p>
+                    <EmptyState title={t('access::staff.none_title')} description={t('access::staff.no_staff')} />
                 ) : (
                     groups.map((group) => (
                         <section key={group.key} className="grid gap-2">
-                            <h2 className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
-                                {group.label}
-                            </h2>
+                            <h2 className="text-heading-14 text-ink-muted">{group.label}</h2>
 
-                            <ul className="grid gap-2">
+                            {/* The list Geist's EntityList draws, kept a list so a screen reader
+                                counts the people in it. */}
+                            <ul className="material-base divide-y divide-line">
                                 {group.staff.map((person) => (
-                                    /* The whole card opens the person, not just their name, by
+                                    /* The whole row opens the person, not just their name, by
                                        stretching the link that is already there over it (owner,
-                                       2026-09-24). Same as a role's card, and for the same
+                                       2026-09-24). Same as a role's row, and for the same
                                        reason: a link inside a link is invalid. */
-                                    <li
-                                        key={person.id}
-                                        className="relative flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3 shadow-card transition-colors hover:border-brand"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            {/* Initials, not a picture: resolving one per row would
-                                                be a call to Platform per person. The picture is on
-                                                their own screen (owner, 2026-09-23). */}
-                                            <span className="grid size-9 shrink-0 place-items-center rounded-pill bg-brand-soft text-sm text-brand">
-                                                {person.name.slice(0, 1)}
-                                            </span>
-
-                                            <div className="grid gap-0.5">
+                                    <li key={person.id} className="relative transition-colors hover:bg-surface-sunken">
+                                        <Entity
+                                            leading={
+                                                /* Initials, not a picture: resolving one per row
+                                                   would be a call to Platform per person. The
+                                                   picture is on their own screen (owner,
+                                                   2026-09-23). */
+                                                <span
+                                                    aria-hidden="true"
+                                                    className="grid size-8 place-items-center rounded-full bg-brand-soft text-label-14 text-brand"
+                                                >
+                                                    {person.name.slice(0, 1)}
+                                                </span>
+                                            }
+                                            title={
                                                 <Link
                                                     href={`/admin/staff/${person.id}`}
-                                                    className="text-sm font-medium text-ink after:absolute after:inset-0 hover:text-brand"
+                                                    className="text-ink after:absolute after:inset-0 hover:text-brand"
                                                 >
                                                     {person.name}
                                                 </Link>
-                                                {/* A dot joins two things; with nothing before it,
-                                                    it only looks like something went missing. An
-                                                    admin with no role yet has neither.
+                                            }
+                                            description={
+                                                /* A dot joins two things; with nothing before it,
+                                                   it only looks like something went missing. An
+                                                   admin with no role yet has neither.
 
-                                                    The address is isolated, because an Arabic line
-                                                    with a Latin address in it is reordered by the
-                                                    browser otherwise: the pieces stay put but the
-                                                    line reads inside out (found by looking at it,
-                                                    2026-09-24). */}
-                                                <span className="text-xs text-ink-muted">
-                                                    {person.roleName === '' ? null : person.roleName}
-                                                    {person.roleName !== '' && person.email ? ' · ' : ''}
-                                                    {person.email ? (
-                                                        <bdi dir="ltr">{person.email}</bdi>
-                                                    ) : null}
-                                                </span>
-                                            </div>
-                                        </div>
+                                                   The address is isolated, because an Arabic line
+                                                   with a Latin address in it is reordered by the
+                                                   browser otherwise: the pieces stay put but the
+                                                   line reads inside out (found by looking at it,
+                                                   2026-09-24). */
+                                                person.roleName === '' && !person.email ? undefined : (
+                                                    <>
+                                                        {person.roleName === '' ? null : person.roleName}
+                                                        {person.roleName !== '' && person.email ? ' · ' : ''}
+                                                        {person.email ? <bdi dir="ltr">{person.email}</bdi> : null}
+                                                    </>
+                                                )
+                                            }
+                                            actions={
+                                                person.status ? (
+                                                    <>
+                                                        <Badge variant={STATUS_BADGE[person.status] ?? 'red-subtle'}>
+                                                            {t(`access::staff.status_${person.status.toLowerCase()}`)}
+                                                        </Badge>
 
-                                        {person.status ? (
-                                            <div className="flex items-center gap-3 text-xs">
-                                                <span
-                                                    className={[
-                                                        'rounded-pill px-2 py-0.5',
-                                                        person.status === 'ACTIVE'
-                                                            ? 'bg-good-soft text-good'
-                                                            : person.status === 'INVITED'
-                                                              ? 'bg-warn-soft text-warn'
-                                                              : 'bg-bad-soft text-bad',
-                                                    ].join(' ')}
-                                                >
-                                                    {t(`access::staff.status_${person.status.toLowerCase()}`)}
-                                                </span>
-
-                                                {/* Isolated, or an Arabic line turns 2026-09-24
-                                                    around and shows 24-09-2026 (see lib/bidi). */}
-                                                {person.since ? (
-                                                    <span className="text-ink-muted">
-                                                        {t(
-                                                            person.status === 'INVITED'
-                                                                ? 'access::staff.invited_on'
-                                                                : 'access::staff.since',
-                                                            { date: isolate(person.since.slice(0, 10)) },
-                                                        )}
-                                                    </span>
-                                                ) : null}
-                                            </div>
-                                        ) : null}
+                                                        {/* Isolated, or an Arabic line turns
+                                                            2026-09-24 around and shows 24-09-2026
+                                                            (see lib/bidi). */}
+                                                        {person.since ? (
+                                                            <span className="text-copy-13 text-ink-muted">
+                                                                {t(
+                                                                    person.status === 'INVITED'
+                                                                        ? 'access::staff.invited_on'
+                                                                        : 'access::staff.since',
+                                                                    { date: isolate(person.since.slice(0, 10)) },
+                                                                )}
+                                                            </span>
+                                                        ) : null}
+                                                    </>
+                                                ) : undefined
+                                            }
+                                        />
                                     </li>
                                 ))}
                             </ul>

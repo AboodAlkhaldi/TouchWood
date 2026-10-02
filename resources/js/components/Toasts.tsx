@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
+import { CheckCircle2, XCircle } from 'lucide-react';
 import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
@@ -67,22 +68,25 @@ export function Toasts() {
         return null;
     }
 
+    // Geist's toast (frontend.md 1.10): a raised surface in the page's own ink, the tone carried by
+    // its icon, stacked at the bottom end of the screen - centred on a phone, where there is no end.
     return (
         <div
-            className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex flex-col items-center gap-2 px-4"
+            className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6"
             aria-live="polite"
         >
             {showing.map((toast) => (
                 <div
                     key={toast.id}
-                    className={[
-                        'pointer-events-auto max-w-md rounded-lg px-4 py-3 text-sm shadow-pop',
-                        toast.tone === 'good'
-                            ? 'bg-good-soft text-good border border-good/30'
-                            : 'bg-bad-soft text-bad border border-bad/30',
-                    ].join(' ')}
+                    data-test={`toast-${toast.tone}`}
+                    className="material-menu pointer-events-auto flex w-full max-w-sm items-start gap-2.5 px-4 py-3 text-copy-14 text-ink"
                 >
-                    {toast.message}
+                    {toast.tone === 'good' ? (
+                        <CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-good" />
+                    ) : (
+                        <XCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-bad" />
+                    )}
+                    <span>{toast.message}</span>
                 </div>
             ))}
         </div>

@@ -19,18 +19,22 @@ type MenuProps = {
     trigger: ReactNode;
     children: ReactNode;
     align?: 'start' | 'end';
+    side?: 'top' | 'bottom';
+    /** As wide as the trigger - for a trigger that is itself a wide row, like the sidebar's person block. */
+    matchTriggerWidth?: boolean;
 };
 
-export function Menu({ trigger, children, align = 'end' }: MenuProps) {
+export function Menu({ trigger, children, align = 'end', side = 'bottom', matchTriggerWidth = false }: MenuProps) {
     return (
         <MenuPrimitive.Root modal={false}>
             <MenuPrimitive.Trigger asChild>{trigger}</MenuPrimitive.Trigger>
             <MenuPrimitive.Portal>
                 <MenuPrimitive.Content
                     align={align}
+                    side={side}
                     sideOffset={6}
                     collisionPadding={8}
-                    className="material-menu z-50 min-w-48 p-1.5 text-label-14 text-ink"
+                    className={cx('material-menu z-50 min-w-48 p-1.5 text-label-14 text-ink', matchTriggerWidth && 'w-(--radix-dropdown-menu-trigger-width) min-w-56')}
                 >
                     {children}
                 </MenuPrimitive.Content>

@@ -13,6 +13,10 @@ import { cx } from './cx';
 |
 | A placeholder is an example value ("name@example.com"), never an instruction. Nothing here wraps a
 | field in a Tooltip: help goes in the helper text or on a sibling icon button.
+|
+| Every field may shrink (min-w-0): an <input> has a natural width of about twenty characters, and
+| two fields side by side in a narrow card pushed the second one out of it (found in the Geist move,
+| 2026-10-02, on the registration form).
 */
 
 export type FieldSize = 'small' | 'medium' | 'large';
@@ -20,7 +24,7 @@ export type FieldSize = 'small' | 'medium' | 'large';
 const HEIGHT: Record<FieldSize, string> = { small: 'h-8', medium: 'h-9', large: 'h-10' };
 
 const BOX =
-    'w-full rounded-[var(--tw-radius)] bg-surface text-copy-14 text-ink shadow-[0_0_0_1px_var(--tw-line-strong)] transition-shadow placeholder:text-ink-subtle hover:shadow-[0_0_0_1px_var(--tw-ink-subtle)] focus-within:shadow-[0_0_0_1px_var(--tw-brand)]';
+    'w-full min-w-0 rounded-[var(--tw-radius)] bg-surface text-copy-14 text-ink shadow-[0_0_0_1px_var(--tw-line-strong)] transition-shadow placeholder:text-ink-subtle hover:shadow-[0_0_0_1px_var(--tw-ink-subtle)] focus-within:shadow-[0_0_0_1px_var(--tw-brand)]';
 const BOX_ERROR = 'shadow-[0_0_0_1px_var(--tw-bad)] hover:shadow-[0_0_0_1px_var(--tw-bad)]';
 const BOX_OFF = 'cursor-not-allowed bg-surface-sunken text-ink-subtle hover:shadow-[0_0_0_1px_var(--tw-line-strong)]';
 
@@ -77,7 +81,7 @@ export function Input({ id, label, helper, error, size = 'medium', className, pr
     const invalid = error !== undefined && error !== '';
 
     return (
-        <div className={cx('grid gap-1.5', className)}>
+        <div className={cx('grid min-w-0 gap-1.5', className)}>
             {label === undefined ? null : <Label htmlFor={id}>{label}</Label>}
             <div className={cx('flex items-center gap-2 px-3', HEIGHT[size], BOX, invalid && BOX_ERROR, disabled && BOX_OFF)}>
                 {prefix === undefined ? null : <span className="flex shrink-0 items-center text-ink-muted">{prefix}</span>}
@@ -102,7 +106,7 @@ export function Textarea({ id, label, helper, error, className, rows = 4, disabl
     const invalid = error !== undefined && error !== '';
 
     return (
-        <div className={cx('grid gap-1.5', className)}>
+        <div className={cx('grid min-w-0 gap-1.5', className)}>
             {label === undefined ? null : <Label htmlFor={id}>{label}</Label>}
             <textarea
                 {...rest}
@@ -128,9 +132,9 @@ export function Select({ id, label, helper, error, size = 'medium', className, p
     const invalid = error !== undefined && error !== '';
 
     return (
-        <div className={cx('grid gap-1.5', className)}>
+        <div className={cx('grid min-w-0 gap-1.5', className)}>
             {label === undefined ? null : <Label htmlFor={id}>{label}</Label>}
-            <div className="relative">
+            <div className="relative min-w-0">
                 <select
                     {...rest}
                     id={id}
