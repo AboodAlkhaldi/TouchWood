@@ -123,10 +123,12 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
 
         $found = [];
 
-        foreach ($this->db->table(self::TABLE)->whereIn('id', $ids)->get(['id', 'first_name', 'last_name', 'is_super_admin']) as $row) {
+        // Whether they are **or ever were** a Super Admin (amendment 57): revoking the power must not
+        // unmask everything they did while they held it.
+        foreach ($this->db->table(self::TABLE)->whereIn('id', $ids)->get(['id', 'first_name', 'last_name', 'was_super_admin']) as $row) {
             $found[(string) $row->id] = [
                 'name' => trim($row->first_name.' '.$row->last_name),
-                'superAdmin' => (bool) $row->is_super_admin,
+                'superAdmin' => (bool) $row->was_super_admin,
             ];
         }
 
@@ -232,6 +234,7 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             'locale' => $staff->language()->value,
             'status' => $staff->status()->value,
             'is_super_admin' => $staff->isSuperAdmin(),
+            'was_super_admin' => $staff->wasSuperAdmin(),
             'invited_by' => $staff->invitedBy(),
             'session_version' => $staff->sessionVersion(),
         ];
@@ -259,6 +262,7 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             (bool) $row->is_super_admin,
             $row->invited_by === null ? null : (string) $row->invited_by,
             (int) $row->session_version,
+            (bool) $row->was_super_admin,
         );
     }
 }

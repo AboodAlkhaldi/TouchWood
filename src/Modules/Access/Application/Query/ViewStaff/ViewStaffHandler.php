@@ -37,7 +37,8 @@ final readonly class ViewStaffHandler
         $row = $stores === [] ? null : $this->staff->member($query->staffId);
         $unlimited = $this->rules->author()->isUnlimited();
 
-        if ($row === null || ($row['is_super_admin'] === true && ! $unlimited)) {
+        // A Super Admin — or a former one (amendment 57) — is no staff member at all to anyone else.
+        if ($row === null || ($row['was_super_admin'] === true && ! $unlimited)) {
             throw new StaffNotFound($query->staffId);
         }
 

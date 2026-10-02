@@ -35,5 +35,10 @@ final readonly class StaffSummary
         public ?string $joinedAt,
         /** A Super Admin, only ever shown to another Super Admin, in a section of their own (amendment 54). */
         public bool $isSuperAdmin = false,
+        /**
+         * A Super Admin whose power was revoked: still hidden from everyone but a Super Admin, and
+         * listed to them in the Super Admins section, marked as former (amendment 57).
+         */
+        public bool $formerSuperAdmin = false,
     ) {}
 }
