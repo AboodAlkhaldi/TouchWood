@@ -34,5 +34,11 @@ final class StaffRow extends Data
         public ?string $status,
         /** The day they joined, or were invited. Null for the same reason as the status. */
         public ?string $since,
+        /**
+         * In the Super Admins section only: a Super Admin whose power was revoked, shown with the
+         * badge `access::staff.former_super_admin` ("Former Super Admin") and their status, which
+         * is CANCELLED — a revoke closes the account (amendments 45(b), 57).
+         */
+        public bool $formerSuperAdmin = false,
     ) {}
 }

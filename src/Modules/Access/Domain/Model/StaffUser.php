@@ -43,7 +43,12 @@ final class StaffUser
         private bool $superAdmin,
         private readonly ?string $invitedBy,
         private int $sessionVersion = 0,
-    ) {}
+        private bool $wasSuperAdmin = false,
+    ) {
+        // Once a Super Admin, always hidden as one (access.md amendment 57): a Super Admin is, by
+        // definition, someone who has been one.
+        $this->wasSuperAdmin = $wasSuperAdmin || $superAdmin;
+    }
 
     /**
      * The whole profile is required at invitation; the phone is verified when the invitation is
@@ -73,8 +78,9 @@ final class StaffUser
         bool $superAdmin,
         ?string $invitedBy,
         int $sessionVersion = 0,
+        bool $wasSuperAdmin = false,
     ): self {
-        return new self($id, $email, $passwordHash, $profile, $phone, $phoneVerifiedAt, $avatarMediaId, $language, $status, $superAdmin, $invitedBy, $sessionVersion);
+        return new self($id, $email, $passwordHash, $profile, $phone, $phoneVerifiedAt, $avatarMediaId, $language, $status, $superAdmin, $invitedBy, $sessionVersion, $wasSuperAdmin);
     }
 
     /**
@@ -243,16 +249,30 @@ final class StaffUser
     {
         if (! $this->superAdmin) {
             $this->superAdmin = true;
+            $this->wasSuperAdmin = true;
             $this->markChanged('is_super_admin');
         }
     }
 
+    /**
+     * The power goes; the mark that they had it stays (amendment 57), so a former Super Admin is
+     * never named, listed or counted to admins and staff afterwards either.
+     */
     public function revokeSuperAdmin(): void
     {
         if ($this->superAdmin) {
             $this->superAdmin = false;
             $this->markChanged('is_super_admin');
         }
+    }
+
+    /**
+     * Whether they are or ever were a Super Admin: the mark is set when one is made or promoted and
+     * never cleared (access.md amendment 57). Everything that hides a Super Admin reads this.
+     */
+    public function wasSuperAdmin(): bool
+    {
+        return $this->wasSuperAdmin;
     }
 
     /**

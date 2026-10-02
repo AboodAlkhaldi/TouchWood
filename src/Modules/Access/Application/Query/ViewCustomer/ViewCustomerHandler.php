@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Modules\Access\Application\Query\ViewCustomer;
 
 use Modules\Access\Application\Address\AddressMapper;
+use Modules\Access\Application\Address\OpenStores;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\CustomerReader;
 use Modules\Access\Application\Query\ListCustomers\CustomerSummary;
 use Modules\Access\Domain\Exception\CustomerNotFound;
+use Modules\Access\Domain\Model\Address;
 use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Enums\AccountType;
@@ -30,6 +32,7 @@ final readonly class ViewCustomerHandler
         private CustomerReader $customers,
         private AddressRepository $addresses,
         private AddressMapper $mapper,
+        private OpenStores $openStores,
     ) {}
 
     /**
@@ -89,13 +92,21 @@ final readonly class ViewCustomerHandler
     }
 
     /**
-     * Their address book in every store, in one query, so support can answer "where is my order
-     * going?" whichever country it was ordered from.
+     * Their address book in every store that is on, in one query, so support can answer "where is
+     * my order going?" whichever country it was ordered from. An off store's addresses are hidden,
+     * not deleted (amendment 53), here as in every other read (amendment 57).
      *
      * @return list<AddressDto>
      */
     private function addressesOf(string $customerId): array
     {
-        return $this->mapper->toDtos($this->addresses->forCustomer($customerId));
+        $on = [];
+
+        return $this->mapper->toDtos(array_values(array_filter(
+            $this->addresses->forCustomer($customerId),
+            function (Address $address) use (&$on): bool {
+                return $on[$address->storeId()] ??= $this->openStores->isOn($address->storeId());
+            },
+        )));
     }
 }
