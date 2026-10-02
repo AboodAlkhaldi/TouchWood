@@ -13,6 +13,8 @@ return [
     'super_admins' => 'Super Admins',
     // How a Super Admin is named to anyone but another Super Admin (amendment 54).
     'system_administrator' => 'System administrator',
+    // A revoked Super Admin, in the Super Admins section (amendment 57).
+    'former_super_admin' => 'Former Super Admin',
     'admins' => 'Admins',
     'centralized' => 'Centralized',
     'search' => 'Search by name or email',

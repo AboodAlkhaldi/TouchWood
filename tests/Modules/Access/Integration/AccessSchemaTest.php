@@ -269,6 +269,7 @@ it('refuses rows that break the rules, even when they skip the domain', function
         }
     }, 'staff_trusted_browsers_token_hash_unique'],
     'born on 1 January 1900' => [fn () => updateStaffRow(['date_of_birth' => '1900-01-01']), 'staff_users_date_of_birth_range'],
+    'a Super Admin not marked as one' => [fn () => DB::table('access.staff_users')->where('id', Fx::staff(superAdmin: true))->update(['was_super_admin' => false]), 'staff_users_super_admin_marked'],
     'one email twice, in another case' => [fn () => updateStaffRow(['email' => strtoupper(emailOfRow(Fx::staff()))]), 'staff_users_email_unique'],
     'one phone twice' => [fn () => updateStaffRow(['phone' => DB::table('access.staff_users')->where('id', Fx::staff())->value('phone')]), 'staff_users_phone_unique'],
     'deleting a photo used as an avatar' => [function () {
@@ -345,4 +346,30 @@ it('moves an exception\'s stores with it when its permission is renamed', functi
     DB::table('access.role_assignment_exceptions')->where('staff_user_id', $staffId)->update(['permission' => 'sales.order.update']);
 
     expect(DB::table('access.role_assignment_exception_stores')->where('staff_user_id', $staffId)->value('permission'))->toBe('sales.order.update');
+});
+
+it('marks every Super Admin, current or revoked, when the mark is added, from the flag and the audit log (amendment 57)', function () {
+    $current = Fx::staff(superAdmin: true);
+    $revoked = Fx::formerSuperAdmin();
+    $ordinary = Fx::staff();
+    // An ordinary invitation records the flag as false: that is not a Super Admin.
+    DB::table('platform.audit_entries')->insert([
+        'occurred_at' => now(), 'recorded_at' => now(), 'source' => 'WEB', 'store_id' => null,
+        'actor_type' => 'STAFF', 'actor_id' => $current, 'action' => 'access.staff_user.invited',
+        'subject_type' => 'access.staff_user', 'subject_id' => $ordinary,
+        'changes' => json_encode(['is_super_admin' => [null, false]], JSON_THROW_ON_ERROR), 'ip_address' => null,
+    ]);
+    $migration = require base_path('src/Modules/Access/Infrastructure/Persistence/Migrations/2026_10_02_150000_add_access_staff_users_was_super_admin.php');
+
+    // Back to the table as it was before the mark existed.
+    $migration->down();
+    expect(DB::getSchemaBuilder()->hasColumn('access.staff_users', 'was_super_admin'))->toBeFalse();
+
+    $migration->up();
+    $marked = static fn (string $id): bool => (bool) DB::table('access.staff_users')->where('id', $id)->value('was_super_admin');
+
+    expect($marked($current))->toBeTrue()
+        ->and($marked($revoked))->toBeTrue()
+        ->and(DB::table('access.staff_users')->where('id', $revoked)->value('is_super_admin'))->toBeFalse()
+        ->and($marked($ordinary))->toBeFalse();
 });

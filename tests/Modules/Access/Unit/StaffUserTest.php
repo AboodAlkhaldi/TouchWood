@@ -219,4 +219,21 @@ describe('a staff member\'s life', function () {
 
         expect($staff->pullChanges())->toBe(['profile', 'locale', 'is_super_admin']);
     });
+
+    it('marks a Super Admin as one for good: made or promoted sets the mark, revoking keeps it (amendment 57)', function () {
+        $staff = invitedStaff();
+        $made = StaffUser::invite('s2', EmailAddress::of('owner@example.test'), staffProfile(), PhoneNumber::of('+966501234568'), Language::Arabic, null, superAdmin: true);
+        $loaded = StaffUser::reconstitute('s3', EmailAddress::of('third@example.test'), null, staffProfile(), null, null, null, Language::Arabic, StaffStatus::Active, true, null);
+
+        expect($staff->wasSuperAdmin())->toBeFalse()
+            ->and($made->wasSuperAdmin())->toBeTrue()
+            // A row that says Super Admin is marked whatever the mark column said (and the CHECK).
+            ->and($loaded->wasSuperAdmin())->toBeTrue();
+
+        $staff->promoteToSuperAdmin();
+        $staff->revokeSuperAdmin();
+
+        expect($staff->isSuperAdmin())->toBeFalse()
+            ->and($staff->wasSuperAdmin())->toBeTrue();
+    });
 });

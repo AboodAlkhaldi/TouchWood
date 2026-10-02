@@ -57,6 +57,8 @@ final readonly class EnableStaffHandler
             }
 
             $target = $this->staff->byId($command->staffId) ?? throw new StaffNotFound($command->staffId);
+            // Before "no role" says the account is there (amendment 57).
+            $this->rules->requireVisible($this->rules->author(), $target);
             $assignment = $this->assignments->byStaff($target->id());
 
             if ($assignment === null && ! $target->isSuperAdmin()) {

@@ -78,7 +78,8 @@ final readonly class CustomerPages
             addresses: array_map(
                 static fn (string $storeId): CustomerAddressGroup => new CustomerAddressGroup(
                     $storeId,
-                    $stores[$storeId] ?? $storeId,
+                    // Only stores that are on are named; a store's id is never shown in its place.
+                    $stores[$storeId] ?? '',
                     $byStore[$storeId] ?? [],
                 ),
                 array_keys($byStore),
@@ -108,7 +109,8 @@ final readonly class CustomerPages
             phoneVerified: $customer->phoneVerified,
             deletionScheduledFor: $customer->deletionScheduledFor,
             anonymized: $customer->anonymized,
-            homeStore: $stores[$customer->homeStoreId] ?? $customer->homeStoreId,
+            // Nothing for a home store that is off (amendments 53, 57): never its raw id.
+            homeStore: $stores[$customer->homeStoreId] ?? '',
             registeredAt: $customer->registeredAt,
         );
     }

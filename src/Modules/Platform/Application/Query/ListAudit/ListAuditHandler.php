@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Application\Query\ListAudit;
 
+use Illuminate\Support\Str;
 use Modules\Platform\Application\Audit\MediaAudit;
 use Modules\Platform\Application\Media\PrivateMedia;
 use Modules\Platform\Public\Contracts\StaffNames;
@@ -51,16 +52,19 @@ final readonly class ListAuditHandler
         $perPage = min(max($query->perPage, 1), self::PER_PAGE);
 
         // Filtering by a Super Admin's id, for a reader who may not know they exist, is answered as
-        // for an id that never existed: no entries (access.md amendment 54).
-        if ($query->actorId !== null && ($this->staffNames->forReader([$query->actorId])[strtolower($query->actorId)] ?? null)?->hidden === true) {
-            return new AuditPage([], null, null);
+        // for an id that never existed (access.md amendments 54, 57) — by running the same query for
+        // an id that never existed, so not even the time it takes tells the two apart.
+        $actorId = $query->actorId;
+
+        if ($actorId !== null && ($this->staffNames->forReader([$actorId])[strtolower($actorId)] ?? null)?->hidden === true) {
+            $actorId = strtolower((string) Str::ulid());
         }
 
         // One more than a page, to learn whether there is another page without counting the log.
         $rows = $this->reader->page($stores, new ListAudit(
             $query->from,
             $query->until,
-            $query->actorId,
+            $actorId,
             $query->action,
             $query->source,
             $query->cursorOccurredAt,

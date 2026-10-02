@@ -20,6 +20,7 @@ use Modules\Access\Application\Query\ViewStaff\ViewStaffHandler;
 use Modules\Access\Domain\Exception\CustomerNotFound;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\Access\Presentation\Http\Resource\StaffPages;
 use Modules\Access\Public\Enums\StaffStatus;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -171,6 +172,34 @@ describe('the staff a staff member sees (amendments 9 and 43)', function () {
             ->and($seen[$colleague]->email)->not->toBeNull()
             ->and($seen[$colleague]->status)->toBe(StaffStatus::Active)
             ->and($seen[$colleague]->isAdmin)->toBeFalse();
+    });
+
+    it('leaves an admin\'s profile out of their page, not only off the screen (amendments 43(a), 57)', function () {
+        $adminId = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa'], RoleLevel::Admin);
+        $colleague = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa'], RoleLevel::Staff);
+        DB::table('access.staff_users')->whereIn('id', [$adminId, $colleague])->update(['address' => 'King Fahd Road']);
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']));
+
+        $admin = app(StaffPages::class)->member($adminId);
+        $seen = app(StaffPages::class)->member($colleague);
+
+        expect($admin->name)->not->toBeEmpty()
+            ->and($admin->roleName)->not->toBeEmpty()
+            ->and($admin->dateOfBirth)->toBeNull()
+            ->and($admin->country)->toBeNull()
+            ->and($admin->address)->toBeNull()
+            ->and($admin->communicationLocale)->toBeNull()
+            ->and($admin->avatarUrl)->toBeNull()
+            // An ordinary colleague's page is whole.
+            ->and($seen->dateOfBirth)->toBe('1990-01-01')
+            ->and($seen->country)->toBe('SA')
+            ->and($seen->address)->toBe('King Fahd Road')
+            ->and($seen->communicationLocale)->toBe('en');
+
+        // A Super Admin reads the admin's page whole.
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(app(StaffPages::class)->member($adminId)->dateOfBirth)->toBe('1990-01-01');
     });
 
     it('answers no filter about what it hides: an admin is neither filtered by status nor found by email', function () {

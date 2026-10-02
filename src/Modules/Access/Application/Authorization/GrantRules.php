@@ -11,6 +11,7 @@ use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\PermissionEscalation;
 use Modules\Access\Domain\Exception\ReservedPermission;
 use Modules\Access\Domain\Exception\StaffNotEditable;
+use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Exception\UnknownPermission;
 use Modules\Access\Domain\Model\RoleAssignment;
 use Modules\Access\Domain\Model\StaffUser;
@@ -190,9 +191,16 @@ final readonly class GrantRules
     /**
      * Not a Super Admin (only the console manages them), not yourself, and not an admin unless you
      * are a Super Admin.
+     *
+     * To an author who is not unlimited, a Super Admin — or a former one — is answered exactly as an
+     * id that never existed (amendments 54, 57): "not editable" would confirm one is there.
+     *
+     * @throws StaffNotFound|StaffNotEditable
      */
     public function requireManageable(Author $author, StaffUser $target, ?StaffGrants $targetGrants): void
     {
+        $this->requireVisible($author, $target);
+
         if ($target->isSuperAdmin()) {
             throw new StaffNotEditable($target->id(), StaffNotEditable::SUPER_ADMIN);
         }
@@ -203,6 +211,20 @@ final readonly class GrantRules
 
         if ($targetGrants?->isAdmin() === true && ! $author->isUnlimited()) {
             throw new StaffNotEditable($target->id(), StaffNotEditable::ADMIN);
+        }
+    }
+
+    /**
+     * A Super Admin, or a former one, is nobody to an author who is not unlimited (amendments 54,
+     * 57). A handler that says anything about the account before requireManageable() — that it has
+     * no role, say — asks this first, so the answer is the one an unknown id gets.
+     *
+     * @throws StaffNotFound
+     */
+    public function requireVisible(Author $author, StaffUser $target): void
+    {
+        if ($target->wasSuperAdmin() && ! $author->isUnlimited()) {
+            throw new StaffNotFound($target->id());
         }
     }
 
@@ -335,7 +357,7 @@ final readonly class GrantRules
 
         try {
             $this->requireManageable($author, $target, $targetGrants);
-        } catch (StaffNotEditable) {
+        } catch (StaffNotEditable|StaffNotFound) {
             return false;
         }
 

@@ -34,8 +34,11 @@ final class StaffMemberPage extends Data
         /**
          * Their communication language: the one emails and codes go in (amendment 16). Never named
          * `locale`, which is the panel's displayed language (owner, 2026-09-27).
+         *
+         * Null, with the date of birth, country, address and picture, for an admin this reader may
+         * see as a name and a role only (amendments 43(a), 57): the row is then left out.
          */
-        public string $communicationLocale,
+        public ?string $communicationLocale,
         public ?string $dateOfBirth,
         public ?string $country,
         public ?string $address,
