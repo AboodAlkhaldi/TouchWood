@@ -16,6 +16,7 @@ import {
 import { useTranslator } from '@/lib/t';
 import type { FailedJobRowData, FailedJobsPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 import { DeleteConfirmation, triesLabel } from './DeleteConfirmation';
+import { Time } from '@/components/geist/Time';
 
 /*
 | E7 - the failed jobs (frontend.md §3.5, platform.md §3), in Geist's parts (1.10).
@@ -87,8 +88,10 @@ function Row({ job, onDelete }: { job: FailedJobRowData; onDelete: () => void })
                 </Link>
             </TableCell>
             {/* The cell keeps Geist's colour; the quieter type is on what it holds. */}
-            <TableCell dir="ltr">
-                <span className="tw-figure text-copy-13 text-ink-muted">{job.failedAt.slice(0, 19).replace('T', ' ')}</span>
+            <TableCell>
+                <span className="text-copy-13 text-ink-muted">
+                    <Time value={job.failedAt} />
+                </span>
             </TableCell>
             <TableCell>
                 <span className="tw-figure text-copy-13 text-ink-muted">{triesLabel(job.triesAllowed, t)}</span>

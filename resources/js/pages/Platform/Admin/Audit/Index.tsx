@@ -5,6 +5,7 @@ import { FormError } from '@/components/FormError';
 import { Button, EmptyState, Input, LoadMoreButton, Select } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type { AuditLogPage, AuditRow } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
+import { Time } from '@/components/geist/Time';
 
 /*
 | E6 - the audit log (frontend.md §3.5), in Geist's parts (1.10).
@@ -174,8 +175,8 @@ function Entry({ entry }: { entry: AuditRow }) {
         <li className="material-base grid gap-2 px-4 py-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-label-14 text-ink">{entry.actionLabel}</span>
-                <span className="tw-figure text-copy-13 text-ink-muted" dir="ltr">
-                    {entry.occurredAt.slice(0, 19).replace('T', ' ')}
+                <span className="text-copy-13 text-ink-muted">
+                    <Time value={entry.occurredAt} />
                 </span>
             </div>
 

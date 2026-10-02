@@ -92,6 +92,8 @@ final readonly class ShareStorefront
             'symbol' => $current->currencySymbol($locale),
             'available' => $available,
             'languages' => $this->languages->all(),
+            // Every moment on a shop page is written in the store's own time (owner, 2026-10-02).
+            'timezone' => $current->timezone,
         ];
     }
 }

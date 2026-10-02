@@ -23,21 +23,56 @@ import type { SharedProps } from '@/types/page';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** The zone the person is working in: the panel's current store, else the shop's. */
+/**
+ * The zone the person is working in: the panel's current store, else the shop's. A page with
+ * neither - the panel's sign-in - writes UTC, and says so beside the time.
+ */
 export function useStoreZone(): string {
-    const props = usePage<SharedProps>().props as SharedProps & {
-        store?: { current?: { timezone?: string } | null } | null;
-        shop?: { timezone?: string } | null;
-    };
+    const { store, shop } = usePage<SharedProps>().props;
 
-    return props.store?.current?.timezone ?? props.shop?.timezone ?? 'UTC';
+    return store?.current?.timezone ?? shop?.timezone ?? 'UTC';
+}
+
+/**
+ * The same writing for a moment inside a sentence ("Trusted until :date"), where a component
+ * cannot go: the full moment, or its date alone, in the store's zone and the page's digits.
+ */
+export function useMoments(): { full: (iso: string) => string; date: (iso: string) => string } {
+    const { locale } = usePage<SharedProps>().props;
+    const zone = useStoreZone();
+
+    return { full: (iso) => formatMoment(iso, zone, locale), date: (iso) => formatDate(iso, zone, locale) };
 }
 
 function language(locale: string): string {
     return locale === 'ar' ? 'ar' : 'en';
 }
 
+/**
+ * A moment as the server sent it, read as the instant it is. The server and the database keep UTC
+ * (owner), and their strings come in several shapes - ATOM ("…T05:00:00+00:00"), PostgreSQL's own
+ * ("… 05:00:00.123456+00"), a bare date - so each is brought to one JavaScript can read; one with
+ * no offset at all is UTC.
+ */
+function instant(value: string): Date {
+    let text = value.trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+        return new Date(`${text}T00:00:00Z`);
+    }
+
+    text = text.replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1').replace(/([+-]\d{2})$/, '$1:00').replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+
+    return new Date(/(Z|[+-]\d{2}:\d{2})$/.test(text) ? text : `${text}Z`);
+}
+
 export function formatMoment(iso: string, zone: string, locale: string): string {
+    const at = instant(iso);
+
+    if (Number.isNaN(at.getTime())) {
+        return iso;
+    }
+
     return new Intl.DateTimeFormat(language(locale), {
         year: 'numeric',
         month: 'short',
@@ -46,18 +81,22 @@ export function formatMoment(iso: string, zone: string, locale: string): string 
         minute: '2-digit',
         timeZone: zone,
         timeZoneName: 'short',
-    }).format(new Date(iso));
+    }).format(at);
 }
 
-function formatDate(iso: string, zone: string, locale: string): string {
-    return new Intl.DateTimeFormat(language(locale), { year: 'numeric', month: 'short', day: 'numeric', timeZone: zone }).format(new Date(iso));
+export function formatDate(iso: string, zone: string, locale: string): string {
+    const at = instant(iso);
+
+    return Number.isNaN(at.getTime())
+        ? iso
+        : new Intl.DateTimeFormat(language(locale), { year: 'numeric', month: 'short', day: 'numeric', timeZone: zone }).format(at);
 }
 
 function formatRelative(iso: string, locale: string, now: number): string | null {
-    const then = new Date(iso).getTime();
+    const then = instant(iso).getTime();
     const diff = then - now;
 
-    if (Math.abs(diff) >= WEEK_MS) {
+    if (Number.isNaN(then) || Math.abs(diff) >= WEEK_MS) {
         return null;
     }
 

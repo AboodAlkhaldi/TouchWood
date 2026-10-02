@@ -19,6 +19,7 @@ import {
 } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type { MediaFileRow, MediaPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
+import { Time } from '@/components/geist/Time';
 
 /*
 | E5 - the media library (frontend.md §3.5), in Geist's parts (1.10).
@@ -76,8 +77,8 @@ export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpda
                                     <span className="truncate text-label-13 text-ink" title={file.filename}>
                                         {file.filename}
                                     </span>
-                                    <span className="tw-figure text-copy-13 text-ink-muted" dir="ltr">
-                                        {file.uploadedAt.slice(0, 10)}
+                                    <span className="text-copy-13 text-ink-muted">
+                                        <Time value={file.uploadedAt} />
                                     </span>
                                     <span className="text-copy-13 text-ink-muted">{usedIn(file, t)}</span>
                                 </li>
@@ -238,8 +239,10 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
                 <TableCell>
                     <span className="text-copy-13 text-ink-muted">{usedIn(file, t)}</span>
                 </TableCell>
-                <TableCell dir="ltr">
-                    <span className="tw-figure text-copy-13 text-ink-muted">{file.uploadedAt.slice(0, 10)}</span>
+                <TableCell>
+                    <span className="text-copy-13 text-ink-muted">
+                        <Time value={file.uploadedAt} />
+                    </span>
                 </TableCell>
                 <TableCell>
                     <div className="flex flex-wrap justify-end gap-2">

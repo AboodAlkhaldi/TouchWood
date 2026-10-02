@@ -6,6 +6,7 @@ import { Badge, ButtonLink, EmptyState, Entity, Input, Select, type BadgeVariant
 import { isolate } from '@/lib/bidi';
 import { useTranslator } from '@/lib/t';
 import type { StaffListPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
+import { useMoments } from '@/components/geist/Time';
 
 /*
 | C1 - the staff list (frontend.md §3.3).
@@ -34,6 +35,7 @@ const STATUS_BADGE: Record<string, BadgeVariant> = {
 
 export default function Index({ groups, total, search, status, statuses, mayInvite }: Props) {
     const t = useTranslator();
+    const moments = useMoments();
     const [term, setTerm] = useState(search ?? '');
 
     function filter(next: { search?: string; status?: string }) {
@@ -158,7 +160,7 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
                                                                     person.status === 'INVITED'
                                                                         ? 'access::staff.invited_on'
                                                                         : 'access::staff.since',
-                                                                    { date: isolate(person.since.slice(0, 10)) },
+                                                                    { date: isolate(moments.date(person.since)) },
                                                                 )}
                                                             </span>
                                                         ) : null}

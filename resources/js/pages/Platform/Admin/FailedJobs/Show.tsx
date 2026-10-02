@@ -6,6 +6,7 @@ import { Button, Description } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type { FailedJobPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 import { DeleteConfirmation, triesLabel } from './DeleteConfirmation';
+import { Time } from '@/components/geist/Time';
 
 /*
 | E7 - one failed job, with its whole error (frontend.md §3.5), in Geist's parts (1.10).
@@ -54,9 +55,7 @@ export default function Show({ job, error }: FailedJobPage) {
                             {
                                 title: t('platform::admin_failed_jobs.failed_at'),
                                 content: (
-                                    <span className="tw-figure" dir="ltr">
-                                        {job.failedAt.slice(0, 19).replace('T', ' ')}
-                                    </span>
+                                    <Time value={job.failedAt} mode="absolute" />
                                 ),
                             },
                             {

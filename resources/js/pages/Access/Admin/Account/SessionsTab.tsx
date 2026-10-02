@@ -19,6 +19,7 @@ import type {
     StaffSessionRow,
     TrustedBrowserRow,
 } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
+import { Time, useMoments } from '@/components/geist/Time';
 
 /*
 | B5 - where I am signed in, and which browsers skip my code (owner, 2026-09-26), in Geist (1.10).
@@ -150,7 +151,7 @@ function Session({ session }: { session: StaffSessionRow }) {
 
                 {/* A date inside an Arabic sentence is reordered without an isolate. */}
                 <p className="tw-figure text-copy-13 text-ink-muted">
-                    {t('access::account.session_seen')}: {isolate(session.lastActivity.slice(0, 16).replace('T', ' '))}
+                    {t('access::account.session_seen')}: <Time value={session.lastActivity} />
                 </p>
 
                 {session.isCurrent ? (
@@ -178,13 +179,14 @@ function Session({ session }: { session: StaffSessionRow }) {
 
 function Trusted({ browser }: { browser: TrustedBrowserRow }) {
     const t = useTranslator();
+    const moments = useMoments();
     const forget = usePost(`/admin/account/trusted-browsers/${browser.id}`);
 
     return (
         <Entity
             title={
                 <span className="tw-figure">
-                    {t('access::account.trusted_until', { date: isolate(browser.expiresAt.slice(0, 10)) })}
+                    {t('access::account.trusted_until', { date: isolate(moments.date(browser.expiresAt)) })}
                 </span>
             }
             actions={

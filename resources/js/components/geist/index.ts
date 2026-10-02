@@ -12,5 +12,5 @@ export { DestructiveActionModal, Modal, ModalCancel, Sheet } from './Modal';
 export { LoadingDots, Spinner } from './Spinner';
 export { LoadMoreButton, Pager, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './Table';
 export { Tabs, type TabItem } from './Tabs';
-export { formatMoment, Time, useStoreZone } from './Time';
+export { formatDate, formatMoment, Time, useMoments, useStoreZone } from './Time';
 export { Tooltip } from './Tooltip';
