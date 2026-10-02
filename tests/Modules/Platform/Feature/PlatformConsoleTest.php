@@ -69,10 +69,16 @@ it('creates a complete store', function () {
         ->expectsOutput('Store sa created.')
         ->assertSuccessful();
 
-    expect(app(PlatformApi::class)->storeByCode('sa')?->timezone)->toBe('Asia/Riyadh');
+    // Created off (owner, 2026-10-01): complete, and not yet a place anybody can reach.
+    $store = app(PlatformApi::class)->allStores()[0] ?? throw new LogicException('No store was created.');
+
+    expect($store->code)->toBe('sa')
+        ->and($store->timezone)->toBe('Asia/Riyadh')
+        ->and($store->isActive)->toBeFalse()
+        ->and(app(PlatformApi::class)->storeByCode('sa'))->toBeNull();
     assertDatabaseHas('platform.audit_entries', [
         'action' => 'platform.store.created',
-        'store_id' => app(PlatformApi::class)->storeByCode('sa')?->id,
+        'store_id' => $store->id,
         'actor_type' => 'SYSTEM',
     ]);
 });

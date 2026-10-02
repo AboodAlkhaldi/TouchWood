@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Domain\Model;
 
+use Modules\Platform\Domain\Exception\BaseStoreAlwaysActive;
 use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
 use Modules\Platform\Domain\ValueObject\CountryCode;
 use Modules\Platform\Domain\ValueObject\CurrencyCode;
@@ -16,8 +17,13 @@ use Shared\Domain\ValueObject\StoreId;
 /**
  * A country storefront (Platform spec §1.1).
  *
- * Created complete, never deleted, and with no lifecycle: code, country and currency are
- * fixed at creation, so this class offers no way to change them.
+ * Created complete and never deleted: code, country and currency are fixed at creation, so this
+ * class offers no way to change them.
+ *
+ * **On or off** (owner, 2026-10-01; §1.1, §4.2): a store is created off, and only a Super Admin turns
+ * it either way. **The base store** (owner, 2026-10-02) is always on: turning it off is refused here,
+ * before the database's CHECK would refuse it. The base mark itself is set by the migration and the
+ * seed and never moves, so this class offers no way to set or clear it.
  */
 final class Store
 {
@@ -35,10 +41,20 @@ final class Store
         private TaxRate $taxRate,
         private Timezone $timezone,
         private int $position,
+        private bool $active,
+        private readonly bool $base,
     ) {
         self::assertPosition($position);
+
+        if ($base && ! $active) {
+            throw new BaseStoreAlwaysActive($code->value);
+        }
     }
 
+    /**
+     * A new store is created **off** (owner, 2026-10-01): a Super Admin turns it on once its
+     * products, prices and stock are in. It is never the base store.
+     */
     public static function create(
         StoreId $id,
         StoreCode $code,
@@ -49,7 +65,7 @@ final class Store
         Timezone $timezone,
         int $position,
     ): self {
-        return new self($id, $code, $name, $country, $currency, $taxRate, $timezone, $position);
+        return new self($id, $code, $name, $country, $currency, $taxRate, $timezone, $position, active: false, base: false);
     }
 
     /**
@@ -64,8 +80,48 @@ final class Store
         TaxRate $taxRate,
         Timezone $timezone,
         int $position,
+        bool $active,
+        bool $base,
     ): self {
-        return new self($id, $code, $name, $country, $currency, $taxRate, $timezone, $position);
+        return new self($id, $code, $name, $country, $currency, $taxRate, $timezone, $position, $active, $base);
+    }
+
+    /**
+     * Turns the store on. A store already on is left as it is, and nothing is recorded as changed.
+     */
+    public function activate(): void
+    {
+        if (! $this->active) {
+            $this->active = true;
+            $this->markChanged('is_active');
+        }
+    }
+
+    /**
+     * Turns the store off. The base store is always on (owner, 2026-10-02).
+     *
+     * @throws BaseStoreAlwaysActive
+     */
+    public function deactivate(): void
+    {
+        if ($this->base) {
+            throw new BaseStoreAlwaysActive($this->code->value);
+        }
+
+        if ($this->active) {
+            $this->active = false;
+            $this->markChanged('is_active');
+        }
+    }
+
+    public function isActive(): bool
+    {
+        return $this->active;
+    }
+
+    public function isBase(): bool
+    {
+        return $this->base;
     }
 
     public function rename(TranslatedText $name): void

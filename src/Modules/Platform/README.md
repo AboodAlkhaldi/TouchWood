@@ -4,7 +4,8 @@
 
 Platform answers the questions every module asks before it can do anything:
 
-- **Which stores exist?** `sa`, `eg`, `ae`: their currency, tax rate and timezone.
+- **Which stores exist?** `sa`, `eg`, `ae`: their currency, tax rate and timezone, and whether each
+  is on.
 - **Which store am I in?** Store context for every request, job and command.
 - **What is this value set to?** Settings that modules declare and staff change without a deploy.
 - **Where is this file?** Uploaded images and documents, and their resized copies.
@@ -129,12 +130,30 @@ only console commands, seeders and queued jobs act as the system. Platform's own
 permissions are listed in `PlatformPermissions`, each with its reserved flag and whether it is
 store-free (media) or per store.
 
-### Stores have no lifecycle
+### Stores: created complete, then switched on
 
-A store is created complete in one command (`platform:store:create` needs every attribute), is
-never deleted, and has no status. Code, country and currency can never change: an attempt to
-change them is refused with `StoreAttributeImmutable`, not silently ignored. Tax rates are basis
-points (`1500` = 15%), so no float or DECIMAL is ever involved.
+A store is created complete in one command (`platform:store:create` needs every attribute) and is
+never deleted. Code, country and currency can never change: an attempt to change them is refused
+with `StoreAttributeImmutable`, not silently ignored. Tax rates are basis points (`1500` = 15%), so
+no float or DECIMAL is ever involved.
+
+**On or off** (owner, 2026-10-01; spec §1.1, §1.6, §9.6). A store is created **off**; only a Super
+Admin turns it either way (`ActivateStore` / `DeactivateStore`, the reserved, store-free
+`platform.store.switch`), from the stores screen. **The base store** carries the `is_base` mark —
+KSA, set by the migration and the seed, never by code — and is always on: `Store::deactivate()`
+refuses it (`BaseStoreAlwaysActive`) before the `stores_base_always_active` CHECK would, and the
+partial unique index `stores_one_base` keeps the mark on one row. Nothing is deleted when a store
+goes off; every read that offers a store filters on the switch:
+
+- `PlatformApi::stores()` lists on stores only, and `storeByCode()` answers an off store's code as
+  an unknown one — so `/{off}/...` is a 404 like any unknown code, the country page and both store
+  switchers leave it out, and a cookie naming it counts as no store.
+- `PlatformApi::store($id)` answers any store, with `isActive`, so history names it as it was;
+  `allStores()` lists every store for setup work that must reach a store before it opens.
+- The stores screen lists an off store only to whoever holds `platform.store.switch`, and
+  `UpdateStore` answers an off store as not found to anyone else.
+- Work already under way continues: store context, the store scope and queued jobs never look at
+  the switch.
 
 A currency's `exponent` is locked once any store uses it: changing it would silently
 reinterpret every stored amount. A price shows the currency's sign, or its letters when the sign

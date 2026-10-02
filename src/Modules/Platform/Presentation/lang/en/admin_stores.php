@@ -32,4 +32,18 @@ return [
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.
     'none_title' => 'No Stores to Show',
+
+    // The on/off switch (owner, 2026-10-01): a Super Admin only.
+    'status' => 'Status',
+    'on' => 'On',
+    'off' => 'Off',
+    'base' => 'Base Store',
+    'base_hint' => 'The base store is always on.',
+    'off_hint' => 'Visitors and staff can\'t see this store until it\'s turned on.',
+    'turn_on' => 'Turn Store On',
+    'turn_off' => 'Turn Store Off',
+    // A dialog's description is a statement, never a question (Geist's Modal).
+    'turn_off_confirm' => 'The :name shop closes and the store disappears from every store list. Nothing is deleted.',
+    'turned_on' => 'Store turned on',
+    'turned_off' => 'Store turned off',
 ];

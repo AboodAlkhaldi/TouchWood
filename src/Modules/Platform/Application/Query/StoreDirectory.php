@@ -10,11 +10,14 @@ use Modules\Platform\Public\Dto\StoreDto;
 /**
  * The read side for stores and currencies. Every storefront request resolves its store here,
  * so the implementation must answer from the cache and never load stores and currencies again.
+ *
+ * It answers about **every** store, on and off (platform.md §1.6): Platform's own screens decide
+ * who sees an off store, and PlatformApi decides what other modules are told.
  */
 interface StoreDirectory
 {
     /**
-     * @return list<StoreDto> ordered by position, then code
+     * @return list<StoreDto> every store, on and off, ordered by position, then code
      */
     public function stores(): array;
 

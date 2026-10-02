@@ -29,7 +29,8 @@ final readonly class GiveEveryStoreAnAddressFormat
     {
         $written = 0;
 
-        foreach ($this->platform->stores() as $store) {
+        // Every store, on and off: a store is set up before it opens (platform.md §1.1).
+        foreach ($this->platform->allStores() as $store) {
             if ($this->formats->existsFor($store->id)) {
                 continue;
             }

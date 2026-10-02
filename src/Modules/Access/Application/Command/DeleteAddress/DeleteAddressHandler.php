@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Application\Command\DeleteAddress;
 
 use Illuminate\Database\Connection;
+use Modules\Access\Application\Address\OpenStores;
 use Modules\Access\Application\Audit\AddressAudit;
 use Modules\Access\Application\Customer\CurrentCustomer;
 use Modules\Access\Application\Permission\AccessPermissions;
@@ -32,6 +33,7 @@ final readonly class DeleteAddressHandler
         private AddressRepository $addresses,
         private PlatformApi $platform,
         private Connection $db,
+        private OpenStores $openStores,
     ) {}
 
     /**
@@ -47,7 +49,8 @@ final readonly class DeleteAddressHandler
             $this->customers->byId($customerId) ?? throw new CustomerNotFound($customerId);
             $address = $this->addresses->byId($command->addressId);
 
-            if ($address === null || ! $address->belongsTo($customerId)) {
+            // An address in an off store is hidden, not deleted (amendment 53): it answers as none.
+            if ($address === null || ! $address->belongsTo($customerId) || ! $this->openStores->isOn($address->storeId())) {
                 throw new AddressNotFound($command->addressId);
             }
 

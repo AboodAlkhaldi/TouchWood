@@ -23,17 +23,37 @@ use Shared\Domain\ValueObject\StoreId;
 interface PlatformApi
 {
     /**
+     * Any store, **on or off**: a store is named in history as it was, so an id taken from an order,
+     * an address or an audit entry always finds its store. Look at `isActive` before treating it as
+     * a place anybody may work or shop in (platform.md §1.6).
+     *
      * Served from the cache: once warm, it reads only the cache table (two tiny queries), never the
      * store tables.
      */
     public function store(StoreId $id): ?StoreDto;
 
+    /**
+     * An **on** store by its code; an off store's code answers null, exactly as an unknown code does
+     * (platform.md §1.6). A code arrives from outside — a URL, a cookie, a form — and an off store is
+     * as if it were never there.
+     */
     public function storeByCode(string $code): ?StoreDto;
 
     /**
-     * @return list<StoreDto> ordered by position
+     * The stores that are **on**, ordered by position: the ones a chooser, a switcher or a store
+     * picker may offer (platform.md §1.6).
+     *
+     * @return list<StoreDto>
      */
     public function stores(): array;
+
+    /**
+     * Every store, **on and off**, ordered by position — for work that must reach a store before it
+     * opens (a new store's starting data) and for history. Never for a list a person chooses from.
+     *
+     * @return list<StoreDto>
+     */
+    public function allStores(): array;
 
     public function currency(string $code): ?CurrencyDto;
 

@@ -58,6 +58,8 @@ final class CreateStoreCommand extends Command
         }
 
         $this->info("Store {$this->argument('code')} created.");
+        // Created off (owner, 2026-10-01): said here, so nobody looks for it in the shop yet.
+        $this->line('It stays off until a Super Admin turns it on in the stores screen.');
 
         return self::SUCCESS;
     }

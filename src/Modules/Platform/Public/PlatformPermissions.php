@@ -19,6 +19,14 @@ final class PlatformPermissions
 
     public const string STORE_VIEW = 'platform.store.view';
 
+    /**
+     * Turning a store on or off (owner, 2026-10-01; platform.md §3). Reserved: only a Super Admin
+     * holds it. Store-free: the switch decides whether a store is a place to work in at all, so no
+     * store's own staff can be the ones to hold it. Holding it is also what lets the stores screen
+     * show an off store (§1.6).
+     */
+    public const string STORE_SWITCH = 'platform.store.switch';
+
     public const string CURRENCY_CREATE = 'platform.currency.create';
 
     public const string CURRENCY_UPDATE = 'platform.currency.update';
@@ -77,6 +85,7 @@ final class PlatformPermissions
             self::STORE_CREATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::STORE_UPDATE => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],
             self::STORE_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],
+            self::STORE_SWITCH => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::CURRENCY_CREATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::CURRENCY_UPDATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::SETTINGS_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],

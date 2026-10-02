@@ -494,6 +494,11 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   flag to the newest address left.
 - **Every field is personal data**: the audit log records that an address was added, changed or
   deleted, and never a street or a recipient's name.
+- **An off store's addresses are hidden, not deleted** (amendments 53 and 55): `OpenStores` asks
+  Platform whether the store is on, and `AccessApi::address()` / `addresses()`, deleting and making
+  one the default all answer as if it were not there; saving one in an off store is refused as an
+  unknown store, and the address book lists on stores only (Platform's `stores()`). Turned back on,
+  everything is as it was.
 
 ### Deleting an account: locked now, anonymized in fourteen days
 

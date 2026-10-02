@@ -42,10 +42,18 @@ final readonly class PlatformApiImpl implements PlatformApi
 
     public function storeByCode(string $code): ?StoreDto
     {
-        return $this->directory->storeByCode($code);
+        $store = $this->directory->storeByCode($code);
+
+        // An off store's code answers as an unknown one (platform.md §1.6).
+        return $store !== null && $store->isActive ? $store : null;
     }
 
     public function stores(): array
+    {
+        return array_values(array_filter($this->directory->stores(), static fn (StoreDto $store): bool => $store->isActive));
+    }
+
+    public function allStores(): array
     {
         return $this->directory->stores();
     }
