@@ -182,10 +182,13 @@ function Entry({ entry }: { entry: AuditRow }) {
 
             <p className="text-copy-13 text-ink-muted">
                 {t(`platform::admin_audit.actor_${entry.actorType.toLowerCase()}`)}
+                {/* Named by Access (amendment 54): a Super Admin reads "System administrator", with
+                    no id, to anyone but another Super Admin; the id stays for everyone else. */}
+                {entry.actorName === null ? null : <span> {entry.actorName}</span>}
                 {entry.actorId === null ? null : <span className="tw-figure"> {entry.actorId}</span>}
 
-                {entry.requestedById === null ? null : (
-                    <> · {t('platform::admin_audit.requested_by', { who: entry.requestedById })}</>
+                {entry.requestedById === null && entry.requestedByName === null ? null : (
+                    <> · {t('platform::admin_audit.requested_by', { who: entry.requestedByName ?? entry.requestedById ?? '' })}</>
                 )}
 
                 {' · '}
@@ -212,6 +215,7 @@ function Entry({ entry }: { entry: AuditRow }) {
                 ) : (
                     <>
                         <span className="tw-figure">{entry.subjectType}</span>{' '}
+                        {entry.subjectName === null ? null : <span>{entry.subjectName} </span>}
                         <span className="tw-figure">{entry.subjectId}</span>
                     </>
                 )}
