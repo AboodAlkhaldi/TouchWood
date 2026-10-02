@@ -11,12 +11,21 @@ import type { SharedProps } from '@/types/page';
 
 /**
  * Replaces :name placeholders the way Laravel does, so one key reads the same on both sides.
+ *
+ * In one pass, the longest placeholder first, as Laravel's strtr() does: replaced one after another,
+ * ":to" ate the start of ":total" and the pager read "1–5 of 5tal" (B2B step 7, the first screen to
+ * use the pager).
  */
 function fill(line: string, values: Record<string, string | number>): string {
-    return Object.entries(values).reduce(
-        (text, [key, value]) => text.replaceAll(`:${key}`, String(value)),
-        line,
-    );
+    const keys = Object.keys(values).sort((a, b) => b.length - a.length);
+
+    if (keys.length === 0) {
+        return line;
+    }
+
+    const pattern = new RegExp(keys.map((key) => `:${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).join('|'), 'g');
+
+    return line.replace(pattern, (found) => String(values[found.slice(1)]));
 }
 
 /**
