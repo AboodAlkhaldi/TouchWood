@@ -16,7 +16,7 @@ declare(strict_types=1);
 
 return [
     'groups' => [
-        'admin' => ['access.staff.*', 'admin.*', 'platform.admin.*'],
+        'admin' => ['access.staff.*', 'admin.*', 'platform.admin.*', 'b2b.admin.*'],
         // platform.choose-store is brand.com with no store in the address - the storefront's front
         // door, so it belongs to the shop's list, not the panel's.
         'storefront' => ['storefront.*', 'platform.choose-store'],

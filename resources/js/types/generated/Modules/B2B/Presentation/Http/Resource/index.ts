@@ -119,3 +119,127 @@ address: string | null,
 addressId: string | null,
 note: string | null,
 };
+export type StaffAnswerData = {
+requestId: string,
+label: string | null,
+text: string | null,
+isFile: boolean,
+mediaId: string | null,
+fileName: string | null,
+};
+export type StaffApplicationData = {
+id: string,
+reference: string,
+state: string,
+values: CompanyValuesData,
+submittedAt: string | null,
+decidedAt: string | null,
+decidedBy: string | null,
+decisionReason: string | null,
+documents: StaffFileData[],
+flags: CompanyFlagData[],
+requests: CompanyRequestData[],
+answers: StaffAnswerData[],
+typeDeactivatedSinceSent: boolean,
+};
+export type StaffCompanyActionsData = {
+mayOpenDocuments: boolean,
+mayApprove: boolean,
+approveRefusal: string | null,
+mayReject: boolean,
+maySuspend: boolean,
+mayReinstate: boolean,
+mayCorrectType: boolean,
+mayChooseOther: boolean,
+};
+export type StaffCompanyData = {
+id: string,
+values: CompanyValuesData,
+status: string,
+statusBeforeSuspension: string | null,
+statusReason: string | null,
+statusChangedAt: string | null,
+statusChangedBy: string | null,
+storeName: string,
+mayOrder: boolean,
+};
+export type StaffCompanyListPage = {
+companies: StaffCompanyRowData[],
+total: number,
+page: number,
+perPage: number,
+search: string | null,
+status: string | null,
+storeId: string | null,
+statuses: string[],
+stores: StaffStoreOptionData[],
+};
+export type StaffCompanyPage = {
+company: StaffCompanyData,
+holder: StaffHolderData | null,
+applications: StaffApplicationData[],
+actions: StaffCompanyActionsData,
+typeChoices: StaffTypeChoiceData[],
+};
+export type StaffCompanyRowData = {
+id: string,
+name: string,
+status: string,
+storeName: string,
+waitingSince: string | null,
+typeDeactivatedSinceSent: boolean,
+statusChangedAt: string | null,
+};
+export type StaffFileData = {
+documentTypeId: string,
+documentTypeNameAr: string | null,
+documentTypeNameEn: string | null,
+mediaId: string | null,
+fileName: string,
+uploadedAt: string,
+};
+export type StaffHolderData = {
+name: string,
+email: string,
+phone: string | null,
+emailVerified: boolean,
+phoneVerified: boolean,
+anonymized: boolean,
+};
+export type StaffStoreOptionData = {
+id: string,
+name: string,
+};
+export type StaffTypeActionsData = {
+mayReadCompanyTypes: boolean,
+mayReadDocumentTypes: boolean,
+mayAdd: boolean,
+mayUpdate: boolean,
+mayDeactivate: boolean,
+mayDeactivateIntoNew: boolean,
+mayTransfer: boolean,
+mayMarkReviewed: boolean,
+};
+export type StaffTypeChoiceData = {
+id: string,
+nameAr: string,
+nameEn: string,
+active: boolean,
+};
+export type StaffTypeListPage = {
+kind: string,
+storeName: string,
+copiedNotReviewed: boolean,
+types: StaffTypeRowData[],
+actions: StaffTypeActionsData,
+};
+export type StaffTypeRowData = {
+id: string,
+nameAr: string,
+nameEn: string,
+position: number,
+active: boolean,
+inactiveDisplay: string | null,
+required: boolean | null,
+holders: number | null,
+};
