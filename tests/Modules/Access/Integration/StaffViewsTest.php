@@ -248,14 +248,17 @@ describe('the staff a staff member sees (amendments 9 and 43)', function () {
             ->toThrow(StaffNotFound::class);
     });
 
-    it('shows a Super Admin everyone, in full', function () {
+    it('shows a Super Admin everyone, in full — the other Super Admins in a section of their own', function () {
         $otherSuperAdmin = Fx::staff(superAdmin: true, firstName: 'Other');
         $admin = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa'], RoleLevel::Admin);
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
         $seen = listedStaff();
+        $page = app(ListStaffHandler::class)->handle(new ListStaff);
 
-        expect($seen)->toHaveKey($otherSuperAdmin)
+        // Never among the admins: apart, in the Super Admins section (amendment 54).
+        expect($seen)->not->toHaveKey($otherSuperAdmin)
+            ->and(array_map(static fn (StaffSummary $person): string => $person->id, $page->superAdmins))->toContain($otherSuperAdmin)
             ->and($seen[$admin]->email)->not->toBeNull()
             ->and(app(ViewStaffHandler::class)->handle(new ViewStaff($otherSuperAdmin))->isAdmin)->toBeTrue();
     });

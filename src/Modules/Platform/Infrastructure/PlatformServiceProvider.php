@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Modules\Platform\Application\Audit\UnnamedStaff;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\FailedJobs\FailedJobs;
 use Modules\Platform\Application\FailedJobs\FailedJobsCount;
@@ -68,6 +69,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
+use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\PlatformPermissions;
 use Psr\Log\LoggerInterface;
@@ -151,6 +153,9 @@ final class PlatformServiceProvider extends ServiceProvider
         // The Authorizer is Access's (Access spec §2.5).
         $this->app->scoped(AuditLog::class, DatabaseAuditLog::class);
         $this->app->scoped(PlatformApi::class, PlatformApiImpl::class);
+        // Nobody named until the module that owns people binds its own (Access does, amendment 54).
+        // Scoped: who may be named depends on who is reading.
+        $this->app->scoped(StaffNames::class, UnnamedStaff::class);
 
         $this->app->singleton(MediaStorage::class, fn (Application $app): MediaStorage => new LaravelMediaStorage(
             $app->make(Filesystems::class),

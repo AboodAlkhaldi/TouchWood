@@ -9,6 +9,10 @@ return [
     'subtitle' => 'Who works here, and what each of them may do.',
 
     // C1.
+    // Shown only to a Super Admin, above the admins (amendment 54).
+    'super_admins' => 'Super Admins',
+    // How a Super Admin is named to anyone but another Super Admin (amendment 54).
+    'system_administrator' => 'System administrator',
     'admins' => 'Admins',
     'centralized' => 'Centralized',
     'search' => 'Search by name or email',

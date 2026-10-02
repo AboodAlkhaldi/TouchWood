@@ -111,6 +111,28 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             ->all();
     }
 
+    public function displayNames(array $ids): array
+    {
+        // Anything that is not a ULID is nobody's id here: an audit entry's subject may be a
+        // currency code or a setting's key.
+        $ids = array_values(array_unique(array_map(strtolower(...), array_filter($ids, Ulids::valid(...)))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ($this->db->table(self::TABLE)->whereIn('id', $ids)->get(['id', 'first_name', 'last_name', 'is_super_admin']) as $row) {
+            $found[(string) $row->id] = [
+                'name' => trim($row->first_name.' '.$row->last_name),
+                'superAdmin' => (bool) $row->is_super_admin,
+            ];
+        }
+
+        return $found;
+    }
+
     public function names(array $ids): array
     {
         $found = [];

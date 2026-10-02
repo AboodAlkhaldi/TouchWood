@@ -71,6 +71,7 @@ final readonly class StaffVisibility
             $open && $allStores,
             $open && ! $allStores ? $this->storesOf($row) : [],
             $open ? (string) $row['joined_at'] : null,
+            $superAdmin,
         );
     }
 

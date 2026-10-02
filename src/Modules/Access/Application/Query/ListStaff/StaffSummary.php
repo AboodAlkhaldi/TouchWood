@@ -33,5 +33,7 @@ final readonly class StaffSummary
         public bool $allStores,
         public array $storeIds,
         public ?string $joinedAt,
+        /** A Super Admin, only ever shown to another Super Admin, in a section of their own (amendment 54). */
+        public bool $isSuperAdmin = false,
     ) {}
 }

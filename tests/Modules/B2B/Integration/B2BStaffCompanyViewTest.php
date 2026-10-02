@@ -31,6 +31,7 @@ use Modules\B2B\Application\Query\ViewCompany\ViewCompanyHandler;
 use Modules\B2B\Domain\Exception\ApplicationFileNotFound;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
+use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationFlag;
 use Modules\B2B\Domain\ValueObject\ApplicationRequest;
 use Modules\B2B\Domain\ValueObject\FlaggedField;
@@ -369,4 +370,30 @@ describe('a company\'s papers (§1.4, §3.2, amendment 10(f))', function () {
             ->and($message($othersFile))->toBe($none)
             ->and(Fx::audits('b2b.company.document_opened'))->toBe(0);
     });
+});
+
+/*
+| Super Admins are invisible (access.md amendment 54): a decision a Super Admin took is named, to
+| anyone but another Super Admin, "System administrator", with no name.
+*/
+it('names a Super Admin who decided "System administrator" to staff, and by name to a Super Admin', function () {
+    $customerId = B2BFixtures::companyAccount();
+    [$company, $application] = B2BFixtures::sent($customerId);
+    $superAdmin = Fx::staff(superAdmin: true, firstName: 'Hidden');
+    $application->approve($superAdmin, null, CarbonImmutable::now());
+    app(ApplicationRepository::class)->update($application);
+    $company->approve($superAdmin, CarbonImmutable::now());
+    app(CompanyRepository::class)->update($company);
+    app()->setLocale('en');
+
+    staffCompanyViewReader();
+    $toStaff = staffCompanyViewOf($company->id());
+
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    $toSuperAdmin = staffCompanyViewOf($company->id());
+
+    expect($toStaff->statusChangedBy)->toBe('System administrator')
+        ->and($toStaff->applications[0]->decidedBy)->toBe('System administrator')
+        ->and($toSuperAdmin->statusChangedBy)->toBe('Hidden Member')
+        ->and($toSuperAdmin->applications[0]->decidedBy)->toBe('Hidden Member');
 });

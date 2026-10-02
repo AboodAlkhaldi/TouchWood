@@ -6,6 +6,7 @@ namespace Modules\Access\Public\Contracts;
 
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Dto\CustomerDto;
+use Modules\Access\Public\Dto\StaffDisplayNameDto;
 use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Dto\StaffNotificationPreferenceDto;
 
@@ -22,7 +23,23 @@ interface AccessApi
      */
     public function customerMayOrder(string $customerId): bool;
 
+    /**
+     * The staff member, for the work of other modules — sending them a notification, say. **Not for
+     * showing who did something**: a Super Admin's name must never reach an admin or staff member,
+     * so a name shown to a reader comes from staffDisplayNames() (amendment 54).
+     */
     public function staff(string $staffId): ?StaffDto;
+
+    /**
+     * How each staff member is named **to the person reading** (access.md §1.6, amendment 54) —
+     * "decided by", "invited by", the actor of an entry. A Super Admin, read by anyone but another
+     * Super Admin, is "System administrator", with no name and no id. Ids that are not a staff
+     * member's are left out.
+     *
+     * @param  list<string>  $staffIds
+     * @return array<string, StaffDisplayNameDto> keyed by id, lower-cased
+     */
+    public function staffDisplayNames(array $staffIds): array;
 
     /**
      * For Ops, when it sends staff notifications: every topic, with its email and panel toggles.

@@ -7,6 +7,7 @@ namespace Modules\Access\Application;
 use Modules\Access\Application\Address\AddressMapper;
 use Modules\Access\Application\Address\OpenStores;
 use Modules\Access\Application\Customer\CustomerMapper;
+use Modules\Access\Application\Staff\StaffDisplayNames;
 use Modules\Access\Application\Staff\StaffMapper;
 use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\Repository\CustomerRepository;
@@ -29,6 +30,7 @@ final readonly class AccessApiImpl implements AccessApi
         private AddressRepository $addresses,
         private AddressMapper $addressMapper,
         private OpenStores $openStores,
+        private StaffDisplayNames $displayNames,
     ) {}
 
     public function customer(string $customerId): ?CustomerDto
@@ -48,6 +50,11 @@ final readonly class AccessApiImpl implements AccessApi
         $staff = $this->staff->find($staffId);
 
         return $staff === null ? null : StaffMapper::toDto($staff);
+    }
+
+    public function staffDisplayNames(array $staffIds): array
+    {
+        return $this->displayNames->forReader($staffIds);
     }
 
     public function staffNotificationPreferences(string $staffId): array

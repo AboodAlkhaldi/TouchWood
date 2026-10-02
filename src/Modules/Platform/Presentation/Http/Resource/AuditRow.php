@@ -34,8 +34,12 @@ final class AuditRow extends Data
         public ?string $subjectId,
         public string $source,
         public string $actorType,
+        /**
+         * Null for a Super Admin read by anyone but another Super Admin: the name then says "System
+         * administrator", and the screen shows no id and no link (access.md amendment 54).
+         */
         public ?string $actorId,
-        /** Their name, when the actor is somebody this reader may be told about. */
+        /** A staff actor's name, as this reader may be shown it (amendment 54); null for anybody else. */
         public ?string $actorName,
         public ?string $requestedByType,
         public ?string $requestedById,
@@ -46,5 +50,12 @@ final class AuditRow extends Data
         public array $changes,
         /** A private file's entry, for a reader who may not see private files. */
         public bool $withheld,
+        /** Whoever queued the job, when a staff member did, named as for the actor (amendment 54). */
+        public ?string $requestedByName = null,
+        /**
+         * When the entry is about a staff member, their name as this reader may be shown it — "System
+         * administrator" for a Super Admin, whose id and changes are then left out (amendment 54).
+         */
+        public ?string $subjectName = null,
     ) {}
 }
