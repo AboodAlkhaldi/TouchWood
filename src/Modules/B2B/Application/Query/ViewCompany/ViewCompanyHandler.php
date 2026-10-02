@@ -58,7 +58,7 @@ final readonly class ViewCompanyHandler
         return $this->db->transaction(function () use ($found): StaffCompanyView {
             $this->applications->lockAccountForReading($found->customerId());
 
-            return $this->read($this->companies->forCustomer($found->customerId()) ?? throw new CompanyNotFound);
+            return $this->read($this->companies->find($found->id()) ?? throw new CompanyNotFound);
         });
     }
 

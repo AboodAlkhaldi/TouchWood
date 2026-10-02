@@ -65,12 +65,16 @@ final readonly class AttachApplicationDocumentHandler
         $account = $this->account->get(self::PERMISSION);
         $typeId = strtolower($command->documentTypeId);
 
-        $this->db->transaction(function () use ($account, $typeId, $command): void {
-            $draft = $this->drafts->forChange($account->id)->draft;
+        $store = $this->account->store($account);
+
+        $this->db->transaction(function () use ($account, $typeId, $command, $store): void {
+            $draft = $this->drafts->forChange($account->id, $store)->draft;
 
             $type = $this->documentTypes->find($typeId);
 
-            if ($type === null || strtolower($type->storeId()) !== strtolower($account->homeStoreId) || ! $type->isActive()) {
+            // The draft's own store's list (amendment 18): another store's type is as unknown as
+            // one that does not exist.
+            if ($type === null || strtolower($type->storeId()) !== $draft->storeId() || ! $type->isActive()) {
                 throw new DocumentTypeInactive($typeId);
             }
 

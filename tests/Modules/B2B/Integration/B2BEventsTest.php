@@ -96,7 +96,7 @@ function companyEventsStatusChanges(): array
 
 function companyEventsStatus(string $customerId): ?CompanyStatus
 {
-    return app(CompanyRepository::class)->forCustomer($customerId)?->status();
+    return app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->status();
 }
 
 function companyEventsReviewer(): void

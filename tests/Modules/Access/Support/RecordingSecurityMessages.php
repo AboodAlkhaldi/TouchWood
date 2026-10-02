@@ -41,6 +41,13 @@ final class RecordingSecurityMessages implements SecurityMessages
      */
     public array $companyDecisions = [];
 
+    /**
+     * The store each of those decisions named, in the same order (b2b.md amendment 19(c)).
+     *
+     * @var list<string|null>
+     */
+    public array $companyDecisionStores = [];
+
     private static ?self $installed = null;
 
     public static function install(): self
@@ -111,19 +118,22 @@ final class RecordingSecurityMessages implements SecurityMessages
         $this->codes[] = ['phone' => $phone, 'locale' => $locale, 'code' => $code, 'kind' => 'sign_in'];
     }
 
-    public function companyApproved(CustomerDto $customer, ?string $note): void
+    public function companyApproved(CustomerDto $customer, ?string $note, ?string $storeId = null): void
     {
         $this->companyDecisions[] = ['to' => $customer->email, 'decision' => 'approved', 'text' => $note, 'locale' => $customer->locale];
+        $this->companyDecisionStores[] = $storeId;
     }
 
-    public function companyRejected(CustomerDto $customer, string $reason): void
+    public function companyRejected(CustomerDto $customer, string $reason, ?string $storeId = null): void
     {
         $this->companyDecisions[] = ['to' => $customer->email, 'decision' => 'rejected', 'text' => $reason, 'locale' => $customer->locale];
+        $this->companyDecisionStores[] = $storeId;
     }
 
-    public function companySuspended(CustomerDto $customer, string $reason): void
+    public function companySuspended(CustomerDto $customer, string $reason, ?string $storeId = null): void
     {
         $this->companyDecisions[] = ['to' => $customer->email, 'decision' => 'suspended', 'text' => $reason, 'locale' => $customer->locale];
+        $this->companyDecisionStores[] = $storeId;
     }
 
     /**

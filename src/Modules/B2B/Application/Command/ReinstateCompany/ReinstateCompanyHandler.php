@@ -51,7 +51,7 @@ final readonly class ReinstateCompanyHandler
 
         $this->db->transaction(function () use ($found, $staffId, $reason): void {
             $this->applications->lockAccount($found->customerId());
-            $company = $this->companies->forCustomerLocked($found->customerId()) ?? throw new CompanyNotFound;
+            $company = $this->companies->byId($found->id()) ?? throw new CompanyNotFound;
             $from = $company->status();
 
             $company->reinstate($staffId, $reason, CarbonImmutable::now());

@@ -71,7 +71,7 @@ function applicationTestDocumentTypes(): array
  */
 function completeDraft(?CompanyTypeChoice $type = null, ?string $companyId = null): Application
 {
-    $draft = Application::draft('01j8z3k4m5n6p7q8r9s0t1v2a1', '01j8z3k4m5n6p7q8r9s0t1v2u1', $companyId);
+    $draft = Application::draft('01j8z3k4m5n6p7q8r9s0t1v2a1', '01j8z3k4m5n6p7q8r9s0t1v2u1', $companyId, '01j8z3k4m5n6p7q8r9s0t1v2s5');
     $draft->describe(
         CompanyName::of('Al Noor Trading'),
         $type ?? CompanyTypeChoice::listed(APPLICATION_TEST_LLC),
@@ -107,7 +107,7 @@ function applicationTestSend(Application $draft, ?array $companyTypes = null, ?a
 
 describe('a draft', function () {
     it('starts empty and open, with no company behind it yet', function () {
-        $draft = Application::draft('01j8z3k4m5n6p7q8r9s0t1v2a1', '01j8z3k4m5n6p7q8r9s0t1v2u1', null);
+        $draft = Application::draft('01j8z3k4m5n6p7q8r9s0t1v2a1', '01j8z3k4m5n6p7q8r9s0t1v2u1', null, '01j8z3k4m5n6p7q8r9s0t1v2s5');
 
         expect($draft->state())->toBe(ApplicationState::Draft)
             ->and($draft->isOpen())->toBeTrue()
@@ -119,7 +119,7 @@ describe('a draft', function () {
     });
 
     it('holds one file per document type: a second upload replaces the first and says which', function () {
-        $draft = Application::draft('01j8z3k4m5n6p7q8r9s0t1v2a1', '01j8z3k4m5n6p7q8r9s0t1v2u1', null);
+        $draft = Application::draft('01j8z3k4m5n6p7q8r9s0t1v2a1', '01j8z3k4m5n6p7q8r9s0t1v2u1', null, '01j8z3k4m5n6p7q8r9s0t1v2s5');
 
         expect($draft->attach(APPLICATION_TEST_VAT, '01j8z3k4m5n6p7q8r9s0t1v2m1', CarbonImmutable::now()))->toBeNull()
             ->and($draft->attach(APPLICATION_TEST_VAT, '01j8z3k4m5n6p7q8r9s0t1v2m9', CarbonImmutable::now()))->toBe('01j8z3k4m5n6p7q8r9s0t1v2m1')
@@ -300,7 +300,7 @@ describe('once it is sent', function () {
 
 describe('when the account is anonymized (amendment 12(a))', function () {
     it('gives up its values, its note and its papers, and keeps its state, type, decision, flags and requests', function () {
-        $application = Application::draft('01j8z3k4m5n6p7q8r9s0t1v2a2', '01j8z3k4m5n6p7q8r9s0t1v2u1', null);
+        $application = Application::draft('01j8z3k4m5n6p7q8r9s0t1v2a2', '01j8z3k4m5n6p7q8r9s0t1v2u1', null, '01j8z3k4m5n6p7q8r9s0t1v2s5');
         $application->describe(
             CompanyName::of('Al Noor Trading'),
             CompanyTypeChoice::listed(APPLICATION_TEST_LLC),

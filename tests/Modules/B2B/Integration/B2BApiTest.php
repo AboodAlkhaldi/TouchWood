@@ -34,9 +34,9 @@ it('knows no company for an individual account, or for a company account whose a
     $customerId = $account();
     $api = app(B2BApi::class);
 
-    expect($api->company($customerId))->toBeNull()
-        ->and($api->status($customerId))->toBeNull()
-        ->and($api->isApproved($customerId))->toBeFalse();
+    expect($api->company($customerId, Fx::storeId('sa')))->toBeNull()
+        ->and($api->status($customerId, Fx::storeId('sa')))->toBeNull()
+        ->and($api->isApproved($customerId, Fx::storeId('sa')))->toBeFalse();
 })->with([
     'an individual' => [fn () => Fx::customer(strtolower((string) Str::ulid()).'@example.test')],
     'only a draft' => [function () {
@@ -53,7 +53,7 @@ it('gives the company with its home store\'s type names, its status, and no docu
     [$company] = B2BFixtures::sent($customerId);
     $type = app(CompanyTypeRepository::class)->find((string) $company->details()->type->typeId);
 
-    $dto = app(B2BApi::class)->company($customerId);
+    $dto = app(B2BApi::class)->company($customerId, Fx::storeId('sa'));
 
     expect($dto?->id)->toBe($company->id())
         ->and($dto?->customerId)->toBe($customerId)
@@ -64,7 +64,7 @@ it('gives the company with its home store\'s type names, its status, and no docu
         ->and($dto?->status)->toBe(CompanyStatus::Pending)
         ->and($dto?->statusReason)->toBeNull()
         ->and(array_keys(get_object_vars($dto ?? new stdClass)))->toBe([
-            'id', 'customerId', 'name', 'typeNameAr', 'typeNameEn', 'status', 'statusReason',
+            'id', 'customerId', 'name', 'typeNameAr', 'typeNameEn', 'status', 'statusReason', 'storeId',
         ]);
 });
 
@@ -74,7 +74,7 @@ it('gives a company still "Other" no type yet, and never its words (amendment 13
     $company->correctType(CompanyTypeChoice::other('Cooperative of one'), B2BFixtures::companyTypes());
     app(CompanyRepository::class)->update($company);
 
-    $dto = app(B2BApi::class)->company($customerId);
+    $dto = app(B2BApi::class)->company($customerId, Fx::storeId('sa'));
 
     expect($dto?->typeNameAr)->toBeNull()
         ->and($dto?->typeNameEn)->toBeNull()
@@ -127,7 +127,7 @@ it('still names a type that was deactivated since: the company keeps it', functi
     $type = app(CompanyTypeRepository::class)->find((string) $company->details()->type->typeId);
     B2BFixtures::deactivate($type ?? throw new LogicException('The type is gone.'), InactiveTypeDisplay::Hidden);
 
-    expect(app(B2BApi::class)->company($customerId)?->typeNameEn)->toBe($type->name()->en);
+    expect(app(B2BApi::class)->company($customerId, Fx::storeId('sa'))?->typeNameEn)->toBe($type->name()->en);
 });
 
 it('says the status, with its reason, and that only an approved company may order', function (Closure $arrange, CompanyStatus $status, ?string $reason, bool $approved) {
@@ -135,10 +135,10 @@ it('says the status, with its reason, and that only an approved company may orde
     $arrange($customerId);
     $api = app(B2BApi::class);
 
-    expect($api->status($customerId))->toBe($status)
-        ->and($api->company($customerId)?->status)->toBe($status)
-        ->and($api->company($customerId)?->statusReason)->toBe($reason)
-        ->and($api->isApproved($customerId))->toBe($approved);
+    expect($api->status($customerId, Fx::storeId('sa')))->toBe($status)
+        ->and($api->company($customerId, Fx::storeId('sa'))?->status)->toBe($status)
+        ->and($api->company($customerId, Fx::storeId('sa'))?->statusReason)->toBe($reason)
+        ->and($api->isApproved($customerId, Fx::storeId('sa')))->toBe($approved);
 })->with([
     'waiting' => [fn (string $customerId) => B2BFixtures::sent($customerId), CompanyStatus::Pending, null, false],
     'approved' => [fn (string $customerId) => B2BFixtures::approved($customerId), CompanyStatus::Approved, null, true],

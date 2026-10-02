@@ -44,11 +44,13 @@ final readonly class RemoveApplicationDocumentHandler
     public function handle(RemoveApplicationDocument $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $customerId = $this->account->get(self::PERMISSION)->id;
+        $account = $this->account->get(self::PERMISSION);
+        $customerId = $account->id;
+        $store = $this->account->store($account);
         $typeId = strtolower($command->documentTypeId);
 
-        $this->db->transaction(function () use ($customerId, $typeId): void {
-            $draft = $this->drafts->forChange($customerId)->draft;
+        $this->db->transaction(function () use ($customerId, $store, $typeId): void {
+            $draft = $this->drafts->forChange($customerId, $store)->draft;
             $removed = $draft->detach($typeId);
 
             if ($removed === null) {

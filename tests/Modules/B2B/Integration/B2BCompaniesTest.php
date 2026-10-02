@@ -50,7 +50,7 @@ describe('the repositories', function () {
             ->and($read?->address()?->value)->toBe("King Fahd Road\nRiyadh")
             ->and($read?->documents())->toHaveCount(3)
             ->and(array_keys($read?->documents() ?? []))->toEqualCanonicalizing(array_keys($draft->documents()))
-            ->and(app(ApplicationRepository::class)->openFor($customerId)?->id())->toBe($draft->id());
+            ->and(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->id())->toBe($draft->id());
     });
 
     it('keeps an unchanged file\'s row and replaces only the one uploaded again', function () {
@@ -72,7 +72,7 @@ describe('the repositories', function () {
         $customerId = B2BFixtures::companyAccount();
         [$company, $application] = B2BFixtures::sent($customerId);
 
-        $stored = app(CompanyRepository::class)->forCustomer($customerId);
+        $stored = app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'));
 
         expect($stored?->id())->toBe($company->id())
             ->and($stored?->status())->toBe(CompanyStatus::Pending)
@@ -126,9 +126,9 @@ describe('the repositories', function () {
 
     it('finds nothing for an id that is not one', function () {
         expect(app(CompanyRepository::class)->find('nope'))->toBeNull()
-            ->and(app(CompanyRepository::class)->forCustomer('nope'))->toBeNull()
+            ->and(app(CompanyRepository::class)->forCustomer('nope', Fx::storeId('sa')))->toBeNull()
             ->and(app(CompanyRepository::class)->holdersOf('nope'))->toBe([])
-            ->and(app(ApplicationRepository::class)->openFor('nope'))->toBeNull()
+            ->and(app(ApplicationRepository::class)->openFor('nope', Fx::storeId('sa')))->toBeNull()
             ->and(app(ApplicationRepository::class)->historyOf('nope'))->toBe([]);
     });
 
@@ -158,7 +158,7 @@ describe('what the database takes: everything the code takes', function () {
     it('stores numbers in any script, and addresses and reasons on several lines', function () {
         $customerId = B2BFixtures::companyAccount();
         $applications = app(ApplicationRepository::class);
-        $draft = Application::draft($applications->nextId(), $customerId, null);
+        $draft = Application::draft($applications->nextId(), $customerId, null, Fx::storeId('sa'));
         $draft->describe(
             CompanyName::of('مؤسسة النور للتجارة'),
             CompanyTypeChoice::other('جمعية تعاونية'),
@@ -196,10 +196,11 @@ describe('what the database refuses on its own', function () {
         'a name on two lines' => [fn (string $id) => DB::table('b2b.companies')->where('id', $id)->update(['name' => "Al Noor\nTrading"]), 'companies_name_text'],
         'a CR number with a slash' => [fn (string $id) => DB::table('b2b.companies')->where('id', $id)->update(['cr_number' => '1010/123']), 'companies_cr_number_text'],
         'a tab in the address' => [fn (string $id) => DB::table('b2b.companies')->where('id', $id)->update(['address' => "King Fahd Road\tRiyadh"]), 'companies_address_text'],
-        'a second company for one account' => [function (string $id) {
+        // One per account and store since amendment 18.
+        'a second company for one account in one store' => [function (string $id) {
             $row = (array) DB::table('b2b.companies')->where('id', $id)->first();
             DB::table('b2b.companies')->insert([...$row, 'id' => strtolower((string) Str::ulid())]);
-        }, 'companies_customer_id_unique'],
+        }, 'companies_one_per_store'],
         // Amendment 13(d): never approved as "Other" — nor suspended from approved as "Other".
         'approved as "Other"' => [fn (string $id) => DB::table('b2b.companies')->where('id', $id)->update([
             'status' => 'APPROVED', 'company_type_id' => null, 'company_type_other' => 'Cooperative',
@@ -240,7 +241,7 @@ describe('what the database refuses on its own', function () {
         // Amendment 14(g): a sent application has a number, a draft none, and every number is one.
         'sent with no number' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['reference' => null]), 'applications_reference_when_sent'],
         'a draft with a number' => [fn (string $id, string $customerId) => DB::table('b2b.applications')->insert([
-            'id' => strtolower((string) Str::ulid()), 'customer_id' => B2BFixtures::companyAccount(), 'state' => 'DRAFT', 'reference' => 'TW-CO-26-9998', 'created_at' => now(), 'updated_at' => now(),
+            'id' => strtolower((string) Str::ulid()), 'customer_id' => B2BFixtures::companyAccount(), 'store_id' => Fx::storeId('sa'), 'state' => 'DRAFT', 'reference' => 'TW-CO-26-9998', 'created_at' => now(), 'updated_at' => now(),
         ]), 'applications_reference_when_sent'],
         'a number with the whole year' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['reference' => 'TW-CO-2026-0001']), 'applications_reference_format'],
         'a number short of four digits' => [fn (string $id) => DB::table('b2b.applications')->where('id', $id)->update(['reference' => 'TW-CO-26-001']), 'applications_reference_format'],
@@ -251,9 +252,10 @@ describe('what the database refuses on its own', function () {
         }, 'applications_reference_unique'],
         'a year counted from nought' => [fn (string $id) => DB::table('b2b.application_reference_counters')->insert(['year' => 2031, 'last_number' => 0]), 'application_reference_counters_last_number'],
         'a year counted twice' => [fn (string $id) => DB::table('b2b.application_reference_counters')->insert(['year' => (int) now('Asia/Riyadh')->format('Y'), 'last_number' => 5]), 'application_reference_counters_pkey'],
-        'a second open application for one account' => [fn (string $id, string $customerId) => DB::table('b2b.applications')->insert([
-            'id' => strtolower((string) Str::ulid()), 'customer_id' => $customerId, 'state' => 'DRAFT', 'created_at' => now(), 'updated_at' => now(),
-        ]), 'applications_one_open_per_customer'],
+        // One open application per account and store since amendment 18.
+        'a second open application for one account in one store' => [fn (string $id, string $customerId) => DB::table('b2b.applications')->insert([
+            'id' => strtolower((string) Str::ulid()), 'customer_id' => $customerId, 'store_id' => Fx::storeId('sa'), 'state' => 'DRAFT', 'created_at' => now(), 'updated_at' => now(),
+        ]), 'applications_one_open_per_store'],
         'two files under one type' => [function (string $id) {
             $typeId = DB::table('b2b.application_documents')->where('application_id', $id)->value('document_type_id');
             DB::table('b2b.application_documents')->insert(['id' => strtolower((string) Str::ulid()), 'application_id' => $id, 'document_type_id' => $typeId, 'media_id' => B2BFixtures::privateFile(), 'uploaded_at' => now()]);
@@ -268,6 +270,6 @@ describe('what the database refuses on its own', function () {
         // Only an open one blocks another: reapplication is unlimited once the last was decided.
         $next = B2BFixtures::storedDraft($customerId, $company->id());
 
-        expect(app(ApplicationRepository::class)->openFor($customerId)?->id())->toBe($next->id());
+        expect(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->id())->toBe($next->id());
     });
 });

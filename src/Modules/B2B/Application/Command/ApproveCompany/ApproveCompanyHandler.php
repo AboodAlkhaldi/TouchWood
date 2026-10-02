@@ -74,8 +74,8 @@ final readonly class ApproveCompanyHandler
 
         $this->db->transaction(function () use ($found, $staffId, $note): void {
             $this->applications->lockAccount($found->customerId());
-            $company = $this->companies->forCustomerLocked($found->customerId()) ?? throw new CompanyNotFound;
-            $waiting = $this->applications->openFor($company->customerId());
+            $company = $this->companies->byId($found->id()) ?? throw new CompanyNotFound;
+            $waiting = $this->applications->openFor($company->customerId(), $company->homeStoreId());
 
             // Only a PENDING company has something to decide (§4.1).
             if ($company->status() !== CompanyStatus::Pending || $waiting?->state() !== ApplicationState::Submitted) {
@@ -95,7 +95,9 @@ final readonly class ApproveCompanyHandler
             $this->companies->update($company);
             $this->platform->recordAudit(StaffCompanyAudit::approved($waiting, $note, $company->homeStoreId()));
             $this->events->statusChanged($company, CompanyStatus::Pending);
-            $this->messages->afterCommit($company->customerId(), static fn (SecurityMessages $messages, CustomerDto $customer) => $messages->companyApproved($customer, $note?->value));
+            // The email names the company's store: an account may hold one in each (amendment 19(c)).
+            $store = $company->homeStoreId();
+            $this->messages->afterCommit($company->customerId(), static fn (SecurityMessages $messages, CustomerDto $customer) => $messages->companyApproved($customer, $note?->value, $store));
         }, 3);
     }
 }

@@ -56,7 +56,7 @@ final readonly class CorrectCompanyTypeHandler
             }
 
             $this->applications->lockAccount($found->customerId());
-            $company = $this->companies->forCustomerLocked($found->customerId()) ?? throw new CompanyNotFound;
+            $company = $this->companies->byId($found->id()) ?? throw new CompanyNotFound;
 
             $this->correction->apply($company, $to, 'b2b.company.type_corrected', $scope, $command->confirmReactivation);
         }, 3);

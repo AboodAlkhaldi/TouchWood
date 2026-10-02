@@ -362,7 +362,7 @@ it('tells a suspended company why on every shop page, refuses it a draft, and le
     [$company] = B2BFixtures::approved($customerId);
     $browser = myCompanySignedIn($customerId);
     $browser->post('/sa/en/account/company/draft/start');
-    B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId) ?? $company);
+    B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa')) ?? $company);
 
     $props = myCompanyProps($browser);
     $refused = $browser->post('/sa/en/account/company/draft', ['name' => 'A new name']);
@@ -463,4 +463,40 @@ describe('what the page is told, and where each refusal lands (amendment 16)', f
         'a company account' => ['company', '/sa/en/account/company'],
         'an individual account' => ['individual', '/sa/en/account?tab=addresses'],
     ]);
+});
+
+/*
+| A company per store over HTTP (b2b.md amendments 18-20): the page of the store being browsed, the
+| companies elsewhere, "Apply in this store", and the line that offers it.
+*/
+it('shows the company of the store being browsed, names the one elsewhere, and offers applying in this store', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::approved($customerId);
+    $browser = myCompanySignedIn($customerId);
+
+    $props = myCompanyProps($browser, '/eg/en/account/company');
+    $line = [];
+    $browser->get('/eg/en')->assertOk()->assertInertia(function (AssertableInertia $page) use (&$line) {
+        $line = $page->toArray()['props']['shopperLines'] ?? [];
+    });
+    $saudiLine = [];
+    $browser->get('/sa/en')->assertOk()->assertInertia(function (AssertableInertia $page) use (&$saudiLine) {
+        $saudiLine = $page->toArray()['props']['shopperLines'] ?? [];
+    });
+
+    expect($props['company'])->toBeNull()
+        ->and($props['storeNameEn'])->toBe('Egypt')
+        ->and($props['elsewhere'])->toHaveCount(1)
+        ->and($props['elsewhere'][0]['storeNameEn'])->toBe('Saudi Arabia')
+        ->and($props['elsewhere'][0]['status'])->toBe('APPROVED')
+        ->and($props['prefill']['name'] ?? null)->toBe('Al Noor Trading')
+        ->and($props['prefill']['fromStoreNameEn'] ?? null)->toBe('Saudi Arabia')
+        ->and(array_column($line, 'text'))->toBe(['Apply in this store to order here: each store approves its own companies.'])
+        // Approved there: nothing to say in its own store.
+        ->and($saudiLine)->toBe([]);
+
+    $browser->post('/eg/en/account/company/draft/start')->assertRedirect();
+
+    expect(DB::table('b2b.applications')->where('customer_id', $customerId)->where('store_id', Fx::storeId('eg'))->value('name'))->toBe('Al Noor Trading')
+        ->and(myCompanyProps($browser, '/eg/en/account/company')['prefill'])->toBeNull();
 });
