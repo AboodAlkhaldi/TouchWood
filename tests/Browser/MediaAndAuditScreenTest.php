@@ -153,7 +153,9 @@ function libraryScreenPaperNamed(string $filename): string
 }
 
 /**
- * The date the screen shows for a file: the first ten characters of what the database gives back.
+ * The day a file was uploaded: the first ten characters of what the database gives back. The screen
+ * writes the moment in the store's time and in words ("2m ago"), so a test reads it from the
+ * <time> element's datetime, which is the moment itself (frontend.md 1.10, store time).
  */
 function libraryScreenShownDate(string $mediaId): string
 {
@@ -190,7 +192,7 @@ it('shows a private file in the table as its name, date and use, with no picture
             (() => {
                 const row = [...document.querySelectorAll('tbody tr')].find((tr) => tr.textContent.includes('{$paper}'));
                 return row !== undefined
-                    && row.textContent.includes('{$date}')
+                    && (row.querySelector('time')?.getAttribute('datetime') ?? '').startsWith('{$date}')
                     && row.textContent.includes('Not used')
                     && ! row.textContent.includes('application/pdf')
                     && ! row.textContent.includes('2.3 MB')
@@ -258,7 +260,7 @@ it('shows a private file in the grid as its name, date and use, without a pictur
             (() => {
                 const tile = [...document.querySelectorAll('li')].find((li) => li.textContent.includes('{$paper}'));
                 return tile !== undefined
-                    && tile.textContent.includes('{$date}')
+                    && (tile.querySelector('time')?.getAttribute('datetime') ?? '').startsWith('{$date}')
                     && tile.textContent.includes('Not used')
                     && ! tile.textContent.includes('2.3 MB')
                     // Neither a picture nor the placeholder drawn where a picture is missing.
