@@ -112,8 +112,13 @@ it('finds a waiting company in the list and approves it with a note', function (
     // The list, searched for this company: the suite keeps every company the other tests made.
     $page->navigate('/admin/companies?search='.urlencode($name))
         ->assertSee('Companies')
-        ->assertSee($name)
-        ->click("[data-test=\"company-{$company->id()}\"]")
+        ->assertSee($name);
+
+    // The pager's range, its placeholders filled the way Laravel fills them: ":to" never eats the
+    // start of ":total" (it read "1–1 of 1tal" before lib/t.ts filled the longest first).
+    expect(companyStaffBrowserUntil($page, "document.querySelector('nav[aria-label=\"Pages\"] p')?.innerText.trim() === '1–1 of 1'"))->toBeTrue();
+
+    $page->click("[data-test=\"company-{$company->id()}\"]")
         ->assertPathIs("/admin/companies/{$company->id()}");
 
     expect(companyStaffBrowserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Pending')"))->toBeTrue();
