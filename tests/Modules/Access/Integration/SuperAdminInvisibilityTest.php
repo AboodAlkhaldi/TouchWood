@@ -9,6 +9,11 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\ListStaff\ListStaff;
 use Modules\Access\Application\Query\ListStaff\ListStaffHandler;
 use Modules\Access\Application\Query\ListStaff\StaffSummary;
+use Modules\Access\Application\Query\StaffReader;
+use Modules\Access\Application\Query\StaffVisibility;
+use Modules\Access\Application\Query\ViewStaff\ViewStaff;
+use Modules\Access\Application\Query\ViewStaff\ViewStaffHandler;
+use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Presentation\Http\Resource\StaffGroup;
 use Modules\Access\Presentation\Http\Resource\StaffPages;
@@ -201,5 +206,94 @@ describe('a staff member named to someone else', function () {
 
         Fx::actAsStaff(Fx::staff(superAdmin: true));
         expect(invisibleAuditRead($superAdmin))->toHaveCount(1);
+    });
+});
+
+describe('a former Super Admin (amendment 57)', function () {
+    it('stays "System administrator" to an admin after the title is revoked, and is named to a Super Admin', function () {
+        $former = Fx::formerSuperAdmin('Hidden');
+        Fx::actAsAdmin(['*'], [AccessPermissions::STAFF_VIEW]);
+
+        $toAdmin = app(AccessApi::class)->staffDisplayNames([$former]);
+
+        expect($toAdmin[$former]->name)->toBe('System administrator')
+            ->and($toAdmin[$former]->id)->toBeNull();
+
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(app(AccessApi::class)->staffDisplayNames([$former])[$former]->name)->toBe('Hidden Member');
+    });
+
+    it('stays masked in the audit log to an admin, and filtering by their id finds nothing', function () {
+        $former = Fx::formerSuperAdmin('Hidden');
+        $byHand = invisibleAuditEntry($former);
+        Fx::actAsAdmin(['*'], [PlatformPermissions::AUDIT_VIEW]);
+
+        expect(invisibleAuditRead()['entry-'.$byHand])->toMatchArray(['actorId' => null, 'actorName' => 'System administrator', 'ip' => null])
+            ->and(invisibleAuditRead($former))->toBe([]);
+    });
+
+    it('is neither listed nor counted nor found by id for an admin of every store, whatever the status asked for', function (?string $status) {
+        $former = Fx::formerSuperAdmin();
+        $admin = Fx::actAsAdmin(['*'], [AccessPermissions::STAFF_VIEW]);
+
+        $page = app(ListStaffHandler::class)->handle(new ListStaff(status: $status, perPage: 100));
+        $listed = array_map(static fn (StaffSummary $person): string => $person->id, $page->staff);
+
+        expect($listed)->not->toContain($former)
+            ->and($page->superAdmins)->toBe([])
+            ->and($page->total)->toBe(count($listed))
+            ->and(fn () => app(ViewStaffHandler::class)->handle(new ViewStaff($former)))->toThrow(StaffNotFound::class, "No staff member matches \"{$former}\".");
+
+        if ($status === null) {
+            expect($listed)->toBe([$admin]);
+        }
+    })->with([
+        'any status' => [null],
+        'cancelled' => ['CANCELLED'],
+    ]);
+
+    it('is summed up as a name and nothing more for anyone but a Super Admin, should a row ever reach that far', function () {
+        $former = Fx::formerSuperAdmin();
+        $row = app(StaffReader::class)->member($former) ?? [];
+
+        $closed = app(StaffVisibility::class)->summary($row, false);
+        $open = app(StaffVisibility::class)->summary($row, true);
+
+        expect($closed->email)->toBeNull()
+            ->and($closed->status)->toBeNull()
+            ->and($closed->joinedAt)->toBeNull()
+            ->and($closed->formerSuperAdmin)->toBeTrue()
+            ->and($open->status?->value)->toBe('CANCELLED');
+    });
+
+    it('is shown to a Super Admin in the Super Admins section, marked as former, with the closed account\'s status', function () {
+        $former = Fx::formerSuperAdmin('Former');
+        $reader = Fx::staff(superAdmin: true, firstName: 'Reader');
+        Fx::actAsStaff($reader);
+
+        $page = app(ListStaffHandler::class)->handle(new ListStaff(perPage: 100));
+        $section = [];
+
+        foreach ($page->superAdmins as $person) {
+            $section[$person->id] = $person;
+        }
+
+        $groups = app(StaffPages::class)->list(app(ListStaffHandler::class), null, null)->groups;
+        $rows = [];
+
+        foreach ($groups[0]->staff as $row) {
+            $rows[$row->id] = $row;
+        }
+
+        expect(array_map(static fn (StaffSummary $person): string => $person->id, $page->staff))->not->toContain($former)
+            ->and($section[$former]->isSuperAdmin)->toBeFalse()
+            ->and($section[$former]->formerSuperAdmin)->toBeTrue()
+            ->and($section[$reader]->formerSuperAdmin)->toBeFalse()
+            ->and($groups[0]->key)->toBe(StaffPages::SUPER_ADMINS)
+            ->and($rows[$former]->formerSuperAdmin)->toBeTrue()
+            ->and($rows[$former]->status)->toBe('CANCELLED')
+            ->and($rows[$reader]->formerSuperAdmin)->toBeFalse()
+            ->and(app(ViewStaffHandler::class)->handle(new ViewStaff($former))->formerSuperAdmin)->toBeTrue();
     });
 });

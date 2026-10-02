@@ -24,9 +24,9 @@ final readonly class DatabaseStaffReader implements StaffReader
 
     public function staff(?array $readerStoreIds, bool $fullView, ?string $search, ?string $status, int $page, int $perPage): array
     {
-        // Never a Super Admin, whoever reads: to a Super Admin they are a section of their own, and
-        // to anyone else they do not exist (amendments 43(a), 54).
-        $where = ['s.is_super_admin = ?'];
+        // Never a Super Admin — nor a former one — whoever reads: to a Super Admin they are a
+        // section of their own, and to anyone else they do not exist (amendments 43(a), 54, 57).
+        $where = ['s.was_super_admin = ?'];
         $bindings = [false];
         $withSuperAdmins = $fullView;
 
@@ -51,7 +51,7 @@ final readonly class DatabaseStaffReader implements StaffReader
         // coalesce, because a staff member with no role has no level: NULL would make the whole
         // condition NULL, and NOT NULL is NULL too, which drops the row from the page and the
         // total instead of showing it (review of step 7; the same trap as a CHECK that is NULL).
-        $hidden = $withSuperAdmins ? 'FALSE' : "(s.is_super_admin OR coalesce(r.level, '') = 'ADMIN')";
+        $hidden = $withSuperAdmins ? 'FALSE' : "(s.was_super_admin OR coalesce(r.level, '') = 'ADMIN')";
 
         if ($status !== null) {
             $where[] = "(s.status = ? OR {$hidden})";
@@ -98,7 +98,9 @@ final readonly class DatabaseStaffReader implements StaffReader
 
     public function superAdmins(?string $search, ?string $status): array
     {
-        $where = ['s.is_super_admin = ?'];
+        // Former Super Admins too: they stay out of every other list (amendment 57), so this section
+        // is the one place a Super Admin finds them, marked as former.
+        $where = ['s.was_super_admin = ?'];
         $bindings = [true];
 
         if ($status !== null) {
@@ -172,7 +174,7 @@ final readonly class DatabaseStaffReader implements StaffReader
     {
         return <<<'SQL'
             SELECT s.id, s.first_name, s.last_name, s.job_title, s.email, s.phone, s.status,
-                   s.locale, s.is_super_admin, s.created_at, s.avatar_media_id,
+                   s.locale, s.is_super_admin, s.was_super_admin, s.created_at, s.avatar_media_id,
                    s.date_of_birth, s.country, s.address,
                    a.role_id, a.access_level, r.level AS role_level,
                    r.name AS role_name,
@@ -202,6 +204,7 @@ final readonly class DatabaseStaffReader implements StaffReader
             'status' => (string) $row->status,
             'locale' => (string) $row->locale,
             'is_super_admin' => (bool) $row->is_super_admin,
+            'was_super_admin' => (bool) $row->was_super_admin,
             'role_id' => $row->role_id === null ? null : (string) $row->role_id,
             'role_level' => $row->role_level === null ? null : (string) $row->role_level,
             'role_name_ar' => is_array($name) && is_string($name['ar'] ?? null) ? $name['ar'] : '',

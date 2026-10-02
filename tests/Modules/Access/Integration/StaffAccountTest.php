@@ -38,6 +38,7 @@ use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Exception\StaffNotEditable;
+use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Enums\AccessLevel;
@@ -124,7 +125,7 @@ describe('disabling and enabling', function () {
     });
 });
 
-it('never lets an admin change a Super Admin, another admin or themselves, nor staff outside their stores', function (Closure $target, string $error, Closure $change) {
+it('never lets an admin change a Super Admin, a former one, another admin or themselves, nor staff outside their stores', function (Closure $target, string $error, Closure $change) {
     $adminId = Fx::actAsAdmin(['sa'], ACCOUNT_ADMIN);
     $targetId = $target($adminId);
     $before = (array) DB::table('access.staff_users')->where('id', $targetId)->first();
@@ -133,14 +134,17 @@ it('never lets an admin change a Super Admin, another admin or themselves, nor s
         ->and((array) DB::table('access.staff_users')->where('id', $targetId)->first())->toBe($before)
         ->and(received()->emailChanges)->toBe([]);
 })->with([
-    'a Super Admin' => [fn () => Fx::staff(superAdmin: true), StaffNotEditable::class],
+    // As for an id that never existed, and the same once they are no longer one (amendment 57).
+    'a Super Admin' => [fn () => Fx::staff(superAdmin: true), StaffNotFound::class],
+    'a former Super Admin' => [fn () => Fx::formerSuperAdmin(), StaffNotFound::class],
     'an admin' => [fn () => Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa'], RoleLevel::Admin), StaffNotEditable::class],
     'themselves' => [fn (string $adminId) => $adminId, StaffNotEditable::class],
     'outside their stores' => [fn () => Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa', 'ae']), Unauthorized::class],
 ])->with([
     'disable' => fn (string $id) => app(DisableStaffHandler::class)->handle(new DisableStaff($id)),
     'enable' => fn (string $id) => app(EnableStaffHandler::class)->handle(new EnableStaff($id)),
-    'edit the profile' => fn (string $id) => app(UpdateStaffProfileHandler::class)->handle(profileUpdate($id, (string) column($id, 'phone'), lastName: 'Changed')),
+    // A closed account has no phone left: a valid one is sent, so the refusal is the rule's.
+    'edit the profile' => fn (string $id) => app(UpdateStaffProfileHandler::class)->handle(profileUpdate($id, (string) (column($id, 'phone') ?? Fx::phone()), lastName: 'Changed')),
     'change the email' => fn (string $id) => app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($id, 'changed@example.test')),
 ]);
 
@@ -394,7 +398,7 @@ describe('avatars as Platform media', function () {
     })->with([
         'staff outside the admin\'s stores' => [fn () => Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['ae']), Unauthorized::class],
         'another admin' => [fn () => Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa'], RoleLevel::Admin), StaffNotEditable::class],
-        'a Super Admin' => [fn () => Fx::staff(superAdmin: true), StaffNotEditable::class],
+        'a Super Admin' => [fn () => Fx::staff(superAdmin: true), StaffNotFound::class],
     ]);
 
     it('lets staff who may delete media delete their own avatar', function () {

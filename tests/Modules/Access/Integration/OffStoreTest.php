@@ -16,9 +16,14 @@ use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddressHandle
 use Modules\Access\Application\Query\CurrentStore\CurrentStoreForStaff;
 use Modules\Access\Application\Query\MyAccount\MyAddressesForCustomer;
 use Modules\Access\Application\Query\MyAccount\MyAddressesInStoreDto;
+use Modules\Access\Application\Query\ViewCustomer\ViewCustomer;
+use Modules\Access\Application\Query\ViewCustomer\ViewCustomerHandler;
 use Modules\Access\Domain\Exception\AddressNotFound;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Presentation\Http\Resource\CustomerAddressGroup;
+use Modules\Access\Presentation\Http\Resource\CustomerPages;
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Dto\AddressDto;
 use Modules\Platform\Application\Command\ActivateStore\ActivateStore;
 use Modules\Platform\Application\Command\ActivateStore\ActivateStoreHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
@@ -120,6 +125,41 @@ describe('a customer\'s addresses in an off store', function () {
             : app(SetDefaultAddressHandler::class)->handle(new SetDefaultAddress($cairo)))->toThrow(AddressNotFound::class)
             ->and(DB::table('access.addresses')->where('id', $cairo)->exists())->toBeTrue();
     })->with(['delete', 'make default']);
+
+    it('hides them from the staff customer screen too, and gives them back when the store is on (amendment 57)', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+        offStoreAddress(Fx::storeId('sa'));
+        offStoreAddress(Fx::storeId('eg'), 'Cairo');
+        offStoreSwitch('eg', on: false);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        $details = app(ViewCustomerHandler::class)->handle(new ViewCustomer($customerId));
+        $page = app(CustomerPages::class)->view($customerId);
+
+        expect(array_map(static fn (AddressDto $address): string => $address->storeId, $details->addresses))->toBe([Fx::storeId('sa')])
+            ->and(array_map(static fn (CustomerAddressGroup $group): string => $group->storeId, $page->addresses))->toBe([Fx::storeId('sa')])
+            ->and(DB::table('access.addresses')->where('customer_id', $customerId)->count())->toBe(2);
+
+        offStoreSwitch('eg', on: true);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(app(ViewCustomerHandler::class)->handle(new ViewCustomer($customerId))->addresses)->toHaveCount(2);
+    });
+
+    it('names no home store on the staff screens when it is off, never showing its id instead', function () {
+        $egypt = Fx::storeId('eg');
+        $customerId = Fx::customer('cairo@example.test', 'eg');
+        offStoreSwitch('eg', on: false);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        $listed = app(CustomerPages::class)->list(null, null, null, 1)->customers;
+
+        expect(app(CustomerPages::class)->view($customerId)->customer->homeStore)->toBe('')
+            ->and($listed)->toHaveCount(1)
+            ->and($listed[0]->homeStore)->toBe('')
+            ->and($listed[0]->homeStore)->not->toBe($egypt);
+    });
 });
 
 describe('working in an off store', function () {
