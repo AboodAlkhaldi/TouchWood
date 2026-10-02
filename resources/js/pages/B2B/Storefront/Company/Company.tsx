@@ -100,7 +100,10 @@ function CarriedOver({ prefill }: { prefill: NonNullable<CompanyPage['prefill']>
 
     return (
         <Note label={t('b2b::company.prefill_label')} data-test="carried-over">
-            {t('b2b::company.prefill', { store: locale === 'ar' ? prefill.fromStoreNameAr : prefill.fromStoreNameEn })}
+            {/* The type comes along only when this store's list has one of the same name (19(b)). */}
+            {t(prefill.companyTypeId === null && prefill.companyTypeOther === null ? 'b2b::company.prefill_name_only' : 'b2b::company.prefill', {
+                store: locale === 'ar' ? prefill.fromStoreNameAr : prefill.fromStoreNameEn,
+            })}
         </Note>
     );
 }

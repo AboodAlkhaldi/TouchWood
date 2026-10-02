@@ -160,5 +160,7 @@ return [
     'apply_here' => 'Apply in This Store',
     'prefill_label' => 'Carried Over',
     'prefill' => "The name and the type come from your company in :store; the address, the numbers and the documents are this store's own.",
+    // When this store's list has no type of the same name (amendment 19(b)): the name alone.
+    'prefill_name_only' => "The name comes from your company in :store; the type, the address, the numbers and the documents are this store's own.",
     'elsewhere' => 'Your Companies in Other Stores',
 ];
