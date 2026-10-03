@@ -128,17 +128,6 @@ final readonly class DatabaseCategoryRepository implements CategoryRepository
         return $rank === null ? null : (int) $rank;
     }
 
-    public function copyRanks(string $fromStoreId, string $toStoreId): void
-    {
-        // Only the categories the new store has no place for yet: running it twice changes nothing.
-        $this->db->statement(
-            'INSERT INTO catalog.store_category_ranks (store_id, category_id, rank)
-             SELECT ?, category_id, rank FROM catalog.store_category_ranks WHERE store_id = ?
-             ON CONFLICT (store_id, category_id) DO NOTHING',
-            [strtolower($toStoreId), strtolower($fromStoreId)],
-        );
-    }
-
     private function read(string $categoryId, bool $lock): ?Category
     {
         if (! Ulids::valid($categoryId)) {

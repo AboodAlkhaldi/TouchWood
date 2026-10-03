@@ -54,10 +54,4 @@ interface CategoryRepository
 
     /** Its place in one store's menu; null when it has none there yet. */
     public function rankIn(string $storeId, string $categoryId): ?int;
-
-    /**
-     * A store opened later takes each category's place from the base store, so every store starts
-     * with the same order (amendment 1(d)).
-     */
-    public function copyRanks(string $fromStoreId, string $toStoreId): void;
 }

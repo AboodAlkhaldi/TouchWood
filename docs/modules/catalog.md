@@ -160,7 +160,7 @@ name, photo and description, no Add to Cart, hidden from search engines (noindex
 | `name`, `slug` | Arabic and English, as a product's (one slug per language, all stores, history kept, **[DECIDED 2026-10-02]**). **[ACCEPTED 2026-10-02, §9.3 #2]** name at most 100 characters. |
 | `parent_id` | Its parent, or none at the top. Never under itself or anything below it. |
 | `is_active` | Deactivated and activated again (below). |
-| `rank` per store | **The admin-set order, per store** (handoff §9.3), among a category's siblings, set by that store's people. **The person adding a category chooses its place among its siblings**, and that place starts the same in every store; each store's admins change it there afterwards (owner, 2026-10-03, amendment 1(d)). |
+| `rank` per store | **The admin-set order, per store** (handoff §9.3), among a category's siblings, set by that store's people. **The person adding a category chooses its place among its siblings**, and that place starts the same in every store; each store's admins change it there afterwards (owner, 2026-10-03, amendment 1(d)). **Moving it** under another parent, the mover chooses its place among the new siblings, written the same way. **A store opened later starts with no order**: its admins set it; a category added after it opened gets its place there too (owner, 2026-10-03, amendment 2(b), (c)). |
 | image | **[ACCEPTED 2026-10-02, §9.3 #11]** an optional public photo, for category cards (the design's homepage shows them). |
 
 - **Products sit at the end** **[DECIDED 2026-10-02]**: only a category with no sub-categories holds
@@ -179,8 +179,11 @@ name, photo and description, no Add to Cart, hidden from search engines (noindex
   or to **move** it to another active lowest category. The whole deactivation is **one step: all of
   it happens, or none of it**, and each product's change is audited.
 - **Deleting a category** **[DECIDED 2026-10-02]**: only one that holds no product (in any stage) and
-  no sub-category; otherwise refused until they are moved. **Moving a category** under another is
-  allowed, its old addresses redirect.
+  no sub-category; otherwise refused until they are moved. Its addresses are freed with it: another
+  category may take them later (owner, 2026-10-03, amendment 2(a)). **Moving a category** under another
+  is allowed; its addresses do not change, since a slug names the category, not its path. A category
+  that went with its parent and is moved away stays deactivated, now on its own, so activating its new
+  parent does not bring it back (amendment 2(g)).
 - **Changed only by someone holding `catalog.category.manage` with All stores** **[DECIDED
   2026-10-02]**, since the tree is every store's; a store's ranks by that store's people (§3).
 
@@ -206,6 +209,7 @@ Global, one row per brand (handoff §9.4): `slug` (one per language **[DECIDED 2
   leave a product without a brand. One step, all or nothing, each change audited. An inactive brand
   leaves the form's choices, the brand filter and its brand page.
 - **Deleting a brand** **[DECIDED 2026-10-02]**: only one no product carries, archived ones included.
+  Its addresses are freed with it (owner, 2026-10-03, amendment 2(a)).
 - Changed only by someone holding `catalog.brand.manage` with All stores.
 
 ### 1.7 Attributes, values, attribute sets, colours
@@ -491,7 +495,7 @@ that needs a price and stock). None is among handoff §4.5's critical outbox eve
 |---|---|---|
 | `MediaVariantsReady` | Platform | Refreshes the card photo in the listing rows using that photo |
 | `MediaDeleted` | Platform | Nothing more: the photo was detached through `MediaUsage` inside the delete's transaction |
-| `StoreCreated` | Platform | Nothing: a new store chooses nothing (and is created off, platform.md §1.1) |
+| `StoreCreated` | Platform | Nothing: a new store chooses nothing, and its menu has no order until its admins set one (and is created off, platform.md §1.1; owner, 2026-10-03, amendment 2(b)) |
 
 ---
 
@@ -653,13 +657,16 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 | 1 | The import's file format (§1.12) | The product tables (steps 1–5); written into §1.12 and shown to the owner before step 6 |
 | 2 | A product video (§1.1) | The owner: "leave it for now" — a link to a hosted video, or a Platform amendment for uploaded video |
 | 3 | Product add-ons ("Product apps"), bundles | A later stage (handoff §15.2) |
+| 4 | **Filling a new store in bulk** (owner, 2026-10-03, amendment 2(b)): when a store is created, its admins may bring in the existing products (and their categories) instead of choosing them one by one; a Super Admin may upload a JSON of the product codes to add; admins may pick products by code in bulk. Prices and stock then come from Odoo where the store is wired, or are entered by hand — "just an option" beside choosing each product | Step 4 (each store's choice) and step 6 (the import): its rules asked then |
+| 5 | How a store's menu orders a category it has no place for yet (a store opened later, amendment 2(b)) | Step 5 (the listing) |
 
 ### 9.3 My proposals — accepted by the owner, 2026-10-02, except #10
 
 1. No `processed_events` table: each listener is written to do its work once however often it runs.
 2. Lengths: product name 200, category name 100, label 30, warranty name 100 and terms 5,000.
 3. Slugs made from the name when a product is created, editable; every old slug kept and never given
-   to another product.
+   to another product. An edit that leaves a slug empty makes a new one from the name, the old one
+   kept (owner, 2026-10-03, amendment 2(e)); a deleted brand's or category's slugs are freed (2(a)).
 4. Description at most 20,000 characters per language.
 5. At most 30 search words per product, each at most 50 characters.
 6. At most 20 gallery photos per product, 10 per variant.
@@ -676,8 +683,9 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 12. The default brand cannot be deactivated or deleted until another is made the default.
 13. Informational values per variant (text in both languages, or a number with the unit); a
     product's attribute set cannot change once it has variants.
-14. Attributes, values, sets, labels, warranties and word pairs: deactivated (reversible) and deleted
-    only when unused, like brands and categories.
+14. Attributes, values, sets, labels and warranties: deactivated (reversible) and deleted only when
+    unused, like brands and categories. **Word pairs are only added and deleted** — no switch; a
+    product turned off or on never touches them (owner, 2026-10-03, amendment 2(d)).
 15. Until stage 5 the import's preview says, once, that the file's prices and stock were not imported.
 16. The public contract (§2.1) and the listing facts interface (§2.2) as listed.
 17. **Catalog keeps the card photo's addresses in its own listing rows**, asked of Platform when a row
@@ -722,3 +730,4 @@ sections named.
 | # | Where | Change | Source |
 |---|---|---|---|
 | 1 | §1.5, §1.6, §1.8, §2.4, §3, §5.3 | **Before step 2** (owner, 2026-10-03). (a) The two system permissions keep their step-1 names, `catalog.listing.rebuild` and `catalog.search_log.prune`. (b) Labels are **«الشارات»** in Arabic. (c) **The seed creates TouchWood alone**, «تاتش وود» / "TouchWood", the default brand; every other brand and every category comes from staff or the import. (d) **A new category's place among its siblings is chosen by whoever adds it**, starting the same in every store; each store's admins change it afterwards. (e) **A label's colour follows Geist's meanings** — green always healthy, red error, amber warning, blue information, gray neutral — strong or subtle: Geist Badge's ten variants, named on screen by meaning. (f) **A label name is one or two words** in each language (Geist), at most 30 characters. (g) **Every attached label shows on the card**, for now. (h) **Catalog keeps its own copy of `Ulids`**: Access and B2B are not touched ("the access is well working so we don't have to mess with it"). (i) **An attribute's job** — information only, filter, or making variants — **can change only while it has no values**; after that it stays. (j) **A brand's origin country is optional** ("brand must not require an origin country"); when given, a two-letter country code, checked for its shape only. Also corrected: §2.4's store-switch row, now built (#76). | Owner, 2026-10-03 |
+| 2 | §1.5, §1.6, §6.2, §9.2, §9.3 | **The review of step 2** (owner, 2026-10-03). (a) **Deleting a brand or a category frees its slugs**: another may take them later. (b) **A store opened later starts with no menu order**; its admins set it (§6.2 stands: a new store chooses nothing). The owner's **bulk filling of a new store** — existing products brought in, a JSON of codes, picking by code; prices and stock from Odoo or by hand — is written as open item §9.2 #4, for steps 4 and 6. (c) **Moving a category**: the mover chooses its place among the new siblings, written into every store as when adding. (d) **Word pairs are added and deleted only**; §9.3 #14 corrected. (e) **An empty slug on an edit is made from the name.** (f) **My choices in the build, accepted**: the first brand becomes the default when none is; a brand description at most 5,000 characters, in both languages or neither; an attribute set holds 1–10 attributes, and one deactivated later may stay but is never added again; a colour attribute's values need a `#rrggbb` swatch, and being a colour is locked with the job; an attribute a set holds stays variant-making; a category is added or moved under an active parent only; a store's order changes only while the store is on, at most 500 categories at once; deleting an attribute deletes and audits its values first, refused while a set holds it; a value may be added to a deactivated attribute; a word pair already listed is refused as "already in the list"; names of attributes, labels, warranties and sets need not be unique (an attribute's values must); deleting a logo's or photo's file needs that list's job with All stores; a typed Arabic slug takes the digits 0–9; two errors not in §7: `NameTaken` ("already in the list") and `AttributeKindLocked`. (g) Conforming fixes found by the review: a category moved away from the parent it went with stays off; `attribute_values.attribute_id` is RESTRICT as §5.3 says; Arabic slugs take Arabic letters and digits only, as §5.3 says. | Owner, 2026-10-03 |

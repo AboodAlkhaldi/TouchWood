@@ -26,12 +26,6 @@ final readonly class Slug
     /** Arabic letters: hamza to yeh without tatweel, and the extended letters after them. */
     private const string ARABIC_LETTERS = '\x{0621}-\x{063F}\x{0641}-\x{064A}\x{0671}-\x{06D3}';
 
-    /** Arabic-Indic and Eastern Arabic-Indic digits, as 0–9. */
-    private const array DIGITS = [
-        '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
-        '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4', '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
-    ];
-
     private function __construct(
         public string $locale,
         public string $value,
@@ -64,7 +58,8 @@ final readonly class Slug
     public static function fromName(string $locale, string $name): self
     {
         $allowed = $locale === 'ar' ? self::ARABIC_LETTERS.'0-9' : 'a-z0-9';
-        $text = strtr(mb_strtolower(ArabicText::withoutMarks($name), 'UTF-8'), self::DIGITS);
+        // withoutMarks also reads Arabic-Indic digits as 0–9.
+        $text = mb_strtolower(ArabicText::withoutMarks($name), 'UTF-8');
 
         if ($locale !== 'ar') {
             // "ä" is "a" plus a mark once decomposed; the mark goes, the letter stays.

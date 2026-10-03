@@ -54,8 +54,8 @@ final readonly class RankCategoriesHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
 
         // Only now, and only for someone who may change it, is the store looked up. Catalog's work
-        // in a store is offered only while it is on (§2.4); a store opened later starts with the
-        // base store's order.
+        // in a store is offered only while it is on (§2.4). A store opened later starts with no
+        // order; its admins set it (owner, 2026-10-03, amendment 2(b)).
         if ($this->platform->store($store)?->isActive !== true) {
             throw new InvalidCatalogAttribute('store', 'a store that is on');
         }

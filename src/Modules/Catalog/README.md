@@ -23,7 +23,7 @@ come after the Geist foundation. This file grows with each step. **Steps 1 and 2
 |---|---|
 | `Application/CatalogPermissions.php` | The twenty permissions of catalog.md §3, declared into Access's catalog at boot: seventeen jobs a role may hold, and three reserved to a Super Admin and the system |
 | `Application/Command` | One folder per change: a command and its handler, which names its `PERMISSION` and authorizes first. Step 2: the six shared lists and each store's order of the menu (below) |
-| `Application/Lists` | What the lists' handlers share: `SharedListChange` (the permission with All stores, the transaction, the list's lock, the audit), the forms' parsing (`BrandInput`, `CategoryInput`, `AttributeInput`, `LabelInput`, `WarrantyInput`, `SetMembers`), `CatalogImages` (a logo or photo must be a public image) and `StartingCategoryOrder` |
+| `Application/Lists` | What the lists' handlers share: `SharedListChange` (the permission with All stores, the transaction, the list's lock, the audit), the forms' parsing (`BrandInput`, `CategoryInput`, `AttributeInput`, `LabelInput`, `WarrantyInput`, `SetMembers`) and `CatalogImages` (a logo or photo must be a public image) |
 | `Application/Audit/ListAudit.php` | Every list change's audit entry, by value: `catalog.{list}.{what}` |
 | `Domain/Model` | Brand, Category, Attribute, AttributeValue, AttributeSet, Label, Warranty, WordPair — each keeps what one row can know; all but WordPair (added and deleted, never edited) keep a `ChangeLog` of what an edit changed |
 | `Domain/ValueObject` | Names in both languages, slugs, the structured text of descriptions and terms, list positions, a label's look (`LabelTone`, the Badge's ten), a warranty's period |
@@ -32,7 +32,6 @@ come after the Geist foundation. This file grows with each step. **Steps 1 and 2
 | `Domain/Repository` | The lists' repositories and `ListLocks` |
 | `Infrastructure/Eloquent` | The repositories on the query builder; `SlugHistory`; `DatabaseListLocks`; Catalog's own `Ulids` (amendment 1(h)) |
 | `Infrastructure/Media/CatalogImagesUsage.php` | Brand logos and category photos as Platform media (below) |
-| `Infrastructure/Listener` | A store opened later takes the base store's order of the menu |
 | `Infrastructure/Persistence` | `CatalogSchema` (step 1) and the migrations: step 2's lists, every rule one row can hold backed by a named CHECK, index or key |
 | `Presentation/lang/{ar,en}` | The permissions' names, the errors, and the audit log's name for every action |
 | `Public/Enums` | `AttributeKind`, `AgencyType` — and so their TypeScript types |
@@ -71,7 +70,7 @@ transaction, none when nothing changed.
 
 | List | What the code keeps |
 |---|---|
-| Brands | Two slugs, one per language, global — Arabic letters and digits for `ar`, `a-z` and digits for `en` (§5.3) — each kept in the history table while the brand exists, so a slug it once held is never given to another (the redirect itself arrives with the storefront, step 5; what deleting a brand does to its old slugs is waiting for the owner); **exactly one default** — the first brand becomes it, moving it un-marks the old one in the same step, the default is never deactivated or deleted; an optional two-letter origin country (amendment 1(j)); a description in both languages or neither. The seed adds TouchWood «تاتش وود» only |
+| Brands | Two slugs, one per language, global — Arabic letters and digits for `ar`, `a-z` and digits for `en` (§5.3) — each kept in the history table while the brand exists, so a slug it once held is never given to another; deleting the brand frees them (owner, amendment 2(a)); the redirect itself arrives with the storefront, step 5; **exactly one default** — the first brand becomes it, moving it un-marks the old one in the same step, the default is never deactivated or deleted; an optional two-letter origin country (amendment 1(j)); a description in both languages or neither. The seed adds TouchWood «تاتش وود» only |
 | Categories | One tree, nesting without limit, never under itself or below itself; a new or moved category goes under an **active** parent only, and **its place among its siblings is chosen by whoever adds or moves it** and written into every store, on or off (amendment 1(d)); each store's admins reorder their own menu with `RankCategories` (`catalog.category.rank` in that store). Deactivating takes every active category below it, each remembering it went with its parent, so activating brings back exactly that; a category under a deactivated parent cannot be activated. Only an empty category is deleted |
 | Attributes | A job — details only, filter, or variant-making — that changes, with being a colour, **only while the attribute has no values** (amendment 1(i)); an attribute a set holds stays variant-making. Values: never two alike in either language ignoring case; a colour attribute's values need a `#rrggbb` swatch, no other's take one; an attribute is deleted only after its values (RESTRICT, §5.3), which its handler deletes and audits one by one. Sets: one to ten variant-making attributes in order; a member deactivated later may stay, so the set can still be renamed |
 | Labels | «الشارات»: one or two words in each language, at most 30 characters, and one of the Badge's ten looks, chosen by meaning (amendment 1(e), (f)) |
@@ -88,8 +87,8 @@ leaves the brand without a logo and the category without a photo, for someone wh
 list with All stores, under the list's lock, each audited (`logo_detached`, `image_detached`);
 anyone else is refused and nothing changes.
 
-**A store opened later** takes the base store's order of the menu on Platform's `StoreCreated`,
-under the categories' lock, adding only — a place it already has stays.
+**A store opened later** starts with no order of its menu: its admins set it (owner, amendment
+2(b)). A category added after it opened gets its place there as everywhere else.
 
 **The schema.** `catalog`, on `config/database.php`'s search path so `migrate:fresh` wipes it; the
 first migration also creates `pg_trgm`, which the search's nearness ranking needs (catalog.md
@@ -109,7 +108,7 @@ public surface never references Access.
 | `Unit/CatalogValuesTest` | Text on one line, names, slugs (Arabic and accented Latin), structured text, Arabic normalisation, a label's words and looks, word pairs, warranty periods |
 | `Unit/CatalogErrorsTest` | Every error has a unique `catalog.*` type, a category, and a title and detail in both languages |
 | `Integration/CatalogBrandsTest` | The seed; who may; slugs and their history; the one default; deactivating and deleting; the database's CHECKs |
-| `Integration/CatalogCategoriesTest` | Who may change the tree and who a store's order; places chosen by the adder in every store, an off store included; moving and loops; deactivating and activating exactly what went; deleting; a store opened later; the database's CHECKs |
+| `Integration/CatalogCategoriesTest` | Who may change the tree and who a store's order; places chosen by the adder in every store, an off store included; moving and loops; deactivating and activating exactly what went; deleting; a store opened later starting with no order; the database's CHECKs |
 | `Integration/CatalogAttributesTest` | Jobs locked by values and by sets; values alike ignoring case; swatches; sets' members; the database's CHECKs |
 | `Integration/CatalogSmallListsTest` | Labels, warranties and word pairs, including a pair the database's language order would sort the other way |
 | `Integration/CatalogImagesUsageTest` | Deleting a logo or photo's file: detached and audited, or refused with nothing changed |

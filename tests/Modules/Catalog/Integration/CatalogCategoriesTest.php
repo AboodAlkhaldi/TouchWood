@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -29,9 +28,10 @@ use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
+use Modules\Platform\Application\Command\CreateStore\CreateStore;
+use Modules\Platform\Application\Command\CreateStore\CreateStoreHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
-use Modules\Platform\Public\Events\StoreCreated;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
@@ -396,21 +396,15 @@ describe('a store\'s order', function () {
             ->and(catalogCategoriesRanks($kitchens))->toBe(['ae' => 1, 'eg' => 1, 'sa' => 1]);
     });
 
-    it('gives a store opened later the base store\'s order, and leaves a place it has', function () {
+    it('gives a store opened later no order of its own, and a category added after it a place there too', function () {
         $kitchens = catalogCategoriesAdd('Kitchens', ['rank' => 1]);
+
+        // Its admins set its order (owner, 2026-10-03, amendment 2(b)); nothing is copied.
+        Fx::asSystem(fn () => app(CreateStoreHandler::class)->handle(new CreateStore('kw', 'الكويت', 'Kuwait', 'KW', 'SAR', 1500, 'Asia/Kuwait', 4)));
         $doors = catalogCategoriesAdd('Doors', ['rank' => 2]);
-        $sa = Fx::storeId('sa');
-        $eg = Fx::storeId('eg');
-        app(RankCategoriesHandler::class)->handle(new RankCategories($sa, [$kitchens => 6]));
 
-        // Egypt as if opened now: it has a place for Doors only.
-        DB::table('catalog.store_category_ranks')->where('store_id', $eg)->where('category_id', $kitchens)->delete();
-        DB::table('catalog.store_category_ranks')->where('store_id', $eg)->where('category_id', $doors)->update(['rank' => 9]);
-
-        event(new StoreCreated('e1', $eg, CarbonImmutable::now()));
-
-        expect(catalogCategoriesRanks($kitchens))->toBe(['ae' => 1, 'eg' => 6, 'sa' => 6])
-            ->and(catalogCategoriesRanks($doors))->toBe(['ae' => 2, 'eg' => 9, 'sa' => 2]);
+        expect(catalogCategoriesRanks($kitchens))->toBe(['ae' => 1, 'eg' => 1, 'sa' => 1])
+            ->and(catalogCategoriesRanks($doors))->toBe(['ae' => 2, 'eg' => 2, 'kw' => 2, 'sa' => 2]);
     });
 });
 
@@ -481,16 +475,5 @@ describe('review of step 2', function () {
             ->and(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories($eg, [$kitchens => null])))->toThrow(InvalidCatalogAttribute::class, 'rank')
             ->and(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories($eg, array_fill_keys(array_map(static fn (int $i): string => "k{$i}", range(1, 501)), 1))))->toThrow(InvalidCatalogAttribute::class, 'rank')
             ->and(catalogCategoriesRanks($kitchens))->toBe(['ae' => 0, 'eg' => 0, 'sa' => 0]);
-    });
-
-    it('takes the categories\' lock, inside its own transaction, to give a new store its order', function () {
-        catalogCategoriesAdd('Kitchens');
-        $eg = Fx::storeId('eg');
-        DB::table('catalog.store_category_ranks')->where('store_id', $eg)->delete();
-        $locks = Cx::recordLocks();
-
-        event(new StoreCreated('e1', $eg, CarbonImmutable::now()));
-
-        expect(array_values(array_filter((array) $locks, static fn (array $lock): bool => $lock['key'] === 'catalog:categories')))->toBe([['key' => 'catalog:categories', 'level' => 2]]);
     });
 });
