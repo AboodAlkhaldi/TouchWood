@@ -43,6 +43,9 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.8, §3.6 F1 | **Geist is the design system**: its components, behaviour and all its rules (writing rules included), in TouchWood's look — today's colours a bit sharper, IBM Plex fonts, 10 px corners. Built before any new screen; every built screen moves to it. The store chooser and switchers list **on** stores only (platform.md §1.6) | Owner, 2026-10-01/02 (the new direction) |
 | §1.10 (new) | **The Geist foundation**: colours set B (owner's pick); Geist's type scale, materials, sizes, components and writing rules; Light and Dark only — the provisional picks marked there | Owner's overnight run, 2026-10-02 |
 | §1.10 | **Store time**: every moment in the zone of the store being worked in (owner's answer, 2026-10-02); Geist's `Time` (provisional) | Owner, 2026-10-02 (the "store time on panel screens" job) |
+| §1.10, §1.11 (new) | **shadcn's real code, Geist's look and rules on top.** Components come from shadcn's CLI and stay unchanged, apart from the edits §1.11 lists; the hand-built `components/geist/` goes; where Geist's rule and shadcn's code disagree, Geist's rule wins; nothing is built that either system has, and anything neither has is put to the owner first | Owner, 2026-10-02, after seeing the Geist screens: "dont ever create something if they had it" |
+| §1.10, §2.3, §3.4, §3.5 | The owner's answer for each piece neither system has (§1.11 table); the theme switch with System, once per area; SMS codes in shadcn's InputOTP | Owner, 2026-10-02, one by one with pictures |
+| §1.10, §1.11 | §1.10's provisional picks settled (type, surfaces, store time stand); the overnight review's Geist rules applied in the rebuild; every module's error messages rewritten in Geist's form | Owner, 2026-10-03 |
 
 ---
 
@@ -293,8 +296,10 @@ Playwright's browsers.
 ### 1.10 The Geist foundation (built 2026-10-02)
 
 What §1.8's decision becomes in code. Written and built in the owner's overnight run: the owner
-chose the colours (set B) before leaving; every other pick below is marked **[PROVISIONAL
-2026-10-02 — owner to confirm]**, the owner's instruction for that night. Geist's rules were read
+chose the colours (set B) before leaving; every other pick below was the builder's, provisional,
+as the owner instructed for that night — **settled by the owner on 2026-10-02/03**: the type,
+surfaces, sizes and store time stand; the components, the pieces Geist lacks and the theme switch
+are replaced by §1.11. Geist's rules were read
 from its own pages (vercel.com/geist, every component's "Best Practices") and its sizes from its own
 stylesheet, the same day.
 
@@ -302,40 +307,35 @@ stylesheet, the same day.
   hue; text and lines are a step stronger and brand and status colours a step more saturated,
   measured in OKLCH. Light-mode muted text on a card goes from 4.90:1 to 6.31:1. The values are in
   `resources/css/themes.css`, light and dark.
-- **Type** [PROVISIONAL]: Geist's type scale under Geist's own class names — `text-heading-{14…48}`,
+- **Type**: Geist's type scale under Geist's own class names — `text-heading-{14…48}`,
   `text-label-{12…20}` (and `-mono`), `text-copy-{13…24}` (and `-mono`), `text-button-{12,14,16}` —
   with the sizes, line heights and weights of Geist's stylesheet, set in our fonts. Geist's negative
   letter-spacing on headings applies to English only: Arabic letters are joined and are never spaced.
-- **Surfaces** [PROVISIONAL]: Geist's materials under Geist's names — `material-base`, `-small`,
+- **Surfaces**: Geist's materials under Geist's names — `material-base`, `-small`,
   `-medium`, `-large` on the page; `material-tooltip`, `-menu`, `-modal`, `-fullscreen` above it —
   with Geist's shadow recipes, each a theme token so a campaign can change it. Corners are ours, not
   Geist's 6 and 12 px: **10 px** everywhere, 6 px on a tooltip, 16 px fullscreen.
 - **Sizes** (Geist's stylesheet): controls are 32, 36 and 40 px high (small, medium, large; medium
   is the default); the focus ring is Geist's — a 2 px gap in the page colour, then 2 px of brand.
-- **Components** [PROVISIONAL]: in `resources/js/components/geist/`, imported from its index, under
-  Geist's names and with Geist's props, Radix underneath where a component needs focus trapping or
-  keyboard handling. Their few words of their own (Cancel, Close, Previous, Next, the typed
-  confirmation's prompt) are `lang/*/ui.php`, which every page carries (`App\Http\Page`). `Button`'s `type` is its look (`default` primary, `secondary`, `tertiary`, `error`,
-  `warning`) and `typeName` its HTML type, as in Geist; `loading` instead of a spinner; `prefix` and
-  `suffix`; an icon-only button needs `svgOnly` and an `aria-label`; a disabled button carries
-  `disabledReason`, shown as its tooltip (our prop name — Geist pairs the two by hand). Geist's
-  components that no screen needs yet are built when one does. The shadcn copies go once nothing
-  uses them.
-- **Where Geist has no component** — the admin sidebar, the store picker, the address picker — it
-  is built from Geist's materials, type and rules (§1.8).
-- **The theme switch** [PROVISIONAL]: Geist's Theme Switcher offers Light, System and Dark. Ours
-  offers **Light and Dark only**: the theme is decided on the server (§2.1) so the first paint is
-  right, and the server cannot see the device's own setting. "System" would need every dark value
-  written a second time under a media query, campaigns included — the owner's call.
+- **Components** — *replaced by §1.11 (owner, 2026-10-02)*. The overnight build hand-made them in
+  `resources/js/components/geist/`; they give way to shadcn's own code, from its CLI, with Geist's
+  look and rules on top, and that folder is deleted once nothing imports it. The components' few
+  words of their own (Cancel, Close, Previous, Next, the typed confirmation's prompt, a sidebar's
+  screen-reader words) stay in `lang/*/ui.php`, which every page carries (`App\Http\Page`).
+- **Where Geist has no component** — *replaced by §1.11*: shadcn has all three — the sidebar block
+  that collapses to icons (`sidebar-07`), its team switcher for the store picker, and
+  `field-choice-card` for the address picker.
+- **The theme switch** — *replaced by §1.11*: System, Light and Dark.
 - **Store time** (owner, 2026-10-02: "each store will have its own — a viewer from Egypt sees
   Egypt's time, from KSA KSA's"; for someone in several stores, **the store they are working in**).
   The server and the database keep UTC; every moment on a screen is written in the zone of the
   panel's current store, or of the shop's store, with the zone's short name beside it — the store
-  screens' own times included (failed jobs, audit log, media, sessions). Geist's `Time`
-  [PROVISIONAL]: in a list a recent moment reads short and relative ("2h ago"), past seven days as
-  a date, the full moment on hover and focus; on a detail page the full moment is the text. B2B's
-  company times were already written by the server in the company's store clock (step 6) and are
-  left as they are.
+  screens' own times included (failed jobs, audit log, media, sessions). Geist's `Time`: in a list
+  a recent moment reads short and relative ("2h ago"), past seven days as a date, the full moment
+  on hover and focus — the store's zone and UTC; on a detail page the full moment is the text.
+  B2B's company times on the customer's page were already written by the server in the company's
+  store clock (step 6) and are left as they are; **B2B's staff screens use `Time`, in the store
+  being worked in** (b2b.md amendment 23(b), owner 2026-10-03).
 - **Writing rules** (Geist's, for every English word on a screen; Arabic follows the same
   structure — a verb and its object on a button, the toast that answers it, no "please"):
 
@@ -354,6 +354,95 @@ stylesheet, the same day.
 | Unknown values | An em dash | — |
 | Dismissal | "Cancel"; "Done" after a one-time display | |
 | Never | "please", "successfully", "Unable to", "Something went wrong", "Oops" | |
+
+### 1.11 shadcn's code under Geist's rules (owner, 2026-10-02 and 2026-10-03)
+
+**The rule** (owner, 2026-10-02): never design or build a UI piece that Geist or shadcn already has
+— use theirs, 100 %. Search both first: Geist's component pages, and shadcn's components, blocks
+and examples. Only when neither has it, show the owner what was searched and ask before building.
+
+- **Code**: every component comes from shadcn's CLI into `resources/js/components/ui/`; every block
+  or example from shadcn's registry, as written (`sidebar-07`, `login-02`, `field`, `input-group`,
+  `item`, `empty`, `field-choice-card`, `combobox-demo` and the like). Nothing in them is changed
+  except the edits below. `resources/js/components/geist/` is deleted once no page imports it.
+- **Look**: our tokens (§1.8, §1.10) feed shadcn's token names, as `resources/css/app.css` already
+  does — colours, Geist's type scale and materials, 32/36/40 px controls, Geist's focus ring, 10 px
+  corners. A theme is still data.
+- **Rules**: Geist's rules sit on top of shadcn's code — each component's "Best Practices", and the
+  writing rules of §1.10. **Where the two disagree, Geist's rule wins**: a loading button stays
+  focusable; a field stays editable while it saves; an action that cannot be done is shown
+  disabled, with the reason.
+- **The only edits to shadcn's code**, each written down where it is made:
+  1. **`accent`** — TouchWood's copper keeps the name `accent`; shadcn uses `accent` as its neutral
+     hover and focus colour, which would paint copper behind dark text (2.3:1). After every
+     install, shadcn's `accent` hover and focus classes are changed to the neutral `muted`.
+  2. **Toasts** — shadcn's Sonner reads the theme from our server's page data, not from
+     `next-themes` (a one-line change).
+  3. **Right to left** — shadcn's `DirectionProvider` wraps the app (`rtl: true` in
+     `components.json`).
+- **Geist's pieces that shadcn lacks**, built exactly from Geist's own page, with no invention:
+  Loading Dots, Middle Truncate, Copy Button, Description, Theme Switcher, and Progress "with
+  stops" (shadcn's Progress has no stops; the bar itself stays shadcn's).
+- **Earlier choices that give way to Geist** (owner: "Geist, keep store time"): a setting's switch
+  saves the moment it flips (Settings are no longer read-only until "Edit"); a Delete that cannot
+  be done is shown disabled, with the reason as its tooltip (media); B2B's staff screens show their
+  moments through `Time`; store time (§1.10) stays — the hover shows the store's zone and UTC.
+- **SMS codes**: shadcn's InputOTP, one box per digit (the package `input-otp`), on staff sign-in,
+  accepting an invitation, the staff Change Phone Number dialog and the customer's Change Phone
+  Number. The server sends each page the code's length; Latin and Arabic-Indic digits are both
+  accepted.
+- **The theme switch**: Geist's Theme Switcher as it is — **System, Light, Dark** — once per area
+  (Geist: "once per app, in the footer or settings"), instead of today's three places:
+  - **panel**: the sidebar's footer, small, inside the person menu — one click from any page, the
+    sidebar collapsed included;
+  - **shop**: the footer, small;
+  - the sign-in pages lose it.
+  Light and Dark are still rendered by the server. For System, a few lines of script in the page's
+  head choose the theme from the device before the first paint (as Geist's own setup does), so
+  nothing flashes; campaign themes are unaffected. Access's preferences endpoint accepts `system`
+  besides `light` and `dark`. **A first visit, before any choice, is System** (owner, 2026-10-02),
+  replacing "Light until the person chooses" of 2026-09-19. The app sends no Content-Security-Policy
+  today (checked 2026-10-02); if hosting adds one, that script needs its nonce or hash.
+- **Toasts**: shadcn's Sonner (edit 2).
+- **The pieces neither system has — the owner's answers** (2026-10-02, one by one, each with a
+  picture):
+
+| # | Piece | Answer |
+|---|---|---|
+| 1 | Panel page title: big title, one-line subtitle, the page's main action | **Keep it**, built from shadcn's parts with Geist's type |
+| 2 | A dot on a collapsed sidebar icon while something waits (failed jobs) | **Keep it**; a screen reader hears the count |
+| 3 | The language switch | **Keep the button** showing the other language's name; one press switches |
+| 4 | The signed-in shopper in the shop header | **shadcn's user menu**: the name opens a menu with My Account and Sign Out (`sidebar-07`'s nav-user pattern) |
+| 5 | The permissions table on the roles screen | **A plain table**: the area is its own column, nothing sticks — replacing the sticky area rows |
+| 6 | The yes/no mark in each cell | **Keep as now**: a tick in a green square, a minus for no |
+| 7 | A row in the roles list | **The whole row opens the role**; Edit Role moves into the row's ⋯ menu (shadcn Item + DropdownMenu) |
+| 8 | The staff list, grouped | **A heading per group** (Admins, each store, Centralized), each group a shadcn Item group |
+| 9 | Editing a file's description in the media library | **shadcn's Dialog** with the form, Cancel and Save Description, in place of the extra table row |
+| 10 | The steps beside the company page | **Geist's Progress with stops** (b2b.md amendment 22(b)) |
+| 11 | How a company field shows its state | **The mix** (b2b.md amendment 22(a)): the save state inside the field's end, the reason under it, red the only edge colour |
+| 12 | Picking a saved address on the company form | **shadcn's field-choice-card**, each tile naming its store, no headings (b2b.md amendment 22(c)) |
+| — | The phone-number fields | No question: plain shadcn Inputs with a helper line; nothing is built |
+| — | The two-step phone change (number, then code) | No question: two forms of Input and Button, InputOTP for the code |
+| — | The TouchWood mark | No question: our own logo, an SVG |
+
+- **Applied in the rebuild, each a Geist rule** (owner, 2026-10-03, from the overnight review):
+  - a page header keeps **one main button** and puts the rest in a ⋯ menu, destructive last (Geist
+    Button: "Switch to a Menu or Split Button when more than one related action shares a row") —
+    the staff member page first;
+  - **a confirm dialog** before ending another browser's session, Forget Browser, Forget All
+    Browsers, and removing a file from a company draft (Geist Modal: "Confirm destructive actions in
+    a Modal");
+  - **words on every badge**, never colour alone (Geist Badge) — the customer list's Email and
+    Phone badges first;
+  - the media library's Table/Grid switch is a toggle;
+  - the account tabs live in the address, so a refresh keeps the tab; the "Close Account" tab is
+    named with a noun;
+  - a dialog's main button repeats its title's verb;
+  - the sidebar's screen-reader words are in Arabic too.
+- **Error messages in Geist's form** (owner, 2026-10-03: inside the rebuild): every module's error
+  messages — Access's, Platform's and B2B's `Presentation/lang/{ar,en}/errors.php` — are rewritten:
+  "Couldn't …" for the person's own state, "Failed to …" for the system's, then the fix; titles
+  are Title Case statements. The tests that read them change with them, never weakened.
 
 ---
 
@@ -422,9 +511,9 @@ screen by screen as the admin's were (owner, 2026-09-22). What follows was writt
 no storefront design and still holds for anything those files do not show:
 
 - A header with the logo, the country (store) switch and the language switch (`/sa/ar` ↔ `/sa/en`,
-  staying on the same page), the theme toggle, and "Sign in" or the customer's name. Search and
-  the cart come with Catalog and Sales.
-- A small footer.
+  staying on the same page), and "Sign in", or the customer's name opening a menu with My Account
+  and Sign Out (§1.11 #4). Search and the cart come with Catalog and Sales.
+- A small footer, holding the theme switch (§1.11, 2026-10-02).
 - **[DECIDED 2026-09-19] Platform's two Blade pages are rebuilt in React:** the country page at
   `brand.com/` and the placeholder store home (platform.md §3). Their tests move with them.
 
@@ -584,7 +673,8 @@ see admin roles in the list but cannot open them for editing (amendment 9 and th
   **[DECIDED 2026-09-29]** A **System** area joins them, for the running of the system — first the
   failed jobs (E7) — with its own section in the menu.
 - **[DECIDED 2026-09-19] The design's "Permissions by role" table is kept**, on D1: groups down the
-  side, saved roles across the top, scrolling sideways as roles are added.
+  side, saved roles across the top, scrolling sideways as roles are added — **[2026-10-02, owner]
+  as a plain table: the area its own column, nothing sticky** (§1.11 #5).
 - A role's Arabic and English names are both asked for on one screen, whichever language the panel
   is being read in.
 - Editing a saved role changes it for everyone holding it; the screen says so before saving, with
@@ -601,7 +691,7 @@ existed (platform.md §3, §9.2 #19). Each screen shows only the stores in the p
 | E2 | Edit a store | On E1 | Name in both languages, tax rate as a percentage (kept as basis points, platform.md §1.1), timezone, position. The code, country and currency are shown but cannot be changed — they are immutable. `platform.store.update`, that store. |
 | E3 | Currencies | `/admin/currencies` | **[DECIDED 2026-09-19]** Currencies are created and edited **in the panel**, by a Super Admin only (reserved permissions, platform.md §3): name and abbreviation in both languages, the sign, and the exponent — which is locked once any store uses the currency (platform.md §1.2). The sign field shows the sign as the site's font draws it, so a sign the font cannot draw is seen before it is saved (platform.md §5.1). |
 | E4 | Settings | `/admin/settings` | Every declared setting the person may change, grouped by the module that declares it, each with the input its type asks for and its default shown. Store settings apply to the store in the header; global keys need All stores (Access amendment 5). A setting marked sensitive never shows its value (platform.md §1.3). Each setting's permission comes from its own definition, and a row a person may not change is not shown to them. Access's settings sit in **one Access section** (owner, 2026-09-22) although they carry two permissions: a store's own settings are ordinary, the staff sign-in and security numbers are admin-only (R4). A module may put **one line at the top of its section** (platform.md §1.3): the Companies section says whether bank transfer is on or temporarily off (b2b.md amendment 13(c)). A setting whose default is empty — "not set yet" — shows no default under its box: there is no value in force to name (owner, 2026-09-29). |
-| E5 | Media library | `/admin/media` | **[DECIDED 2026-09-19]** The design's table, with a switch to a grid of thumbnails. The table: file, type, size, used in, uploaded. Plus the state of an image's variants (pending, ready, failed), upload (`platform.media.upload`), alt text (`platform.media.update`), retry (a failed image, or one pending for 15 minutes), and delete (`platform.media.delete`), which first shows where the file is used and refuses when a use blocks it (platform.md §1.4). Paged by keyset, newest first. |
+| E5 | Media library | `/admin/media` | **[DECIDED 2026-09-19]** The design's table, with a switch to a grid of thumbnails. The table: file, type, size, used in, uploaded. Plus the state of an image's variants (pending, ready, failed), upload (`platform.media.upload`), alt text (`platform.media.update`) — **in a dialog** with Cancel and Save Description (§1.11 #9, 2026-10-02), retry (a failed image, or one pending for 15 minutes), and delete (`platform.media.delete`), which first shows where the file is used and refuses when a use blocks it (platform.md §1.4). Paged by keyset, newest first. |
 | E6 | Audit log | `/admin/audit` | **[DECIDED 2026-09-19]** Built in this stage. Who changed what and when: time, actor, action, subject, source, and the staff member's IP where there is one. Entries for the stores in scope; entries belonging to no store need All stores. Personal fields show only as "changed", never their values (platform.md §1.5). Filters: date range, actor, action, source. `platform.audit.view`. |
 | E7 | Failed jobs | `/admin/failed-jobs` | **[DECIDED 2026-09-29]** The queue's failed work, oldest first: what the job was in its module's words (its technical name when none), when it failed, the tries it was allowed (Laravel keeps those, not the tries made — owner, 2026-09-29), the error's first line. Opening one shows the whole error and its queue. Fifty at a time, with "Show more". **Retry** puts it back on its queue and off the list — offered only for a job that failed on the database queue; **Delete** removes it unrun, after a confirmation. One at a time, no bulk. Kept until handled. In the **System** section of the menu, with the number waiting beside it, and a dot on its icon while the sidebar is collapsed; the admin home says so while any waits. `platform.jobs.manage`, admin-only (platform.md §3). |
 
