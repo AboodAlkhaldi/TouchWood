@@ -26,6 +26,7 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseVariantRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
 use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
+use Modules\Catalog\Infrastructure\Media\ProductPhotosUsage;
 use Modules\Platform\Public\Contracts\MediaUsages;
 
 /**
@@ -58,5 +59,7 @@ final class CatalogServiceProvider extends ServiceProvider
 
         // Brand logos and category photos: deleting the media leaves them without (§2.4).
         $this->app->make(MediaUsages::class)->register('catalog', CatalogImagesUsage::class);
+        // Product and variant photos: detached, except a ready product's last ready one (amendment 3(b)).
+        $this->app->make(MediaUsages::class)->register('catalog', ProductPhotosUsage::class);
     }
 }

@@ -59,6 +59,18 @@ final class ListAudit
     }
 
     /**
+     * One column replaced whole — a gallery, a list of words — its caller having compared the two
+     * already.
+     */
+    public static function replaced(string $subject, string $what, string $id, string $column, ?string $was, ?string $now): AuditEntryDto
+    {
+        $changes = AuditChanges::none();
+        $changes->changed($column, $was, $now);
+
+        return self::entry($subject, $what, $id, $changes, null);
+    }
+
+    /**
      * What the row held when it went.
      *
      * @param  array<string, string|int|bool|null>  $was  its snapshot before the delete

@@ -11,11 +11,12 @@ use Modules\Catalog\Domain\Exception\ListItemInUse;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Shared\Application\Unauthorized;
 
 /**
- * **Deleting a value** (catalog.md §1.7, §9.3 #14): **never one a variant carries**
+ * **Deleting a value** (catalog.md §1.7, §9.3 #14): **never one a variant or a product's filter values carry**
  * (`ListItemInUse`), asked after the value's row is locked, which a variant's change locks too.
  */
 final readonly class DeleteAttributeValueHandler
@@ -26,6 +27,7 @@ final readonly class DeleteAttributeValueHandler
         private SharedListChange $change,
         private AttributeRepository $attributes,
         private VariantRepository $variants,
+        private ProductRepository $products,
     ) {}
 
     /**
@@ -38,7 +40,7 @@ final readonly class DeleteAttributeValueHandler
         $this->change->run(ListLocks::ATTRIBUTES, function () use ($command): array {
             $value = $this->attributes->valueById($command->valueId) ?? throw new ListItemNotFound($command->valueId);
 
-            if ($this->variants->anyWithValue($value->id())) {
+            if ($this->variants->anyWithValue($value->id()) || $this->products->anyWithFilterValue($value->id())) {
                 throw new ListItemInUse;
             }
 

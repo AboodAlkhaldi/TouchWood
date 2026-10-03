@@ -57,6 +57,14 @@ return [
     'product.edited' => 'Product edited',
     'product.deleted' => 'Draft product deleted',
 
+    'product.gallery_changed' => 'Product photos changed',
+    'product.photo_detached' => 'Product photo removed with its file',
+    'product.search_words_changed' => 'Product search words changed',
+    'product.filter_values_changed' => 'Product filter values changed',
+    'product.relations_changed' => 'Related products changed',
+    'variant.photos_changed' => 'Variant photos changed',
+    'variant.photo_detached' => 'Variant photo removed with its file',
+
     'variant.added' => 'Variant added',
     'variant.edited' => 'Variant edited',
     'variant.deleted' => 'Draft variant deleted',

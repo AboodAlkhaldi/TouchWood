@@ -47,4 +47,21 @@ interface VariantRepository
 
     /** Whether any variant takes a value of the attribute, or a detail of it. */
     public function anyWithAttribute(string $attributeId): bool;
+
+    /**
+     * @return list<string> the variant's own photos, in order
+     */
+    public function photos(string $variantId): array;
+
+    /**
+     * @param  list<string>  $mediaIds  in order
+     */
+    public function replacePhotos(string $variantId, array $mediaIds): void;
+
+    /**
+     * @return list<string> the variants whose photos hold the media
+     */
+    public function withPhoto(string $mediaId): array;
+
+    public function removePhoto(string $variantId, string $mediaId): void;
 }

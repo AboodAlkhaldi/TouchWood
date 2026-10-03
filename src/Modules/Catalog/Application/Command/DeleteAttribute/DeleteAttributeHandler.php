@@ -11,13 +11,14 @@ use Modules\Catalog\Domain\Exception\ListItemInUse;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Shared\Application\Unauthorized;
 
 /**
  * **Deleting an attribute** (catalog.md §1.7, §9.3 #14): only one nothing uses — no attribute set
  * holds it — and its values go first, each deleted and audited. **Never one a variant carries**, as a value
- * or a detail (`ListItemInUse`), asked after the attribute's row is locked.
+ * or a detail, nor one a product filters by (`ListItemInUse`), asked after the attribute's row is locked.
  */
 final readonly class DeleteAttributeHandler
 {
@@ -27,6 +28,7 @@ final readonly class DeleteAttributeHandler
         private SharedListChange $change,
         private AttributeRepository $attributes,
         private VariantRepository $variants,
+        private ProductRepository $products,
     ) {}
 
     /**
@@ -39,7 +41,7 @@ final readonly class DeleteAttributeHandler
         $this->change->run(ListLocks::ATTRIBUTES, function () use ($command): array {
             $attribute = $this->attributes->byId($command->attributeId) ?? throw new ListItemNotFound($command->attributeId);
 
-            if ($this->attributes->inSets($attribute->id()) || $this->variants->anyWithAttribute($attribute->id())) {
+            if ($this->attributes->inSets($attribute->id()) || $this->variants->anyWithAttribute($attribute->id()) || $this->products->anyWithFilterAttribute($attribute->id())) {
                 throw new ListItemInUse;
             }
 

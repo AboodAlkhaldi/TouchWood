@@ -54,4 +54,55 @@ interface ProductRepository
 
     /** Whether any variant is built on the set — of a product taking it (amendment 3(k)). */
     public function variantsOnSet(string $setId): bool;
+
+    /**
+     * @return list<string> the gallery's media ids, in order
+     */
+    public function gallery(string $productId): array;
+
+    /**
+     * @param  list<string>  $mediaIds  in order
+     */
+    public function replaceGallery(string $productId, array $mediaIds): void;
+
+    /**
+     * @return list<string> the products whose gallery holds the media
+     */
+    public function withPhoto(string $mediaId): array;
+
+    public function removePhoto(string $productId, string $mediaId): void;
+
+    /**
+     * @return list<array{word: string, normalized: string}> in order
+     */
+    public function searchWords(string $productId): array;
+
+    /**
+     * @param  list<array{word: string, normalized: string}>  $words  in order
+     */
+    public function replaceSearchWords(string $productId, array $words): void;
+
+    /**
+     * @return array<string, string> value id => its attribute's id, in the order they were set
+     */
+    public function filterValues(string $productId): array;
+
+    /**
+     * @param  array<string, string>  $values  value id => its attribute's id
+     */
+    public function replaceFilterValues(string $productId, array $values): void;
+
+    public function anyWithFilterValue(string $valueId): bool;
+
+    public function anyWithFilterAttribute(string $attributeId): bool;
+
+    /**
+     * @return list<string> the related products of this kind, in order
+     */
+    public function relations(string $productId, string $kind): array;
+
+    /**
+     * @param  list<string>  $relatedIds  in order
+     */
+    public function replaceRelations(string $productId, string $kind, array $relatedIds): void;
 }

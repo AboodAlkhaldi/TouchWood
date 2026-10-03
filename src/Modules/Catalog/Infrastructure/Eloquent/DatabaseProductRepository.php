@@ -126,6 +126,123 @@ final readonly class DatabaseProductRepository implements ProductRepository
             ->exists();
     }
 
+    public function gallery(string $productId): array
+    {
+        return $this->ordered('catalog.product_photos', 'product_id', $productId, 'media_id');
+    }
+
+    public function replaceGallery(string $productId, array $mediaIds): void
+    {
+        $this->db->table('catalog.product_photos')->where('product_id', $productId)->delete();
+        $rows = array_map(static fn (string $mediaId, int $position): array => ['product_id' => $productId, 'media_id' => $mediaId, 'position' => $position], $mediaIds, array_keys($mediaIds));
+
+        if ($rows !== []) {
+            $this->db->table('catalog.product_photos')->insert($rows);
+        }
+    }
+
+    public function withPhoto(string $mediaId): array
+    {
+        return array_values(array_map('strval', $this->db->table('catalog.product_photos')->where('media_id', strtolower($mediaId))->orderBy('product_id')->pluck('product_id')->all()));
+    }
+
+    public function removePhoto(string $productId, string $mediaId): void
+    {
+        $this->db->table('catalog.product_photos')->where('product_id', $productId)->where('media_id', strtolower($mediaId))->delete();
+    }
+
+    public function searchWords(string $productId): array
+    {
+        if (! Ulids::valid($productId)) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn (stdClass $row): array => ['word' => (string) $row->word, 'normalized' => (string) $row->normalized],
+            $this->db->table('catalog.product_search_words')->where('product_id', strtolower($productId))->orderBy('position')->get()->all(),
+        ));
+    }
+
+    public function replaceSearchWords(string $productId, array $words): void
+    {
+        $this->db->table('catalog.product_search_words')->where('product_id', $productId)->delete();
+        $rows = array_map(static fn (array $word, int $position): array => ['product_id' => $productId, 'normalized' => $word['normalized'], 'word' => $word['word'], 'position' => $position], $words, array_keys($words));
+
+        if ($rows !== []) {
+            $this->db->table('catalog.product_search_words')->insert($rows);
+        }
+    }
+
+    public function filterValues(string $productId): array
+    {
+        if (! Ulids::valid($productId)) {
+            return [];
+        }
+
+        $values = [];
+
+        foreach ($this->db->table('catalog.product_filter_values')->where('product_id', strtolower($productId))->orderBy('attribute_id')->orderBy('value_id')->get() as $row) {
+            $values[(string) $row->value_id] = (string) $row->attribute_id;
+        }
+
+        return $values;
+    }
+
+    public function replaceFilterValues(string $productId, array $values): void
+    {
+        $this->db->table('catalog.product_filter_values')->where('product_id', $productId)->delete();
+        $rows = [];
+
+        foreach ($values as $valueId => $attributeId) {
+            $rows[] = ['product_id' => $productId, 'attribute_id' => $attributeId, 'value_id' => $valueId];
+        }
+
+        if ($rows !== []) {
+            $this->db->table('catalog.product_filter_values')->insert($rows);
+        }
+    }
+
+    public function anyWithFilterValue(string $valueId): bool
+    {
+        return Ulids::valid($valueId) && $this->db->table('catalog.product_filter_values')->where('value_id', strtolower($valueId))->exists();
+    }
+
+    public function anyWithFilterAttribute(string $attributeId): bool
+    {
+        return Ulids::valid($attributeId) && $this->db->table('catalog.product_filter_values')->where('attribute_id', strtolower($attributeId))->exists();
+    }
+
+    public function relations(string $productId, string $kind): array
+    {
+        if (! Ulids::valid($productId)) {
+            return [];
+        }
+
+        return array_values(array_map('strval', $this->db->table('catalog.product_relations')->where('product_id', strtolower($productId))->where('kind', $kind)->orderBy('position')->pluck('related_id')->all()));
+    }
+
+    public function replaceRelations(string $productId, string $kind, array $relatedIds): void
+    {
+        $this->db->table('catalog.product_relations')->where('product_id', $productId)->where('kind', $kind)->delete();
+        $rows = array_map(static fn (string $relatedId, int $position): array => ['product_id' => $productId, 'related_id' => $relatedId, 'kind' => $kind, 'position' => $position], $relatedIds, array_keys($relatedIds));
+
+        if ($rows !== []) {
+            $this->db->table('catalog.product_relations')->insert($rows);
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function ordered(string $table, string $owner, string $ownerId, string $column): array
+    {
+        if (! Ulids::valid($ownerId)) {
+            return [];
+        }
+
+        return array_values(array_map('strval', $this->db->table($table)->where($owner, strtolower($ownerId))->orderBy('position')->pluck($column)->all()));
+    }
+
     private function anyWith(string $column, string $id): bool
     {
         return Ulids::valid($id) && $this->db->table(self::TABLE)->where($column, strtolower($id))->exists();

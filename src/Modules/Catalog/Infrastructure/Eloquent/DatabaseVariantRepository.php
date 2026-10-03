@@ -116,6 +116,35 @@ final readonly class DatabaseVariantRepository implements VariantRepository
             || $this->db->table(self::DETAILS)->where('attribute_id', $attributeId)->exists();
     }
 
+    public function photos(string $variantId): array
+    {
+        if (! Ulids::valid($variantId)) {
+            return [];
+        }
+
+        return array_values(array_map('strval', $this->db->table('catalog.variant_photos')->where('variant_id', strtolower($variantId))->orderBy('position')->pluck('media_id')->all()));
+    }
+
+    public function replacePhotos(string $variantId, array $mediaIds): void
+    {
+        $this->db->table('catalog.variant_photos')->where('variant_id', $variantId)->delete();
+        $rows = array_map(static fn (string $mediaId, int $position): array => ['variant_id' => $variantId, 'media_id' => $mediaId, 'position' => $position], $mediaIds, array_keys($mediaIds));
+
+        if ($rows !== []) {
+            $this->db->table('catalog.variant_photos')->insert($rows);
+        }
+    }
+
+    public function withPhoto(string $mediaId): array
+    {
+        return array_values(array_map('strval', $this->db->table('catalog.variant_photos')->where('media_id', strtolower($mediaId))->orderBy('variant_id')->pluck('variant_id')->all()));
+    }
+
+    public function removePhoto(string $variantId, string $mediaId): void
+    {
+        $this->db->table('catalog.variant_photos')->where('variant_id', $variantId)->where('media_id', strtolower($mediaId))->delete();
+    }
+
     private function read(string $variantId, bool $lock): ?Variant
     {
         if (! Ulids::valid($variantId)) {

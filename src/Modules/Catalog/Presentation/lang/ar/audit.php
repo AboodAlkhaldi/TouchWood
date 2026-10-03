@@ -57,6 +57,14 @@ return [
     'product.edited' => 'عُدّل منتج',
     'product.deleted' => 'حُذفت مسودة منتج',
 
+    'product.gallery_changed' => 'تغيّرت صور منتج',
+    'product.photo_detached' => 'أُزيلت صورة منتج مع ملفها',
+    'product.search_words_changed' => 'تغيّرت كلمات بحث منتج',
+    'product.filter_values_changed' => 'تغيّرت قيم تصفية منتج',
+    'product.relations_changed' => 'تغيّرت المنتجات المرتبطة',
+    'variant.photos_changed' => 'تغيّرت صور نوع منتج',
+    'variant.photo_detached' => 'أُزيلت صورة نوع منتج مع ملفها',
+
     'variant.added' => 'أُضيف نوع منتج',
     'variant.edited' => 'عُدّل نوع منتج',
     'variant.deleted' => 'حُذف نوع من مسودة منتج',
