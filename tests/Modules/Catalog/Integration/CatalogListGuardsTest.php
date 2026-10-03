@@ -38,6 +38,10 @@ use Modules\Catalog\Application\Command\AddWarranty\AddWarranty;
 use Modules\Catalog\Application\Command\AddWarranty\AddWarrantyHandler;
 use Modules\Catalog\Application\Command\AddWordPair\AddWordPair;
 use Modules\Catalog\Application\Command\AddWordPair\AddWordPairHandler;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCode;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCodeHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
@@ -94,10 +98,16 @@ use Modules\Catalog\Application\Command\EditWarranty\EditWarranty;
 use Modules\Catalog\Application\Command\EditWarranty\EditWarrantyHandler;
 use Modules\Catalog\Application\Command\MakeBrandDefault\MakeBrandDefault;
 use Modules\Catalog\Application\Command\MakeBrandDefault\MakeBrandDefaultHandler;
+use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
+use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
 use Modules\Catalog\Application\Command\RankCategories\RankCategories;
 use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
+use Modules\Catalog\Application\Command\RestoreProduct\RestoreProduct;
+use Modules\Catalog\Application\Command\RestoreProduct\RestoreProductHandler;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariantHandler;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValues;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValuesHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
@@ -140,6 +150,7 @@ beforeEach(function () {
         CatalogPermissions::PRODUCT_UPDATE,
         CatalogPermissions::PRODUCT_ARCHIVE,
         CatalogPermissions::VARIANT_CORRECT_CODE,
+        CatalogPermissions::PRODUCT_PUBLISH,
     ]);
 });
 
@@ -222,6 +233,19 @@ function catalogGuardsProduct(?string $brandId = null): string
     $n = catalogGuardsNext();
 
     return app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), "منتج {$n}", "Product {$n}", $brandId));
+}
+
+/** A draft with everything a ready product needs. */
+function catalogGuardsWhole(): string
+{
+    $id = catalogGuardsProduct();
+    $row = DB::table('catalog.products')->where('id', $id)->sole();
+    $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Text']]]]];
+    app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, (string) $row->name_ar, (string) $row->name_en, (string) $row->brand_id, descriptionAr: $text, descriptionEn: $text, categoryId: catalogGuardsCategory()));
+    catalogGuardsVariant($id);
+    app(SetProductGalleryHandler::class)->handle(new SetProductGallery($id, [Cx::media()]));
+
+    return $id;
 }
 
 function catalogGuardsVariant(string $productId): string
@@ -505,6 +529,33 @@ function catalogGuardsChanges(): array
 
             return fn () => app(SetRelationsHandler::class)->handle(new SetRelations($id, 'RELATED', [$ready]));
         }],
+        'archive a product' => ['products', function () {
+            $id = catalogGuardsProduct();
+
+            return fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
+        }],
+        'restore a product' => ['products', function () {
+            $id = catalogGuardsWhole();
+            app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
+
+            return fn () => app(RestoreProductHandler::class)->handle(new RestoreProduct($id));
+        }],
+        'make a product ready' => ['products', function () {
+            $id = catalogGuardsWhole();
+
+            return fn () => app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
+        }],
+        'archive a variant' => ['products', function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+
+            return fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($id));
+        }],
+        'restore a variant' => ['products', function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+            app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($id));
+
+            return fn () => app(RestoreVariantHandler::class)->handle(new RestoreVariant($id));
+        }],
         'add a word pair' => ['word_pairs', fn () => fn () => catalogGuardsPair()],
         'delete a word pair' => ['word_pairs', function () {
             $id = catalogGuardsPair();
@@ -579,6 +630,11 @@ describe('an id that is not in its list', function () {
         'delete a draft variant' => [VariantNotFound::class, fn () => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant(CATALOG_GUARDS_UNKNOWN))],
         'correct a code' => [VariantNotFound::class, fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode(CATALOG_GUARDS_UNKNOWN, '1001'))],
         'set a gallery' => [ProductNotFound::class, fn () => app(SetProductGalleryHandler::class)->handle(new SetProductGallery(CATALOG_GUARDS_UNKNOWN, []))],
+        'archive a product' => [ProductNotFound::class, fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct(CATALOG_GUARDS_UNKNOWN))],
+        'restore a product' => [ProductNotFound::class, fn () => app(RestoreProductHandler::class)->handle(new RestoreProduct(CATALOG_GUARDS_UNKNOWN))],
+        'make a product ready' => [ProductNotFound::class, fn () => app(MarkProductReadyHandler::class)->handle(new MarkProductReady(CATALOG_GUARDS_UNKNOWN))],
+        'archive a variant' => [VariantNotFound::class, fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant(CATALOG_GUARDS_UNKNOWN))],
+        'restore a variant' => [VariantNotFound::class, fn () => app(RestoreVariantHandler::class)->handle(new RestoreVariant(CATALOG_GUARDS_UNKNOWN))],
         'set a variant\'s photos' => [VariantNotFound::class, fn () => app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos(CATALOG_GUARDS_UNKNOWN, []))],
         'set search words' => [ProductNotFound::class, fn () => app(SetSearchWordsHandler::class)->handle(new SetSearchWords(CATALOG_GUARDS_UNKNOWN, []))],
         'set filter values' => [ProductNotFound::class, fn () => app(SetFilterValuesHandler::class)->handle(new SetFilterValues(CATALOG_GUARDS_UNKNOWN, []))],
@@ -731,6 +787,35 @@ describe('a change that changes nothing', function () {
             $id = catalogGuardsProduct();
 
             return fn () => app(SetRelationsHandler::class)->handle(new SetRelations($id, 'GOES_WITH', []));
+        }],
+        'archive an archived product' => [function () {
+            $id = catalogGuardsProduct();
+            app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
+
+            return fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
+        }],
+        'restore a ready product' => [function () {
+            $id = catalogGuardsProduct();
+            DB::table('catalog.products')->where('id', $id)->update(['stage' => 'READY', 'category_id' => catalogGuardsCategory()]);
+
+            return fn () => app(RestoreProductHandler::class)->handle(new RestoreProduct($id));
+        }],
+        'make a ready product ready' => [function () {
+            $id = catalogGuardsProduct();
+            DB::table('catalog.products')->where('id', $id)->update(['stage' => 'READY', 'category_id' => catalogGuardsCategory()]);
+
+            return fn () => app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
+        }],
+        'archive an archived variant' => [function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+            app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($id));
+
+            return fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($id));
+        }],
+        'restore a variant not archived' => [function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+
+            return fn () => app(RestoreVariantHandler::class)->handle(new RestoreVariant($id));
         }],
         'correct a code to itself' => [function () {
             $id = catalogGuardsVariant(catalogGuardsProduct());

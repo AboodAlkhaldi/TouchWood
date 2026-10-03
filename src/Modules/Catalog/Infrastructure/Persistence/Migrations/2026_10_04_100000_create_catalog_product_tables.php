@@ -74,9 +74,11 @@ return new class extends Migration
         DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_name_ar_present CHECK (btrim(name_ar) <> '' AND name_ar !~ '[[:cntrl:]]')");
         DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_name_en_present CHECK (name_en IS NULL OR (btrim(name_en) <> '' AND name_en !~ '[[:cntrl:]]'))");
         DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_description_object CHECK ((description_ar IS NULL OR jsonb_typeof(description_ar) = 'object') AND (description_en IS NULL OR jsonb_typeof(description_en) = 'object'))");
-        // Out of a draft only with a category (§5.1) and an English name (amendment 3(g)).
-        DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_category_unless_draft CHECK (stage = 'DRAFT' OR category_id IS NOT NULL)");
-        DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_english_unless_draft CHECK (stage = 'DRAFT' OR name_en IS NOT NULL)");
+        // A ready product has a category (§5.1) and an English name (amendment 3(g)). Ready, not "past
+        // draft": a draft abandoned is archived as it is (§9.3 #19), and an archived product changes
+        // only by being restored — ready again, with both.
+        DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_category_when_ready CHECK (stage <> 'READY' OR category_id IS NOT NULL)");
+        DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_english_when_ready CHECK (stage <> 'READY' OR name_en IS NOT NULL)");
     }
 
     /**

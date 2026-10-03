@@ -253,16 +253,16 @@ describe('deleting a draft', function () {
 });
 
 describe('what the database refuses behind the code', function () {
-    it('keeps a category and an English name on every product past draft, each refused alone', function () {
+    it('keeps a category and an English name on every ready product, each refused alone', function () {
         // Each row fails one CHECK only (lesson 112).
         $named = Px::product('Drawer');
         $unnamed = Px::product(null);
         $category = Px::category();
 
         expect(fn () => DB::transaction(fn () => DB::table('catalog.products')->where('id', $named)->update(['stage' => 'READY'])))
-            ->toThrow(QueryException::class, 'products_category_unless_draft')
+            ->toThrow(QueryException::class, 'products_category_when_ready')
             ->and(fn () => DB::transaction(fn () => DB::table('catalog.products')->where('id', $unnamed)->update(['stage' => 'READY', 'category_id' => $category])))
-            ->toThrow(QueryException::class, 'products_english_unless_draft')
+            ->toThrow(QueryException::class, 'products_english_when_ready')
             ->and(fn () => DB::transaction(fn () => DB::table('catalog.products')->where('id', $named)->update(['stage' => 'PUBLISHED', 'category_id' => $category])))
             ->toThrow(QueryException::class, 'products_stage');
     });
