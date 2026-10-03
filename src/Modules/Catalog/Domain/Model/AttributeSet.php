@@ -15,7 +15,7 @@ use Modules\Catalog\Public\Enums\AttributeKind;
  * product takes one set, and its variants are combinations of those attributes' values (step 3).
  *
  * Its members are given as attributes read now, so the rules are checked against what they are:
- * at least one, none twice, every one variant-making and active.
+ * at least one, none twice, every one variant-making, and every one it newly takes active.
  */
 final class AttributeSet
 {
@@ -65,7 +65,7 @@ final class AttributeSet
     {
         $before = $this->snapshot();
         $this->name = $name;
-        $this->memberIds = self::members($members);
+        $this->memberIds = self::members($members, $this->memberIds);
 
         foreach ($this->snapshot() as $column => $now) {
             $this->changes->record($column, $before[$column], $now);
@@ -132,11 +132,13 @@ final class AttributeSet
 
     /**
      * @param  list<Attribute>  $members
+     * @param  list<string>  $held  the members it has: one deactivated since may stay, so the set
+     *                              can still be renamed; it is only never added again
      * @return list<string>
      *
      * @throws InvalidCatalogAttribute|ListItemInactive
      */
-    private static function members(array $members): array
+    private static function members(array $members, array $held = []): array
     {
         if ($members === []) {
             throw new InvalidCatalogAttribute('attribute_ids', 'at least one attribute');
@@ -153,7 +155,7 @@ final class AttributeSet
                 throw new InvalidCatalogAttribute('attribute_ids', 'variant-making attributes only');
             }
 
-            if (! $attribute->isActive()) {
+            if (! $attribute->isActive() && ! in_array($attribute->id(), $held, true)) {
                 throw new ListItemInactive;
             }
 

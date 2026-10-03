@@ -23,6 +23,8 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
 use Modules\Catalog\Infrastructure\Listener\WriteStartingCategoryOrder;
+use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
+use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Events\StoreCreated;
 
 /**
@@ -53,5 +55,8 @@ final class CatalogServiceProvider extends ServiceProvider
 
         // A store opened later starts with the base store's order of the menu (amendment 1(d)).
         Event::listen(StoreCreated::class, [WriteStartingCategoryOrder::class, 'handle']);
+
+        // Brand logos and category photos: deleting the media leaves them without (§2.4).
+        $this->app->make(MediaUsages::class)->register('catalog', CatalogImagesUsage::class);
     }
 }

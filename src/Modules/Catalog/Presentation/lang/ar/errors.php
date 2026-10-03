@@ -68,6 +68,7 @@ return [
         'description_en' => 'الوصف الإنجليزي',
         'image_media_id' => 'الصورة',
         'is_colour' => 'اللون',
+        'kind' => 'الوظيفة',
         'logo_media_id' => 'الشعار',
         'name_ar' => 'الاسم العربي',
         'name_en' => 'الاسم الإنجليزي',

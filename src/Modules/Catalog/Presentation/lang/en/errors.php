@@ -68,6 +68,7 @@ return [
         'description_en' => 'English description',
         'image_media_id' => 'photo',
         'is_colour' => 'colour',
+        'kind' => 'job',
         'logo_media_id' => 'logo',
         'name_ar' => 'Arabic name',
         'name_en' => 'English name',

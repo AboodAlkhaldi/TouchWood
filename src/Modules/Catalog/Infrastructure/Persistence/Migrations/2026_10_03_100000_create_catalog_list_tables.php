@@ -229,8 +229,10 @@ return new class extends Migration
             $table->timestampTz('created_at');
         });
 
-        // Kept in order and never a word with itself: "a < b" says both (§1.11).
-        DB::statement('ALTER TABLE catalog.word_pairs ADD CONSTRAINT word_pairs_ordered CHECK (word_a < word_b)');
+        // Kept in order and never a word with itself: "a < b" says both (§1.11). Compared byte by
+        // byte, as the code orders them: the database's language order ignores spaces and hyphens,
+        // so "a b" and "a-a" would sort the other way and refuse a pair the code accepted.
+        DB::statement('ALTER TABLE catalog.word_pairs ADD CONSTRAINT word_pairs_ordered CHECK (word_a COLLATE "C" < word_b COLLATE "C")');
         DB::statement("ALTER TABLE catalog.word_pairs ADD CONSTRAINT word_pairs_present CHECK (btrim(word_a) <> '' AND btrim(word_b) <> '')");
         DB::statement('CREATE UNIQUE INDEX word_pairs_unique ON catalog.word_pairs (word_a, word_b)');
     }
