@@ -9,6 +9,7 @@
         "ext-exif": "*",
         "ext-fileinfo": "*",
         "ext-gd": "*",
+        "ext-intl": "*",
         "brick/math": "^0.19.1",
         "inertiajs/inertia-laravel": "^3.3",
         "intervention/image": "^4.3",

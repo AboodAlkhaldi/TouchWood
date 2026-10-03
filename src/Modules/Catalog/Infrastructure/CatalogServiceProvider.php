@@ -7,6 +7,20 @@ namespace Modules\Catalog\Infrastructure;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Domain\Repository\AttributeRepository;
+use Modules\Catalog\Domain\Repository\BrandRepository;
+use Modules\Catalog\Domain\Repository\CategoryRepository;
+use Modules\Catalog\Domain\Repository\LabelRepository;
+use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\Repository\WarrantyRepository;
+use Modules\Catalog\Domain\Repository\WordPairRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseAttributeRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseBrandRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseCategoryRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
 
 /**
  * What is sold, and where (catalog.md). Registered after Access: Catalog uses Access's public
@@ -14,6 +28,17 @@ use Modules\Catalog\Application\CatalogPermissions;
  */
 final class CatalogServiceProvider extends ServiceProvider
 {
+    public function register(): void
+    {
+        $this->app->bind(ListLocks::class, DatabaseListLocks::class);
+        $this->app->bind(BrandRepository::class, DatabaseBrandRepository::class);
+        $this->app->bind(CategoryRepository::class, DatabaseCategoryRepository::class);
+        $this->app->bind(AttributeRepository::class, DatabaseAttributeRepository::class);
+        $this->app->bind(LabelRepository::class, DatabaseLabelRepository::class);
+        $this->app->bind(WarrantyRepository::class, DatabaseWarrantyRepository::class);
+        $this->app->bind(WordPairRepository::class, DatabaseWordPairRepository::class);
+    }
+
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
