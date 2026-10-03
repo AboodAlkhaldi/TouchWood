@@ -10,7 +10,7 @@ use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\Readiness;
-use Modules\Catalog\Domain\Exception\InvalidStageChange;
+use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Exception\ProductNotReady;
 use Modules\Catalog\Domain\Repository\ListLocks;
@@ -35,7 +35,7 @@ final readonly class MarkProductReadyHandler
     ) {}
 
     /**
-     * @throws InvalidStageChange|ProductNotFound|ProductNotReady|Unauthorized
+     * @throws ProductArchived|ProductNotFound|ProductNotReady|Unauthorized
      */
     public function handle(MarkProductReady $command): void
     {

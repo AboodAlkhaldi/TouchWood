@@ -7,6 +7,7 @@ namespace Modules\Catalog\Domain\Model;
 use Modules\Catalog\Domain\Exception\AttributeSetLocked;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
+use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\ValueObject\ProductName;
 use Modules\Catalog\Domain\ValueObject\ProductSlugs;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
@@ -102,14 +103,14 @@ final class Product
 
     /**
      * Out of its draft (§4.1): its handler has checked every readiness rule. A ready product is left
-     * as it is; an archived one is restored instead.
+     * as it is; an archived one changes only by being restored (§7).
      *
-     * @throws InvalidStageChange
+     * @throws ProductArchived
      */
     public function markReady(): void
     {
         if ($this->stage === ProductStage::Archived) {
-            throw new InvalidStageChange;
+            throw new ProductArchived;
         }
 
         $this->moveTo(ProductStage::Ready);

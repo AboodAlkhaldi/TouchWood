@@ -57,8 +57,8 @@ with `PermissionScope::allStores()`: only a Super Admin or someone given the job
 changes it. `CatalogPermissions::sharedLists()` names those six.
 
 **Which step brings which handler:** step 2 the six shared-list jobs and `catalog.category.rank`;
-step 3 `product.create`, `product.update`, `variant.correct_code`, `product.publish`,
-`product.archive`, `product.view`; step 4 `listing.choose`, `listing.selling`, `listing.unavailable`
+step 3 `product.create`, `product.update`, `variant.correct_code`, `product.publish` and
+`product.archive`; `product.view`'s reads come with the screens, as the lists' do; step 4 `listing.choose`, `listing.selling`, `listing.unavailable`
 and `listing.labels`; step 5 `listing.rebuild` and `search_log.prune`; step 6 `import.run`.
 
 ### The shared lists (step 2)
@@ -102,7 +102,11 @@ anyone else is refused and nothing changes.
 cycle with the lists:** a product change reads the list rows it points at with a row lock
 (`ProductReferences`), and a list's change locks the same row before it asks "is it in use?" but
 never takes the products' lock — so a brand deleted while a product takes it is either seen gone,
-or sees the product.
+or sees the product. Where a change locks an attribute and one of its values, **the attribute comes
+first**, on both sides. And a product change writes no row whose key would lock a row it has not
+locked itself: archiving a variant writes the variant's row alone, and a photo that stays in a
+gallery is moved, never written again — deleting its file holds the media row while it waits for
+the products' lock.
 
 **Who may.** `ProductAccess` asks for the permission in every store where the product is Active
 (catalog.md §1.1). Stores choose products from step 4, so for now every product is Active nowhere,
@@ -170,7 +174,8 @@ public surface never references Access.
 | `Integration/CatalogVariantsTest` | Combinations, details and measures; codes held, shared by sizes, taken, freed by a draft and corrected on every variant carrying them |
 | `Integration/CatalogListsInUseTest` | A list item a product or variant uses: not deleted, a category's sub-categories, a set's members, an attribute's job |
 | `Integration/CatalogProductPartsTest` | Gallery and variant photos, search words, filter values, relations; a photo's file deleted from the media library |
-| `Integration/CatalogProductStagesTest` | Making ready, archiving and restoring a product and a variant; a ready product keeping every rule; the events |
+| `Integration/CatalogProductStagesTest` | Making ready, archiving and restoring a product and a variant; a ready product keeping every rule; each change's own job; the events; what the audit log keeps |
+| `Integration/CatalogProductConstraintsTest` | The products' named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code |
 | `Integration/CatalogListGuardsTest` | For every one of the fifty-seven list and product changes: its lock is the first query inside its own transaction; an id not in its list is answered as not found; a change that changes nothing writes nothing and records nothing; and what the audit log keeps reads from what was to what is |
 | `Integration/CatalogListConstraintsTest` | The database's named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code; an id that is not a ULID never reaching the database |
 | `Unit/CatalogListLocksTest` | A list's lock is refused outside a transaction |
@@ -178,6 +183,7 @@ public surface never references Access.
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 
 `CatalogListGuardsTest` records every query to check each change takes its lock first, inside its
-own transaction (level 2 under `RefreshDatabase`). `Support/CatalogProducts` makes the products,
+own transaction (level 2 under `RefreshDatabase`); `CatalogFixtures::lockedTables` reads from the
+same record which rows a change locked, in order. `Support/CatalogProducts` makes the products,
 variants and the lists they use, as the system. Run everything with `composer check`.
 The test database is `touchwood_test`.

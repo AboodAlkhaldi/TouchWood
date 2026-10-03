@@ -65,10 +65,15 @@ final readonly class DatabaseVariantRepository implements VariantRepository
 
     public function update(Variant $variant): void
     {
-        $this->db->table(self::TABLE)->where('id', $variant->id())->update([...self::toRow($variant), 'updated_at' => CarbonImmutable::now()]);
+        $this->updateRow($variant);
         $this->db->table(self::VALUES)->where('variant_id', $variant->id())->delete();
         $this->db->table(self::DETAILS)->where('variant_id', $variant->id())->delete();
         $this->writeValuesAndDetails($variant);
+    }
+
+    public function updateRow(Variant $variant): void
+    {
+        $this->db->table(self::TABLE)->where('id', $variant->id())->update([...self::toRow($variant), 'updated_at' => CarbonImmutable::now()]);
     }
 
     public function delete(string $variantId): void
@@ -127,11 +132,17 @@ final readonly class DatabaseVariantRepository implements VariantRepository
 
     public function replacePhotos(string $variantId, array $mediaIds): void
     {
-        $this->db->table('catalog.variant_photos')->where('variant_id', $variantId)->delete();
-        $rows = array_map(static fn (string $mediaId, int $position): array => ['variant_id' => $variantId, 'media_id' => $mediaId, 'position' => $position], $mediaIds, array_keys($mediaIds));
+        // A photo that stays is moved, never written again: a new row would take a key lock on its
+        // media row, which deleting that file holds while it waits for the products' lock.
+        $this->db->table('catalog.variant_photos')->where('variant_id', $variantId)->whereNotIn('media_id', $mediaIds)->delete();
+        $held = $this->db->table('catalog.variant_photos')->where('variant_id', $variantId)->pluck('position', 'media_id')->all();
 
-        if ($rows !== []) {
-            $this->db->table('catalog.variant_photos')->insert($rows);
+        foreach ($mediaIds as $position => $mediaId) {
+            if (! array_key_exists($mediaId, $held)) {
+                $this->db->table('catalog.variant_photos')->insert(['variant_id' => $variantId, 'media_id' => $mediaId, 'position' => $position]);
+            } elseif ((int) $held[$mediaId] !== $position) {
+                $this->db->table('catalog.variant_photos')->where('variant_id', $variantId)->where('media_id', $mediaId)->update(['position' => $position]);
+            }
         }
     }
 

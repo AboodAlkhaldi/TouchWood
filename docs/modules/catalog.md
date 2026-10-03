@@ -402,8 +402,9 @@ Every change is audited (Platform), **by value**: product data names no person.
 **[ACCEPTED 2026-10-02, §9.3 #19]** no way from `READY` back to `DRAFT` (a store hides a product by making it
 Inactive), and a `DRAFT` is archived or deleted when abandoned. **[ACCEPTED 2026-10-02, §9.5 #2]** Deleting a draft
 (`DeleteDraftProduct`, under `catalog.product.archive`) removes it whole, with its variants, photos'
-links and slugs: it was never shown or sold, so its slugs and codes become free again — the one
-exception to "a code is never given to another variant".
+links and slugs: it was never shown or sold, so its slugs and codes become free again. A draft also
+lets go of a code none of its variants carries any more (amendment 3(c)); otherwise a code stays with
+the product that held it (amendment 3(e)).
 
 ### 4.2 A variant in a store
 
@@ -432,16 +433,16 @@ relations, variants and theirs) are removed with it — which happens only when 
 
 | Table | Columns |
 |---|---|
-| `catalog.products` | `id` PK · `name_ar`, `name_en` `varchar(200)` NOT NULL · `description_ar`, `description_en` `jsonb` NULL — the structured text (§1.1), each at most 20,000 characters of text, CHECK `jsonb_typeof = 'object'` · `brand_id` FK → `brands` RESTRICT NOT NULL · `category_id` FK → `categories` RESTRICT NULL — CHECK `products_category_when_ready` (present while `READY`: a draft abandoned is archived as it is, §9.3 #19; amendment 3(l)) · `warranty_id` FK → `warranties` RESTRICT NULL · `attribute_set_id` FK → `attribute_sets` RESTRICT NULL · `stage` `varchar(16)` CHECK (`DRAFT`, `READY`, `ARCHIVED`) · `hidden_by_category`, `hidden_by_brand` `boolean` NOT NULL DEFAULT false — set when a deactivation chose "hide" (§1.5, §1.6), cleared when it is undone or the product moves · timestamps |
+| `catalog.products` | `id` PK · `name_ar` `varchar(200)` NOT NULL · `name_en` `varchar(200)` NULL — present while `READY`, CHECK `products_english_when_ready` (amendment 3(g), (l)) · `description_ar`, `description_en` `jsonb` NULL — the structured text (§1.1), each at most 20,000 characters of text, CHECK `jsonb_typeof = 'object'` · `brand_id` FK → `brands` RESTRICT NOT NULL · `category_id` FK → `categories` RESTRICT NULL — CHECK `products_category_when_ready` (present while `READY`: a draft abandoned is archived as it is, §9.3 #19; amendment 3(l)) · `warranty_id` FK → `warranties` RESTRICT NULL · `attribute_set_id` FK → `attribute_sets` RESTRICT NULL · `stage` `varchar(16)` CHECK (`DRAFT`, `READY`, `ARCHIVED`) · `hidden_by_category`, `hidden_by_brand` `boolean` NOT NULL DEFAULT false — set when a deactivation chose "hide" (§1.5, §1.6), cleared when it is undone or the product moves · timestamps |
 | `catalog.product_slugs` | (`locale` `char(2)`, `slug` `varchar(200)`) PK — **every slug ever used**, so none is given to another product · `product_id` FK CASCADE · `is_current` — exactly one current per product and locale (partial unique `product_slugs_one_current`) · CHECK the slug's letters: Arabic letters, digits and `-` for `ar`; `a-z`, digits and `-` for `en` |
 | `catalog.product_search_words` | (`product_id` FK CASCADE, `normalized` `varchar(50)`) PK · `word` `varchar(50)` — as typed; at most 30 per product (code rule) |
 | `catalog.product_photos` | (`product_id` FK CASCADE, `media_id` FK → `platform.media` RESTRICT) PK · `position` — at most 20 per product (code rule) |
 | `catalog.product_relations` | (`product_id` FK CASCADE, `related_id` FK → `products` RESTRICT, `kind`) PK — `kind` CHECK (`RELATED`, `GOES_WITH`) · `position` · CHECK `product_id <> related_id` |
 | `catalog.variants` | `id` PK · `product_id` FK CASCADE · `code` `varchar(10)` NOT NULL — digits only, CHECK `variants_code_format`; FK (`product_id`, `code`) → `product_codes` (amendment 3(e)) · `combination` `varchar(600)` — the variant's value ids in attribute order; unique (`product_id`, `combination`) `variants_one_per_combination`, archived ones included · `weight_grams`, `length_mm`, `width_mm`, `height_mm` `integer` NULL, each CHECK 1–1,000,000 · `is_archived` · `position` · timestamps |
 | `catalog.product_codes` | `code` `varchar(10)` PK — **every code the product's variants ever held**, so a code is never given to another product while this one exists (§1.2, amendment 3(e)) · `product_id` FK CASCADE · unique (`product_id`, `code`) for the variants' key |
-| `catalog.product_filter_values` | (`product_id` FK CASCADE, `value_id` FK → `attribute_values` RESTRICT) PK · `attribute_id` FK RESTRICT — a filter attribute's value, the value belonging to that attribute (code rules) (amendment 3(a)) |
-| `catalog.variant_values` | (`variant_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `value_id` FK → `attribute_values` RESTRICT — the value belongs to that attribute (code rule) |
-| `catalog.variant_details` | (`variant_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `text_ar`, `text_en` `varchar(200)` NULL · `number` `numeric(12,3)` NULL — either both texts or the number (CHECK `variant_details_one_kind`) |
+| `catalog.product_filter_values` | (`product_id` FK CASCADE, `value_id` FK → `attribute_values` RESTRICT) PK · `attribute_id` FK RESTRICT — a filter attribute's value (code rule), belonging to that attribute: FK (`attribute_id`, `value_id`) → `attribute_values` (`attribute_id`, `id`) `product_filter_values_value` (amendment 3(a)) |
+| `catalog.variant_values` | (`variant_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `value_id` — FK (`attribute_id`, `value_id`) → `attribute_values` (`attribute_id`, `id`) RESTRICT `variant_values_value`: the value belongs to that attribute |
+| `catalog.variant_details` | (`variant_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `text_ar`, `text_en` `varchar(200)` NULL · `number` `numeric(12,3)` NULL — either both texts or the number (CHECK `variant_details_one_kind`), a text present and on one line (CHECK `variant_details_text_present`) |
 | `catalog.variant_photos` | (`variant_id` FK CASCADE, `media_id` FK → `platform.media` RESTRICT) PK · `position` — at most 10 per variant (code rule) |
 
 **5.2 Each store's choice** — store-scoped models (`BelongsToStore`, handoff §4.1)
@@ -528,7 +529,8 @@ exactly as one that does not exist, as B2B's and Access's do.
 | `BrandInUse`, `ListItemInUse` | CONFLICT | Deleting what a product still uses |
 | `DefaultBrandRequired` | CONFLICT | Deactivating or deleting the default brand (§1.6) |
 | `AttributeSetLocked` | CONFLICT | Changing a product's attribute set once it has variants (§1.7) |
-| `TooMany` | CONFLICT | Over a limit: photos, search words |
+| `AttributeSetInUse` | CONFLICT | Changing a set's attributes while variants are built on it (amendment 3(k)) |
+| `TooMany` | CONFLICT | Over a limit: photos, search words, filter values, related products |
 | `InvalidCatalogAttribute` | INVALID | Any other value the domain refuses — a length, a format, a swatch |
 | `ImportRefused` | INVALID | An import whose preview found errors; it lists them all |
 
@@ -545,8 +547,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
    item is named. A ready product refuses an edit that removes one.
 2. A code is digits only and belongs to one product — its variants may share it — and no code another
    product holds or held is given to this one, until that product (a draft) is deleted; correcting one
-   is its own permission and audited; no code a variant ever held — archived or corrected — is given
-   to another variant.
+   is its own permission and audited; a code stays with its product — archived or corrected — except
+   that a draft lets go of a code none of its variants carries any more (amendment 3(c)).
 3. Two variants of one product never share a combination; the server resolves the variant from
    picked values; price is never added up from values.
 4. A slug is unique per language among products (and among categories, among brands); an old slug
@@ -722,7 +724,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 1. **The quantity limits' range**: each minimum and maximum a whole number from 1 to 100,000, a
    maximum never below its minimum (§1.3).
 2. **Deleting a draft** frees its slugs and its variants' codes — it was never shown or sold — the one
-   exception to "a code is never given to another variant" (§4.1).
+   exception to "a code is never given to another variant" (§4.1). (Amended since: codes belong to a
+   product, and a draft also lets go of a code it no longer uses — amendment 3(c), (e).)
 3. **A combination is never made twice**: a variant with the same values as an archived one is
    refused; the archived one is restored instead (§5.1, `DuplicateCombination`).
 4. ~~**Creating a product needs both names**~~ **Replaced by amendment 3(g)**: a draft may have its Arabic name only. Formerly: **Creating a product needs both names** (its slugs are made from them, §9.3 #3); everything else

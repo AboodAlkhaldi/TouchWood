@@ -10,7 +10,9 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
+use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
+use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
@@ -31,11 +33,12 @@ final readonly class DeleteDraftVariantHandler
         private SharedListChange $change,
         private ProductRepository $products,
         private VariantRepository $variants,
+        private Readiness $readiness,
         private ProductEvents $events,
     ) {}
 
     /**
-     * @throws InvalidStageChange|Unauthorized|VariantNotFound
+     * @throws InvalidStageChange|ProductArchived|Unauthorized|VariantNotFound
      */
     public function handle(DeleteDraftVariant $command): void
     {
@@ -44,6 +47,7 @@ final readonly class DeleteDraftVariantHandler
         $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
             $variant = $this->variants->byId($command->variantId) ?? throw new VariantNotFound($command->variantId);
             $product = $this->products->byId($variant->productId()) ?? throw new LogicException('A variant without its product.');
+            $this->readiness->requireNotArchived($product);
 
             if (! $product->isDraft()) {
                 throw new InvalidStageChange;

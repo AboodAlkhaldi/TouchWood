@@ -32,6 +32,9 @@ interface VariantRepository
     /** Writes the variant, its values and details as they now are. */
     public function update(Variant $variant): void;
 
+    /** Writes the variant's own row alone — archived or restored, its values and details unchanged. */
+    public function updateRow(Variant $variant): void;
+
     public function delete(string $variantId): void;
 
     /** Whether another variant of the product has this combination, archived ones included (§1.2). */

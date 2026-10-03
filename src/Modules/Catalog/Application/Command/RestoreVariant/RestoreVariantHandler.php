@@ -53,7 +53,7 @@ final readonly class RestoreVariantHandler
                 return [null, []];
             }
 
-            $this->variants->update($variant);
+            $this->variants->updateRow($variant);
             $this->events->variantRestored($product->id(), $variant->id());
 
             return [null, [$entry]];

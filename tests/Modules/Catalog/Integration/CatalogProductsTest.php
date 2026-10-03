@@ -8,8 +8,12 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
+use Modules\Catalog\Application\Command\DeactivateAttributeSet\DeactivateAttributeSet;
+use Modules\Catalog\Application\Command\DeactivateAttributeSet\DeactivateAttributeSetHandler;
 use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrand;
 use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrandHandler;
 use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategory;
@@ -28,6 +32,7 @@ use Modules\Catalog\Domain\Exception\CategoryNotLowest;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
+use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
@@ -273,5 +278,57 @@ describe('what the database refuses behind the code', function () {
 
         expect(fn () => DB::transaction(fn () => DB::table('catalog.brands')->where('id', $brand)->delete()))
             ->toThrow(QueryException::class, 'products_brand');
+    });
+});
+
+describe('an English name taken away from a draft', function () {
+    it('leaves no English address current, holds it from every other product, and writes nothing twice', function () {
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE]);
+        $id = Px::product('Drawer');
+        $address = catalogProductsSlugs($id)['en'];
+
+        catalogProductsEdit($id, ['nameEn' => null, 'slugEn' => null]);
+        $edits = Fx::audits('catalog.product.edited', $id);
+        catalogProductsEdit($id);
+
+        expect(catalogProductsSlugs($id))->not->toHaveKey('en')
+            ->and(app(ProductRepository::class)->find($id)?->slugs()->en)->toBeNull()
+            ->and(Fx::audits('catalog.product.edited', $id))->toBe($edits)
+            ->and(fn () => catalogProductsEdit(Px::product('Hinge'), ['slugEn' => $address]))->toThrow(SlugTaken::class);
+
+        catalogProductsEdit($id, ['nameEn' => 'Drawer', 'slugEn' => $address]);
+
+        expect(catalogProductsSlugs($id)['en'])->toBe($address);
+    });
+});
+
+describe('an archived product', function () {
+    it('is never deleted, its codes kept with it', function () {
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_ARCHIVE]);
+        $id = Px::product();
+        Px::variant($id, '1001');
+        app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
+
+        expect(fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($id)))->toThrow(ProductArchived::class)
+            ->and(DB::table('catalog.product_codes')->where('code', '1001')->value('product_id'))->toBe($id);
+    });
+});
+
+describe('an attribute set deactivated', function () {
+    it('stays on a product that has it, and is taken by no product newly', function () {
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE]);
+        [$held, $other] = [Px::set([Px::attribute()]), Px::set([Px::attribute()])];
+        $id = Px::product();
+        catalogProductsEdit($id, ['attributeSetId' => $held]);
+        Fx::asSystem(function () use ($held, $other): void {
+            app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($held));
+            app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($other));
+        });
+
+        catalogProductsEdit($id, ['nameAr' => 'درج مجدد']);
+
+        expect(app(ProductRepository::class)->find($id)?->attributeSetId())->toBe($held)
+            ->and(app(ProductRepository::class)->find($id)?->name()->ar)->toBe('درج مجدد')
+            ->and(fn () => catalogProductsEdit($id, ['attributeSetId' => $other]))->toThrow(ListItemInactive::class);
     });
 });

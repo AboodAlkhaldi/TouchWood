@@ -41,11 +41,12 @@ final readonly class ProductSlugs
     }
 
     /**
-     * @return array<string, string> locale => slug, the English one only while there is one
+     * @return array{ar: string, en: string|null} locale => slug, the English one null while there is
+     *                                            no English name
      */
     public function byLocale(): array
     {
-        return $this->en === null ? ['ar' => $this->ar->value] : ['ar' => $this->ar->value, 'en' => $this->en->value];
+        return ['ar' => $this->ar->value, 'en' => $this->en?->value];
     }
 
     /**

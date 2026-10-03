@@ -91,8 +91,10 @@ final readonly class ProductParts
                 throw new InvalidCatalogAttribute('filter_values', 'values, by their ids');
             }
 
+            $found = $this->attributes->findValue($valueId) ?? throw new ListItemNotFound($valueId);
+            // The attribute's row before the value's, the order every change locking both takes.
+            $attribute = $this->attributes->byId($found->attributeId()) ?? throw new ListItemNotFound($found->attributeId());
             $value = $this->attributes->valueById($valueId) ?? throw new ListItemNotFound($valueId);
-            $attribute = $this->attributes->byId($value->attributeId()) ?? throw new ListItemNotFound($value->attributeId());
 
             if ($attribute->kind() !== AttributeKind::Filterable) {
                 throw new InvalidCatalogAttribute('filter_values', 'values of filter attributes');

@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Command\DeactivateAttribute\DeactivateAttribute;
+use Modules\Catalog\Application\Command\DeactivateAttribute\DeactivateAttributeHandler;
 use Modules\Catalog\Application\Command\DeactivateAttributeValue\DeactivateAttributeValue;
 use Modules\Catalog\Application\Command\DeactivateAttributeValue\DeactivateAttributeValueHandler;
 use Modules\Catalog\Application\Command\DeleteAttribute\DeleteAttribute;
@@ -30,9 +32,11 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
 use Modules\Catalog\Domain\Exception\ListItemInUse;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
+use Modules\Catalog\Domain\Exception\ProductNotReady;
 use Modules\Catalog\Domain\Exception\TooMany;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
+use Modules\Catalog\Infrastructure\Media\ProductPhotosUsage;
 use Modules\Catalog\Public\Events\ProductChanged;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
@@ -59,7 +63,7 @@ beforeEach(function () {
     Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE]);
 });
 
-/** A product made ready by hand: its readiness rules are step 3c's. */
+/** A product made ready by hand, past the readiness rules `CatalogProductStagesTest` covers. */
 function catalogPartsReady(string $productId): void
 {
     DB::table('catalog.products')->where('id', $productId)->update(['stage' => 'READY', 'category_id' => Px::category()]);
@@ -286,5 +290,107 @@ describe('what the database refuses behind the code', function () {
             ->toThrow(QueryException::class, 'product_filter_values_value')
             ->and(fn () => DB::transaction(fn () => DB::table('catalog.product_search_words')->insert(['product_id' => $product, 'normalized' => ' ', 'word' => ' ', 'position' => 0])))
             ->toThrow(QueryException::class, 'product_search_words_present');
+    });
+});
+
+describe('a gallery set again', function () {
+    it('moves the photos that stay, drops the ones left out and adds the new, in the order given', function () {
+        $product = Px::product();
+        $variant = Px::variant($product, '1001');
+        [$a, $b, $c, $d] = [Cx::media(), Cx::media(), Cx::media(), Cx::media()];
+        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [$a, $b, $c]));
+        app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($variant, [$a, $b, $c]));
+
+        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [$c, $a, $d]));
+        app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($variant, [$c, $a, $d]));
+
+        expect(app(ProductRepository::class)->gallery($product))->toBe([$c, $a, $d])
+            ->and(app(VariantRepository::class)->photos($variant))->toBe([$c, $a, $d]);
+    });
+
+    it('writes no row again for a photo that stays', function () {
+        $product = Px::product();
+        $variant = Px::variant($product, '1001');
+        [$a, $b] = [Cx::media(), Cx::media()];
+        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [$a, $b]));
+        app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($variant, [$a, $b]));
+        $queries = Cx::recordQueries();
+
+        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [$b, $a]));
+        app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($variant, [$b, $a]));
+
+        // A new row would take a key lock on the media row, which deleting its file holds.
+        $inserted = array_filter((array) $queries, fn (array $query): bool => preg_match('/^insert into "catalog"\."(product|variant)_photos"/i', $query['sql']) === 1);
+
+        expect($inserted)->toBe([])
+            ->and(app(ProductRepository::class)->gallery($product))->toBe([$b, $a]);
+    });
+});
+
+describe('the limits', function () {
+    it('takes each list at its limit exactly', function () {
+        $product = Px::product();
+        $variant = Px::variant($product, '1001');
+        $photos = array_map(fn (): string => Cx::media(), range(1, 20));
+        $finish = Px::attribute('Finish', 'FILTERABLE');
+        $values = array_map(fn (int $n): string => Px::value($finish, "Finish {$n}"), range(1, 100));
+        $related = array_map(function (): string {
+            $id = Px::product('Hinge');
+            catalogPartsReady($id);
+
+            return $id;
+        }, range(1, 20));
+
+        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, $photos));
+        app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($variant, array_slice($photos, 0, 10)));
+        app(SetFilterValuesHandler::class)->handle(new SetFilterValues($product, $values));
+        app(SetRelationsHandler::class)->handle(new SetRelations($product, 'RELATED', $related));
+
+        expect(app(ProductRepository::class)->gallery($product))->toHaveCount(20)
+            ->and(app(VariantRepository::class)->photos($variant))->toHaveCount(10)
+            ->and(app(ProductRepository::class)->filterValues($product))->toHaveCount(100)
+            ->and(app(ProductRepository::class)->relations($product, 'RELATED'))->toHaveCount(20);
+    });
+});
+
+describe('relations and filter values, further', function () {
+    it('never relates a ready product to itself', function () {
+        $product = Px::product();
+        catalogPartsReady($product);
+
+        expect(fn () => app(SetRelationsHandler::class)->handle(new SetRelations($product, 'RELATED', [$product])))->toThrow(InvalidCatalogAttribute::class, 'relations');
+    });
+
+    it('takes no value of a filter attribute deactivated since, though the value is active', function () {
+        $finish = Px::attribute('Finish', 'FILTERABLE');
+        $oak = Px::value($finish, 'Oak');
+        Fx::asSystem(fn () => app(DeactivateAttributeHandler::class)->handle(new DeactivateAttribute($finish)));
+
+        expect(fn () => app(SetFilterValuesHandler::class)->handle(new SetFilterValues(Px::product(), [$oak])))->toThrow(ListItemInactive::class);
+    });
+
+    it('locks each value\'s attribute before the value', function () {
+        $finish = Px::attribute('Finish', 'FILTERABLE');
+        $oak = Px::value($finish, 'Oak');
+        $product = Px::product();
+        $queries = Cx::recordQueries();
+
+        app(SetFilterValuesHandler::class)->handle(new SetFilterValues($product, [$oak]));
+        $locked = Cx::lockedTables($queries);
+
+        expect(array_values(array_unique(array_intersect($locked, ['attributes', 'attribute_values']))))->toBe(['attributes', 'attribute_values']);
+    });
+});
+
+describe('a photo\'s file deleted, asked again under the lock', function () {
+    it('refuses the last ready photo of a product made ready after Platform asked', function () {
+        $product = Px::product();
+        $photo = Cx::media();
+        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [$photo]));
+        catalogPartsReady($product);
+
+        // As Platform calls it, inside its delete's transaction, past the question it asked first.
+        expect(fn () => DB::transaction(fn () => app(ProductPhotosUsage::class)->detach($photo)))->toThrow(ProductNotReady::class, 'photos')
+            ->and(app(ProductRepository::class)->gallery($product))->toBe([$photo]);
     });
 });

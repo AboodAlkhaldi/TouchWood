@@ -152,3 +152,13 @@ it('keeps a details attribute\'s job once a variant carries a detail of it', fun
 
     expect(DB::table('catalog.attributes')->where('id', $free)->value('kind'))->toBe('FILTERABLE');
 });
+
+it('keeps the order of a set\'s attributes too while variants are built on it', function () {
+    $width = Px::attribute();
+    $depth = Px::attribute('Depth');
+    $set = Px::set([$width, $depth]);
+    $product = catalogInUseProduct(['attributeSetId' => $set]);
+    Px::variant($product, '1304', [$width => Px::value($width, '60 cm'), $depth => Px::value($depth, '50 cm')]);
+
+    expect(fn () => app(EditAttributeSetHandler::class)->handle(new EditAttributeSet($set, 'المقاسات', 'Sizes', [$depth, $width])))->toThrow(AttributeSetInUse::class);
+});

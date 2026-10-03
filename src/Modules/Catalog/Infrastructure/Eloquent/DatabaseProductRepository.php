@@ -133,11 +133,17 @@ final readonly class DatabaseProductRepository implements ProductRepository
 
     public function replaceGallery(string $productId, array $mediaIds): void
     {
-        $this->db->table('catalog.product_photos')->where('product_id', $productId)->delete();
-        $rows = array_map(static fn (string $mediaId, int $position): array => ['product_id' => $productId, 'media_id' => $mediaId, 'position' => $position], $mediaIds, array_keys($mediaIds));
+        // A photo that stays is moved, never written again: a new row would take a key lock on its
+        // media row, which deleting that file holds while it waits for the products' lock.
+        $this->db->table('catalog.product_photos')->where('product_id', $productId)->whereNotIn('media_id', $mediaIds)->delete();
+        $held = $this->db->table('catalog.product_photos')->where('product_id', $productId)->pluck('position', 'media_id')->all();
 
-        if ($rows !== []) {
-            $this->db->table('catalog.product_photos')->insert($rows);
+        foreach ($mediaIds as $position => $mediaId) {
+            if (! array_key_exists($mediaId, $held)) {
+                $this->db->table('catalog.product_photos')->insert(['product_id' => $productId, 'media_id' => $mediaId, 'position' => $position]);
+            } elseif ((int) $held[$mediaId] !== $position) {
+                $this->db->table('catalog.product_photos')->where('product_id', $productId)->where('media_id', $mediaId)->update(['position' => $position]);
+            }
         }
     }
 

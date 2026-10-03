@@ -61,7 +61,12 @@ final readonly class ProductReferences
      */
     public function defaultBrand(): string
     {
-        return $this->brands->defaultBrand()?->id() ?? throw new BrandNotFound;
+        // Read twice: a default moved to another brand while this waited on the old one's row leaves
+        // the first read empty (the database re-checks only the row it waited on); the second sees
+        // the new default.
+        $default = $this->brands->defaultBrand() ?? $this->brands->defaultBrand();
+
+        return $default?->id() ?? throw new BrandNotFound;
     }
 
     /**

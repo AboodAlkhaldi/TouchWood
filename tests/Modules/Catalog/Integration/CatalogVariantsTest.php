@@ -19,6 +19,8 @@ use Modules\Catalog\Application\Command\DeactivateAttributeValue\DeactivateAttri
 use Modules\Catalog\Application\Command\DeactivateAttributeValue\DeactivateAttributeValueHandler;
 use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariant;
 use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariantHandler;
+use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValue;
+use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValueHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
@@ -320,5 +322,49 @@ describe('what the database refuses behind the code', function () {
             ->toThrow(QueryException::class, 'variant_values_value')
             ->and(fn () => DB::transaction(fn () => DB::table('catalog.variant_details')->insert(['variant_id' => $variant, 'attribute_id' => $material, 'text_ar' => 'جلد', 'number' => 1])))
             ->toThrow(QueryException::class, 'variant_details_one_kind');
+    });
+});
+
+describe('a draft variant\'s code edited', function () {
+    it('refuses another product\'s code, and keeps one another variant still carries', function () {
+        [$drawer, $width, $sizes] = catalogVariantsSized();
+        $sixty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
+        catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['80 cm']]]);
+        catalogVariantsAdd(Px::product(), '2001');
+
+        expect(fn () => catalogVariantsEdit($sixty, ['code' => '2001']))->toThrow(CodeTaken::class);
+
+        catalogVariantsEdit($sixty, ['code' => '1305']);
+
+        expect(DB::table('catalog.product_codes')->where('product_id', $drawer)->orderBy('code')->pluck('code')->all())->toBe(['1304', '1305']);
+    });
+});
+
+describe('a detail kept', function () {
+    it('keeps a detail of an attribute deactivated since when its variant is edited', function () {
+        $material = Px::attribute('Material', 'INFORMATIONAL');
+        $variant = catalogVariantsAdd(Px::product(), '1001', ['details' => [$material => ['text_ar' => 'خشب', 'text_en' => 'Wood']]]);
+        Fx::asSystem(fn () => app(DeactivateAttributeHandler::class)->handle(new DeactivateAttribute($material)));
+
+        catalogVariantsEdit($variant, ['weightGrams' => 500]);
+
+        expect(array_keys(app(VariantRepository::class)->find($variant)?->details() ?? []))->toBe([$material])
+            ->and(app(VariantRepository::class)->find($variant)?->measures()->weightGrams)->toBe(500);
+    });
+});
+
+describe('the rows a variant points at', function () {
+    it('locks them, each attribute before its value, as the value\'s own edit does', function () {
+        [$drawer, $width, $sizes] = catalogVariantsSized();
+        $queries = Cx::recordQueries();
+
+        catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
+        $adding = Cx::lockedTables($queries);
+        $queries->exchangeArray([]);
+        Fx::asSystem(fn () => app(EditAttributeValueHandler::class)->handle(new EditAttributeValue($sizes['60 cm'], 'ستون', '60 cm wide')));
+        $editing = Cx::lockedTables($queries);
+
+        expect(array_values(array_unique(array_intersect($adding, ['attributes', 'attribute_values']))))->toBe(['attributes', 'attribute_values'])
+            ->and($editing)->toBe(['attributes', 'attribute_values']);
     });
 });

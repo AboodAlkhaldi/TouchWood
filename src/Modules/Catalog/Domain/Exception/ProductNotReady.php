@@ -8,9 +8,10 @@ use Shared\Domain\Error\ErrorCategory;
 
 /**
  * Marking a product ready, or changing a ready one, without every readiness rule (catalog.md §1.1,
- * §7): it names what is missing — `name_en`, `slug_en`, `description_ar`, `description_en`,
- * `category`, `variants`, `photos`. The context carries them as one value, comma-separated: an error's
- * context holds plain values only, and the screens name each in their language.
+ * §7): it names what is missing — `name_en` (and so the English slug), `description_ar`,
+ * `description_en`, `category`, `variants`, `photos`. The context carries them as one value,
+ * comma-separated: an error's context holds plain values only, and the screens name each in their
+ * language.
  */
 final class ProductNotReady extends CatalogError
 {

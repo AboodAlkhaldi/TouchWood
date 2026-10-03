@@ -36,12 +36,6 @@ final readonly class Combination
      */
     public static function of(array $attributeIds, array $chosen, array $held = []): self
     {
-        $extra = array_diff(array_keys($chosen), $attributeIds);
-
-        if ($extra !== []) {
-            throw new InvalidCatalogAttribute('values', "only the attributes of the product's set");
-        }
-
         $valueIds = [];
 
         foreach ($attributeIds as $attributeId) {

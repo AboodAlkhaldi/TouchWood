@@ -39,9 +39,12 @@ final readonly class EditAttributeValueHandler
         $name = LocalizedName::of($command->nameAr, $command->nameEn, AttributeValue::NAME_MAX);
 
         $this->change->run(ListLocks::ATTRIBUTES, function () use ($command, $name): array {
+            $found = $this->attributes->findValue($command->valueId) ?? throw new ListItemNotFound($command->valueId);
+            // The attribute's row before the value's, the order of every change that locks both — a
+            // product's change too — so two never wait on each other in a circle. A value never
+            // outlives its attribute, so this always finds it; the value is read again under its lock.
+            $attribute = $this->attributes->byId($found->attributeId()) ?? throw new LogicException('A value without its attribute.');
             $value = $this->attributes->valueById($command->valueId) ?? throw new ListItemNotFound($command->valueId);
-            // A value never outlives its attribute (the key cascades), so this always finds it.
-            $attribute = $this->attributes->byId($value->attributeId()) ?? throw new LogicException('A value without its attribute.');
 
             $value->edit($attribute, $name, $command->swatch, $command->position);
 

@@ -61,7 +61,7 @@ final readonly class ArchiveVariantHandler
                 static fn (Variant $sibling): Variant => $sibling->id() === $variant->id() ? $variant : $sibling,
                 $this->variants->ofProduct($product->id()),
             ));
-            $this->variants->update($variant);
+            $this->variants->updateRow($variant);
             $this->events->variantArchived($product->id(), $variant->id());
 
             return [null, [$entry]];

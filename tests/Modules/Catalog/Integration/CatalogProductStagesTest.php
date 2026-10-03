@@ -18,6 +18,10 @@ use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCode;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCodeHandler;
 use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategory;
 use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategoryHandler;
+use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProduct;
+use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProductHandler;
+use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariant;
+use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariantHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
@@ -180,7 +184,7 @@ describe('making a product ready', function () {
         [$id] = catalogStagesWhole();
         DB::table('catalog.products')->where('id', $id)->update(['stage' => 'ARCHIVED']);
 
-        expect(fn () => app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id)))->toThrow(InvalidStageChange::class);
+        expect(fn () => app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id)))->toThrow(ProductArchived::class);
 
         Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE]);
 
@@ -255,6 +259,10 @@ describe('archiving and restoring', function () {
         'its search words' => [fn (string $id) => app(SetSearchWordsHandler::class)->handle(new SetSearchWords($id, ['slide']))],
         'its filter values' => [fn (string $id) => app(SetFilterValuesHandler::class)->handle(new SetFilterValues($id, []))],
         'its relations' => [fn (string $id) => app(SetRelationsHandler::class)->handle(new SetRelations($id, 'RELATED', []))],
+        'a variant restored' => [fn (string $id, string $variant) => app(RestoreVariantHandler::class)->handle(new RestoreVariant($variant))],
+        'a variant deleted' => [fn (string $id, string $variant) => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($variant))],
+        'made ready' => [fn (string $id) => app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id))],
+        'deleted' => [fn (string $id) => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($id))],
     ]);
 
     it('archives and restores a variant on its own, its events sent', function () {
@@ -291,5 +299,123 @@ describe('the events of everyday changes', function () {
         Event::assertDispatched(VariantCodeCorrected::class, fn (VariantCodeCorrected $event): bool => $event->variantId === $sixty);
         Event::assertDispatched(VariantCodeCorrected::class, fn (VariantCodeCorrected $event): bool => $event->variantId === $eighty);
         Event::assertDispatchedTimes(ProductChanged::class, 2);
+    });
+});
+
+describe('a ready product\'s gallery', function () {
+    it('counts a photo still being sized as no photo', function () {
+        [$id] = catalogStagesWhole();
+        app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
+        $pending = Cx::media();
+        DB::table('platform.media')->where('id', $pending)->update(['variants_status' => 'PENDING']);
+
+        expect(fn () => app(SetProductGalleryHandler::class)->handle(new SetProductGallery($id, [$pending])))->toThrow(ProductNotReady::class, 'photos');
+    });
+});
+
+describe('what archiving a variant writes', function () {
+    it('writes the variant\'s own row alone, never its values or details again', function () {
+        [$id, , , $width, $eighty] = catalogStagesWhole();
+        $second = Px::variant($id, '1305', [$width => $eighty]);
+        $queries = Cx::recordQueries();
+
+        app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($second));
+        app(RestoreVariantHandler::class)->handle(new RestoreVariant($second));
+
+        // Writing them again would take key locks on attribute and value rows it never locked.
+        $written = array_filter((array) $queries, fn (array $query): bool => preg_match('/^(insert into|delete from) "catalog"\."variant_(values|details)"/i', $query['sql']) === 1);
+
+        expect($written)->toBe([])
+            ->and(DB::table('catalog.variant_values')->where('variant_id', $second)->count())->toBe(1);
+    });
+});
+
+describe('a product changed', function () {
+    it('is sent once for every change of its shared data', function (Closure $change) {
+        [$id, $variant, , $width, $eighty] = catalogStagesWhole();
+        Event::fake([ProductChanged::class]);
+
+        $change($id, $variant, $width, $eighty);
+
+        Event::assertDispatchedTimes(ProductChanged::class, 1);
+        Event::assertDispatched(ProductChanged::class, fn (ProductChanged $event): bool => $event->productId === $id);
+    })->with([
+        'a variant edited' => [fn (string $id, string $variant, string $width, string $eighty) => app(UpdateVariantHandler::class)->handle(new UpdateVariant($variant, '1304', [$width => $eighty]))],
+        'a draft\'s variant deleted' => [fn (string $id, string $variant) => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($variant))],
+        'its gallery' => [fn (string $id) => app(SetProductGalleryHandler::class)->handle(new SetProductGallery($id, [Cx::media()]))],
+        'a variant\'s photos' => [fn (string $id, string $variant) => app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($variant, [Cx::media()]))],
+        'its filter values' => [function (string $id): void {
+            $finish = Px::attribute('Finish', 'FILTERABLE');
+            app(SetFilterValuesHandler::class)->handle(new SetFilterValues($id, [Px::value($finish, 'Oak')]));
+        }],
+        'its relations' => [function (string $id): void {
+            $other = Px::product('Hinge');
+            DB::table('catalog.products')->where('id', $other)->update(['stage' => 'READY', 'category_id' => Px::category()]);
+            app(SetRelationsHandler::class)->handle(new SetRelations($id, 'RELATED', [$other]));
+        }],
+    ]);
+});
+
+describe('each change\'s own job', function () {
+    it('needs its own job, and no other will do', function (string $permission, Closure $prepare, Closure $change) {
+        [$id, , , $width, $eighty] = catalogStagesWhole();
+        $second = Px::variant($id, '1305', [$width => $eighty]);
+        app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
+        $prepare($id, $second);
+        $all = [
+            CatalogPermissions::PRODUCT_CREATE,
+            CatalogPermissions::PRODUCT_UPDATE,
+            CatalogPermissions::PRODUCT_PUBLISH,
+            CatalogPermissions::PRODUCT_ARCHIVE,
+            CatalogPermissions::VARIANT_CORRECT_CODE,
+        ];
+
+        Cx::actAsStaffWith(array_values(array_diff($all, [$permission])));
+
+        expect(fn () => $change($id, $second))->toThrow(Unauthorized::class);
+
+        Cx::actAsStaffWith([$permission]);
+        $change($id, $second);
+    })->with([
+        'archive a product' => [CatalogPermissions::PRODUCT_ARCHIVE, fn () => null, fn (string $id) => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id))],
+        'restore a product' => [
+            CatalogPermissions::PRODUCT_ARCHIVE,
+            fn (string $id) => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id)),
+            fn (string $id) => app(RestoreProductHandler::class)->handle(new RestoreProduct($id)),
+        ],
+        'delete a draft' => [CatalogPermissions::PRODUCT_ARCHIVE, fn () => null, fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct(Px::product()))],
+        'archive a variant' => [CatalogPermissions::PRODUCT_UPDATE, fn () => null, fn (string $id, string $second) => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($second))],
+        'restore a variant' => [
+            CatalogPermissions::PRODUCT_UPDATE,
+            fn (string $id, string $second) => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($second)),
+            fn (string $id, string $second) => app(RestoreVariantHandler::class)->handle(new RestoreVariant($second)),
+        ],
+    ]);
+});
+
+/**
+ * @return array<string, mixed>
+ */
+function catalogStagesAudit(string $action, string $subjectId): array
+{
+    return (array) json_decode((string) DB::table('platform.audit_entries')->where('action', $action)->where('subject_id', $subjectId)->orderByDesc('id')->value('changes'), true);
+}
+
+describe('what the audit log keeps', function () {
+    it('reads from what was to what is', function () {
+        [$id, $variant] = catalogStagesWhole();
+        $photo = Cx::media();
+
+        app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($variant, [$photo]));
+        app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($variant, '1307'));
+        app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
+        app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
+        app(RestoreProductHandler::class)->handle(new RestoreProduct($id));
+
+        expect(catalogStagesAudit('catalog.variant.added', $variant))->toMatchArray(['product_id' => [null, $id], 'code' => [null, '1304']])
+            ->and(catalogStagesAudit('catalog.variant.photos_changed', $variant))->toBe(['media_ids' => [null, $photo]])
+            ->and(catalogStagesAudit('catalog.variant.code_corrected', $variant))->toBe(['code' => ['1304', '1307']])
+            ->and(catalogStagesAudit('catalog.product.made_ready', $id))->toBe(['stage' => ['DRAFT', 'READY']])
+            ->and(catalogStagesAudit('catalog.product.restored', $id))->toBe(['stage' => ['ARCHIVED', 'READY']]);
     });
 });

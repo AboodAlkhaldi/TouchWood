@@ -51,7 +51,7 @@ final readonly class ProductInput
     public function requireFreeSlugs(ProductSlugs $slugs, ?string $exceptProductId = null): void
     {
         foreach ($slugs->byLocale() as $locale => $slug) {
-            if ($this->products->slugTaken($locale, $slug, $exceptProductId)) {
+            if ($slug !== null && $this->products->slugTaken($locale, $slug, $exceptProductId)) {
                 throw new SlugTaken($slug);
             }
         }

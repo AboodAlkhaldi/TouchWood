@@ -97,6 +97,8 @@ return new class extends Migration
 
             $table->primary(['locale', 'slug'], 'product_slugs_pkey');
             $table->foreign('product_id', 'product_slugs_owner')->references('id')->on('catalog.products')->cascadeOnDelete();
+            // For a slug change's update and a draft's delete, which find the product's rows by owner.
+            $table->index(['product_id', 'locale'], 'product_slugs_owner_idx');
         });
 
         DB::statement("ALTER TABLE catalog.product_slugs ADD CONSTRAINT product_slugs_locale CHECK (locale IN ('ar','en'))");
@@ -153,6 +155,8 @@ return new class extends Migration
 
         DB::statement("ALTER TABLE catalog.variants ADD CONSTRAINT variants_code_format CHECK (code ~ '^[0-9]{1,10}\$')");
         DB::statement('ALTER TABLE catalog.variants ADD CONSTRAINT variants_position_range CHECK (position BETWEEN 0 AND 10000)');
+        // Lower-case ULIDs joined by commas, or nothing for a product without a set.
+        DB::statement("ALTER TABLE catalog.variants ADD CONSTRAINT variants_combination_shape CHECK (combination ~ '^([0-9a-z]{26}(,[0-9a-z]{26})*)?\$')");
 
         foreach (['weight_grams', 'length_mm', 'width_mm', 'height_mm'] as $column) {
             DB::statement("ALTER TABLE catalog.variants ADD CONSTRAINT variants_{$column}_range CHECK ({$column} IS NULL OR {$column} BETWEEN 1 AND 1000000)");
@@ -171,6 +175,7 @@ return new class extends Migration
             $table->foreign('attribute_id', 'variant_values_attribute')->references('id')->on('catalog.attributes')->restrictOnDelete();
             $table->foreign(['attribute_id', 'value_id'], 'variant_values_value')->references(['attribute_id', 'id'])->on('catalog.attribute_values')->restrictOnDelete();
             $table->index('value_id', 'variant_values_value_idx');
+            $table->index('attribute_id', 'variant_values_attribute_idx');
         });
 
         Schema::create('catalog.variant_details', function (Blueprint $table) {
@@ -188,5 +193,7 @@ return new class extends Migration
 
         // Text in both languages, or a number — never both, never one language (§9.3 #13).
         DB::statement('ALTER TABLE catalog.variant_details ADD CONSTRAINT variant_details_one_kind CHECK ((text_ar IS NOT NULL AND text_en IS NOT NULL AND number IS NULL) OR (text_ar IS NULL AND text_en IS NULL AND number IS NOT NULL))');
+        // A text is present and on one line, as VariantDetail keeps it.
+        DB::statement("ALTER TABLE catalog.variant_details ADD CONSTRAINT variant_details_text_present CHECK ((text_ar IS NULL OR (btrim(text_ar) <> '' AND text_ar !~ '[[:cntrl:]]')) AND (text_en IS NULL OR (btrim(text_en) <> '' AND text_en !~ '[[:cntrl:]]')))");
     }
 };
