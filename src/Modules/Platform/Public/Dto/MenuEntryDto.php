@@ -20,9 +20,18 @@ final readonly class MenuEntryDto
      * @param  string  $group  the business area it sits under — the same list the role editor uses
      *                         (owner, 2026-09-22), so the two never disagree
      * @param  string  $routeName  the named route the entry opens
-     * @param  string|null  $permission  the action a person needs to be offered it. **Null means a
-     *                                   "coming soon" entry**, for a module whose permissions do not
-     *                                   exist yet: it is shown to Super Admins only (§2.2)
+     * @param  string|list<string>|null  $permission  the action a person needs to be offered it -
+     *                                                held in any store, the screen deciding what is
+     *                                                in it store by store - or **several, any one
+     *                                                of which, held in the store being worked in**,
+     *                                                is enough: a page that serves several jobs for
+     *                                                that store alone, such as B2B's type lists
+     *                                                (platform.md §9.4; b2b.md amendment 23(a),
+     *                                                owner 2026-10-03). **Null means a "coming
+     *                                                soon" entry**, for a module whose permissions
+     *                                                do not exist yet: it is shown to Super Admins
+     *                                                only (§2.2). An empty list is refused on
+     *                                                register
      * @param  int  $position  where it sits among the entries of its group, lowest first
      * @param  string|null  $icon  the entry's icon, named from the panel's own short list (see
      *                             `MenuIcon` in the frontend). The sidebar collapses to a rail of
@@ -37,11 +46,17 @@ final readonly class MenuEntryDto
         public string $key,
         public string $group,
         public string $routeName,
-        public ?string $permission = null,
+        public string|array|null $permission = null,
         public int $position = 0,
         public ?string $icon = null,
         public ?string $count = null,
     ) {}
+
+    /** Several permissions: offered for one of them held in the store being worked in (§9.4). */
+    public function inStoreWorkedIn(): bool
+    {
+        return is_array($this->permission);
+    }
 
     public function labelKey(): string
     {
@@ -51,5 +66,19 @@ final readonly class MenuEntryDto
     public function comingSoon(): bool
     {
         return $this->permission === null;
+    }
+
+    /**
+     * The permissions any one of which offers the entry; empty for a "coming soon" entry.
+     *
+     * @return list<string>
+     */
+    public function permissions(): array
+    {
+        return match (true) {
+            $this->permission === null => [],
+            is_string($this->permission) => [$this->permission],
+            default => $this->permission,
+        };
     }
 }

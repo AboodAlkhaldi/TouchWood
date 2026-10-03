@@ -55,6 +55,7 @@ id: string,
 code: string,
 name: string,
 hasFormat: boolean,
+isActive: boolean,
 };
 export type AddressRow = {
 id: string,

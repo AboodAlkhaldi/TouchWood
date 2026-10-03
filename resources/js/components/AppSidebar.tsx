@@ -1,9 +1,7 @@
-import { Link, router, usePage } from '@inertiajs/react';
-import { ChevronsUpDown, LogOut, Moon, Settings, Sun } from 'lucide-react';
-import { Logo } from '@/components/Logo';
+import { Link, usePage } from '@inertiajs/react';
 import { MenuIcon } from '@/components/MenuIcon';
-import { choosePreference } from '@/components/Preferences';
-import { Menu, MenuDivider, MenuItem, MenuSection } from '@/components/geist';
+import { NavUser } from '@/components/NavUser';
+import { StoreSwitcher } from '@/components/StoreSwitcher';
 import {
     Sidebar,
     SidebarContent,
@@ -22,7 +20,8 @@ import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
 /*
-| The panel's sidebar (frontend.md §2.2).
+| The panel's sidebar (frontend.md §2.2): shadcn's `sidebar-07` block, as it writes it (§1.11) -
+| the store switcher in the header, the menu in the content, the person in the footer, and the rail.
 |
 | It holds only what this person may do: Platform's menu registry answered that before the page was
 | rendered, entry by entry, through Access's authorizer. What is offered is never what is allowed -
@@ -34,14 +33,11 @@ import type { SharedProps } from '@/types/page';
 |
 | Arabic mirrors the whole thing. The sidebar sits at side="left", which the component writes as
 | start-0 rather than left-0, so the page's own direction decides which edge that is.
-|
-| Geist has no sidebar, so this stays shadcn's frame, dressed in Geist's type and its Menu for the
-| person block (frontend.md 1.10: where Geist has no component, it is built from Geist's parts).
 */
 
 export function AppSidebar() {
     const page = usePage<SharedProps>();
-    const { viewer, menu, locale, theme } = page.props;
+    const { menu } = page.props;
     const t = useTranslator();
 
     // The path only, so a search or a filter in the query string does not un-light the entry the
@@ -49,31 +45,15 @@ export function AppSidebar() {
     const here = page.url.split('?')[0] ?? page.url;
 
     return (
-        <Sidebar collapsible="icon" className="border-sidebar-line">
-            <SidebarHeader className="border-b border-sidebar-line">
-                <SidebarMenu>
-                    <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild tooltip="TouchWood">
-                            <Link href="/admin">
-                                <Logo className="size-5 shrink-0 text-sidebar-ink" />
-                                <span className="grid">
-                                    <span className="truncate text-heading-14">TouchWood</span>
-                                    <span className="truncate text-label-12 text-sidebar-ink-muted">
-                                        {t('admin.panel')}
-                                    </span>
-                                </span>
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                </SidebarMenu>
+        <Sidebar collapsible="icon">
+            <SidebarHeader>
+                <StoreSwitcher />
             </SidebarHeader>
 
             <SidebarContent>
                 {menu.map((group) => (
                     <SidebarGroup key={group.key}>
-                        <SidebarGroupLabel className="text-sidebar-ink-muted">
-                            {group.label}
-                        </SidebarGroupLabel>
+                        <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
 
                         <SidebarGroupContent>
                             <SidebarMenu>
@@ -89,28 +69,36 @@ export function AppSidebar() {
                                         >
                                             <Link href={entry.href}>
                                                 <MenuIcon name={entry.icon} />
-                                                <span>{entry.label}</span>
+                                                <span>
+                                                    {entry.label}
+                                                    {/* The count, said aloud whether or not the badge
+                                                        shows - on the rail it does not (owner's #2).
+                                                        Inside the label, so the label stays the last
+                                                        span the sidebar truncates; after a pause, so
+                                                        it is not read as part of the name. */}
+                                                    {entry.count !== null && entry.count > 0 ? (
+                                                        <span className="sr-only">{t('admin.menu_waiting', { count: String(entry.count) })}</span>
+                                                    ) : null}
+                                                </span>
                                             </Link>
                                         </SidebarMenuButton>
 
-                                        {entry.comingSoon ? (
-                                            <SidebarMenuBadge className="text-sidebar-ink-muted">
-                                                {t('admin.coming_soon')}
-                                            </SidebarMenuBadge>
-                                        ) : null}
+                                        {entry.comingSoon ? <SidebarMenuBadge>{t('admin.coming_soon')}</SidebarMenuBadge> : null}
 
                                         {/* The number waiting behind it, when there is any (frontend.md E7). */}
                                         {entry.count !== null && entry.count > 0 ? (
                                             <>
-                                                <SidebarMenuBadge data-test={`count-${entry.module}.${entry.key}`}>
+                                                <SidebarMenuBadge aria-hidden="true" data-test={`count-${entry.module}.${entry.key}`}>
                                                     {entry.count}
                                                 </SidebarMenuBadge>
                                                 {/* The badge hides on the rail of icons; a dot on the icon
-                                                    says something waits (owner, 2026-09-29). */}
+                                                    says something waits (owner, 2026-09-29; kept, #2).
+                                                    Ringed in the sidebar's ink: red alone on the
+                                                    navy was 2.07:1 (the review, 2026-10-03). */}
                                                 <span
-                                                    aria-hidden
+                                                    aria-hidden="true"
                                                     data-test={`dot-${entry.module}.${entry.key}`}
-                                                    className="pointer-events-none absolute end-1 top-1 hidden size-2 rounded-full bg-bad group-data-[collapsible=icon]:block"
+                                                    className="pointer-events-none absolute end-1 top-1 hidden size-2 rounded-full bg-destructive ring-1 ring-sidebar-foreground group-data-[collapsible=icon]:block"
                                                 />
                                             </>
                                         ) : null}
@@ -122,80 +110,12 @@ export function AppSidebar() {
                 ))}
             </SidebarContent>
 
-            <SidebarFooter className="border-t border-sidebar-line">
-                <SidebarMenu>
-                    <SidebarMenuItem>
-                        {/* The person block, and everything that is theirs rather than the shop's:
-                            their own account, how the panel looks to them, and the way out (owner's
-                            final word on the sidebar, 2026-09-23). On the rail there is no room for
-                            any of it, which is the reason it is a menu rather than four buttons. */}
-                        <Menu
-                            side="top"
-                            align="start"
-                            matchTriggerWidth
-                            trigger={
-                                <SidebarMenuButton size="lg" tooltip={viewer?.name ?? t('admin.panel')} data-test="person-menu">
-                                    {viewer?.avatarUrl ? (
-                                        <img
-                                            src={viewer.avatarUrl}
-                                            alt=""
-                                            className="size-8 shrink-0 rounded-pill object-cover"
-                                        />
-                                    ) : (
-                                        <span className="grid size-8 shrink-0 place-items-center rounded-pill bg-sidebar-active/50 text-sm">
-                                            {(viewer?.name ?? '?').slice(0, 1)}
-                                        </span>
-                                    )}
-
-                                    <span className="grid min-w-0 flex-1 text-start">
-                                        <span className="truncate text-label-14">{viewer?.name}</span>
-                                        <span className="truncate text-label-12 text-sidebar-ink-muted">
-                                            {viewer?.roleLabel ?? t('admin.super_admin')}
-                                        </span>
-                                    </span>
-
-                                    <ChevronsUpDown className="ms-auto size-4 shrink-0" />
-                                </SidebarMenuButton>
-                            }
-                        >
-                            {/* Their name again, because on the rail the trigger is only an avatar
-                                and this menu is the one place it is still written. */}
-                            <MenuSection title={<span className="block truncate">{viewer?.name}</span>}>
-                                <MenuItem href="/admin/account" prefix={<Settings />}>
-                                    {t('admin.account_settings')}
-                                </MenuItem>
-
-                                <MenuItem
-                                    prefix={theme.mode === 'dark' ? <Sun /> : <Moon />}
-                                    onSelect={() => choosePreference('theme', theme.mode === 'dark' ? 'light' : 'dark', '/admin/preferences')}
-                                >
-                                    {/* Verb + Noun, as every menu item (Geist's Menu). */}
-                                    {t(`admin.theme.switch_to_${theme.mode === 'dark' ? 'light' : 'dark'}`)}
-                                </MenuItem>
-
-                                {/* Written in the language being offered, never translated: somebody
-                                    who cannot read the current language must still recognise it. */}
-                                <MenuItem
-                                    data-test="language"
-                                    onSelect={() => choosePreference('locale', locale === 'ar' ? 'en' : 'ar', '/admin/preferences')}
-                                >
-                                    <span lang={locale === 'ar' ? 'en' : 'ar'}>{locale === 'ar' ? 'English' : 'العربية'}</span>
-                                </MenuItem>
-                            </MenuSection>
-
-                            <MenuDivider />
-
-                            {/* A9. A sign-out must change something, so it is a post. Destructive,
-                                so it is last, after the divider (Geist's Menu). */}
-                            <MenuItem type="error" prefix={<LogOut />} onSelect={() => router.post('/admin/sign-out')}>
-                                {t('access::auth.sign_out')}
-                            </MenuItem>
-                        </Menu>
-                    </SidebarMenuItem>
-                </SidebarMenu>
+            <SidebarFooter>
+                <NavUser />
             </SidebarFooter>
 
-            <SidebarRail />
+            {/* shadcn writes its name in English; the page's language reads it (owner, 2026-10-03). */}
+            <SidebarRail aria-label={t('admin.sidebar_toggle')} title={t('admin.sidebar_toggle')} />
         </Sidebar>
     );
 }

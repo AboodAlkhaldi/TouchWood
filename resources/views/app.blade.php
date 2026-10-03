@@ -16,6 +16,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    {{-- System (frontend.md §1.11; owner, 2026-10-02): the device decides, and the server cannot
+         see the device, so it rendered light. These lines run before anything is painted and turn
+         the page dark first when the device is - the way Geist's own setup does it, so nothing
+         flashes. A Content-Security-Policy added at hosting needs this script's hash or a nonce. --}}
+    @if (($page['props']['theme']['choice'] ?? 'system') === 'system')
+        <script>if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.mode = 'dark';</script>
+    @endif
+
     <title inertia>{{ config('app.name') }}</title>
 
     {{-- The design's fonts, downloaded at build time and served from this domain (decision of
@@ -29,7 +38,10 @@
         <style id="tw-campaign">{!! $page['props']['theme']['style'] !!}</style>
     @endif
 
-    @vite(['resources/css/app.css', 'resources/js/app.tsx'])
+    {{-- Each page is its own file (frontend.md §5). Naming this page's here - Laravel's own Inertia
+         setup - has the browser fetch it with the app rather than after it, so the page draws at
+         once instead of one round trip later. --}}
+    @vite(['resources/css/app.css', 'resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
     @inertiaHead
 </head>
 <body class="font-sans bg-page text-ink antialiased">

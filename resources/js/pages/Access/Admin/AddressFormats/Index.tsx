@@ -97,9 +97,11 @@ export default function Index({
                             }
                             className="w-full max-w-xs"
                         >
+                            {/* An off store is listed only to a Super Admin preparing it, marked Off
+                                (access.md amendment 58(a)). */}
                             {stores.map((store) => (
                                 <option key={store.id} value={store.id}>
-                                    {store.name}
+                                    {store.isActive ? store.name : `${store.name} · ${t('admin.store.off')}`}
                                 </option>
                             ))}
                         </Select>

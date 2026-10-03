@@ -17,6 +17,7 @@ use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
 use Modules\B2B\Application\Query\ShopLine\CompanyStandings;
 use Modules\B2B\Application\Query\ViewTypeLists\TypeHolders;
+use Modules\B2B\Application\Query\ViewTypeLists\ViewTypeListsHandler;
 use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\B2B\Application\Settings\FormRules;
 use Modules\B2B\Domain\Repository\ApplicationReferenceCounter;
@@ -103,15 +104,18 @@ final class B2BServiceProvider extends ServiceProvider
         $this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
 
         /*
-        | The staff screens (step 7, b2b.md §4.6, amendment 21), in the menu's Companies group. An
-        | entry is offered for one permission: the type lists for each list's update job, which is
-        | provisional (21(b)) — a holder of only another job on a list opens it by its address. What is
-        | offered is never what is allowed: every handler behind these asks again (handoff §19).
+        | The staff screens (step 7, b2b.md §4.6), in the menu's Companies group. Each type list is
+        | offered to anyone holding any job on it **in the store being worked in** — adding, renaming,
+        | deactivating, moving companies between types (amendment 23(a), owner 2026-10-03) — the same
+        | jobs that may read the list, where the list is that store's alone. What is offered is never
+        | what is allowed: every handler behind these asks again (handoff §19).
         */
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('b2b', 'companies', 'companies', 'b2b.admin.companies', B2BPermissions::COMPANY_VIEW, 10, icon: 'companies'),
-            new MenuEntryDto('b2b', 'company_types', 'companies', 'b2b.admin.company-types', B2BPermissions::COMPANY_TYPE_UPDATE, 20, icon: 'company_types'),
-            new MenuEntryDto('b2b', 'document_types', 'companies', 'b2b.admin.document-types', B2BPermissions::DOCUMENT_TYPE_UPDATE, 30, icon: 'document_types'),
+            // The very lists that may read each one, so being offered a list and being able to open
+            // it can never drift apart.
+            new MenuEntryDto('b2b', 'company_types', 'companies', 'b2b.admin.company-types', ViewTypeListsHandler::COMPANY_JOBS, 20, icon: 'company_types'),
+            new MenuEntryDto('b2b', 'document_types', 'companies', 'b2b.admin.document-types', ViewTypeListsHandler::DOCUMENT_JOBS, 30, icon: 'document_types'),
         );
 
         if (! $this->app->routesAreCached()) {

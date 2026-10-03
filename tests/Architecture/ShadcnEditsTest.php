@@ -3,14 +3,15 @@
 declare(strict_types=1);
 
 /*
-| shadcn's code is used as its CLI writes it, with four edits and no others (frontend.md §1.11,
+| shadcn's code is used as its CLI writes it, with five edits and no others (frontend.md §1.11,
 | owner 2026-10-02 and 2026-10-03). A reinstall writes upstream's file over ours and silently takes
 | an edit back out, so each edit is checked here rather than remembered:
 |
-|   1. `accent` is TouchWood's copper; shadcn's hover, focus and open backgrounds read `muted`.
+|   1. `accent` is TouchWood's copper; every background shadcn paints with it reads `muted`.
 |   2. Sonner reads the theme from the server's page data, not from next-themes.
 |   3. DirectionProvider (and shadcn's TooltipProvider) wrap the app, in both entries.
 |   4. The sidebar's rail is placed with -end-4 / start-0, so it follows the sidebar in Arabic.
+|   5. shadcn's own screen-reader words read ours (the ui.php word files), not English only.
 */
 
 const SHADCN_UI = 'resources/js/components/ui';
@@ -92,7 +93,7 @@ it('lets the toasts read the theme the server chose (edit 2)', function () {
 
     expect($sonner)->not->toContain('next-themes')
         ->and($sonner)->toContain('usePage<SharedProps>()')
-        ->and($sonner)->toContain('theme={theme.mode}');
+        ->and($sonner)->toContain('theme={theme.choice}');
 
     $package = json_decode(shadcnSource('package.json'), true, flags: JSON_THROW_ON_ERROR);
 
@@ -119,4 +120,18 @@ it('keeps the sidebar\'s rail on the sidebar\'s edge in Arabic (edit 4)', functi
         ->and($rail)->toContain('group-data-[side=right]:start-0')
         ->and($rail)->not->toContain('group-data-[side=left]:-right-4')
         ->and($rail)->not->toContain('group-data-[side=right]:left-0');
+});
+
+it('lets the phone\'s sidebar say its name in the page\'s language (edit 5)', function () {
+    $sidebar = shadcnSource(SHADCN_UI.'/sidebar.tsx');
+
+    expect($sidebar)->toContain('<SheetTitle>{t("ui.sidebar")}</SheetTitle>')
+        ->and($sidebar)->toContain('<SheetDescription>{t("ui.sidebar_description")}</SheetDescription>')
+        ->and($sidebar)->not->toContain('<SheetTitle>Sidebar</SheetTitle>');
+
+    foreach (['en', 'ar'] as $locale) {
+        $words = require dirname(__DIR__, 2)."/lang/{$locale}/ui.php";
+
+        expect($words)->toHaveKeys(['sidebar', 'sidebar_description']);
+    }
 });

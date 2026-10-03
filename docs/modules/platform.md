@@ -1013,7 +1013,7 @@ records the same change for the whole system.
 ### 9.6 Choices made while building the switch — 2026-10-02
 
 Taken during an unattended build, where the spec did not settle the point, as the builder
-recommended. **Settled by the owner on 2026-10-03:** #1, #2, #3, #4 and #6 are confirmed as built,
+recommended. **Settled by the owner on 2026-10-03:** #1, #2, #3 and #4 are confirmed as built, #6 was replaced after the review of the foundation (access.md amendment 58(f)),
 and #5 is replaced (below).
 
 | # | Sections | Choice | Why |
@@ -1023,4 +1023,4 @@ and #5 is replaced (below).
 | 3 | §3, §1.6 | **[Confirmed by the owner, 2026-10-03]** `UpdateStore` on an off store answers `StoreNotFound` to anyone who may not switch stores — the stores screen lists it only to them; a Super Admin may still edit it | "As if it were never there" for every use case, not only the list |
 | 4 | §1.5, §6.1 | **[Confirmed by the owner, 2026-10-03]** **Audit**: `platform.store.activated` and `platform.store.deactivated`, each with `is_active` before and after; `platform.store.created` also records `is_active` (false). A switch to the state the store is already in writes, audits and announces nothing | Each switch is a change someone may ask about later; nothing happened when nothing changed |
 | 5 | §1.6 | **[Replaced by the owner, 2026-10-03]** The overnight pick, that an off store was a store to work in for nobody, a Super Admin included, is replaced. **A Super Admin may work inside an off store, to prepare it before it opens**: the panel's store switcher offers it to them, marked Off, and they may choose it as the store they work in and set its settings, address format and B2B lists. A staff member who covers it sees it in the switcher, marked Off and disabled with the reason, and cannot choose it. Anyone else never sees it. The shop, customers, guests and other modules still treat it as never there (§1.6) | The owner: a store is prepared before it opens, without showing it half ready (access.md amendment 58(a)) |
-| 6 | §1.6 | **[Confirmed by the owner, 2026-10-03]** The handlers that change one store's data by id — a setting, an address format, a B2B list — do not refuse an off store themselves; no screen offers it. Refused in code: choosing the panel's store, saving a customer's address, and the stores screen's own update (#3) | Kept small for the night; the screens are where an off store must not appear |
+| 6 | §1.6 | **[Replaced by the owner, 2026-10-03, after the review of the foundation: access.md amendment 58(f)]** The overnight pick read: the handlers that change one store's data by id — a setting, an address format, a B2B list — do not refuse an off store themselves; no screen offers it. Refused in code: choosing the panel's store, saving a customer's address, and the stores screen's own update (#3) | Kept small for the night; the screens are where an off store must not appear |

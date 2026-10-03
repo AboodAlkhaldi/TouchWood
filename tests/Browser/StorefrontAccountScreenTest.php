@@ -94,7 +94,9 @@ it('signs somebody out from the header, leaving the way back in', function () {
         ->assertPathIs('/sa/en')
         ->assertSee('Noura Saleh');
 
-    $page->click('[data-test="sign-out"]')
+    // The name opens the shopper's menu, where Sign Out is last (owner's #4, 2026-10-02).
+    $page->click('[data-test="shopper-menu"]')
+        ->click('[data-test="sign-out"]')
         ->assertDontSee('Noura Saleh')
         ->assertSee('Sign In')
         ->assertNoJavaScriptErrors();
@@ -178,7 +180,8 @@ function shopSignedIn(): array
 it('opens the account from the header and shows what is still missing', function () {
     [$email, $page] = shopSignedIn();
 
-    $page->click('[data-test="my-account"]')
+    $page->click('[data-test="shopper-menu"]')
+        ->click('[data-test="my-account"]')
         ->assertPathIs('/sa/en/account')
         ->assertSee('My Account')
         // Their own address, which they cannot change, said where it is rather than refused later.

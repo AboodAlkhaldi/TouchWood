@@ -13,6 +13,9 @@ return [
     'range' => ':from–:to من :total',
     'load_more' => 'عرض المزيد',
     'breadcrumbs' => 'مسار التنقل',
+    // The phone's sidebar, which shadcn names in English (frontend.md §1.11, edit 5).
+    'sidebar' => 'الشريط الجانبي',
+    'sidebar_description' => 'يعرض الشريط الجانبي على الهاتف.',
     'request_id' => 'رقم الطلب',
     'show_password' => 'إظهار كلمة المرور',
     'hide_password' => 'إخفاء كلمة المرور',

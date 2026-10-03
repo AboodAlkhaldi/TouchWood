@@ -28,6 +28,8 @@ use Modules\Platform\Application\Command\ActivateStore\ActivateStore;
 use Modules\Platform\Application\Command\ActivateStore\ActivateStoreHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Application\Command\UpdateStore\UpdateStore;
+use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
 use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -162,20 +164,56 @@ describe('a customer\'s addresses in an off store', function () {
     });
 });
 
+/*
+| Working in an off store (platform.md §1.6, access.md amendment 58(a); owner, 2026-10-03): a Super
+| Admin may, to prepare it before it opens; a staff member who covers it sees it marked Off and may
+| not choose it; anyone else never sees it.
+*/
 describe('working in an off store', function () {
-    it('never offers it in the panel, not even to a Super Admin, and refuses it as their store', function () {
+    it('lets a Super Admin choose it and work in it, marked off', function () {
         $egypt = Fx::storeId('eg');
         offStoreSwitch('eg', on: false);
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
+        $before = app(CurrentStoreForStaff::class)->forCurrentStaff();
+        app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore($egypt));
+        $after = app(CurrentStoreForStaff::class)->forCurrentStaff();
+
+        expect($before?->available)->toBe([Fx::storeId('sa'), $egypt, Fx::storeId('ae')])
+            ->and($before?->off)->toBe([$egypt])
+            ->and($before?->mayChooseOff)->toBeTrue()
+            ->and($after?->storeId)->toBe($egypt)
+            ->and($after?->fellBack)->toBeFalse();
+    });
+
+    it('shows it to a staff member who covers it, marked off, and refuses it as their store', function () {
+        $egypt = Fx::storeId('eg');
+        Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']));
+        offStoreSwitch('eg', on: false);
+
+        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
+
+        expect($current?->available)->toBe([Fx::storeId('sa'), $egypt])
+            ->and($current?->off)->toBe([$egypt])
+            ->and($current?->mayChooseOff)->toBeFalse()
+            ->and($current?->storeId)->toBe(Fx::storeId('sa'))
+            ->and(fn () => app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore($egypt)))
+            ->toThrow(InvalidAccessAttribute::class, 'not one of your stores');
+    });
+
+    it('never shows it to a staff member who does not cover it', function () {
+        Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'ae']));
+        offStoreSwitch('eg', on: false);
+
         $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
 
         expect($current?->available)->toBe([Fx::storeId('sa'), Fx::storeId('ae')])
-            ->and(fn () => app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore($egypt)))
-            ->toThrow(InvalidAccessAttribute::class);
+            ->and($current?->off)->toBe([]);
     });
 
-    it('lets a staff member whose only store is off sign in to no store at all', function () {
+    it('lets a staff member whose only store is off sign in to no store at all, seeing it marked off', function () {
+        // Read before the switch: the fixture finds a store by its code, which an off store's is not.
+        $egypt = Fx::storeId('eg');
         $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['eg']);
         offStoreSwitch('eg', on: false);
         Fx::actAsStaff($staffId);
@@ -183,10 +221,11 @@ describe('working in an off store', function () {
         $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
 
         expect($current?->storeId)->toBeNull()
-            ->and($current?->available)->toBe([]);
+            ->and($current?->available)->toBe([$egypt])
+            ->and($current?->off)->toBe([$egypt]);
     });
 
-    it('falls back from a remembered store that was turned off', function () {
+    it('falls back from a remembered store that was turned off, and says it was switched off', function () {
         $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']);
         Fx::actAsStaff($staffId);
         app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore(Fx::storeId('eg')));
@@ -197,6 +236,49 @@ describe('working in an off store', function () {
         $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
 
         expect($current?->storeId)->toBe($saudi)
-            ->and($current?->fellBack)->toBeTrue();
+            ->and($current?->fellBack)->toBeTrue()
+            ->and($current?->fellBackFromOff)->toBeTrue();
+    });
+
+    it('keeps a Super Admin in the off store they chose, with nothing to be told', function () {
+        $egypt = Fx::storeId('eg');
+        $superAdmin = Fx::staff(superAdmin: true);
+        Fx::actAsStaff($superAdmin);
+        app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore($egypt));
+
+        offStoreSwitch('eg', on: false);
+        Fx::actAsStaff($superAdmin);
+        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
+
+        expect($current?->storeId)->toBe($egypt)
+            ->and($current?->fellBack)->toBeFalse();
+    });
+
+    it('never lands anyone in an off store by default, a Super Admin included, even when it comes first', function () {
+        // Egypt moved before Saudi Arabia, then switched off: a Super Admin who never chose a store
+        // opens in the first store that is on. An off store is one somebody chooses to prepare
+        // (the review of the foundation, 2026-10-03).
+        $egypt = Fx::storeId('eg');
+        Fx::asSystem(fn () => app(UpdateStoreHandler::class)->handle(new UpdateStore('eg', position: 0)));
+        offStoreSwitch('eg', on: false);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
+
+        expect($current?->available[0])->toBe($egypt)
+            ->and($current?->storeId)->toBe(Fx::storeId('sa'))
+            ->and($current?->fellBack)->toBeFalse();
+    });
+
+    it('tells someone whose store was taken away that it was taken, not switched off', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']);
+        Fx::actAsStaff($staffId);
+        app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore(Fx::storeId('eg')));
+        DB::table('access.staff_users')->where('id', $staffId)->update(['current_store_id' => Fx::storeId('ae')]);
+
+        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
+
+        expect($current?->fellBack)->toBeTrue()
+            ->and($current?->fellBackFromOff)->toBeFalse();
     });
 });

@@ -1,27 +1,35 @@
-import type { ReactNode } from 'react';
-import { Head, usePage } from '@inertiajs/react';
+import { Fragment, type ReactNode } from 'react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { ChevronRight } from 'lucide-react';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
-import { StorePicker } from '@/components/StorePicker';
-import { Breadcrumbs } from '@/components/geist';
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
 /*
-| The admin panel's frame (frontend.md §2.2).
+| The admin panel's frame (frontend.md §2.2): shadcn's `sidebar-07` page, as the block writes it
+| (§1.11) - the sidebar, and a top bar with its trigger and the trail back.
 |
-| The sidebar is shadcn's, collapsing to a rail of icons (owner, 2026-09-23); what it holds is in
-| AppSidebar. The frame's own job is the rest: the trigger, the trail back, the store being looked
-| at, and the page itself.
+| The store being worked in is chosen in the sidebar's header, which is where the block puts its
+| switcher. The panel carries no store in its URLs: the store is remembered on the account, and a
+| screen that is store-free simply ignores it.
 |
-| The panel carries no store in its URLs. The store is remembered on the account and shown in the
-| header; a screen that is store-free simply ignores it.
+| The page's own title block - a big title, one line under it, the page's main action at the top
+| end - is ours, kept by the owner (§1.11 #1, 2026-10-02), set in Geist's type.
 |
 | Arabic mirrors the whole frame, sidebar included, because the page's dir is set on <html> by the
 | server and every offset here is written as start/end rather than left/right.
-|
-| Dressed in Geist (frontend.md 1.10): its Breadcrumbs for the trail, its type scale for the title.
 */
 
 /** One step of the trail back. The last step is the page itself and is never a link. */
@@ -51,6 +59,7 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
     const page = usePage<SharedProps>();
     const { menu, sidebarOpen } = page.props;
     const here = page.url.split('?')[0] ?? page.url;
+    const t = useTranslator();
 
     const trail: Crumb[] = [...(breadcrumbs ?? defaultTrail(menu, here)), { label: title }];
 
@@ -65,26 +74,52 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
             <SidebarProvider defaultOpen={sidebarOpen}>
                 <AppSidebar />
 
-                <SidebarInset className="bg-page text-ink">
-                    <header className="flex h-14 items-center gap-3 border-b border-line bg-surface px-4 lg:px-6">
-                        <SidebarTrigger className="text-ink-muted" />
+                <SidebarInset>
+                    <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+                        <div className="flex items-center gap-2 px-4">
+                            {/* shadcn writes its name in English; the page's language reads it. */}
+                            <SidebarTrigger className="-ms-1" aria-label={t('admin.sidebar_toggle')} />
+                            <Separator orientation="vertical" className="me-2 data-[orientation=vertical]:h-4" />
+                            {/* Its landmark named in the page's language, not shadcn's English. */}
+                            <Breadcrumb aria-label={t('ui.breadcrumbs')}>
+                                <BreadcrumbList>
+                                    {trail.map((crumb, index) => {
+                                        const last = index === trail.length - 1;
 
-                        <span aria-hidden="true" className="h-5 w-px bg-line" />
-
-                        <Breadcrumbs items={trail} />
-
-                        <div className="ms-auto">
-                            <StorePicker />
+                                        return (
+                                            <Fragment key={`${index}-${crumb.label}`}>
+                                                {/* On a phone only the page itself shows, as the block does. */}
+                                                <BreadcrumbItem className={last ? undefined : 'hidden md:block'}>
+                                                    {last || crumb.href === undefined ? (
+                                                        <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                                                    ) : (
+                                                        <BreadcrumbLink asChild>
+                                                            <Link href={crumb.href}>{crumb.label}</Link>
+                                                        </BreadcrumbLink>
+                                                    )}
+                                                </BreadcrumbItem>
+                                                {/* Pointing onward in the page's own direction: in
+                                                    Arabic the trail reads right to left. */}
+                                                {last ? null : (
+                                                    <BreadcrumbSeparator className="hidden md:block">
+                                                        <ChevronRight className="rtl:rotate-180" />
+                                                    </BreadcrumbSeparator>
+                                                )}
+                                            </Fragment>
+                                        );
+                                    })}
+                                </BreadcrumbList>
+                            </Breadcrumb>
                         </div>
                     </header>
 
                     {/* A div, not a main: SidebarInset is the main landmark already, and a page
                         with two of them tells a screen reader there are two. */}
-                    <div className="flex-1 px-4 py-6 lg:px-8">
-                        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="grid gap-1">
-                                <h1 className="text-heading-24 text-ink">{title}</h1>
-                                {subtitle ? <p className="text-copy-14 text-ink-muted">{subtitle}</p> : null}
+                                <h1 className="text-heading-24 text-foreground">{title}</h1>
+                                {subtitle ? <p className="text-copy-14 text-muted-foreground">{subtitle}</p> : null}
                             </div>
                             {action}
                         </div>

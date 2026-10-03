@@ -71,8 +71,10 @@ final readonly class StaffTypeAction
             throw new Unauthorized($permission);
         }
 
-        // Only now, and only for someone who may use it, is the store looked up.
-        if ($this->platform->store($store) === null) {
+        // Only now, and only for someone who may use it, is the store looked up. An off store is
+        // worked in by a Super Admin alone, preparing it; to anyone else it is no store at all, a
+        // request sent straight to the server included (access.md amendment 58(f); owner, 2026-10-03).
+        if (! $this->mayWorkIn($store)) {
             throw new InvalidCompanyAttribute('store', 'a store');
         }
 
@@ -163,11 +165,21 @@ final readonly class StaffTypeAction
         $stores = $this->authorizer->storesWith($permission);
         $store = StoreId::fromString($storeId);
 
-        if ($stores !== null && ! self::covers($stores, $store)) {
+        // A type of an off store answers as one that never existed, to anyone but a Super Admin
+        // preparing that store (access.md amendment 58(f)).
+        if (($stores !== null && ! self::covers($stores, $store)) || ! $this->mayWorkIn($store)) {
             throw new TypeNotFound($typeId);
         }
 
         return PermissionScope::store($store);
+    }
+
+    /** A store that exists, and is on - or off, for a Super Admin preparing it before it opens. */
+    private function mayWorkIn(StoreId $store): bool
+    {
+        $found = $this->platform->store($store);
+
+        return $found !== null && ($found->isActive || $this->authorizer->isUnlimited());
     }
 
     /**

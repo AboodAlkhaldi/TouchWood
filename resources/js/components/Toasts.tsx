@@ -38,9 +38,10 @@ export function Toasts() {
 
     // "You no longer have access to that store - showing KSA." The server decided it; this is
     // where the person is told (frontend.md 2.2).
+    // A store switched off is said so, rather than as access taken away (access.md amendment 58).
     const fellBack =
         store?.fellBack === true && store.current !== null
-            ? t('admin.store.fell_back', { store: store.current.name })
+            ? t(store.fellBackFromOff ? 'admin.store.fell_back_off' : 'admin.store.fell_back', { store: store.current.name })
             : null;
 
     const toasts: Toast[] = [

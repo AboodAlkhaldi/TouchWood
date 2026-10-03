@@ -10,14 +10,15 @@ import { Toaster as Sonner, type ToasterProps } from "sonner"
 import type { SharedProps } from "@/types/page"
 
 // Ours, edit 2 of frontend.md §1.11 (owner, 2026-10-02): upstream reads the theme from next-themes;
-// ours is chosen on the server and sent with every page, so the toasts read it from there.
+// ours is chosen on the server and sent with every page, so the toasts read it from there - the
+// person's choice, which Sonner understands as it is: light, dark or system.
 // Checked by tests/Architecture/ShadcnEditsTest.
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme } = usePage<SharedProps>().props
 
   return (
     <Sonner
-      theme={theme.mode}
+      theme={theme.choice}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

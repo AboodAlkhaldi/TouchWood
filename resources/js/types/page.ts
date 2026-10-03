@@ -12,6 +12,8 @@ export type Locale = 'ar' | 'en';
 export type Direction = 'rtl' | 'ltr';
 /** Light or dark. A campaign has one of each. */
 export type Mode = 'light' | 'dark';
+/** What the person chose: a mode, or System, which follows the device (frontend.md §1.11). */
+export type ThemeChoice = Mode | 'system';
 
 /**
  * What the system is wearing: which campaign, and whether the lights are on.
@@ -21,7 +23,10 @@ export type Mode = 'light' | 'dark';
  */
 export type Theme = {
     campaign: string;
+    /** The mode the server rendered: light for System, which the browser may turn dark. */
     mode: Mode;
+    /** Light, dark, or System - what nobody choosing means (owner, 2026-10-02). */
+    choice: ThemeChoice;
     /** Custom properties for a campaign an admin made; absent for the one that ships with us. */
     style?: string;
 };
@@ -83,6 +88,13 @@ export type Store = {
     name: string;
     /** Its IANA zone: the panel writes every moment in the zone of the store it is working in. */
     timezone: string;
+    /** Switched on. An off store is shown, marked Off, only to the staff who cover it. */
+    isActive: boolean;
+    /**
+     * Whether this person may work in it: every on store of theirs, and an off one only for a
+     * Super Admin preparing it (access.md amendment 58(a)). The others are shown disabled.
+     */
+    choosable: boolean;
 };
 
 /** Who is looking at the page. Null when nobody is signed in. */
@@ -97,13 +109,15 @@ export type Viewer = {
 export type CurrentStore = {
     /** Null when the person has no stores at all. */
     current: Store | null;
-    /** Only the stores that are theirs; one store means the header shows a name, not a picker. */
+    /** Only the stores that are theirs, on or off; one store means the header shows a name, not a picker. */
     available: Store[];
     /**
      * True when the store they had chosen is no longer theirs and the panel opened somewhere else.
      * The layout says so once, as a toast (frontend.md §2.2).
      */
     fellBack: boolean;
+    /** The store they had chosen was switched off, rather than taken away: the toast says that. */
+    fellBackFromOff: boolean;
 };
 
 export type Flash = {

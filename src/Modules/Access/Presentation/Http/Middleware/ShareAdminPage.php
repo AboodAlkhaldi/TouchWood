@@ -120,7 +120,8 @@ final readonly class ShareAdminPage
     {
         $groups = [];
 
-        foreach ($this->menu->forCurrentActor() as $group => $entries) {
+        // The store being worked in, for the entries whose screen shows that store alone.
+        foreach ($this->menu->forCurrentActor($this->panelStore->id()) as $group => $entries) {
             $groups[] = [
                 'key' => $group,
                 'label' => (string) __('access::permission_groups.'.$group, [], $locale),
@@ -156,17 +157,27 @@ final readonly class ShareAdminPage
 
         $named = [];
 
-        foreach ($this->platform->stores() as $store) {
+        // Every store, off ones included: the switcher shows a staff member the off stores they
+        // cover, marked Off, and a Super Admin works in one to prepare it (access.md amendment
+        // 58(a)). Which of them this person sees was decided by CurrentStoreForStaff.
+        foreach ($this->platform->allStores() as $store) {
             // A store's name is held in both languages; the panel shows the one being read. Its zone
             // goes with it: the panel writes every moment in the time of the store it is working
             // in (owner, 2026-10-02: a viewer from Egypt sees Egypt's time).
-            $named[$store->id] = ['id' => $store->id, 'name' => $store->name->in($locale), 'timezone' => $store->timezone];
+            $named[$store->id] = [
+                'id' => $store->id,
+                'name' => $store->name->in($locale),
+                'timezone' => $store->timezone,
+                'isActive' => $store->isActive,
+                'choosable' => $store->isActive || $opening->mayChooseOff,
+            ];
         }
 
         return [
             'current' => $opening->storeId === null ? null : ($named[$opening->storeId] ?? null),
             'available' => array_values(array_intersect_key($named, array_flip($opening->available))),
             'fellBack' => $opening->fellBack,
+            'fellBackFromOff' => $opening->fellBackFromOff,
         ];
     }
 }

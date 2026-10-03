@@ -21,6 +21,8 @@ return [
     'sign_in' => 'Sign In',
     'sign_in_subtitle' => 'The admin panel.',
     'sign_out' => 'Sign Out',
+    // The shopper's menu in the shop's header (owner's #4, 2026-10-02).
+    'my_account' => 'My Account',
     'email' => 'Work Email',
     'password' => 'Password',
     'show_password' => 'Show the password',

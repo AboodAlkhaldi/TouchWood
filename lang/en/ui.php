@@ -17,6 +17,9 @@ return [
     // The owner's word for the next page of a keyset list (frontend.md E7), in Title Case.
     'load_more' => 'Show More',
     'breadcrumbs' => 'Breadcrumbs',
+    // The phone's sidebar, which shadcn names in English (frontend.md §1.11, edit 5).
+    'sidebar' => 'Sidebar',
+    'sidebar_description' => 'Displays the mobile sidebar.',
     'request_id' => 'Request ID',
     'show_password' => 'Show password',
     'hide_password' => 'Hide password',

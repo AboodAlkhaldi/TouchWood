@@ -376,10 +376,11 @@ and examples. Only when neither has it, show the owner what was searched and ask
   writing rules of §1.10. **Where the two disagree, Geist's rule wins**: a loading button stays
   focusable; a field stays editable while it saves; an action that cannot be done is shown
   disabled, with the reason.
-- **The only edits to shadcn's code**, each written down where it is made:
+- **The only edits to shadcn's code** (five), each written down where it is made:
   1. **`accent`** — TouchWood's copper keeps the name `accent`; shadcn uses `accent` as its neutral
-     hover and focus colour, which would paint copper behind dark text (2.3:1). After every
-     install, shadcn's `accent` hover and focus classes are changed to the neutral `muted`.
+     background - hover, focus, open, selected, pressed, and Skeleton's fill - which would paint
+     copper behind dark text (2.3:1). After every install, every background shadcn paints with
+     `accent` is changed to the neutral `muted`; `accent-foreground`, which is our ink, stays.
   2. **Toasts** — shadcn's Sonner reads the theme from our server's page data, not from
      `next-themes` (a one-line change).
   3. **Right to left** — shadcn's `DirectionProvider` wraps the app (`rtl: true` in
@@ -388,6 +389,12 @@ and examples. Only when neither has it, show the owner what was searched and ask
      `-right-4` / `left-0`, which in Arabic puts it on the far side of the screen; ours writes
      `-end-4` / `start-0`, so it stays on the sidebar's edge. Put back after every reinstall; a test
      checks it.
+  5. **shadcn's own screen-reader words** (owner, 2026-10-03, after the review of the foundation) —
+     a few words shadcn writes in English inside its code (the phone sidebar's title and
+     description; later a dialog's "Close", the pager's "Previous" and "Next", "Loading") read our
+     words from the design system's file (`lang/{ar,en}/ui.php`), each where a prop cannot reach it.
+     Words a prop can give - the sidebar trigger's, the rail's, the breadcrumb's - are given from
+     outside, with no edit.
 - **The CLI's CSS**: installing a component may add shadcn's default colours to `app.css` (the
   sidebar's, for one). They are not kept: our tokens already feed those names (Look, above).
 - **Geist's pieces that shadcn lacks**, built exactly from Geist's own page, with no invention:
@@ -406,7 +413,7 @@ and examples. Only when neither has it, show the owner what was searched and ask
   - **panel**: the sidebar's footer, small, inside the person menu — one click from any page, the
     sidebar collapsed included;
   - **shop**: the footer, small;
-  - the sign-in pages lose it.
+  - the **panel's** sign-in pages lose it. The shop's pages, its sign-in pages included, keep it in the shop's footer, which every shop page has.
   Light and Dark are still rendered by the server. For System, a few lines of script in the page's
   head choose the theme from the device before the first paint (as Geist's own setup does), so
   nothing flashes; campaign themes are unaffected. Access's preferences endpoint accepts `system`
@@ -817,6 +824,11 @@ is "the single highest-value guard in the project". The owner left these numbers
 
 - **A breach fails the build**, as handoff §5.4 asks. A warning that stays green is ignored, which is
   how the slow system happened.
+- **[2026-10-03, owner: fixed in the rebuild's foundation]** The JavaScript budgets had gone
+  unenforced, and every page rode in one shared file: 236.5 KB gzipped by 2026-10-02. Now each page
+  is its own file, fetched with the app because the shell names the current page to Vite. The
+  shared part was 138.4 KB when this was written. `tests/Architecture/JavaScriptBudgetTest` measures
+  the build: the shared part, and what each page adds, gzipped.
 - Listings use keyset paging and read models, never Eloquent hydration (handoff §5.4,
   `docs/STRUCTURE.md`).
 - SSR renders every page (§1.3); when the SSR process is down the page still works, rendered in the

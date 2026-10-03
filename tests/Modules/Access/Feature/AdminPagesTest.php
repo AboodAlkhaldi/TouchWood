@@ -81,8 +81,10 @@ describe('the admin sign-in screens', function () {
                 ->component('Access/Admin/SignIn')
                 ->where('locale', 'ar')
                 ->where('direction', 'rtl')
-                // Arabic until this browser says otherwise, and light until chosen. The campaign
-                // is the base one - a campaign like any other, with its own light and dark.
+                // Arabic until this browser says otherwise, and System until chosen - rendered light,
+                // since the server cannot see the device (owner, 2026-10-02). The campaign is the
+                // base one - a campaign like any other, with its own light and dark.
+                ->where('theme.choice', 'system')
                 ->where('theme.mode', 'light')
                 ->where('theme.campaign', 'base')
             );
@@ -249,6 +251,44 @@ describe('the admin panel itself', function () {
 
         $browser->get('/admin/sign-in')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('theme.mode', 'light'));
     });
+
+    /*
+    | System follows the device (frontend.md §1.11; owner, 2026-10-02). The server cannot see the
+    | device, so it renders light and the page's head turns it dark before the first paint when the
+    | device is; a choice of light or dark carries no such script, since there is nothing to ask.
+    */
+    it('lets a browser choose System, and writes the line that asks the device before anything is painted', function () {
+        $browser = new AdminBrowser('10.2.0.7');
+        $browser->get('/admin/sign-in');
+        $browser->post('/admin/preferences', ['preference' => 'theme', 'value' => 'dark']);
+        $browser->post('/admin/preferences', ['preference' => 'theme', 'value' => 'system']);
+
+        $browser->get('/admin/sign-in')
+            ->assertInertia(fn (AssertableInertia $inertia) => $inertia
+                ->where('theme.choice', 'system')
+                ->where('theme.mode', 'light')
+            )
+            ->assertSee("matchMedia('(prefers-color-scheme: dark)')", false);
+    });
+
+    it('asks the device on a first visit, and never once light or dark is chosen', function (?string $chosen, bool $asks) {
+        $browser = new AdminBrowser('10.2.0.8');
+        $browser->get('/admin/sign-in');
+
+        if ($chosen !== null) {
+            $browser->post('/admin/preferences', ['preference' => 'theme', 'value' => $chosen]);
+        }
+
+        $page = $browser->get('/admin/sign-in');
+
+        $asks
+            ? $page->assertSee("matchMedia('(prefers-color-scheme: dark)')", false)
+            : $page->assertDontSee('prefers-color-scheme', false);
+    })->with([
+        'a first visit' => [null, true],
+        'light chosen' => ['light', false],
+        'dark chosen' => ['dark', false],
+    ]);
 
     it('still serves the page when the server renderer is down, and writes it down', function () {
         // Decided 2026-09-19: nobody sees an error because of SSR. With the renderer unreachable,

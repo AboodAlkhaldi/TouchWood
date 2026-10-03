@@ -7,6 +7,7 @@ import { PanelLeftIcon } from "lucide-react"
 import { Slot } from "radix-ui"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useTranslator } from "@/lib/t"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -164,6 +165,10 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  // Ours, edit 5 of frontend.md §1.11 (owner, 2026-10-03): upstream names the phone's sidebar in
+  // English only; a screen reader hears it in the page's language. Checked by
+  // tests/Architecture/ShadcnEditsTest.
+  const t = useTranslator()
 
   if (collapsible === "none") {
     return (
@@ -196,8 +201,8 @@ function Sidebar({
           side={side}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{t("ui.sidebar")}</SheetTitle>
+            <SheetDescription>{t("ui.sidebar_description")}</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>

@@ -1,7 +1,6 @@
 import { router, usePage } from '@inertiajs/react';
-import { Moon, Sun } from 'lucide-react';
-import { Button, Switch } from '@/components/geist';
-import { useTranslator } from '@/lib/t';
+import { ThemeSwitcher } from '@/components/geist-only/ThemeSwitcher';
+import { Button } from '@/components/ui/button';
 import type { SharedProps } from '@/types/page';
 
 /*
@@ -38,44 +37,33 @@ export function choosePreference(preference: 'theme' | 'locale', value: string, 
 }
 
 function choose(preference: 'theme' | 'locale', value: string, to: string) {
-    router.post(to, { preference, value }, { preserveScroll: true, preserveState: false });
+    // A theme changes how the page looks and nothing in it: the page keeps its state - a form half
+    // filled in, and the keyboard's place - instead of being drawn again from nothing (the review of
+    // the foundation, 2026-10-03). A language changes every word, so the page is drawn afresh.
+    router.post(to, { preference, value }, { preserveScroll: true, preserveState: preference === 'theme' });
 }
 
-export function ThemeToggle({ to, className = '' }: { to: string; className?: string }) {
+export function ThemeToggle({ to, size = 'small', className = '' }: { to: string; size?: 'default' | 'small'; className?: string }) {
     const { theme } = usePage<SharedProps>().props;
-    const t = useTranslator();
 
-    // Geist's Theme Switcher: the choices side by side, the current one pressed, each an icon with
-    // its name for a screen reader and in a tooltip (frontend.md 1.10). Light and Dark only - the
-    // server decides the theme before the first paint and cannot see the device's own setting, so
-    // "System" is the owner's call. Only the mode is a person's to choose; which campaign the
-    // system is wearing belongs to the store, and every campaign has both (owner, 2026-09-22).
-    return (
-        <div data-test="theme" className={className}>
-            <Switch
-                name="theme"
-                size="small"
-                aria-label={t('admin.theme.label')}
-                value={theme.mode}
-                onChange={(mode) => (mode === theme.mode ? undefined : choose('theme', mode, to))}
-                options={[
-                    { value: 'light', label: t('admin.theme.light'), icon: <Sun className="size-4" />, 'data-test': 'theme-light' },
-                    { value: 'dark', label: t('admin.theme.dark'), icon: <Moon className="size-4" />, 'data-test': 'theme-dark' },
-                ]}
-            />
-        </div>
-    );
+    // Geist's Theme Switcher: System, Light and Dark (frontend.md §1.11; owner, 2026-10-02). Only
+    // the mode is a person's to choose; which campaign the system is wearing belongs to the store,
+    // and every campaign has both (owner, 2026-09-22).
+    return <ThemeSwitcher value={theme.choice} size={size} className={className} onChange={(choice) => choose('theme', choice, to)} />;
 }
 
 export function LanguageToggle({ to, className = '' }: { to: string; className?: string }) {
     const { locale } = usePage<SharedProps>().props;
     const next = locale === 'ar' ? 'en' : 'ar';
 
+    // The owner's #3 (2026-10-02): one button showing the other language's name; one press switches.
     return (
         <Button
-            type="secondary"
-            size="small"
+            type="button"
+            variant="outline"
+            size="sm"
             className={className}
+            data-test="language"
             onClick={() => choose('locale', next, to)}
             // The label is the language being offered, written in that language - never translated,
             // because someone who cannot read the current language must still recognise it.

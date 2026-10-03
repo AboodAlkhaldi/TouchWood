@@ -21,6 +21,8 @@ return [
     'sign_in' => 'تسجيل الدخول',
     'sign_in_subtitle' => 'لوحة الإدارة.',
     'sign_out' => 'تسجيل الخروج',
+    // The shopper's menu in the shop's header (owner's #4, 2026-10-02).
+    'my_account' => 'حسابي',
     'email' => 'بريد العمل',
     'password' => 'كلمة المرور',
     'show_password' => 'إظهار كلمة المرور',

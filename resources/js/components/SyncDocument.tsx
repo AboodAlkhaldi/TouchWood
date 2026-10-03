@@ -36,11 +36,32 @@ export function SyncDocument() {
         if (html.dataset.campaign !== theme.campaign) {
             html.dataset.campaign = theme.campaign;
         }
+    }, [locale, direction, theme.campaign]);
 
-        if (html.dataset.mode !== theme.mode) {
-            html.dataset.mode = theme.mode;
+    useEffect(() => {
+        const html = document.documentElement;
+
+        if (theme.choice !== 'system') {
+            if (html.dataset.mode !== theme.mode) {
+                html.dataset.mode = theme.mode;
+            }
+
+            return;
         }
-    }, [locale, direction, theme.campaign, theme.mode]);
+
+        // System: the device decides, now and whenever it changes - the head script already did
+        // the first paint, and this keeps the page in step if the device turns dark at sunset
+        // (frontend.md §1.11).
+        const device = window.matchMedia('(prefers-color-scheme: dark)');
+        const follow = () => {
+            html.dataset.mode = device.matches ? 'dark' : 'light';
+        };
+
+        follow();
+        device.addEventListener('change', follow);
+
+        return () => device.removeEventListener('change', follow);
+    }, [theme.choice, theme.mode]);
 
     return null;
 }

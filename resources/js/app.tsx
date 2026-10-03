@@ -49,15 +49,19 @@ router.on('before', (event) => {
 router.on('success', (event) => rememberToken(event.detail.page));
 
 void createInertiaApp({
-    resolve: (name) => {
-        const pages = import.meta.glob('./pages/**/*.tsx', { eager: true });
+    // Each page is its own file, fetched when it is first shown (frontend.md §5: 200 KB shared, 60 KB
+    // a page, a breach fails the build - JavaScriptBudgetTest). Bundled eagerly, every page rode in
+    // the one shared file, which had grown to 236 KB (found 2026-10-03). The server's entry keeps
+    // them eager: nothing is downloaded there.
+    resolve: async (name) => {
+        const pages = import.meta.glob('./pages/**/*.tsx');
         const page = pages[`./pages/${name}.tsx`];
 
         if (page === undefined) {
             throw new Error(`No page component for "${name}".`);
         }
 
-        return page as never;
+        return (await page()) as never;
     },
     setup({ el, App, props }) {
         rememberToken(props.initialPage);
