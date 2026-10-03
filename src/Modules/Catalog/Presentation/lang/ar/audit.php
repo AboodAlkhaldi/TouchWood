@@ -1,0 +1,58 @@
+<?php
+
+declare(strict_types=1);
+
+// ما يُسمّى به كل إجراء مسجَّل في وحدة الكتالوج، لسجلّ التدقيق (frontend.md 3.5، E6). الإجراء الذي لا
+// سطر له هنا يُعرض كما سُجّل تمامًا.
+return [
+    'brand.added' => 'أُضيفت ماركة',
+    'brand.edited' => 'عُدّلت ماركة',
+    'brand.made_default' => 'جُعلت الماركة الافتراضية',
+    'brand.default_moved' => 'لم تعد الماركة الافتراضية',
+    'brand.deactivated' => 'أُوقفت ماركة',
+    'brand.activated' => 'أُعيد تفعيل ماركة',
+    'brand.deleted' => 'حُذفت ماركة',
+    'brand.logo_detached' => 'أُزيل شعار الماركة مع ملفه',
+
+    'category.added' => 'أُضيف قسم',
+    'category.edited' => 'عُدّل قسم',
+    'category.moved' => 'نُقل قسم',
+    'category.deactivated' => 'أُوقف قسم',
+    'category.activated' => 'أُعيد تفعيل قسم',
+    'category.deleted' => 'حُذف قسم',
+    'category.ranked' => 'رُتّب قسم في قائمة المتجر',
+    'category.image_detached' => 'أُزيلت صورة القسم مع ملفها',
+
+    'attribute.added' => 'أُضيفت خاصية',
+    'attribute.edited' => 'عُدّلت خاصية',
+    'attribute.deactivated' => 'أُوقفت خاصية',
+    'attribute.activated' => 'أُعيد تفعيل خاصية',
+    'attribute.deleted' => 'حُذفت خاصية',
+
+    'attribute_value.added' => 'أُضيفت قيمة خاصية',
+    'attribute_value.edited' => 'عُدّلت قيمة خاصية',
+    'attribute_value.deactivated' => 'أُوقفت قيمة خاصية',
+    'attribute_value.activated' => 'أُعيد تفعيل قيمة خاصية',
+    'attribute_value.deleted' => 'حُذفت قيمة خاصية',
+
+    'attribute_set.added' => 'أُضيفت مجموعة خصائص',
+    'attribute_set.edited' => 'عُدّلت مجموعة خصائص',
+    'attribute_set.deactivated' => 'أُوقفت مجموعة خصائص',
+    'attribute_set.activated' => 'أُعيد تفعيل مجموعة خصائص',
+    'attribute_set.deleted' => 'حُذفت مجموعة خصائص',
+
+    'label.added' => 'أُضيفت شارة',
+    'label.edited' => 'عُدّلت شارة',
+    'label.deactivated' => 'أُوقفت شارة',
+    'label.activated' => 'أُعيد تفعيل شارة',
+    'label.deleted' => 'حُذفت شارة',
+
+    'warranty.added' => 'أُضيف ضمان',
+    'warranty.edited' => 'عُدّل ضمان',
+    'warranty.deactivated' => 'أُوقف ضمان',
+    'warranty.activated' => 'أُعيد تفعيل ضمان',
+    'warranty.deleted' => 'حُذف ضمان',
+
+    'word_pair.added' => 'أُضيف مرادف بحث',
+    'word_pair.deleted' => 'حُذف مرادف بحث',
+];
