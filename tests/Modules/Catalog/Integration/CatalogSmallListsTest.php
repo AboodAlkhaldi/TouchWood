@@ -134,13 +134,15 @@ describe('warranties', function () {
         Cx::actAsStaffWith([CatalogPermissions::WARRANTY_MANAGE]);
     });
 
-    it('adds a warranty for some months, or for life', function () {
+    it('adds a warranty for some months, or for life, under the warranties\' lock', function () {
+        $locks = Cx::recordLocks();
         $two = catalogSmallListsWarranty();
         $life = catalogSmallListsWarranty('Lifetime', null);
 
         expect(app(WarrantyRepository::class)->find($two)?->period()->months)->toBe(24)
             ->and(app(WarrantyRepository::class)->find($life)?->period()->isLifetime())->toBeTrue()
-            ->and(Fx::audits('catalog.warranty.added'))->toBe(2);
+            ->and(Fx::audits('catalog.warranty.added'))->toBe(2)
+            ->and(array_values(array_filter((array) $locks, static fn (array $lock): bool => $lock['key'] === 'catalog:warranties')))->toBe([['key' => 'catalog:warranties', 'level' => 2], ['key' => 'catalog:warranties', 'level' => 2]]);
     });
 
     it('refuses a period outside 1 to 600 months, and terms that are not formatted text', function () {
@@ -180,11 +182,13 @@ describe('word pairs', function () {
     });
 
     it('keeps a pair as search compares words, in order, once whichever way it is written', function () {
+        $locks = Cx::recordLocks();
         $id = app(AddWordPairHandler::class)->handle(new AddWordPair(' مُفصّلة ', 'Hinge'));
         $pair = app(WordPairRepository::class)->find($id);
 
         expect([$pair?->wordA, $pair?->wordB])->toBe(['hinge', 'مفصله'])
             ->and(Fx::audits('catalog.word_pair.added', $id))->toBe(1)
+            ->and(array_values(array_filter((array) $locks, static fn (array $lock): bool => $lock['key'] === 'catalog:word_pairs')))->toBe([['key' => 'catalog:word_pairs', 'level' => 2]])
             ->and(fn () => app(AddWordPairHandler::class)->handle(new AddWordPair('HINGE', 'مفصلة')))->toThrow(NameTaken::class)
             ->and(fn () => app(AddWordPairHandler::class)->handle(new AddWordPair('hinge', ' Hinge ')))->toThrow(InvalidCatalogAttribute::class, 'word_b');
     });

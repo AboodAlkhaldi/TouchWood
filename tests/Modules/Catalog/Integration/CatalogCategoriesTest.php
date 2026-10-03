@@ -368,10 +368,12 @@ describe('a store\'s order', function () {
         $kitchens = catalogCategoriesAdd('Kitchens', ['rank' => 1]);
         $doors = catalogCategoriesAdd('Doors', ['rank' => 2]);
         $eg = Fx::storeId('eg');
+        $locks = Cx::recordLocks();
 
         app(RankCategoriesHandler::class)->handle(new RankCategories($eg, [$kitchens => 2, strtoupper($doors) => 2]));
 
-        expect(catalogCategoriesRanks($kitchens))->toBe(['ae' => 1, 'eg' => 2, 'sa' => 1])
+        expect(array_values(array_filter((array) $locks, static fn (array $lock): bool => $lock['key'] === 'catalog:categories')))->toBe([['key' => 'catalog:categories', 'level' => 2]])
+            ->and(catalogCategoriesRanks($kitchens))->toBe(['ae' => 1, 'eg' => 2, 'sa' => 1])
             ->and(catalogCategoriesRanks($doors))->toBe(['ae' => 2, 'eg' => 2, 'sa' => 2])
             ->and(DB::table('platform.audit_entries')->where('action', 'catalog.category.ranked')->get(['subject_id', 'store_id'])->map(fn ($row) => [$row->subject_id, $row->store_id])->all())
             ->toBe([[$kitchens, $eg]]);
