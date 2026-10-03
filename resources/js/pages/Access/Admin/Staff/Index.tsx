@@ -59,7 +59,9 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
 
     function clearFilters() {
         setTerm('');
-        router.get('/admin/staff', {}, { preserveState: true, replace: true });
+        // The button that was pressed goes with the empty state, so focus goes to the search, where
+        // the person would start again (the review of batch A).
+        router.get('/admin/staff', {}, { preserveState: true, replace: true, onFinish: () => document.getElementById('search')?.focus() });
     }
 
     const invite = mayInvite ? (
@@ -105,11 +107,14 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
                         ))}
                     </SelectField>
 
-                    <span className="tw-figure ms-auto text-label-13 text-ink-muted">{t('access::staff.total', { count: total })}</span>
+                    {/* The one line a screen reader hears when a filter changes what is listed (Geist's Empty
+                        State: announce the new state politely) - the count, not the whole list. */}
+                    <span role="status" className="tw-figure ms-auto text-label-13 text-ink-muted">
+                        {t('access::staff.total', { count: total })}
+                    </span>
                 </div>
 
-                {/* Announced when a filter changes what is listed (Geist's Empty State). */}
-                <div aria-live="polite" className="grid gap-6">
+                <div className="grid gap-6">
                     {groups.length === 0 ? (
                         <Empty className="material-base" data-test="staff-empty">
                             <EmptyHeader>
@@ -128,9 +133,7 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
                                         {t('access::staff.clear_filters')}
                                     </Button>
                                 </EmptyContent>
-                            ) : invite === undefined ? null : (
-                                <EmptyContent>{invite}</EmptyContent>
-                            )}
+                            ) : null}
                         </Empty>
                     ) : (
                         groups.map((group) => (
@@ -195,7 +198,7 @@ export default function Index({ groups, total, search, status, statuses, mayInvi
                                                                         text={t(person.status === 'INVITED' ? 'access::staff.invited_on' : 'access::staff.since', {
                                                                             date: MARK,
                                                                         })}
-                                                                        moment={<Time value={person.since} focusable={false} />}
+                                                                        moment={<Time value={person.since} focusable={false} inSentence />}
                                                                     />
                                                                 </span>
                                                             ) : null}

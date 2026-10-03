@@ -98,6 +98,12 @@ return [
     'personal_role_name' => ":name's role",
     'pick_role' => 'Role',
     'pick_role_hint' => 'Pick a saved role, or edit one into a role of their own.',
+    // Past six saved roles the cards give way to a searchable picker (Geist's Choicebox; owner,
+    // 2026-10-03).
+    'saved_role' => 'Saved Role',
+    'choose_saved_role' => 'Choose a saved role',
+    'role_search' => 'Search roles',
+    'role_none' => 'No roles match “:query”.',
     'own_role' => 'A Role of Their Own',
     'own_role_hint' => 'Editing a saved role here does not change it for anybody else holding it: it becomes theirs alone.',
     'edited' => 'Edited',

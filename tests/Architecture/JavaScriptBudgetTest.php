@@ -12,8 +12,8 @@ declare(strict_types=1);
 | it imports statically are shared, and so is a chunk that every page loads - it is downloaded once
 | and cached, whichever page comes first; a page is its own chunk plus whatever it alone pulls in.
 | (Batch A of the shadcn rebuild, 2026-10-03: the bundler had put shadcn's common Radix code, which
-| all 57 pages load, in a chunk of its own, and counting it on every page made each page pay for
-| the same cached 15 KB.) Sizes are gzipped at the strongest level and counted in kilobytes of
+| all 57 page files the app can load pull in, in a chunk of its own, and counting it on every page
+| made each page pay for the same cached 15 KB.) Sizes are gzipped at the strongest level and counted in kilobytes of
 | 1,000 bytes, as Vite reports them.
 |
 | It reads public/build, so it measures the last build - and refuses one older than the code it was

@@ -1,19 +1,17 @@
-import { useState, type ReactNode } from 'react';
-import { router, useForm } from '@inertiajs/react';
-import { MoreHorizontal } from 'lucide-react';
+import { useId, useRef, useState } from 'react';
+import { router, useForm, usePage } from '@inertiajs/react';
+import { closestCenter, DndContext, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent, type UniqueIdentifier } from '@dnd-kit/core';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical, MoreHorizontal } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { Button } from '@/components/ui/button';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
@@ -21,6 +19,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslator } from '@/lib/t';
 import type { AddressFormatField, AddressFormatPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 
 /*
 | The store address format editor (frontend.md §3.7, decided 2026-09-19).
@@ -29,8 +28,12 @@ import type { AddressFormatField, AddressFormatPage } from '@/types/generated/Mo
 | tomorrow is a row changed here, not a release - which is why this screen exists at all rather
 | than the formats being seeded once and left (access.md §1.9).
 |
-| The order of the fields is the order of this list. Nobody types a number: they move a field up or
-| down, and what that means as an integer is the server's business.
+| The order of the fields is the order of this list. Nobody types a number: they drag a field by its
+| handle - with the mouse, by touch, or from the keyboard - and what the order means as an integer
+| is the server's business. The drag is shadcn's own pattern, its `dashboard-01` table's handles on
+| dnd-kit (owner, 2026-10-03: a country has fourteen fields, and moving one a step at a time from a
+| menu took thirteen steps). What a screen reader is told while a field moves is said in the page's
+| language: dnd-kit's own words are English only.
 |
 | There is no preview of the printed address. Whether a line disappears when its field is empty is
 | the domain's rule, in one place, and a second copy of it in this file would be a copy that drifts
@@ -39,11 +42,9 @@ import type { AddressFormatField, AddressFormatPage } from '@/types/generated/Mo
 |
 | shadcn's parts with Geist's rules (frontend.md §1.11): each field is a FieldSet named "Field 2",
 | so its four inputs are heard as that field's; "Required" is one on/off choice, a Switch (Geist's
-| Toggle); a row holds one control of its own - its ⋯ menu, with Move Up and Move Down and, last
-| after a divider, Remove Field (Geist's Entity: more than two controls go in a Dots Menu). An
-| action that cannot be done right now - moving the first field up, adding past the limit - stays
-| where it is and says why, rather than greying out without a word. The printed form's keys are
-| shown as inline code (Geist's Snippet rules).
+| Toggle); a row's other action, Remove Field, is in its ⋯ menu (owner, 2026-10-03). Adding past the
+| limit stays where it is and says why, rather than greying out without a word. The printed form's
+| keys are shown as inline code (Geist's Snippet rules).
 */
 
 type Props = AddressFormatPage;
@@ -62,6 +63,9 @@ type FieldRow = {
     max_length: number;
 };
 
+/** A row on the screen: the field, and a name for it that survives being moved. Never posted. */
+type Item = FieldRow & { uid: string };
+
 function asRow(field: AddressFormatField): FieldRow {
     return {
         key: field.key,
@@ -70,6 +74,10 @@ function asRow(field: AddressFormatField): FieldRow {
         required: field.required,
         max_length: field.maxLength,
     };
+}
+
+function posted(items: Item[]): FieldRow[] {
+    return items.map(({ uid: _uid, ...row }) => row);
 }
 
 export default function Index({ stores, storeId, exists, fields, displayTemplate, maxFields, maxLength }: Props) {
@@ -138,37 +146,61 @@ function Editor({
     maxLength: number;
 }) {
     const t = useTranslator();
-    const [rows, setRows] = useState<FieldRow[]>(() => startingFields.map(asRow));
+    const { locale } = usePage<SharedProps>().props;
+    const dndId = useId();
+    const added = useRef(0);
+    // dnd-kit reports the field over its own place the moment it is picked up; said then, it would
+    // talk over "picked up" (found by stepping through it), so that first report is not said.
+    const justPicked = useRef(false);
+    // The same on the server and in the browser, so the first render matches; a row added later
+    // gets a name of its own.
+    const [items, setItems] = useState<Item[]>(() => startingFields.map((field, index) => ({ ...asRow(field), uid: `field-${index}` })));
     const form = useForm({
         fields: startingFields.map(asRow),
         display_template: startingTemplate,
     });
 
-    function change(next: FieldRow[]) {
-        setRows(next);
-        form.setData('fields', next);
+    const sensors = useSensors(useSensor(MouseSensor, {}), useSensor(TouchSensor, {}), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+
+    function change(next: Item[]) {
+        setItems(next);
+        form.setData('fields', posted(next));
     }
 
     function edit(index: number, part: Partial<FieldRow>) {
-        change(rows.map((each, at) => (at === index ? { ...each, ...part } : each)));
+        change(items.map((each, at) => (at === index ? { ...each, ...part } : each)));
     }
 
-    function move(from: number, to: number) {
-        if (to < 0 || to >= rows.length) {
+    function onDragEnd(event: DragEndEvent) {
+        const { active, over } = event;
+
+        if (over === null || active.id === over.id) {
             return;
         }
 
-        const row = rows[from];
+        const from = items.findIndex((item) => item.uid === active.id);
+        const to = items.findIndex((item) => item.uid === over.id);
 
-        if (row === undefined) {
-            return;
+        if (from >= 0 && to >= 0) {
+            change(arrayMove(items, from, to));
+        }
+    }
+
+    /** How a field is named aloud while it moves: its label in the page's language, else its key. */
+    function spoken(id: UniqueIdentifier): string {
+        const index = items.findIndex((item) => item.uid === id);
+        const item = items[index];
+
+        if (item === undefined) {
+            return '';
         }
 
-        const next = [...rows];
-        next.splice(from, 1);
-        next.splice(to, 0, row);
-        change(next);
+        const label = locale === 'ar' ? item.label_ar : item.label_en;
+
+        return label !== '' ? label : item.key !== '' ? item.key : t('access::address_formats.field_number', { number: index + 1 });
     }
+
+    const position = (id: UniqueIdentifier) => items.findIndex((item) => item.uid === id) + 1;
 
     return (
         <form
@@ -186,7 +218,7 @@ function Editor({
                     <p className="text-copy-13 text-ink-muted">{t('access::address_formats.fields_hint', { count: maxFields })}</p>
                 </div>
 
-                {rows.length === 0 ? (
+                {items.length === 0 ? (
                     <Empty className="material-base">
                         <EmptyHeader>
                             <EmptyTitle>{t('access::address_formats.no_fields_title')}</EmptyTitle>
@@ -194,84 +226,53 @@ function Editor({
                         </EmptyHeader>
                     </Empty>
                 ) : (
-                    <div role="list" className="grid gap-4">
-                        {rows.map((row, index) => (
-                            <div key={index} role="listitem" data-test={`field-${index}`}>
-                                <FieldSet className="material-base gap-4 p-5">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <FieldLegend className="mb-0 text-heading-14 text-ink">
-                                            <span className="tw-figure">{t('access::address_formats.field_number', { number: index + 1 })}</span>
-                                        </FieldLegend>
-                                        <RowMenu
-                                            index={index}
-                                            last={index === rows.length - 1}
-                                            onMove={(to) => move(index, to)}
-                                            onRemove={() => change(rows.filter((_, at) => at !== index))}
-                                        />
-                                    </div>
+                    <DndContext
+                        id={dndId}
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        modifiers={[restrictToVerticalAxis]}
+                        onDragEnd={onDragEnd}
+                        accessibility={{
+                            screenReaderInstructions: { draggable: t('access::address_formats.drag_instructions') },
+                            announcements: {
+                                onDragStart: ({ active }) => {
+                                    justPicked.current = true;
 
-                                    <FieldGroup className="grid gap-4 sm:grid-cols-2">
-                                        <TextField
-                                            id={`key-${index}`}
-                                            label={t('access::address_formats.field_key')}
-                                            helper={t('access::address_formats.field_key_hint')}
-                                            error={fieldError(form.errors, index, 'key')}
-                                            dir="ltr"
-                                            required
-                                            value={row.key}
-                                            onChange={(event) => edit(index, { key: event.target.value })}
-                                        />
-                                        <TextField
-                                            id={`length-${index}`}
-                                            type="number"
-                                            label={t('access::address_formats.max_length')}
-                                            helper={t('access::address_formats.max_length_hint', { count: maxLength })}
-                                            error={fieldError(form.errors, index, 'max_length')}
-                                            min={1}
-                                            max={maxLength}
-                                            dir="ltr"
-                                            inputClassName="tw-figure"
-                                            required
-                                            value={row.max_length}
-                                            onChange={(event) => edit(index, { max_length: Number(event.target.value) })}
-                                        />
-                                        <TextField
-                                            id={`label-ar-${index}`}
-                                            label={t('access::address_formats.label_ar')}
-                                            error={fieldError(form.errors, index, 'label_ar')}
-                                            lang="ar"
-                                            dir="rtl"
-                                            required
-                                            value={row.label_ar}
-                                            onChange={(event) => edit(index, { label_ar: event.target.value })}
-                                        />
-                                        <TextField
-                                            id={`label-en-${index}`}
-                                            label={t('access::address_formats.label_en')}
-                                            error={fieldError(form.errors, index, 'label_en')}
-                                            lang="en"
-                                            dir="ltr"
-                                            required
-                                            value={row.label_en}
-                                            onChange={(event) => edit(index, { label_en: event.target.value })}
-                                        />
-                                    </FieldGroup>
+                                    return t('access::address_formats.drag_picked', { field: spoken(active.id) });
+                                },
+                                onDragOver: ({ active, over }) => {
+                                    const first = justPicked.current;
+                                    justPicked.current = false;
 
-                                    <Field orientation="horizontal" className="w-fit border-t border-line pt-4">
-                                        <Switch
-                                            id={`required-${index}`}
-                                            checked={row.required}
-                                            onCheckedChange={(on) => edit(index, { required: on })}
-                                            className="data-[state=unchecked]:bg-ink-subtle"
-                                        />
-                                        <FieldLabel htmlFor={`required-${index}`} className="text-label-14 font-normal text-ink">
-                                            {t('access::address_formats.required')}
-                                        </FieldLabel>
-                                    </Field>
-                                </FieldSet>
+                                    return over === null || first
+                                        ? undefined
+                                        : t('access::address_formats.drag_moved', { field: spoken(active.id), position: position(over.id), total: items.length });
+                                },
+                                onDragEnd: ({ active, over }) =>
+                                    over === null
+                                        ? t('access::address_formats.drag_cancelled', { field: spoken(active.id) })
+                                        : t('access::address_formats.drag_dropped', { field: spoken(active.id), position: position(over.id), total: items.length }),
+                                onDragCancel: ({ active }) => t('access::address_formats.drag_cancelled', { field: spoken(active.id) }),
+                            },
+                        }}
+                    >
+                        <SortableContext items={items.map((item) => item.uid)} strategy={verticalListSortingStrategy}>
+                            <div role="list" className="grid gap-4">
+                                {items.map((item, index) => (
+                                    <FieldItem
+                                        key={item.uid}
+                                        item={item}
+                                        index={index}
+                                        name={spoken(item.uid)}
+                                        maxLength={maxLength}
+                                        errors={form.errors}
+                                        onEdit={(part) => edit(index, part)}
+                                        onRemove={() => change(items.filter((_, at) => at !== index))}
+                                    />
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        </SortableContext>
+                    </DndContext>
                 )}
 
                 <ActionButton
@@ -279,8 +280,8 @@ function Editor({
                     variant="outline"
                     className="w-fit"
                     data-test="add-field"
-                    disabledReason={rows.length >= maxFields ? t('access::address_formats.too_many_fields', { count: maxFields }) : undefined}
-                    onClick={() => change([...rows, { key: '', label_ar: '', label_en: '', required: false, max_length: 100 }])}
+                    disabledReason={items.length >= maxFields ? t('access::address_formats.too_many_fields', { count: maxFields }) : undefined}
+                    onClick={() => change([...items, { key: '', label_ar: '', label_en: '', required: false, max_length: 100, uid: `added-${added.current++}` }])}
                 >
                     {t('access::address_formats.add_field')}
                 </ActionButton>
@@ -291,11 +292,12 @@ function Editor({
                     {t('access::address_formats.template')}
                 </FieldLegend>
                 <Field>
-                    {/* The legend is the field's name: one heading, not a label dressed as one. */}
+                    {/* The legend is the field's name: one heading, not a label dressed as one. Its
+                        error is tied to it as its helper is (the review of batch A). */}
                     <Textarea
                         id="display_template"
                         aria-labelledby="template-title"
-                        aria-describedby="display_template-helper"
+                        aria-describedby={form.errors.display_template ? 'display_template-helper display_template-error' : 'display_template-helper'}
                         aria-invalid={form.errors.display_template ? true : undefined}
                         dir="ltr"
                         rows={6}
@@ -304,11 +306,11 @@ function Editor({
                         onChange={(event) => form.setData('display_template', event.target.value)}
                     />
                     <FieldDescription id="display_template-helper">{t('access::address_formats.template_hint')}</FieldDescription>
-                    {form.errors.display_template ? <FieldError>{form.errors.display_template}</FieldError> : null}
+                    {form.errors.display_template ? <FieldError id="display_template-error">{form.errors.display_template}</FieldError> : null}
                 </Field>
 
                 <p className="text-copy-13 text-ink-muted" dir="ltr">
-                    <Keys text={t('access::address_formats.template_fields', { keys: MARK })} keys={rows.map((row) => row.key).filter((key) => key !== '')} />
+                    <Keys text={t('access::address_formats.template_fields', { keys: MARK })} keys={items.map((item) => item.key).filter((key) => key !== '')} />
                 </p>
             </FieldSet>
 
@@ -324,48 +326,142 @@ function Editor({
 }
 
 /**
- * One field's ⋯ menu: Move Up, Move Down, and Remove Field last after a divider. A move that
- * cannot happen stays in the menu and says why under its name, as a disabled action must (Geist).
+ * One field: its drag handle, its four inputs and Required, and its ⋯ menu. The handle is the only
+ * thing that picks it up (dashboard-01's DragHandle), so typing in a field never starts a drag.
  */
-function RowMenu({ index, last, onMove, onRemove }: { index: number; last: boolean; onMove: (to: number) => void; onRemove: () => void }) {
+function FieldItem({
+    item,
+    index,
+    name,
+    maxLength,
+    errors,
+    onEdit,
+    onRemove,
+}: {
+    item: Item;
+    index: number;
+    name: string;
+    maxLength: number;
+    errors: Record<string, string>;
+    onEdit: (part: Partial<FieldRow>) => void;
+    onRemove: () => void;
+}) {
     const t = useTranslator();
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+        id: item.uid,
+        // dnd-kit names the handle's role "sortable", in English, on every page (the review of batch A).
+        attributes: { roleDescription: t('access::address_formats.drag_role') },
+    });
     const label = t('access::address_formats.field_number', { number: index + 1 });
 
-    const move = (to: number, reason: string | null, text: string, test: string): ReactNode => (
-        <DropdownMenuItem
-            aria-disabled={reason === null ? undefined : 'true'}
-            className={reason === null ? undefined : 'flex-col items-start gap-0.5 opacity-60'}
-            onSelect={(event) => {
-                if (reason !== null) {
-                    event.preventDefault();
-
-                    return;
-                }
-                onMove(to);
-            }}
-            data-test={test}
-        >
-            {text}
-            {reason === null ? null : <span className="text-copy-13 text-ink-muted">{reason}</span>}
-        </DropdownMenuItem>
-    );
-
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon-sm" aria-label={`${t('admin.more_actions')}: ${label}`} title={t('admin.more_actions')} data-test={`menu-${index}`}>
-                    <MoreHorizontal aria-hidden="true" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-48">
-                {move(index - 1, index === 0 ? t('access::address_formats.first_already') : null, t('access::address_formats.move_up'), `up-${index}`)}
-                {move(index + 1, last ? t('access::address_formats.last_already') : null, t('access::address_formats.move_down'), `down-${index}`)}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={onRemove} data-test={`remove-${index}`}>
-                    {t('access::address_formats.remove_field')}
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <div
+            ref={setNodeRef}
+            role="listitem"
+            data-test={`field-${index}`}
+            data-dragging={isDragging || undefined}
+            className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+            style={{ transform: CSS.Transform.toString(transform), transition }}
+        >
+            {/* Named through aria-labelledby: the legend shares a row with the handle and the menu,
+                and a fieldset takes its name only from a legend that is its own first child. */}
+            <FieldSet className="material-base gap-4 p-5" aria-labelledby={`field-${index}-legend`}>
+                <div className="flex items-center gap-2">
+                    <Button
+                        ref={setActivatorNodeRef}
+                        {...attributes}
+                        {...listeners}
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t('access::address_formats.reorder', { field: name })}
+                        title={t('access::address_formats.reorder', { field: name })}
+                        className="cursor-grab text-muted-foreground hover:bg-transparent active:cursor-grabbing"
+                        data-test={`drag-${index}`}
+                    >
+                        <GripVertical aria-hidden="true" />
+                    </Button>
+                    <FieldLegend id={`field-${index}-legend`} className="mb-0 text-heading-14 text-ink">
+                        {label}
+                    </FieldLegend>
+                    <div className="ms-auto">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button type="button" variant="ghost" size="icon-sm" aria-label={`${t('admin.more_actions')}: ${label}`} title={t('admin.more_actions')} data-test={`menu-${index}`}>
+                                    <MoreHorizontal aria-hidden="true" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-48">
+                                <DropdownMenuItem variant="destructive" onSelect={onRemove} data-test={`remove-${index}`}>
+                                    {t('access::address_formats.remove_field')}
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                </div>
+
+                <FieldGroup className="grid gap-4 sm:grid-cols-2">
+                    <TextField
+                        id={`key-${index}`}
+                        label={t('access::address_formats.field_key')}
+                        helper={t('access::address_formats.field_key_hint')}
+                        error={fieldError(errors, index, 'key')}
+                        dir="ltr"
+                        required
+                        value={item.key}
+                        onChange={(event) => onEdit({ key: event.target.value })}
+                    />
+                    <TextField
+                        id={`length-${index}`}
+                        type="number"
+                        label={t('access::address_formats.max_length')}
+                        helper={t('access::address_formats.max_length_hint', { count: maxLength })}
+                        error={fieldError(errors, index, 'max_length')}
+                        min={1}
+                        max={maxLength}
+                        dir="ltr"
+                        inputClassName="tw-figure"
+                        required
+                        value={item.max_length}
+                        onChange={(event) => onEdit({ max_length: Number(event.target.value) })}
+                    />
+                    <TextField
+                        id={`label-ar-${index}`}
+                        label={t('access::address_formats.label_ar')}
+                        error={fieldError(errors, index, 'label_ar')}
+                        lang="ar"
+                        dir="rtl"
+                        required
+                        value={item.label_ar}
+                        onChange={(event) => onEdit({ label_ar: event.target.value })}
+                    />
+                    <TextField
+                        id={`label-en-${index}`}
+                        label={t('access::address_formats.label_en')}
+                        error={fieldError(errors, index, 'label_en')}
+                        lang="en"
+                        dir="ltr"
+                        required
+                        value={item.label_en}
+                        onChange={(event) => onEdit({ label_en: event.target.value })}
+                    />
+                </FieldGroup>
+
+                <div className="border-t border-line pt-4">
+                    <Field orientation="horizontal" className="w-fit">
+                        <Switch
+                            id={`required-${index}`}
+                            checked={item.required}
+                            onCheckedChange={(on) => onEdit({ required: on })}
+                            className="data-[state=unchecked]:bg-ink-subtle"
+                        />
+                        <FieldLabel htmlFor={`required-${index}`} className="text-label-14 font-normal text-ink">
+                            {t('access::address_formats.required')}
+                        </FieldLabel>
+                    </Field>
+                </div>
+            </FieldSet>
+        </div>
     );
 }
 

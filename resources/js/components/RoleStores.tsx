@@ -83,7 +83,7 @@ export function StoreChoice({ stores, level, chosen, onLevel, onChosen, labelled
                     </FieldLegend>
                     <FieldGroup data-slot="checkbox-group" className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
                         {stores.map((store) => (
-                            <Field key={store.id} orientation="horizontal" className="rounded-sm px-2 py-1.5 has-[label:hover]:bg-surface-sunken">
+                            <Field key={store.id} orientation="horizontal" className="px-2 py-1.5">
                                 <Checkbox
                                     id={`${name}-store-${store.id}`}
                                     checked={chosen.includes(store.id)}

@@ -22,8 +22,10 @@ import { useReturnFocus } from '@/lib/use-return-focus';
 | - `error` is the refusal, said inside, and the dialog stays open to retry;
 | - `loading` disables both buttons (the confirm one stays focusable, Geist's Button rule); the
 |   caller owns `open` and closes it when the request settles;
-| - Cancel, an outside click and Escape all dismiss it, except while loading - which is why this is
-|   shadcn's Dialog and not its AlertDialog, which never lets an outside click dismiss;
+| - Cancel, an outside click and Escape all dismiss it (Geist's Destructive Action Modal page),
+|   except while loading, and an outside click not once something is typed: Geist's Modal gates
+|   dismissal of a destructive modal "with unsaved input" (the review of batch A). That is why this
+|   is shadcn's Dialog and not its AlertDialog, which never lets an outside click dismiss;
 | - the confirm button repeats the title (Verb + Noun), and the toast answers it 1:1.
 |
 | `body` holds anything the action needs besides the typed phrase - a replacement role, a reason -
@@ -94,6 +96,7 @@ export function DestructiveActionDialog({
             <DialogContent
                 showCloseButton={false}
                 onCloseAutoFocus={returnFocus}
+                onInteractOutside={(event) => (loading || typed !== '' ? event.preventDefault() : undefined)}
                 className="material-modal gap-0 overflow-hidden border-0 p-0 sm:max-w-md"
                 data-test="destructive-dialog"
             >

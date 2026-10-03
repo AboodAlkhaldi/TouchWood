@@ -98,6 +98,12 @@ return [
     'personal_role_name' => 'دور :name',
     'pick_role' => 'الدور',
     'pick_role_hint' => 'اختر دورًا محفوظًا، أو عدّله ليصير دورًا خاصًا به.',
+    // Past six saved roles the cards give way to a searchable picker (Geist's Choicebox; owner,
+    // 2026-10-03).
+    'saved_role' => 'دور محفوظ',
+    'choose_saved_role' => 'اختر دورًا محفوظًا',
+    'role_search' => 'ابحث في الأدوار',
+    'role_none' => 'لا أدوار تطابق «:query».',
     'own_role' => 'دور خاص به',
     'own_role_hint' => 'تعديل دور محفوظ هنا لا يغيّره على بقية من يحملونه، بل يصير دورًا لهذا الشخص وحده.',
     'edited' => 'معدَّل',

@@ -10,6 +10,7 @@ import { DialogError, FormError, useFreshRefusal } from '@/components/FormError'
 import { Note } from '@/components/Note';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     DropdownMenu,
@@ -72,6 +73,7 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
         <AdminLayout
             title={name}
             subtitle={t(`access::roles.level_${level.toLowerCase()}`)}
+            breadcrumbs={[{ label: t('access::roles.title'), href: '/admin/roles' }]}
             action={
                 editable ? (
                     <div className="flex items-center gap-2">
@@ -81,8 +83,18 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
 
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button ref={more} variant="outline" size="icon" aria-label={t('admin.more_actions')} title={t('admin.more_actions')} data-test="more-actions">
-                                    <MoreHorizontal aria-hidden="true" />
+                                {/* A menu closes as its item is chosen, so Refresh Permissions says it is busy here,
+                                    on the ⋯ button, until the answer is back (the review of batch A). */}
+                                <Button
+                                    ref={more}
+                                    variant="outline"
+                                    size="icon"
+                                    aria-label={t('admin.more_actions')}
+                                    aria-busy={refreshing || undefined}
+                                    title={t('admin.more_actions')}
+                                    data-test="more-actions"
+                                >
+                                    {refreshing ? <Spinner aria-label={t('ui.loading')} /> : <MoreHorizontal aria-hidden="true" />}
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-56">
@@ -99,7 +111,7 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
                                     // disabled action still says why (Geist's Menu), so it stays
                                     // reachable, says it is unavailable, and choosing it does nothing.
                                     aria-disabled={cannotDelete ? 'true' : undefined}
-                                    className={cannotDelete ? 'flex-col items-start gap-0.5 opacity-60' : undefined}
+                                    className={cannotDelete ? 'flex-col items-start gap-0.5' : undefined}
                                     onSelect={(event) => {
                                         if (cannotDelete) {
                                             event.preventDefault();
@@ -110,7 +122,9 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
                                     }}
                                     data-test="action-delete"
                                 >
-                                    {`${t('access::roles.delete')}…`}
+                                    {/* The name is dimmed as unavailable; the reason is read in full ink, since it is
+                                        information, not a control (the review of batch A). */}
+                                    <span className={cannotDelete ? 'opacity-60' : undefined}>{`${t('access::roles.delete')}…`}</span>
                                     {cannotDelete ? <span className="text-copy-13 text-ink-muted">{t('access::roles.delete_none_left')}</span> : null}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>

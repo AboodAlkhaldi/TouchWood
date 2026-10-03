@@ -64,14 +64,16 @@ export default function Index({ customers, total, page, perPage, search, status,
         type: accountType ?? '',
     });
 
-    function apply(next: Filters) {
-        router.get('/admin/customers', query(next), { preserveState: true });
+    function apply(next: Filters, onFinish?: () => void) {
+        router.get('/admin/customers', query(next), { preserveState: true, onFinish });
     }
 
     function clear() {
         const cleared = { search: '', status: '', type: '' };
         setForm(cleared);
-        apply(cleared);
+        // The empty state's button goes away with it, so focus goes to the search, where the person
+        // would start again (the review of batch A).
+        apply(cleared, () => document.getElementById('search')?.focus());
     }
 
     const applied: Filters = { search: search ?? '', status: status ?? '', type: accountType ?? '' };
@@ -169,7 +171,15 @@ export default function Index({ customers, total, page, perPage, search, status,
                     </div>
                 </form>
 
-                <div aria-live="polite">
+                {/* The one line a screen reader hears when the filters change what is listed: the
+                    range, or that nothing matches - not the whole table (Geist's Empty State). */}
+                <p role="status" className="sr-only">
+                    {customers.length === 0
+                        ? t(filtered ? 'access::customers.none_title' : 'access::customers.empty_title')
+                        : t('ui.range', { from: Math.min((page - 1) * perPage + 1, total), to: Math.min(page * perPage, total), total })}
+                </p>
+
+                <div>
                     {customers.length === 0 ? (
                         <Empty className="material-base" data-test="customers-empty">
                             <EmptyHeader>

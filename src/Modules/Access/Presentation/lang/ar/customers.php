@@ -29,7 +29,6 @@ return [
     'phone' => 'الجوال',
     'home_store' => 'المتجر',
     'registered' => 'سجّل في',
-    'verified' => 'مؤكَّد',
     'email_verified' => 'البريد مؤكَّد',
     'phone_verified' => 'الجوال مؤكَّد',
     // One badge per column, its word the state (Geist's Badge: never colour alone).

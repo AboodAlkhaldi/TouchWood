@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { defaultFilter } from 'cmdk';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from 'cn';
 import { Button } from '@/components/ui/button';
@@ -68,7 +69,10 @@ export function CountryCombobox({ id, label, countries, value, onChange, error }
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
-                    <Command>
+                    {/* Scored on the country's name and code only. An item's value has to tell the two
+                        lists' copies apart ("ours-SA", "all-SA"), and scoring it too made "al" match
+                        every "all-" item (the review of batch A). cmdk's own scorer, given the words. */}
+                    <Command filter={(_value, search, keywords) => defaultFilter((keywords ?? []).join(' '), search)}>
                         <CommandInput placeholder={t('access::staff.country_search')} value={query} onValueChange={setQuery} className="h-9" />
                         <CommandList>
                             <CommandEmpty>{t('access::staff.country_none', { query })}</CommandEmpty>

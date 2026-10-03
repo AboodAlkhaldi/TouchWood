@@ -41,8 +41,7 @@ final readonly class CustomerPages
     public function list(?string $search, ?string $status, ?string $accountType, int $page): CustomerListPage
     {
         $found = $this->list->handle(new ListCustomers($search, $status, $accountType, $page));
-        $stores = $this->storeNames();
-        $off = $this->offStores();
+        [$stores, $off] = $this->stores();
 
         return new CustomerListPage(
             customers: array_map(fn (CustomerSummary $customer): CustomerRow => $this->row($customer, $stores, $off), $found->customers),
@@ -61,8 +60,7 @@ final readonly class CustomerPages
     public function view(string $customerId): CustomerDetailsPage
     {
         $details = $this->view->handle(new ViewCustomer($customerId));
-        $stores = $this->storeNames();
-        $off = $this->offStores();
+        [$stores, $off] = $this->stores();
         // What may be done is Access's answer, never this file's: a screen that worked it out
         // itself would be deciding, and there is a test that forbids exactly that.
         $may = $this->actions->forCustomer($customerId);
@@ -121,24 +119,6 @@ final readonly class CustomerPages
         );
     }
 
-    /**
-     * The ids of the stores that are switched off.
-     *
-     * @return list<string>
-     */
-    private function offStores(): array
-    {
-        $off = [];
-
-        foreach ($this->platform->allStores() as $store) {
-            if (! $store->isActive) {
-                $off[] = $store->id;
-            }
-        }
-
-        return $off;
-    }
-
     private function address(AddressDto $address): AddressRow
     {
         return new AddressRow(
@@ -154,21 +134,28 @@ final readonly class CustomerPages
     }
 
     /**
-     * Every store's name in the panel's language, by id.
+     * Every store's name in the panel's language, by id, and the ids of those switched off - from
+     * one read of the stores, which is two cache queries (the review of batch A).
      *
-     * @return array<string, string>
+     * Every store, off ones included: an off store's customers and addresses are shown to staff,
+     * marked (access.md amendment 58(c)(d)).
+     *
+     * @return array{0: array<string, string>, 1: list<string>}
      */
-    private function storeNames(): array
+    private function stores(): array
     {
         $locale = $this->app->getLocale();
         $names = [];
+        $off = [];
 
-        // Every store, off ones included: an off store's customers and addresses are shown to staff,
-        // marked (access.md amendment 58(c)(d)).
         foreach ($this->platform->allStores() as $store) {
             $names[$store->storeId()->value] = $store->name->in($locale);
+
+            if (! $store->isActive) {
+                $off[] = $store->storeId()->value;
+            }
         }
 
-        return $names;
+        return [$names, $off];
     }
 }

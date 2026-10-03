@@ -29,7 +29,6 @@ return [
     'phone' => 'Phone',
     'home_store' => 'Store',
     'registered' => 'Registered',
-    'verified' => 'Confirmed',
     'email_verified' => 'Email Confirmed',
     'phone_verified' => 'Phone Confirmed',
     // One badge per column, its word the state (Geist's Badge: never colour alone).

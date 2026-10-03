@@ -72,11 +72,11 @@ export function SelectField({ id, label, helper, error, className, children, ...
     return (
         <Field className={className}>
             <FieldLabel htmlFor={id}>{label}</FieldLabel>
-            {/* shadcn's NativeSelect is as wide as its text; a form's select is as wide as its field. */}
+            {/* As wide as its field: shadcn's Field stretches its children (`[&>*]:w-full`), the
+                select's own wrapper included, and the select fills that. */}
             <NativeSelect
                 {...select}
                 id={id}
-                className="w-full"
                 aria-invalid={error ? true : undefined}
                 aria-describedby={describedBy(id, helper, error)}
             >

@@ -23,8 +23,17 @@ return [
     'required' => 'Required',
     'max_length' => 'Longest Allowed',
     'max_length_hint' => 'Between 1 and :count characters.',
-    'move_up' => 'Move Up',
-    'move_down' => 'Move Down',
+    // Fields are reordered by a drag handle, by mouse, touch or keyboard (owner, 2026-10-03: shadcn's
+    // dashboard-01 pattern). What a screen reader is told as a field moves, in the page's language:
+    // the drag library's own words are English only.
+    'reorder' => 'Reorder :field',
+    // What a screen reader calls the handle in place of "button".
+    'drag_role' => 'drag handle',
+    'drag_instructions' => 'To move a field, focus its handle and press Space or Enter, move it with the arrow keys, then press Space or Enter to drop it, or Escape to put it back.',
+    'drag_picked' => ':field picked up.',
+    'drag_moved' => ':field moved to position :position of :total.',
+    'drag_dropped' => ':field dropped at position :position of :total.',
+    'drag_cancelled' => ':field put back.',
     'remove_field' => 'Remove Field',
     'add_field' => 'Add Field',
     'no_fields' => 'No field yet. A form needs at least one.',
@@ -41,7 +50,5 @@ return [
     // buttons' reasons and dialogs' own words.
     'no_stores_title' => 'No Address Forms to Change',
     'no_fields_title' => 'No Fields Yet',
-    'first_already' => 'This field is already first.',
-    'last_already' => 'This field is already last.',
     'too_many_fields' => 'A form holds at most :count fields.',
 ];

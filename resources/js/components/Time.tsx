@@ -99,9 +99,10 @@ export function formatDate(iso: string, zone: string, locale: string): string {
 
 /**
  * Geist's short form: "2m ago", "5h ago", "Yesterday" - Intl's narrow style, which writes exactly
- * that in English, with the first letter raised as Geist writes it. Arabic is Intl's own.
+ * that in English, with the first letter raised as Geist writes it on its own; inside a sentence
+ * ("Joined yesterday") it stays as Intl wrote it. Arabic is Intl's own.
  */
-function formatRelative(iso: string, locale: string, now: number): string | null {
+function formatRelative(iso: string, locale: string, now: number, inSentence: boolean): string | null {
     const then = instant(iso).getTime();
     const diff = then - now;
 
@@ -119,7 +120,7 @@ function formatRelative(iso: string, locale: string, now: number): string | null
               ? words.format(hours, 'hour')
               : words.format(Math.round(hours / 24), 'day');
 
-    return language(locale) === 'en' ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+    return language(locale) === 'en' && !inSentence ? text.charAt(0).toUpperCase() + text.slice(1) : text;
 }
 
 type Props = {
@@ -131,10 +132,12 @@ type Props = {
      * a control. The card still opens on hover, and the link's own name carries the row.
      */
     focusable?: boolean;
+    /** After a leading word ("Joined 5h ago"), so "yesterday" is not given a capital mid-sentence. */
+    inSentence?: boolean;
     'data-test'?: string;
 };
 
-export function Time({ value, mode = 'relative', focusable = true, ...rest }: Props) {
+export function Time({ value, mode = 'relative', focusable = true, inSentence = false, ...rest }: Props) {
     const { locale } = usePage<SharedProps>().props;
     const zone = useStoreZone();
     const described = useId();
@@ -148,7 +151,7 @@ export function Time({ value, mode = 'relative', focusable = true, ...rest }: Pr
         );
     }
 
-    const short = formatRelative(value, locale, Date.now()) ?? formatDate(value, zone, locale);
+    const short = formatRelative(value, locale, Date.now(), inSentence) ?? formatDate(value, zone, locale);
     const utc = zone === 'UTC' ? null : formatMoment(value, 'UTC', locale);
 
     return (

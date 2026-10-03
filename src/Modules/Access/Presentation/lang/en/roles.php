@@ -27,7 +27,7 @@ return [
     'save' => 'Save Role',
     'cancel' => 'Cancel',
 
-    // D1's table: business areas down the side, roles across the top.
+    // D1's table: the area, the action, then one column per role (§1.11 #5).
     // The plain table's first two column headers: the business area, then the action (§1.11 #5).
     'area' => 'Area',
     'action' => 'Action',

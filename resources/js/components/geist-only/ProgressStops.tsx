@@ -15,8 +15,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 | - role="progressbar" with its values, an accessible name, and each stop its own aria-label.
 |
 | shadcn's bar takes its value as a share of 100 and fills from the left; here it is given the
-| share, says the stage itself to a screen reader (aria-valuetext), and is mirrored on an Arabic
-| page so it fills from the right, as the stops are placed from the start edge.
+| share, says the share and the stage to a screen reader (aria-valuenow, aria-valuetext), and is
+| mirrored on an Arabic page so it fills from the right, as the stops are placed from the start
+| edge.
 */
 
 export type ProgressStop = {
@@ -46,7 +47,11 @@ export function ProgressStops({ value, max, stops, label, valueText, className }
             <Progress
                 value={share(value)}
                 max={100}
-                getValueLabel={() => valueText}
+                // shadcn's Progress keeps `value` for its bar and never hands it to Radix's root, so
+                // the root would say nothing to a screen reader (the review of batch A). Given here,
+                // they reach the root through shadcn's own prop spread, over Radix's empty ones.
+                aria-valuenow={Math.round(share(value))}
+                aria-valuetext={valueText}
                 aria-label={label}
                 className="h-2.5 rounded-[var(--tw-radius-sm)] bg-surface-sunken shadow-[inset_0_0_0_1px_var(--tw-line)] rtl:-scale-x-100 [&>[data-slot=progress-indicator]]:bg-brand"
             />

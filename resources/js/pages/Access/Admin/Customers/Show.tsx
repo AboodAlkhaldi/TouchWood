@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { useTranslator } from '@/lib/t';
+import { useReturnFocus } from '@/lib/use-return-focus';
 import { tone } from '@/lib/tones';
 import type { AddressRow, CustomerAddressGroup, CustomerDetailsPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -54,7 +55,11 @@ export default function Show({ customer, communicationLocale, addresses, mayBloc
     const t = useTranslator();
 
     return (
-        <AdminLayout title={customer.name} subtitle={t('access::customers.title')}>
+        <AdminLayout
+            title={customer.name}
+            subtitle={t('access::customers.title')}
+            breadcrumbs={[{ label: t('access::customers.title'), href: '/admin/customers' }]}
+        >
             <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <div className="grid content-start gap-6">
                     <Card className="material-base gap-4 border-0 py-6">
@@ -246,6 +251,8 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
     const t = useTranslator();
     const [open, setOpen] = useState(false);
     const form = useForm({ reason: '' });
+    // Back to the button that opened it: neither dialog has a Radix Trigger to return to.
+    const returnFocus = useReturnFocus(open);
 
     function close() {
         setOpen(false);
@@ -289,7 +296,7 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
                 // Starts on Cancel, an outside click does not dismiss it, and there is no form for
                 // Enter to send: only the named, red button confirms (Geist's Modal).
                 <AlertDialog open={open} onOpenChange={(next) => (form.processing ? undefined : next ? setOpen(true) : close())}>
-                    <AlertDialogContent className="material-modal gap-0 overflow-hidden border-0 p-0 sm:max-w-md">
+                    <AlertDialogContent onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 sm:max-w-md">
                         <div className="grid gap-4 p-6">
                             <AlertDialogHeader>
                                 <AlertDialogTitle className="text-heading-20 text-ink">{title}</AlertDialogTitle>
@@ -312,7 +319,7 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
                 </AlertDialog>
             ) : (
                 <Dialog open={open} onOpenChange={(next) => (form.processing ? undefined : next ? setOpen(true) : close())}>
-                    <DialogContent showCloseButton={false} className="material-modal gap-0 overflow-hidden border-0 p-0 sm:max-w-md">
+                    <DialogContent showCloseButton={false} onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 sm:max-w-md">
                         <form
                             onSubmit={(event) => {
                                 event.preventDefault();

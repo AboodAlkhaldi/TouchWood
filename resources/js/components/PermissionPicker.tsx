@@ -84,9 +84,14 @@ export function PermissionPicker({ permissions, groups, chosen, onChange, disabl
                 return (
                     <Card key={group.key} className="material-base gap-0 border-0 py-0" data-test={`area-${group.key}`}>
                             <CardContent className="p-0">
-                                <FieldSet className="gap-0">
+                                {/* Named by its legend through aria-labelledby: the legend sits beside the count, inside
+                                a row, and a fieldset takes its name only from a legend that is its own first child
+                                (the review of batch A). */}
+                                <FieldSet className="gap-0" aria-labelledby={`area-${group.key}-legend`}>
                                     <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-                                        <FieldLegend className="mb-0 text-heading-14 text-ink">{group.label}</FieldLegend>
+                                        <FieldLegend id={`area-${group.key}-legend`} className="mb-0 text-heading-14 text-ink">
+                                            {group.label}
+                                        </FieldLegend>
                                         {chosenHere > 0 ? (
                                             <Badge className={tone('blue-subtle')}>
                                                 <span className="tw-figure">{t('access::roles.chosen_count', { count: chosenHere, total: inGroup.length })}</span>
@@ -114,7 +119,9 @@ export function PermissionPicker({ permissions, groups, chosen, onChange, disabl
                                                 <Field
                                                     key={permission.name}
                                                     orientation="horizontal"
-                                                    className={['rounded-sm px-2 py-2', locked === undefined ? 'has-[label:hover]:bg-surface-sunken' : ''].join(' ')}
+                                                    // No hover paint on the row: it would promise a target bigger than the box and its label
+                                                    // (the review of batch A).
+                                                    className="px-2 py-2"
                                                 >
                                                     {locked === undefined ? (
                                                         box

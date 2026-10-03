@@ -23,8 +23,17 @@ return [
     'required' => 'مطلوب',
     'max_length' => 'أقصى طول',
     'max_length_hint' => 'بين ١ و:count محرفًا.',
-    'move_up' => 'نقل لأعلى',
-    'move_down' => 'نقل لأسفل',
+    // Fields are reordered by a drag handle, by mouse, touch or keyboard (owner, 2026-10-03: shadcn's
+    // dashboard-01 pattern). What a screen reader is told as a field moves, in the page's language:
+    // the drag library's own words are English only.
+    'reorder' => 'إعادة ترتيب :field',
+    // What a screen reader calls the handle in place of "button".
+    'drag_role' => 'مقبض سحب',
+    'drag_instructions' => 'لنقل حقل، ركّز على مقبضه واضغط المسافة أو Enter، وحرّكه بالأسهم، ثم اضغط المسافة أو Enter لوضعه، أو Escape لإرجاعه.',
+    'drag_picked' => 'رُفع :field.',
+    'drag_moved' => 'نُقل :field إلى الموضع :position من :total.',
+    'drag_dropped' => 'وُضع :field في الموضع :position من :total.',
+    'drag_cancelled' => 'أُرجع :field إلى مكانه.',
     'remove_field' => 'إزالة الحقل',
     'add_field' => 'إضافة حقل',
     'no_fields' => 'لا حقل بعد. والنموذج يحتاج حقلًا واحدًا على الأقل.',
@@ -41,7 +50,5 @@ return [
     // وكلمات النوافذ نفسها.
     'no_stores_title' => 'لا نماذج عناوين يمكنك تغييرها',
     'no_fields_title' => 'لا حقول بعد',
-    'first_already' => 'هذا الحقل في الأعلى بالفعل.',
-    'last_already' => 'هذا الحقل في الأسفل بالفعل.',
     'too_many_fields' => 'يحمل النموذج :count حقلًا على الأكثر.',
 ];

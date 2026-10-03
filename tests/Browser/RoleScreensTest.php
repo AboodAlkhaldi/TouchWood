@@ -202,8 +202,10 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
     // And the columns menu opens with a row per role, so ten roles can become two; its header is
     // one word (Geist's Menu).
     $page->click('[data-test="columns"]')
-        ->assertSee('Roles')
         ->assertSee($hidden)
         ->assertPresent('[role="menuitemcheckbox"]')
         ->assertNoJavaScriptErrors();
+
+    // The menu's own header, not the sidebar's "Roles" (the review of batch A).
+    expect((string) $page->script('document.querySelector("[role=menu] [data-slot=dropdown-menu-label]")?.innerText ?? ""'))->toBe('Roles');
 });

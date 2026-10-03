@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, router, useForm } from '@inertiajs/react';
 import { MoreHorizontal } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
@@ -19,6 +19,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -65,6 +66,17 @@ export default function Show(person: Props) {
     const list = useList();
     const more = useRef<HTMLButtonElement>(null);
     const [editing, setEditing] = useState(false);
+    const editButton = useRef<HTMLButtonElement>(null);
+    const wasEditing = useRef(false);
+
+    // Cancel and Save go away with the form, so focus goes back to Edit Profile, where it was
+    // before (the review of batch A).
+    useEffect(() => {
+        if (wasEditing.current && !editing) {
+            editButton.current?.focus();
+        }
+        wasEditing.current = editing;
+    }, [editing]);
     const [changingEmail, setChangingEmail] = useState(false);
     const [disabling, setDisabling] = useState(false);
     const [cancelling, setCancelling] = useState(false);
@@ -128,6 +140,9 @@ export default function Show(person: Props) {
     // A dialog-opening action is never the main button: the main button does what it says.
     const main = everyday.find((action) => action.key !== 'email') ?? null;
     const rest = everyday.filter((action) => action !== main);
+    // A menu closes as its item is chosen, so the item cannot show that it is busy: the ⋯ button
+    // that holds it does, until the answer is back (the review of batch A).
+    const menuBusy = rest.some((action) => action.busy === true);
 
     return (
         <AdminLayout
@@ -150,8 +165,16 @@ export default function Show(person: Props) {
                         {rest.length === 0 && destructive.length === 0 ? null : (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button ref={more} variant="outline" size="icon" aria-label={t('admin.more_actions')} title={t('admin.more_actions')} data-test="more-actions">
-                                        <MoreHorizontal aria-hidden="true" />
+                                    <Button
+                                        ref={more}
+                                        variant="outline"
+                                        size="icon"
+                                        aria-label={t('admin.more_actions')}
+                                        aria-busy={menuBusy || undefined}
+                                        title={t('admin.more_actions')}
+                                        data-test="more-actions"
+                                    >
+                                        {menuBusy ? <Spinner aria-label={t('ui.loading')} /> : <MoreHorizontal aria-hidden="true" />}
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="min-w-56">
@@ -182,7 +205,9 @@ export default function Show(person: Props) {
                     <form
                         onSubmit={(event) => {
                             event.preventDefault();
-                            profile.post(`/admin/staff/${person.id}/profile`, { onSuccess: () => setEditing(false) });
+                            // The page stays as it is while the answer comes back, so the card can close itself
+                            // and hand focus back; the new values arrive as props.
+                            profile.post(`/admin/staff/${person.id}/profile`, { preserveState: true, onSuccess: () => setEditing(false) });
                         }}
                     >
                         <CardHeader className="px-6 pt-5 pb-4">
@@ -195,6 +220,7 @@ export default function Show(person: Props) {
                                         type="button"
                                         variant="outline"
                                         size="sm"
+                                        ref={editButton}
                                         aria-expanded={false}
                                         aria-controls="profile-form"
                                         onClick={() => setEditing(true)}

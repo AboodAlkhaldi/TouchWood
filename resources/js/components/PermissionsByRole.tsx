@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     columnFilteringFeature,
     columnVisibilityFeature,
@@ -189,14 +189,26 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
                 </DropdownMenu>
             </div>
 
+            {/* Always there, so a screen reader hears the filter leave nothing (Geist's Empty State). */}
+            <p role="status" className="sr-only">
+                {rows.length === 0 ? t('access::roles.no_areas_title') : ''}
+            </p>
+
             {rows.length === 0 ? (
-                <Empty className="material-base" aria-live="polite">
+                <Empty className="material-base">
                     <EmptyHeader>
                         <EmptyTitle>{t('access::roles.no_areas_title')}</EmptyTitle>
                         <EmptyDescription>{t('access::roles.no_areas', { query: filter })}</EmptyDescription>
                     </EmptyHeader>
                     <EmptyContent>
-                        <Button variant="outline" onClick={() => setFilter('')}>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setFilter('');
+                                // The button goes with the empty state; focus goes back to the filter.
+                                requestAnimationFrame(() => document.getElementById('filter-areas')?.focus());
+                            }}
+                        >
                             {t('access::roles.clear_filter')}
                         </Button>
                     </EmptyContent>
@@ -217,40 +229,52 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
                             ))}
                         </TableHeader>
 
-                        <TableBody>
-                            {rows.map((row, index) => {
-                                // The area is named once, at the head of its rows, worked out from the
-                                // rows that survived the filter - so it never stands over nothing.
-                                const first = rows[index - 1]?.original.group !== row.original.group;
-                                let span = 0;
-
-                                if (first) {
-                                    for (let next = index; next < rows.length && rows[next]?.original.group === row.original.group; next++) {
-                                        span++;
-                                    }
-                                }
-
-                                return (
-                                    <Fragment key={row.id}>
-                                        <TableRow className={first && index > 0 ? 'border-t-2 border-line' : undefined}>
-                                            {first ? (
-                                                <TableHead scope="rowgroup" rowSpan={span} className="align-top py-2 text-label-13 font-medium text-ink">
-                                                    {row.original.groupLabel}
-                                                </TableHead>
-                                            ) : null}
-                                            {row.getVisibleCells().map((cell) => (
-                                                <TableCell key={cell.id} className={cell.column.id === 'action' ? 'whitespace-nowrap' : undefined}>
+                        {/* One body per area, worked out from the rows that survived the filter - so an
+                            area never stands over nothing - and its name a row-group header, so it
+                            belongs to its own rows only. Each action is its row's header, so a cell is
+                            read as "this action, this role" (the review of batch A). */}
+                        {areasOf(rows).map((area) => (
+                            <TableBody key={area.key} className="border-t-2 border-line">
+                                {area.rows.map((row, index) => (
+                                    <TableRow key={row.id}>
+                                        {index === 0 ? (
+                                            <TableHead scope="rowgroup" rowSpan={area.rows.length} className="align-top py-2 text-label-13 font-medium text-ink">
+                                                {area.label}
+                                            </TableHead>
+                                        ) : null}
+                                        {row.getVisibleCells().map((cell) =>
+                                            cell.column.id === 'action' ? (
+                                                <TableHead key={cell.id} scope="row" className="whitespace-nowrap font-normal text-ink">
                                                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                </TableCell>
-                                            ))}
-                                        </TableRow>
-                                    </Fragment>
-                                );
-                            })}
-                        </TableBody>
+                                                </TableHead>
+                                            ) : (
+                                                <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                                            ),
+                                        )}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        ))}
                     </Table>
                 </div>
             )}
         </div>
     );
+}
+
+/** The rows that survived the filter, in runs of one area each, in the order they came. */
+function areasOf<T extends { original: AreaRow }>(rows: T[]): { key: string; label: string; rows: T[] }[] {
+    const areas: { key: string; label: string; rows: T[] }[] = [];
+
+    for (const row of rows) {
+        const last = areas[areas.length - 1];
+
+        if (last !== undefined && last.key === row.original.group) {
+            last.rows.push(row);
+        } else {
+            areas.push({ key: row.original.group, label: row.original.groupLabel, rows: [row] });
+        }
+    }
+
+    return areas;
 }

@@ -4,7 +4,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { PermissionsByRole } from '@/components/PermissionsByRole';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from '@/components/ui/item';
 import { useTranslator } from '@/lib/t';
 import type { RolesPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
@@ -43,7 +43,6 @@ export default function Index({ roles, groups, permissions, permissionsByRole, m
                         <EmptyTitle>{t('access::roles.none_title')}</EmptyTitle>
                         <EmptyDescription>{t('access::roles.no_roles')}</EmptyDescription>
                     </EmptyHeader>
-                    {create === undefined ? null : <EmptyContent>{create}</EmptyContent>}
                 </Empty>
             ) : (
                 <div className="grid gap-8">

@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import { useRef, type KeyboardEvent } from 'react';
 import { Search, X } from 'lucide-react';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { useTranslator } from '@/lib/t';
@@ -31,16 +31,21 @@ type Props = {
 
 export function SearchField({ id, label, placeholder, value, onValueChange, onClear, className, ...rest }: Props) {
     const t = useTranslator();
+    const input = useRef<HTMLInputElement>(null);
 
+    // Focus stays in the field: the clear button goes away once the field is empty, and focus on
+    // a button that is gone falls to the page (the review of batch A).
     const clear = () => {
         onValueChange('');
         onClear?.();
+        input.current?.focus();
     };
 
     return (
         <InputGroup className={className}>
             <InputGroupInput
                 {...rest}
+                ref={input}
                 id={id}
                 type="search"
                 // The browser's own clear mark would sit beside ours; Geist's is the one kept.

@@ -17,15 +17,23 @@ use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddress;
 use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddressHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\CurrentStore\CurrentStoreForStaff;
+use Modules\Access\Application\Query\ListRoles\ListRolesHandler;
+use Modules\Access\Application\Query\ListStaff\ListStaffHandler;
 use Modules\Access\Application\Query\MyAccount\MyAddressesForCustomer;
 use Modules\Access\Application\Query\MyAccount\MyAddressesInStoreDto;
+use Modules\Access\Application\Query\RoleEditorPermissions\RoleEditorPermissionsHandler;
 use Modules\Access\Application\Query\ViewCustomer\ViewCustomer;
 use Modules\Access\Application\Query\ViewCustomer\ViewCustomerHandler;
+use Modules\Access\Application\Query\ViewRole\ViewRoleHandler;
 use Modules\Access\Domain\Exception\AddressNotFound;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Presentation\Http\Resource\CustomerAddressGroup;
 use Modules\Access\Presentation\Http\Resource\CustomerPages;
+use Modules\Access\Presentation\Http\Resource\RolePages;
+use Modules\Access\Presentation\Http\Resource\StaffGroup;
+use Modules\Access\Presentation\Http\Resource\StaffPages;
+use Modules\Access\Presentation\Http\Resource\StoreOption;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Enums\AccessLevel;
@@ -362,5 +370,37 @@ describe('a staff member\'s stores while one is off', function () {
         app(ChangeStaffRoleHandler::class)->handle(new ChangeStaffRole($staffId, AccessLevel::SelectedStores, [$saudi, $egypt], savedRoleId: $roleId));
 
         expect(offStoreCovered($staffId))->toBe([$saudi, $egypt]);
+    });
+
+    it('offers the off store in the editor flagged off, and names it marked on the staff screens', function () {
+        // Taken while Egypt is on: an off store has no id in the fixtures.
+        [$saudi, $egypt] = [Fx::storeId('sa'), Fx::storeId('eg')];
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']);
+        $soloId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['eg']);
+        offStoreEditor();
+        offStoreSwitch('eg', on: false);
+
+        $editor = app(StaffPages::class)->roleEditor(app(ListRolesHandler::class), app(RoleEditorPermissionsHandler::class), $staffId);
+        $offered = array_column(array_map(static fn (StoreOption $store): array => [$store->id, $store->isActive], $editor->stores), 1, 0);
+
+        expect($offered)->toBe([$saudi => true, $egypt => false]);
+
+        // On the staff member's page, the list and the role page alike, the off store is named and
+        // marked (amendment 58(b)), read by a Super Admin who sees every person and every holder.
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $member = app(StaffPages::class)->member($staffId);
+        $groups = app(StaffPages::class)->list(app(ListStaffHandler::class), null, null)->groups;
+        $egyptGroup = array_values(array_filter($groups, static fn (StaffGroup $group): bool => $group->key === $egypt))[0] ?? null;
+        $holders = app(RolePages::class)->one(app(ViewRoleHandler::class), app(ListRolesHandler::class), Fx::roleOf($soloId))->holders;
+
+        // In the reader's own language, whichever it is: the mark is the word Off, in English or Arabic.
+        $marked = '/ · (Off|متوقف)$/u';
+
+        expect($member->storeNames)->toHaveCount(2)
+            ->and($member->storeNames[0])->not->toMatch($marked)
+            ->and($member->storeNames[1])->toMatch($marked)
+            ->and((string) $egyptGroup?->label)->toMatch($marked)
+            ->and($holders[0]->storeNames ?? [])->toHaveCount(1)
+            ->and(($holders[0]->storeNames ?? [''])[0])->toMatch($marked);
     });
 });

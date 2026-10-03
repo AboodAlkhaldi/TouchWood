@@ -102,11 +102,13 @@ export default function Role(page: Props) {
 
                 <PermissionPicker permissions={page.permissions} groups={page.groups} chosen={chosen} onChange={setChosen} />
 
-                <FieldSet className="gap-3">
+                <FieldSet className="gap-3" aria-describedby="where-hint">
                     <FieldLegend id="where" className="mb-0 text-heading-16 text-ink">
                         {t('access::staff.where')}
                     </FieldLegend>
-                    <FieldDescription className="text-copy-13 text-ink-muted">{t('access::staff.where_hint')}</FieldDescription>
+                    <FieldDescription id="where-hint" className="text-copy-13 text-ink-muted">
+                        {t('access::staff.where_hint')}
+                    </FieldDescription>
                     <StoreChoice
                         labelledBy="where"
                         stores={page.stores}
@@ -117,9 +119,11 @@ export default function Role(page: Props) {
                     />
                 </FieldSet>
 
-                <FieldSet className="gap-3">
+                <FieldSet className="gap-3" aria-describedby="exceptions-hint">
                     <FieldLegend className="mb-0 text-heading-16 text-ink">{t('access::staff.exceptions_title')}</FieldLegend>
-                    <FieldDescription className="text-copy-13 text-ink-muted">{t('access::staff.exceptions_hint')}</FieldDescription>
+                    <FieldDescription id="exceptions-hint" className="text-copy-13 text-ink-muted">
+                        {t('access::staff.exceptions_hint')}
+                    </FieldDescription>
                     <ExceptionList
                         permissions={page.permissions}
                         chosen={chosen}

@@ -117,6 +117,7 @@ them here.
 | `radix-ui`, `cn` | 1.6.7, 0.4.0 (installed 2026-10-03) | Under shadcn's components: Radix's primitives, and shadcn's class-merging helper |
 | `cmdk` | 1.1.1 (2026-10-03) | Under shadcn's Command (the combobox's list) |
 | `input-otp` | 1.5.0 (2026-10-03) | Under shadcn's InputOTP, the SMS code boxes (owner, 2026-10-02) |
+| `@dnd-kit/core`, `/sortable`, `/modifiers`, `/utilities` | 6.3.1, 10.0.0, 9.0.0, 3.2.2 (2026-10-03) | Under shadcn's `dashboard-01` drag handles, for the address form's field order - by mouse, touch or keyboard (owner, 2026-10-03) |
 | `sonner` | 2.0.8 (2026-10-03) | Under shadcn's toasts; `next-themes`, which shadcn adds with it, is removed (§1.11 edit 2) |
 | `tightenco/ziggy` | v2.6.4 | **[DECIDED 2026-09-19]** Links to named routes, with TypeScript types |
 | `spatie/laravel-typescript-transformer` | 3.3.0 (supports Laravel 13) | **[DECIDED 2026-09-19]** TypeScript types generated from page data |
@@ -830,8 +831,8 @@ is "the single highest-value guard in the project". The owner left these numbers
   shared part was 138.4 KB when this was written. `tests/Architecture/JavaScriptBudgetTest` measures
   the build: the shared part, and what each page adds, gzipped. A file that every page loads counts
   as shared, as the row above defines it, even when the bundler splits it from the app's own file
-  (batch A of the rebuild, 2026-10-03: shadcn's common Radix code, about 15 KB, which all 57 pages
-  load).
+  (batch A of the rebuild, 2026-10-03: shadcn's common Radix code, about 15 KB, which all 57 page
+  files load). Confirmed by the owner, 2026-10-03.
 - Listings use keyset paging and read models, never Eloquent hydration (handoff §5.4,
   `docs/STRUCTURE.md`).
 - SSR renders every page (§1.3); when the SSR process is down the page still works, rendered in the
