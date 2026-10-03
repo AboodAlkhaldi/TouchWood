@@ -1,39 +1,65 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
+import { FileText, ImageOff, MoreHorizontal } from 'lucide-react';
+import { cn } from 'cn';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { FormError } from '@/components/FormError';
+import { ActionButton } from '@/components/ActionButton';
+import { SelectField, TextField } from '@/components/Fields';
+import { DialogError, FormError } from '@/components/FormError';
+import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { Time } from '@/components/Time';
+import { MiddleTruncate } from '@/components/geist-only/MiddleTruncate';
 import {
-    Button,
-    EmptyState,
-    Input,
-    LoadMoreButton,
-    Modal,
-    ModalCancel,
-    Select,
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/geist';
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Attachment, AttachmentContent, AttachmentDescription, AttachmentMedia, AttachmentTitle } from '@/components/ui/attachment';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { NativeSelectOption } from '@/components/ui/native-select';
+import { Progress } from '@/components/ui/progress';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useTranslator } from '@/lib/t';
+import { tone } from '@/lib/tones';
+import { useLoadMore } from '@/lib/use-load-more';
+import { useReturnFocus } from '@/lib/use-return-focus';
 import type { MediaFileRow, MediaPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
-import { Time } from '@/components/geist/Time';
 
 /*
-| E5 - the media library (frontend.md §3.5), in Geist's parts (1.10).
+| E5 - the media library (frontend.md §3.5), on shadcn's parts with Geist's rules (§1.11).
 |
-| The design's table, with a switch to a grid of thumbnails [DECIDED 2026-09-19]. Newest first, and
-| paged by keyset: Load More carries the last file's moment and id, so a file uploaded while
-| somebody reads never pushes a row onto a page they have already seen.
+| The design's table, with a switch to a grid of thumbnails [DECIDED 2026-09-19] - Geist's Switch
+| for two views of one surface, on shadcn's ToggleGroup, so the view shown is the one pressed.
+| Newest first, and paged by keyset: Show More carries the last file's moment and id, so a file
+| uploaded while somebody reads never pushes a row onto a page they have already seen, and adds the
+| next page under the rows already shown (owner, 2026-10-04).
 |
 | A **thumbnail is shown only for an image whose variants are ready**. Asked for one still being
-| processed, Platform has nothing to give, and a broken picture says less than no picture.
+| processed, Platform has nothing to give, and a broken picture says less than no picture. Whether
+| sizes are being made, or failed, is a Badge with its word (Geist: colour never alone).
 |
-| A **delete says where the file is used first**, and Platform refuses it while a use blocks it
-| (platform.md §1.4): a company's registration document is not something a tidy-up may remove. The
-| screen shows the uses and does not offer the button at all when one of them blocks it.
+| A row holds one control, a ⋯ menu (Geist's Entity: past two controls, a Dots Menu): Retry
+| Processing, Edit Description…, and Delete File… last, after a divider. **A delete says where the
+| file is used first**, and Platform refuses it while a use blocks it (platform.md §1.4): the item
+| stays in the menu, out of reach, with the reason written under it (the rebuild spec: a Delete that
+| cannot be done is shown disabled, with its reason - inside a menu the reason is written, since a
+| tooltip there cannot be reached by touch).
+|
+| Describing a file is a Dialog with the two fields (owner's #9, 2026-10-02). Uploading is a card of
+| its own above the list, with a named file field and a progress bar while the file goes up (Geist's
+| Progress: "determinate work whose total is knowable, like file uploads").
 |
 | A **private file** - a company's papers - reaches this page only for a holder of the private-files
 | permission, and shows **its name, its upload date and where it is used** (B2B step 3, amendment
@@ -46,118 +72,140 @@ type Props = MediaPage;
 
 export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpdate, mayDelete, mayUploadPrivate }: Props) {
     const t = useTranslator();
-    const [asGrid, setAsGrid] = useState(false);
-    const [describing, setDescribing] = useState<string | null>(null);
+    const [view, setView] = useState<'table' | 'grid'>('table');
+    const list = useLoadMore(media, (file) => file.id);
 
     return (
         <AdminLayout
             title={t('platform::admin_media.title')}
             subtitle={t('platform::admin_media.subtitle')}
             action={
-                <div className="flex flex-wrap items-center gap-2">
-                    <Button type="secondary" data-test="view-switch" onClick={() => setAsGrid((grid) => !grid)}>
-                        {t(asGrid ? 'platform::admin_media.table' : 'platform::admin_media.grid')}
-                    </Button>
-                    {mayUpload ? <UploadForm mayUploadPrivate={mayUploadPrivate} /> : null}
-                </div>
+                <ToggleGroup
+                    type="single"
+                    variant="outline"
+                    value={view}
+                    // A pressed item pressed again would clear it; a view is always one of the two.
+                    onValueChange={(next) => (next === 'table' || next === 'grid' ? setView(next) : undefined)}
+                    aria-label={t('platform::admin_media.view')}
+                    data-test="view-switch"
+                >
+                    <ToggleGroupItem value="table" data-test="view-table" className="px-3">
+                        {t('platform::admin_media.table')}
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="grid" data-test="view-grid" className="px-3">
+                        {t('platform::admin_media.grid')}
+                    </ToggleGroupItem>
+                </ToggleGroup>
             }
         >
             <div className="grid gap-4">
                 <FormError />
 
-                {media.length === 0 ? (
-                    <EmptyState title={t('platform::admin_media.none_title')} description={t('platform::admin_media.none')} />
-                ) : asGrid ? (
-                    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                        {media.map((file) =>
-                            isPrivate(file) ? (
-                                // Its name, its date and where it is used, in place of the picture
-                                // and the size (amendment 6).
-                                <li key={file.id} className="material-base grid content-start gap-2 p-2">
-                                    <span className="truncate text-label-13 text-ink" title={file.filename}>
-                                        {file.filename}
-                                    </span>
-                                    <span className="text-copy-13 text-ink-muted">
-                                        <Time value={file.uploadedAt} />
-                                    </span>
-                                    <span className="text-copy-13 text-ink-muted">{usedIn(file, t)}</span>
-                                </li>
-                            ) : (
-                                <li key={file.id} className="material-base grid gap-2 p-2">
-                                    <Thumbnail file={file} />
-                                    <span className="truncate text-label-13 text-ink" title={file.filename}>
-                                        {file.filename}
-                                    </span>
-                                    <span className="tw-figure text-copy-13 text-ink-muted">{file.size}</span>
-                                </li>
-                            ),
-                        )}
+                {mayUpload ? <UploadCard mayUploadPrivate={mayUploadPrivate} /> : null}
+
+                {list.rows.length === 0 ? (
+                    <Empty className="material-base">
+                        <EmptyHeader>
+                            <EmptyTitle className="text-heading-16 text-ink">{t('platform::admin_media.none_title')}</EmptyTitle>
+                            <EmptyDescription className="text-copy-14 text-ink-muted">{t('platform::admin_media.none')}</EmptyDescription>
+                        </EmptyHeader>
+                    </Empty>
+                ) : view === 'grid' ? (
+                    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('platform::admin_media.title')}>
+                        {list.rows.map((file) => (
+                            <li key={file.id}>
+                                <Tile file={file} />
+                            </li>
+                        ))}
                     </ul>
                 ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>{t('platform::admin_media.file')}</TableHead>
-                                <TableHead>{t('platform::admin_media.type')}</TableHead>
-                                <TableHead>{t('platform::admin_media.size')}</TableHead>
-                                <TableHead>{t('platform::admin_media.used_in')}</TableHead>
-                                <TableHead>{t('platform::admin_media.uploaded')}</TableHead>
-                                <TableHead />
-                            </TableRow>
-                        </TableHeader>
-
-                        <TableBody>
-                            {media.map((file) => (
-                                <Row
-                                    key={file.id}
-                                    file={file}
-                                    mayUpdate={mayUpdate}
-                                    mayDelete={mayDelete}
-                                    describing={describing === file.id}
-                                    onDescribe={() => setDescribing(describing === file.id ? null : file.id)}
-                                    onDone={() => setDescribing(null)}
-                                />
-                            ))}
-                        </TableBody>
-                    </Table>
+                    <div className="material-base overflow-hidden">
+                        <Table>
+                            <TableCaption className="sr-only">{t('platform::admin_media.title')}</TableCaption>
+                            <TableHeader className="bg-surface-sunken">
+                                <TableRow>
+                                    <TableHead>{t('platform::admin_media.file')}</TableHead>
+                                    <TableHead>{t('platform::admin_media.type')}</TableHead>
+                                    <TableHead>{t('platform::admin_media.size')}</TableHead>
+                                    <TableHead>{t('platform::admin_media.used_in')}</TableHead>
+                                    <TableHead>{t('platform::admin_media.uploaded')}</TableHead>
+                                    <TableHead>
+                                        <span className="sr-only">{t('platform::admin_media.actions')}</span>
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {list.rows.map((file) => (
+                                    <Row key={file.id} file={file} mayUpdate={mayUpdate} mayDelete={mayDelete} />
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                 )}
 
                 {nextCreatedAt !== null && nextId !== null ? (
-                    <LoadMoreButton
-                        data-test="more"
-                        onClick={() => router.get('/admin/media', { after_at: nextCreatedAt, after_id: nextId })}
-                    />
+                    <LoadMoreButton loading={list.loading} onClick={() => list.more('/admin/media', { after_at: nextCreatedAt, after_id: nextId }, ['media', 'nextCreatedAt', 'nextId'])} />
                 ) : null}
             </div>
         </AdminLayout>
     );
 }
 
-function Thumbnail({ file }: { file: MediaFileRow }) {
+/** Whether sizes are being made or failed, as a Badge with its word (amber at work, red failed). */
+function SizesBadge({ file }: { file: MediaFileRow }) {
     const t = useTranslator();
 
-    if (file.thumbnailUrl === null) {
-        return (
-            <span className="grid aspect-square place-items-center overflow-hidden rounded-[var(--tw-radius)] bg-surface-sunken p-1 text-center text-label-12 wrap-anywhere text-ink-muted">
-                {file.variantsStatus === null ? file.mime : t(statusKey(file.variantsStatus))}
-            </span>
-        );
+    if (file.variantsStatus === null || file.variantsStatus === 'READY') {
+        return null;
     }
 
     return (
-        <img
-            src={file.thumbnailUrl}
-            // The description written for it, or nothing: an image with no description is better
-            // announced as decorative than with a filename read out letter by letter.
-            alt={file.altEn ?? file.altAr ?? ''}
-            loading="lazy"
-            className="aspect-square w-full rounded-[var(--tw-radius)] border border-line object-cover"
-        />
+        <Badge className={tone(file.variantsStatus === 'FAILED' ? 'red-subtle' : 'amber-subtle')}>
+            {file.variantsStatus === 'FAILED' ? t('platform::admin_media.variants_failed') : t('platform::admin_media.variants_pending')}
+        </Badge>
     );
 }
 
-function statusKey(status: string): string {
-    return `platform::admin_media.variants_${status.toLowerCase()}`;
+/** The picture, when there is one ready to show; otherwise a plain mark, never a broken image. */
+function Picture({ file }: { file: MediaFileRow }) {
+    if (file.thumbnailUrl === null) {
+        return isPrivate(file) || !(file.mime ?? '').startsWith('image/') ? <FileText aria-hidden="true" /> : <ImageOff aria-hidden="true" />;
+    }
+
+    // The description written for it, or nothing: an image with no description is better announced
+    // as decorative than with a filename read out letter by letter.
+    return <img src={file.thumbnailUrl} alt={file.altEn ?? file.altAr ?? ''} loading="lazy" />;
+}
+
+/** One file in the grid: shadcn's Attachment, upright, its name cut in the middle (Geist). */
+function Tile({ file }: { file: MediaFileRow }) {
+    return (
+        <Attachment orientation="vertical" state={file.variantsStatus === 'FAILED' ? 'error' : 'done'} className="material-base w-full border-0 has-data-[slot=attachment-content]:w-full">
+            <AttachmentMedia variant={file.thumbnailUrl === null ? 'icon' : 'image'}>
+                <Picture file={file} />
+            </AttachmentMedia>
+            <AttachmentContent className="grid gap-1">
+                {/* Its own cut, not the title's end ellipsis: Geist's Middle Truncate is never wrapped in another. */}
+                <AttachmentTitle className="text-clip text-label-13 text-ink">
+                    <MiddleTruncate value={file.filename} />
+                </AttachmentTitle>
+                <AttachmentDescription className="text-copy-13 text-ink-muted">
+                    {isPrivate(file) ? (
+                        // Its name, its date and where it is used, in place of the size (amendment 6).
+                        <>
+                            <Time value={file.uploadedAt} />
+                            <span className="block truncate">
+                                <UsedIn file={file} />
+                            </span>
+                        </>
+                    ) : (
+                        <span className="tw-figure">{file.size}</span>
+                    )}
+                </AttachmentDescription>
+                <SizesBadge file={file} />
+            </AttachmentContent>
+        </Attachment>
+    );
 }
 
 /**
@@ -169,25 +217,35 @@ function isPrivate(file: MediaFileRow): boolean {
     return file.visibility === 'PRIVATE';
 }
 
-function usedIn(file: MediaFileRow, t: (key: string) => string): string {
-    return file.usedIn.length === 0 ? t('platform::admin_media.not_used') : file.usedIn.join('، ');
-}
-
-type RowProps = {
-    file: MediaFileRow;
-    mayUpdate: boolean;
-    mayDelete: boolean;
-    describing: boolean;
-    onDescribe: () => void;
-    onDone: () => void;
-};
-
-function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: RowProps) {
+/** Where a file is used, each use isolated: a use is a name or a code, in either language. */
+function UsedIn({ file }: { file: MediaFileRow }) {
     const t = useTranslator();
 
-    const alt = useForm({ alt_ar: file.altAr ?? '', alt_en: file.altEn ?? '' });
+    return file.usedIn.length === 0 ? (
+        <>{t('platform::admin_media.not_used')}</>
+    ) : (
+        <>
+            {file.usedIn.map((use, index) => (
+                <span key={use}>
+                    {index === 0 ? null : ' · '}
+                    <bdi>{use}</bdi>
+                </span>
+            ))}
+        </>
+    );
+}
+
+function Row({ file, mayUpdate, mayDelete }: { file: MediaFileRow; mayUpdate: boolean; mayDelete: boolean }) {
+    const t = useTranslator();
+    const [describing, setDescribing] = useState(false);
     const [confirming, setConfirming] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [retrying, setRetrying] = useState(false);
+    const more = useRef<HTMLButtonElement>(null);
+    const describeFocus = useReturnFocus(describing, more);
+    const deleteFocus = useReturnFocus(confirming, more);
+    const alt = useForm({ alt_ar: file.altAr ?? '', alt_en: file.altEn ?? '' });
+    const hasMenu = file.retryable || mayUpdate || mayDelete;
 
     function remove() {
         router.post(
@@ -195,220 +253,249 @@ function Row({ file, mayUpdate, mayDelete, describing, onDescribe, onDone }: Row
             {},
             {
                 onStart: () => setDeleting(true),
-                onFinish: () => {
-                    setDeleting(false);
-                    setConfirming(false);
-                },
+                // Closed once it is gone; a refusal keeps it open, with the reason inside it.
+                onSuccess: () => setConfirming(false),
+                onFinish: () => setDeleting(false),
             },
         );
     }
 
     return (
-        <>
-            <TableRow>
-                <TableCell>
-                    {/* The picture belongs in the table too, not only in the grid (owner,
-                        2026-09-24): a library of file names is a list of strings, and the one
-                        question somebody has about a file is what it looks like. A private file
-                        is the exception: its name only (amendment 6). Its type and size never
-                        reach the page, and it offers no retry. */}
-                    {isPrivate(file) ? (
-                        <span className="text-ink">{file.filename}</span>
-                    ) : (
-                        <div className="flex items-center gap-3">
-                            <span className="w-12 shrink-0">
-                                <Thumbnail file={file} />
-                            </span>
-
-                            <span className="grid gap-0.5">
-                                <span className="text-ink">{file.filename}</span>
-                                {file.variantsStatus === null ? null : (
-                                    <span className="text-copy-13 text-ink-muted">{t(statusKey(file.variantsStatus))}</span>
-                                )}
-                            </span>
-                        </div>
+        <TableRow>
+            <TableCell className="max-w-72">
+                {/* The picture belongs in the table too, not only in the grid (owner, 2026-09-24):
+                    the one question somebody has about a file is what it looks like. A private file
+                    is the exception: its name only (amendment 6). */}
+                <div className="flex min-w-0 items-center gap-3">
+                    {isPrivate(file) ? null : (
+                        <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-[var(--tw-radius-sm)] border border-line bg-surface-sunken text-ink-muted [&_img]:size-full [&_img]:object-cover [&_svg]:size-5">
+                            <Picture file={file} />
+                        </span>
                     )}
-                </TableCell>
-                {/* The cell keeps Geist's colour; the quieter type is on what it holds. */}
-                <TableCell>
-                    <span className="text-copy-13 text-ink-muted">{file.mime}</span>
-                </TableCell>
-                <TableCell>
-                    <span className="tw-figure text-copy-13 text-ink-muted">{file.size}</span>
-                </TableCell>
-                <TableCell>
-                    <span className="text-copy-13 text-ink-muted">{usedIn(file, t)}</span>
-                </TableCell>
-                <TableCell>
-                    <span className="text-copy-13 text-ink-muted">
-                        <Time value={file.uploadedAt} />
+                    <span className="grid min-w-0 gap-1">
+                        <MiddleTruncate value={file.filename} className="text-ink" />
+                        <span>
+                            <SizesBadge file={file} />
+                        </span>
                     </span>
-                </TableCell>
-                <TableCell>
-                    <div className="flex flex-wrap justify-end gap-2">
-                        {file.retryable ? (
+                </div>
+            </TableCell>
+            <TableCell className="text-copy-13 text-ink-muted">{isPrivate(file) ? null : <bdi dir="ltr">{file.mime}</bdi>}</TableCell>
+            <TableCell className="tw-figure text-copy-13 text-ink-muted">{isPrivate(file) ? null : file.size}</TableCell>
+            <TableCell className="max-w-56 whitespace-normal text-copy-13 text-ink-muted">
+                <UsedIn file={file} />
+            </TableCell>
+            <TableCell className="text-copy-13 text-ink-muted">
+                <Time value={file.uploadedAt} />
+            </TableCell>
+            <TableCell className="text-end">
+                {hasMenu ? (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                             <Button
-                                type="secondary"
-                                size="small"
-                                onClick={() => router.post(`/admin/media/${file.id}/retry`)}
+                                ref={more}
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={`${t('ui.more_actions')}: ${file.filename}`}
+                                aria-busy={retrying || undefined}
+                                title={t('ui.more_actions')}
+                                data-test={`file-menu-${file.id}`}
                             >
-                                {t('platform::admin_media.retry')}
+                                <MoreHorizontal aria-hidden="true" />
                             </Button>
-                        ) : null}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-56">
+                            {file.retryable ? (
+                                <DropdownMenuItem
+                                    disabled={retrying}
+                                    data-test={`retry-${file.id}`}
+                                    onSelect={() => router.post(`/admin/media/${file.id}/retry`, {}, { preserveScroll: true, onStart: () => setRetrying(true), onFinish: () => setRetrying(false) })}
+                                >
+                                    {t('platform::admin_media.retry')}
+                                </DropdownMenuItem>
+                            ) : null}
+                            {mayUpdate ? (
+                                <DropdownMenuItem data-test={`describe-${file.id}`} onSelect={() => setDescribing(true)}>
+                                    {t('platform::admin_media.describe_open')}
+                                </DropdownMenuItem>
+                            ) : null}
+                            {mayDelete ? (
+                                <>
+                                    {file.retryable || mayUpdate ? <DropdownMenuSeparator /> : null}
+                                    {/* Out of reach while a use keeps the file, its reason written
+                                        under it: still in the menu, so nobody wonders where it went. */}
+                                    <DropdownMenuItem
+                                        variant="destructive"
+                                        aria-disabled={file.deleteBlocked || undefined}
+                                        data-test={`delete-${file.id}`}
+                                        className={cn(file.deleteBlocked && 'cursor-not-allowed opacity-60')}
+                                        onSelect={(event) => {
+                                            if (file.deleteBlocked) {
+                                                event.preventDefault();
 
-                        {mayUpdate ? (
-                            <Button type="secondary" size="small" data-test={`describe-${file.id}`} onClick={onDescribe}>
-                                {t(describing ? 'platform::admin_media.cancel' : 'platform::admin_media.describe')}
-                            </Button>
-                        ) : null}
+                                                return;
+                                            }
+                                            setConfirming(true);
+                                        }}
+                                    >
+                                        <span className="grid gap-0.5">
+                                            <span>{t('platform::admin_media.delete_open')}</span>
+                                            {file.deleteBlocked ? <span className="text-copy-12 text-ink-muted">{t('platform::admin_media.delete_blocked')}</span> : null}
+                                        </span>
+                                    </DropdownMenuItem>
+                                </>
+                            ) : null}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                ) : null}
 
-                        {/* Not offered while a use blocks it: a button that always refuses is worse
-                            than no button, and the reason is said instead. */}
-                        {mayDelete && ! file.deleteBlocked ? (
-                            <Button
-                                type="error"
-                                size="small"
-                                data-test={`delete-${file.id}`}
-                                onClick={() => setConfirming(true)}
-                            >
-                                {t('platform::admin_media.delete')}
-                            </Button>
-                        ) : null}
-                    </div>
-                </TableCell>
-            </TableRow>
-
-            {describing ? (
-                <TableRow>
-                    <TableCell colSpan={6} className="bg-surface-sunken">
+                {/* Describing: a Dialog with the two fields (owner's #9, 2026-10-02). */}
+                <Dialog open={describing} onOpenChange={(open) => (alt.processing ? undefined : setDescribing(open))}>
+                    <DialogContent showCloseButton={false} onCloseAutoFocus={describeFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start sm:max-w-md">
                         <form
                             onSubmit={(event) => {
                                 event.preventDefault();
-                                alt.post(`/admin/media/${file.id}/alt`, { onSuccess: onDone });
+                                alt.post(`/admin/media/${file.id}/alt`, { preserveScroll: true, onSuccess: () => setDescribing(false) });
                             }}
-                            className="grid gap-4 py-1 sm:grid-cols-2"
                         >
-                            <Input
-                                id={`${file.id}-alt_ar`}
-                                label={t('platform::admin_media.alt_ar')}
-                                helper={t('platform::admin_media.alt_hint')}
-                                error={alt.errors.alt_ar}
-                                lang="ar"
-                                value={alt.data.alt_ar}
-                                onChange={(event) => alt.setData('alt_ar', event.target.value)}
-                            />
-
-                            <Input
-                                id={`${file.id}-alt_en`}
-                                label={t('platform::admin_media.alt_en')}
-                                error={alt.errors.alt_en}
-                                lang="en"
-                                dir="ltr"
-                                value={alt.data.alt_en}
-                                onChange={(event) => alt.setData('alt_en', event.target.value)}
-                            />
-
-                            <div className="sm:col-span-2">
-                                <Button typeName="submit" size="small" loading={alt.processing}>
-                                    {t('platform::admin_media.save')}
-                                </Button>
+                            <div className="grid gap-4 p-6">
+                                <DialogHeader>
+                                    <DialogTitle className="text-heading-20 text-ink">{t('platform::admin_media.describe')}</DialogTitle>
+                                    <DialogDescription className="text-copy-14 text-ink-muted">{t('platform::admin_media.alt_hint')}</DialogDescription>
+                                </DialogHeader>
+                                <DialogError open={describing} />
+                                <TextField
+                                    id={`${file.id}-alt_ar`}
+                                    label={t('platform::admin_media.alt_ar')}
+                                    error={alt.errors.alt_ar}
+                                    lang="ar"
+                                    dir="rtl"
+                                    value={alt.data.alt_ar}
+                                    onChange={(event) => alt.setData('alt_ar', event.target.value)}
+                                />
+                                <TextField
+                                    id={`${file.id}-alt_en`}
+                                    label={t('platform::admin_media.alt_en')}
+                                    error={alt.errors.alt_en}
+                                    lang="en"
+                                    dir="ltr"
+                                    value={alt.data.alt_en}
+                                    onChange={(event) => alt.setData('alt_en', event.target.value)}
+                                />
                             </div>
+                            <DialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
+                                <Button type="button" variant="outline" disabled={alt.processing} onClick={() => setDescribing(false)}>
+                                    {t('ui.cancel')}
+                                </Button>
+                                <ActionButton type="submit" loading={alt.processing} data-test={`save-description-${file.id}`}>
+                                    {t('platform::admin_media.save')}
+                                </ActionButton>
+                            </DialogFooter>
                         </form>
-                    </TableCell>
-                </TableRow>
-            ) : null}
+                    </DialogContent>
+                </Dialog>
 
-            {file.deleteBlocked ? (
-                <TableRow>
-                    <TableCell colSpan={6} className="pt-0">
-                        <span className="text-copy-13 text-ink-muted">{t('platform::admin_media.delete_blocked')}</span>
-                    </TableCell>
-                </TableRow>
-            ) : null}
-
-            {/* Asked before deleting rather than with the browser's own confirm box (owner,
-                2026-09-24). The spec asks a delete to say where the file is used first, and a
-                native box can only carry a sentence - it cannot list them. It also cannot be
-                driven by a test, which is why nothing here covered this before. Geist confirms a
-                delete in a Modal (frontend.md 1.10); it sits outside the table, drawn over the page. */}
-            <Modal
-                open={confirming}
-                // Never closed from under a delete that is still on its way.
-                onOpenChange={(open) => (open || deleting ? undefined : setConfirming(false))}
-                destructive
-                title={t('platform::admin_media.delete_title')}
-                description={t(
-                    file.usedIn.length === 0
-                        ? 'platform::admin_media.delete_confirm_unused'
-                        : 'platform::admin_media.delete_confirm',
-                    { count: file.usedIn.length },
-                )}
-                actions={
-                    <>
-                        <ModalCancel onClick={() => setConfirming(false)} disabled={deleting} />
-                        <Button type="error" loading={deleting} data-test={`delete-confirm-${file.id}`} onClick={remove}>
-                            {t('platform::admin_media.delete_title')}
-                        </Button>
-                    </>
-                }
-            >
-                {file.usedIn.length === 0 ? undefined : (
-                    <ul className="grid gap-0.5 text-copy-13 text-ink-muted">
-                        {file.usedIn.map((use) => (
-                            <li key={use} className="tw-figure">
-                                {use}
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </Modal>
-        </>
+                {/* Asked before deleting rather than with the browser's own confirm box (owner,
+                    2026-09-24). The spec asks a delete to say where the file is used first, and a
+                    native box can only carry a sentence - it cannot list them. */}
+                <AlertDialog open={confirming} onOpenChange={(open) => (open || deleting ? undefined : setConfirming(false))}>
+                    <AlertDialogContent onCloseAutoFocus={deleteFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start data-[size=default]:sm:max-w-md">
+                        <div className="grid gap-4 p-6">
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="text-heading-20 text-ink">{t('platform::admin_media.delete_title')}</AlertDialogTitle>
+                                <AlertDialogDescription className="text-copy-14 text-ink-muted">
+                                    {file.usedIn.length === 0 ? t('platform::admin_media.delete_confirm_unused') : t('platform::admin_media.delete_confirm', { count: file.usedIn.length })}
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            {file.usedIn.length === 0 ? null : (
+                                <ul className="grid gap-0.5 text-copy-13 text-ink-muted">
+                                    {file.usedIn.map((use) => (
+                                        <li key={use}>
+                                            <bdi>{use}</bdi>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            <DialogError open={confirming} />
+                        </div>
+                        <AlertDialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
+                            <AlertDialogCancel disabled={deleting} data-test="modal-cancel">
+                                {t('ui.cancel')}
+                            </AlertDialogCancel>
+                            <ActionButton variant="destructive" loading={deleting} data-test={`delete-confirm-${file.id}`} onClick={remove}>
+                                {t('platform::admin_media.delete_title')}
+                            </ActionButton>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </TableCell>
+        </TableRow>
     );
 }
 
-function UploadForm({ mayUploadPrivate }: { mayUploadPrivate: boolean }) {
+/** Uploading: a card of its own (Geist's Fieldset), the file field named, a bar while it goes up. */
+function UploadCard({ mayUploadPrivate }: { mayUploadPrivate: boolean }) {
     const t = useTranslator();
     const form = useForm<{ file: File | null; visibility: string }>({ file: null, visibility: 'PUBLIC' });
+    const picker = useRef<HTMLInputElement>(null);
 
     return (
-        <form
-            onSubmit={(event) => {
-                event.preventDefault();
-                // Nothing to send until a file is chosen, whatever submitted the form.
-                if (form.data.file === null) {
-                    return;
-                }
-                form.post('/admin/media', { forceFormData: true, onSuccess: () => form.reset() });
-            }}
-            className="flex flex-wrap items-center gap-2"
-        >
-            {/* Geist has no file field; this is the browser's, dressed in Geist's secondary button. */}
-            <input
-                type="file"
-                data-test="file"
-                onChange={(event) => form.setData('file', event.target.files?.[0] ?? null)}
-                className="text-copy-13 text-ink-muted file:me-2 file:h-8 file:cursor-pointer file:rounded-[var(--tw-radius)] file:border-0 file:bg-surface file:px-2.5 file:text-button-14 file:text-ink file:shadow-[0_0_0_1px_var(--tw-line-strong)] hover:file:bg-surface-sunken"
-            />
-
-            <Select
-                id="upload-visibility"
-                aria-label={t('platform::admin_media.visibility')}
-                value={form.data.visibility}
-                onChange={(event) => form.setData('visibility', event.target.value)}
+        <Card className="material-base gap-0 border-0 py-0">
+            <form
+                aria-labelledby="upload-title"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    // Nothing to send until a file is chosen, whatever submitted the form.
+                    if (form.data.file === null) {
+                        return;
+                    }
+                    form.post('/admin/media', {
+                        forceFormData: true,
+                        preserveScroll: true,
+                        onSuccess: () => {
+                            form.reset();
+                            // The browser's own field keeps its file name until it is cleared.
+                            if (picker.current !== null) {
+                                picker.current.value = '';
+                            }
+                        },
+                    });
+                }}
             >
-                <option value="PUBLIC">{t('platform::admin_media.visibility_public')}</option>
-                {/* Only for someone who may also see private files: the upload refuses anyone
-                    else (amendment 6). */}
-                {mayUploadPrivate ? <option value="PRIVATE">{t('platform::admin_media.visibility_private')}</option> : null}
-            </Select>
-
-            <Button
-                typeName="submit"
-                loading={form.processing}
-                disabledReason={form.data.file === null ? t('platform::admin_media.upload_needs_file') : undefined}
-            >
-                {t('platform::admin_media.upload')}
-            </Button>
-        </form>
+                <CardHeader className="px-5 pt-5 pb-4">
+                    <CardTitle>
+                        <h2 id="upload-title" className="text-heading-16 text-ink">
+                            {t('platform::admin_media.upload')}
+                        </h2>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-5 px-5 pb-5 sm:grid-cols-2">
+                    <Field>
+                        <FieldLabel htmlFor="upload-file">{t('platform::admin_media.file')}</FieldLabel>
+                        <Input id="upload-file" ref={picker} type="file" data-test="file" onChange={(event) => form.setData('file', event.target.files?.[0] ?? null)} />
+                    </Field>
+                    <SelectField id="upload-visibility" label={t('platform::admin_media.visibility')} value={form.data.visibility} onChange={(event) => form.setData('visibility', event.target.value)}>
+                        <NativeSelectOption value="PUBLIC">{t('platform::admin_media.visibility_public')}</NativeSelectOption>
+                        {/* Only for someone who may also see private files: the upload refuses
+                            anyone else (amendment 6). */}
+                        {mayUploadPrivate ? <NativeSelectOption value="PRIVATE">{t('platform::admin_media.visibility_private')}</NativeSelectOption> : null}
+                    </SelectField>
+                    {form.progress === null || form.progress?.percentage === undefined ? null : (
+                        <div className="grid gap-1 sm:col-span-2">
+                            <Progress value={form.progress.percentage} aria-labelledby="upload-progress" />
+                            <span id="upload-progress" className="tw-figure text-copy-13 text-ink-muted">
+                                {t('platform::admin_media.uploading', { percent: form.progress.percentage })}
+                            </span>
+                        </div>
+                    )}
+                </CardContent>
+                <CardFooter className={cn('justify-end border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3')}>
+                    <ActionButton type="submit" loading={form.processing} disabledReason={form.data.file === null ? t('platform::admin_media.upload_needs_file') : undefined} data-test="upload">
+                        {t('platform::admin_media.upload')}
+                    </ActionButton>
+                </CardFooter>
+            </form>
+        </Card>
     );
 }

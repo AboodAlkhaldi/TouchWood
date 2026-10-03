@@ -11,6 +11,7 @@ sources: string[],
 filters: Record<string, string | null>,
 nextOccurredAt: string | null,
 nextId: number | null,
+actionLabels: Record<string, string>,
 };
 export type AuditRow = {
 id: string,

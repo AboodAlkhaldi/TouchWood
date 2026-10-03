@@ -311,6 +311,10 @@ describe('the audit log screen', function () {
                 // In words, from the module that records it.
                 ->where('entries.0.actionLabel', 'Currency added')
                 ->where('entries.0.storeName', null)
+                // The filter offers the same words the entries show, not the keys (the rebuild,
+                // 2026-10-04).
+                // Read whole: the action's own key has dots in it, which a path would split.
+                ->where('actionLabels', fn ($labels): bool => ($labels['platform.currency.created'] ?? null) === 'Currency added')
             );
     });
 

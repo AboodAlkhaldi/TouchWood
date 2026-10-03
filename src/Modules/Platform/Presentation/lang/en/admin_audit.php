@@ -5,7 +5,7 @@ declare(strict_types=1);
 // The audit log screen (frontend.md 3.5, E6).
 return [
     'title' => 'Audit Log',
-    'subtitle' => 'Who changed what, and when. Kept forever, and never edited.',
+    'subtitle' => 'Who changed what, and when, kept forever and never edited.',
 
     'when' => 'When',
     'who' => 'Who',
@@ -37,15 +37,22 @@ return [
     'nothing_recorded' => 'Nothing was recorded alongside it.',
 
     'filters' => 'Filters',
-    'from' => 'From',
-    'until' => 'Until',
+    'dates' => 'Dates',
+    'any_date' => 'Any Date',
+    'preset_today' => 'Today',
+    'preset_week' => 'Last 7 Days',
+    'preset_month' => 'Last 30 Days',
+    'preset_month_to_date' => 'Month to Date',
+    'action_search' => 'Search actions',
+    'action_none' => 'No actions match “:query”',
+    'none_match_title' => 'No Entries Match Your Filters',
+    'none_match' => 'Widen or clear the filters to see more.',
     'actor' => 'Who (ID)',
     'action' => 'What',
     'any' => 'Anything',
     'apply' => 'Apply Filters',
     'clear' => 'Clear Filters',
-    'more' => 'Show More',
-    'none' => 'Nothing here yet.',
+    'none' => 'Changes appear here as people and modules make them.',
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.

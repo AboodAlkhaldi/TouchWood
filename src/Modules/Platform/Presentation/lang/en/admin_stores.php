@@ -14,7 +14,7 @@ return [
     'country' => 'Country',
     'currency' => 'Currency',
     'tax_rate' => 'Tax Rate',
-    'tax_rate_hint' => 'A percentage. 15 is fifteen per cent.',
+    'tax_rate_hint' => 'A percentage: 15 is fifteen per cent.',
     'timezone' => 'Timezone',
     'position' => 'Position',
     'position_hint' => 'Where this store sits in the list a visitor chooses from.',
@@ -42,6 +42,9 @@ return [
     'off_hint' => 'Visitors and staff can\'t see this store until it\'s turned on.',
     'turn_on' => 'Turn Store On',
     'turn_off' => 'Turn Store Off',
+    'turn_off_open' => 'Turn Store Off…',
+    'timezone_search' => 'Search time zones',
+    'timezone_none' => 'No time zones match “:query”',
     // A dialog's description is a statement, never a question (Geist's Modal).
     'turn_off_confirm' => 'The :name shop closes and the store disappears from every store list. Nothing is deleted.',
     'turned_on' => 'Store turned on',

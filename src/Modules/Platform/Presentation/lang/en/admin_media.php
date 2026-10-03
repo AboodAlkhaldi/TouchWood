@@ -25,7 +25,12 @@ return [
 
     'upload' => 'Upload File',
     'uploaded_ok' => 'File uploaded',
-    'visibility' => 'Who may see it',
+    'visibility' => 'Visibility',
+    'view' => 'View',
+    'actions' => 'Actions',
+    'describe_open' => 'Edit Description…',
+    'delete_open' => 'Delete File…',
+    'uploading' => 'Uploading… :percent%',
     'visibility_public' => 'Anyone with the Link',
     'visibility_private' => 'Only the Panel',
     'no_file' => 'Couldn\'t upload the file. It may be larger than this server accepts.',
@@ -37,16 +42,13 @@ return [
     'describe' => 'Edit Description',
     'described' => 'Description saved',
 
-    'delete' => 'Delete File',
     'deleted' => 'File deleted',
     'delete_blocked' => 'This file is kept because of where it is used, and cannot be deleted.',
-    'delete_confirm' => 'This file is used in :count places, and those uses will lose it.',
-    'delete_confirm_unused' => 'Nothing uses this file.',
+    'delete_confirm' => 'This file is used in :count places, and those uses will lose it. This cannot be undone.',
+    'delete_confirm_unused' => 'Nothing uses this file. This cannot be undone.',
 
     'save' => 'Save Description',
-    'cancel' => 'Cancel',
-    'more' => 'Show More',
-    'none' => 'No file yet.',
+    'none' => 'Images and files you upload appear here.',
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.

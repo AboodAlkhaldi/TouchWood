@@ -50,13 +50,16 @@ final readonly class AuditPages
             $stores[$store->id] = $store->name->in($this->locale());
         }
 
+        $actions = $handler->actions();
+
         return new AuditLogPage(
             array_map(fn (AuditEntryRow $entry): AuditRow => $this->row($entry, $stores), $page->entries),
-            $handler->actions(),
+            $actions,
             self::SOURCES,
             $filters,
             $page->nextOccurredAt,
             $page->nextId,
+            array_combine($actions, array_map(fn (string $action): string => $this->actionLabel($action), $actions)),
         );
     }
 

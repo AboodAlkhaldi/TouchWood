@@ -67,10 +67,12 @@ it('saves one setting on its own, leaving the rest of the screen alone', functio
     //
     // Addressed by attribute rather than by "#id": a setting's key has dots in it, and
     // "#access.customer.lockout_minutes" is a CSS selector for an id with two classes on it.
-    // Read until somebody says otherwise (owner, 2026-09-24): Edit opens the one box, saving
-    // closes it again.
-    $page->click("[data-test=\"edit-{$key}\"]")
+    // Geist's Fieldset (owner, 2026-10-04): the box is open, and its Save Setting is out of reach
+    // until the value changes; then Cancel appears beside it.
+    $page->assertAttribute("[data-test=\"save-{$key}\"]", 'aria-disabled', 'true')
+        ->assertMissing("[data-test=\"cancel-{$key}\"]")
         ->type("[id=\"{$key}\"]", '27')
+        ->assertVisible("[data-test=\"cancel-{$key}\"]")
         ->click("[data-test=\"save-{$key}\"]")
         ->assertNoJavaScriptErrors();
 
