@@ -296,7 +296,7 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
                 // Starts on Cancel, an outside click does not dismiss it, and there is no form for
                 // Enter to send: only the named, red button confirms (Geist's Modal).
                 <AlertDialog open={open} onOpenChange={(next) => (form.processing ? undefined : next ? setOpen(true) : close())}>
-                    <AlertDialogContent onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 sm:max-w-md">
+                    <AlertDialogContent onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 data-[size=default]:sm:max-w-md">
                         <div className="grid gap-4 p-6">
                             <AlertDialogHeader>
                                 <AlertDialogTitle className="text-heading-20 text-ink">{title}</AlertDialogTitle>

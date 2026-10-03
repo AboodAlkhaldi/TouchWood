@@ -13,9 +13,6 @@ return [
     'menu_waiting' => ', :count waiting',
     'open_menu' => 'Open the menu',
     'close_menu' => 'Close the menu',
-    // The ⋯ button that holds a page's or a row's other actions (Geist's Dots Menu), named for a
-    // screen reader.
-    'more_actions' => 'More Actions',
     'super_admin' => 'Super Admin',
     'coming_soon' => 'Soon',
     'coming_soon_title' => 'Coming Soon',
@@ -46,7 +43,7 @@ return [
     'home' => [
         'title' => 'Home',
         'subtitle' => 'The admin panel.',
-        'empty' => 'The screens arrive with their modules. What you may open is in the menu.',
+        'empty' => 'What you may open is in the menu.',
         'empty_title' => 'Nothing Here Yet',
         // Above the rows of what waits (frontend.md E7; owner, 2026-10-03): Geist's Note, a label
         // and one sentence; each row then opens its screen and shows its count.

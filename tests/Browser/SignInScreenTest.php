@@ -127,3 +127,18 @@ it('will not send a new password while the two boxes differ', function () {
         ->assertEnabled('[data-test="save-password"]')
         ->assertNoJavaScriptErrors();
 });
+
+it('says why nothing was sent when Enter is pressed while the two boxes differ', function () {
+    // Enter sends a form by pressing its submit button, and that button refuses a press while the
+    // two differ - so no submit ever happens, and without the form's own Enter the message would
+    // never show (the batch B review).
+    $page = visit('/admin/password/reset/a-token-this-page-never-reads');
+
+    $page->type('#password', 'a long enough password')
+        ->type('#password_repeat', 'a long enough passwerd')
+        ->assertDontSee((string) __('access::auth.passwords_differ', [], 'ar'))
+        ->keys('#password_repeat', 'Enter')
+        ->assertSee((string) __('access::auth.passwords_differ', [], 'ar'))
+        ->assertPathIs('/admin/password/reset/a-token-this-page-never-reads')
+        ->assertNoJavaScriptErrors();
+});

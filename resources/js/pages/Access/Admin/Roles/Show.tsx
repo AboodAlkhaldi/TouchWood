@@ -89,9 +89,9 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
                                     ref={more}
                                     variant="outline"
                                     size="icon"
-                                    aria-label={t('admin.more_actions')}
+                                    aria-label={t('ui.more_actions')}
                                     aria-busy={refreshing || undefined}
-                                    title={t('admin.more_actions')}
+                                    title={t('ui.more_actions')}
                                     data-test="more-actions"
                                 >
                                     {refreshing ? <Spinner aria-label={t('ui.loading')} /> : <MoreHorizontal aria-hidden="true" />}

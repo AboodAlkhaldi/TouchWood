@@ -20,6 +20,9 @@ return [
     'loading' => 'Loading',
     // The search field's clear button (Geist's Search Input), named for a screen reader.
     'clear_search' => 'Clear Search',
+    // The ⋯ button that holds a page's or a row's other actions (Geist's Dots Menu), named for a
+    // screen reader.
+    'more_actions' => 'More Actions',
     'breadcrumbs' => 'Breadcrumbs',
     // The phone's sidebar, which shadcn names in English (frontend.md §1.11, edit 5).
     'sidebar' => 'Sidebar',

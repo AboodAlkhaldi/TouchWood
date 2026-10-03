@@ -32,12 +32,13 @@ export default function ResetPassword({ token, minimumLength }: Props) {
     return (
         <SignInLayout title={t('access::auth.reset_title')}>
             <form
+                onKeyDown={repeat.enter}
                 onSubmit={(event) => {
                     event.preventDefault();
                     repeat.tried();
 
-                    // The button is already out of reach while the two differ; this is the same
-                    // rule again for a form sent by pressing Enter in a field.
+                    // The button refuses a press while the two differ, so a form sent by
+                    // Enter stops there (the form's onKeyDown says why); this is the last word.
                     if (repeat.differs) {
                         return;
                     }

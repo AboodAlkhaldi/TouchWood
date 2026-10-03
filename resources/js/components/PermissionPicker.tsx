@@ -108,7 +108,10 @@ export function PermissionPicker({ permissions, groups, chosen, onChange, disabl
                                                     id={id}
                                                     checked={held.has(permission.name)}
                                                     aria-disabled={locked === undefined ? undefined : true}
-                                                    aria-describedby={permission.storeFree ? `${id}-description` : undefined}
+                                                    // The lock's reason is in a tooltip on the span around the box, which
+                                                    // never takes focus, so it is also written for a screen reader and
+                                                    // tied to the box itself (the batch B review).
+                                                    aria-describedby={[permission.storeFree ? `${id}-description` : null, locked === undefined ? null : `${id}-locked`].filter(Boolean).join(' ') || undefined}
                                                     onCheckedChange={(next) => (locked === undefined ? toggle(permission.name, next === true) : undefined)}
                                                     className="border-ink-subtle aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                                                     data-test={id}
@@ -135,6 +138,11 @@ export function PermissionPicker({ permissions, groups, chosen, onChange, disabl
                                                             </TooltipTrigger>
                                                             <TooltipContent>{locked}</TooltipContent>
                                                         </Tooltip>
+                                                    )}
+                                                    {locked === undefined ? null : (
+                                                        <span id={`${id}-locked`} className="sr-only">
+                                                            {locked}
+                                                        </span>
                                                     )}
                                                     <FieldContent className="gap-0.5">
                                                         <FieldLabel htmlFor={id} className={locked === undefined ? 'text-label-14 text-ink' : 'text-label-14 text-ink-subtle'}>

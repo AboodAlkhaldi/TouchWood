@@ -56,7 +56,9 @@ export function NotificationsTab({ account }: Props) {
                     const busy = saving === setting.topic ? t('access::account.saving_reason') : undefined;
 
                     return (
-                        <FieldSet key={setting.topic} className="flex flex-row flex-wrap items-center justify-between gap-4 py-4">
+                        // The topic over its two switches: a fieldset's legend is never a flex
+                        // item, so the row cannot put them side by side (the batch B review).
+                        <FieldSet key={setting.topic} className="gap-3 py-4">
                             <FieldLegend variant="label" className="mb-0 text-label-14 text-ink">
                                 {t(`access::account.topic.${setting.topic}`)}
                             </FieldLegend>
@@ -91,18 +93,24 @@ export function NotificationsTab({ account }: Props) {
  * One switch and its word. While its topic saves it stays reachable but does nothing, and its
  * tooltip says why (aria-disabled rather than disabled, as Geist asks of a disabled control). The
  * tooltip hangs on a span around the switch, never on the switch itself: both are Radix parts that
- * write data-state, and the tooltip's would hide whether the switch is on (lesson 133).
+ * write data-state, and the tooltip's would hide whether the switch is on (lesson 133). So the
+ * reason is also written for a screen reader beside the switch and tied to it, since the tooltip
+ * describes the span, which never takes focus (the batch B review). The tooltip is always
+ * controlled, shut while there is nothing to say.
  */
 function TopicSwitch({ id, label, checked, busy, test, onChange }: { id: string; label: string; checked: boolean; busy?: string; test: string; onChange: (next: boolean) => void }) {
+    const [tip, setTip] = useState(false);
+
     return (
         <Field orientation="horizontal" className="w-auto gap-2">
-            <Tooltip open={busy === undefined ? false : undefined}>
+            <Tooltip open={busy !== undefined && tip} onOpenChange={setTip}>
                 <TooltipTrigger asChild>
                     <span className="inline-flex">
                         <Switch
                             id={id}
                             checked={checked}
                             aria-disabled={busy === undefined ? undefined : true}
+                            aria-describedby={busy === undefined ? undefined : `${id}-reason`}
                             onCheckedChange={(next) => (busy === undefined ? onChange(next) : undefined)}
                             className="data-[state=unchecked]:bg-ink-subtle aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                             data-test={test}
@@ -111,6 +119,11 @@ function TopicSwitch({ id, label, checked, busy, test, onChange }: { id: string;
                 </TooltipTrigger>
                 {busy === undefined ? null : <TooltipContent>{busy}</TooltipContent>}
             </Tooltip>
+            {busy === undefined ? null : (
+                <span id={`${id}-reason`} className="sr-only">
+                    {busy}
+                </span>
+            )}
             <FieldLabel htmlFor={id} className="text-label-14 font-normal text-ink">
                 {label}
             </FieldLabel>

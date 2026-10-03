@@ -89,7 +89,7 @@ export default function SignInCode({ maskedPhone, length, trustDays, resendIn, a
                                 router.post(resendAction, {}, { preserveScroll: true });
                                 setWaiting(resendIn);
                             }}
-                            className="tw-figure"
+                            className="tabular-nums"
                         >
                             {waiting > 0 ? t('access::auth.resend_in', { seconds: waiting }) : t('access::auth.resend')}
                         </ActionButton>

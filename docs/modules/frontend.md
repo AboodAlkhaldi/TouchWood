@@ -834,7 +834,8 @@ is "the single highest-value guard in the project". The owner left these numbers
   (batch A of the rebuild, 2026-10-03: shadcn's common Radix code, about 15 KB). Confirmed by the
   owner, 2026-10-03. A page is a file Inertia opens - one with a default export; the helper files
   beside the pages (an account tab, a form's parts) count inside the pages that import them, not
-  as pages of their own (batch B, 2026-10-03: 39 pages among 57 such files).
+  as pages of their own (batch B; confirmed by the owner, 2026-10-04: 39 pages among the 59 files
+  under resources/js/pages on that day).
 - Listings use keyset paging and read models, never Eloquent hydration (handoff §5.4,
   `docs/STRUCTURE.md`).
 - SSR renders every page (§1.3); when the SSR process is down the page still works, rendered in the

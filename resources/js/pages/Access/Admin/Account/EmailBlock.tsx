@@ -7,6 +7,7 @@ import { Note } from '@/components/Note';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { isolate } from '@/lib/bidi';
 import { useTranslator } from '@/lib/t';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
@@ -64,7 +65,7 @@ export function EmailBlock({ account }: Props) {
             {account.pendingEmail === null ? null : (
                 <CardContent className="px-6">
                     <Note size="small" label={t('access::account.email_pending_label')}>
-                        {t('access::account.email_pending', { email: account.pendingEmail })}
+                        {t('access::account.email_pending', { email: isolate(account.pendingEmail) })}
                     </Note>
                 </CardContent>
             )}

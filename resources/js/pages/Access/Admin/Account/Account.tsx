@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTranslator } from '@/lib/t';
@@ -48,10 +49,12 @@ export default function Account(account: Props) {
         const tab = asTab(value);
         setOpen(tab);
 
-        // Into the address without a visit: Inertia's own record of the page is kept as it is.
+        // Into the address without a visit, through Inertia, so its own record of the page - the
+        // one Back and Forward bring back - says the same tab as the address (the batch B review).
+        // Any other part of the address stays.
         const url = new URL(window.location.href);
         url.searchParams.set('tab', tab);
-        window.history.replaceState(window.history.state, '', url.toString());
+        router.replace({ url: `${url.pathname}${url.search}${url.hash}`, props: (props) => ({ ...props, tab }), preserveState: true, preserveScroll: true });
     }
 
     return (

@@ -169,9 +169,9 @@ export default function Show(person: Props) {
                                         ref={more}
                                         variant="outline"
                                         size="icon"
-                                        aria-label={t('admin.more_actions')}
+                                        aria-label={t('ui.more_actions')}
                                         aria-busy={menuBusy || undefined}
-                                        title={t('admin.more_actions')}
+                                        title={t('ui.more_actions')}
                                         data-test="more-actions"
                                     >
                                         {menuBusy ? <Spinner aria-label={t('ui.loading')} /> : <MoreHorizontal aria-hidden="true" />}
@@ -391,7 +391,7 @@ export default function Show(person: Props) {
             {/* A plain destructive confirmation: it starts on its Cancel, so Enter keeps the
                 invitation (Geist's Modal), and an outside click does not dismiss it. */}
             <AlertDialog open={cancelling} onOpenChange={(open) => (busy === null ? setCancelling(open) : undefined)}>
-                <AlertDialogContent onCloseAutoFocus={cancelFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 sm:max-w-md">
+                <AlertDialogContent onCloseAutoFocus={cancelFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 data-[size=default]:sm:max-w-md">
                     <div className="grid gap-4 p-6">
                         <AlertDialogHeader>
                             <AlertDialogTitle className="text-heading-20 text-ink">{t('access::staff.cancel_invitation')}</AlertDialogTitle>

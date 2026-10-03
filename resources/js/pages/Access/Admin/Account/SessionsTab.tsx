@@ -122,7 +122,7 @@ export function SessionsTab({ account }: Props) {
                     )}
                 </CardContent>
                 {account.trustedBrowsers.length === 0 ? null : (
-                    <CardFooter className="justify-end border-t border-line px-6 pt-4 [.border-t]:pt-4">
+                    <CardFooter className="justify-end border-t border-line bg-surface-sunken px-6 py-4 [.border-t]:pt-4">
                         <Confirm
                             title={t('access::account.forget_all_browsers')}
                             description={t('access::account.forget_all_browsers_body')}
@@ -226,7 +226,7 @@ function Confirm({ title, description, test, url, small = false }: { title: stri
                     {`${title}…`}
                 </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent className="material-modal gap-0 overflow-hidden border-0 p-0 sm:max-w-md">
+            <AlertDialogContent className="material-modal gap-0 overflow-hidden border-0 p-0 data-[size=default]:sm:max-w-md">
                 <div className="grid gap-4 p-6">
                     <AlertDialogHeader>
                         <AlertDialogTitle className="text-heading-20 text-ink">{title}</AlertDialogTitle>

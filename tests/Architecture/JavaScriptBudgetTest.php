@@ -60,7 +60,7 @@ function chunksLoadedWith(array $manifest, string $key): array
  * A page is a file Inertia can open - one with a default export. The app's page glob also makes an
  * entry of every helper module beside the pages (an account tab, a form's parts); nobody opens one
  * of those on its own, so it is counted inside the pages that import it and is not a page itself
- * (the review of batch A: 57 entries, 39 pages).
+ * (the review of batch A; 39 pages among 59 files on 2026-10-04).
  *
  * @param  array<string, array{file: string, src?: string, imports?: list<string>, isDynamicEntry?: bool}>  $manifest
  * @param  callable(string): int  $gzippedSize  the gzipped size of a built file
@@ -207,8 +207,10 @@ it('keeps the JavaScript within the budgets of frontend.md §5', function () {
     $sizes = javaScriptSizes(
         $manifest,
         fn (string $file): int => strlen((string) gzencode((string) file_get_contents($build.'/'.$file), 9)),
-        // A page is a file with a default export: what Inertia renders.
-        fn (string $source): bool => preg_match('/^export\s+default\b/m', (string) file_get_contents(dirname(__DIR__, 2).'/'.$source)) === 1,
+        // A page is a file with a default export: what Inertia renders. Either way of writing one
+        // counts - `export default` or `export { X as default }` - so a page is never dropped from
+        // the measure for how its export is spelled (the batch B review).
+        fn (string $source): bool => preg_match('/^export\s+(default\b|\{[^}]*\bas\s+default\b)/m', (string) file_get_contents(dirname(__DIR__, 2).'/'.$source)) === 1,
     );
     $overPages = array_filter($sizes['pages'], fn (int $size): bool => $size > PAGE_BUDGET);
     arsort($overPages);

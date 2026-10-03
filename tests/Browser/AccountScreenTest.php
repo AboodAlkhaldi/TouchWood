@@ -68,8 +68,8 @@ function accountScreenSignedIn(): PendingAwaitablePage
         // text finds the heading and does nothing at all (step 1, found by running it).
         ->click('button[type="submit"]');
 
-    // The whole code goes into the first box, the one marked one-time-code: the screen spreads it
-    // across the rest, exactly as it does when a browser fills it in from the message.
+    // The whole code goes into the code field, the one input marked one-time-code under the boxes
+    // (shadcn's InputOTP), exactly as a browser fills it in from the message.
     // The click above only dispatches the submit; the code is not recorded until the server has
     // answered it. Waiting for the code screen first is what makes reading it reliable (this
     // raced, and lost, 2026-09-24).

@@ -1,4 +1,4 @@
-import type { ComponentProps, MouseEvent } from 'react';
+import { type ComponentProps, type MouseEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -26,6 +26,7 @@ type Props = ComponentProps<typeof Button> & {
 
 export function ActionButton({ loading = false, disabledReason, disabled = false, onClick, children, ...rest }: Props) {
     const t = useTranslator();
+    const [tip, setTip] = useState(false);
     const unavailable = disabled || disabledReason !== undefined;
     const inert = unavailable || loading;
 
@@ -54,8 +55,10 @@ export function ActionButton({ loading = false, disabledReason, disabled = false
 
     // Always inside its tooltip, shut while there is no reason: a button that gains or loses one
     // (Resend Code, as its wait runs out) keeps its place in the tree and the keyboard focus on it.
+    // Always controlled, too: switching Radix between controlled and not keeps a stale "open" that
+    // could show a returning reason without a hover (the batch B review).
     return (
-        <Tooltip open={disabledReason === undefined ? false : undefined}>
+        <Tooltip open={disabledReason !== undefined && tip} onOpenChange={setTip}>
             <TooltipTrigger asChild>{button}</TooltipTrigger>
             {disabledReason === undefined ? null : <TooltipContent>{disabledReason}</TooltipContent>}
         </Tooltip>

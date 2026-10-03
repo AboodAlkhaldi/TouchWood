@@ -387,7 +387,7 @@ function FieldItem({
                     <div className="ms-auto">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button type="button" variant="ghost" size="icon-sm" aria-label={`${t('admin.more_actions')}: ${label}`} title={t('admin.more_actions')} data-test={`menu-${index}`}>
+                                <Button type="button" variant="ghost" size="icon-sm" aria-label={`${t('ui.more_actions')}: ${label}`} title={t('ui.more_actions')} data-test={`menu-${index}`}>
                                     <MoreHorizontal aria-hidden="true" />
                                 </Button>
                             </DropdownMenuTrigger>

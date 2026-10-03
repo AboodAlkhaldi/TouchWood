@@ -13,9 +13,6 @@ return [
     'menu_waiting' => '، :count بانتظارك',
     'open_menu' => 'فتح القائمة',
     'close_menu' => 'إغلاق القائمة',
-    // The ⋯ button that holds a page's or a row's other actions (Geist's Dots Menu), named for a
-    // screen reader.
-    'more_actions' => 'إجراءات أخرى',
     'super_admin' => 'مدير عام',
     'coming_soon' => 'قريبًا',
     'coming_soon_title' => 'قريبًا',
@@ -46,7 +43,7 @@ return [
     'home' => [
         'title' => 'الرئيسية',
         'subtitle' => 'لوحة الإدارة.',
-        'empty' => 'تصل الشاشات مع وحداتها. وما يمكنك فتحه موجود في القائمة.',
+        'empty' => 'ما يمكنك فتحه موجود في القائمة.',
         'empty_title' => 'لا شيء هنا بعد',
         // Above the rows of what waits (frontend.md E7; owner, 2026-10-03): Geist's Note, a label
         // and one sentence; each row then opens its screen and shows its count.

@@ -70,8 +70,8 @@ export default function Index({ roles, groups, permissions, permissionsByRole, m
                                                     <Button
                                                         variant="ghost"
                                                         size="icon-sm"
-                                                        aria-label={`${t('admin.more_actions')}: ${role.name}`}
-                                                        title={t('admin.more_actions')}
+                                                        aria-label={`${t('ui.more_actions')}: ${role.name}`}
+                                                        title={t('ui.more_actions')}
                                                         data-test={`role-menu-${role.id}`}
                                                     >
                                                         <MoreHorizontal aria-hidden="true" />
