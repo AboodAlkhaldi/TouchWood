@@ -11,7 +11,7 @@ namespace Modules\Catalog\Application\Command\AddAttributeSet;
 final readonly class AddAttributeSet
 {
     /**
-     * @param  list<string>  $attributeIds
+     * @param  array<array-key, mixed>  $attributeIds  in order, as the request sent them
      */
     public function __construct(
         public string $nameAr,

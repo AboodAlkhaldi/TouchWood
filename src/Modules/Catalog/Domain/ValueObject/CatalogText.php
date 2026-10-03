@@ -8,7 +8,7 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 
 /**
  * How Catalog accepts typed text, so every value object says it the same way: **one line** — a
- * name, a word, a slug's source — trimmed, real UTF-8, no control character at all.
+ * name, a word, a slug's source — trimmed, real UTF-8, no control character or line separator.
  *
  * **Trimmed as a page trims** (the rule B2B's company page settled, b2b.md amendment 17(a)): exactly
  * what JavaScript's `trim()` removes at either end — tab, line breaks, vertical tab, form feed, every
@@ -17,6 +17,12 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
  */
 final class CatalogText
 {
+    /**
+     * What breaks a line: every control character, and the Unicode line and paragraph separators
+     * (U+2028, U+2029), which are not control characters but start a new line all the same.
+     */
+    public const string LINE_BREAK = '/[\p{Cc}\p{Zl}\p{Zp}]/u';
+
     private const string ENDS = '[\t\n\x{0B}\f\r\p{Z}\x{FEFF}]+';
 
     /**
@@ -38,7 +44,7 @@ final class CatalogText
         return match (true) {
             $text === '' => throw new InvalidCatalogAttribute($attribute, 'required'),
             preg_match('//u', $text) !== 1 => throw new InvalidCatalogAttribute($attribute, 'text'),
-            preg_match('/\p{Cc}/u', $text) === 1 => throw new InvalidCatalogAttribute($attribute, 'on one line, without control characters'),
+            preg_match(self::LINE_BREAK, $text) === 1 => throw new InvalidCatalogAttribute($attribute, 'on one line, without control characters'),
             mb_strlen($text) > $max => throw new InvalidCatalogAttribute($attribute, "at most {$max} characters"),
             default => $text,
         };

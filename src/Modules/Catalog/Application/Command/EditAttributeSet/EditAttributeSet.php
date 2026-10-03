@@ -10,7 +10,7 @@ namespace Modules\Catalog\Application\Command\EditAttributeSet;
 final readonly class EditAttributeSet
 {
     /**
-     * @param  list<string>  $attributeIds
+     * @param  array<array-key, mixed>  $attributeIds  in order, as the request sent them
      */
     public function __construct(
         public string $setId,

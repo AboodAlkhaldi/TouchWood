@@ -380,17 +380,28 @@ describe('what the database refuses behind the code', function () {
         Cx::actAsStaffWith([CatalogPermissions::ATTRIBUTE_MANAGE]);
     });
 
-    it('refuses a second value named alike, a bad swatch, and deleting an attribute a set holds', function () {
+    it('refuses a second value named alike, in either language, and a bad swatch', function () {
         $width = catalogAttributesAdd('Width');
-        $value = catalogAttributesValue($width, '300 mm');
-        catalogAttributesSet('Sizes', [$width]);
+        $value = catalogAttributesValue($width, '300 mm', ['nameAr' => 'ثلاثمئة']);
         $row = (array) DB::table('catalog.attribute_values')->where('id', $value)->sole();
 
         expect(fn () => DB::transaction(fn () => DB::table('catalog.attribute_values')->insert([...$row, 'id' => strtolower((string) Str::ulid()), 'name_ar' => 'أخرى', 'name_en' => '300 MM'])))
             ->toThrow(QueryException::class, 'attribute_values_name_en_unique')
+            ->and(fn () => DB::transaction(fn () => DB::table('catalog.attribute_values')->insert([...$row, 'id' => strtolower((string) Str::ulid()), 'name_ar' => 'ثلاثمئة', 'name_en' => 'Other'])))
+            ->toThrow(QueryException::class, 'attribute_values_name_ar_unique')
             ->and(fn () => DB::transaction(fn () => DB::table('catalog.attribute_values')->where('id', $value)->update(['swatch' => '#GGGGGG'])))
-            ->toThrow(QueryException::class, 'attribute_values_swatch')
-            ->and(fn () => DB::transaction(fn () => DB::table('catalog.attributes')->where('id', $width)->delete()))
+            ->toThrow(QueryException::class, 'attribute_values_swatch');
+    });
+
+    it('refuses deleting an attribute that still has a value, or that a set holds (RESTRICT)', function () {
+        $width = catalogAttributesAdd('Width');
+        catalogAttributesValue($width, '300 mm');
+        $depth = catalogAttributesAdd('Depth');
+        catalogAttributesSet('Sizes', [$depth]);
+
+        expect(fn () => DB::transaction(fn () => DB::table('catalog.attributes')->where('id', $width)->delete()))
+            ->toThrow(QueryException::class, 'attribute_values_attribute')
+            ->and(fn () => DB::transaction(fn () => DB::table('catalog.attributes')->where('id', $depth)->delete()))
             ->toThrow(QueryException::class, 'attribute_set_members_attribute');
     });
 

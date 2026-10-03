@@ -10,13 +10,13 @@ use Normalizer;
 
 /**
  * The part of an address that names a product, a category or a brand — **one in Arabic and one in
- * English, used in every store** (catalog.md §1.1, owner 2026-10-02). Arabic letters for `ar`, Latin
- * for `en` (handoff §5.2): `ar` takes Arabic letters, Latin letters and digits; `en` Latin letters and
- * digits only; both join words with single hyphens and never start or end with one.
+ * English, used in every store** (catalog.md §1.1, owner 2026-10-02): `ar` takes Arabic letters and
+ * digits, `en` lower-case Latin letters and digits (§5.3); both join words with single hyphens and
+ * never start or end with one.
  *
  * **Made from the name** when one is not given, and editable (catalog.md §9.3 #3): the English name
- * loses its accents ("Häfele" gives "hafele"), the Arabic its tashkeel and tatweel, both their
- * punctuation. A slug ever held is never given to another — that is a question about every other
+ * loses its accents ("Häfele" gives "hafele"), the Arabic its tashkeel, its tatweel and any Latin
+ * word in it, both their punctuation; Arabic-Indic digits become 0–9. A slug ever held is never given to another — that is a question about every other
  * row, so the repository answers it (`SlugTaken`), not this class.
  */
 final readonly class Slug
@@ -25,6 +25,12 @@ final readonly class Slug
 
     /** Arabic letters: hamza to yeh without tatweel, and the extended letters after them. */
     private const string ARABIC_LETTERS = '\x{0621}-\x{063F}\x{0641}-\x{064A}\x{0671}-\x{06D3}';
+
+    /** Arabic-Indic and Eastern Arabic-Indic digits, as 0–9. */
+    private const array DIGITS = [
+        '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+        '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4', '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+    ];
 
     private function __construct(
         public string $locale,
@@ -43,7 +49,7 @@ final readonly class Slug
 
         if (preg_match(self::pattern($locale), $value) !== 1) {
             throw new InvalidCatalogAttribute($attribute, $locale === 'ar'
-                ? 'Arabic or Latin letters and digits, joined by single hyphens'
+                ? 'Arabic letters and digits, joined by single hyphens'
                 : 'lower-case Latin letters and digits, joined by single hyphens');
         }
 
@@ -57,8 +63,8 @@ final readonly class Slug
      */
     public static function fromName(string $locale, string $name): self
     {
-        $allowed = $locale === 'ar' ? self::ARABIC_LETTERS.'a-z0-9' : 'a-z0-9';
-        $text = mb_strtolower(ArabicText::withoutMarks($name), 'UTF-8');
+        $allowed = $locale === 'ar' ? self::ARABIC_LETTERS.'0-9' : 'a-z0-9';
+        $text = strtr(mb_strtolower(ArabicText::withoutMarks($name), 'UTF-8'), self::DIGITS);
 
         if ($locale !== 'ar') {
             // "ä" is "a" plus a mark once decomposed; the mark goes, the letter stays.
@@ -86,7 +92,7 @@ final readonly class Slug
 
     private static function pattern(string $locale): string
     {
-        $word = $locale === 'ar' ? '['.self::ARABIC_LETTERS.'a-z0-9]+' : '[a-z0-9]+';
+        $word = $locale === 'ar' ? '['.self::ARABIC_LETTERS.'0-9]+' : '[a-z0-9]+';
 
         return '/\A'.$word.'(-'.$word.')*\z/u';
     }

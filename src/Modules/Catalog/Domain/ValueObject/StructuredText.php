@@ -57,15 +57,17 @@ final readonly class StructuredText
 
         $blocks = [];
         $lines = [];
+        $length = 0;
 
         foreach ($document['blocks'] as $block) {
-            [$blocks[], $lines[]] = self::block($attribute, $block);
+            [$blocks[], $lines[]] = self::block($attribute, $block, $max, $length);
         }
 
         $plain = implode("\n", $lines);
 
-        if (mb_strlen(str_replace("\n", '', $plain)) > $max) {
-            throw new InvalidCatalogAttribute($attribute, "at most {$max} characters");
+        // Spaces alone are no text: a value that is only that is as good as none.
+        if (CatalogText::trimmed(str_replace("\n", '', $plain)) === '') {
+            throw new InvalidCatalogAttribute($attribute, 'required');
         }
 
         return new self(['blocks' => $blocks], $plain);
@@ -111,11 +113,12 @@ final readonly class StructuredText
     }
 
     /**
+     * @param  int  $length  the characters counted so far, for the limit
      * @return array{array<string, mixed>, string} the block as kept, and its words
      *
      * @throws InvalidCatalogAttribute
      */
-    private static function block(string $attribute, mixed $block): array
+    private static function block(string $attribute, mixed $block, int $max, int &$length): array
     {
         if (! is_array($block)) {
             throw new InvalidCatalogAttribute($attribute, 'formatted text: a paragraph, a heading or a list');
@@ -128,7 +131,7 @@ final readonly class StructuredText
                 throw new InvalidCatalogAttribute($attribute, "formatted text: a {$type} holds runs only");
             }
 
-            $runs = self::runs($attribute, $block['runs']);
+            $runs = self::runs($attribute, $block['runs'], $max, $length);
 
             return [['type' => $type, 'runs' => $runs], self::words($runs)];
         }
@@ -146,7 +149,7 @@ final readonly class StructuredText
             $words = [];
 
             foreach ($block['items'] as $item) {
-                $items[] = $runs = self::runs($attribute, $item);
+                $items[] = $runs = self::runs($attribute, $item, $max, $length);
                 $words[] = self::words($runs);
             }
 
@@ -157,11 +160,15 @@ final readonly class StructuredText
     }
 
     /**
+     * Counted run by run, so a value past the limit is refused as soon as it passes it, however many
+     * runs it sends.
+     *
+     * @param  int  $length  the characters counted so far
      * @return list<array{text: string, bold?: true}>
      *
      * @throws InvalidCatalogAttribute
      */
-    private static function runs(string $attribute, mixed $runs): array
+    private static function runs(string $attribute, mixed $runs, int $max, int &$length): array
     {
         if (! is_array($runs) || ! array_is_list($runs) || $runs === []) {
             throw new InvalidCatalogAttribute($attribute, 'formatted text: runs of text');
@@ -178,8 +185,14 @@ final readonly class StructuredText
 
             // A run keeps its own spaces — "Fits " then "every" — so it is not trimmed; it must
             // still be real text, on one line, and not empty.
-            if ($text === '' || preg_match('//u', $text) !== 1 || preg_match('/\p{Cc}/u', $text) === 1) {
+            if ($text === '' || preg_match('//u', $text) !== 1 || preg_match(CatalogText::LINE_BREAK, $text) === 1) {
                 throw new InvalidCatalogAttribute($attribute, 'text on one line, without control characters');
+            }
+
+            $length += mb_strlen($text);
+
+            if ($length > $max) {
+                throw new InvalidCatalogAttribute($attribute, "at most {$max} characters");
             }
 
             $bold = $run['bold'] ?? false;

@@ -15,7 +15,7 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Deleting an attribute** (catalog.md §1.7, §9.3 #14): only one nothing uses — no attribute set
- * holds it — and its values go with it, each audited. "Carried by a product or a variant" joins the
+ * holds it — and its values go first, each deleted and audited. "Carried by a product or a variant" joins the
  * refusal with the products (step 3); until then no product carries one.
  */
 final readonly class DeleteAttributeHandler
@@ -43,8 +43,10 @@ final readonly class DeleteAttributeHandler
 
             $entries = [];
 
+            // One by one: the database refuses an attribute that still has a value (RESTRICT).
             foreach ($this->attributes->valuesOf($attribute->id()) as $value) {
                 $entries[] = ListAudit::deleted('attribute_value', $value->id(), ['attribute_id' => $attribute->id(), ...$value->snapshot()]);
+                $this->attributes->deleteValue($value->id());
             }
 
             $entries[] = ListAudit::deleted('attribute', $attribute->id(), $attribute->snapshot());

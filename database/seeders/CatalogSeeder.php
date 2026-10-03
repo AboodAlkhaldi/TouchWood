@@ -7,6 +7,8 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Modules\Catalog\Application\Command\AddBrand\AddBrand;
 use Modules\Catalog\Application\Command\AddBrand\AddBrandHandler;
+use Modules\Catalog\Application\Command\MakeBrandDefault\MakeBrandDefault;
+use Modules\Catalog\Application\Command\MakeBrandDefault\MakeBrandDefaultHandler;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Public\Enums\AgencyType;
 
@@ -15,20 +17,20 @@ use Modules\Catalog\Public\Enums\AgencyType;
  * house brand, the default — every other brand, and every category, comes from staff or the import.
  * A seeder may name a brand; Domain/ and Application/ never do (handoff §2 rule 2).
  *
- * Run twice, it adds nothing: a brand already holding its English slug is left as it is.
+ * Run twice, it adds nothing: a brand already holding its English slug is left as it is — and so is
+ * the default staff chose since.
  */
 final class CatalogSeeder extends Seeder
 {
     private const string SLUG_EN = 'touchwood';
 
-    public function run(BrandRepository $brands, AddBrandHandler $add): void
+    public function run(BrandRepository $brands, AddBrandHandler $add, MakeBrandDefaultHandler $makeDefault): void
     {
         if ($brands->slugTaken('en', self::SLUG_EN)) {
             return;
         }
 
-        // Added where no brand is the default yet, it becomes the default (AddBrandHandler).
-        $add->handle(new AddBrand(
+        $id = $add->handle(new AddBrand(
             nameAr: 'تاتش وود',
             nameEn: 'TouchWood',
             agencyType: AgencyType::House->value,
@@ -37,5 +39,10 @@ final class CatalogSeeder extends Seeder
             slugEn: self::SLUG_EN,
             originCountry: 'SA',
         ));
+
+        // Added where another brand is the default already, it takes the mark (amendment 1(c)).
+        if ($brands->find($id)?->isDefault() !== true) {
+            $makeDefault->handle(new MakeBrandDefault($id));
+        }
     }
 }

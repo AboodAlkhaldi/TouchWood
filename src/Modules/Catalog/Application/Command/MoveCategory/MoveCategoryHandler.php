@@ -14,6 +14,7 @@ use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Shared\Application\Unauthorized;
 
 /**
@@ -37,6 +38,7 @@ final readonly class MoveCategoryHandler
     public function handle(MoveCategory $command): void
     {
         $this->change->authorize(self::PERMISSION);
+        ListPosition::check($command->rank, 'rank');
 
         $this->change->run(ListLocks::CATEGORIES, function () use ($command): array {
             $category = $this->categories->byId($command->categoryId) ?? throw new CategoryNotFound($command->categoryId);

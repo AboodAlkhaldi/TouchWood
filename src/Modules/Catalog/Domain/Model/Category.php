@@ -56,6 +56,10 @@ final class Category
     }
 
     /**
+     * A category that went with its parent and moves away from it stays deactivated, now on its
+     * own: the parent it went with is no longer above it, and activating its new parent must not
+     * bring back a category that was off before that parent went (catalog.md §1.5).
+     *
      * @param  list<string>  $below  every category under this one, at any depth
      *
      * @throws CategoryLoop
@@ -66,8 +70,17 @@ final class Category
             throw new CategoryLoop;
         }
 
+        if ($parentId === $this->parentId) {
+            return;
+        }
+
         $this->changes->record('parent_id', $this->parentId, $parentId);
         $this->parentId = $parentId;
+
+        if (! $this->isActive && $this->deactivatedWithParent) {
+            $this->changes->record('deactivated_with_parent', true, false);
+            $this->deactivatedWithParent = false;
+        }
     }
 
     /**

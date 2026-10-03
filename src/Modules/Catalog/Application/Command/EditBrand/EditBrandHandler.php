@@ -37,9 +37,10 @@ final readonly class EditBrandHandler
     {
         $this->change->authorize(self::PERMISSION);
         $input = BrandInput::of($command->nameAr, $command->nameEn, $command->slugAr, $command->slugEn, $command->descriptionAr, $command->descriptionEn, $command->agencyType);
-        $logo = $this->images->check('logo_media_id', $command->logoMediaId);
 
-        $this->change->run(ListLocks::BRANDS, function () use ($input, $logo, $command): array {
+        $this->change->run(ListLocks::BRANDS, function () use ($input, $command): array {
+            // Inside, so a retried attempt asks again: the file may have been deleted meanwhile.
+            $logo = $this->images->check('logo_media_id', $command->logoMediaId);
             $brand = $this->brands->byId($command->brandId) ?? throw new BrandNotFound($command->brandId);
             $input->requireFreeSlugs($this->brands, $brand->id());
 

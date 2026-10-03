@@ -38,9 +38,10 @@ final readonly class EditCategoryHandler
     {
         $this->change->authorize(self::PERMISSION);
         [$name, $slugs] = $this->input->names($command->nameAr, $command->nameEn, $command->slugAr, $command->slugEn);
-        $image = $this->images->check('image_media_id', $command->imageMediaId);
 
-        $this->change->run(ListLocks::CATEGORIES, function () use ($name, $slugs, $image, $command): array {
+        $this->change->run(ListLocks::CATEGORIES, function () use ($name, $slugs, $command): array {
+            // Inside, so a retried attempt asks again: the file may have been deleted meanwhile.
+            $image = $this->images->check('image_media_id', $command->imageMediaId);
             $category = $this->categories->byId($command->categoryId) ?? throw new CategoryNotFound($command->categoryId);
             $this->input->requireFreeSlugs($slugs, $category->id());
 

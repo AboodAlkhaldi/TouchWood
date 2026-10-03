@@ -13,9 +13,10 @@ use Illuminate\Support\Facades\Schema;
 |
 | Every rule here is also a rule in code (the models and value objects, the handlers under each
 | list's lock), which refuses first; these are the backstop, each named so a test can find it and a
-| name never runs past PostgreSQL's 63 characters (lesson 95). Names and slugs are stored trimmed;
-| uniqueness ignoring letter case is a unique index on lower(), asked the same way by the
-| repositories, so the two never disagree about a letter.
+| name never runs past PostgreSQL's 63 characters (lesson 95). Rules that read other rows or another
+| table — a category's loops, a swatch only on a colour attribute's values, a set's members — are
+| the code's alone. Names and slugs are stored trimmed; an attribute's values are unique ignoring
+| letter case through an index on lower(), asked the same way by the repository.
 |
 | Slugs: every slug a brand or a category ever held is a row of its history table, whose primary
 | key (locale, slug) is what keeps an old slug from being given to another (§1.1, §9.3 #3).
@@ -147,10 +148,12 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             $table->timestampsTz();
 
-            $table->foreign('attribute_id', 'attribute_values_attribute')->references('id')->on('catalog.attributes')->cascadeOnDelete();
+            // RESTRICT (§5.3): an attribute goes only once its values are gone, each deleted — and
+            // audited — by the handler.
+            $table->foreign('attribute_id', 'attribute_values_attribute')->references('id')->on('catalog.attributes')->restrictOnDelete();
         });
 
-        $this->names('attribute_values', unique: false);
+        $this->names('attribute_values');
         $this->position('attribute_values', 'position');
         // "Black" and "black" are one value of an attribute (owner, 2026-10-02).
         DB::statement('CREATE UNIQUE INDEX attribute_values_name_ar_unique ON catalog.attribute_values (attribute_id, lower(name_ar))');
@@ -238,17 +241,14 @@ return new class extends Migration
     }
 
     /**
-     * Names present and on one line; with `unique`, each name unique in its language ignoring case.
+     * Names present and on one line. Only an attribute's values must be named apart (§5.3); their
+     * index is built with their table.
      */
-    private function names(string $table, bool $unique = false): void
+    private function names(string $table): void
     {
         foreach (['name_ar', 'name_en'] as $name) {
             DB::statement("ALTER TABLE catalog.{$table} ADD CONSTRAINT {$table}_{$name}_present CHECK (btrim({$name}) <> '')");
             DB::statement("ALTER TABLE catalog.{$table} ADD CONSTRAINT {$table}_{$name}_one_line CHECK ({$name} !~ '[[:cntrl:]]')");
-
-            if ($unique) {
-                DB::statement("CREATE UNIQUE INDEX {$table}_{$name}_unique ON catalog.{$table} (lower({$name}))");
-            }
         }
     }
 
@@ -275,9 +275,13 @@ return new class extends Migration
         });
 
         DB::statement("ALTER TABLE catalog.{$table} ADD CONSTRAINT {$table}_locale CHECK (locale IN ('ar','en'))");
-        // Latin for en; for ar, Arabic letters, Latin letters and digits — single hyphens between,
-        // none at either end.
-        DB::statement("ALTER TABLE catalog.{$table} ADD CONSTRAINT {$table}_shape CHECK (slug !~ '(^-|-\$|--|[[:space:][:cntrl:]])' AND (locale <> 'en' OR slug ~ '^[a-z0-9]+(-[a-z0-9]+)*\$'))");
+        // §5.3 (as product_slugs): Arabic letters and digits for ar, a-z and digits for en, single
+        // hyphens between, none at either end — the letters Slug takes, written as PostgreSQL's
+        // \u escapes (single-quoted here, so PHP leaves them alone).
+        $arabic = '[ء-ؿف-يٱ-ۓ0-9]+';
+        DB::statement("ALTER TABLE catalog.{$table} ADD CONSTRAINT {$table}_shape CHECK (CASE locale"
+            ." WHEN 'en' THEN slug ~ '^[a-z0-9]+(-[a-z0-9]+)*\$'"
+            ." ELSE slug ~ '^{$arabic}(-{$arabic})*\$' END)");
         DB::statement("CREATE UNIQUE INDEX {$table}_one_current ON catalog.{$table} ({$owner}, locale) WHERE is_current");
     }
 };

@@ -21,21 +21,29 @@ final readonly class SetMembers
     ) {}
 
     /**
-     * @param  list<string>  $attributeIds
+     * @param  array<array-key, mixed>  $attributeIds  as the request sent them
      * @return list<Attribute>
      *
      * @throws InvalidCatalogAttribute|ListItemNotFound
      */
     public function read(array $attributeIds): array
     {
-        // Refused before any is read: the set refuses as many anyway.
+        // Refused before any is read: the set refuses as many anyway, and a long list would
+        // otherwise be read row by row under the lock first.
         if (count($attributeIds) > AttributeSet::MAX_MEMBERS) {
             throw new InvalidCatalogAttribute('attribute_ids', 'at most '.AttributeSet::MAX_MEMBERS.' attributes');
         }
 
-        return array_map(
-            fn (string $id): Attribute => $this->attributes->byId($id) ?? throw new ListItemNotFound($id),
-            $attributeIds,
-        );
+        $members = [];
+
+        foreach ($attributeIds as $id) {
+            if (! is_string($id)) {
+                throw new InvalidCatalogAttribute('attribute_ids', 'attributes, by their ids');
+            }
+
+            $members[] = $this->attributes->byId($id) ?? throw new ListItemNotFound($id);
+        }
+
+        return $members;
     }
 }

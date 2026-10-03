@@ -25,7 +25,7 @@ interface AttributeRepository
 
     public function update(Attribute $attribute): void;
 
-    /** Removes the attribute with its values. */
+    /** Removes the attribute; its values must be gone first (RESTRICT). */
     public function delete(string $attributeId): void;
 
     /**

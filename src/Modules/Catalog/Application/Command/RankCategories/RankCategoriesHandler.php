@@ -53,9 +53,11 @@ final readonly class RankCategoriesHandler
 
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
 
-        // Only now, and only for someone who may change it, is the store looked up.
-        if ($this->platform->store($store) === null) {
-            throw new InvalidCatalogAttribute('store', 'a store');
+        // Only now, and only for someone who may change it, is the store looked up. Catalog's work
+        // in a store is offered only while it is on (§2.4); a store opened later starts with the
+        // base store's order.
+        if ($this->platform->store($store)?->isActive !== true) {
+            throw new InvalidCatalogAttribute('store', 'a store that is on');
         }
 
         if (count($command->ranks) > self::MAX_PER_CHANGE) {
@@ -64,7 +66,12 @@ final readonly class RankCategoriesHandler
 
         $ranks = [];
 
+        // The map arrives from a request: a place that is not a whole number is refused, not a crash.
         foreach ($command->ranks as $categoryId => $rank) {
+            if (! is_int($rank)) {
+                throw new InvalidCatalogAttribute('rank', 'a whole number');
+            }
+
             $ranks[strtolower((string) $categoryId)] = ListPosition::check($rank, 'rank');
         }
 

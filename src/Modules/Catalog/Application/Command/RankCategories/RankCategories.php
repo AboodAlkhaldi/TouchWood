@@ -11,7 +11,7 @@ namespace Modules\Catalog\Application\Command\RankCategories;
 final readonly class RankCategories
 {
     /**
-     * @param  array<string, int>  $ranks  category id → its place
+     * @param  array<array-key, mixed>  $ranks  category id → its place, as the request sent it
      */
     public function __construct(
         public string $storeId,

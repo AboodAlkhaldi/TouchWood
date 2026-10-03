@@ -16,6 +16,7 @@ use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Model\Category;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Shared\Application\Unauthorized;
 
 /**
@@ -43,10 +44,12 @@ final readonly class AddCategoryHandler
     {
         $this->change->authorize(self::PERMISSION);
         [$name, $slugs] = $this->input->names($command->nameAr, $command->nameEn, $command->slugAr, $command->slugEn);
-        $image = $this->images->check('image_media_id', $command->imageMediaId);
+        ListPosition::check($command->rank, 'rank');
         $id = $this->categories->nextId();
 
-        return $this->change->run(ListLocks::CATEGORIES, function () use ($id, $name, $slugs, $image, $command): array {
+        return $this->change->run(ListLocks::CATEGORIES, function () use ($id, $name, $slugs, $command): array {
+            // Inside, so a retried attempt asks again: the file may have been deleted meanwhile.
+            $image = $this->images->check('image_media_id', $command->imageMediaId);
             $parentId = $this->input->parent($command->parentId);
             $this->input->requireFreeSlugs($slugs);
 

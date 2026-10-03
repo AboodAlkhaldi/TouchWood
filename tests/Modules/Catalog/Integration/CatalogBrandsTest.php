@@ -50,7 +50,9 @@ beforeEach(function () {
 function catalogBrandsAdd(string $nameEn, array $overrides = []): string
 {
     return app(AddBrandHandler::class)->handle(new AddBrand(...[
-        'nameAr' => 'ماركة '.$nameEn,
+        // A number from the English name, so each Arabic name gives its own Arabic slug (§5.3:
+        // Arabic letters and digits only).
+        'nameAr' => 'ماركة '.sprintf('%u', crc32($nameEn)),
         'nameEn' => $nameEn,
         'agencyType' => 'DISTRIBUTOR',
         ...$overrides,

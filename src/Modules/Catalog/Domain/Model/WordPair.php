@@ -57,6 +57,11 @@ final readonly class WordPair
             throw new InvalidCatalogAttribute($attribute, 'required');
         }
 
+        // Counted again as it is kept: lower-casing can lengthen a word ("İ" becomes two characters).
+        if (mb_strlen($normalized) > self::WORD_MAX) {
+            throw new InvalidCatalogAttribute($attribute, 'at most '.self::WORD_MAX.' characters');
+        }
+
         return $normalized;
     }
 }

@@ -50,8 +50,12 @@ describe('slugs', function () {
         expect(Slug::fromName('en', 'Häfele  Soft-Close Hinge, 110°')->value)->toBe('hafele-soft-close-hinge-110');
     });
 
-    it('makes an Arabic slug from an Arabic name, tashkeel and tatweel dropped, Latin kept', function () {
-        expect(Slug::fromName('ar', 'مَفْصَلة  هـادئة Blum ١١٠')->value)->toBe('مفصلة-هادئة-blum-110');
+    it('makes an Arabic slug from an Arabic name: tashkeel, tatweel and Latin dropped, digits as 0-9', function () {
+        expect(Slug::fromName('ar', 'مَفْصَلة  هـادئة Blum ١١٠ ۲')->value)->toBe('مفصلة-هادئة-110-2');
+    });
+
+    it('refuses an Arabic name with no Arabic letter or digit to make a slug from', function () {
+        expect(fn () => Slug::fromName('ar', 'Blum'))->toThrow(InvalidCatalogAttribute::class, 'slug_ar');
     });
 
     it('refuses a name with nothing to make a slug from', function () {
@@ -68,7 +72,9 @@ describe('slugs', function () {
         'en, Arabic letters' => ['en', 'مفصلة', false],
         'en, a double hyphen' => ['en', 'soft--close', false],
         'en, a hyphen at the end' => ['en', 'soft-', false],
-        'ar, Arabic and Latin' => ['ar', 'مفصلة-blum', true],
+        'ar, Arabic and digits' => ['ar', 'مفصلة-110', true],
+        'ar, a Latin word (§5.3)' => ['ar', 'مفصلة-blum', false],
+        'ar, an Arabic-Indic digit typed' => ['ar', 'مفصلة-١١٠', false],
         'ar, a space' => ['ar', 'مفصلة هادئة', false],
         'ar, a slash' => ['ar', 'مفصلة/هادئة', false],
     ]);

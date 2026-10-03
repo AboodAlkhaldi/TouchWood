@@ -57,7 +57,9 @@ beforeEach(function () {
 function catalogCategoriesAdd(string $nameEn, array $overrides = []): string
 {
     return app(AddCategoryHandler::class)->handle(new AddCategory(...[
-        'nameAr' => 'قسم '.$nameEn,
+        // A number from the English name, so each Arabic name gives its own Arabic slug (§5.3:
+        // Arabic letters and digits only).
+        'nameAr' => 'قسم '.sprintf('%u', crc32($nameEn)),
         'nameEn' => $nameEn,
         ...$overrides,
     ]));
