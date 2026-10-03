@@ -57,6 +57,11 @@ return [
     'product.edited' => 'عُدّل منتج',
     'product.deleted' => 'حُذفت مسودة منتج',
 
+    'product.made_ready' => 'جُعل المنتج جاهزًا',
+    'product.archived' => 'أُرشف منتج',
+    'product.restored' => 'أُعيد منتج من الأرشيف',
+    'variant.archived' => 'أُرشف نوع منتج',
+    'variant.restored' => 'أُعيد نوع منتج من الأرشيف',
     'product.gallery_changed' => 'تغيّرت صور منتج',
     'product.photo_detached' => 'أُزيلت صورة منتج مع ملفها',
     'product.search_words_changed' => 'تغيّرت كلمات بحث منتج',

@@ -6,6 +6,7 @@ namespace Modules\Catalog\Domain\Model;
 
 use Modules\Catalog\Domain\Exception\AttributeSetLocked;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Modules\Catalog\Domain\Exception\InvalidStageChange;
 use Modules\Catalog\Domain\ValueObject\ProductName;
 use Modules\Catalog\Domain\ValueObject\ProductSlugs;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
@@ -18,7 +19,8 @@ use Modules\Catalog\Public\Enums\ProductStage;
  * products' lock.
  *
  * **Created as a draft** with its Arabic name at least (amendment 3(g)); everything else may wait
- * until it is made ready (step 3c). **Its attribute set is fixed once it has a variant** (§1.7).
+ * until it is made ready. **Its attribute set is fixed once it has a variant** (§1.7). Its stage moves
+ * draft → ready → archived → ready (§4.1), never back to draft.
  */
 final class Product
 {
@@ -96,6 +98,44 @@ final class Product
         foreach ($this->snapshot() as $column => $now) {
             $this->changes->record($column, $before[$column], $now);
         }
+    }
+
+    /**
+     * Out of its draft (§4.1): its handler has checked every readiness rule. A ready product is left
+     * as it is; an archived one is restored instead.
+     *
+     * @throws InvalidStageChange
+     */
+    public function markReady(): void
+    {
+        if ($this->stage === ProductStage::Archived) {
+            throw new InvalidStageChange;
+        }
+
+        $this->moveTo(ProductStage::Ready);
+    }
+
+    /**
+     * Retired, a draft abandoned or a ready product (§4.1, §9.3 #19). One archived already stays so.
+     */
+    public function archive(): void
+    {
+        $this->moveTo(ProductStage::Archived);
+    }
+
+    /**
+     * Back to ready (§4.1): only an archived product is restored, every readiness rule checked by its
+     * handler; a ready one is left as it is, a draft is made ready instead.
+     *
+     * @throws InvalidStageChange
+     */
+    public function restore(): void
+    {
+        if ($this->stage === ProductStage::Draft) {
+            throw new InvalidStageChange;
+        }
+
+        $this->moveTo(ProductStage::Ready);
     }
 
     public function id(): string
@@ -182,5 +222,11 @@ final class Product
     public function pullChanges(): array
     {
         return $this->changes->pull();
+    }
+
+    private function moveTo(ProductStage $stage): void
+    {
+        $this->changes->record('stage', $this->stage->value, $stage->value);
+        $this->stage = $stage;
     }
 }

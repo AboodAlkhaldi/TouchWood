@@ -7,11 +7,14 @@ namespace Modules\Catalog\Application\Command\CorrectVariantCode;
 use LogicException;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
+use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Application\Products\VariantInput;
 use Modules\Catalog\Domain\Exception\CodeTaken;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Model\Variant;
 use Modules\Catalog\Domain\Repository\ListLocks;
@@ -38,10 +41,12 @@ final readonly class CorrectVariantCodeHandler
         private ProductRepository $products,
         private VariantRepository $variants,
         private VariantInput $input,
+        private Readiness $readiness,
+        private ProductEvents $events,
     ) {}
 
     /**
-     * @throws CodeTaken|InvalidCatalogAttribute|Unauthorized|VariantNotFound
+     * @throws CodeTaken|InvalidCatalogAttribute|ProductArchived|Unauthorized|VariantNotFound
      */
     public function handle(CorrectVariantCode $command): void
     {
@@ -51,6 +56,7 @@ final readonly class CorrectVariantCodeHandler
         $this->change->run(ListLocks::PRODUCTS, function () use ($command, $code): array {
             $variant = $this->variants->byId($command->variantId) ?? throw new VariantNotFound($command->variantId);
             $product = $this->products->byId($variant->productId()) ?? throw new LogicException('A variant without its product.');
+            $this->readiness->requireNotArchived($product);
             $old = $variant->code();
 
             if ($code->equals($old)) {
@@ -65,6 +71,10 @@ final readonly class CorrectVariantCodeHandler
 
             $this->products->holdCode($product->id(), $code->value);
             $this->variants->renameCode($product->id(), $old->value, $code->value);
+
+            foreach ($renamed as $sibling) {
+                $this->events->codeCorrected($product->id(), $sibling->id());
+            }
 
             if ($product->isDraft()) {
                 $this->products->releaseCode($product->id(), $old->value);

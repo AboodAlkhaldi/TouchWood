@@ -6,10 +6,12 @@ namespace Modules\Catalog\Application\Command\EditProductDetails;
 
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ProductInput;
 use Modules\Catalog\Application\Products\ProductReferences;
+use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Domain\Exception\AttributeSetLocked;
 use Modules\Catalog\Domain\Exception\BrandInactive;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
@@ -19,7 +21,9 @@ use Modules\Catalog\Domain\Exception\CategoryNotLowest;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
+use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
+use Modules\Catalog\Domain\Exception\ProductNotReady;
 use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
@@ -43,10 +47,12 @@ final readonly class EditProductDetailsHandler
         private VariantRepository $variants,
         private ProductInput $input,
         private ProductReferences $references,
+        private Readiness $readiness,
+        private ProductEvents $events,
     ) {}
 
     /**
-     * @throws AttributeSetLocked|BrandInactive|BrandNotFound|CategoryInactive|CategoryNotFound|CategoryNotLowest|InvalidCatalogAttribute|ListItemInactive|ListItemNotFound|ProductNotFound|SlugTaken|Unauthorized
+     * @throws AttributeSetLocked|BrandInactive|BrandNotFound|CategoryInactive|CategoryNotFound|CategoryNotLowest|InvalidCatalogAttribute|ListItemInactive|ListItemNotFound|ProductArchived|ProductNotFound|ProductNotReady|SlugTaken|Unauthorized
      */
     public function handle(EditProductDetails $command): void
     {
@@ -57,6 +63,7 @@ final readonly class EditProductDetailsHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command, $name, $slugs, $descriptionAr, $descriptionEn): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $this->readiness->requireNotArchived($product);
             $this->input->requireFreeSlugs($slugs, $product->id());
 
             $product->editDetails(
@@ -76,7 +83,9 @@ final readonly class EditProductDetailsHandler
                 return [null, []];
             }
 
+            $this->readiness->requireKept($product);
             $this->products->update($product);
+            $this->events->changed($product->id());
 
             return [null, [$entry]];
         });

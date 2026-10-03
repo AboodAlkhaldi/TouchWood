@@ -6,9 +6,12 @@ namespace Modules\Catalog\Application\Command\SetSearchWords;
 
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
+use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Exception\TooMany;
 use Modules\Catalog\Domain\Repository\ListLocks;
@@ -29,10 +32,12 @@ final readonly class SetSearchWordsHandler
         private ProductAccess $access,
         private SharedListChange $change,
         private ProductRepository $products,
+        private Readiness $readiness,
+        private ProductEvents $events,
     ) {}
 
     /**
-     * @throws InvalidCatalogAttribute|ProductNotFound|TooMany|Unauthorized
+     * @throws InvalidCatalogAttribute|ProductArchived|ProductNotFound|TooMany|Unauthorized
      */
     public function handle(SetSearchWords $command): void
     {
@@ -41,6 +46,7 @@ final readonly class SetSearchWordsHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command, $words): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $this->readiness->requireNotArchived($product);
             $before = SearchWords::reconstitute($this->products->searchWords($product->id()));
 
             if ($before->words === $words->words) {
@@ -48,6 +54,7 @@ final readonly class SetSearchWordsHandler
             }
 
             $this->products->replaceSearchWords($product->id(), $words->words);
+            $this->events->changed($product->id());
 
             return [null, [ListAudit::replaced('product', 'search_words_changed', $product->id(), 'search_words', $before->asText(), $words->asText())]];
         });

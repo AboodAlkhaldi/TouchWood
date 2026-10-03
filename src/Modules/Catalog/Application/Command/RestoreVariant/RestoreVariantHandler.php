@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\Catalog\Application\Command\DeleteDraftVariant;
+namespace Modules\Catalog\Application\Command\RestoreVariant;
 
 use LogicException;
 use Modules\Catalog\Application\Audit\ListAudit;
@@ -10,7 +10,8 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
-use Modules\Catalog\Domain\Exception\InvalidStageChange;
+use Modules\Catalog\Application\Products\Readiness;
+use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
@@ -18,11 +19,10 @@ use Modules\Catalog\Domain\Repository\VariantRepository;
 use Shared\Application\Unauthorized;
 
 /**
- * **Deleting a draft's variant** (catalog.md amendment 3(c)): a variant added by mistake, while the
- * product was never shown or sold. Its code, if no other variant of the draft carries it, is let go,
- * free again. Once the product is ready, a variant is archived instead (step 3c).
+ * **Restoring an archived variant** (catalog.md §1.2): `catalog.product.update`, as its product's
+ * shared data. It is chosen again in no store until each store chooses it (§1.3).
  */
-final readonly class DeleteDraftVariantHandler
+final readonly class RestoreVariantHandler
 {
     public const string PERMISSION = CatalogPermissions::PRODUCT_UPDATE;
 
@@ -31,33 +31,32 @@ final readonly class DeleteDraftVariantHandler
         private SharedListChange $change,
         private ProductRepository $products,
         private VariantRepository $variants,
+        private Readiness $readiness,
         private ProductEvents $events,
     ) {}
 
     /**
-     * @throws InvalidStageChange|Unauthorized|VariantNotFound
+     * @throws ProductArchived|Unauthorized|VariantNotFound
      */
-    public function handle(DeleteDraftVariant $command): void
+    public function handle(RestoreVariant $command): void
     {
         $this->access->authorize(self::PERMISSION);
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
             $variant = $this->variants->byId($command->variantId) ?? throw new VariantNotFound($command->variantId);
             $product = $this->products->byId($variant->productId()) ?? throw new LogicException('A variant without its product.');
+            $this->readiness->requireNotArchived($product);
+            $variant->restore();
+            $entry = ListAudit::changed('variant', 'restored', $variant->id(), $variant->pullChanges(), $variant->snapshot());
 
-            if (! $product->isDraft()) {
-                throw new InvalidStageChange;
+            if ($entry === null) {
+                return [null, []];
             }
 
-            $was = ['product_id' => $product->id(), ...$variant->snapshot()];
-            $this->variants->delete($variant->id());
-            $this->events->changed($product->id());
+            $this->variants->update($variant);
+            $this->events->variantRestored($product->id(), $variant->id());
 
-            if (! $this->variants->codeInUse($product->id(), $variant->code()->value)) {
-                $this->products->releaseCode($product->id(), $variant->code()->value);
-            }
-
-            return [null, [ListAudit::deleted('variant', $variant->id(), $was)]];
+            return [null, [$entry]];
         });
     }
 }

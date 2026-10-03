@@ -74,6 +74,19 @@ final class Variant
         $this->recordAgainst($before);
     }
 
+    /** Archived on its own, product-wide (§1.2): Inactive in every store, its code still its product's. */
+    public function archive(): void
+    {
+        $this->changes->record('is_archived', $this->isArchived, true);
+        $this->isArchived = true;
+    }
+
+    public function restore(): void
+    {
+        $this->changes->record('is_archived', $this->isArchived, false);
+        $this->isArchived = false;
+    }
+
     public function changeCode(ProductCode $code): void
     {
         $this->changes->record('code', $this->code->value, $code->value);

@@ -6,14 +6,17 @@ namespace Modules\Catalog\Application\Command\AddVariant;
 
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
+use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Application\Products\VariantInput;
 use Modules\Catalog\Domain\Exception\CodeTaken;
 use Modules\Catalog\Domain\Exception\DuplicateCombination;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
+use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Model\Variant;
 use Modules\Catalog\Domain\Repository\ListLocks;
@@ -41,12 +44,14 @@ final readonly class AddVariantHandler
         private ProductRepository $products,
         private VariantRepository $variants,
         private VariantInput $input,
+        private Readiness $readiness,
+        private ProductEvents $events,
     ) {}
 
     /**
      * @return string the new variant's id
      *
-     * @throws CodeTaken|DuplicateCombination|InvalidCatalogAttribute|ListItemInactive|ListItemNotFound|ProductNotFound|Unauthorized
+     * @throws CodeTaken|DuplicateCombination|InvalidCatalogAttribute|ListItemInactive|ListItemNotFound|ProductArchived|ProductNotFound|Unauthorized
      */
     public function handle(AddVariant $command): string
     {
@@ -57,6 +62,7 @@ final readonly class AddVariantHandler
 
         return $this->change->run(ListLocks::PRODUCTS, function () use ($command, $code, $measures, $id): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $this->readiness->requireNotArchived($product);
             $this->input->freeCode($product, $code);
             $combination = $this->input->combination($product, $command->values);
 
@@ -67,6 +73,7 @@ final readonly class AddVariantHandler
             $variant = Variant::add($id, $product->id(), $code, $combination, $this->input->details($command->details), $measures, $command->position);
             $this->products->holdCode($product->id(), $code->value);
             $this->variants->add($variant);
+            $this->events->variantAdded($product->id(), $id);
 
             return [$id, [ListAudit::added('variant', $id, ['product_id' => $product->id(), ...$variant->snapshot()])]];
         });

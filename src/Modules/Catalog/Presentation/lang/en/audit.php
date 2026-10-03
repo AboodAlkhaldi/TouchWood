@@ -57,6 +57,11 @@ return [
     'product.edited' => 'Product edited',
     'product.deleted' => 'Draft product deleted',
 
+    'product.made_ready' => 'Product made ready',
+    'product.archived' => 'Product archived',
+    'product.restored' => 'Product restored',
+    'variant.archived' => 'Variant archived',
+    'variant.restored' => 'Variant restored',
     'product.gallery_changed' => 'Product photos changed',
     'product.photo_detached' => 'Product photo removed with its file',
     'product.search_words_changed' => 'Product search words changed',

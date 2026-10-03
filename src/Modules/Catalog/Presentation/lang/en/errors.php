@@ -108,6 +108,10 @@ return [
         'title' => 'Product not ready',
         'detail' => 'The product still needs some details before it can be shown. Fill them in, then try again.',
     ],
+    'product_archived' => [
+        'title' => 'Product archived',
+        'detail' => 'This product is archived. Restore it before changing it.',
+    ],
     'fields' => [
         'agency_type' => 'agency type',
         'attribute' => 'attribute',
