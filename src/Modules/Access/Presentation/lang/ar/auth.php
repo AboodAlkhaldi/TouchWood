@@ -11,9 +11,9 @@ return [
     'email_verified' => 'تم تأكيد بريدك الإلكتروني',
     'code_sent' => 'تم إرسال الرمز إلى جوالك',
     'reset_link_sent' => 'تم إرسال رابط إعادة التعيين، إن كان هذا البريد لحساب لدينا',
-    'password_reset' => 'تم تغيير كلمة المرور',
+    'password_reset' => 'تم تغيير كلمة المرور؛ سجّل الدخول بالجديدة',
     'password_changed' => 'تم تغيير كلمة المرور، وسُجّل الخروج من كل جلسة أخرى',
-    'email_changed' => 'تم تغيير بريدك الإلكتروني',
+    'email_changed' => 'تم تغيير بريدك الإلكتروني؛ سجّل الدخول بالجديد',
     'invitation_accepted' => 'تم إنشاء حسابك',
     'signed_out' => 'تم تسجيل خروجك',
 
@@ -25,8 +25,6 @@ return [
     'my_account' => 'حسابي',
     'email' => 'بريد العمل',
     'password' => 'كلمة المرور',
-    'show_password' => 'إظهار كلمة المرور',
-    'hide_password' => 'إخفاء كلمة المرور',
     'forgot_password' => 'إعادة تعيين كلمة المرور',
     'back_to_sign_in' => 'العودة لتسجيل الدخول',
 
@@ -40,6 +38,7 @@ return [
     'code_sent_to' => 'أُرسل الرمز إلى :phone.',
     // The code field's one label: shadcn's InputOTP is one input, not a box per digit.
     'code_label' => 'رمز الرسالة',
+    'code_incomplete' => 'أدخل أرقام الرمز كلها (:count).',
     'trust_browser' => 'الوثوق بهذا المتصفح لمدة :days يومًا',
     'confirm' => 'التحقق من الرمز',
     'resend' => 'إرسال رمز آخر',

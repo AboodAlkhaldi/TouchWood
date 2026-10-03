@@ -58,6 +58,11 @@ export function PhoneTab({ account }: Props) {
                         return;
                     }
 
+                    // Not sent until the code is whole; the button says so (the review of batch C).
+                    if (confirm.data.code.length < account.codeLength) {
+                        return;
+                    }
+
                     confirm.post(link('storefront.account.phone.confirm'), {
                         preserveScroll: true,
                         preserveState: true,
@@ -160,7 +165,12 @@ export function PhoneTab({ account }: Props) {
                             >
                                 {t('access::account.cancel')}
                             </Button>
-                            <ActionButton type="submit" loading={confirm.processing} data-test="confirm-phone">
+                            <ActionButton
+                                type="submit"
+                                loading={confirm.processing}
+                                disabledReason={confirm.data.code.length < account.codeLength ? t('access::account.code_incomplete', { count: account.codeLength }) : undefined}
+                                data-test="confirm-phone"
+                            >
                                 {t('access::account.confirm_phone')}
                             </ActionButton>
                         </>

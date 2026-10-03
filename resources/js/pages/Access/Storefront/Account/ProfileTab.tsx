@@ -175,6 +175,12 @@ function BeforeOrdering({ account }: { account: CustomerAccountPage }) {
     const t = useTranslator();
     // One sentence for whichever is missing, never a list (Geist's Note: one sentence that names
     // the impact; owner, 2026-10-04).
+    // Only what is really missing: an account may also be unable to order for another reason (its
+    // status), and that is not the email's or the phone's to say (the review of batch C).
+    if (account.emailVerified && account.phoneVerified) {
+        return null;
+    }
+
     const missing =
         !account.emailVerified && !account.phoneVerified
             ? t('access::account.missing_both')

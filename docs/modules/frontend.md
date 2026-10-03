@@ -461,6 +461,32 @@ and examples. Only when neither has it, show the owner what was searched and ask
   messages — Access's, Platform's and B2B's `Presentation/lang/{ar,en}/errors.php` — are rewritten:
   "Couldn't …" for the person's own state, "Failed to …" for the system's, then the fix; titles
   are Title Case statements. The tests that read them change with them, never weakened.
+- **The owner's answers for batches C to F** (2026-10-04, each from a picture):
+  - registration: the kind of account starts with **nothing chosen** (Geist's Radio: no default when
+    the choice has real consequences); sending without one says "Choose a kind of account." on the
+    form;
+  - closing a shop account: **the password stays the gate**, and the confirm button is out of reach,
+    with its reason, until something is typed; the tab is named **"Account Closure"**
+    ("إغلاق الحساب"), its button still "Close Account…";
+  - Confirm Your Email: Resend Link is the page's **main button**;
+  - "Keep Me Signed In" and "Deliver Here by Default" stay **checkboxes** (Geist's Toggle is for a
+    setting that takes effect at once); the staff phone dialog's first step keeps **"Send Code"**;
+  - a number or text setting is **always open, its Save Setting always there and out of reach until
+    the value changes**, Cancel then beside it (Geist's Fieldset); a switch saves the moment it flips;
+  - **Show More appends** the next page under the rows already shown;
+  - B2B status badges, one map on both sides: **Approved green, Under Review amber, Rejected red,
+    Suspended red**; the staff Companies list's **whole row opens the company**; a saved-address
+    picker shows **up to six tiles, then a searchable list**; an approved company's change warning
+    is **one Note at the top of the form**;
+  - **every word that breaks Geist's writing rules is rewritten**, Arabic and English saying the
+    same, each before/after listed in the PR;
+  - and, taken as recommended: switches at Geist's 24 by 44, the dialog backdrop in Geist's colour
+    (both from our stylesheet), "Base Store" in a store's line rather than a second badge, the
+    currency sign shown as a "Preview" line, the failed job's error in a ScrollArea with Geist's
+    Copy Button, file names cut in the middle (Geist's Middle Truncate), and the JavaScript budget
+    counting only real pages.
+  The SMS code on the customer's Change Phone Number is InputOTP, its length sent by the server
+  (`CustomerAccountPage.codeLength`), as on the staff side.
 
 ---
 

@@ -43,11 +43,20 @@ export default function SignInCode({ maskedPhone, length, trustDays, resendIn, a
         return () => window.clearInterval(tick);
     }, [waiting > 0]);
 
+    // A code not yet whole is said before it is sent, in the page's words: the server's refusal of
+    // a short one would be Laravel's English (the review of batch C).
+    const incomplete = form.data.code.length < length ? t('access::auth.code_incomplete', { count: length }) : undefined;
+
     return (
         <SignInLayout title={t('access::auth.code_title')} subtitle={maskedPhone === null ? undefined : t('access::auth.code_sent_to', { phone: maskedPhone })}>
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
+
+                    if (incomplete !== undefined) {
+                        return;
+                    }
+
                     form.post(action);
                 }}
             >
@@ -77,7 +86,7 @@ export default function SignInCode({ maskedPhone, length, trustDays, resendIn, a
                     </Field>
 
                     <Field>
-                        <ActionButton type="submit" loading={form.processing} className="w-full">
+                        <ActionButton type="submit" loading={form.processing} disabledReason={incomplete} className="w-full">
                             {t('access::auth.confirm')}
                         </ActionButton>
 

@@ -139,6 +139,12 @@ export function PhoneBlock({ account }: Props) {
                         <form
                             onSubmit={(event) => {
                                 event.preventDefault();
+
+                                // Not sent until the code is whole; the button says so (the review of batch C).
+                                if (confirm.data.code.length < account.codeLength) {
+                                    return;
+                                }
+
                                 confirm.post('/admin/account/phone/code', { preserveScroll: true, preserveState: true, onSuccess: close });
                             }}
                         >
@@ -162,7 +168,12 @@ export function PhoneBlock({ account }: Props) {
                                 <Button type="button" variant="outline" disabled={busy} onClick={close} data-test="modal-cancel">
                                     {t('ui.cancel')}
                                 </Button>
-                                <ActionButton type="submit" loading={confirm.processing} data-test="confirm-phone">
+                                <ActionButton
+                                    type="submit"
+                                    loading={confirm.processing}
+                                    disabledReason={confirm.data.code.length < account.codeLength ? t('access::account.code_incomplete', { count: account.codeLength }) : undefined}
+                                    data-test="confirm-phone"
+                                >
                                     {t('access::account.phone_dialog_title')}
                                 </ActionButton>
                             </DialogFooter>

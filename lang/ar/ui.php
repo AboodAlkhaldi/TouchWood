@@ -14,6 +14,8 @@ return [
     'load_more' => 'عرض المزيد',
     // A busy button's spinner, which shadcn names in English; given as a prop, not edited.
     'loading' => 'جارٍ التحميل',
+    // Geist's Copy Button, said to a screen reader once the text is on the clipboard.
+    'copied' => 'تم النسخ',
     // The search field's clear button (Geist's Search Input), named for a screen reader.
     'clear_search' => 'مسح البحث',
     // The ⋯ button that holds a page's or a row's other actions (Geist's Dots Menu), named for a
@@ -25,7 +27,6 @@ return [
     'sidebar_description' => 'يعرض الشريط الجانبي على الهاتف.',
     'request_id' => 'رقم الطلب',
     'show_password' => 'إظهار كلمة المرور',
-    'hide_password' => 'إخفاء كلمة المرور',
     'to_confirm' => 'للتأكيد، اكتب «:phrase»',
     'to_confirm_named' => 'للتأكيد، اكتب :label «:phrase»',
 ];

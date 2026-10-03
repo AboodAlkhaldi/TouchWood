@@ -32,8 +32,8 @@ return [
     'store' => [
         'label' => 'المتجر',
         'stores' => 'المتاجر',
-        'fell_back' => 'لم يعد لديك وصول إلى ذلك المتجر. نعرض :store.',
-        'fell_back_off' => 'المتجر الذي كنت تعمل فيه متوقف. نعرض :store.',
+        'fell_back' => 'لم يعد لديك وصول إلى ذلك المتجر؛ نعرض :store',
+        'fell_back_off' => 'المتجر الذي كنت تعمل فيه متوقف؛ نعرض :store',
         // The switcher's mark on an off store, and why staff cannot choose it (access.md amendment 58(a)).
         'off' => 'متوقف',
         'off_reason' => ':store متوقف.',

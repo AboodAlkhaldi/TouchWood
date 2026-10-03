@@ -38,7 +38,7 @@ return [
     // A menu section's header: one or two words (Geist's Menu).
     'columns_hint' => 'Roles',
     // Geist's Empty State quotes the typed filter and offers to clear it.
-    'no_areas' => 'Clear the filter to see every area.',
+    'no_areas' => 'No areas match “:query”. Clear the filter to see every area.',
     'clear_filter' => 'Clear Filter',
     'comparison' => 'Permissions by Role',
     'comparison_hint' => 'Which areas each role reaches into.',

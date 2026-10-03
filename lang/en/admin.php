@@ -32,8 +32,8 @@ return [
     'store' => [
         'label' => 'Store',
         'stores' => 'Stores',
-        'fell_back' => 'You no longer have access to that store. Showing :store.',
-        'fell_back_off' => 'The store you were working in is switched off. Showing :store.',
+        'fell_back' => 'You no longer have access to that store; showing :store',
+        'fell_back_off' => 'The store you were working in is switched off; showing :store',
         // The switcher's mark on an off store, and why staff cannot choose it (access.md amendment 58(a)).
         'off' => 'Off',
         'off_reason' => ':store is switched off.',

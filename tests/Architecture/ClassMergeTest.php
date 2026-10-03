@@ -64,3 +64,25 @@ it('reads every type class app.css defines as a font size', function () {
 it('does not take a colour for a font size', function (string $colour) {
     expect(preg_match(classMergeTypePattern(), $colour))->toBe(0);
 })->with(['ink', 'ink-muted', 'good', 'bad-soft', 'muted-foreground', 'current']);
+
+/*
+| Geist's materials: a material replaces the corners, the shadow and the background a shadcn part
+| was given before it - a Card's rounded-xl and shadow-sm, a dialog's rounded-lg and shadow-lg -
+| which otherwise came later in the stylesheet and won (the review of batch C, 2026-10-04).
+*/
+
+it('knows every material app.css defines, as replacing corners, shadow and background', function () {
+    $cn = classMergeFile('resources/js/lib/cn.ts');
+    preg_match_all('/@utility material-([a-z]+)/', classMergeFile('resources/css/app.css'), $defined);
+
+    if (preg_match('/const MATERIALS = \[([^\]]*)\];/', $cn, $list) !== 1) {
+        throw new RuntimeException('lib/cn.ts no longer declares MATERIALS as one list.');
+    }
+
+    preg_match_all("/'([a-z]+)'/", $list[1], $known);
+
+    expect($defined[1])->not->toBeEmpty()
+        ->and($known[1])->toEqualCanonicalizing($defined[1])
+        ->and($cn)->toContain('material: [{ material: MATERIALS }]')
+        ->and($cn)->toContain("material: ['rounded', 'shadow', 'bg-color']");
+});

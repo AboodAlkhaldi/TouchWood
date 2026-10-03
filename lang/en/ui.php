@@ -18,6 +18,8 @@ return [
     'load_more' => 'Show More',
     // A busy button's spinner, which shadcn names in English; given as a prop, not edited.
     'loading' => 'Loading',
+    // Geist's Copy Button, said to a screen reader once the text is on the clipboard.
+    'copied' => 'Copied',
     // The search field's clear button (Geist's Search Input), named for a screen reader.
     'clear_search' => 'Clear Search',
     // The ⋯ button that holds a page's or a row's other actions (Geist's Dots Menu), named for a
@@ -29,7 +31,6 @@ return [
     'sidebar_description' => 'Displays the mobile sidebar.',
     'request_id' => 'Request ID',
     'show_password' => 'Show password',
-    'hide_password' => 'Hide password',
     'to_confirm' => 'To confirm, type ":phrase"',
     'to_confirm_named' => 'To confirm, type the :label ":phrase"',
 ];

@@ -13,7 +13,7 @@ return [
     'no_format' => 'No address can be saved in this country until you add the fields it asks for.',
 
     'fields' => 'Fields',
-    'fields_hint' => 'In the order a customer fills them in, at most :count.',
+    'fields_hint' => 'In the order a customer fills them in, at most :count fields.',
     'field_key' => 'Name in the System',
     'field_key_hint' => 'Lower-case letters, digits and underscores, such as postal_code; changing it on a field already in use leaves those addresses without that part.',
     'label_ar' => 'Label in Arabic',
@@ -39,7 +39,7 @@ return [
     'no_fields' => 'A form needs at least one field.',
 
     'template' => 'How It Is Printed',
-    'template_hint' => 'Plain text. Write {city} and that field\'s value takes its place; a field with nothing in it disappears, and a line left empty is dropped. Nothing here is run as code.',
+    'template_hint' => 'Write {city} for that field\'s value; an empty field disappears, and so does a line left empty.',
     'template_fields' => 'Fields you can use: :keys',
 
     'save' => 'Save Address Form',

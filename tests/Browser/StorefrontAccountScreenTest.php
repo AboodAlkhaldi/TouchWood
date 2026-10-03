@@ -306,3 +306,70 @@ it('closes the account, and the shop forgets them at once', function () {
         ->assertSee('Sign In')
         ->assertNoJavaScriptErrors();
 });
+
+it('keeps the open tab in the address, and moves between the tabs with the arrow keys', function () {
+    [, $page] = shopSignedIn();
+
+    // The open tab is written into the address, so a refresh opens it again (Geist's Tabs).
+    $page->navigate('/sa/en/account')
+        ->click('[data-test="tab-phone"]')
+        ->assertSee('Add Phone Number');
+
+    expect($page->script('new URLSearchParams(window.location.search).get("tab")'))->toBe('phone');
+
+    $page->navigate('/sa/en/account?tab=phone')
+        ->assertSee('Add Phone Number')
+        ->assertAttribute('[data-test="tab-phone"]', 'aria-selected', 'true');
+
+    // Radix's tabs: the arrow keys move along them, upright, and open the one they reach.
+    $page->keys('[data-test="tab-phone"]', 'ArrowDown')
+        ->assertAttribute('[data-test="tab-addresses"]', 'aria-selected', 'true')
+        ->assertSee('We deliver to the Usual Address in each country unless you pick another.')
+        ->assertNoJavaScriptErrors();
+});
+
+it('sets another usual address and asks before deleting one, from the address\'s ⋯ menu', function () {
+    [, $page] = shopSignedIn();
+
+    $page->navigate('/sa/en/account?tab=addresses');
+
+    foreach (['Home', 'Work'] as $label) {
+        $page->click('[data-test="add-address-sa"]')
+            ->type('#label-sa', $label)
+            ->type('#recipient-sa', 'Noura Saleh')
+            ->type('#phone-sa', '+966512345678')
+            ->type('#sa-administrative_area', 'Riyadh Region')
+            ->type('#sa-city', 'Riyadh')
+            ->type('#sa-district', 'Al Olaya')
+            ->type('#sa-street', "{$label} Street")
+            ->type('#sa-building', '7')
+            ->click('[data-test="save-address-sa"]')
+            ->assertSee("{$label} Street");
+    }
+
+    // The second address is not the usual one: its menu offers to make it so, and the row says so
+    // once it is done.
+    $work = (string) $page->script('[...document.querySelectorAll(\'[data-test^="address-menu-"]\')].find((b) => b.getAttribute("aria-label").endsWith("Work")).dataset.test');
+    $id = substr($work, strlen('address-menu-'));
+
+    $page->click("[data-test=\"{$work}\"]")
+        ->click("[data-test=\"make-default-{$id}\"]")
+        ->assertSee('Usual address set')
+        ->assertSeeIn("[data-test=\"address-{$id}\"]", 'Usual Address');
+
+    // Delete Address… is last in the menu and asks first; Cancel hands focus back to the ⋯ button.
+    $page->click("[data-test=\"{$work}\"]")
+        ->click("[data-test=\"delete-address-{$id}\"]")
+        ->assertSee('Orders already placed keep the address they were sent to. This cannot be undone.')
+        ->click('[data-test="modal-cancel"]')
+        ->assertMissing('[role="alertdialog"]');
+
+    // Handed back once the dialog has finished closing, its animation and all.
+    for ($tries = 0; $tries < 20 && $page->script('document.activeElement?.dataset.test') !== $work; $tries++) {
+        $page->wait(0.1);
+    }
+
+    expect($page->script('document.activeElement?.dataset.test'))->toBe($work);
+
+    $page->assertNoJavaScriptErrors();
+});

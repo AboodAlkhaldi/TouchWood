@@ -33,7 +33,7 @@ return [
     // nobody says so, quoting a typed search, and offers to clear the filters (shadcn rebuild).
     'no_staff' => 'Invite a member to give them a way into the panel.',
     'no_match_title' => 'No Staff Members Match Your Filters',
-    'no_match_query' => 'Clear the filters to see everyone.',
+    'no_match_query' => 'No staff members match “:query”. Clear the filters to see everyone.',
     'no_match' => 'Widen or clear the filters to see everyone.',
     'clear_filters' => 'Clear Filters',
     // Geist's Search Input: a scoped placeholder.

@@ -13,10 +13,11 @@ import { useTranslator } from '@/lib/t';
 | account they just created. The eye is off by default - the password is hidden until the person
 | asks - and it never travels anywhere: showing it is only this browser, this field, this moment.
 |
-| The eye is a real button, in the keyboard's reach, naming its action ("Show password") for a
-| screen reader and saying its state with aria-pressed - not a tooltip repeating its name (Geist's
-| Tooltip rules), and no longer taken out of the tab order, which left a keyboard user no way to
-| see the password (the batch B audit).
+| The eye is a real button, in the keyboard's reach, named once ("Show password") and saying its
+| state with aria-pressed - a toggle's name stays the same while its state changes, so the state is
+| never said twice (the review of batch C) - not a tooltip repeating its name (Geist's Tooltip
+| rules), and no longer taken out of the tab order, which left a keyboard user no way to see the
+| password (the batch B audit).
 */
 
 type Props = Omit<ComponentProps<typeof InputGroupInput>, 'type' | 'id'> & {
@@ -48,7 +49,7 @@ export function PasswordInput({ id, label, helper, error, labelEnd, className, .
             <InputGroup>
                 <InputGroupInput {...input} id={id} type={shown ? 'text' : 'password'} aria-invalid={invalid || undefined} aria-describedby={described} />
                 <InputGroupAddon align="inline-end">
-                    <InputGroupButton size="icon-xs" aria-pressed={shown} aria-label={t(shown ? 'ui.hide_password' : 'ui.show_password')} onClick={() => setShown((was) => !was)}>
+                    <InputGroupButton size="icon-xs" aria-pressed={shown} aria-label={t('ui.show_password')} onClick={() => setShown((was) => !was)}>
                         {shown ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
                     </InputGroupButton>
                 </InputGroupAddon>

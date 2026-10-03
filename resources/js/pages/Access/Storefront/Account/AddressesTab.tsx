@@ -203,7 +203,8 @@ function SavedAddress({ address, returnTo, onEdit }: { address: AddressRow; retu
             </ItemContent>
 
             <ItemActions className="self-start">
-                <Button type="button" variant="outline" size="sm" onClick={onEdit} data-test={`edit-address-${address.id}`}>
+                {/* Described by the address's name, so each of the identical buttons says which it edits. */}
+                <Button type="button" variant="outline" size="sm" onClick={onEdit} aria-describedby={title} data-test={`edit-address-${address.id}`}>
                     {t('access::account.edit_address')}
                 </Button>
 
@@ -357,8 +358,11 @@ function AddressForm({
                     <FieldGroup className="gap-5">
                         <FormError />
 
+                        {/* Focus goes to the form that just opened: the button that opened it may be
+                            gone (Add Address), or far above it (Edit Address) (the review of batch C). */}
                         <TextField
                             id={`label-${store.storeCode}`}
+                            autoFocus
                             label={t('access::account.address_label')}
                             helper={t('access::account.address_label_hint')}
                             error={form.errors.label}

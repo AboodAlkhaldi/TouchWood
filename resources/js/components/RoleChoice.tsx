@@ -86,7 +86,11 @@ function Card({ value, title, line, figure = false, badge = null }: { value: str
     const id = `role-${value}`;
 
     return (
-        <FieldLabel htmlFor={id} className="has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand-soft/40">
+        // The whole tile shows the keyboard's place, not only its dot (Geist's Choicebox).
+        <FieldLabel
+            htmlFor={id}
+            className="has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand-soft/40 has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50"
+        >
             <Field orientation="horizontal">
                 <FieldContent>
                     <FieldTitle id={`${id}-title`} className="text-label-14 text-ink">

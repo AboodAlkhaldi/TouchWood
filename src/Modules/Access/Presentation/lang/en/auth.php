@@ -11,9 +11,9 @@ return [
     'email_verified' => 'Email address confirmed',
     'code_sent' => 'Code sent to your phone',
     'reset_link_sent' => 'If this email belongs to an account, a reset link is on its way',
-    'password_reset' => 'Password changed',
+    'password_reset' => 'Password changed; sign in with the new one',
     'password_changed' => 'Password changed, and every other session was signed out',
-    'email_changed' => 'Email changed',
+    'email_changed' => 'Email changed; sign in with the new one',
     'invitation_accepted' => 'Account created',
     'signed_out' => 'Signed out',
 
@@ -25,8 +25,6 @@ return [
     'my_account' => 'My Account',
     'email' => 'Work Email',
     'password' => 'Password',
-    'show_password' => 'Show the password',
-    'hide_password' => 'Hide the password',
     'forgot_password' => 'Reset Password',
     'back_to_sign_in' => 'Back to Sign In',
 
@@ -40,6 +38,7 @@ return [
     'code_sent_to' => 'The code went to :phone.',
     // The code field's one label: shadcn's InputOTP is one input, not a box per digit.
     'code_label' => 'SMS Code',
+    'code_incomplete' => 'Enter all :count digits of the code.',
     'trust_browser' => 'Trust This Browser for :days Days',
     'confirm' => 'Verify Code',
     'resend' => 'Resend Code',

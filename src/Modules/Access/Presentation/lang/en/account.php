@@ -29,7 +29,6 @@ return [
     'picture_removed' => 'It will be removed when you save.',
     'picture_chosen' => 'Chosen: :name, shown once you save.',
     'no_picture' => 'No picture yet.',
-    'picture_preparing' => 'Your picture is being prepared and appears here shortly.',
 
     'first_name' => 'First Name',
     'last_name' => 'Last Name',
@@ -74,6 +73,7 @@ return [
     'send_code' => 'Send Code',
     'phone_code_sent' => 'Code sent to the new number',
     'phone_code' => 'Verification Code',
+    'code_incomplete' => 'Enter all :count digits of the code.',
     'confirm_phone' => 'Confirm Phone Number',
     'phone_changed' => 'Phone number changed, and trusted browsers will ask for a code again',
 
@@ -126,7 +126,6 @@ return [
     'shop_no_phone' => 'No number yet.',
     'shop_add_phone' => 'Add Phone Number',
     'shop_change_phone' => 'Change Phone Number',
-    'shop_phone_dialog_title' => 'Your Phone Number',
     'shop_phone_dialog_body' => 'We send a code to the new number, and the one you have keeps working until it is entered.',
     'shop_phone_changed' => 'Phone number confirmed',
     'shop_password_note' => 'Changing it signs out every other browser you are signed in on.',
@@ -135,7 +134,6 @@ return [
     'missing_email' => 'Confirm your email address to place orders.',
     'missing_phone' => 'Add a phone number and confirm it to place orders.',
     'missing_both' => 'Confirm your email address and phone number to place orders.',
-    'may_order' => 'Your account is ready to order with.',
 
     // F9 - the address book, and F10 - closing the account.
     'addresses' => 'Addresses',
