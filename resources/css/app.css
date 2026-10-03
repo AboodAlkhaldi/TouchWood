@@ -5,6 +5,14 @@
 @source '../../storage/framework/views/*.php';
 
 /*
+| Tailwind's `dark:` variant answers to our attribute, not to the device. shadcn's components write
+| dark:bg-input/30 and the like; left alone, Tailwind would apply those whenever the *device* is dark,
+| even on a page the person set to Light. The mode is data-mode on <html> - chosen by the server, or
+| by the head script when the person chose System (frontend.md §1.11).
+*/
+@custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
+
+/*
 | Tailwind's own names are pointed at the theme tokens, so a utility class and a custom property can
 | never drift apart: bg-surface is --tw-surface, whatever theme is on. Nothing here holds a colour.
 */
@@ -105,6 +113,21 @@
 }
 
 @layer base {
+    /*
+    | The few shadcn names its components read as raw custom properties rather than through a
+    | Tailwind class - Sonner's toasts set --normal-bg: var(--popover) and so on. Defined on <html>,
+    | where data-mode and data-campaign live, so they follow the theme like everything else.
+    */
+    :root {
+        --popover: var(--tw-surface);
+        --popover-foreground: var(--tw-ink);
+        --border: var(--tw-line);
+        --radius: var(--tw-radius);
+        /* The sidebar's outline buttons draw their edge from these two. */
+        --sidebar-border: var(--tw-sidebar-line);
+        --sidebar-accent: var(--tw-sidebar-active);
+    }
+
     html {
         background: var(--tw-page);
         color: var(--tw-ink);

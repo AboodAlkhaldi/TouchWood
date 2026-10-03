@@ -113,7 +113,11 @@ them here.
 | `react` | 19.3.0 | UI |
 | `typescript` | 7.0.2 | **[DECIDED 2026-09-19]** TypeScript, not JavaScript |
 | `tailwindcss`, `@tailwindcss/vite` | ^4 (already in `package.json`) | Styling |
-| `shadcn` (CLI) | 4.21.0 | Components, copied into the repository |
+| `shadcn` (CLI) | 4.21.0; **4.21.1** for the rebuild (2026-10-03, §1.11) | Components, copied into the repository |
+| `radix-ui`, `cn` | 1.6.7, 0.4.0 (installed 2026-10-03) | Under shadcn's components: Radix's primitives, and shadcn's class-merging helper |
+| `cmdk` | 1.1.1 (2026-10-03) | Under shadcn's Command (the combobox's list) |
+| `input-otp` | 1.5.0 (2026-10-03) | Under shadcn's InputOTP, the SMS code boxes (owner, 2026-10-02) |
+| `sonner` | 2.0.8 (2026-10-03) | Under shadcn's toasts; `next-themes`, which shadcn adds with it, is removed (§1.11 edit 2) |
 | `tightenco/ziggy` | v2.6.4 | **[DECIDED 2026-09-19]** Links to named routes, with TypeScript types |
 | `spatie/laravel-typescript-transformer` | 3.3.0 (supports Laravel 13) | **[DECIDED 2026-09-19]** TypeScript types generated from page data |
 | `spatie/laravel-data` | 4.23 (already installed) | Page data classes (presentation layer only, handoff §3) |
@@ -380,6 +384,12 @@ and examples. Only when neither has it, show the owner what was searched and ask
      `next-themes` (a one-line change).
   3. **Right to left** — shadcn's `DirectionProvider` wraps the app (`rtl: true` in
      `components.json`).
+  4. **The sidebar's rail in Arabic** (owner, 2026-10-03) — shadcn's `SidebarRail` places itself with
+     `-right-4` / `left-0`, which in Arabic puts it on the far side of the screen; ours writes
+     `-end-4` / `start-0`, so it stays on the sidebar's edge. Put back after every reinstall; a test
+     checks it.
+- **The CLI's CSS**: installing a component may add shadcn's default colours to `app.css` (the
+  sidebar's, for one). They are not kept: our tokens already feed those names (Look, above).
 - **Geist's pieces that shadcn lacks**, built exactly from Geist's own page, with no invention:
   Loading Dots, Middle Truncate, Copy Button, Description, Theme Switcher, and Progress "with
   stops" (shadcn's Progress has no stops; the bar itself stays shadcn's).

@@ -1,6 +1,7 @@
 import { createInertiaApp, router } from '@inertiajs/react';
 import type { Page } from '@inertiajs/core';
 import { createRoot, hydrateRoot } from 'react-dom/client';
+import { Providers, firstDirection } from '@/components/Providers';
 import '../css/app.css';
 
 /*
@@ -61,7 +62,11 @@ void createInertiaApp({
     setup({ el, App, props }) {
         rememberToken(props.initialPage);
 
-        const rendered = <App {...props} />;
+        const rendered = (
+            <Providers direction={firstDirection(props.initialPage.props)}>
+                <App {...props} />
+            </Providers>
+        );
 
         if (el.hasChildNodes()) {
             hydrateRoot(el, rendered);

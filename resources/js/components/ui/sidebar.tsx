@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
@@ -277,9 +279,6 @@ function SidebarTrigger({
   )
 }
 
-// Ours: the rail was the one place upstream still wrote -right-4 and left-0, so in Arabic it sat
-// off the wrong edge of a sidebar that had correctly moved to the right. Written as -end-4 and
-// start-0 it follows the sidebar, the way the two offcanvas offsets below already do.
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   const { toggleSidebar } = useSidebar()
 
@@ -292,6 +291,10 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
+        // Ours, edit 4 of frontend.md §1.11 (owner, 2026-10-03): upstream writes -right-4 and
+        // left-0 here, so in Arabic the rail sat on the far side of the screen, away from a sidebar
+        // that had correctly moved to the right. Written as -end-4 and start-0 it follows the
+        // sidebar. Put this back after every reinstall; tests/Architecture/ShadcnEditsTest checks it.
         "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 rtl:translate-x-1/2 transition-all ease-linear group-data-[side=left]:-end-4 group-data-[side=right]:start-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex",
         "in-data-[side=left]:cursor-w-resize rtl:in-data-[side=left]:cursor-e-resize in-data-[side=right]:cursor-e-resize rtl:in-data-[side=right]:cursor-w-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize rtl:[[data-side=left][data-state=collapsed]_&]:cursor-w-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize rtl:[[data-side=right][data-state=collapsed]_&]:cursor-e-resize",
