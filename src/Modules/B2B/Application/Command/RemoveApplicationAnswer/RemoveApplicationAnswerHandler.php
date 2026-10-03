@@ -41,10 +41,12 @@ final readonly class RemoveApplicationAnswerHandler
     public function handle(RemoveApplicationAnswer $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $customerId = $this->account->get(self::PERMISSION)->id;
+        $account = $this->account->get(self::PERMISSION);
+        $customerId = $account->id;
+        $store = $this->account->store($account);
 
-        $this->db->transaction(function () use ($customerId, $command): void {
-            $draft = $this->drafts->forChange($customerId)->draft;
+        $this->db->transaction(function () use ($customerId, $store, $command): void {
+            $draft = $this->drafts->forChange($customerId, $store)->draft;
             $before = $draft->answers();
             $removed = $draft->removeAnswer($command->requestId);
 

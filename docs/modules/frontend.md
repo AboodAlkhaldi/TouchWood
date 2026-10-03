@@ -41,6 +41,8 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.8, §2.3, §8.3 | The design of record is the handoff of 2026-09-22, which includes a storefront | Owner, 2026-09-22 |
 | §1.8 | A theme is data: campaign themes must be possible without touching a component | Owner, 2026-09-22 |
 | §1.8, §3.6 F1 | **Geist is the design system**: its components, behaviour and all its rules (writing rules included), in TouchWood's look — today's colours a bit sharper, IBM Plex fonts, 10 px corners. Built before any new screen; every built screen moves to it. The store chooser and switchers list **on** stores only (platform.md §1.6) | Owner, 2026-10-01/02 (the new direction) |
+| §1.10 (new) | **The Geist foundation**: colours set B (owner's pick); Geist's type scale, materials, sizes, components and writing rules; Light and Dark only — the provisional picks marked there | Owner's overnight run, 2026-10-02 |
+| §1.10 | **Store time**: every moment in the zone of the store being worked in (owner's answer, 2026-10-02); Geist's `Time` (provisional) | Owner, 2026-10-02 (the "store time on panel screens" job) |
 
 ---
 
@@ -287,6 +289,71 @@ check, and the browser tests, which Pest runs with the rest.
 
 CI needs Node, the `sockets` PHP extension (not in `ci.yml`'s extension list today) and
 Playwright's browsers.
+
+### 1.10 The Geist foundation (built 2026-10-02)
+
+What §1.8's decision becomes in code. Written and built in the owner's overnight run: the owner
+chose the colours (set B) before leaving; every other pick below is marked **[PROVISIONAL
+2026-10-02 — owner to confirm]**, the owner's instruction for that night. Geist's rules were read
+from its own pages (vercel.com/geist, every component's "Best Practices") and its sizes from its own
+stylesheet, the same day.
+
+- **Colours (owner's pick, 2026-10-02): set B, "a bit sharper".** Every token keeps its name and
+  hue; text and lines are a step stronger and brand and status colours a step more saturated,
+  measured in OKLCH. Light-mode muted text on a card goes from 4.90:1 to 6.31:1. The values are in
+  `resources/css/themes.css`, light and dark.
+- **Type** [PROVISIONAL]: Geist's type scale under Geist's own class names — `text-heading-{14…48}`,
+  `text-label-{12…20}` (and `-mono`), `text-copy-{13…24}` (and `-mono`), `text-button-{12,14,16}` —
+  with the sizes, line heights and weights of Geist's stylesheet, set in our fonts. Geist's negative
+  letter-spacing on headings applies to English only: Arabic letters are joined and are never spaced.
+- **Surfaces** [PROVISIONAL]: Geist's materials under Geist's names — `material-base`, `-small`,
+  `-medium`, `-large` on the page; `material-tooltip`, `-menu`, `-modal`, `-fullscreen` above it —
+  with Geist's shadow recipes, each a theme token so a campaign can change it. Corners are ours, not
+  Geist's 6 and 12 px: **10 px** everywhere, 6 px on a tooltip, 16 px fullscreen.
+- **Sizes** (Geist's stylesheet): controls are 32, 36 and 40 px high (small, medium, large; medium
+  is the default); the focus ring is Geist's — a 2 px gap in the page colour, then 2 px of brand.
+- **Components** [PROVISIONAL]: in `resources/js/components/geist/`, imported from its index, under
+  Geist's names and with Geist's props, Radix underneath where a component needs focus trapping or
+  keyboard handling. Their few words of their own (Cancel, Close, Previous, Next, the typed
+  confirmation's prompt) are `lang/*/ui.php`, which every page carries (`App\Http\Page`). `Button`'s `type` is its look (`default` primary, `secondary`, `tertiary`, `error`,
+  `warning`) and `typeName` its HTML type, as in Geist; `loading` instead of a spinner; `prefix` and
+  `suffix`; an icon-only button needs `svgOnly` and an `aria-label`; a disabled button carries
+  `disabledReason`, shown as its tooltip (our prop name — Geist pairs the two by hand). Geist's
+  components that no screen needs yet are built when one does. The shadcn copies go once nothing
+  uses them.
+- **Where Geist has no component** — the admin sidebar, the store picker, the address picker — it
+  is built from Geist's materials, type and rules (§1.8).
+- **The theme switch** [PROVISIONAL]: Geist's Theme Switcher offers Light, System and Dark. Ours
+  offers **Light and Dark only**: the theme is decided on the server (§2.1) so the first paint is
+  right, and the server cannot see the device's own setting. "System" would need every dark value
+  written a second time under a media query, campaigns included — the owner's call.
+- **Store time** (owner, 2026-10-02: "each store will have its own — a viewer from Egypt sees
+  Egypt's time, from KSA KSA's"; for someone in several stores, **the store they are working in**).
+  The server and the database keep UTC; every moment on a screen is written in the zone of the
+  panel's current store, or of the shop's store, with the zone's short name beside it — the store
+  screens' own times included (failed jobs, audit log, media, sessions). Geist's `Time`
+  [PROVISIONAL]: in a list a recent moment reads short and relative ("2h ago"), past seven days as
+  a date, the full moment on hover and focus; on a detail page the full moment is the text. B2B's
+  company times were already written by the server in the company's store clock (step 6) and are
+  left as they are.
+- **Writing rules** (Geist's, for every English word on a screen; Arabic follows the same
+  structure — a verb and its object on a button, the toast that answers it, no "please"):
+
+| Where | Rule | Example |
+|---|---|---|
+| Buttons, menu items | Title Case, Verb + Noun, naming what happens; never "Submit", "OK", "Confirm" | Approve Company · Invite Member |
+| A destructive button and its toast | Same verb, 1:1 | Delete Address → Address deleted |
+| A mode switch | Ends with "Instead" | Use a Recovery Code Instead |
+| An item that opens a dialog | Ends with "…" | Rename… |
+| Labels, headings, column headers, tabs, badges, modal titles | Title Case nouns or statements, never a question | Email Address · Delete Address |
+| Descriptions, helper text, notes, tooltips | Sentence case, one sentence, a period | Changing this region restarts all functions. |
+| Toasts | Sentence case, "{Noun} {past participle}", no period, never "successfully" | Settings saved |
+| Errors | "Couldn't …" for the person's own state, "Failed to …" for the system's; then the fix | Couldn't verify the code. Try again. |
+| Validation | Names the field and the rule, a period, no "please" | Email address is required. |
+| Placeholders | An example value, never an instruction | name@example.com |
+| Unknown values | An em dash | — |
+| Dismissal | "Cancel"; "Done" after a one-time display | |
+| Never | "please", "successfully", "Unable to", "Something went wrong", "Oops" | |
 
 ---
 

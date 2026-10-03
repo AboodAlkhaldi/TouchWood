@@ -86,10 +86,10 @@ it('draws the media library and switches between the table and the grid', functi
         ->assertPathIs('/admin')
         ->navigate('/admin/media');
 
-    $page->assertSee('Media library')
+    $page->assertSee('Media Library')
         ->assertSee($filename)
         // No thumbnail for an image still being processed: Platform has nothing to give yet.
-        ->assertSee('Being processed')
+        ->assertSee('Being Processed')
         ->assertNoJavaScriptErrors();
 
     $page->click('[data-test="view-switch"]')
@@ -114,7 +114,7 @@ it('asks before deleting a file, in the page, and then deletes it', function () 
     // Asked in the page, so a test can answer it. The browser's own confirm box could not be
     // driven at all, which is why this went uncovered and then went wrong (owner, 2026-09-24).
     $page->click("[data-test=\"delete-{$id}\"]")
-        ->assertSee('Nothing uses it')
+        ->assertSee('Nothing uses this file.')
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('platform.media')->where('id', $id)->exists())->toBeTrue();
@@ -153,7 +153,9 @@ function libraryScreenPaperNamed(string $filename): string
 }
 
 /**
- * The date the screen shows for a file: the first ten characters of what the database gives back.
+ * The day a file was uploaded: the first ten characters of what the database gives back. The screen
+ * writes the moment in the store's time and in words ("2m ago"), so a test reads it from the
+ * <time> element's datetime, which is the moment itself (frontend.md 1.10, store time).
  */
 function libraryScreenShownDate(string $mediaId): string
 {
@@ -190,7 +192,7 @@ it('shows a private file in the table as its name, date and use, with no picture
             (() => {
                 const row = [...document.querySelectorAll('tbody tr')].find((tr) => tr.textContent.includes('{$paper}'));
                 return row !== undefined
-                    && row.textContent.includes('{$date}')
+                    && (row.querySelector('time')?.getAttribute('datetime') ?? '').startsWith('{$date}')
                     && row.textContent.includes('Not used')
                     && ! row.textContent.includes('application/pdf')
                     && ! row.textContent.includes('2.3 MB')
@@ -224,7 +226,7 @@ it('lets an admin given "see" and "describe" describe a private file through the
         ->assertNotPresent("[data-test=\"delete-{$paperId}\"]")
         ->click("[data-test=\"describe-{$paperId}\"]")
         ->type("[id=\"{$paperId}-alt_en\"]", 'The company paper')
-        ->press('Save');
+        ->press('Save Description');
 
     // The save is a request the page sends in the background, served by this same process: give
     // it its moment rather than read the row before it arrives.
@@ -258,7 +260,7 @@ it('shows a private file in the grid as its name, date and use, without a pictur
             (() => {
                 const tile = [...document.querySelectorAll('li')].find((li) => li.textContent.includes('{$paper}'));
                 return tile !== undefined
-                    && tile.textContent.includes('{$date}')
+                    && (tile.querySelector('time')?.getAttribute('datetime') ?? '').startsWith('{$date}')
                     && tile.textContent.includes('Not used')
                     && ! tile.textContent.includes('2.3 MB')
                     // Neither a picture nor the placeholder drawn where a picture is missing.
@@ -357,7 +359,7 @@ it('draws the audit log with its filters', function () {
 
     // The seeder added three currencies, and every one was audited. Filtered to that action, they
     // stay on the first page however many sign-ins earlier runs have left in this database.
-    $page->assertSee('Audit log')
+    $page->assertSee('Audit Log')
         ->assertSee('Currency added')
         ->assertSee('Filters')
         ->assertNoJavaScriptErrors();

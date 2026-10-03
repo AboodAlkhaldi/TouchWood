@@ -42,6 +42,12 @@ final readonly class UpdateStoreHandler
         $code = StoreCode::fromString($command->storeCode);
         $known = $this->directory->storeByCode($code->value) ?? throw new StoreNotFound($code->value);
 
+        // An off store is as if it were never there, except to whoever may turn it back on — the
+        // stores screen lists it only to them (platform.md §1.6; owner, 2026-10-01).
+        if (! $known->isActive && $this->authorizer->storesWith(PlatformPermissions::STORE_SWITCH) === []) {
+            throw new StoreNotFound($code->value);
+        }
+
         // Checked against this store, before any row is locked: an admin of one store cannot
         // edit another. Store codes are public URL segments, so "not found" reveals nothing.
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($known->storeId()));

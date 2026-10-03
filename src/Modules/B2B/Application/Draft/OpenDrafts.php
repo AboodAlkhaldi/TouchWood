@@ -37,11 +37,12 @@ final readonly class OpenDrafts
      *
      * @throws ApplicationNotFound|CompanySuspended|ApplicationNotEditable
      */
-    public function forChange(string $customerId): DraftInHand
+    public function forChange(string $customerId, string $storeId): DraftInHand
     {
         $this->applications->lockAccount($customerId);
-        $company = $this->companies->forCustomerLocked($customerId);
-        $draft = $this->applications->openFor($customerId) ?? throw new ApplicationNotFound;
+        // The account's company and open application in this store (amendment 18).
+        $company = $this->companies->forCustomerLocked($customerId, $storeId);
+        $draft = $this->applications->openFor($customerId, $storeId) ?? throw new ApplicationNotFound;
 
         if ($company?->status() === CompanyStatus::Suspended) {
             throw new CompanySuspended;

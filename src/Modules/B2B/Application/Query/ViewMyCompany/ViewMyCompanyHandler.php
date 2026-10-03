@@ -6,6 +6,7 @@ namespace Modules\B2B\Application\Query\ViewMyCompany;
 
 use Illuminate\Database\ConnectionInterface;
 use Modules\Access\Public\Dto\CustomerDto;
+use Modules\B2B\Application\Account\CarriedOver;
 use Modules\B2B\Application\Account\CurrentCompanyAccount;
 use Modules\B2B\Application\Account\SavedAddresses;
 use Modules\B2B\Application\B2BPermissions;
@@ -22,6 +23,7 @@ use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
@@ -39,7 +41,9 @@ use Shared\Domain\ValueObject\StoreId;
  * - while the company is approved, the bank account to transfer to (amendment 12(b));
  * - the account's saved addresses, any store's, which the address is picked from (amendment 16(f)).
  *
- * Everything is the home store's (amendment 5): a company is offered its home store's lists.
+ * Everything is **the store being browsed** (amendments 5, 18 and 19(c)): its company, its draft, its
+ * lists. The account's companies in other stores are named with their store and status, and —
+ * while there is no company and no draft here — what "Apply in this store" would start with.
  */
 final readonly class ViewMyCompanyHandler
 {
@@ -55,6 +59,8 @@ final readonly class ViewMyCompanyHandler
         private ConnectionInterface $db,
         private StoreBankAccount $storeBankAccount,
         private SavedAddresses $savedAddresses,
+        private CarriedOver $carriedOver,
+        private PlatformApi $platform,
     ) {}
 
     /**
@@ -64,23 +70,24 @@ final readonly class ViewMyCompanyHandler
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $account = $this->account->get(self::PERMISSION);
+        // The company of the store being browsed (amendment 19(c)).
+        $store = $this->account->store($account);
 
         // Several reads, of one moment: the account's lock, shared, so no writer — the first send
         // above all, which creates the company — commits between them. Without it the page could
         // say "finish and submit" for an application just sent (the review of step 3b).
-        return $this->db->transaction(function () use ($account): MyCompanyView {
+        return $this->db->transaction(function () use ($account, $store): MyCompanyView {
             $this->applications->lockAccountForReading($account->id);
 
-            return $this->read($account);
+            return $this->read($account, $store);
         });
     }
 
-    private function read(CustomerDto $account): MyCompanyView
+    private function read(CustomerDto $account, string $homeStoreId): MyCompanyView
     {
-        $company = $this->companies->forCustomer($account->id);
-        $open = $this->applications->openFor($account->id);
+        $company = $this->companies->forCustomer($account->id, $homeStoreId);
+        $open = $this->applications->openFor($account->id, $homeStoreId);
         $draft = $open?->state() === ApplicationState::Draft ? $open : null;
-        $homeStoreId = $company?->homeStoreId() ?? $account->homeStoreId;
 
         $companyTypes = [];
 
@@ -125,7 +132,61 @@ final readonly class ViewMyCompanyHandler
                 ),
                 $this->savedAddresses->of($account->id),
             ),
+            $this->elsewhere($account->id, $homeStoreId),
+            $company === null && $open === null ? $this->prefill($account->id, $homeStoreId) : null,
         );
+    }
+
+    /**
+     * The account's companies in the other stores (amendment 19(c)): store, name and status only.
+     *
+     * @return list<ElsewhereView>
+     */
+    private function elsewhere(string $customerId, string $storeId): array
+    {
+        $elsewhere = [];
+
+        foreach ($this->companies->allForCustomer($customerId) as $company) {
+            if (strtolower($company->homeStoreId()) === strtolower($storeId)) {
+                continue;
+            }
+
+            $store = $this->platform->store(StoreId::fromString($company->homeStoreId()));
+
+            // An off store is as if it were never there (platform.md §1.6): not named, and not
+            // shown as "Approved" where nothing can be ordered (review of amendment 18).
+            if ($store === null || ! $store->isActive) {
+                continue;
+            }
+
+            $elsewhere[] = new ElsewhereView(
+                $company->homeStoreId(),
+                $store->name->ar,
+                $store->name->en,
+                $company->details()->name->value,
+                $company->status()->value,
+            );
+        }
+
+        return $elsewhere;
+    }
+
+    /**
+     * What "Apply in this store" would start the form with (amendment 19(b)): the same answer the
+     * start itself gives (CarriedOver).
+     */
+    private function prefill(string $customerId, string $storeId): ?PrefillView
+    {
+        // Asked only with no company here, so any the account holds is in another store.
+        $source = $this->carriedOver->source($customerId);
+
+        if ($source === null) {
+            return null;
+        }
+
+        $type = $this->carriedOver->type($source, $storeId);
+
+        return new PrefillView($this->carriedOver->name($source)->value, $type?->typeId, $type?->other, $source->homeStoreId());
     }
 
     /**

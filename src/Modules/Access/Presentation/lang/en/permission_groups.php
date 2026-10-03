@@ -6,14 +6,14 @@ declare(strict_types=1);
 // (stage 2b, P2). One list serves both (owner, 2026-09-22).
 
 return [
-    'staff_and_permissions' => 'Staff and permissions',
+    'staff_and_permissions' => 'Staff and Permissions',
     'customers' => 'Customers',
-    'store_settings' => 'Store settings and tax',
-    'media' => 'Media library',
-    'audit' => 'Audit log',
+    'store_settings' => 'Store Settings and Tax',
+    'media' => 'Media Library',
+    'audit' => 'Audit Log',
     'system' => 'System',
-    'catalog' => 'Catalog and variants',
-    'pricing' => 'Pricing and campaigns',
-    'orders' => 'Orders and fulfilment',
-    'companies' => 'Company approvals',
+    'catalog' => 'Catalog and Variants',
+    'pricing' => 'Pricing and Campaigns',
+    'orders' => 'Orders and Fulfilment',
+    'companies' => 'Company Approvals',
 ];

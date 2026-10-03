@@ -78,7 +78,8 @@ final readonly class MediaController
             return FormErrors::back($request, $error, ['visibility']);
         }
 
-        return back()->with('status', __('platform::admin_media.uploaded'));
+        // The toast's own words, not the column header's (Geist: "{Noun} {past participle}").
+        return back()->with('status', __('platform::admin_media.uploaded_ok'));
     }
 
     public function describe(Request $request, string $mediaId, UpdateMediaAltTextHandler $handler): RedirectResponse

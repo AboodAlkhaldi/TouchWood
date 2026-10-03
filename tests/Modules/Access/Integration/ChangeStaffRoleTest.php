@@ -224,15 +224,25 @@ describe('who may change whom', function () {
             ->and(fn () => changeRole($ksaWithUaeException, ['sa'], $roleId))->toThrow(Unauthorized::class);
     });
 
-    it('never lets an admin change an admin, a Super Admin or themselves', function (Closure $target, string $reason) {
+    it('never lets an admin change an admin or themselves', function (Closure $target, string $reason) {
         $adminId = Fx::actAsAdmin(['*'], ASSIGNING_ADMIN_ACTIONS);
 
         expect(fn () => changeRole($target($adminId), ['sa'], Fx::role([PlatformPermissions::STORE_UPDATE])))
             ->toThrow(StaffNotEditable::class, "({$reason})");
     })->with([
         'another admin' => [fn () => Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa'], RoleLevel::Admin), 'admin'],
-        'a Super Admin' => [fn () => Fx::staff(superAdmin: true), 'super_admin'],
         'themselves' => [fn (string $adminId) => $adminId, 'yourself'],
+    ]);
+
+    it('answers an admin of every store asking about a Super Admin, or a former one, as about nobody (amendment 57)', function (Closure $target) {
+        $superAdminId = $target();
+        Fx::actAsAdmin(['*'], ASSIGNING_ADMIN_ACTIONS);
+
+        expect(fn () => changeRole($superAdminId, ['sa'], Fx::role([PlatformPermissions::STORE_UPDATE])))
+            ->toThrow(StaffNotFound::class, "No staff member matches \"{$superAdminId}\".");
+    })->with([
+        'a Super Admin' => [fn () => Fx::staff(superAdmin: true)],
+        'a former Super Admin' => [fn () => Fx::formerSuperAdmin()],
     ]);
 
     it('lets a Super Admin change an admin, but never another Super Admin', function () {
@@ -303,7 +313,8 @@ describe('refreshing cached permissions by hand', function () {
     })->with([
         'outside their stores' => [fn () => Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['ae']), Unauthorized::class],
         'an admin' => [fn () => Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa'], RoleLevel::Admin), StaffNotEditable::class],
-        'a Super Admin' => [fn () => Fx::staff(superAdmin: true), StaffNotEditable::class],
+        // As for an id that never existed (amendment 57).
+        'a Super Admin' => [fn () => Fx::staff(superAdmin: true), StaffNotFound::class],
         'themselves' => [fn (string $adminId) => $adminId, StaffNotEditable::class],
     ]);
 

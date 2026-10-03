@@ -20,6 +20,7 @@ final class CompanyPage extends Data
      * @param  list<CompanyApplicationData>  $history  newest first
      * @param  array<string, CompanyFieldRuleData>  $formRules  each field's rules, by the field's key
      * @param  list<CompanySavedAddressData>  $savedAddresses  store by store, each store's default first
+     * @param  list<CompanyElsewhereData>  $elsewhere  the account's companies in the other stores
      */
     public function __construct(
         /** Before there is a company: EMAIL_NOT_CONFIRMED, NO_APPLICATION or DRAFT_OPEN (§4.3). */
@@ -37,5 +38,17 @@ final class CompanyPage extends Data
         public array $formRules,
         /** The account's saved addresses, which the address is picked from (amendment 16(f)). */
         public array $savedAddresses,
+        /**
+         * The store this page is about — the one being browsed: the company shown, its lists and its
+         * clock are this store's (amendment 19(c)).
+         */
+        public string $storeNameAr,
+        public string $storeNameEn,
+        public array $elsewhere,
+        /**
+         * Set only while the account has no company and no draft here but one in another store: the
+         * page offers "Apply in this store" (amendments 19(b), 19(c)).
+         */
+        public ?CompanyPrefillData $prefill,
     ) {}
 }

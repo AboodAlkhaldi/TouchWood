@@ -26,5 +26,14 @@ final readonly class StoreSummary
         public int $position,
         /** Whether this reader may change this store, which is asked store by store. */
         public bool $editable,
+        /** On or off (owner, 2026-10-01). Only a reader who may switch stores is ever shown an off one. */
+        public bool $isActive = true,
+        /** The base store, which is always on (owner, 2026-10-02). */
+        public bool $isBase = false,
+        /**
+         * Whether this reader may turn this store on or off: they may switch stores (a Super Admin),
+         * and it is not the base store, which is always on.
+         */
+        public bool $switchable = false,
     ) {}
 }

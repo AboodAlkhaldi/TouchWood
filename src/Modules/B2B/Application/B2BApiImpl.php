@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\B2B\Application;
 
+use InvalidArgumentException;
 use Modules\B2B\Application\Settings\StoreBankAccount;
 use Modules\B2B\Domain\Model\Company;
 use Modules\B2B\Domain\Repository\CompanyRepository;
@@ -12,10 +13,12 @@ use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\B2B\Public\Dto\BankAccountDto;
 use Modules\B2B\Public\Dto\CompanyDto;
 use Modules\B2B\Public\Enums\CompanyStatus;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * b2b.md §2.1. Plain reads: no lock, no transaction — each answers one question about one moment.
+ * b2b.md §2.1, per store since amendment 18. Plain reads: no lock, no transaction — each answers one
+ * question about one moment.
  */
 final readonly class B2BApiImpl implements B2BApi
 {
@@ -23,28 +26,45 @@ final readonly class B2BApiImpl implements B2BApi
         private CompanyRepository $companies,
         private CompanyTypeRepository $companyTypes,
         private StoreBankAccount $bankAccount,
+        private PlatformApi $platform,
     ) {}
 
-    public function company(string $customerId): ?CompanyDto
+    public function company(string $customerId, string $storeId): ?CompanyDto
     {
-        $company = $this->companies->forCustomer($customerId);
+        $company = $this->companies->forCustomer($customerId, $storeId);
 
         return $company === null ? null : $this->toDto($company);
     }
 
-    public function status(string $customerId): ?CompanyStatus
+    public function companies(string $customerId): array
     {
-        return $this->companies->forCustomer($customerId)?->status();
+        return array_map($this->toDto(...), $this->companies->allForCustomer($customerId));
     }
 
-    public function isApproved(string $customerId): bool
+    public function status(string $customerId, string $storeId): ?CompanyStatus
     {
-        return $this->companies->forCustomer($customerId)?->mayOrder() ?? false;
+        return $this->companies->forCustomer($customerId, $storeId)?->status();
+    }
+
+    public function isApproved(string $customerId, string $storeId): bool
+    {
+        // An off store takes no orders, whatever its companies' status (platform.md §1.6, b2b.md
+        // amendment 18(c)).
+        return ($this->companies->forCustomer($customerId, $storeId)?->mayOrder() ?? false) && $this->storeIsOn($storeId);
     }
 
     public function bankAccount(string $storeId): ?BankAccountDto
     {
         return $this->bankAccount->for(StoreId::fromString($storeId));
+    }
+
+    private function storeIsOn(string $storeId): bool
+    {
+        try {
+            return $this->platform->store(StoreId::fromString($storeId))?->isActive === true;
+        } catch (InvalidArgumentException) {
+            return false;
+        }
     }
 
     private function toDto(Company $company): CompanyDto
@@ -62,6 +82,7 @@ final readonly class B2BApiImpl implements B2BApi
             $type?->name()->en,
             $company->status(),
             $company->statusReason()?->value,
+            $company->homeStoreId(),
         );
     }
 }

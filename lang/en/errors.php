@@ -9,37 +9,37 @@ declare(strict_types=1);
 
 return [
     'category' => [
-        'not_found' => 'Not found',
-        'forbidden' => 'Not allowed',
+        'not_found' => 'Not Found',
+        'forbidden' => 'Not Allowed',
         'conflict' => 'Conflict',
-        'invalid' => 'Invalid request',
+        'invalid' => 'Invalid Request',
         'unsupported' => 'Unsupported',
-        'too_large' => 'Too large',
+        'too_large' => 'Too Large',
     ],
 
     'unauthorized' => [
-        'title' => 'Not allowed',
+        'title' => 'Not Allowed',
         'detail' => 'You do not have permission to do this.',
     ],
 
     'invalid_money' => [
-        'title' => 'Invalid amount',
+        'title' => 'Invalid Amount',
         'detail' => 'The amount is not valid.',
     ],
 
     'validation_failed' => [
-        'title' => 'Invalid data',
+        'title' => 'Invalid Data',
         'detail' => 'Some of the information you entered is not valid.',
     ],
 
     'http' => [
-        400 => 'Bad request',
-        403 => 'Not allowed',
-        404 => 'Page not found',
-        405 => 'Method not allowed',
-        419 => 'Your session has expired',
-        429 => 'Too many requests',
-        500 => 'Something went wrong',
-        503 => 'Service unavailable',
+        400 => 'Bad Request',
+        403 => 'Not Allowed',
+        404 => 'Page Not Found',
+        405 => 'Method Not Allowed',
+        419 => 'Session Expired',
+        429 => 'Too Many Requests',
+        500 => 'Server Error',
+        503 => 'Service Unavailable',
     ],
 ];

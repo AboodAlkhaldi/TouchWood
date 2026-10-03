@@ -9,6 +9,10 @@ use App\Http\Page;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Response;
+use Modules\Platform\Application\Command\ActivateStore\ActivateStore;
+use Modules\Platform\Application\Command\ActivateStore\ActivateStoreHandler;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStore;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
 use Modules\Platform\Application\Query\ListStores\ListStoresHandler;
@@ -59,6 +63,32 @@ final readonly class StoresController
         }
 
         return back()->with('status', __('platform::admin_stores.saved'));
+    }
+
+    /**
+     * The on/off switch (platform.md §3; owner, 2026-10-01). Super Admin only: the handler asks for
+     * the reserved `platform.store.switch`, and refuses to turn the base store off.
+     */
+    public function activate(Request $request, string $storeCode, ActivateStoreHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new ActivateStore($storeCode));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        return back()->with('status', __('platform::admin_stores.turned_on'));
+    }
+
+    public function deactivate(Request $request, string $storeCode, DeactivateStoreHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new DeactivateStore($storeCode));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        return back()->with('status', __('platform::admin_stores.turned_off'));
     }
 
     /**

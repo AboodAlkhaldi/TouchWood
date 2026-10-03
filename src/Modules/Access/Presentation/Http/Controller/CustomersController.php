@@ -36,8 +36,13 @@ use Shared\Domain\Error\DomainError;
  */
 final readonly class CustomersController
 {
-    /** @var list<string> */
-    private const array WORDS = ['access::customers', 'access::errors', 'admin'];
+    /**
+     * access::account for the languages' names ("We write to them in …"): the customer page read
+     * them without being sent them, and showed the raw key (found in the Geist move, 2026-10-02).
+     *
+     * @var list<string>
+     */
+    private const array WORDS = ['access::customers', 'access::account', 'access::errors', 'admin'];
 
     public function __construct(
         private Page $page,

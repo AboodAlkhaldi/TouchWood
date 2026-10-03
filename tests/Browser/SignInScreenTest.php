@@ -64,7 +64,7 @@ it('says why a sign-in was refused, where the person is looking', function () {
         // The submit button, not the heading above it - both say the same words, and pressing by
         // text found the heading and did nothing at all (found by running it, 2026-09-22).
         ->click('button[type="submit"]')
-        ->assertSee('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
+        ->assertSee('تعذّر تسجيل الدخول. تحقّق من البريد الإلكتروني وكلمة المرور.');
 });
 
 it('lets a person see the password they are typing', function () {

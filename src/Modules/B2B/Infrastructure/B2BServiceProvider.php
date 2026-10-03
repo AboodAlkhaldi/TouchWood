@@ -16,6 +16,7 @@ use Modules\B2B\Application\B2BApiImpl;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
 use Modules\B2B\Application\Query\ShopLine\CompanyStandings;
+use Modules\B2B\Application\Query\ViewTypeLists\TypeHolders;
 use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\B2B\Application\Settings\FormRules;
 use Modules\B2B\Domain\Repository\ApplicationReferenceCounter;
@@ -32,15 +33,18 @@ use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyStandings;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyTypeRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseDocumentTypeRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseStoreTypeListsRepository;
+use Modules\B2B\Infrastructure\Eloquent\DatabaseTypeHolders;
 use Modules\B2B\Infrastructure\Listener\AnonymizeCompany;
 use Modules\B2B\Infrastructure\Listener\WriteStartingTypes;
 use Modules\B2B\Infrastructure\Media\ApplicationFilesUsage;
 use Modules\B2B\Infrastructure\Settings\BankTransferLine;
 use Modules\B2B\Presentation\Storefront\CompanyShopperLine;
 use Modules\B2B\Public\Contracts\B2BApi;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
 
 /**
@@ -59,6 +63,7 @@ final class B2BServiceProvider extends ServiceProvider
         $this->app->bind(ApplicationReferenceCounter::class, DatabaseApplicationReferenceCounter::class);
         $this->app->bind(CompanyReader::class, DatabaseCompanyReader::class);
         $this->app->bind(CompanyStandings::class, DatabaseCompanyStandings::class);
+        $this->app->bind(TypeHolders::class, DatabaseTypeHolders::class);
         $this->app->bind(B2BApi::class, B2BApiImpl::class);
     }
 
@@ -97,8 +102,23 @@ final class B2BServiceProvider extends ServiceProvider
         );
         $this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
 
+        /*
+        | The staff screens (step 7, b2b.md §4.6, amendment 21), in the menu's Companies group. An
+        | entry is offered for one permission: the type lists for each list's update job, which is
+        | provisional (21(b)) — a holder of only another job on a list opens it by its address. What is
+        | offered is never what is allowed: every handler behind these asks again (handoff §19).
+        */
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('b2b', 'companies', 'companies', 'b2b.admin.companies', B2BPermissions::COMPANY_VIEW, 10, icon: 'companies'),
+            new MenuEntryDto('b2b', 'company_types', 'companies', 'b2b.admin.company-types', B2BPermissions::COMPANY_TYPE_UPDATE, 20, icon: 'company_types'),
+            new MenuEntryDto('b2b', 'document_types', 'companies', 'b2b.admin.document-types', B2BPermissions::DOCUMENT_TYPE_UPDATE, 30, icon: 'document_types'),
+        );
+
         if (! $this->app->routesAreCached()) {
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/routes.php');
+            // The panel's own file, apart: the admin session cookie must be set before "web" opens a
+            // session, so it brings its own middleware rather than sharing the shop's group.
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
         }
     }
 }

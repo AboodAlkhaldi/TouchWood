@@ -18,12 +18,12 @@ return [
     'holders_count' => ':count people',
     'no_roles' => 'No roles yet.',
 
-    'new' => 'New role',
-    'edit' => 'Edit',
-    'clone' => 'Clone',
-    'delete' => 'Delete',
-    'refresh' => 'Refresh permissions',
-    'save' => 'Save the role',
+    'new' => 'Create Role',
+    'edit' => 'Edit Role',
+    'clone' => 'Clone Role',
+    'delete' => 'Delete Role',
+    'refresh' => 'Refresh Permissions',
+    'save' => 'Save Role',
     'cancel' => 'Cancel',
 
     // D1's table: business areas down the side, roles across the top.
@@ -31,14 +31,14 @@ return [
     'does_not_reach' => 'Does not',
     'filter_areas' => 'Filter the areas',
     'columns' => 'Roles: :shown of :total',
-    'columns_hint' => 'Roles to show',
+    'columns_hint' => 'Roles to Show',
     'no_areas' => 'No business area matches that.',
-    'comparison' => 'Permissions by role',
+    'comparison' => 'Permissions by Role',
     'comparison_hint' => 'Which areas each role reaches into.',
 
     // D2.
-    'actions' => 'What it allows',
-    'holders' => 'Who holds it',
+    'actions' => 'What It Allows',
+    'holders' => 'Who Holds It',
     'holders_hint' => 'Only the people you manage are listed; the count is everyone.',
     'no_holders' => 'Nobody holds this role.',
     'every_store' => 'Every store',
@@ -46,24 +46,32 @@ return [
     'not_editable' => 'Only a Super Admin may change an admin role.',
 
     // D3.
-    'new_title' => 'A new role',
-    'edit_title' => 'Change a role',
+    'new_title' => 'Create Role',
+    'edit_title' => 'Edit Role',
     'chosen_count' => ':count chosen',
     'not_yours' => 'You do not hold this action, so you cannot give it.',
     'holders_warning' => 'Changing this role changes it for the :count people who hold it.',
     'level_locked' => "A role's level cannot change after it is made.",
 
     // D4.
-    'delete_title' => 'Delete this role',
+    'delete_title' => 'Delete Role',
     'delete_question' => 'Everyone holding it must move to another role of the same level.',
-    'replacement' => 'Move them to',
-    'delete_confirm' => 'Delete the role',
+    'replacement' => 'Replacement Role',
+    'delete_confirm' => 'Delete Role',
     'delete_none_left' => 'There is no other role of this level to move them to.',
 
     // After the fact.
-    'created' => 'The role was created.',
-    'saved' => 'The role was saved.',
-    'cloned' => 'The role was copied.',
-    'deleted' => 'The role was deleted.',
-    'refreshed' => "Everyone's permissions were rebuilt.",
+    'created' => 'Role created',
+    'saved' => 'Role saved',
+    'cloned' => 'Role cloned',
+    'deleted' => 'Role deleted',
+    'refreshed' => 'Permissions refreshed for everyone holding it',
+
+    // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
+    // buttons' reasons and dialogs' own words.
+    'none_title' => 'No Roles Yet',
+    'no_areas_title' => 'No Areas Match',
+    'no_holders_title' => 'No Holders',
+    'verification_label' => 'role name',
+    'delete_body' => 'The role :name will be permanently deleted.',
 ];

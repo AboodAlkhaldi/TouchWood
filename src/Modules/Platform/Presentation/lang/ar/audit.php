@@ -7,6 +7,8 @@ declare(strict_types=1);
 return [
     'store.created' => 'فُتح متجر',
     'store.updated' => 'عُدّل متجر',
+    'store.activated' => 'شُغّل متجر',
+    'store.deactivated' => 'أُوقف متجر',
     'currency.created' => 'أُضيفت عملة',
     'currency.updated' => 'عُدّلت عملة',
     'setting.updated' => 'عُدّل إعداد',

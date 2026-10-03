@@ -108,7 +108,7 @@ final readonly class CompanyTypeCorrection
         $this->companies->update($company);
         $this->platform->recordAudit(StaffCompanyAudit::typeChanged($action, $company, $from));
 
-        $draft = $this->applications->openFor($company->customerId());
+        $draft = $this->applications->openFor($company->customerId(), $company->homeStoreId());
 
         if ($draft !== null && $draft->state() === ApplicationState::Draft && $draft->type()?->equals($from) === true) {
             $draft->describe($draft->name(), $to, $draft->crNumber(), $draft->taxNumber(), $draft->address(), $draft->note());

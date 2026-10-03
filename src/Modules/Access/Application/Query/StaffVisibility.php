@@ -51,8 +51,10 @@ final readonly class StaffVisibility
     public function summary(array $row, bool $unlimited): StaffSummary
     {
         $superAdmin = $row['is_super_admin'] === true;
+        // Revoked, and still hidden from everyone but a Super Admin (amendment 57).
+        $former = ! $superAdmin && ($row['was_super_admin'] ?? false) === true;
         $isAdmin = $superAdmin || $row['role_level'] === RoleLevel::Admin->value;
-        $open = $unlimited || ! $isAdmin;
+        $open = $unlimited || (! $isAdmin && ! $former);
         // A Super Admin holds every store without a role saying so.
         $allStores = $superAdmin || $row['access_level'] === AccessLevel::AllStores->value;
 
@@ -71,6 +73,8 @@ final readonly class StaffVisibility
             $open && $allStores,
             $open && ! $allStores ? $this->storesOf($row) : [],
             $open ? (string) $row['joined_at'] : null,
+            $superAdmin,
+            $former,
         );
     }
 

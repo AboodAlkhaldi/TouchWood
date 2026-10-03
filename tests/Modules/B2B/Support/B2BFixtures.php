@@ -147,23 +147,24 @@ final class B2BFixtures
     }
 
     /**
-     * A draft, filled in with the home store's second company type and a file under each of its
-     * active document types, stored.
+     * A draft in a store (the 'sa' store unless named — a company per store, b2b.md amendment 18),
+     * filled in with that store's second company type and a file under each of its active document
+     * types, stored.
      */
-    public static function storedDraft(string $customerId, ?string $companyId = null): Application
+    public static function storedDraft(string $customerId, ?string $companyId = null, string $storeCode = 'sa'): Application
     {
         $applications = app(ApplicationRepository::class);
-        $draft = Application::draft($applications->nextId(), $customerId, $companyId);
+        $draft = Application::draft($applications->nextId(), $customerId, $companyId, Fx::storeId($storeCode));
         $draft->describe(
             CompanyName::of('Al Noor Trading'),
-            CompanyTypeChoice::listed(app(CompanyTypeRepository::class)->active(Fx::storeId('sa'))[1]->id()),
+            CompanyTypeChoice::listed(app(CompanyTypeRepository::class)->active(Fx::storeId($storeCode))[1]->id()),
             RegistrationNumber::of('cr_number', '1010123456'),
             RegistrationNumber::of('tax_number', '300123456700003'),
             CompanyAddress::of("King Fahd Road\nRiyadh"),
             null,
         );
 
-        foreach (app(DocumentTypeRepository::class)->active(Fx::storeId('sa')) as $type) {
+        foreach (app(DocumentTypeRepository::class)->active(Fx::storeId($storeCode)) as $type) {
             $draft->attach($type->id(), self::privateFile(), CarbonImmutable::now());
         }
 
@@ -188,14 +189,14 @@ final class B2BFixtures
      *
      * @return array{0: Company, 1: Application}
      */
-    public static function sent(string $customerId): array
+    public static function sent(string $customerId, string $storeCode = 'sa'): array
     {
-        $draft = self::storedDraft($customerId);
+        $draft = self::storedDraft($customerId, null, $storeCode);
         $companies = app(CompanyRepository::class);
         $companyId = $companies->nextId();
 
-        $details = $draft->submit($companyId, self::companyTypes(), self::documentTypes(), null, CarbonImmutable::now(), self::reference());
-        $company = Company::fromFirstApplication($companyId, $customerId, Fx::storeId('sa'), $details, CarbonImmutable::now());
+        $details = $draft->submit($companyId, self::companyTypes($storeCode), self::documentTypes($storeCode), null, CarbonImmutable::now(), self::reference());
+        $company = Company::fromFirstApplication($companyId, $customerId, Fx::storeId($storeCode), $details, CarbonImmutable::now());
         $companies->add($company);
         app(ApplicationRepository::class)->update($draft);
 
@@ -207,9 +208,9 @@ final class B2BFixtures
      *
      * @return array{0: Company, 1: Application}
      */
-    public static function approved(string $customerId): array
+    public static function approved(string $customerId, string $storeCode = 'sa'): array
     {
-        [$company, $application] = self::sent($customerId);
+        [$company, $application] = self::sent($customerId, $storeCode);
         $staffId = Fx::staff();
 
         $application->approve($staffId, null, CarbonImmutable::now());
@@ -246,10 +247,14 @@ final class B2BFixtures
 
     /**
      * Where pdf() writes; a test file removes it after each test.
+     *
+     * One folder per test process: the system's temp folder is shared by every run on the machine,
+     * and a test removing the folder after itself took the files another run was still reading
+     * (three failures with three suites running at once, 2026-10-02).
      */
     public static function uploads(): string
     {
-        return sys_get_temp_dir().'/tw-b2b-uploads';
+        return sys_get_temp_dir().'/tw-b2b-uploads-'.getmypid();
     }
 
     /**

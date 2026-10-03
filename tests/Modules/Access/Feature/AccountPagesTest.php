@@ -241,7 +241,7 @@ describe('B1 - the profile', function () {
         ]));
 
         $response->assertRedirect('/admin/account?tab=account');
-        expect(AdminBrowser::flashed($response, 'status'))->toBe('Saved.');
+        expect(AdminBrowser::flashed($response, 'status'))->toBe('Changes saved');
 
         $row = DB::table('access.staff_users')->where('id', $staffId)->first();
 
@@ -448,7 +448,7 @@ describe('B3 - the password', function () {
         $response->assertRedirect();
 
         expect(AdminBrowser::flashed($response, 'status'))
-            ->toBe('Your password was changed. Every other session was signed out.')
+            ->toBe('Password changed. Every other session was signed out.')
             ->and((string) DB::table('access.staff_users')->where('id', $staffId)->value('password'))
             ->not->toBe($before);
 
@@ -481,7 +481,7 @@ describe('B4 - the notifications', function () {
         ]);
 
         $response->assertRedirect('/admin/account?tab=notifications');
-        expect(AdminBrowser::flashed($response, 'status'))->toBe('Saved.');
+        expect(AdminBrowser::flashed($response, 'status'))->toBe('Changes saved');
 
         $browser->get('/admin/account')->assertInertia(function (AssertableInertia $inertia) {
             /** @var list<array{topic: string, email: bool, panel: bool}> $topics */

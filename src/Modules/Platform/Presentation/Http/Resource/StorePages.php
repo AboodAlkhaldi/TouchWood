@@ -31,6 +31,7 @@ final readonly class StorePages
         return new StoresPage(
             array_map($this->row(...), $stores),
             self::timezones(),
+            $handler->maySwitch(),
         );
     }
 
@@ -50,6 +51,9 @@ final readonly class StorePages
             $store->timezone,
             $store->position,
             $store->editable,
+            $store->isActive,
+            $store->isBase,
+            $store->switchable,
         );
     }
 

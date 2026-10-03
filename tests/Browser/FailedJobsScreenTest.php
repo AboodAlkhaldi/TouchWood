@@ -69,7 +69,7 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
         ->assertPathIs('/admin');
 
     // The owner's words (2026-09-29), from the menu this person was offered.
-    $page->assertSee('Failed jobs: 2 waiting')
+    $page->assertSee('Failed Jobs: 2 waiting')
         ->assertSeeIn('[data-test="count-platform.failed_jobs"]', '2')
         ->assertMissing('[data-test="dot-platform.failed_jobs"]')
         ->assertNoJavaScriptErrors();
@@ -89,13 +89,13 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
         ->assertSee('RuntimeException: The disk did not answer.');
 
     $page->click("[data-test=\"retry-{$retried}\"]")
-        ->assertSee('The job is back on its queue.')
+        ->assertSee('Job requeued')
         ->assertNoJavaScriptErrors();
 
     $page->click("[data-test=\"delete-{$deleted}\"]")
-        ->assertSee('Delete this job for good? It will not run.')
+        ->assertSee('The job will not run. This cannot be undone.')
         ->click("[data-test=\"delete-confirm-{$deleted}\"]")
-        ->assertSee('The job was deleted.')
+        ->assertSee('Job deleted')
         ->assertSee('Nothing has failed.')
         ->assertNoJavaScriptErrors();
 

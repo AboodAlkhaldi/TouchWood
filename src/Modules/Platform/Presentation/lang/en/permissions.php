@@ -5,33 +5,34 @@ declare(strict_types=1);
 // The names of Platform's permissions in the role editor (PlatformPermissions).
 return [
     'store' => [
-        'create' => 'Create stores',
-        'update' => 'Edit stores',
-        'view' => 'View stores',
+        'create' => 'Create Stores',
+        'update' => 'Edit Stores',
+        'view' => 'View Stores',
+        'switch' => 'Turn Stores On and Off',
     ],
     'currency' => [
-        'create' => 'Create currencies',
-        'update' => 'Edit currencies',
+        'create' => 'Create Currencies',
+        'update' => 'Edit Currencies',
     ],
     'settings' => [
-        'view' => 'View settings',
-        'update' => 'Change settings',
+        'view' => 'View Settings',
+        'update' => 'Change Settings',
     ],
     'media' => [
-        'upload' => 'Upload files',
-        'update' => 'Edit file descriptions',
-        'delete' => 'Delete files',
+        'upload' => 'Upload Files',
+        'update' => 'Edit File Descriptions',
+        'delete' => 'Delete Files',
         'private' => [
-            'view' => 'View private files',
+            'view' => 'View Private Files',
         ],
         'variants' => [
-            'generate' => 'Generate image sizes',
+            'generate' => 'Generate Image Sizes',
         ],
     ],
     'audit' => [
-        'view' => 'View the audit log',
+        'view' => 'View the Audit Log',
     ],
     'jobs' => [
-        'manage' => 'See, retry and delete failed jobs',
+        'manage' => 'See, Retry and Delete Failed Jobs',
     ],
 ];

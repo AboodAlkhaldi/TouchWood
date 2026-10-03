@@ -1,7 +1,9 @@
 import {
     Boxes,
+    Building2,
     CircleDot,
     Contact,
+    FileText,
     Image,
     UserRound,
     LayoutDashboard,
@@ -10,6 +12,7 @@ import {
     ShieldCheck,
     ShoppingCart,
     Store,
+    Tags,
     TriangleAlert,
     Users,
 } from 'lucide-react';
@@ -39,6 +42,9 @@ const ICONS = {
     audit: ScrollText,
     billing: Receipt,
     failed_jobs: TriangleAlert,
+    companies: Building2,
+    company_types: Tags,
+    document_types: FileText,
 } as const;
 
 type Props = {

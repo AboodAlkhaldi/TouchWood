@@ -20,6 +20,7 @@ use Modules\Access\Application\Query\ViewStaff\ViewStaffHandler;
 use Modules\Access\Domain\Exception\CustomerNotFound;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\Access\Presentation\Http\Resource\StaffPages;
 use Modules\Access\Public\Enums\StaffStatus;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -173,6 +174,34 @@ describe('the staff a staff member sees (amendments 9 and 43)', function () {
             ->and($seen[$colleague]->isAdmin)->toBeFalse();
     });
 
+    it('leaves an admin\'s profile out of their page, not only off the screen (amendments 43(a), 57)', function () {
+        $adminId = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa'], RoleLevel::Admin);
+        $colleague = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa'], RoleLevel::Staff);
+        DB::table('access.staff_users')->whereIn('id', [$adminId, $colleague])->update(['address' => 'King Fahd Road']);
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']));
+
+        $admin = app(StaffPages::class)->member($adminId);
+        $seen = app(StaffPages::class)->member($colleague);
+
+        expect($admin->name)->not->toBeEmpty()
+            ->and($admin->roleName)->not->toBeEmpty()
+            ->and($admin->dateOfBirth)->toBeNull()
+            ->and($admin->country)->toBeNull()
+            ->and($admin->address)->toBeNull()
+            ->and($admin->communicationLocale)->toBeNull()
+            ->and($admin->avatarUrl)->toBeNull()
+            // An ordinary colleague's page is whole.
+            ->and($seen->dateOfBirth)->toBe('1990-01-01')
+            ->and($seen->country)->toBe('SA')
+            ->and($seen->address)->toBe('King Fahd Road')
+            ->and($seen->communicationLocale)->toBe('en');
+
+        // A Super Admin reads the admin's page whole.
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(app(StaffPages::class)->member($adminId)->dateOfBirth)->toBe('1990-01-01');
+    });
+
     it('answers no filter about what it hides: an admin is neither filtered by status nor found by email', function () {
         $adminId = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa'], RoleLevel::Admin);
         $disabled = Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa'], RoleLevel::Staff);
@@ -248,14 +277,17 @@ describe('the staff a staff member sees (amendments 9 and 43)', function () {
             ->toThrow(StaffNotFound::class);
     });
 
-    it('shows a Super Admin everyone, in full', function () {
+    it('shows a Super Admin everyone, in full — the other Super Admins in a section of their own', function () {
         $otherSuperAdmin = Fx::staff(superAdmin: true, firstName: 'Other');
         $admin = Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa'], RoleLevel::Admin);
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
         $seen = listedStaff();
+        $page = app(ListStaffHandler::class)->handle(new ListStaff);
 
-        expect($seen)->toHaveKey($otherSuperAdmin)
+        // Never among the admins: apart, in the Super Admins section (amendment 54).
+        expect($seen)->not->toHaveKey($otherSuperAdmin)
+            ->and(array_map(static fn (StaffSummary $person): string => $person->id, $page->superAdmins))->toContain($otherSuperAdmin)
             ->and($seen[$admin]->email)->not->toBeNull()
             ->and(app(ViewStaffHandler::class)->handle(new ViewStaff($otherSuperAdmin))->isAdmin)->toBeTrue();
     });

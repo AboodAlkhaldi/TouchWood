@@ -5,7 +5,7 @@ import { FormError } from '@/components/FormError';
 import { PermissionPicker } from '@/components/PermissionPicker';
 import { ALL_STORES, ExceptionList, SELECTED_STORES, StoreChoice } from '@/components/RoleStores';
 import type { ExceptionRow } from '@/components/RoleStores';
-import { Button } from '@/components/ui/button';
+import { Badge, Button, RadioGroup } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type { StaffRolePage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -19,9 +19,15 @@ import type { StaffRolePage } from '@/types/generated/Modules/Access/Presentatio
 |
 | Only the stores this admin manages themselves are offered, because nobody hands out reach they do
 | not have. Actions they do not hold are shown but cannot be ticked, which is the picker's doing.
+|
+| In Geist's choices (frontend.md 1.10): the role is a RadioGroup - one saved role, or a role of
+| their own - as on the invitation's second step.
 */
 
 type Props = StaffRolePage;
+
+/** The radio value for "a role of their own", which is no saved role at all. */
+const OWN_ROLE = 'own';
 
 export default function Role(page: Props) {
     const t = useTranslator();
@@ -92,56 +98,47 @@ export default function Role(page: Props) {
             >
                 <FormError />
 
-                <section className="grid gap-3">
-                    <div className="grid gap-0.5">
-                        <h2 className="text-sm font-semibold text-ink">{t('access::staff.pick_role')}</h2>
-                        <p className="text-xs text-ink-muted">{t('access::staff.pick_role_hint')}</p>
-                    </div>
-
-                    <ul className="grid gap-2 sm:grid-cols-2">
-                        {page.savedRoles.map((role) => (
-                            <li key={role.id}>
-                                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-surface px-4 py-3">
-                                    <input
-                                        type="radio"
-                                        name="role"
-                                        className="mt-1 accent-brand"
-                                        checked={roleId === role.id}
-                                        onChange={() => pick(role.id)}
-                                    />
+                <section className="material-base p-5">
+                    <RadioGroup
+                        name="role"
+                        legend={
+                            <span className="grid gap-1">
+                                <span className="text-heading-16 text-ink">{t('access::staff.pick_role')}</span>
+                                <span className="text-copy-13 font-normal text-ink-muted">{t('access::staff.pick_role_hint')}</span>
+                            </span>
+                        }
+                        value={roleId ?? OWN_ROLE}
+                        onChange={(value) => pick(value === OWN_ROLE ? null : value)}
+                        options={[
+                            ...page.savedRoles.map((role) => ({
+                                value: role.id,
+                                label: (
                                     <span className="grid gap-0.5">
-                                        <span className="text-sm text-ink">
+                                        <span className="flex flex-wrap items-center gap-2">
                                             {role.name}
                                             {roleId === role.id && edited ? (
-                                                <span className="ms-2 rounded-pill bg-warn-soft px-2 py-0.5 text-xs text-warn">
+                                                <Badge variant="amber-subtle" size="small">
                                                     {t('access::staff.edited')}
-                                                </span>
+                                                </Badge>
                                             ) : null}
                                         </span>
-                                        <span className="tw-figure text-xs text-ink-muted">
+                                        <span className="tw-figure text-copy-13 text-ink-muted">
                                             {t('access::staff.actions_count', { count: role.permissionCount })}
                                         </span>
                                     </span>
-                                </label>
-                            </li>
-                        ))}
-
-                        <li>
-                            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-surface px-4 py-3">
-                                <input
-                                    type="radio"
-                                    name="role"
-                                    className="mt-1 accent-brand"
-                                    checked={roleId === null}
-                                    onChange={() => pick(null)}
-                                />
-                                <span className="grid gap-0.5">
-                                    <span className="text-sm text-ink">{t('access::staff.own_role')}</span>
-                                    <span className="text-xs text-ink-muted">{t('access::staff.own_role_hint')}</span>
-                                </span>
-                            </label>
-                        </li>
-                    </ul>
+                                ),
+                            })),
+                            {
+                                value: OWN_ROLE,
+                                label: (
+                                    <span className="grid gap-0.5">
+                                        <span>{t('access::staff.own_role')}</span>
+                                        <span className="text-copy-13 text-ink-muted">{t('access::staff.own_role_hint')}</span>
+                                    </span>
+                                ),
+                            },
+                        ]}
+                    />
                 </section>
 
                 <PermissionPicker
@@ -152,9 +149,9 @@ export default function Role(page: Props) {
                 />
 
                 <section className="grid gap-3">
-                    <div className="grid gap-0.5">
-                        <h2 className="text-sm font-semibold text-ink">{t('access::staff.where')}</h2>
-                        <p className="text-xs text-ink-muted">{t('access::staff.where_hint')}</p>
+                    <div className="grid gap-1">
+                        <h2 className="text-heading-16 text-ink">{t('access::staff.where')}</h2>
+                        <p className="text-copy-13 text-ink-muted">{t('access::staff.where_hint')}</p>
                     </div>
 
                     <StoreChoice
@@ -167,9 +164,9 @@ export default function Role(page: Props) {
                 </section>
 
                 <section className="grid gap-3">
-                    <div className="grid gap-0.5">
-                        <h2 className="text-sm font-semibold text-ink">{t('access::staff.exceptions_title')}</h2>
-                        <p className="text-xs text-ink-muted">{t('access::staff.exceptions_hint')}</p>
+                    <div className="grid gap-1">
+                        <h2 className="text-heading-16 text-ink">{t('access::staff.exceptions_title')}</h2>
+                        <p className="text-copy-13 text-ink-muted">{t('access::staff.exceptions_hint')}</p>
                     </div>
 
                     <ExceptionList
@@ -182,7 +179,7 @@ export default function Role(page: Props) {
                 </section>
 
                 <div>
-                    <Button type="submit" disabled={form.processing}>
+                    <Button typeName="submit" loading={form.processing}>
                         {t('access::staff.save_role')}
                     </Button>
                 </div>

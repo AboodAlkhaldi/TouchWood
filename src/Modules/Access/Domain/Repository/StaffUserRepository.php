@@ -66,6 +66,16 @@ interface StaffUserRepository
     public function names(array $ids): array;
 
     /**
+     * "First Last" for each id, and whether that person is **or ever was** a Super Admin — what naming
+     * someone to another reader needs (amendments 54, 57). Ids that are not a staff member's are left
+     * out. No lock.
+     *
+     * @param  list<string>  $ids
+     * @return array<string, array{name: string, superAdmin: bool}> id (lower-cased) => the person
+     */
+    public function displayNames(array $ids): array;
+
+    /**
      * @throws StaffEmailInUse|PhoneAlreadyInUse when another account took it at the same moment
      */
     public function add(StaffUser $staff): void;

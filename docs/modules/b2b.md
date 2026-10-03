@@ -411,9 +411,10 @@ Everything another module needs, and nothing more. Ids in, DTOs out; never an El
 
 | Method | For |
 |---|---|
-| `company(string $customerId): ?CompanyDto` | Sales and the admin screens: the company behind an account, or null for an individual |
-| `status(string $customerId): ?CompanyStatus` | The shop's banner (§4.3) and the staff screens. **Not Pricing** — since 2026-09-26 prices follow the account type, which Access owns, so nothing asks this on a hot path and nothing caches it |
-| `isApproved(string $customerId): bool` | Sales's half of `canPlaceOrder` (handoff §7.4) |
+| `company(string $customerId, string $storeId): ?CompanyDto` | Sales and the admin screens: the account's company **in that store** (amendment 18 — one per store), or null |
+| `companies(string $customerId): list<CompanyDto>` | Every store's company of the account (amendment 20) |
+| `status(string $customerId, string $storeId): ?CompanyStatus` | The shop's banner (§4.3) and the staff screens, per store. **Not Pricing** — since 2026-09-26 prices follow the account type, which Access owns, so nothing asks this on a hot path and nothing caches it |
+| `isApproved(string $customerId, string $storeId): bool` | Sales's half of `canPlaceOrder` (handoff §7.4): that store's company approved, and the store on (amendments 18, 20) |
 | `bankAccount(string $storeId): ?BankAccountDto` | Sales and Payments: the account a company of that store transfers to — **null while bank transfer is temporarily off**, until the store has filled in all three settings (§2.3, amendment 13(c)); checkout then disables paying by transfer, and the server refuses it |
 
 `CompanyDto` carries the id, the account id, the name, the type's name in both languages, the
@@ -725,6 +726,115 @@ its fields, its company types or its address differ from this spec, the spec hol
   14(b)); the company page is reached from the strip once the email is confirmed, or from its
   pages at any time.
 
+### 4.6 The staff screens
+
+**[2026-10-02] Step 7, in the admin panel, in Geist** (amendment 21; frontend.md §1.8, §1.10). Every
+choice this section makes that no earlier decision made is marked **[PROVISIONAL 2026-10-02 — owner
+to confirm]**: it was written in the overnight run while the owner slept, and is the option the
+builder would recommend. The use cases behind every button are §3.2's, unchanged; a screen offers
+only what the reader may do next, and every handler asks again (handoff §19).
+
+**Where they are.** Three entries in the menu's **Companies** group: **Companies**
+(`b2b.company.view`), **Company Types** and **Document Types**. The two type lists are one
+"types page" (§1.3) with a tab for each list, and always show **the store in the panel's header**
+(frontend.md §2.2): another store's lists are reached by changing the store there. The menu gives an
+entry one permission, so **Company Types is offered to holders of `b2b.company_type.update` and
+Document Types to holders of `b2b.document_type.update`** [PROVISIONAL]; anyone holding any other job
+on a list in that store — adding, deactivating, moving companies between types — may open the page
+all the same, but is not offered the entry. Offering it to them needs a Platform addition (a menu
+entry offered for any of several permissions), which is the owner's call. Pages: `/admin/companies`,
+`/admin/companies/{id}`, `/admin/company-types`, `/admin/document-types` [PROVISIONAL].
+
+**Who may read a type list** [PROVISIONAL]: anyone holding, **in that store**, any job on that list —
+for company types `b2b.company_type.create`, `.update`, `.deactivate` or `b2b.company.transfer_type`;
+for document types `b2b.document_type.create`, `.update` or `.deactivate`. No new permission: reading
+a list is part of every job on it. Anyone else is refused as not allowed, as a store they name is
+(§3.2).
+
+**The company list** (`ListCompanies`): a table of **Company · Status · Store · Sent · Last Change**,
+the waiting ones first, the oldest sent first, then the rest by their latest status change; 25 a
+page with the range and Previous / Next (Geist's table and pager). Filters: a search (name, CR
+number, tax number, or an application's reference), the status, and the store — **only the stores
+the reader covers, and no store filter at all when that is one store** [PROVISIONAL]. A company whose
+waiting application's type was deactivated since it was sent carries an amber **Type Deactivated**
+mark beside its name, for information (§1.3, amendment 11(a)). Nothing in the list changes anything;
+each row opens the company. Times are the company's home store's (§4.5) [PROVISIONAL].
+
+**The company page** (`ViewCompany`), read only except for its buttons:
+
+- **Status**: the status as a badge, the reason it carries, when it last changed and by whom, whether
+  it may order, and its store.
+- **Company Details**: name, type — a listed type's name, or **Other** with the company's own words,
+  marked as still to be corrected —, CR number, tax number and address, as the company holds them now.
+- **Account Holder**, read from Access (§1.1): name, email, phone, and whether the email and phone are
+  confirmed; an erased account says so (§1.1, amendment 13(e)).
+- **Applications**, newest first — **never a draft** (§3.2) — each with its reference, its state, when
+  it was sent and decided and **by whom**, its reason or note, what it sent, its papers, what it
+  flagged and asked for, and the answers it gave to the requests of the application before it
+  [PROVISIONAL: the newest open, the older ones folded]. A waiting application whose type was
+  deactivated since it was sent shows a note naming the type the company holds now — for
+  information only (amendment 11(a)).
+- **Papers** open through a 30-minute signed link (`DownloadCompanyDocument`), each opening audited
+  (amendment 10(f)); without `b2b.company_document.view` a paper shows its type and when it was
+  uploaded — not its file's name, which is the company's, nor the file's id, which a reader without
+  the private-files permission is never told (amendment 8(c)) — and its Open button is disabled with
+  the reason [PROVISIONAL].
+
+Its buttons, each offered only to whoever holds the job **and** only when it can happen next:
+
+| Button | Offered | Asks for | Toast |
+|---|---|---|---|
+| **Approve Company** | an application waits (`PENDING`) — `b2b.company.review` | an optional note; the modal says it is emailed to the customer with the approval (amendment 1), and shows the type note above when there is one | Company approved |
+| **Reject Application** | the same | **a reason** (required), and optionally **marked items** — any of the five fields, and each paper the application sent — and **requests** — each a text answer or a file, under a label staff write (§1.2, amendment 4); the modal says the reason is emailed, and shows the type note above when there is one (§3.2) | Application rejected |
+| **Suspend Company…** | any status but suspended — `b2b.company.suspend` | **a reason**; the modal says the company cannot order or change anything until reinstated, and that the reason is emailed | Company suspended |
+| **Reinstate Company** | suspended — `b2b.company.suspend` | **a reason**; the modal names the status it returns to (§4.1) and says no email is sent (§2.3) | Company reinstated |
+| **Correct Company Type…** | any status but suspended — `b2b.company.correct_type` | a listed type of the home store, or "Other" in words — "Other" not offered once the company is approved (amendment 13(b)); a **deactivated** type is offered, marked, only to someone who may also activate types, and choosing it says the type becomes active again for the whole store before it is assigned (amendments 8(b), 10(b)); nothing is chosen when the modal opens, and the button waits for a type other than the one the company holds, or "Other" | Company type corrected |
+
+- **Approve Company is disabled, with its reason, while the company is "Other"** — correct the type
+  first (amendment 13(b)) — **and while the account is erased** — reject it instead (13(e))
+  [PROVISIONAL: shown disabled with the reason rather than hidden].
+- **Reject and Suspend are destructive**: Geist's destructive Modal, focus starting on Cancel, the
+  button disabled until a reason is written. **Not the typed-confirmation modal**: both can be undone —
+  a rejected company applies again, a suspended one is reinstated [PROVISIONAL]. Approve and
+  Reinstate use a plain Modal.
+- **Where they sit** [PROVISIONAL]: Approve and Reject at the top of the page; Reinstate there while
+  suspended; Correct Company Type and Suspend in the page's actions menu, Suspend last (Geist's menu
+  rules).
+- A refusal shows as the module's own error (§7), in a red note at the top of the page and a toast
+  (frontend.md §2.1); a reason the domain refuses shows under the reason.
+
+**The types page** (one store's two lists):
+
+- **The "copied" notice** (§1.3, amendments 6(a) and 10(d)), above either list while the store's lists
+  are marked copied, not yet reviewed, with **Mark Lists Reviewed** for holders of either list's
+  update job [PROVISIONAL wording: "These are the lists every store starts with, written for Saudi
+  forms and papers. Change what this store needs, or mark the lists reviewed."].
+- **A table per list**: Position · Arabic Name · English Name · Status (Active, or Hidden / Greyed Out
+  when deactivated) · for company types, **Companies** — how many hold it — · for document types,
+  **Required**. Ordered as the form orders them (§1.3). Each row's actions in a menu.
+- **Add Company Type / Add Document Type** (the page's main button): both names and the position — a
+  document type also whether it is required [PROVISIONAL: the position defaults to ten after the
+  last].
+- **Rename…** (both names) and **Change Position…** — the list's update job; for a document type,
+  **Make Required** / **Make Optional** at once from the menu.
+- **Deactivate Company Type… / Deactivate Document Type…** — how it shows to new applications,
+  **Hidden** or **Greyed Out** (amendment 5); for
+  a company type that companies hold, what happens to them: **leave them**, **move them to another
+  active type**, or **move them to a new type** made in the same step — both names, and a position
+  that defaults to the old type's (amendment 11(b)); the last offered only to someone who may also add
+  types. The modal says suspended companies keep the old type (10(h)). Destructive Modal, not typed.
+- **Activate Company Type / Activate Document Type** at once from the menu.
+- **Move Companies…** (`b2b.company.transfer_type`, an active company type that companies hold): to
+  another active type, both staying offered; suspended companies stay (amendment 11(c)).
+- Toasts: Company type added, renamed, deactivated, activated; Position changed; Companies moved;
+  Document type added, renamed, deactivated, activated, made required, made optional; Lists marked
+  reviewed.
+
+**Words** — every English and Arabic word on these screens is the builder's, after Geist's writing
+rules (frontend.md §1.10) [PROVISIONAL, owner to confirm]. The refusals keep §7's own words; where
+those were written for the company (`CompanyNotFound`, `CompanyTypeInactive`), staff read the same
+words until they are reworded.
+
 ---
 
 ## 5 · Tables
@@ -897,6 +1007,16 @@ type string and HTTP status (handoff §11).
 41. The address is picked from the account's saved addresses, any store's, and only one its format accepts; another account's address is refused as unknown; the application and the company keep a copy that editing or deleting the saved address does not change; with none saved, Add an address goes to the Addresses page and back to the application once one is saved (amendment 16(f); access.md amendment 51).
 42. The side column is the lifecycle alone — sending, under review, the decision with its result — with the pointer on the step the latest application has reached, back at the first when a company applies again, hidden while suspended; an approved company's bank account is a card in the main column, or "temporarily unavailable" (amendment 16(e)).
 
+**The staff screens** (amendment 21)
+
+43. The company list shows only the companies of the reader's stores, waiting ones first, 25 a page; filtering by a store the reader does not cover is refused; the store filter offers only their stores.
+44. A company of another store answers "not found" on its page and on every button behind it; a reader without a job is refused it, and its button is never drawn.
+45. Approve, Reject, Suspend, Reinstate and Correct Company Type each appear only for a reader holding the job and only when it can happen next; Approve is disabled, with the reason, while the company is "Other" or its account is erased.
+46. Rejecting needs a reason, and may mark any of the five fields and any paper sent, and ask for texts and files; suspending and reinstating need a reason.
+47. Opening a paper goes through a 30-minute link and is audited; without the job of opening papers the page shows the paper and no way to open it.
+48. A type list is read by anyone holding a job on it in the header's store, and refused to anyone else; the "copied" notice shows until any change to either list or Mark Lists Reviewed.
+49. Deactivating a company type that companies hold asks what happens to them — leave, move to another type, or move to a new one, the last only for someone who may also add types; moving companies between two active types is its own job.
+
 ---
 
 ## 9 · Open questions
@@ -936,3 +1056,6 @@ place in the sections named; this table records what changed and why.
 | 16 | §1.1, §3.1, §4.5, §5, §5.1, §7, §8 (36–42) | **Step 6, after the owner used the page** — the owner's changes. (a) **Each field says where it stands**: yellow while not valid, and then never sent — the page checks first, the server again; "Saving…" never stops the other fields; green and "Saved" once the server holds it; red with the server's reason if it refuses. The page takes each field's rules from the server. (b) **Minimums**: name 2, CR number 5, tax number 5, "Other"'s words 3, a text answer 2, the note none — **settings, one set for every store**, changed under `platform.settings.update`, bounded by each field's maximum; held on save and again on send. (c) **The same file twice**: a paper named exactly as a file under another document type of the draft is refused (`DuplicateDocumentFile`), by the page and the server; answers are not compared. (d) **Send is inactive until everything is complete**, with what is missing listed; the server refuses an incomplete send too. (e) **The side column is the application's lifecycle alone**: three steps — filling and sending, under review, the decision with its result — the pointer on the latest application's step, hidden while suspended; "How a company pays" and "Before approval" go, and an approved company's bank account is a card in the main column. This replaces amendment 14(h)'s side column and 15(d). (f) **The address is picked from the account's saved addresses**, any store's, and kept as a copy — its formatted text and which saved address it was — which editing or deleting the saved address does not change; with none saved, Add an address goes to the Addresses page and back (access.md amendment 51). This replaces amendment 2's typed address; the copy may be as long as Access writes it (6,000). | The owner, having used the page: a person must see what is saved and what is wrong before sending; the numbers are the owner's, and admins change them; a scanned file put in two sections is a mistake; the side column should show where the application is and nothing else; an address belongs in the country's own format, entered once. | Owner, 2026-09-30 |
 | 17 | §1.1, §1.2, §3.1, §4.5, §5.1 | **Step 6, after the review of amendment 16** — the owner's answers ("the recommended fix for each", 2026-10-01). (a) **One rule for what "at either end" means**: the page and the server trim the same characters — tabs, line breaks, the vertical tab and form feed, every Unicode space separator (a no-break space included) and U+FEFF — so a value pasted with an invisible space at its end is never shown valid and then refused, nor the other way round; flags compare after the same trim (§1.2). (b) **An edited saved address can be picked again**: an address shows as picked only when it is the one picked **and** it still reads as the kept copy; once edited in the address book it is shown unpicked, with a note, and picking it again takes the new text. (c) **A field's own answer never overwrites a newer edit**: while the person has typed on since, the field keeps what they typed. (d) **Two papers of one name are compared as the media library keeps names** (Platform's `MediaFilename::kept`): an invisible character or a space at the ends does not make a second name. (e) **The copy's bound is 6,000 characters**, the column's; Access's limits keep a formatted address within it unless its template repeats a field, and a longer one is refused as too long. (f) **The last decision's marks stay red**, and a marked field that has not been changed never shows green "Saved" (owner). (g) **A refusal says why**: when the page, given the rules again with the refusal, knows the reason, it shows that reason in red rather than only "not valid". (h) **The draft is checked before its values**: a suspended company or an account with no draft is told so before any value is weighed; a saved address deleted while it is being picked is refused on the address, not answered with an error page. (i) **Leaving the form waits its turn**: Add an address goes after the saves still waiting, and Discard waits for them. (j) **§4.5 corrected** (owner): while a draft is open, the address picked in the form changes the company's address **when the application is sent**, not before; the address card, while no draft is open, changes it at once (15(c)). (k) **Confirmed as built** (owner, 2026-09-30): an empty required field turns yellow once it is left or its saved value is cleared, and an untouched one is listed beside Send instead; Add an address is offered with saved addresses too. | The independent review of amendment 16 found the page and the server trimming different characters, an edited saved address that could not be picked again, a field's answer overwriting a newer edit, file names Platform cleans slipping past the check, and a wrong reason for the 6,000 bound; the owner took the recommended fix for each, and answered the two open questions. | Owner, 2026-10-01 |
 | 18 | §1.1, §1.3, §3, §5, §5.2 | **A company per store, ordering only where it is approved** (owner, 2026-10-02, the new direction). (a) An account may hold **a company in each store it applies in**, each with its own application, approval, status, lists, bank account and clock; `customer_id` is unique together with `home_store_id`, which is now **the store the company applied in**. (b) **Ordering in a store needs that store's company `APPROVED`**; company prices still follow the account type (handoff §8.2). Reverses 2026-09-19's "one company record is valid in every store". (c) **An off store** (platform.md §1.6): its companies cannot order or apply there — its pages are gone — and may apply in another store. (d) **Built later**, as a B2B step of its own before step 7; its questions go to the owner before any code — how a company account chooses the store it applies in, whether its details carry over from a company it holds elsewhere, what the company page, the shop line and the emails show for an account with companies in two stores, and how the public contract answers per store. (e) What it changes in code already built: the unique key, the one-open-application rule (per account **and store**), the company page, the staff screens' scope, `B2BApi`. | The owner: "it can apply a new application to another store to order from, as it's a two-regions company"; each country's registration is checked by that country's staff. | Owner, 2026-10-02 |
+| 19 | §1.1, §1.2, §3.1, §3.2, §4.4, §4.5, §5, §5.2 | **A company per store: the owner's answers to amendment 18(d)** (2026-10-02). (a) **A company account applies in the store it is browsing**; the form has no store field. (b) **Applying in a second store**: the form starts with the **name and the company type** of its company in another store, both editable; the address, the CR number, the tax number and the documents are entered fresh — they belong to that country. Company types are per-store lists: when the other store's type has no counterpart in this store's list, the type is left empty. (c) **The company page, the shop line and the banners show the company of the store you are in**; where the account has none there, they offer **"Apply in this store"**. **Emails about a company name the store.** (d) As 18(e) said: the unique key becomes `(customer_id, home_store_id)`; the one-open-application rule is **per account and store**; staff scope follows the company's store; `B2BApi` answers per store — ordering in a store needs that store's company `APPROVED`. | The owner's answers to the four questions 18(d) left open. | Owner, 2026-10-02 |
+| 20 | §1.1, §1.2, §2.1, §3.1, §4.4, §4.5, §5, §5.2, §6 | **Building amendments 18 and 19** — the points the answers did not settle, each taken as the builder recommends. (a) **A type's counterpart** in this store's list is an **active** type with the same names, ignoring case and the spaces at either end: one matching both its Arabic and its English name first; failing that, the single type matching either name; two matching by one name each, or none, and the type is left empty (as amended after the independent review, 2026-10-02 — and the company carried from is only ever one in a store that is on, platform.md §1.6); a company still "Other" carries its own words over as "Other". (b) **Which company the form starts from**, when the account has several elsewhere: an approved one first, otherwise the newest. (c) **`b2b.applications.store_id`**, the store the application was made in — a first draft has no company yet; existing rows take their company's store, or the account's home store for a draft with no company yet; one open application per `(customer_id, store_id)` (`applications_one_open_per_store`); one company per `(customer_id, home_store_id)` (`companies_one_per_store`). That an application's company is of its own store is a rule in code only. (d) **The account's lock stays one per account**, across its stores: two stores' writes for one account wait for each other, which costs nothing and keeps B2B's one lock order. (e) **Outside a storefront request** — the console, a test — a company use case acts in the account's home store. (f) **`B2BApi` per store**: `company(customerId, storeId)`, `status(customerId, storeId)`, `isApproved(customerId, storeId)` — false while the store is off, whatever the company's status — and `companies(customerId)`, every store's, for the admin screens; `CompanyDto` carries `storeId`. (g) **The shop line**, where the account has no company and no draft in this store but has one elsewhere: "Apply in this store to order here: each store approves its own companies." (h) **The company page** carries the store it is about, the account's companies in other stores (store, name, status), and what "Apply in this store" would start with. (i) **Emails**: each of the three decision emails gains one line naming the store, in the customer's language; the subject and the rest are unchanged. (j) **Anonymizing an account** reaches its company and its open draft in every store. | Each point needed an answer for the code to be written; the owner was asleep. | **[PROVISIONAL 2026-10-02 — owner to confirm]** |
+| 21 | §4.6, §8 (43–49) | **Step 7, the staff screens** — written and built in the overnight run of 2026-10-02 while the owner slept; **every pick below is [PROVISIONAL 2026-10-02 — owner to confirm]**, the option the builder would recommend. (a) **Three menu entries in the Companies group** — Companies, Company Types, Document Types — at `/admin/companies`, `/admin/companies/{id}`, `/admin/company-types`, `/admin/document-types`; the two type lists are one types page with a tab each, **for the store in the panel's header**. (b) **The type entries are offered to holders of each list's update job**; holders of only another job on a list open it by its address — offering them the entry needs a Platform addition (a menu entry for any of several permissions), the owner's call. (c) **Reading a type list is part of every job on it**, in that store; no new permission. (d) **The company list**: Company · Status · Store · Sent · Last Change, 25 a page, the store filter offering only the reader's stores and hidden when they have one; the "type deactivated since sent" mark beside the name. (e) **The company page**: status, details, account holder, applications newest first with who decided each, the newest open; papers open through a 30-minute link; without the job a paper shows its type and date but neither its file's name nor its id, and the Open button is disabled with its reason. (f) **Buttons offered only when they can happen next**; Approve **disabled with its reason** while "Other" or the account is erased. (g) **Reject and Suspend use Geist's destructive Modal, not the typed confirmation** — both can be undone; Approve and Reinstate a plain Modal; Approve and Reject at the top of the page, Correct Company Type and Suspend in its actions menu. (h) **Correct Company Type** offers deactivated types, marked, only to someone who may also activate types, and "Other" only to a company not approved. (i) **Times** on the list and the page are each company's home store's. (j) **The types page**: a table per list — position, both names, status, holders (company types) or required (document types) —, row actions in a menu; Activate, Make Required and Make Optional act at once; a new type's position defaults to ten after the last; the "copied" notice's words are the builder's. (k) **Every English and Arabic word** on the screens is the builder's, after Geist's writing rules. | B2B's last step: the staff side of §3.2, built in Geist as frontend.md §1.8 decided (2026-10-01/02). The owner was asleep and the lead agent asked for the recommended option at every open point, each marked to be confirmed in the morning. | Builder, 2026-10-02 — **provisional, owner to confirm** |

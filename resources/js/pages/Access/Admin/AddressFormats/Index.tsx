@@ -1,11 +1,8 @@
 import { useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import { Field } from '@/components/Field';
 import { FormError } from '@/components/FormError';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
+import { Button, Checkbox, EmptyState, Input, Note, Select, Textarea } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type {
     AddressFormatField,
@@ -26,6 +23,10 @@ import type {
 | the domain's rule, in one place, and a second copy of it in this file would be a copy that drifts
 | - so the template is explained in words and checked by the server, which is the only thing that
 | can answer it honestly.
+|
+| In Geist's fields and buttons (frontend.md 1.10). A button that cannot be used right now - moving
+| the first field up, adding past the limit - stays where it is and says why in its tooltip, rather
+| than greying out without a word.
 */
 
 type Props = AddressFormatPage;
@@ -73,41 +74,37 @@ export default function Index({
             subtitle={t('access::address_formats.subtitle')}
         >
             <div className="grid gap-4">
-                <p className="text-sm text-ink-muted">{t('access::address_formats.intro')}</p>
+                <p className="text-copy-14 text-ink-muted">{t('access::address_formats.intro')}</p>
 
                 <FormError />
 
                 {stores.length === 0 ? (
-                    <p className="rounded-lg border border-line bg-surface p-6 text-sm text-ink-muted">
-                        {t('access::address_formats.no_stores')}
-                    </p>
+                    <EmptyState
+                        title={t('access::address_formats.no_stores_title')}
+                        description={t('access::address_formats.no_stores')}
+                    />
                 ) : (
                     <>
-                        <label className="grid w-fit gap-1 text-xs text-ink-muted">
-                            {t('access::address_formats.store')}
-                            <select
-                                data-test="store"
-                                value={storeId}
-                                onChange={(event) =>
-                                    router.get('/admin/address-formats', {
-                                        store: stores.find((store) => store.id === event.target.value)?.code ?? '',
-                                    })
-                                }
-                                className="h-9 rounded-md border border-line bg-surface px-3 text-sm text-ink"
-                            >
-                                {stores.map((store) => (
-                                    <option key={store.id} value={store.id}>
-                                        {store.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                        <Select
+                            id="store"
+                            data-test="store"
+                            label={t('access::address_formats.store')}
+                            value={storeId}
+                            onChange={(event) =>
+                                router.get('/admin/address-formats', {
+                                    store: stores.find((store) => store.id === event.target.value)?.code ?? '',
+                                })
+                            }
+                            className="w-full max-w-xs"
+                        >
+                            {stores.map((store) => (
+                                <option key={store.id} value={store.id}>
+                                    {store.name}
+                                </option>
+                            ))}
+                        </Select>
 
-                        {exists ? null : (
-                            <p className="rounded-md border border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn">
-                                {t('access::address_formats.no_format')}
-                            </p>
-                        )}
+                        {exists ? null : <Note variant="warning">{t('access::address_formats.no_format')}</Note>}
 
                         <Editor
                             key={storeId}
@@ -149,6 +146,10 @@ function Editor({
         form.setData('fields', next);
     }
 
+    function edit(index: number, part: Partial<FieldRow>) {
+        change(rows.map((each, at) => (at === index ? { ...each, ...part } : each)));
+    }
+
     function move(from: number, to: number) {
         if (to < 0 || to >= rows.length) {
             return;
@@ -174,154 +175,87 @@ function Editor({
             }}
             className="grid gap-6"
         >
-            <section className="grid gap-4 rounded-lg border border-line bg-surface p-6 shadow-card">
+            <section className="grid gap-4">
                 <div className="grid gap-1">
-                    <h2 className="text-sm font-semibold text-ink">
-                        {t('access::address_formats.fields')}
-                    </h2>
-                    <p className="text-xs text-ink-muted">
+                    <h2 className="text-heading-16 text-ink">{t('access::address_formats.fields')}</h2>
+                    <p className="text-copy-13 text-ink-muted">
                         {t('access::address_formats.fields_hint', { count: maxFields })}
                     </p>
                 </div>
 
                 {rows.length === 0 ? (
-                    <p className="text-sm text-ink-muted">{t('access::address_formats.no_fields')}</p>
+                    <EmptyState
+                        title={t('access::address_formats.no_fields_title')}
+                        description={t('access::address_formats.no_fields')}
+                    />
                 ) : (
                     <ul className="grid gap-4">
                         {rows.map((row, index) => (
-                            <li
-                                key={index}
-                                data-test={`field-${index}`}
-                                className="grid gap-3 rounded-md border border-line p-4"
-                            >
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                    <Field
+                            <li key={index} data-test={`field-${index}`} className="material-base grid gap-4 p-5">
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <Input
                                         id={`key-${index}`}
                                         label={t('access::address_formats.field_key')}
-                                        hint={t('access::address_formats.field_key_hint')}
+                                        helper={t('access::address_formats.field_key_hint')}
                                         error={fieldError(form.errors, index, 'key')}
-                                    >
-                                        <Input
-                                            id={`key-${index}`}
-                                            dir="ltr"
-                                            required
-                                            value={row.key}
-                                            onChange={(event) =>
-                                                change(
-                                                    rows.map((each, at) =>
-                                                        at === index
-                                                            ? { ...each, key: event.target.value }
-                                                            : each,
-                                                    ),
-                                                )
-                                            }
-                                        />
-                                    </Field>
+                                        dir="ltr"
+                                        required
+                                        value={row.key}
+                                        onChange={(event) => edit(index, { key: event.target.value })}
+                                    />
 
-                                    <Field
+                                    <Input
                                         id={`length-${index}`}
+                                        type="number"
                                         label={t('access::address_formats.max_length')}
-                                        hint={t('access::address_formats.max_length_hint', {
-                                            count: maxLength,
-                                        })}
+                                        helper={t('access::address_formats.max_length_hint', { count: maxLength })}
                                         error={fieldError(form.errors, index, 'max_length')}
-                                    >
-                                        <Input
-                                            id={`length-${index}`}
-                                            type="number"
-                                            min={1}
-                                            max={maxLength}
-                                            dir="ltr"
-                                            className="tw-figure"
-                                            required
-                                            value={row.max_length}
-                                            onChange={(event) =>
-                                                change(
-                                                    rows.map((each, at) =>
-                                                        at === index
-                                                            ? {
-                                                                  ...each,
-                                                                  max_length: Number(
-                                                                      event.target.value,
-                                                                  ),
-                                                              }
-                                                            : each,
-                                                    ),
-                                                )
-                                            }
-                                        />
-                                    </Field>
+                                        min={1}
+                                        max={maxLength}
+                                        dir="ltr"
+                                        inputClassName="tw-figure"
+                                        required
+                                        value={row.max_length}
+                                        onChange={(event) => edit(index, { max_length: Number(event.target.value) })}
+                                    />
 
-                                    <Field
+                                    <Input
                                         id={`label-ar-${index}`}
                                         label={t('access::address_formats.label_ar')}
                                         error={fieldError(form.errors, index, 'label_ar')}
-                                    >
-                                        <Input
-                                            id={`label-ar-${index}`}
-                                            lang="ar"
-                                            dir="rtl"
-                                            required
-                                            value={row.label_ar}
-                                            onChange={(event) =>
-                                                change(
-                                                    rows.map((each, at) =>
-                                                        at === index
-                                                            ? { ...each, label_ar: event.target.value }
-                                                            : each,
-                                                    ),
-                                                )
-                                            }
-                                        />
-                                    </Field>
+                                        lang="ar"
+                                        dir="rtl"
+                                        required
+                                        value={row.label_ar}
+                                        onChange={(event) => edit(index, { label_ar: event.target.value })}
+                                    />
 
-                                    <Field
+                                    <Input
                                         id={`label-en-${index}`}
                                         label={t('access::address_formats.label_en')}
                                         error={fieldError(form.errors, index, 'label_en')}
-                                    >
-                                        <Input
-                                            id={`label-en-${index}`}
-                                            lang="en"
-                                            dir="ltr"
-                                            required
-                                            value={row.label_en}
-                                            onChange={(event) =>
-                                                change(
-                                                    rows.map((each, at) =>
-                                                        at === index
-                                                            ? { ...each, label_en: event.target.value }
-                                                            : each,
-                                                    ),
-                                                )
-                                            }
-                                        />
-                                    </Field>
+                                        lang="en"
+                                        dir="ltr"
+                                        required
+                                        value={row.label_en}
+                                        onChange={(event) => edit(index, { label_en: event.target.value })}
+                                    />
                                 </div>
 
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <label className="flex items-center gap-2 text-sm text-ink">
-                                        <Checkbox
-                                            checked={row.required}
-                                            onCheckedChange={(checked) =>
-                                                change(
-                                                    rows.map((each, at) =>
-                                                        at === index
-                                                            ? { ...each, required: checked === true }
-                                                            : each,
-                                                    ),
-                                                )
-                                            }
-                                        />
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+                                    <Checkbox
+                                        id={`required-${index}`}
+                                        checked={row.required}
+                                        onChange={(checked) => edit(index, { required: checked })}
+                                    >
                                         {t('access::address_formats.required')}
-                                    </label>
+                                    </Checkbox>
 
                                     <div className="flex gap-1">
                                         <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            disabled={index === 0}
+                                            type="tertiary"
+                                            size="small"
+                                            disabledReason={index === 0 ? t('access::address_formats.first_already') : undefined}
                                             data-test={`up-${index}`}
                                             onClick={() => move(index, index - 1)}
                                         >
@@ -329,10 +263,11 @@ function Editor({
                                         </Button>
 
                                         <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            disabled={index === rows.length - 1}
+                                            type="tertiary"
+                                            size="small"
+                                            disabledReason={
+                                                index === rows.length - 1 ? t('access::address_formats.last_already') : undefined
+                                            }
                                             data-test={`down-${index}`}
                                             onClick={() => move(index, index + 1)}
                                         >
@@ -340,13 +275,10 @@ function Editor({
                                         </Button>
 
                                         <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
+                                            type="tertiary"
+                                            size="small"
                                             data-test={`remove-${index}`}
-                                            onClick={() =>
-                                                change(rows.filter((_, at) => at !== index))
-                                            }
+                                            onClick={() => change(rows.filter((_, at) => at !== index))}
                                         >
                                             {t('access::address_formats.remove_field')}
                                         </Button>
@@ -358,12 +290,13 @@ function Editor({
                 )}
 
                 <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
+                    type="secondary"
+                    size="small"
                     className="w-fit"
                     data-test="add-field"
-                    disabled={rows.length >= maxFields}
+                    disabledReason={
+                        rows.length >= maxFields ? t('access::address_formats.too_many_fields', { count: maxFields }) : undefined
+                    }
                     onClick={() =>
                         change([
                             ...rows,
@@ -375,44 +308,33 @@ function Editor({
                 </Button>
             </section>
 
-            <section className="grid gap-3 rounded-lg border border-line bg-surface p-6 shadow-card">
-                <div className="grid gap-1">
-                    <h2 className="text-sm font-semibold text-ink">
-                        {t('access::address_formats.template')}
-                    </h2>
-                    <p className="text-xs text-ink-muted">
-                        {t('access::address_formats.template_hint')}
-                    </p>
-                    <p className="text-xs text-ink-muted" dir="ltr">
-                        {t('access::address_formats.template_fields', {
-                            keys: rows.map((row) => `{${row.key}}`).join(' '),
-                        })}
-                    </p>
-                </div>
-
-                <textarea
+            <section className="material-base grid gap-2 p-5">
+                <Textarea
                     id="display_template"
+                    label={<span className="text-heading-16">{t('access::address_formats.template')}</span>}
+                    helper={t('access::address_formats.template_hint')}
+                    error={form.errors.display_template}
                     dir="ltr"
                     rows={6}
                     value={form.data.display_template}
                     onChange={(event) => form.setData('display_template', event.target.value)}
-                    className="w-full rounded-md border border-line bg-surface p-3 font-mono text-sm text-ink"
+                    className="[&_textarea]:font-mono"
                 />
 
-                {form.errors.display_template ? (
-                    <p role="alert" className="text-xs text-bad">
-                        {form.errors.display_template}
-                    </p>
-                ) : null}
+                <p className="text-copy-13 text-ink-muted" dir="ltr">
+                    {t('access::address_formats.template_fields', {
+                        keys: rows.map((row) => `{${row.key}}`).join(' '),
+                    })}
+                </p>
             </section>
 
-            <p className="text-xs text-ink-muted">
-                {t('access::address_formats.existing_addresses')}
-            </p>
+            <div className="grid gap-3">
+                <p className="text-copy-13 text-ink-muted">{t('access::address_formats.existing_addresses')}</p>
 
-            <Button type="submit" disabled={form.processing} data-test="save" className="w-fit">
-                {t('access::address_formats.save')}
-            </Button>
+                <Button typeName="submit" loading={form.processing} data-test="save" className="w-fit">
+                    {t('access::address_formats.save')}
+                </Button>
+            </div>
         </form>
     );
 }

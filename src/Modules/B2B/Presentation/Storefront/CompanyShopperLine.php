@@ -10,6 +10,7 @@ use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\ShopperLineTone;
 use Modules\B2B\Application\Query\ShopLine\CompanyStandings;
 use Modules\B2B\Public\Enums\CompanyStatus;
+use Shared\Application\StoreContext;
 
 /**
  * The line under the shop's header for a company account that cannot order (b2b.md §4.4, amendment
@@ -26,20 +27,26 @@ final readonly class CompanyShopperLine implements ShopperLine
 
     public function __construct(
         private CompanyStandings $standings,
+        private StoreContext $stores,
     ) {}
 
     public function lineFor(string $customerId, AccountType $accountType, bool $emailVerified): ?ShopperLineDto
     {
-        if ($accountType !== AccountType::Company || ! $emailVerified) {
+        // The company of the store being browsed (b2b.md amendment 19(c)); a page of no store — the
+        // country page — has none to speak of.
+        if ($accountType !== AccountType::Company || ! $emailVerified || ! $this->stores->has()) {
             return null;
         }
 
-        $standing = $this->standings->of($customerId);
+        $standing = $this->standings->of($customerId, $this->stores->current()->value);
 
         return match ($standing->status) {
-            null => $standing->draftOpen
-                ? self::line('finish', ShopperLineTone::Info)
-                : self::line('continue', ShopperLineTone::Info),
+            null => match (true) {
+                $standing->draftOpen => self::line('finish', ShopperLineTone::Info),
+                // A company elsewhere, none here: apply in this store (amendments 19(c), 20(g)).
+                $standing->elsewhere => self::line('apply_here', ShopperLineTone::Info),
+                default => self::line('continue', ShopperLineTone::Info),
+            },
             CompanyStatus::Pending => self::line('pending', ShopperLineTone::Warn),
             CompanyStatus::Rejected => self::line('rejected', ShopperLineTone::Bad),
             CompanyStatus::Suspended => self::line('suspended', ShopperLineTone::Bad, ['reason' => (string) $standing->statusReason]),

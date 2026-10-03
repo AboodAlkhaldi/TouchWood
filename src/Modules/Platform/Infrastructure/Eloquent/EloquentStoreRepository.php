@@ -37,6 +37,8 @@ final class EloquentStoreRepository implements StoreRepository
             TaxRate::fromBasisPoints($record->tax_rate_basis_points),
             Timezone::fromString($record->timezone),
             $record->position,
+            $record->is_active,
+            $record->is_base,
         );
     }
 
@@ -53,6 +55,9 @@ final class EloquentStoreRepository implements StoreRepository
                 'code' => $store->code()->value,
                 'country_code' => $store->country()->value,
                 'currency_code' => $store->currency()->value,
+                // Written once, here, and never by update(): the mark is set by the migration and
+                // the seed and does not move (platform.md §1.1, §5.2).
+                'is_base' => $store->isBase(),
                 ...$this->mutableAttributes($store),
             ]);
         } catch (UniqueConstraintViolationException) {
@@ -77,6 +82,7 @@ final class EloquentStoreRepository implements StoreRepository
             'tax_rate_basis_points' => $store->taxRate()->basisPoints,
             'timezone' => $store->timezone()->identifier,
             'position' => $store->position(),
+            'is_active' => $store->isActive(),
         ];
     }
 }

@@ -10,10 +10,14 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Public\Enums\PermissionKind;
+use Modules\Platform\Application\Command\ActivateStore\ActivateStore;
+use Modules\Platform\Application\Command\ActivateStore\ActivateStoreHandler;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
 use Modules\Platform\Application\Command\CreateStore\CreateStoreHandler;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
 use Modules\Platform\Application\Command\GenerateMediaVariants\GenerateMediaVariants;
@@ -129,6 +133,9 @@ it('checks the right permission, against the right scope, in every handler', fun
     'create a store' => [fn () => app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', 'SAR', 1500, 'UTC', 9)), 'platform.store.create', 'global'],
     // Per-store: an admin of one store must not be able to edit another.
     'update a store' => [fn () => app(UpdateStoreHandler::class)->handle(new UpdateStore('eg', taxRateBasisPoints: 1500)), 'platform.store.update', 'eg'],
+    // The switch: reserved and store-free (owner, 2026-10-01).
+    'turn a store off' => [fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')), 'platform.store.switch', 'global'],
+    'turn a store on' => [fn () => app(ActivateStoreHandler::class)->handle(new ActivateStore('eg')), 'platform.store.switch', 'global'],
     // Media is global: no store is checked.
     'upload media' => [function () {
         $path = sys_get_temp_dir().'/tw-auth-'.uniqid().'.jpg';
@@ -159,6 +166,7 @@ it('changes nothing and audits nothing when the permission is denied', function 
 })->with([
     'update a store' => [fn () => app(UpdateStoreHandler::class)->handle(new UpdateStore('sa', taxRateBasisPoints: 1))],
     'create a store' => [fn () => app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', 'SAR', 1500, 'UTC', 9))],
+    'turn a store off' => [fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg'))],
 ]);
 
 it('changes no media, stores no file and queues nothing when the permission is denied', function (Closure $run) {

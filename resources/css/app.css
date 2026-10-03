@@ -99,7 +99,9 @@
     --color-sidebar-accent: var(--tw-sidebar-active);
     --color-sidebar-accent-foreground: var(--tw-sidebar-ink);
     --color-sidebar-border: var(--tw-sidebar-line);
-    --color-sidebar-ring: var(--tw-brand);
+    /* The sidebar's own ink, not the brand: navy on the navy sidebar was a 1.29:1 focus ring (review
+    | of the Geist move, 2026-10-02). */
+    --color-sidebar-ring: var(--tw-sidebar-ink);
 }
 
 @layer base {
@@ -117,7 +119,8 @@
         background: var(--tw-ring);
     }
 
-    /* One focus ring for the whole system, from the design. Keyboard only, never on a mouse click. */
+    /* One focus ring for the whole system, Geist's shape: a 2 px gap in the page's colour, then
+    | 2 px of brand (frontend.md 1.10). Keyboard only, never on a mouse click. */
     :focus-visible {
         outline: 2px solid var(--tw-brand);
         outline-offset: 2px;
@@ -133,5 +136,64 @@
     .tw-figure {
         font-family: var(--font-mono);
         font-variant-numeric: tabular-nums;
+    }
+}
+
+/*
+| Geist's type scale (frontend.md 1.10), under Geist's own class names so a screen reads like
+| Geist's documentation. Sizes, line heights and weights are Geist's stylesheet's (read
+| 2026-10-02); the face is ours. Headings carry Geist's tightened tracking in English only - see
+| the rule after this list.
+*/
+@utility text-heading-48 { font-size: 48px; line-height: 56px; font-weight: 600; letter-spacing: -2.88px; }
+@utility text-heading-40 { font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -2.4px; }
+@utility text-heading-32 { font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -1.28px; }
+@utility text-heading-24 { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.96px; }
+@utility text-heading-20 { font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -0.4px; }
+@utility text-heading-16 { font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -0.32px; }
+@utility text-heading-14 { font-size: 14px; line-height: 20px; font-weight: 600; letter-spacing: -0.28px; }
+
+@utility text-label-20 { font-size: 20px; line-height: 32px; font-weight: 400; }
+@utility text-label-18 { font-size: 18px; line-height: 20px; font-weight: 400; }
+@utility text-label-16 { font-size: 16px; line-height: 20px; font-weight: 400; }
+@utility text-label-14 { font-size: 14px; line-height: 20px; font-weight: 400; }
+@utility text-label-13 { font-size: 13px; line-height: 16px; font-weight: 400; }
+@utility text-label-12 { font-size: 12px; line-height: 16px; font-weight: 400; }
+@utility text-label-14-mono { font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 400; }
+@utility text-label-13-mono { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400; }
+@utility text-label-12-mono { font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 400; }
+
+@utility text-copy-24 { font-size: 24px; line-height: 36px; font-weight: 400; }
+@utility text-copy-20 { font-size: 20px; line-height: 36px; font-weight: 400; }
+@utility text-copy-18 { font-size: 18px; line-height: 28px; font-weight: 400; }
+@utility text-copy-16 { font-size: 16px; line-height: 24px; font-weight: 400; }
+@utility text-copy-14 { font-size: 14px; line-height: 20px; font-weight: 400; }
+@utility text-copy-13 { font-size: 13px; line-height: 18px; font-weight: 400; }
+@utility text-copy-14-mono { font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 400; }
+@utility text-copy-13-mono { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 400; }
+
+@utility text-button-16 { font-size: 16px; line-height: 20px; font-weight: 500; }
+@utility text-button-14 { font-size: 14px; line-height: 20px; font-weight: 500; }
+@utility text-button-12 { font-size: 12px; line-height: 16px; font-weight: 500; }
+
+/*
+| Geist's materials (frontend.md 1.10): a surface and its elevation in one class. The shadows are
+| theme tokens; the corners are ours - 10 px rather than Geist's 6 and 12, 6 px on a tooltip, 16 px
+| fullscreen (owner, 2026-10-02: today's 10 px corners).
+*/
+@utility material-base { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-border); border-radius: var(--tw-radius); }
+@utility material-small { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-small); border-radius: var(--tw-radius); }
+@utility material-medium { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-medium); border-radius: var(--tw-radius); }
+@utility material-large { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-large); border-radius: var(--tw-radius); }
+@utility material-tooltip { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-tooltip); border-radius: var(--tw-radius-sm); }
+@utility material-menu { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-menu); border-radius: var(--tw-radius); }
+@utility material-modal { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-modal); border-radius: var(--tw-radius); }
+@utility material-fullscreen { background-color: var(--tw-surface); box-shadow: var(--tw-shadow-modal); border-radius: var(--tw-radius-lg); }
+
+@layer utilities {
+    /* Arabic letters join; spacing them apart breaks the word. Geist's tightened headings stay
+    | English-only (frontend.md 1.10). Same layer as the utilities, and more specific, so it wins. */
+    [class*='text-heading-']:lang(ar) {
+        letter-spacing: 0;
     }
 }

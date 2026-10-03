@@ -56,7 +56,7 @@ final readonly class SuspendCompanyHandler
 
         $this->db->transaction(function () use ($found, $staffId, $reason): void {
             $this->applications->lockAccount($found->customerId());
-            $company = $this->companies->forCustomerLocked($found->customerId()) ?? throw new CompanyNotFound;
+            $company = $this->companies->byId($found->id()) ?? throw new CompanyNotFound;
             $from = $company->status();
 
             $company->suspend($staffId, $reason, CarbonImmutable::now());
@@ -64,7 +64,9 @@ final readonly class SuspendCompanyHandler
             $this->companies->update($company);
             $this->platform->recordAudit(StaffCompanyAudit::statusChanged('b2b.company.suspended', $company, $from, $reason));
             $this->events->statusChanged($company, $from);
-            $this->messages->afterCommit($company->customerId(), static fn (SecurityMessages $messages, CustomerDto $customer) => $messages->companySuspended($customer, $reason->value));
+            // The email names the company's store: an account may hold one in each (amendment 19(c)).
+            $store = $company->homeStoreId();
+            $this->messages->afterCommit($company->customerId(), static fn (SecurityMessages $messages, CustomerDto $customer) => $messages->companySuspended($customer, $reason->value, $store));
         }, 3);
     }
 }

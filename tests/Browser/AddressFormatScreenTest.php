@@ -48,10 +48,10 @@ it('adds a field, names it, and the country asks for it afterwards', function ()
     // What a field is called lives in an input's value, not in the page's text, so the screen is
     // read for its own words and the fields are read where they are actually kept (a first go
     // asserted "Region" as text and failed on a page that was drawing it perfectly, 2026-09-25).
-    $page->assertSee('Address forms')
+    $page->assertSee('Address Forms')
         ->assertSee('Saudi Arabia')
-        ->assertSee('Name in the system')
-        ->assertSee('How it is printed');
+        ->assertSee('Name in the System')
+        ->assertSee('How It Is Printed');
 
     expect($page->script('document.querySelector("#key-0").value'))->toBe('administrative_area')
         ->and($page->script('document.querySelector("#label-en-0").value'))->toBe('Region');

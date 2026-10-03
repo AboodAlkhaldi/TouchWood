@@ -8,5 +8,5 @@ return [
     'staff' => 'Staff',
     'roles' => 'Roles',
     'customers' => 'Customers',
-    'address-formats' => 'Address forms',
+    'address-formats' => 'Address Forms',
 ];

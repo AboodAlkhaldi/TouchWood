@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Application\Query\ListAudit;
 
+use Illuminate\Support\Str;
 use Modules\Platform\Application\Audit\MediaAudit;
 use Modules\Platform\Application\Media\PrivateMedia;
+use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
@@ -38,6 +40,7 @@ final readonly class ListAuditHandler
         private Authorizer $authorizer,
         private AuditReader $reader,
         private PrivateMedia $private,
+        private StaffNames $staffNames,
     ) {}
 
     /**
@@ -48,11 +51,20 @@ final readonly class ListAuditHandler
         $stores = $this->storeIds();
         $perPage = min(max($query->perPage, 1), self::PER_PAGE);
 
+        // Filtering by a Super Admin's id, for a reader who may not know they exist, is answered as
+        // for an id that never existed (access.md amendments 54, 57) — by running the same query for
+        // an id that never existed, so not even the time it takes tells the two apart.
+        $actorId = $query->actorId;
+
+        if ($actorId !== null && ($this->staffNames->forReader([$actorId])[strtolower($actorId)] ?? null)?->hidden === true) {
+            $actorId = strtolower((string) Str::ulid());
+        }
+
         // One more than a page, to learn whether there is another page without counting the log.
         $rows = $this->reader->page($stores, new ListAudit(
             $query->from,
             $query->until,
-            $query->actorId,
+            $actorId,
             $query->action,
             $query->source,
             $query->cursorOccurredAt,
@@ -62,7 +74,7 @@ final readonly class ListAuditHandler
 
         $more = count($rows) > $perPage;
         $rows = array_slice($rows, 0, $perPage);
-        $entries = $this->withholdPrivateFiles(array_map($this->row(...), $rows));
+        $entries = $this->named($this->withholdPrivateFiles(array_map($this->row(...), $rows)));
         $last = $more ? end($entries) : null;
 
         return new AuditPage(
@@ -123,6 +135,31 @@ final readonly class ListAuditHandler
                 : $entry,
             $entries,
         );
+    }
+
+    /**
+     * Each staff member on the page named as this reader may be shown them — the actor, whoever
+     * queued a job, an entry's subject — asked once for the whole page (access.md amendment 54). A
+     * Super Admin, to anyone but another, is "System administrator", with no id or address.
+     *
+     * @param  list<AuditEntryRow>  $entries
+     * @return list<AuditEntryRow>
+     */
+    private function named(array $entries): array
+    {
+        $ids = [];
+
+        foreach ($entries as $entry) {
+            foreach ([$entry->actorId, $entry->requestedById, $entry->subjectId] as $id) {
+                if ($id !== null) {
+                    $ids[] = $id;
+                }
+            }
+        }
+
+        $names = $ids === [] ? [] : $this->staffNames->forReader($ids);
+
+        return $names === [] ? $entries : array_map(static fn (AuditEntryRow $entry): AuditEntryRow => $entry->named($names), $entries);
     }
 
     /**

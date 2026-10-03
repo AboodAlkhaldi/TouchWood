@@ -42,6 +42,7 @@ use Modules\Access\Application\Session\StaffSessionDirectory;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
+use Modules\Access\Application\Staff\PlatformStaffNames;
 use Modules\Access\Application\Staff\StaffLinks;
 use Modules\Access\Application\Storefront\InMemoryCustomerAccountPages;
 use Modules\Access\Application\Storefront\InMemoryShopperLines;
@@ -113,6 +114,7 @@ use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Platform\Public\PlatformPermissions;
@@ -176,6 +178,10 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->bind(StaffReader::class, DatabaseStaffReader::class);
         $this->app->bind(GrantsReader::class, CachedGrantsReader::class);
         $this->app->bind(AccessApi::class, AccessApiImpl::class);
+        // How Platform's audit log names its staff actors: the same one place every module's names
+        // come from, where a Super Admin reads as "System administrator" to anyone but another
+        // (amendment 54). Scoped: the answer depends on who is reading.
+        $this->app->scoped(StaffNames::class, PlatformStaffNames::class);
 
         $this->app->bind(PasswordPolicy::class, LaravelPasswordPolicy::class);
         // Laravel's verifier comes from a deferred provider, which would replace a plain binding

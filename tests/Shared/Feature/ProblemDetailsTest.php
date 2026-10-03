@@ -141,7 +141,7 @@ it('shows a page request the translated title, never the message written for dev
 
     get('/_test/unauthorized')
         ->assertForbidden()
-        ->assertSee('Not allowed')
+        ->assertSee('Not Allowed')
         ->assertDontSee('platform.store.update');
 });
 
@@ -152,7 +152,7 @@ it('renders validation failures in the same shape with the field errors', functi
         ->assertStatus(422)
         ->assertHeader('Content-Type', 'application/problem+json')
         ->assertJsonPath('type', 'validation_failed')
-        ->assertJsonPath('title', 'Invalid data')
+        ->assertJsonPath('title', 'Invalid Data')
         ->assertJsonStructure(['errors' => ['name']]);
 });
 

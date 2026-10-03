@@ -105,7 +105,7 @@ function staffDecisionsPending(): array
 
 function staffDecisionsCompany(string $customerId): Company
 {
-    return app(CompanyRepository::class)->forCustomer($customerId) ?? throw new LogicException('No company.');
+    return app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa')) ?? throw new LogicException('No company.');
 }
 
 /**
@@ -609,7 +609,7 @@ describe('correcting the type (§3.2, amendments 2, 8(b) and 10)', function () {
 
         expect(fn () => staffDecisionsCorrect($company->id(), B2BFixtures::companyTypes()[0]->id()))->toThrow(CompanySuspended::class)
             ->and(staffDecisionsCompany($customerId)->details()->type->typeId)->toBe($sent)
-            ->and(app(ApplicationRepository::class)->openFor($customerId)?->type()?->typeId)->toBe($sent);
+            ->and(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->type()?->typeId)->toBe($sent);
     });
 
     it('asks before taking a deactivated type, needs the job that activates types, and then activates it for the store (8(b), 10(b), scenario 22)', function () {
@@ -648,7 +648,7 @@ describe('correcting the type (§3.2, amendments 2, 8(b) and 10)', function () {
         $corrected = B2BFixtures::companyTypes()[0]->id();
         staffDecisionsCorrect($company->id(), $corrected);
 
-        expect(app(ApplicationRepository::class)->openFor($customerId)?->type()?->typeId)->toBe($draftChoseAnother ? $theirs : $corrected);
+        expect(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->type()?->typeId)->toBe($draftChoseAnother ? $theirs : $corrected);
     })->with(['the draft still holds the company\'s type' => [false], 'the draft chose another' => [true]]);
 });
 

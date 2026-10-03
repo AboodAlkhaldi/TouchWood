@@ -77,6 +77,10 @@ describe('the admin menu', function () {
         // list grows as screens ship, and the order it grows in is the thing being asserted.
         expect(offeredMenu())->toBe([
             'catalog/products',
+            // B2B's staff screens (b2b.md amendment 21).
+            'companies/companies',
+            'companies/company_types',
+            'companies/document_types',
             'customers/customers',
             'staff_and_permissions/staff',
             'staff_and_permissions/roles',

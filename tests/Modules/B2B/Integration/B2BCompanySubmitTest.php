@@ -102,12 +102,12 @@ function companySubmitFilledDraft(?string $leaveOut = null, ?string $typeId = nu
 
 function companySubmitOpen(string $customerId): ?Application
 {
-    return app(ApplicationRepository::class)->openFor($customerId);
+    return app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'));
 }
 
 function companySubmitCompany(string $customerId): ?Company
 {
-    return app(CompanyRepository::class)->forCustomer($customerId);
+    return app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'));
 }
 
 /**

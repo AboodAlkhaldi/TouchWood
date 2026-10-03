@@ -35,5 +35,17 @@ final class StoreRow extends Data
         public int $position,
         /** Whether this reader may change this store. Asked of Access, store by store. */
         public bool $editable,
+        /**
+         * On or off (owner, 2026-10-01). An off store is listed only to a reader who may switch
+         * stores, so that they can turn it back on (platform.md §1.6).
+         */
+        public bool $isActive,
+        /** The base store: always on, so it is never offered "Turn Store Off" (owner, 2026-10-02). */
+        public bool $isBase,
+        /**
+         * Whether this reader may turn this store on or off: they may switch stores, and it is not
+         * the base store.
+         */
+        public bool $switchable,
     ) {}
 }

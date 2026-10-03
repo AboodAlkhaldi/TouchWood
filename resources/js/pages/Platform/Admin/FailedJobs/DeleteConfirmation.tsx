@@ -1,32 +1,69 @@
+import { useState } from 'react';
 import { router } from '@inertiajs/react';
-import { Button } from '@/components/ui/button';
+import { Button, Modal, ModalCancel } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 
 /*
-| E7's delete, asked in the page first, never with the browser's own box, as the media library asks
-| (owner, 2026-09-24). Shared by the list and a job's own page.
+| E7's delete, asked first, never with the browser's own box (owner, 2026-09-24). Shared by the
+| list and a job's own page.
+|
+| Asked in Geist's destructive Modal (frontend.md 1.10): Geist confirms a delete in a Modal, starts
+| focus on Cancel so Enter never deletes by accident, and has the confirm button repeat the title's
+| verb and noun. A plain Modal rather than the typed one: a failed job is not a thing worth typing
+| a name for. It stays open while the delete is on its way and closes when the answer arrives -
+| the toast and the page's own error then say how it went.
 */
 
-export function DeleteConfirmation({ id, onCancel }: { id: string; onCancel: () => void }) {
+type Props = {
+    /** The job being asked about; null while nothing is. */
+    id: string | null;
+    onClose: () => void;
+};
+
+export function DeleteConfirmation({ id, onClose }: Props) {
     const t = useTranslator();
+    const [deleting, setDeleting] = useState(false);
+
+    function remove() {
+        if (id === null) {
+            return;
+        }
+
+        router.post(
+            `/admin/failed-jobs/${id}/delete`,
+            {},
+            {
+                onStart: () => setDeleting(true),
+                onFinish: () => {
+                    setDeleting(false);
+                    onClose();
+                },
+            },
+        );
+    }
 
     return (
-        <div className="grid gap-3">
-            <p className="text-sm text-ink">{t('platform::admin_failed_jobs.confirm_delete')}</p>
-            <div className="flex flex-wrap gap-2">
-                <Button
-                    variant="destructive"
-                    size="sm"
-                    data-test={`delete-confirm-${id}`}
-                    onClick={() => router.post(`/admin/failed-jobs/${id}/delete`)}
-                >
-                    {t('platform::admin_failed_jobs.delete')}
-                </Button>
-                <Button variant="outline" size="sm" onClick={onCancel}>
-                    {t('platform::admin_failed_jobs.cancel')}
-                </Button>
-            </div>
-        </div>
+        <Modal
+            open={id !== null}
+            // Never closed from under a delete that is still on its way.
+            onOpenChange={(open) => (open || deleting ? undefined : onClose())}
+            destructive
+            title={t('platform::admin_failed_jobs.delete_title')}
+            description={t('platform::admin_failed_jobs.confirm_delete')}
+            actions={
+                <>
+                    <ModalCancel onClick={onClose} disabled={deleting} />
+                    <Button
+                        type="error"
+                        loading={deleting}
+                        data-test={id === null ? undefined : `delete-confirm-${id}`}
+                        onClick={remove}
+                    >
+                        {t('platform::admin_failed_jobs.delete_title')}
+                    </Button>
+                </>
+            }
+        />
     );
 }
 

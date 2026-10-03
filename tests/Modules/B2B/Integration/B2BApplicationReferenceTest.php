@@ -162,7 +162,7 @@ it('refuses to count outside a transaction, where a failed send could not give i
 it('shows the number to the company and to staff, and staff find the company by it', function () {
     $customerId = applicationReferenceDraft();
     $reference = applicationReferenceSend($customerId);
-    $companyId = (string) app(CompanyRepository::class)->forCustomer($customerId)?->id();
+    $companyId = (string) app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->id();
 
     $mine = app(ViewMyCompanyHandler::class)->handle(new ViewMyCompany);
 

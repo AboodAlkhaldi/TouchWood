@@ -98,6 +98,8 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'platform.media.upload',
         'platform.media.variants.generate',
         'platform.store.create',
+        // Reserved, and about whether a store is a place to work in at all (owner, 2026-10-01).
+        'platform.store.switch',
     ]);
 });
 

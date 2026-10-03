@@ -7,6 +7,8 @@ declare(strict_types=1);
 return [
     'store.created' => 'Store opened',
     'store.updated' => 'Store changed',
+    'store.activated' => 'Store turned on',
+    'store.deactivated' => 'Store turned off',
     'currency.created' => 'Currency added',
     'currency.updated' => 'Currency changed',
     'setting.updated' => 'Setting changed',

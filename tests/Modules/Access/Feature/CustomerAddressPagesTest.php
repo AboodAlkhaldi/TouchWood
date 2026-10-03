@@ -210,7 +210,7 @@ describe('back to the page that sent them (amendment 51)', function () {
         $saved = $browser->post('/sa/en/account/addresses', addressForm(Fx::storeId('sa'), ['return' => 'test.orders']))
             ->assertRedirect('/sa/en');
 
-        expect(AdminBrowser::flashed($saved, 'status'))->toBe('Your address was saved.');
+        expect(AdminBrowser::flashed($saved, 'status'))->toBe('Address saved');
     });
 
     it('keeps the way back on the tab through a new default and a delete (amendment 52)', function () {

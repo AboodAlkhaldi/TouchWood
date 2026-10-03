@@ -10,10 +10,13 @@ return [
     'close_menu' => 'إغلاق القائمة',
     'super_admin' => 'مدير عام',
     'coming_soon' => 'قريبًا',
+    'coming_soon_title' => 'قريبًا',
     'coming_soon_subtitle' => 'لم تُبنَ بعد.',
     'coming_soon_body' => 'هذه الشاشة التالية في قائمة البناء.',
 
     'theme' => [
+        // اسم المفتاح نفسه، يُقرأ بصوت عالٍ.
+        'label' => 'المظهر',
         'light' => 'فاتح',
         'dark' => 'داكن',
         'switch_to_light' => 'التحويل إلى المظهر الفاتح',
@@ -23,7 +26,7 @@ return [
     'store' => [
         'label' => 'المتجر',
         'fell_back' => 'لم يعد لديك وصول إلى ذلك المتجر. نعرض :store.',
-        'changed' => 'أنت الآن تعمل في :store.',
+        'changed' => 'تم تغيير المتجر إلى :store',
     ],
 
     'home' => [
