@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 /**
  * Every action Catalog writes to the audit log, read from the code: each ListAudit call names its
- * list, and what happened — added and deleted by the method itself.
+ * subject, and what happened — added and deleted by the method itself, changed and replaced by name.
  *
  * @return list<string>
  */
@@ -26,7 +26,7 @@ function catalogAuditNamesRecorded(): array
 
         $code = (string) file_get_contents($file->getPathname());
         preg_match_all("/ListAudit::(added|deleted)\\('([a-z_]+)'/", $code, $simple, PREG_SET_ORDER);
-        preg_match_all("/ListAudit::changed\\('([a-z_]+)', '([a-z_]+)'/", $code, $changed, PREG_SET_ORDER);
+        preg_match_all("/ListAudit::(?:changed|replaced)\\('([a-z_]+)', '([a-z_]+)'/", $code, $changed, PREG_SET_ORDER);
 
         foreach ($simple as [, $what, $subject]) {
             $actions[] = "catalog.{$subject}.{$what}";

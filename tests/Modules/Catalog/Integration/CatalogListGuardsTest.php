@@ -98,6 +98,16 @@ use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
 use Modules\Catalog\Application\Command\RankCategories\RankCategories;
 use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
+use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValues;
+use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValuesHandler;
+use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
+use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Catalog\Application\Command\SetRelations\SetRelations;
+use Modules\Catalog\Application\Command\SetRelations\SetRelationsHandler;
+use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWords;
+use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWordsHandler;
+use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotos;
+use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotosHandler;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
@@ -464,6 +474,37 @@ function catalogGuardsChanges(): array
 
             return fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($id, '98'));
         }],
+        'set a gallery' => ['products', function () {
+            $id = catalogGuardsProduct();
+            $photo = Cx::media();
+
+            return fn () => app(SetProductGalleryHandler::class)->handle(new SetProductGallery($id, [$photo]));
+        }],
+        'set a variant\'s photos' => ['products', function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+            $photo = Cx::media();
+
+            return fn () => app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($id, [$photo]));
+        }],
+        'set search words' => ['products', function () {
+            $id = catalogGuardsProduct();
+
+            return fn () => app(SetSearchWordsHandler::class)->handle(new SetSearchWords($id, ['slide']));
+        }],
+        'set filter values' => ['products', function () {
+            $id = catalogGuardsProduct();
+            $attribute = app(AddAttributeHandler::class)->handle(new AddAttribute('خاصية تصفية', 'Filter', 'FILTERABLE'));
+            $value = catalogGuardsValue($attribute);
+
+            return fn () => app(SetFilterValuesHandler::class)->handle(new SetFilterValues($id, [$value]));
+        }],
+        'set relations' => ['products', function () {
+            $id = catalogGuardsProduct();
+            $ready = catalogGuardsProduct();
+            DB::table('catalog.products')->where('id', $ready)->update(['stage' => 'READY', 'category_id' => catalogGuardsCategory()]);
+
+            return fn () => app(SetRelationsHandler::class)->handle(new SetRelations($id, 'RELATED', [$ready]));
+        }],
         'add a word pair' => ['word_pairs', fn () => fn () => catalogGuardsPair()],
         'delete a word pair' => ['word_pairs', function () {
             $id = catalogGuardsPair();
@@ -537,6 +578,11 @@ describe('an id that is not in its list', function () {
         'update a variant' => [VariantNotFound::class, fn () => app(UpdateVariantHandler::class)->handle(new UpdateVariant(CATALOG_GUARDS_UNKNOWN, '1001'))],
         'delete a draft variant' => [VariantNotFound::class, fn () => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant(CATALOG_GUARDS_UNKNOWN))],
         'correct a code' => [VariantNotFound::class, fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode(CATALOG_GUARDS_UNKNOWN, '1001'))],
+        'set a gallery' => [ProductNotFound::class, fn () => app(SetProductGalleryHandler::class)->handle(new SetProductGallery(CATALOG_GUARDS_UNKNOWN, []))],
+        'set a variant\'s photos' => [VariantNotFound::class, fn () => app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos(CATALOG_GUARDS_UNKNOWN, []))],
+        'set search words' => [ProductNotFound::class, fn () => app(SetSearchWordsHandler::class)->handle(new SetSearchWords(CATALOG_GUARDS_UNKNOWN, []))],
+        'set filter values' => [ProductNotFound::class, fn () => app(SetFilterValuesHandler::class)->handle(new SetFilterValues(CATALOG_GUARDS_UNKNOWN, []))],
+        'set relations' => [ProductNotFound::class, fn () => app(SetRelationsHandler::class)->handle(new SetRelations(CATALOG_GUARDS_UNKNOWN, 'RELATED', []))],
     ]);
 });
 
@@ -659,6 +705,32 @@ describe('a change that changes nothing', function () {
             $code = (string) DB::table('catalog.variants')->where('id', $id)->value('code');
 
             return fn () => app(UpdateVariantHandler::class)->handle(new UpdateVariant($id, $code));
+        }],
+        'set a gallery to what it is' => [function () {
+            $id = catalogGuardsProduct();
+
+            return fn () => app(SetProductGalleryHandler::class)->handle(new SetProductGallery($id, []));
+        }],
+        'set a variant\'s photos to what they are' => [function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+
+            return fn () => app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($id, []));
+        }],
+        'set search words to what they are' => [function () {
+            $id = catalogGuardsProduct();
+            app(SetSearchWordsHandler::class)->handle(new SetSearchWords($id, ['slide', 'rail']));
+
+            return fn () => app(SetSearchWordsHandler::class)->handle(new SetSearchWords($id, ['slide', 'rail', 'Slide']));
+        }],
+        'set filter values to what they are' => [function () {
+            $id = catalogGuardsProduct();
+
+            return fn () => app(SetFilterValuesHandler::class)->handle(new SetFilterValues($id, []));
+        }],
+        'set relations to what they are' => [function () {
+            $id = catalogGuardsProduct();
+
+            return fn () => app(SetRelationsHandler::class)->handle(new SetRelations($id, 'GOES_WITH', []));
         }],
         'correct a code to itself' => [function () {
             $id = catalogGuardsVariant(catalogGuardsProduct());
