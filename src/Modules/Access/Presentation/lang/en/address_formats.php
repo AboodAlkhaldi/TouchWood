@@ -18,6 +18,8 @@ return [
     'field_key_hint' => 'Lower-case letters, digits and underscores, such as postal_code. It is what the printed form below refers to, and changing it on a field somebody has already used leaves their address without that part.',
     'label_ar' => 'Label in Arabic',
     'label_en' => 'Label in English',
+    // Each field's group of inputs is named, so a screen reader hears which field it is in.
+    'field_number' => 'Field :number',
     'required' => 'Required',
     'max_length' => 'Longest Allowed',
     'max_length_hint' => 'Between 1 and :count characters.',

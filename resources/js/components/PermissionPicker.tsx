@@ -1,5 +1,10 @@
-import { Badge, Checkbox } from '@/components/geist';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTranslator } from '@/lib/t';
+import { tone } from '@/lib/tones';
 
 /*
 | Choosing what a role allows (frontend.md §3.4 D3, and §3.3 C6 for one person).
@@ -12,12 +17,14 @@ import { useTranslator } from '@/lib/t';
 | An action the author does not hold is shown but cannot be ticked: nobody hands out what they do
 | not have. It is shown rather than hidden so that an admin can see the shape of the whole system
 | and understand why something is not theirs to give (access.md §1.5) - and, as Geist asks of every
-| disabled checkbox (frontend.md 1.10), the reason is its tooltip rather than a greyed box that
-| reads as a bug.
+| disabled checkbox, the reason is its tooltip rather than a greyed box that reads as a bug: the box
+| stays reachable (aria-disabled), and ticking it does nothing.
 |
-| Each area is one group of checkboxes named by its heading, so a screen reader hears the area
-| before each action in it. The area stays a <section> holding a list: the browser test finds the
-| first action by that shape.
+| shadcn's parts, as its `field-checkbox` example puts them together: each area a Card holding a
+| FieldSet whose legend is the area's name, so a screen reader hears the area before each action;
+| the count beside it says "3 of 5 chosen" (Geist's Checkbox group); each action a horizontal Field
+| - the box, its label, and "Every store, by its nature" as the label's description, not part of
+| its name. The box's edge is ink-subtle, 3.12:1 on a card, where shadcn's input line is 1.59:1.
 |
 | Stores are not here at all. What a role allows and where a person may do it are two different
 | questions, and the second is answered per staff member (§3.3 C6).
@@ -73,50 +80,67 @@ export function PermissionPicker({ permissions, groups, chosen, onChange, disabl
                 }
 
                 const chosenHere = inGroup.filter((permission) => held.has(permission.name)).length;
-                const heading = `permission-group-${group.key}`;
 
                 return (
-                    <section key={group.key} className="material-base overflow-hidden">
-                        <fieldset aria-labelledby={heading}>
-                            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-                                <h3 id={heading} className="text-heading-14 text-ink">
-                                    {group.label}
-                                </h3>
-                                {chosenHere > 0 ? (
-                                    <Badge variant="blue-subtle" size="small">
-                                        <span className="tw-figure">{t('access::roles.chosen_count', { count: chosenHere })}</span>
-                                    </Badge>
-                                ) : null}
-                            </div>
+                    <Card key={group.key} className="material-base gap-0 border-0 py-0" data-test={`area-${group.key}`}>
+                            <CardContent className="p-0">
+                                <FieldSet className="gap-0">
+                                    <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+                                        <FieldLegend className="mb-0 text-heading-14 text-ink">{group.label}</FieldLegend>
+                                        {chosenHere > 0 ? (
+                                            <Badge className={tone('blue-subtle')}>
+                                                <span className="tw-figure">{t('access::roles.chosen_count', { count: chosenHere, total: inGroup.length })}</span>
+                                            </Badge>
+                                        ) : null}
+                                    </div>
 
-                            <ul className="grid gap-0.5 p-2">
-                                {inGroup.map((permission) => {
-                                    const locked = lockedBecause(permission);
+                                    <FieldGroup className="gap-0.5 p-2">
+                                        {inGroup.map((permission) => {
+                                            const locked = lockedBecause(permission);
+                                            const id = `permission-${permission.name}`;
+                                            const box = (
+                                                <Checkbox
+                                                    id={id}
+                                                    checked={held.has(permission.name)}
+                                                    aria-disabled={locked === undefined ? undefined : true}
+                                                    aria-describedby={permission.storeFree ? `${id}-description` : undefined}
+                                                    onCheckedChange={(next) => (locked === undefined ? toggle(permission.name, next === true) : undefined)}
+                                                    className="border-ink-subtle aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                                                    data-test={id}
+                                                />
+                                            );
 
-                                    return (
-                                        <li
-                                            key={permission.name}
-                                            className={['rounded-sm px-2 py-2', locked === undefined ? 'hover:bg-surface-sunken' : ''].join(' ')}
-                                        >
-                                            <Checkbox
-                                                id={`permission-${permission.name}`}
-                                                checked={held.has(permission.name)}
-                                                disabledReason={locked}
-                                                onChange={(on) => toggle(permission.name, on)}
-                                            >
-                                                <span className="grid gap-0.5">
-                                                    <span>{permission.label}</span>
-                                                    {permission.storeFree ? (
-                                                        <span className="text-copy-13 text-ink-muted">{t('access::roles.store_free')}</span>
-                                                    ) : null}
-                                                </span>
-                                            </Checkbox>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </fieldset>
-                    </section>
+                                            return (
+                                                <Field
+                                                    key={permission.name}
+                                                    orientation="horizontal"
+                                                    className={['rounded-sm px-2 py-2', locked === undefined ? 'has-[label:hover]:bg-surface-sunken' : ''].join(' ')}
+                                                >
+                                                    {locked === undefined ? (
+                                                        box
+                                                    ) : (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>{box}</TooltipTrigger>
+                                                            <TooltipContent>{locked}</TooltipContent>
+                                                        </Tooltip>
+                                                    )}
+                                                    <FieldContent className="gap-0.5">
+                                                        <FieldLabel htmlFor={id} className={locked === undefined ? 'text-label-14 text-ink' : 'text-label-14 text-ink-subtle'}>
+                                                            {permission.label}
+                                                        </FieldLabel>
+                                                        {permission.storeFree ? (
+                                                            <FieldDescription id={`${id}-description`} className="text-copy-13 text-ink-muted">
+                                                                {t('access::roles.store_free')}
+                                                            </FieldDescription>
+                                                        ) : null}
+                                                    </FieldContent>
+                                                </Field>
+                                            );
+                                        })}
+                                    </FieldGroup>
+                                </FieldSet>
+                            </CardContent>
+                    </Card>
                 );
             })}
         </div>

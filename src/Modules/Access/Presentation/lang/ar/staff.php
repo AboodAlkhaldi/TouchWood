@@ -25,9 +25,19 @@ return [
     'status_disabled' => 'معطّل',
     // Final: an invitation that was cancelled is not sent again (access.md amendment 29).
     'status_cancelled' => 'ملغى',
-    'since' => 'منذ :date',
-    'invited_on' => 'دُعي في :date',
-    'no_staff' => 'لا أحد هنا بعد.',
+    // Before Geist's Relative Time Card, which writes "قبل ٥ ساعات" or a date (shadcn rebuild;
+    // "منذ" and "في" read wrongly before a relative time).
+    'since' => 'انضم :date',
+    'invited_on' => 'دُعي :date',
+    // Geist's Empty State: the blank slate names the next action; a filtered list that finds
+    // nobody says so, quoting a typed search, and offers to clear the filters (shadcn rebuild).
+    'no_staff' => 'ادعُ موظفًا ليصل إلى لوحة التحكم.',
+    'no_match_title' => 'لا موظفين يطابقون التصفية',
+    'no_match_query' => 'لا موظفين يطابقون «:query». امسح التصفية لترى الجميع.',
+    'no_match' => 'وسّع التصفية أو امسحها لترى الجميع.',
+    'clear_filters' => 'مسح التصفية',
+    // Geist's Search Input: a scoped placeholder.
+    'search_placeholder' => 'ابحث في الموظفين',
     'invite' => 'دعوة موظف',
     'total' => ':count أشخاص',
 
@@ -40,6 +50,10 @@ return [
     'country' => 'الدولة',
     'countries_ours' => 'حيث لنا متاجر',
     'countries_all' => 'كل الدول',
+    // The country picker's search (Geist's Combobox): a scoped placeholder, and the typed text quoted
+    // when nothing matches.
+    'country_search' => 'ابحث في الدول',
+    'country_none' => 'لا دول تطابق «:query».',
     'address' => 'العنوان',
     'communication_language' => 'لغة المراسلة',
     'communication_language_hint' => 'اللغة التي تُكتب بها رسائله ورموزه.',
@@ -95,8 +109,9 @@ return [
     'no_stores_to_give' => 'لا تُعطي إلا المتاجر التي تديرها أنت.',
     'exceptions_title' => 'صلاحيات لها متاجرها',
     'exceptions_hint' => 'قد تصل صلاحية أبعد من بقية الدور، أو أقصر منه.',
-    'give_own_stores' => 'أعطها متاجر خاصة بها',
-    'follow_the_role' => 'أعدها إلى متاجر الدور',
+    // In place of an empty list, when no chosen action works store by store (Geist's Empty State).
+    'exceptions_none_title' => 'لا صلاحيات تعمل متجرًا بمتجر',
+    'exceptions_none' => 'كل الصلاحيات المختارة تصل إلى كل المتاجر بطبيعتها.',
     'back_to' => 'العودة إلى :name',
     'save_role' => 'حفظ الدور',
 

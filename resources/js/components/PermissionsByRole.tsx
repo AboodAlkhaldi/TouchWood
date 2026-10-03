@@ -9,41 +9,35 @@ import {
     useTable,
     type ColumnDef,
 } from '@tanstack/react-table';
-import { Check, Columns3, Minus, Search } from 'lucide-react';
-import { DropdownMenu as MenuPrimitive } from 'radix-ui';
+import { Check, Columns3, Minus } from 'lucide-react';
+import { SearchField } from '@/components/SearchField';
+import { Button } from '@/components/ui/button';
 import {
-    Button,
-    EmptyState,
-    Input,
-    Menu,
-    MenuSection,
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/geist';
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useTranslator } from '@/lib/t';
 
 /*
-| "Permissions by role" (frontend.md §3.4, D1): every action down the side, under the heading of
-| its business area, and the roles across the top (owner, 2026-09-24).
+| "Permissions by role" (frontend.md §3.4, D1): every action down the side, the roles across the
+| top (owner, 2026-09-24).
 |
-| Built on TanStack Table, as the owner asked (2026-09-24), for the two things a plain table could
-| not do once there are more than a handful of roles:
+| **A plain table** (owner, §1.11 #5, 2026-10-02): the business area is its own column, named once
+| at the head of its rows (a row-group header, so a screen reader still hears the area with every
+| action under it), and nothing sticks - replacing the sticky area bands of 2026-09-24. The mark in
+| each cell is kept as it was (§1.11 #6): a tick in a green square for yes, a minus for no.
 |
-| - **It scrolls in both directions with the labels kept.** The area column is stuck to the start
-|   edge and the header row to the top, so the tenth role across is still readable as a row about
-|   "Store settings and tax" rather than as an anonymous column of dots.
-| - **Roles can be filtered and hidden.** A person comparing two roles hides the other eight rather
-|   than scrolling past them, and the area filter narrows the rows to the ones they care about.
-|
-| Drawn with Geist's Table, Input and Menu (frontend.md 1.10). The roles menu is Geist's Menu with
-| a tick per role: Geist's own multi-pick is MultiSelect, which the foundation has not built, so its
-| items are Radix's checkbox items in the Menu's look - one choice per role, kept open while ticking.
-| When the filter leaves nothing, the table gives way to an Empty State rather than an empty body,
-| as Geist's Table asks.
+| Built on TanStack Table, as the owner asked (2026-09-24), for the two things a person comparing
+| roles needs once there are more than a handful: the actions can be narrowed by area or name, and
+| roles can be hidden. shadcn's parts: its Table, its search field (`input-group`), and its
+| `data-table` "Columns" menu - a DropdownMenu of DropdownMenuCheckboxItems, kept open while
+| ticking, as Geist's Multi Select stays open. When the filter leaves nothing, the table gives way
+| to an Empty State that quotes what was typed and offers to clear it.
 |
 | Only the features used are registered: anything not listed here is left out of the bundle, which
 | is what TanStack's v9 feature list is for.
@@ -90,10 +84,6 @@ type Props = {
     permissionsByRole: Record<string, string[]>;
 };
 
-// The look of Geist's MenuItem, for the checkbox items the Menu does not have a component for.
-const CHECK_ITEM =
-    'flex h-9 cursor-pointer select-none items-center gap-2 rounded-[var(--tw-radius-sm)] px-2 text-label-14 text-ink outline-none data-[highlighted]:bg-surface-sunken focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand';
-
 export function PermissionsByRole({ roles, groups, permissions, permissionsByRole }: Props) {
     const t = useTranslator();
     const [hidden, setHidden] = useState<Record<string, boolean>>({});
@@ -107,20 +97,18 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
             label: permission.label,
             group: permission.group,
             groupLabel: areaLabel.get(permission.group) ?? permission.group,
-            reach: Object.fromEntries(
-                roles.map((role) => [role.id, (permissionsByRole[role.id] ?? []).includes(permission.name)]),
-            ),
+            reach: Object.fromEntries(roles.map((role) => [role.id, (permissionsByRole[role.id] ?? []).includes(permission.name)])),
         }));
     }, [groups, permissions, permissionsByRole, roles]);
 
     const columns = useMemo<ColumnDef<Features, AreaRow>[]>(
         () => [
             {
-                id: 'area',
+                id: 'action',
                 // The area's name is searched too, so typing "media" finds every media action
                 // rather than only the ones with "media" in their own name.
                 accessorFn: (row: AreaRow) => `${row.label} ${row.groupLabel}`,
-                header: t('access::roles.comparison'),
+                header: t('access::roles.action'),
                 filterFn: 'includesString',
                 enableHiding: false,
                 cell: ({ row }) => <span className="text-ink">{row.original.label}</span>,
@@ -156,7 +144,7 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
         features,
         data,
         columns,
-        state: { columnVisibility: hidden, columnFilters: filter === '' ? [] : [{ id: 'area', value: filter }] },
+        state: { columnVisibility: hidden, columnFilters: filter === '' ? [] : [{ id: 'action', value: filter }] },
         onColumnVisibilityChange: setHidden,
     });
 
@@ -167,131 +155,101 @@ export function PermissionsByRole({ roles, groups, permissions, permissionsByRol
     return (
         <div className="grid gap-3">
             <div className="flex flex-wrap items-end gap-3">
-                {/* Geist's search field: a scoped placeholder and no visible label, so the label
-                    is given to the screen reader instead. */}
-                <Input
+                <SearchField
                     id="filter-areas"
-                    value={filter}
-                    onChange={(event) => setFilter(event.target.value)}
-                    placeholder={t('access::roles.filter_areas')}
-                    aria-label={t('access::roles.filter_areas')}
-                    prefix={<Search aria-hidden="true" className="size-4" />}
                     className="w-64"
+                    label={t('access::roles.filter_areas')}
+                    placeholder={t('access::roles.filter_areas')}
+                    value={filter}
+                    onValueChange={setFilter}
                 />
 
-                <Menu
-                    align="start"
-                    trigger={
-                        <Button type="secondary" prefix={<Columns3 aria-hidden="true" className="size-4" />} data-test="columns">
-                            {t('access::roles.columns', { shown, total: hideable.length })}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" data-test="columns">
+                            <Columns3 aria-hidden="true" />
+                            <span className="tw-figure">{t('access::roles.columns', { shown, total: hideable.length })}</span>
                         </Button>
-                    }
-                >
-                    <MenuSection title={t('access::roles.columns_hint')}>
-                        <div className="max-h-80 overflow-y-auto">
-                            {hideable.map((column) => (
-                                <MenuPrimitive.CheckboxItem
-                                    key={column.id}
-                                    checked={column.getIsVisible()}
-                                    // Kept open: hiding six of ten roles one at a time is the whole
-                                    // point, and a menu that shuts after each is six trips.
-                                    onSelect={(event) => event.preventDefault()}
-                                    onCheckedChange={(on) => column.toggleVisibility(on === true)}
-                                    className={CHECK_ITEM}
-                                >
-                                    <span className="grid size-4 shrink-0 place-items-center">
-                                        <MenuPrimitive.ItemIndicator>
-                                            <Check aria-hidden="true" className="size-4" />
-                                        </MenuPrimitive.ItemIndicator>
-                                    </span>
-                                    {roles.find((role) => role.id === column.id)?.name ?? column.id}
-                                </MenuPrimitive.CheckboxItem>
-                            ))}
-                        </div>
-                    </MenuSection>
-                </Menu>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
+                        <DropdownMenuLabel>{t('access::roles.columns_hint')}</DropdownMenuLabel>
+                        {hideable.map((column) => (
+                            <DropdownMenuCheckboxItem
+                                key={column.id}
+                                checked={column.getIsVisible()}
+                                // Kept open: hiding six of ten roles one at a time is the whole
+                                // point, and a menu that shuts after each is six trips.
+                                onSelect={(event) => event.preventDefault()}
+                                onCheckedChange={(on) => column.toggleVisibility(on === true)}
+                            >
+                                {roles.find((role) => role.id === column.id)?.name ?? column.id}
+                            </DropdownMenuCheckboxItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
 
             {rows.length === 0 ? (
-                <EmptyState title={t('access::roles.no_areas_title')} description={t('access::roles.no_areas')} />
+                <Empty className="material-base" aria-live="polite">
+                    <EmptyHeader>
+                        <EmptyTitle>{t('access::roles.no_areas_title')}</EmptyTitle>
+                        <EmptyDescription>{t('access::roles.no_areas', { query: filter })}</EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                        <Button variant="outline" onClick={() => setFilter('')}>
+                            {t('access::roles.clear_filter')}
+                        </Button>
+                    </EmptyContent>
+                </Empty>
             ) : (
-                /* Both directions, with the labels kept: the header cells stick to the top and the
-                   area column to the start edge - which is the left in English and the right in
-                   Arabic, because it is written as a logical offset. The table's own frame is the
-                   scroller (its parent element is what the browser test scrolls), so it is the one
-                   given a height. */
-                <Table className="max-h-[32rem]">
-                    <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id}>
-                                {headerGroup.headers.map((header) => (
-                                    <TableHead
-                                        key={header.id}
-                                        className={
-                                            header.column.id === 'area'
-                                                ? 'sticky start-0 top-0 z-30 bg-surface-sunken'
-                                                : 'sticky top-0 z-20 bg-surface-sunken'
-                                        }
-                                    >
-                                        {header.isPlaceholder
-                                            ? null
-                                            : flexRender(header.column.columnDef.header, header.getContext())}
-                                    </TableHead>
-                                ))}
-                            </TableRow>
-                        ))}
-                    </TableHeader>
+                <div className="material-base overflow-hidden">
+                    <Table>
+                        <TableHeader className="bg-surface-sunken">
+                            {table.getHeaderGroups().map((headerGroup) => (
+                                <TableRow key={headerGroup.id}>
+                                    <TableHead className="text-label-13 text-ink-muted">{t('access::roles.area')}</TableHead>
+                                    {headerGroup.headers.map((header) => (
+                                        <TableHead key={header.id} className="text-label-13 text-ink-muted">
+                                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                                        </TableHead>
+                                    ))}
+                                </TableRow>
+                            ))}
+                        </TableHeader>
 
-                    <TableBody>
-                        {rows.map((row, index) => {
-                            // A heading each time the area changes, worked out from the rows that
-                            // survived the filter - so a heading never stands over nothing (owner,
-                            // 2026-09-24).
-                            const previous = rows[index - 1]?.original.group;
+                        <TableBody>
+                            {rows.map((row, index) => {
+                                // The area is named once, at the head of its rows, worked out from the
+                                // rows that survived the filter - so it never stands over nothing.
+                                const first = rows[index - 1]?.original.group !== row.original.group;
+                                let span = 0;
 
-                            return (
-                                <Fragment key={row.id}>
-                                    {/* A band, not a slightly greyer row: it was there before and
-                                        could not be seen (owner, 2026-09-24). It carries the area's
-                                        name at the start edge and stays legible while the table is
-                                        scrolled sideways. */}
-                                    {previous === row.original.group ? null : (
-                                        <TableRow className="bg-brand-soft/60">
-                                            <TableCell
-                                                colSpan={row.getVisibleCells().length}
-                                                className="py-2 text-label-13 font-medium text-brand"
-                                            >
-                                                {/* The name sticks, not the cell: a cell that
-                                                    spans the whole table never leaves the screen,
-                                                    so sticking it does nothing and the name inside
-                                                    it scrolls away regardless (owner, 2026-09-24).
-                                                    Held at the cell's own padding - Geist's table
-                                                    cell has 16 px, so start-4 - so it does not
-                                                    jump on the first pixel of scrolling. */}
-                                                <span className="sticky start-4 inline-block">{row.original.groupLabel}</span>
-                                            </TableCell>
+                                if (first) {
+                                    for (let next = index; next < rows.length && rows[next]?.original.group === row.original.group; next++) {
+                                        span++;
+                                    }
+                                }
+
+                                return (
+                                    <Fragment key={row.id}>
+                                        <TableRow className={first && index > 0 ? 'border-t-2 border-line' : undefined}>
+                                            {first ? (
+                                                <TableHead scope="rowgroup" rowSpan={span} className="align-top py-2 text-label-13 font-medium text-ink">
+                                                    {row.original.groupLabel}
+                                                </TableHead>
+                                            ) : null}
+                                            {row.getVisibleCells().map((cell) => (
+                                                <TableCell key={cell.id} className={cell.column.id === 'action' ? 'whitespace-nowrap' : undefined}>
+                                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                </TableCell>
+                                            ))}
                                         </TableRow>
-                                    )}
-
-                                    <TableRow className="hover:bg-surface-sunken">
-                                        {row.getVisibleCells().map((cell) => (
-                                            <TableCell
-                                                key={cell.id}
-                                                className={
-                                                    cell.column.id === 'area'
-                                                        ? 'sticky start-0 z-10 whitespace-nowrap bg-surface'
-                                                        : undefined
-                                                }
-                                            >
-                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                            </TableCell>
-                                        ))}
-                                    </TableRow>
-                                </Fragment>
-                            );
-                        })}
-                    </TableBody>
-                </Table>
+                                    </Fragment>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                </div>
             )}
         </div>
     );

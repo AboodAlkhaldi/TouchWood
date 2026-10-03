@@ -1,7 +1,7 @@
 {
     "generated\\Modules\\Access\\Application\\Command\\SignInStaff\\index.ts": "6a10844d67d83b05a98b400e4168f68a",
     "generated\\Modules\\Access\\Domain\\ValueObject\\index.ts": "837bb04d20286a2389799616296784b8",
-    "generated\\Modules\\Access\\Presentation\\Http\\Resource\\index.ts": "2f1fbec9f21d4180f93c9223f3f4ddcf",
+    "generated\\Modules\\Access\\Presentation\\Http\\Resource\\index.ts": "266bb4b36632a90548280eee7e49e793",
     "generated\\Modules\\Access\\Public\\Enums\\index.ts": "29264a0146bd41ee46d2aad92020c341",
     "generated\\Modules\\B2B\\Application\\Query\\ViewMyCompany\\index.ts": "a047336de7710397d94b3c5e44d6d38e",
     "generated\\Modules\\B2B\\Domain\\ValueObject\\index.ts": "7a4dd37dd5f68ee8f4252bbc41cf785e",

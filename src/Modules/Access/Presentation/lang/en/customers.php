@@ -15,7 +15,11 @@ return [
     'any' => 'Any',
     'apply' => 'Apply Filters',
     'clear' => 'Clear Filters',
-    'none' => 'No customer matches that.',
+    // Geist's Empty State: a filtered list that finds nobody suggests widening or clearing the
+    // filters; a list with no customers at all says when they appear (shadcn rebuild).
+    'none' => 'Widen or clear the filters to see more customers.',
+    'empty_title' => 'No Customers Yet',
+    'empty' => 'Customers appear here once they register in one of your stores.',
     'total' => ':count in all',
     'previous' => 'Previous',
     'next' => 'Next',
@@ -28,7 +32,9 @@ return [
     'verified' => 'Confirmed',
     'email_verified' => 'Email Confirmed',
     'phone_verified' => 'Phone Confirmed',
-    'not_verified' => 'Not confirmed yet',
+    // One badge per column, its word the state (Geist's Badge: never colour alone).
+    'confirmed' => 'Confirmed',
+    'not_confirmed' => 'Not Confirmed',
     'no_phone' => 'No number',
 
     'account_type' => [
@@ -39,7 +45,9 @@ return [
         'ACTIVE' => 'Active',
         'BLOCKED' => 'Blocked',
     ],
-    'deletion_pending' => 'Closing on :date',
+    // A badge is a word, two at most (Geist); the date is said beside it.
+    'closing' => 'Closing',
+    'closing_on' => 'Closing On',
     'anonymized' => 'Anonymized',
 
     // G2.
@@ -68,6 +76,6 @@ return [
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.
-    'none_title' => 'No Customers Match',
+    'none_title' => 'No Customers Match Your Filters',
     'no_addresses_title' => 'No Addresses',
 ];

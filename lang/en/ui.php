@@ -16,6 +16,10 @@ return [
     'range' => ':from–:to of :total',
     // The owner's word for the next page of a keyset list (frontend.md E7), in Title Case.
     'load_more' => 'Show More',
+    // A busy button's spinner, which shadcn names in English; given as a prop, not edited.
+    'loading' => 'Loading',
+    // The search field's clear button (Geist's Search Input), named for a screen reader.
+    'clear_search' => 'Clear Search',
     'breadcrumbs' => 'Breadcrumbs',
     // The phone's sidebar, which shadcn names in English (frontend.md §1.11, edit 5).
     'sidebar' => 'Sidebar',

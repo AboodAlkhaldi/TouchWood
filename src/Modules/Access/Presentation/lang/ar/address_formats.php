@@ -18,6 +18,8 @@ return [
     'field_key_hint' => 'حروف صغيرة وأرقام وشرطات سفلية، مثل postal_code. وهو ما يشير إليه شكل الطباعة أدناه، وتغييره في حقل استُعمل من قبل يترك عنوان صاحبه بلا ذلك الجزء.',
     'label_ar' => 'التسمية بالعربية',
     'label_en' => 'التسمية بالإنجليزية',
+    // Each field's group of inputs is named, so a screen reader hears which field it is in.
+    'field_number' => 'الحقل :number',
     'required' => 'مطلوب',
     'max_length' => 'أقصى طول',
     'max_length_hint' => 'بين ١ و:count محرفًا.',

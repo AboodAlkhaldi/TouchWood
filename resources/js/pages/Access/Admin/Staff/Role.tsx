@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { PermissionPicker } from '@/components/PermissionPicker';
+import { RoleChoice } from '@/components/RoleChoice';
 import { ALL_STORES, ExceptionList, SELECTED_STORES, StoreChoice } from '@/components/RoleStores';
 import type { ExceptionRow } from '@/components/RoleStores';
-import { Badge, Button, RadioGroup } from '@/components/geist';
+import { FieldDescription, FieldLegend, FieldSet } from '@/components/ui/field';
 import { useTranslator } from '@/lib/t';
 import type { StaffRolePage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -20,14 +22,12 @@ import type { StaffRolePage } from '@/types/generated/Modules/Access/Presentatio
 | Only the stores this admin manages themselves are offered, because nobody hands out reach they do
 | not have. Actions they do not hold are shown but cannot be ticked, which is the picker's doing.
 |
-| In Geist's choices (frontend.md 1.10): the role is a RadioGroup - one saved role, or a role of
-| their own - as on the invitation's second step.
+| shadcn's parts (frontend.md §1.11): the role is shadcn's choice cards, as on the invitation's
+| second step; "where" and the exceptions are FieldSets whose legend and description are the
+| section's heading and hint, so each group of controls is named by them.
 */
 
 type Props = StaffRolePage;
-
-/** The radio value for "a role of their own", which is no saved role at all. */
-const OWN_ROLE = 'own';
 
 export default function Role(page: Props) {
     const t = useTranslator();
@@ -98,77 +98,28 @@ export default function Role(page: Props) {
             >
                 <FormError />
 
-                <section className="material-base p-5">
-                    <RadioGroup
-                        name="role"
-                        legend={
-                            <span className="grid gap-1">
-                                <span className="text-heading-16 text-ink">{t('access::staff.pick_role')}</span>
-                                <span className="text-copy-13 font-normal text-ink-muted">{t('access::staff.pick_role_hint')}</span>
-                            </span>
-                        }
-                        value={roleId ?? OWN_ROLE}
-                        onChange={(value) => pick(value === OWN_ROLE ? null : value)}
-                        options={[
-                            ...page.savedRoles.map((role) => ({
-                                value: role.id,
-                                label: (
-                                    <span className="grid gap-0.5">
-                                        <span className="flex flex-wrap items-center gap-2">
-                                            {role.name}
-                                            {roleId === role.id && edited ? (
-                                                <Badge variant="amber-subtle" size="small">
-                                                    {t('access::staff.edited')}
-                                                </Badge>
-                                            ) : null}
-                                        </span>
-                                        <span className="tw-figure text-copy-13 text-ink-muted">
-                                            {t('access::staff.actions_count', { count: role.permissionCount })}
-                                        </span>
-                                    </span>
-                                ),
-                            })),
-                            {
-                                value: OWN_ROLE,
-                                label: (
-                                    <span className="grid gap-0.5">
-                                        <span>{t('access::staff.own_role')}</span>
-                                        <span className="text-copy-13 text-ink-muted">{t('access::staff.own_role_hint')}</span>
-                                    </span>
-                                ),
-                            },
-                        ]}
-                    />
-                </section>
+                <RoleChoice roles={page.savedRoles} value={roleId} edited={edited} onPick={pick} />
 
-                <PermissionPicker
-                    permissions={page.permissions}
-                    groups={page.groups}
-                    chosen={chosen}
-                    onChange={setChosen}
-                />
+                <PermissionPicker permissions={page.permissions} groups={page.groups} chosen={chosen} onChange={setChosen} />
 
-                <section className="grid gap-3">
-                    <div className="grid gap-1">
-                        <h2 className="text-heading-16 text-ink">{t('access::staff.where')}</h2>
-                        <p className="text-copy-13 text-ink-muted">{t('access::staff.where_hint')}</p>
-                    </div>
-
+                <FieldSet className="gap-3">
+                    <FieldLegend id="where" className="mb-0 text-heading-16 text-ink">
+                        {t('access::staff.where')}
+                    </FieldLegend>
+                    <FieldDescription className="text-copy-13 text-ink-muted">{t('access::staff.where_hint')}</FieldDescription>
                     <StoreChoice
+                        labelledBy="where"
                         stores={page.stores}
                         level={form.data.access_level}
                         chosen={form.data.store_ids}
                         onLevel={(level) => form.setData('access_level', level)}
                         onChosen={(ids) => form.setData('store_ids', ids)}
                     />
-                </section>
+                </FieldSet>
 
-                <section className="grid gap-3">
-                    <div className="grid gap-1">
-                        <h2 className="text-heading-16 text-ink">{t('access::staff.exceptions_title')}</h2>
-                        <p className="text-copy-13 text-ink-muted">{t('access::staff.exceptions_hint')}</p>
-                    </div>
-
+                <FieldSet className="gap-3">
+                    <FieldLegend className="mb-0 text-heading-16 text-ink">{t('access::staff.exceptions_title')}</FieldLegend>
+                    <FieldDescription className="text-copy-13 text-ink-muted">{t('access::staff.exceptions_hint')}</FieldDescription>
                     <ExceptionList
                         permissions={page.permissions}
                         chosen={chosen}
@@ -176,12 +127,12 @@ export default function Role(page: Props) {
                         rows={form.data.exceptions}
                         onChange={(rows) => form.setData('exceptions', rows)}
                     />
-                </section>
+                </FieldSet>
 
                 <div>
-                    <Button typeName="submit" loading={form.processing}>
+                    <ActionButton type="submit" loading={form.processing}>
                         {t('access::staff.save_role')}
-                    </Button>
+                    </ActionButton>
                 </div>
             </form>
         </AdminLayout>

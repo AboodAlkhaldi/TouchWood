@@ -114,9 +114,9 @@ it('creates a role from the screen, ticking an action and saving it', function (
 
     $page->type('#name_ar', 'أمين المستودع '.Str::random(4))
         ->type('#name_en', $english)
-        // The first action of the first area. Named precisely because there are a dozen boxes on
-        // this screen and a loose selector matches all of them.
-        ->click('section:first-of-type li:first-child [role="checkbox"]')
+        // One action, named precisely because there are a dozen boxes on this screen and a loose
+        // selector matches all of them: each box carries its action's name (the shadcn rebuild).
+        ->click('[data-test="permission-'.AccessPermissions::STAFF_VIEW.'"]')
         ->click('button[type="submit"]')
         ->assertSee($english);
 
@@ -172,41 +172,38 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
 
     // Counted in the table itself rather than asserted as page text: every business area is also
     // a menu group, so each of these words is in the sidebar whatever the table is showing.
-    $areas = (int) $page->script('document.querySelectorAll("table tbody tr").length');
+    $actions = (int) $page->script('document.querySelectorAll("table tbody tr").length');
     $columns = (int) $page->script('document.querySelectorAll("table thead th").length');
+    $headers = (array) $page->script('[...document.querySelectorAll("table thead th")].slice(0, 2).map((th) => th.innerText.trim())');
 
-    expect($areas)->toBeGreaterThan(1)
-        // One column per role, and the area column in front of them.
-        ->and($columns)->toBeGreaterThanOrEqual(3);
+    expect($actions)->toBeGreaterThan(1)
+        // A plain table (owner, frontend.md §1.11 #5): the area is a column of its own, then the
+        // action, then one column per role.
+        ->and($headers)->toBe(['Area', 'Action'])
+        ->and($columns)->toBeGreaterThanOrEqual(4);
 
     // The filter narrows the rows to the area somebody is actually looking at.
     $page->type('input[placeholder="Filter the areas"]', 'Media')->assertNoJavaScriptErrors();
 
     $narrowed = (int) $page->script('document.querySelectorAll("table tbody tr").length');
-    $shown = (string) $page->script('document.querySelector("table tbody tr td").innerText');
+    // The area is named once, at the head of its rows, as a row-group header.
+    $area = (string) $page->script('document.querySelector("table tbody th[scope=rowgroup]").innerText');
 
-    // The first row of a filtered table is the area's own heading, which the screen puts above
-    // each run of actions - and the stylesheet sets it in capitals.
-    expect($narrowed)->toBeLessThan($areas)
-        ->and(strtolower($shown))->toContain('media');
+    expect($narrowed)->toBeLessThan($actions)
+        ->and(strtolower($area))->toContain('media');
 
-    // The area's name stays at the start edge while the table is scrolled sideways, or somebody
-    // ten roles across no longer knows which area they are reading (owner, 2026-09-24).
-    $before = (float) $page->script(
-        'document.querySelector("table tbody tr span.sticky").getBoundingClientRect().x',
+    // Nothing sticks any more (owner, §1.11 #5, replacing the sticky area bands of 2026-09-24).
+    $sticky = (int) $page->script(
+        '[...document.querySelectorAll("table th, table td, table th *, table td *")].filter((cell) => getComputedStyle(cell).position === "sticky").length',
     );
 
-    $page->script('document.querySelector("table").parentElement.scrollLeft = 400');
+    expect($sticky)->toBe(0);
 
-    $after = (float) $page->script(
-        'document.querySelector("table tbody tr span.sticky").getBoundingClientRect().x',
-    );
-
-    expect(abs($after - $before))->toBeLessThan(2.0);
-
-    // And the columns menu opens with a row per role, so ten roles can become two.
+    // And the columns menu opens with a row per role, so ten roles can become two; its header is
+    // one word (Geist's Menu).
     $page->click('[data-test="columns"]')
-        ->assertSee('Roles to Show')
+        ->assertSee('Roles')
         ->assertSee($hidden)
+        ->assertPresent('[role="menuitemcheckbox"]')
         ->assertNoJavaScriptErrors();
 });

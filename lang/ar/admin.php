@@ -13,6 +13,9 @@ return [
     'menu_waiting' => '، :count بانتظارك',
     'open_menu' => 'فتح القائمة',
     'close_menu' => 'إغلاق القائمة',
+    // The ⋯ button that holds a page's or a row's other actions (Geist's Dots Menu), named for a
+    // screen reader.
+    'more_actions' => 'إجراءات أخرى',
     'super_admin' => 'مدير عام',
     'coming_soon' => 'قريبًا',
     'coming_soon_title' => 'قريبًا',

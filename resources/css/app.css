@@ -128,6 +128,21 @@
         --sidebar-accent: var(--tw-sidebar-active);
     }
 
+    /*
+    | The edge every shadcn part draws with a bare `border` - a table's rows, a menu, a popover, a
+    | dialog: our line, as shadcn's own stylesheet sets it (`* { @apply border-border }`). Without it
+    | Tailwind's default is the text colour, and every such edge was drawn in ink (found in batch A's
+    | screenshots, 2026-10-03). A part that names its own edge colour still wins: utilities come after
+    | this layer.
+    */
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-border);
+    }
+
     html {
         background: var(--tw-page);
         color: var(--tw-ink);

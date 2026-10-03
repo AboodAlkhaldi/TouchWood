@@ -15,7 +15,11 @@ return [
     'any' => 'الكل',
     'apply' => 'تطبيق التصفية',
     'clear' => 'مسح التصفية',
-    'none' => 'لا عميل يطابق ذلك.',
+    // Geist's Empty State: a filtered list that finds nobody suggests widening or clearing the
+    // filters; a list with no customers at all says when they appear (shadcn rebuild).
+    'none' => 'وسّع التصفية أو امسحها لترى عملاء أكثر.',
+    'empty_title' => 'لا عملاء بعد',
+    'empty' => 'يظهر العملاء هنا حين يسجّلون في أحد متاجرك.',
     'total' => ':count في المجموع',
     'previous' => 'السابق',
     'next' => 'التالي',
@@ -28,7 +32,9 @@ return [
     'verified' => 'مؤكَّد',
     'email_verified' => 'البريد مؤكَّد',
     'phone_verified' => 'الجوال مؤكَّد',
-    'not_verified' => 'غير مؤكَّد بعد',
+    // One badge per column, its word the state (Geist's Badge: never colour alone).
+    'confirmed' => 'مؤكَّد',
+    'not_confirmed' => 'غير مؤكَّد',
     'no_phone' => 'لا يوجد رقم',
 
     'account_type' => [
@@ -39,7 +45,9 @@ return [
         'ACTIVE' => 'نشط',
         'BLOCKED' => 'محظور',
     ],
-    'deletion_pending' => 'يُغلق في :date',
+    // A badge is a word, two at most (Geist); the date is said beside it.
+    'closing' => 'قيد الإغلاق',
+    'closing_on' => 'يُغلق في',
     'anonymized' => 'مُجهَّل',
 
     // G2.
@@ -68,6 +76,6 @@ return [
 
     // تطلبها شاشات Geist (frontend.md 1.10): عناوين الحالات الفارغة، وأسباب الأزرار المعطّلة،
     // وكلمات النوافذ نفسها.
-    'none_title' => 'لا عملاء مطابقون',
+    'none_title' => 'لا عملاء يطابقون التصفية',
     'no_addresses_title' => 'لا عناوين',
 ];

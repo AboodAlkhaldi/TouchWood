@@ -1,7 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { ChevronsUpDown, Lock } from 'lucide-react';
 import { Logo } from '@/components/Logo';
-import { Badge } from '@/components/ui/badge';
+import { StoreOffBadge } from '@/components/StoreOffBadge';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -47,9 +47,7 @@ export function StoreSwitcher() {
             {/* A Super Admin preparing an off store sees it said where they work, not only in the
                 list (the review of the foundation, 2026-10-03). */}
             {current !== null && !current.isActive ? (
-                <Badge variant="outline" className="border-sidebar-foreground/40 text-sidebar-foreground">
-                    {t('admin.store.off')}
-                </Badge>
+                <StoreOffBadge className="border-sidebar-foreground/40 text-sidebar-foreground" />
             ) : null}
         </>
     );
@@ -132,7 +130,7 @@ function StoreRow({ store, current }: { store: Store; current: boolean }) {
                 {/* Why it cannot be chosen, in words, at the muted text's own contrast. */}
                 {locked ? <span className="truncate text-xs text-muted-foreground">{t('admin.store.off_reason', { store: store.name })}</span> : null}
             </div>
-            {store.isActive ? null : <Badge variant="outline">{t('admin.store.off')}</Badge>}
+            {store.isActive ? null : <StoreOffBadge />}
         </DropdownMenuItem>
     );
 }

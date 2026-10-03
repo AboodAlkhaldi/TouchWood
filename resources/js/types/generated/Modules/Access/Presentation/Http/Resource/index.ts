@@ -96,6 +96,7 @@ export type CustomerAddressGroup = {
 storeId: string,
 storeName: string,
 addresses: AddressRow[],
+isActive: boolean,
 };
 export type CustomerDetailsPage = {
 customer: CustomerRow,
@@ -134,6 +135,7 @@ deletionScheduledFor: string | null,
 anonymized: boolean,
 homeStore: string,
 registeredAt: string,
+homeStoreIsActive: boolean,
 };
 export type CustomerSignInPage = {
 rememberDays: number,
@@ -326,6 +328,7 @@ isCurrent: boolean,
 export type StoreOption = {
 id: string,
 name: string,
+isActive: boolean,
 };
 export type TrustedBrowserRow = {
 id: string,

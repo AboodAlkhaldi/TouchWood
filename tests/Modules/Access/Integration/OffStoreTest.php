@@ -5,6 +5,8 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRole;
+use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
 use Modules\Access\Application\Command\ChooseCurrentStore\ChooseCurrentStore;
 use Modules\Access\Application\Command\ChooseCurrentStore\ChooseCurrentStoreHandler;
 use Modules\Access\Application\Command\DeleteAddress\DeleteAddress;
@@ -13,6 +15,7 @@ use Modules\Access\Application\Command\SaveAddress\SaveAddress;
 use Modules\Access\Application\Command\SaveAddress\SaveAddressHandler;
 use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddress;
 use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddressHandler;
+use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\CurrentStore\CurrentStoreForStaff;
 use Modules\Access\Application\Query\MyAccount\MyAddressesForCustomer;
 use Modules\Access\Application\Query\MyAccount\MyAddressesInStoreDto;
@@ -20,10 +23,12 @@ use Modules\Access\Application\Query\ViewCustomer\ViewCustomer;
 use Modules\Access\Application\Query\ViewCustomer\ViewCustomerHandler;
 use Modules\Access\Domain\Exception\AddressNotFound;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Presentation\Http\Resource\CustomerAddressGroup;
 use Modules\Access\Presentation\Http\Resource\CustomerPages;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Dto\AddressDto;
+use Modules\Access\Public\Enums\AccessLevel;
 use Modules\Platform\Application\Command\ActivateStore\ActivateStore;
 use Modules\Platform\Application\Command\ActivateStore\ActivateStoreHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
@@ -77,6 +82,20 @@ function offStoreBook(): array
     return array_map(static fn (MyAddressesInStoreDto $store): string => $store->storeCode, app(MyAddressesForCustomer::class)->forCurrentCustomer());
 }
 
+/**
+ * @param  list<CustomerAddressGroup>  $groups
+ */
+function offStoreGroup(array $groups, string $storeId): CustomerAddressGroup
+{
+    foreach ($groups as $group) {
+        if ($group->storeId === $storeId) {
+            return $group;
+        }
+    }
+
+    throw new RuntimeException("No address group for store {$storeId}.");
+}
+
 describe('a customer\'s addresses in an off store', function () {
     it('hides them from every read while the store is off, and gives them back as they were', function () {
         $egypt = Fx::storeId('eg');
@@ -128,38 +147,52 @@ describe('a customer\'s addresses in an off store', function () {
             ->and(DB::table('access.addresses')->where('id', $cairo)->exists())->toBeTrue();
     })->with(['delete', 'make default']);
 
-    it('hides them from the staff customer screen too, and gives them back when the store is on (amendment 57)', function () {
+    it('shows them on the staff customer screen, named and marked Off, while the customer still cannot use them (amendment 58(d))', function () {
+        $saudi = Fx::storeId('sa');
+        // Read while it is on: an off store has no id in the fixtures.
+        $egypt = Fx::storeId('eg');
         $customerId = Fx::customer();
         Fx::actAsCustomer($customerId);
-        offStoreAddress(Fx::storeId('sa'));
-        offStoreAddress(Fx::storeId('eg'), 'Cairo');
+        offStoreAddress($saudi);
+        offStoreAddress($egypt, 'Cairo');
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $egyptName = offStoreGroup(app(CustomerPages::class)->view($customerId)->addresses, $egypt)->storeName;
         offStoreSwitch('eg', on: false);
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
         $details = app(ViewCustomerHandler::class)->handle(new ViewCustomer($customerId));
         $page = app(CustomerPages::class)->view($customerId);
 
-        expect(array_map(static fn (AddressDto $address): string => $address->storeId, $details->addresses))->toBe([Fx::storeId('sa')])
-            ->and(array_map(static fn (CustomerAddressGroup $group): string => $group->storeId, $page->addresses))->toBe([Fx::storeId('sa')])
-            ->and(DB::table('access.addresses')->where('customer_id', $customerId)->count())->toBe(2);
+        expect(array_map(static fn (AddressDto $address): string => $address->storeId, $details->addresses))->toEqualCanonicalizing([$saudi, $egypt])
+            ->and(offStoreGroup($page->addresses, $saudi)->isActive)->toBeTrue()
+            ->and(offStoreGroup($page->addresses, $egypt)->isActive)->toBeFalse()
+            ->and($egyptName)->not->toBe('')
+            ->and(offStoreGroup($page->addresses, $egypt)->storeName)->toBe($egyptName)
+            ->and(offStoreGroup($page->addresses, $egypt)->addresses)->toHaveCount(1);
 
-        offStoreSwitch('eg', on: true);
-        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        // The customer's own address book still leaves it out while the store is off (55(a) stands).
+        Fx::actAsCustomer($customerId);
 
-        expect(app(ViewCustomerHandler::class)->handle(new ViewCustomer($customerId))->addresses)->toHaveCount(2);
+        expect(offStoreBook())->toBe(['sa', 'ae']);
     });
 
-    it('names no home store on the staff screens when it is off, never showing its id instead', function () {
+    it('names an off home store on the staff screens with an Off flag, never its id (amendment 58(c)(d))', function () {
         $egypt = Fx::storeId('eg');
         $customerId = Fx::customer('cairo@example.test', 'eg');
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $name = app(CustomerPages::class)->view($customerId)->customer->homeStore;
         offStoreSwitch('eg', on: false);
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
         $listed = app(CustomerPages::class)->list(null, null, null, 1)->customers;
+        $viewed = app(CustomerPages::class)->view($customerId)->customer;
 
-        expect(app(CustomerPages::class)->view($customerId)->customer->homeStore)->toBe('')
+        expect($name)->not->toBe('')
+            ->and($viewed->homeStore)->toBe($name)
+            ->and($viewed->homeStoreIsActive)->toBeFalse()
             ->and($listed)->toHaveCount(1)
-            ->and($listed[0]->homeStore)->toBe('')
+            ->and($listed[0]->homeStore)->toBe($name)
+            ->and($listed[0]->homeStoreIsActive)->toBeFalse()
             ->and($listed[0]->homeStore)->not->toBe($egypt);
     });
 });
@@ -280,5 +313,54 @@ describe('working in an off store', function () {
 
         expect($current?->fellBack)->toBeTrue()
             ->and($current?->fellBackFromOff)->toBeFalse();
+    });
+});
+
+/*
+| A staff member's stores while one of them is off (access.md amendment 58(b); owner, 2026-10-03):
+| saving keeps it, and an admin who covers it may still give it or take it away.
+*/
+describe('a staff member\'s stores while one is off', function () {
+    /** An admin who may assign roles in Saudi Arabia and Egypt, acting now. */
+    function offStoreEditor(): void
+    {
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_VIEW], ['sa', 'eg'], RoleLevel::Admin));
+    }
+
+    /**
+     * The stores a staff member covers now, read through the switcher's own answer.
+     *
+     * @return list<string>
+     */
+    function offStoreCovered(string $staffId): array
+    {
+        Fx::actAsStaff($staffId);
+
+        // `??` already reads a null on its left as missing, so no nullsafe arrow is needed.
+        return app(CurrentStoreForStaff::class)->forCurrentStaff()->available ?? [];
+    }
+
+    it('keeps an off store on a staff member when their stores are saved', function () {
+        [$saudi, $egypt] = [Fx::storeId('sa'), Fx::storeId('eg')];
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']);
+        $roleId = Fx::roleOf($staffId);
+        offStoreEditor();
+        offStoreSwitch('eg', on: false);
+
+        app(ChangeStaffRoleHandler::class)->handle(new ChangeStaffRole($staffId, AccessLevel::SelectedStores, [$saudi, $egypt], savedRoleId: $roleId));
+
+        expect(offStoreCovered($staffId))->toBe([$saudi, $egypt]);
+    });
+
+    it('lets an admin who covers an off store give it to somebody while it is off', function () {
+        [$saudi, $egypt] = [Fx::storeId('sa'), Fx::storeId('eg')];
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa']);
+        $roleId = Fx::roleOf($staffId);
+        offStoreEditor();
+        offStoreSwitch('eg', on: false);
+
+        app(ChangeStaffRoleHandler::class)->handle(new ChangeStaffRole($staffId, AccessLevel::SelectedStores, [$saudi, $egypt], savedRoleId: $roleId));
+
+        expect(offStoreCovered($staffId))->toBe([$saudi, $egypt]);
     });
 });

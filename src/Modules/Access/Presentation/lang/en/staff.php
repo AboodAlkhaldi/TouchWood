@@ -25,9 +25,19 @@ return [
     'status_disabled' => 'Disabled',
     // Final: an invitation that was cancelled is not sent again (access.md amendment 29).
     'status_cancelled' => 'Cancelled',
-    'since' => 'Since :date',
+    // Before Geist's Relative Time Card, which writes "5h ago" or a date: "Joined 5h ago",
+    // "Joined Mar 14, 2026" (shadcn rebuild; "Since" read wrongly before a relative time).
+    'since' => 'Joined :date',
     'invited_on' => 'Invited :date',
-    'no_staff' => 'Nobody here yet.',
+    // Geist's Empty State: the blank slate names the next action; a filtered list that finds
+    // nobody says so, quoting a typed search, and offers to clear the filters (shadcn rebuild).
+    'no_staff' => 'Invite a member to give them a way into the panel.',
+    'no_match_title' => 'No Staff Members Match Your Filters',
+    'no_match_query' => 'No staff members match “:query”. Clear the filters to see everyone.',
+    'no_match' => 'Widen or clear the filters to see everyone.',
+    'clear_filters' => 'Clear Filters',
+    // Geist's Search Input: a scoped placeholder.
+    'search_placeholder' => 'Search staff',
     'invite' => 'Invite Member',
     'total' => ':count people',
 
@@ -40,6 +50,10 @@ return [
     'country' => 'Country',
     'countries_ours' => 'Where We Have Stores',
     'countries_all' => 'Every Country',
+    // The country picker's search (Geist's Combobox): a scoped placeholder, and the typed text quoted
+    // when nothing matches.
+    'country_search' => 'Search countries',
+    'country_none' => 'No countries match “:query”.',
     'address' => 'Address',
     'communication_language' => 'Communication Language',
     'communication_language_hint' => 'The language their emails and codes are written in.',
@@ -95,8 +109,9 @@ return [
     'no_stores_to_give' => 'You can only hand out stores you manage yourself.',
     'exceptions_title' => 'Actions with Stores of Their Own',
     'exceptions_hint' => 'An action can reach further, or less far, than the rest of the role.',
-    'give_own_stores' => 'Give It Its Own Stores',
-    'follow_the_role' => 'Follow the Role Again',
+    // In place of an empty list, when no chosen action works store by store (Geist's Empty State).
+    'exceptions_none_title' => 'No Actions Work Store by Store',
+    'exceptions_none' => 'Every action chosen reaches every store by its nature.',
     'back_to' => 'Back to :name',
     'save_role' => 'Save Role',
 

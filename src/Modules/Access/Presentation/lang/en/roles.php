@@ -16,7 +16,8 @@ return [
     'level_staff' => 'Staff',
     'actions_count' => ':count actions',
     'holders_count' => ':count people',
-    'no_roles' => 'No roles yet.',
+    // Geist's Empty State: the blank slate names the next action (shadcn rebuild).
+    'no_roles' => 'Create a role to give staff a set of actions.',
 
     'new' => 'Create Role',
     'edit' => 'Edit Role',
@@ -27,12 +28,18 @@ return [
     'cancel' => 'Cancel',
 
     // D1's table: business areas down the side, roles across the top.
+    // The plain table's first two column headers: the business area, then the action (§1.11 #5).
+    'area' => 'Area',
+    'action' => 'Action',
     'reaches' => 'Reaches into it',
     'does_not_reach' => 'Does not',
     'filter_areas' => 'Filter the areas',
     'columns' => 'Roles: :shown of :total',
-    'columns_hint' => 'Roles to Show',
-    'no_areas' => 'No business area matches that.',
+    // A menu section's header: one or two words (Geist's Menu).
+    'columns_hint' => 'Roles',
+    // Geist's Empty State quotes the typed filter and offers to clear it.
+    'no_areas' => 'No areas match “:query”. Clear the filter to see every area.',
+    'clear_filter' => 'Clear Filter',
     'comparison' => 'Permissions by Role',
     'comparison_hint' => 'Which areas each role reaches into.',
 
@@ -48,7 +55,8 @@ return [
     // D3.
     'new_title' => 'Create Role',
     'edit_title' => 'Edit Role',
-    'chosen_count' => ':count chosen',
+    // Geist's Checkbox group: the count beside the group's name says how many of how many.
+    'chosen_count' => ':count of :total chosen',
     'not_yours' => 'You do not hold this action, so you cannot give it.',
     'holders_warning' => 'Changing this role changes it for the :count people who hold it.',
     'level_locked' => "A role's level cannot change after it is made.",
@@ -74,4 +82,6 @@ return [
     'no_holders_title' => 'No Holders',
     'verification_label' => 'role name',
     'delete_body' => 'The role :name will be permanently deleted.',
+    // Geist's Destructive Action Modal: the red band names the action and the thing.
+    'delete_irreversible' => 'Deleting :name cannot be undone.',
 ];

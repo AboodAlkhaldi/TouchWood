@@ -828,7 +828,10 @@ is "the single highest-value guard in the project". The owner left these numbers
   unenforced, and every page rode in one shared file: 236.5 KB gzipped by 2026-10-02. Now each page
   is its own file, fetched with the app because the shell names the current page to Vite. The
   shared part was 138.4 KB when this was written. `tests/Architecture/JavaScriptBudgetTest` measures
-  the build: the shared part, and what each page adds, gzipped.
+  the build: the shared part, and what each page adds, gzipped. A file that every page loads counts
+  as shared, as the row above defines it, even when the bundler splits it from the app's own file
+  (batch A of the rebuild, 2026-10-03: shadcn's common Radix code, about 15 KB, which all 57 pages
+  load).
 - Listings use keyset paging and read models, never Eloquent hydration (handoff §5.4,
   `docs/STRUCTURE.md`).
 - SSR renders every page (§1.3); when the SSR process is down the page still works, rendered in the

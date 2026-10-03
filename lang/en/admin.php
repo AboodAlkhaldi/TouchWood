@@ -13,6 +13,9 @@ return [
     'menu_waiting' => ', :count waiting',
     'open_menu' => 'Open the menu',
     'close_menu' => 'Close the menu',
+    // The ⋯ button that holds a page's or a row's other actions (Geist's Dots Menu), named for a
+    // screen reader.
+    'more_actions' => 'More Actions',
     'super_admin' => 'Super Admin',
     'coming_soon' => 'Soon',
     'coming_soon_title' => 'Coming Soon',

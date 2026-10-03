@@ -12,6 +12,10 @@ return [
     'pages' => 'الصفحات',
     'range' => ':from–:to من :total',
     'load_more' => 'عرض المزيد',
+    // A busy button's spinner, which shadcn names in English; given as a prop, not edited.
+    'loading' => 'جارٍ التحميل',
+    // The search field's clear button (Geist's Search Input), named for a screen reader.
+    'clear_search' => 'مسح البحث',
     'breadcrumbs' => 'مسار التنقل',
     // The phone's sidebar, which shadcn names in English (frontend.md §1.11, edit 5).
     'sidebar' => 'الشريط الجانبي',

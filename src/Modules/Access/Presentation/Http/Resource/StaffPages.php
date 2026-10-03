@@ -311,10 +311,13 @@ final readonly class StaffPages
         }
 
         $stores = $this->storeNames();
+        $off = $this->offStores();
         $ids = $reach->isAllStores() ? array_keys($stores) : $reach->storeIds();
 
+        // An off store among them is offered too, marked Off: an admin who covers it may keep it on
+        // somebody, take it away or give it while it is off (access.md amendment 58(b)).
         return array_values(array_map(
-            static fn (string $id): StoreOption => new StoreOption($id, $stores[$id]),
+            static fn (string $id): StoreOption => new StoreOption($id, $stores[$id], ! in_array($id, $off, true)),
             array_filter($ids, static fn (string $id): bool => isset($stores[$id])),
         ));
     }
@@ -468,13 +471,16 @@ final readonly class StaffPages
     }
 
     /**
+     * Every store's name, off ones included: a staff member keeps an off store they hold, and the
+     * page names it, marked (access.md amendment 58(b)).
+     *
      * @return array<string, string>
      */
     private function storeNames(): array
     {
         $stores = [];
 
-        foreach ($this->platform->stores() as $store) {
+        foreach ($this->platform->allStores() as $store) {
             $stores[$store->id] = $store->name->in($this->locale());
         }
 
@@ -482,7 +488,26 @@ final readonly class StaffPages
     }
 
     /**
-     * Store ids as their names, in the language being read.
+     * The ids of the stores that are switched off.
+     *
+     * @return list<string>
+     */
+    private function offStores(): array
+    {
+        $off = [];
+
+        foreach ($this->platform->allStores() as $store) {
+            if (! $store->isActive) {
+                $off[] = $store->id;
+            }
+        }
+
+        return $off;
+    }
+
+    /**
+     * Store ids as their names, in the language being read; an off one is marked so (amendment
+     * 58(b)).
      *
      * @param  list<string>  $ids
      * @param  array<string, string>  $stores
@@ -490,8 +515,13 @@ final readonly class StaffPages
      */
     private function named(array $ids, array $stores): array
     {
+        $off = $this->offStores();
+        $mark = (string) __('admin.store.off', [], $this->locale());
+
         return array_values(array_filter(array_map(
-            static fn (string $id): ?string => $stores[$id] ?? null,
+            static fn (string $id): ?string => isset($stores[$id])
+                ? (in_array($id, $off, true) ? "{$stores[$id]} · {$mark}" : $stores[$id])
+                : null,
             $ids,
         )));
     }

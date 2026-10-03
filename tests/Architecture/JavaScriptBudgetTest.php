@@ -9,8 +9,12 @@ declare(strict_types=1);
 | happened (handoff §5.4).
 |
 | Measured from Vite's manifest, the way a browser meets the files: the app's entry and every chunk
-| it imports statically are shared; a page is its own chunk plus whatever it alone pulls in. Sizes
-| are gzipped at the strongest level and counted in kilobytes of 1,000 bytes, as Vite reports them.
+| it imports statically are shared, and so is a chunk that every page loads - it is downloaded once
+| and cached, whichever page comes first; a page is its own chunk plus whatever it alone pulls in.
+| (Batch A of the shadcn rebuild, 2026-10-03: the bundler had put shadcn's common Radix code, which
+| all 57 pages load, in a chunk of its own, and counting it on every page made each page pay for
+| the same cached 15 KB.) Sizes are gzipped at the strongest level and counted in kilobytes of
+| 1,000 bytes, as Vite reports them.
 |
 | It reads public/build, so it measures the last build - and refuses one older than the code it was
 | built from, which would let a breach pass unmeasured (the review of the foundation, 2026-10-03).
@@ -58,18 +62,26 @@ function chunksLoadedWith(array $manifest, string $key): array
  */
 function javaScriptSizes(array $manifest, callable $gzippedSize): array
 {
-    $shared = chunksLoadedWith($manifest, APP_ENTRY);
     $sizeOf = fn (array $keys): int => array_sum(array_map(fn (string $key): int => $gzippedSize($manifest[$key]['file']), $keys));
 
-    $pages = [];
+    /** @var array<string, list<string>> $loaded */
+    $loaded = [];
 
     foreach ($manifest as $key => $chunk) {
         if (($chunk['isDynamicEntry'] ?? false) && str_starts_with($chunk['src'] ?? $key, 'resources/js/pages/')) {
-            $pages[$key] = $sizeOf(array_values(array_diff(chunksLoadedWith($manifest, $key), $shared)));
+            $loaded[$key] = chunksLoadedWith($manifest, $key);
         }
     }
 
-    return ['shared' => $sizeOf($shared), 'pages' => $pages];
+    // What every page loads is downloaded once, whichever page comes first. With one page only,
+    // nothing is "every page's" but the entry's: its own chunk would otherwise count as shared.
+    $everyPage = count($loaded) < 2 ? [] : array_values(array_intersect(...array_values($loaded)));
+    $shared = array_values(array_unique([...chunksLoadedWith($manifest, APP_ENTRY), ...$everyPage]));
+
+    return [
+        'shared' => $sizeOf($shared),
+        'pages' => array_map(fn (array $keys): int => $sizeOf(array_values(array_diff($keys, $shared))), $loaded),
+    ];
 }
 
 it('counts a chunk the entry imports as shared, and a page only for what it alone adds', function () {
@@ -86,6 +98,35 @@ it('counts a chunk the entry imports as shared, and a page only for what it alon
         'shared' => 110,
         'pages' => ['resources/js/pages/A.tsx' => 35, 'resources/js/pages/B.tsx' => 7],
     ]);
+});
+
+it('counts a chunk every page loads as shared, and one that only some pages load against each of them', function () {
+    $manifest = [
+        APP_ENTRY => ['file' => 'app.js'],
+        '_radix.js' => ['file' => 'radix.js'],
+        '_layout.js' => ['file' => 'layout.js', 'imports' => ['_radix.js']],
+        'resources/js/pages/A.tsx' => ['file' => 'a.js', 'src' => 'resources/js/pages/A.tsx', 'isDynamicEntry' => true, 'imports' => ['_layout.js']],
+        'resources/js/pages/B.tsx' => ['file' => 'b.js', 'src' => 'resources/js/pages/B.tsx', 'isDynamicEntry' => true, 'imports' => ['_layout.js']],
+        'resources/js/pages/C.tsx' => ['file' => 'c.js', 'src' => 'resources/js/pages/C.tsx', 'isDynamicEntry' => true, 'imports' => ['_radix.js']],
+    ];
+    $sizes = ['app.js' => 10, 'radix.js' => 50, 'layout.js' => 20, 'a.js' => 5, 'b.js' => 7, 'c.js' => 3];
+
+    // radix.js reaches every page, so it is shared; layout.js reaches two of three, so each of
+    // those two pays for it.
+    expect(javaScriptSizes($manifest, fn (string $file): int => $sizes[$file]))->toBe([
+        'shared' => 60,
+        'pages' => ['resources/js/pages/A.tsx' => 25, 'resources/js/pages/B.tsx' => 27, 'resources/js/pages/C.tsx' => 3],
+    ]);
+});
+
+it('does not count a lone page as shared with itself', function () {
+    $manifest = [
+        APP_ENTRY => ['file' => 'app.js'],
+        'resources/js/pages/A.tsx' => ['file' => 'a.js', 'src' => 'resources/js/pages/A.tsx', 'isDynamicEntry' => true],
+    ];
+
+    expect(javaScriptSizes($manifest, fn (string $file): int => ['app.js' => 10, 'a.js' => 5][$file]))
+        ->toBe(['shared' => 10, 'pages' => ['resources/js/pages/A.tsx' => 5]]);
 });
 
 /**
