@@ -121,6 +121,7 @@ describe('codes', function () {
         $product = Px::product();
 
         expect(fn () => catalogVariantsAdd($product, 'BLM-110'))->toThrow(InvalidCatalogAttribute::class, 'code')
+            ->and(fn () => catalogVariantsAdd($product, 'a1304'))->toThrow(InvalidCatalogAttribute::class, 'code')
             ->and(fn () => catalogVariantsAdd($product, '12345678901'))->toThrow(InvalidCatalogAttribute::class, 'code')
             ->and(fn () => catalogVariantsAdd($product, ''))->toThrow(InvalidCatalogAttribute::class, 'code')
             ->and(app(VariantRepository::class)->find(catalogVariantsAdd($product, ' 1304 '))?->code()->value)->toBe('1304');
@@ -366,5 +367,13 @@ describe('the rows a variant points at', function () {
 
         expect(array_values(array_unique(array_intersect($adding, ['attributes', 'attribute_values']))))->toBe(['attributes', 'attribute_values'])
             ->and($editing)->toBe(['attributes', 'attribute_values']);
+    });
+});
+
+describe('the details\' limit', function () {
+    it('takes at most 100 details, counted before any is looked up', function () {
+        $ids = array_map(static fn (): string => strtolower((string) Str::ulid()), range(1, 101));
+
+        expect(fn () => catalogVariantsAdd(Px::product(), '1001', ['details' => array_fill_keys($ids, ['number' => '1'])]))->toThrow(InvalidCatalogAttribute::class, 'details');
     });
 });

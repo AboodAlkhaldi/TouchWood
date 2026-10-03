@@ -383,6 +383,25 @@ describe('relations and filter values, further', function () {
 });
 
 describe('a photo\'s file deleted, asked again under the lock', function () {
+    it('takes the products\' lock before it takes a photo out', function () {
+        Storage::fake('local');
+        $product = Px::product();
+        $photo = Cx::media();
+        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [$photo]));
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE, PlatformPermissions::MEDIA_DELETE]);
+        $queries = Cx::recordQueries();
+
+        app(DeleteMediaHandler::class)->handle(new DeleteMedia($photo));
+
+        $steps = array_values(array_filter(array_map(static fn (array $query): ?string => match (true) {
+            str_contains($query['sql'], 'pg_advisory_xact_lock') && $query['bindings'] === ['catalog:products'] => 'lock',
+            str_starts_with($query['sql'], 'delete from "catalog"."product_photos"') => 'detach',
+            default => null,
+        }, (array) $queries)));
+
+        expect($steps)->toBe(['lock', 'detach']);
+    });
+
     it('refuses the last ready photo of a product made ready after Platform asked', function () {
         $product = Px::product();
         $photo = Cx::media();
