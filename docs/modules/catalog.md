@@ -160,7 +160,7 @@ name, photo and description, no Add to Cart, hidden from search engines (noindex
 | `name`, `slug` | Arabic and English, as a product's (one slug per language, all stores, history kept, **[DECIDED 2026-10-02]**). **[ACCEPTED 2026-10-02, §9.3 #2]** name at most 100 characters. |
 | `parent_id` | Its parent, or none at the top. Never under itself or anything below it. |
 | `is_active` | Deactivated and activated again (below). |
-| `rank` per store | **The admin-set order, per store** (handoff §9.3), set by that store's people. |
+| `rank` per store | **The admin-set order, per store** (handoff §9.3), among a category's siblings, set by that store's people. **The person adding a category chooses its place among its siblings**, and that place starts the same in every store; each store's admins change it there afterwards (owner, 2026-10-03, amendment 1(d)). |
 | image | **[ACCEPTED 2026-10-02, §9.3 #11]** an optional public photo, for category cards (the design's homepage shows them). |
 
 - **Products sit at the end** **[DECIDED 2026-10-02]**: only a category with no sub-categories holds
@@ -195,6 +195,10 @@ Global, one row per brand (handoff §9.4): `slug` (one per language **[DECIDED 2
   form; an admin may make another brand the default, which un-marks the old one. A mark on the row,
   seeded on TouchWood — never a brand name in code (handoff §2 rule 2). **[ACCEPTED 2026-10-02, §9.3 #12]** the
   default brand cannot be deactivated or deleted until another is made the default.
+- **The seed creates TouchWood alone** (owner, 2026-10-03, amendment 1(c)): Arabic «تاتش وود»,
+  English "TouchWood", the house brand of Saudi Arabia, shown in default listings, the default.
+  Every other brand, and every category, is entered by staff or brought by the import. The name lives
+  in the seeder only, never in `Domain/` or `Application/`.
 - `show_in_default_listings` is copied into the listing read model (handoff §9.4): the default grid is
   one indexed condition with no join. Changing it re-stamps that brand's rows.
 - **Deactivating a brand** **[DECIDED 2026-10-02]**: for each of its products, staff choose — with
@@ -227,10 +231,21 @@ Global, one row per brand (handoff §9.4): `slug` (one per language **[DECIDED 2
 
 ### 1.8 Custom label
 
-**In this stage** **[DECIDED 2026-10-02]**. A staff-managed list: a name in both languages and a colour
-from the theme's tokens (frontend.md §1.8, never a raw colour). **The list is global; each store
-attaches labels to products itself** — "Clearance" in KSA need not show in Egypt **[DECIDED
-2026-10-02]**. **[ACCEPTED 2026-10-02, §9.3 #2]** a name at most 30 characters.
+**In this stage** **[DECIDED 2026-10-02]**. A staff-managed list: a name in both languages and a tone.
+**The list is global; each store attaches labels to products itself** — "Clearance" in KSA need not
+show in Egypt **[DECIDED 2026-10-02]**. In Arabic the screens call them **«الشارات»** (owner,
+2026-10-03, amendment 1(b)).
+
+- **A label is drawn with Geist's Badge** (vercel.com/geist/badge; frontend.md §1.8), and **its colour
+  follows Geist's meanings** (owner, 2026-10-03, amendment 1(e)): "green is always healthy". Staff
+  choose a **meaning** — neutral (gray), information (blue), healthy (green), warning (amber) or error
+  (red) — and whether it is **strong or subtle**: exactly the ten variants the project's Badge has. The
+  screen names each choice by its meaning, never by a bare colour.
+- **A name is one or two words** in each language, at most 30 characters (owner, 2026-10-03,
+  amendment 1(f), following Geist: "one word when possible, two max").
+- **Every label attached shows on the product's card**, in the list's order (owner, 2026-10-03,
+  amendment 1(g): "for now … we might change it later"). Geist would show one badge a row; the owner
+  chose all, for now.
 
 ### 1.9 Warranty
 
@@ -322,10 +337,10 @@ Pricing and Inventory register theirs in stage 5.
 
 | From | What | State |
 |---|---|---|
-| Access | **Declaring Catalog's permissions** in `PermissionCatalog`, in the `Catalog` group | **[DECIDED 2026-10-02]** — needs handoff §4.4 and `deptrac.yaml` to allow Catalog → Access (Public only). `PermissionGroup::Catalog` exists already |
+| Access | **Declaring Catalog's permissions** in `PermissionCatalog`, in the `Catalog` group | **Done in step 1** (PR #77): `deptrac.yaml` lets Catalog's interior use Access's public surface, and `tests/Architecture/CatalogAccessUseTest.php` holds it to the five permission classes. Access itself is not changed by Catalog (owner, 2026-10-03: "the access is well working so we don't have to mess with it") |
 | Platform | Stores, settings, the audit log, `MediaUsages` (photos and logos are detachable uses), `uploadMediaFor` (staff upload photos under Catalog's own permission) | Exists |
 | Platform | **Photo addresses for product cards** — `mediaUrls()` reads one media row per call (`DatabaseMediaReader::urls`) | **No Platform change [ACCEPTED 2026-10-02, §9.3 #17]**: Catalog asks `mediaUrls()` when it writes a listing row and keeps the card photo's addresses in that row, refreshed on `MediaVariantsReady`, so a product grid reads no media at all. A change of CDN address is followed by the repair job (§3) |
-| Platform | **On stores only**: the store switch (platform.md §1.6) is in the spec but not the code — `StoreDto` has no `isActive` yet. Catalog's screens list only stores on, once Platform says which | Waits for the store switch build |
+| Platform | **On stores only**: the store switch (platform.md §1.6) | **Exists** since the overnight stack reached `main` (#76, 2026-10-03): `StoreDto::$isActive` and `$isBase`, and the `StoreActivated` / `StoreDeactivated` events. Catalog's per-store work offers only stores that are on; an off store's rows stay, as its history does |
 
 ### 2.5 DTOs and enums
 
@@ -361,7 +376,7 @@ none is admin-only. **The shared lists use one permission each.** Names below ar
 | Shared word pairs; reading the zero-result list | `catalog.search_word.manage` | All stores |
 | `ListProducts` / `ViewProduct` (admin) — every store's row shown only for the stores the reader covers | `catalog.product.view` | The reader's stores |
 | `PreviewImport` / `RunImport` | `catalog.import.run` (reserved: Super Admin only, handoff §9.1) | Global |
-| `RebuildListing` — a repair job; `PruneSearchLog` — nightly | System (reserved): `catalog.listing.rebuild`, `catalog.search_log.prune` — *My naming, stated for the owner to reject (step 1, 2026-10-02): after Platform's `platform.media.variants.generate`, reserved and store-free* | — |
+| `RebuildListing` — a repair job; `PruneSearchLog` — nightly | System (reserved): `catalog.listing.rebuild`, `catalog.search_log.prune` — named in step 1, kept by the owner (2026-10-03, amendment 1(a)) | — |
 
 Every change is audited (Platform), **by value**: product data names no person.
 
@@ -443,7 +458,7 @@ relations, variants and theirs) are removed with it — which happens only when 
 | `catalog.attribute_values` | `id` PK · `attribute_id` FK RESTRICT · `name_ar`, `name_en` `varchar(100)` — unique per attribute on `lower(name)` in each language, names stored trimmed · `swatch` `char(7)` NULL — `#rrggbb`, only on a colour attribute's values · `is_active` · `position` |
 | `catalog.attribute_sets` | `id` PK · `name_ar`, `name_en` `varchar(100)` · `is_active` |
 | `catalog.attribute_set_members` | (`attribute_set_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `position` — variant-making attributes only (code rule) |
-| `catalog.labels` | `id` PK · `name_ar`, `name_en` `varchar(30)` · `colour_token` `varchar(40)` — the name of a theme token, never a colour · `is_active` · `position` |
+| `catalog.labels` | `id` PK · `name_ar`, `name_en` `varchar(30)` — one or two words each (code rule) · `tone` `varchar(16)` CHECK one of Geist Badge's ten: `gray`, `blue`, `green`, `amber`, `red` and each `-subtle` (amendment 1(e)) · `is_active` · `position` — the order on a card |
 | `catalog.warranties` | `id` PK · `name_ar`, `name_en` `varchar(100)` · `terms_ar`, `terms_en` `jsonb` — structured text, at most 5,000 characters each · `period_months` `smallint` NULL — 1–600, NULL meaning lifetime · `is_active` |
 | `catalog.word_pairs` | `id` PK · `word_a`, `word_b` `varchar(50)` — normalised, stored in order (`word_a < word_b`), unique as a pair |
 
@@ -698,3 +713,12 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
    refused; the archived one is restored instead (§5.1, `DuplicateCombination`).
 4. **Creating a product needs both names** (its slugs are made from them, §9.3 #3); everything else
    may wait until it is made ready.
+
+### 9.6 Amendments during the build
+
+Changes to the spec approved on 2026-10-02, each with the owner's agreement, applied in place in the
+sections named.
+
+| # | Where | Change | Source |
+|---|---|---|---|
+| 1 | §1.5, §1.6, §1.8, §2.4, §3, §5.3 | **Before step 2** (owner, 2026-10-03). (a) The two system permissions keep their step-1 names, `catalog.listing.rebuild` and `catalog.search_log.prune`. (b) Labels are **«الشارات»** in Arabic. (c) **The seed creates TouchWood alone**, «تاتش وود» / "TouchWood", the default brand; every other brand and every category comes from staff or the import. (d) **A new category's place among its siblings is chosen by whoever adds it**, starting the same in every store; each store's admins change it afterwards. (e) **A label's colour follows Geist's meanings** — green always healthy, red error, amber warning, blue information, gray neutral — strong or subtle: Geist Badge's ten variants, named on screen by meaning. (f) **A label name is one or two words** in each language (Geist), at most 30 characters. (g) **Every attached label shows on the card**, for now. (h) **Catalog keeps its own copy of `Ulids`**: Access and B2B are not touched ("the access is well working so we don't have to mess with it"). Also corrected: §2.4's store-switch row, now built (#76). | Owner, 2026-10-03 |
