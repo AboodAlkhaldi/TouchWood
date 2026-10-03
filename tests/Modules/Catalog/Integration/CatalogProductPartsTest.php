@@ -7,6 +7,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\DeactivateAttributeValue\DeactivateAttributeValue;
@@ -32,6 +33,7 @@ use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Exception\TooMany;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
+use Modules\Catalog\Public\Events\ProductChanged;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
 use Modules\Platform\Domain\Exception\MediaInUse;
@@ -214,20 +216,28 @@ describe('a photo\'s file deleted from the media library', function () {
         Storage::fake('local');
     });
 
-    it('takes it out of the gallery and the variant\'s photos, audited', function () {
+    it('takes it out of the gallery and the variant\'s photos, audited, the product changed once', function () {
         $product = Px::product();
         $variant = Px::variant($product, '1001');
+        $other = Px::product();
+        $otherVariant = Px::variant($other, '1002');
         $photo = Cx::media();
         app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [$photo]));
         app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($variant, [$photo]));
+        app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($otherVariant, [$photo]));
         Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE, PlatformPermissions::MEDIA_DELETE]);
+        Event::fake([ProductChanged::class]);
 
         app(DeleteMediaHandler::class)->handle(new DeleteMedia($photo));
 
         expect(app(ProductRepository::class)->gallery($product))->toBe([])
             ->and(app(VariantRepository::class)->photos($variant))->toBe([])
+            ->and(app(VariantRepository::class)->photos($otherVariant))->toBe([])
             ->and(catalogPartsAudit('catalog.product.photo_detached'))->toBe(['media_id' => [$photo, null]])
             ->and(Fx::audits('catalog.variant.photo_detached', $variant))->toBe(1);
+        Event::assertDispatchedTimes(ProductChanged::class, 2);
+        Event::assertDispatched(ProductChanged::class, fn (ProductChanged $event): bool => $event->productId === $product);
+        Event::assertDispatched(ProductChanged::class, fn (ProductChanged $event): bool => $event->productId === $other);
     });
 
     it('refuses deleting the last ready photo of a ready product, and lets another go', function () {

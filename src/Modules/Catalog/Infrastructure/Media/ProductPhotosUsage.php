@@ -6,6 +6,7 @@ namespace Modules\Catalog\Infrastructure\Media;
 
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ReadyPhotos;
 use Modules\Catalog\Domain\Exception\ProductNotReady;
@@ -23,7 +24,8 @@ use Modules\Platform\Public\Dto\MediaUseDto;
  * ready photo of a `READY` product**, a use that blocks the delete: a product shown is never left
  * without a photo. Detaching changes the product's shared data, so it takes `catalog.product.update`
  * as editing it would, under the products' lock — and asks the blocking question again there, since a
- * product may have been made ready after Platform asked.
+ * product may have been made ready after Platform asked. Each product whose photos changed is
+ * `ProductChanged`, once.
  */
 final readonly class ProductPhotosUsage implements MediaUsage
 {
@@ -34,6 +36,7 @@ final readonly class ProductPhotosUsage implements MediaUsage
         private ProductAccess $access,
         private ListLocks $locks,
         private PlatformApi $platform,
+        private ProductEvents $events,
     ) {}
 
     public function usesOf(string $mediaId): array
@@ -62,6 +65,7 @@ final readonly class ProductPhotosUsage implements MediaUsage
 
         $this->access->authorize(CatalogPermissions::PRODUCT_UPDATE);
         $this->locks->lock(ListLocks::PRODUCTS);
+        $changed = [];
 
         foreach ($this->products->withPhoto($mediaId) as $productId) {
             if ($this->blocks($productId, $mediaId)) {
@@ -70,11 +74,21 @@ final readonly class ProductPhotosUsage implements MediaUsage
 
             $this->products->removePhoto($productId, $mediaId);
             $this->platform->recordAudit(ListAudit::replaced('product', 'photo_detached', $productId, 'media_id', strtolower($mediaId), null));
+            $changed[$productId] = true;
         }
 
         foreach ($this->variants->withPhoto($mediaId) as $variantId) {
             $this->variants->removePhoto($variantId, $mediaId);
             $this->platform->recordAudit(ListAudit::replaced('variant', 'photo_detached', $variantId, 'media_id', strtolower($mediaId), null));
+            $productId = $this->variants->find($variantId)?->productId();
+
+            if ($productId !== null) {
+                $changed[$productId] = true;
+            }
+        }
+
+        foreach (array_keys($changed) as $productId) {
+            $this->events->changed((string) $productId);
         }
     }
 

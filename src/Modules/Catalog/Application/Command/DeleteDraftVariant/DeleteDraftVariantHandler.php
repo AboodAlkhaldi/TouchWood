@@ -20,7 +20,7 @@ use Shared\Application\Unauthorized;
 /**
  * **Deleting a draft's variant** (catalog.md amendment 3(c)): a variant added by mistake, while the
  * product was never shown or sold. Its code, if no other variant of the draft carries it, is let go,
- * free again. Once the product is ready, a variant is archived instead (step 3c).
+ * free again. Once the product is ready, a variant is archived instead (`ArchiveVariant`).
  */
 final readonly class DeleteDraftVariantHandler
 {
