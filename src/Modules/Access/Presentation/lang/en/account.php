@@ -27,7 +27,7 @@ return [
     'replace_picture' => 'Replace Picture',
     'remove_picture' => 'Remove Picture',
     'picture_removed' => 'It will be removed when you save.',
-    'picture_chosen' => 'Chosen: :name. It appears when you save.',
+    'picture_chosen' => 'Chosen: :name, shown once you save.',
     'no_picture' => 'No picture yet.',
     'picture_preparing' => 'Your picture is being prepared and appears here shortly.',
 
@@ -43,7 +43,7 @@ return [
     'address_hint' => 'Optional.',
 
     'communication_language' => 'Language for Emails and Messages',
-    'communication_language_hint' => 'Every email and sign-in code we send you comes in this language. It is not the language the panel is shown in — that is the ع / EN toggle in the sidebar, and it is remembered for this browser alone.',
+    'communication_language_hint' => 'Emails and sign-in codes we send you come in this language, whatever language the panel is shown in.',
     'language' => [
         'ar' => 'Arabic',
         'en' => 'English',
@@ -75,7 +75,7 @@ return [
     'phone_code_sent' => 'Code sent to the new number',
     'phone_code' => 'Verification Code',
     'confirm_phone' => 'Confirm Phone Number',
-    'phone_changed' => 'Phone number changed. Every browser you trusted will ask for a code again.',
+    'phone_changed' => 'Phone number changed, and trusted browsers will ask for a code again',
 
     // B3 — the password. There is no two-factor switch, and §2.7 says why.
     'change_password' => 'Change Password',
@@ -85,7 +85,7 @@ return [
     'passwords_differ' => 'The two passwords are not the same.',
     'password_note' => 'Changing it signs out every other session, and every browser you trusted asks for a code again.',
     'two_factor_title' => 'Signing In',
-    'two_factor_body' => 'Every staff member signs in with a code sent to their phone. There is no switch for it, and there is nothing here to turn off.',
+    'two_factor_body' => 'Every staff member signs in with a code sent to their phone, and it cannot be turned off.',
 
     // B4 — the notification switches, each saved as it is flipped.
     'notifications_hint' => 'Each switch saves the moment you flip it.',
@@ -110,38 +110,39 @@ return [
         'security' => 'Password',
         'phone' => 'Phone',
         'addresses' => 'Addresses',
-        'close' => 'Close Account',
+        'close' => 'Account Closure',
     ],
 
     'shop_email' => 'Email',
     'shop_email_locked' => 'Your email address cannot be changed.',
-    'shop_communication_language_hint' => 'Every email and message we send you comes in this language. It is not the language the shop is shown in - that is in the address of the page, and you can change it in the header.',
+    'shop_communication_language_hint' => 'Emails and messages we send you come in this language, whatever language the shop is shown in.',
 
     'account_kind' => 'Kind of Account',
     'account_kind_locked' => 'Chosen when you registered, and it cannot be changed.',
     'home_store' => 'Your Store',
-    'home_store_hint' => 'The country you registered in. You can shop in any of our countries whichever one this is.',
+    'home_store_hint' => 'You can shop in any of our countries, whichever one you registered in.',
 
     'shop_phone_hint' => 'Where we reach you about an order and a delivery.',
     'shop_no_phone' => 'No number yet.',
     'shop_add_phone' => 'Add Phone Number',
     'shop_change_phone' => 'Change Phone Number',
     'shop_phone_dialog_title' => 'Your Phone Number',
-    'shop_phone_dialog_body' => 'We send a code to the number you enter. The number you have now keeps working until that code is entered, so a mistyped number changes nothing.',
+    'shop_phone_dialog_body' => 'We send a code to the new number, and the one you have keeps working until it is entered.',
     'shop_phone_changed' => 'Phone number confirmed',
     'shop_password_note' => 'Changing it signs out every other browser you are signed in on.',
 
-    'before_ordering' => 'Before You Can Order',
-    'missing_email' => 'Confirm your email address.',
-    'missing_phone' => 'Add a phone number and confirm it.',
+    'before_ordering' => 'Ordering',
+    'missing_email' => 'Confirm your email address to place orders.',
+    'missing_phone' => 'Add a phone number and confirm it to place orders.',
+    'missing_both' => 'Confirm your email address and phone number to place orders.',
     'may_order' => 'Your account is ready to order with.',
 
     // F9 - the address book, and F10 - closing the account.
     'addresses' => 'Addresses',
-    'addresses_hint' => 'One list per country. The one marked as usual is the one we deliver to unless you pick another.',
-    'no_addresses' => 'No address here yet.',
+    'addresses_hint' => 'We deliver to the Usual Address in each country unless you pick another.',
+    'no_addresses' => 'Add one to have orders delivered in this country.',
     'no_format' => 'We are not delivering to this country yet.',
-    'address_full' => 'You have as many addresses here as this country allows (:count). Remove one to add another.',
+    'address_full' => 'You have as many addresses as this country allows (:count); delete one to add another.',
     'add_address' => 'Add Address',
     'edit_address' => 'Edit Address',
     'delete_address' => 'Delete Address',
@@ -153,22 +154,22 @@ return [
     'default_address' => 'Deliver Here by Default',
     'is_default' => 'Usual Address',
     'make_default' => 'Set as Usual Address',
-    'address_incomplete' => 'This country now asks for something this address does not have. Edit it before you order.',
+    'address_incomplete' => 'This country now asks for something this address lacks, so edit it before you order.',
     'address_saved' => 'Address saved',
     'address_default_set' => 'Usual address set',
     'address_deleted' => 'Address deleted',
     'confirm_delete_address' => 'Delete Address “:label”',
-    'confirm_delete_address_body' => 'It is gone for good. Any order already placed keeps the address it was sent to.',
+    'confirm_delete_address_body' => 'Orders already placed keep the address they were sent to. This cannot be undone.',
 
     'close_account' => 'Close Account',
-    'close_account_body' => 'Your account is locked the moment you confirm, and everything in it is anonymized :count days later. Signing in before then cancels it and nothing is deleted.',
+    'close_account_body' => 'Your account is locked when you confirm and anonymized :count days later, unless you sign in before then.',
     'close_account_signs_out' => 'Confirming signs you out everywhere at once, so this is the last page you will see while signed in.',
     'close_account_confirm' => 'Close Account',
-    'closed' => 'Account closed. It is deleted on :date unless you sign in again before then, which cancels it.',
+    'closed' => 'Account closed, and deleted on :date unless you sign in before then',
 
     // B5 — where I am signed in, and which browsers skip my code (owner, 2026-09-26).
     'sessions' => 'Where You Are Signed In',
-    'sessions_hint' => 'Every browser signed in to your account right now. If you do not recognise one, end it.',
+    'sessions_hint' => 'Every browser signed in to your account now; end any you do not recognise.',
     'this_browser' => 'This Browser',
     'session_ip' => 'Address',
     'session_seen' => 'Last Used',
@@ -178,10 +179,11 @@ return [
     'end_this_session_warning' => 'This is the browser you are using. Ending it signs you out now.',
 
     'sign_out_everywhere' => 'Sign Out Everywhere',
-    'sign_out_everywhere_body' => 'Ends every session, including this one, and makes every trusted browser ask for a code again. Use it when somebody else has had your account.',
+    'sign_out_everywhere_body' => 'Ends every session, this one included, and makes every trusted browser ask for a code again.',
+    'sign_out_everywhere_hint' => 'Use it when somebody else has had your account.',
 
     'trusted_browsers' => 'Browsers That Skip Your Code',
-    'trusted_browsers_hint' => 'These sign in with your password alone, without an SMS code, until they expire. They are not signed in — that is the list above.',
+    'trusted_browsers_hint' => 'These sign in with your password alone, without an SMS code, until they expire.',
     'no_trusted_browsers' => 'Every browser asks for a code.',
     'trusted_until' => 'Until :date',
     'forget_browser' => 'Forget Browser',
@@ -193,9 +195,9 @@ return [
     'forget_all_browsers_body' => 'Each one stays signed in if it is now, and asks for a code at its next sign-in.',
 
     'session_ended' => 'Browser signed out',
-    'signed_out_everywhere' => 'Signed out everywhere. Every browser will ask for a code.',
-    'trusted_browser_forgotten' => 'Browser forgotten. It will ask for a code next time.',
-    'trusted_browsers_forgotten' => 'All browsers forgotten. Each will ask for a code next time.',
+    'signed_out_everywhere' => 'Signed out everywhere',
+    'trusted_browser_forgotten' => 'Browser forgotten',
+    'trusted_browsers_forgotten' => 'All browsers forgotten',
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.
@@ -205,4 +207,5 @@ return [
     'no_addresses_title' => 'No Addresses Yet',
     'delete_address_open' => 'Delete Address…',
     'close_account_open' => 'Close Account…',
+    'close_account_password_first' => 'Enter your password first.',
 ];

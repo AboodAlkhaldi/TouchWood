@@ -37,7 +37,7 @@ return [
     // A menu section's header: one or two words (Geist's Menu).
     'columns_hint' => 'الأدوار',
     // Geist's Empty State quotes the typed filter and offers to clear it.
-    'no_areas' => 'لا مجالات تطابق «:query». امسح التصفية لترى كل المجالات.',
+    'no_areas' => 'امسح التصفية لترى كل المجالات.',
     'clear_filter' => 'مسح التصفية',
     'comparison' => 'الصلاحيات حسب الدور',
     'comparison_hint' => 'المجالات التي يصل إليها كل دور.',
@@ -45,7 +45,7 @@ return [
     'actions' => 'ما يسمح به',
     'holders' => 'من يحمله',
     'holders_hint' => 'لا تظهر إلا أسماء من تديرهم؛ أما العدد فهو للجميع.',
-    'no_holders' => 'لا أحد يحمل هذا الدور.',
+    'no_holders' => 'يظهر هنا الموظفون الذين يُمنحون هذا الدور.',
     'every_store' => 'كل المتاجر',
     'store_free' => 'كل المتاجر، بطبيعتها',
     'not_editable' => 'لا يغيّر الدور الإداري إلا مدير عام.',

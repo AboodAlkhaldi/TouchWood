@@ -242,8 +242,8 @@
 | outside the layers wins over every Tailwind utility, which is what replacing a shadcn class takes.
 |
 | - The backdrop behind a dialog, an alert dialog and a sheet: shadcn paints black at half
-|   strength; Geist's is a pale wash of the page (its gray-100 at 80% in light), here our own
-|   overlay token, light and dark (the batch B review; owner, 2026-10-04).
+|   strength; Geist's is its gray-100 at 80% (its page background in dark), here our sunken
+|   surface at 80%, which is that colour in both themes (the batch B review; owner, 2026-10-04).
 | - A switch is Geist's Toggle size, 24 by 44, not shadcn's 18 by 32 (frontend.md §6: a touch
 |   target is at least 24 by 24). The thumb is 22 px, so shadcn's own travel, calc(100% - 2px),
 |   still ends flush at the far edge.
@@ -251,7 +251,7 @@
 [data-slot='dialog-overlay'],
 [data-slot='alert-dialog-overlay'],
 [data-slot='sheet-overlay'] {
-    background-color: var(--tw-overlay);
+    background-color: color-mix(in oklab, var(--tw-surface-sunken) 80%, transparent);
 }
 
 [data-slot='switch'][data-size='default'] {

@@ -33,7 +33,7 @@ return [
     // nobody says so, quoting a typed search, and offers to clear the filters (shadcn rebuild).
     'no_staff' => 'ادعُ موظفًا ليصل إلى لوحة التحكم.',
     'no_match_title' => 'لا موظفين يطابقون التصفية',
-    'no_match_query' => 'لا موظفين يطابقون «:query». امسح التصفية لترى الجميع.',
+    'no_match_query' => 'امسح التصفية لترى الجميع.',
     'no_match' => 'وسّع التصفية أو امسحها لترى الجميع.',
     'clear_filters' => 'مسح التصفية',
     // Geist's Search Input: a scoped placeholder.
@@ -88,7 +88,7 @@ return [
     // بعد التنفيذ.
     'profile_saved' => 'تم حفظ الملف',
     'email_link_sent' => 'تم إرسال الرابط إلى العنوان الجديد',
-    'disabled' => 'تم تعطيل الموظف. وانتهت كل جلساته.',
+    'disabled' => 'تم تعطيل الموظف وإنهاء كل جلساته',
     'enabled' => 'تم تفعيل الموظف',
     'invitation_resent' => 'تم إعادة إرسال الدعوة',
     'invitation_cancelled' => 'تم إلغاء الدعوة',

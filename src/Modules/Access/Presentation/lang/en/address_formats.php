@@ -6,16 +6,16 @@ declare(strict_types=1);
 return [
     'title' => 'Address Forms',
     'subtitle' => 'What each country asks a customer for, and how the address is printed.',
-    'intro' => 'A country\'s address form is data, not a release. Change it here and the next address saved in that country follows the new shape.',
+    'intro' => 'Change a country\'s address form here, and the next address saved there follows it.',
 
     'store' => 'Country',
     'no_stores' => 'You cannot change any country\'s address form.',
-    'no_format' => 'This country has no address form yet, so no address can be saved there. Add the fields it asks for.',
+    'no_format' => 'No address can be saved in this country until you add the fields it asks for.',
 
     'fields' => 'Fields',
-    'fields_hint' => 'In the order a customer fills them in. At most :count of them.',
+    'fields_hint' => 'In the order a customer fills them in, at most :count.',
     'field_key' => 'Name in the System',
-    'field_key_hint' => 'Lower-case letters, digits and underscores, such as postal_code. It is what the printed form below refers to, and changing it on a field somebody has already used leaves their address without that part.',
+    'field_key_hint' => 'Lower-case letters, digits and underscores, such as postal_code; changing it on a field already in use leaves those addresses without that part.',
     'label_ar' => 'Label in Arabic',
     'label_en' => 'Label in English',
     // Each field's group of inputs is named, so a screen reader hears which field it is in.
@@ -36,7 +36,7 @@ return [
     'drag_cancelled' => ':field put back.',
     'remove_field' => 'Remove Field',
     'add_field' => 'Add Field',
-    'no_fields' => 'No field yet. A form needs at least one.',
+    'no_fields' => 'A form needs at least one field.',
 
     'template' => 'How It Is Printed',
     'template_hint' => 'Plain text. Write {city} and that field\'s value takes its place; a field with nothing in it disappears, and a line left empty is dropped. Nothing here is run as code.',
@@ -44,7 +44,7 @@ return [
 
     'save' => 'Save Address Form',
     'saved' => 'Address form saved',
-    'existing_addresses' => 'Addresses already saved keep what they hold. One that no longer fits this form cannot be used for an order until the customer completes it, and their addresses page says so.',
+    'existing_addresses' => 'Saved addresses that no longer fit this form cannot be used for an order until their customer completes them.',
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.

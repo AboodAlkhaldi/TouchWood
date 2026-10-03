@@ -51,9 +51,9 @@ return [
 
     // G2.
     'addresses' => 'Addresses',
-    'no_addresses' => 'No address saved.',
+    'no_addresses' => 'Addresses this customer saves appear here.',
     'communication_language' => 'Communication Language',
-    'profile_is_theirs' => 'A customer\'s details are their own. Nothing here changes them.',
+    'profile_is_theirs' => 'A customer\'s details are their own, and nothing here changes them.',
     'actions' => 'Actions',
     'reason' => 'Why',
     'reason_hint' => 'Kept with the change, for whoever asks about it later.',

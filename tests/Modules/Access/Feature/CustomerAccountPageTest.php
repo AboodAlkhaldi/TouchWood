@@ -70,6 +70,8 @@ describe('the page itself', function () {
                 ->where('mayOrder', false)
                 ->where('phone', null)
                 ->where('passwordMinimumLength', 8)
+                // One box per digit of the code sent to a new number (frontend.md §1.11).
+                ->where('codeLength', 6)
             );
     });
 

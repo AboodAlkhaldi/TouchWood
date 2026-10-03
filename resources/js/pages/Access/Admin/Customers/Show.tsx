@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { AddressLines } from '@/components/AddressLines';
 import { ActionButton } from '@/components/ActionButton';
 import { TextField } from '@/components/Fields';
 import { DialogError, FormError } from '@/components/FormError';
@@ -229,7 +230,9 @@ function Addresses({ group }: { group: CustomerAddressGroup }) {
                                 <ItemDescription className="tw-figure line-clamp-none text-copy-14 text-ink-muted" dir="ltr">
                                     {address.phone}
                                 </ItemDescription>
-                                <ItemDescription className="line-clamp-none whitespace-pre-line text-copy-14 text-ink-muted">{address.formatted}</ItemDescription>
+                                <ItemDescription className="line-clamp-none text-copy-14 text-ink-muted">
+                                    <AddressLines text={address.formatted} />
+                                </ItemDescription>
                             </ItemContent>
                         </Item>
                     </div>

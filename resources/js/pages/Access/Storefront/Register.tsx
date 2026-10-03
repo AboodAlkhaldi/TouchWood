@@ -1,16 +1,32 @@
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
-import { ShopCard } from '@/components/ShopCard';
+import { ActionButton } from '@/components/ActionButton';
+import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
+import { Note } from '@/components/Note';
 import { PasswordInput } from '@/components/PasswordInput';
-import { Button, Checkbox, FieldMessage, Input, Note } from '@/components/geist';
+import { ShopCard } from '@/components/ShopCard';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Field,
+    FieldContent,
+    FieldDescription,
+    FieldError,
+    FieldGroup,
+    FieldLabel,
+    FieldLegend,
+    FieldSet,
+    FieldTitle,
+} from '@/components/ui/field';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 import type { CustomerRegisterPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
-| F3 - registering (frontend.md §3.6), on Geist's fields, checkbox and button (1.10).
+| F3 - registering (frontend.md §3.6), on shadcn's `signup-01` form (§1.11), with the kind of account
+| as shadcn's field-choice-card.
 |
 | One page, with the choice at the top and the fields under it (owner, 2026-09-24): a shopper sends
 | it once, and can still change their mind before they do. **The choice can never be changed after
@@ -34,7 +50,9 @@ export default function Register({ minimumLength }: Props) {
     const { locale } = usePage<SharedProps>().props;
 
     const form = useForm({
-        account_type: 'INDIVIDUAL',
+        // Nothing chosen: the kind of account can never be changed, so it is picked on purpose,
+        // never taken by default (Geist's Radio rule; owner, 2026-10-04).
+        account_type: '',
         email: '',
         password: '',
         first_name: '',
@@ -45,123 +63,141 @@ export default function Register({ minimumLength }: Props) {
 
     return (
         <StorefrontLayout title={t('access::auth.register_title')}>
-            <ShopCard
-                title={t('access::auth.register_title')}
-                subtitle={t('access::auth.register_subtitle')}
-                footer={
-                    <>
-                        {t('access::auth.have_account')}{' '}
-                        <Link href={link('storefront.sign-in')} className="text-brand hover:underline">
-                            {t('access::auth.sign_in')}
-                        </Link>
-                    </>
-                }
-            >
+            <ShopCard title={t('access::auth.register_title')} subtitle={t('access::auth.register_subtitle')}>
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
+
+                        // Said here, in the page's own words, before anything is sent: the server's
+                        // own refusal of a missing field is Laravel's English.
+                        if (form.data.account_type === '') {
+                            form.setError('account_type', t('access::auth.account_type_required'));
+
+                            return;
+                        }
+
                         form.post(link('storefront.account.register'));
                     }}
-                    className="grid gap-5"
                 >
-                    <FormError />
+                    <FieldGroup className="gap-5">
+                        <FormError />
 
-                    <fieldset className="grid gap-2" aria-describedby={form.errors.account_type ? 'account_type-error' : undefined}>
-                        <legend className="pb-2 text-label-14 font-medium text-ink">
-                            {t('access::auth.account_type')}
-                        </legend>
+                        {/* shadcn's field-choice-card: each tile is the label of a real radio, so
+                            the whole tile is the target, the arrow keys move between the two, and
+                            a screen reader says which of how many this is. */}
+                        <FieldSet aria-describedby={form.errors.account_type ? 'account_type-error' : 'account_type-permanent'}>
+                            <FieldLegend variant="label" className="text-label-14 text-ink">
+                                {t('access::auth.account_type')}
+                            </FieldLegend>
 
-                        <div className="grid gap-2 sm:grid-cols-2">
-                            <AccountType
-                                value="INDIVIDUAL"
-                                chosen={form.data.account_type}
-                                onChoose={(value) => form.setData('account_type', value)}
-                                label={t('access::auth.account_type_individual')}
-                                hint={t('access::auth.account_type_individual_hint')}
+                            <RadioGroup
+                                name="account_type"
+                                value={form.data.account_type}
+                                onValueChange={(value) => {
+                                    form.setData('account_type', value);
+                                    form.clearErrors('account_type');
+                                }}
+                                className="gap-2"
+                            >
+                                <KindTile
+                                    value="INDIVIDUAL"
+                                    title={t('access::auth.account_type_individual')}
+                                    hint={t('access::auth.account_type_individual_hint')}
+                                    invalid={form.errors.account_type !== undefined}
+                                />
+                                <KindTile
+                                    value="COMPANY"
+                                    title={t('access::auth.account_type_company')}
+                                    hint={t('access::auth.account_type_company_hint')}
+                                    invalid={form.errors.account_type !== undefined}
+                                />
+                            </RadioGroup>
+
+                            <div id="account_type-permanent">
+                                <Note variant="warning" size="small">
+                                    {t('access::auth.account_type_permanent')}
+                                </Note>
+                            </div>
+
+                            {form.errors.account_type ? <FieldError id="account_type-error">{form.errors.account_type}</FieldError> : null}
+                        </FieldSet>
+
+                        <div className="grid gap-5 sm:grid-cols-2">
+                            <TextField
+                                id="first_name"
+                                name="first_name"
+                                label={t('access::auth.first_name')}
+                                error={form.errors.first_name}
+                                autoComplete="given-name"
+                                required
+                                value={form.data.first_name}
+                                onChange={(event) => form.setData('first_name', event.target.value)}
                             />
-                            <AccountType
-                                value="COMPANY"
-                                chosen={form.data.account_type}
-                                onChoose={(value) => form.setData('account_type', value)}
-                                label={t('access::auth.account_type_company')}
-                                hint={t('access::auth.account_type_company_hint')}
+
+                            <TextField
+                                id="last_name"
+                                name="last_name"
+                                label={t('access::auth.last_name')}
+                                error={form.errors.last_name}
+                                autoComplete="family-name"
+                                required
+                                value={form.data.last_name}
+                                onChange={(event) => form.setData('last_name', event.target.value)}
                             />
                         </div>
 
-                        <Note variant="warning" size="small">
-                            {t('access::auth.account_type_permanent')}
-                        </Note>
-
-                        <FieldMessage id="account_type" error={form.errors.account_type} />
-                    </fieldset>
-
-                    <div className="grid gap-5 sm:grid-cols-2">
-                        <Input
-                            id="first_name"
-                            name="first_name"
-                            label={t('access::auth.first_name')}
-                            error={form.errors.first_name}
-                            autoComplete="given-name"
+                        <TextField
+                            id="email"
+                            name="email"
+                            type="email"
+                            label={t('access::auth.customer_email')}
+                            error={form.errors.email}
+                            autoComplete="username"
                             required
-                            value={form.data.first_name}
-                            onChange={(event) => form.setData('first_name', event.target.value)}
+                            dir="ltr"
+                            value={form.data.email}
+                            onChange={(event) => form.setData('email', event.target.value)}
                         />
 
-                        <Input
-                            id="last_name"
-                            name="last_name"
-                            label={t('access::auth.last_name')}
-                            error={form.errors.last_name}
-                            autoComplete="family-name"
+                        <PasswordInput
+                            id="password"
+                            name="password"
+                            label={t('access::auth.password')}
+                            helper={t('access::auth.password_rule', { count: minimumLength })}
+                            error={form.errors.password}
+                            autoComplete="new-password"
                             required
-                            value={form.data.last_name}
-                            onChange={(event) => form.setData('last_name', event.target.value)}
+                            value={form.data.password}
+                            onChange={(event) => form.setData('password', event.target.value)}
                         />
-                    </div>
 
-                    <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        label={t('access::auth.customer_email')}
-                        error={form.errors.email}
-                        autoComplete="username"
-                        required
-                        dir="ltr"
-                        value={form.data.email}
-                        onChange={(event) => form.setData('email', event.target.value)}
-                    />
+                        {/* An acknowledgment, so a checkbox with a whole sentence beside it (Geist's
+                            Checkbox rules); it is checked when the form is sent, not as it is ticked. */}
+                        <Field orientation="horizontal" data-invalid={form.errors.terms ? true : undefined}>
+                            <Checkbox
+                                id="terms"
+                                data-test="terms"
+                                checked={form.data.terms}
+                                onCheckedChange={(checked) => form.setData('terms', checked === true)}
+                                aria-invalid={form.errors.terms ? true : undefined}
+                                aria-describedby={form.errors.terms ? 'terms-error' : undefined}
+                                className="border-ink-subtle"
+                            />
+                            <FieldLabel htmlFor="terms" className="text-label-14 font-normal text-ink">
+                                {t('access::auth.terms_accept')}
+                            </FieldLabel>
+                        </Field>
+                        {form.errors.terms ? <FieldError id="terms-error">{form.errors.terms}</FieldError> : null}
 
-                    <PasswordInput
-                        id="password"
-                        name="password"
-                        label={t('access::auth.password')}
-                        helper={t('access::auth.password_rule', { count: minimumLength })}
-                        error={form.errors.password}
-                        autoComplete="new-password"
-                        required
-                        value={form.data.password}
-                        onChange={(event) => form.setData('password', event.target.value)}
-                    />
-
-                    {/* An acknowledgment, so a checkbox with a whole sentence beside it (Geist's
-                        Checkbox rules); it is checked when the form is sent, not as it is ticked. */}
-                    <div className="grid gap-1.5">
-                        <Checkbox
-                            id="terms"
-                            data-test="terms"
-                            checked={form.data.terms}
-                            onChange={(checked) => form.setData('terms', checked)}
-                        >
-                            {t('access::auth.terms_accept')}
-                        </Checkbox>
-
-                        <FieldMessage id="terms" error={form.errors.terms} />
-                    </div>
-
-                    <Button typeName="submit" loading={form.processing} className="w-full">
-                        {t('access::auth.create_account')}
-                    </Button>
+                        <Field>
+                            <ActionButton type="submit" loading={form.processing} className="w-full">
+                                {t('access::auth.create_account')}
+                            </ActionButton>
+                            <FieldDescription className="text-center">
+                                {t('access::auth.have_account')} <Link href={link('storefront.sign-in')}>{t('access::auth.sign_in')}</Link>
+                            </FieldDescription>
+                        </Field>
+                    </FieldGroup>
                 </form>
             </ShopCard>
         </StorefrontLayout>
@@ -169,54 +205,33 @@ export default function Register({ minimumLength }: Props) {
 }
 
 /**
- * One of the two kinds of account, as a tile rather than a bare radio dot: the difference between
- * them is what the hint says, and a hint nobody reads is how this choice comes to be regretted.
- *
- * Geist's Choicebox, which the Geist components do not have yet, built from Geist's parts (frontend.md
- * 1.10): the whole tile is the target, a title and one sentence, and the chosen tile shows its filled
- * dot as well as its outline, because an outline alone is not enough on a dim screen.
- *
- * It is a real radio underneath, so the arrow keys move between the two and a screen reader says
- * which of how many this is - neither of which a div with a click handler does.
+ * One kind of account, as shadcn's field-choice-card writes a tile: the whole tile is the label of
+ * a real radio, so it is all one target, and the title and the hint are what a screen reader hears.
  */
-function AccountType({
-    value,
-    chosen,
-    onChoose,
-    label,
-    hint,
-}: {
-    value: string;
-    chosen: string;
-    onChoose: (value: string) => void;
-    label: string;
-    hint: string;
-}) {
-    const isChosen = chosen === value;
+function KindTile({ value, title, hint, invalid }: { value: string; title: string; hint: string; invalid: boolean }) {
+    const id = `account-type-${value.toLowerCase()}`;
 
     return (
-        <label
-            data-test={`account-type-${value.toLowerCase()}`}
-            className={[
-                'grid cursor-pointer gap-1 rounded-[var(--tw-radius)] p-3 transition-shadow',
-                isChosen
-                    ? 'bg-brand-soft/50 shadow-[0_0_0_1px_var(--tw-brand)]'
-                    : 'bg-surface shadow-[0_0_0_1px_var(--tw-line-strong)] hover:shadow-[0_0_0_1px_var(--tw-ink-subtle)]',
-            ].join(' ')}
-        >
-            <span className="flex items-center gap-2">
-                <input
-                    type="radio"
-                    name="account_type"
+        <FieldLabel htmlFor={id} className="has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand-soft/40">
+            <Field orientation="horizontal">
+                <FieldContent>
+                    <FieldTitle id={`${id}-title`} className="text-label-14 text-ink">
+                        {title}
+                    </FieldTitle>
+                    <FieldDescription id={`${id}-hint`} className="text-copy-13 text-ink-muted">
+                        {hint}
+                    </FieldDescription>
+                </FieldContent>
+                <RadioGroupItem
                     value={value}
-                    checked={isChosen}
-                    onChange={() => onChoose(value)}
-                    className="size-4 accent-brand"
+                    id={id}
+                    aria-labelledby={`${id}-title`}
+                    aria-describedby={`${id}-hint`}
+                    aria-invalid={invalid || undefined}
+                    className="border-ink-subtle"
+                    data-test={id}
                 />
-                <span className="text-label-14 font-medium text-ink">{label}</span>
-            </span>
-
-            <span className="text-copy-13 text-ink-muted">{hint}</span>
-        </label>
+            </Field>
+        </FieldLabel>
     );
 }

@@ -450,7 +450,7 @@ describe('B3 - the password', function () {
         $response->assertRedirect();
 
         expect(AdminBrowser::flashed($response, 'status'))
-            ->toBe('Password changed. Every other session was signed out.')
+            ->toBe('Password changed, and every other session was signed out')
             ->and((string) DB::table('access.staff_users')->where('id', $staffId)->value('password'))
             ->not->toBe($before);
 

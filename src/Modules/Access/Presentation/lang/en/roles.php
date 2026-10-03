@@ -38,7 +38,7 @@ return [
     // A menu section's header: one or two words (Geist's Menu).
     'columns_hint' => 'Roles',
     // Geist's Empty State quotes the typed filter and offers to clear it.
-    'no_areas' => 'No areas match “:query”. Clear the filter to see every area.',
+    'no_areas' => 'Clear the filter to see every area.',
     'clear_filter' => 'Clear Filter',
     'comparison' => 'Permissions by Role',
     'comparison_hint' => 'Which areas each role reaches into.',
@@ -47,7 +47,7 @@ return [
     'actions' => 'What It Allows',
     'holders' => 'Who Holds It',
     'holders_hint' => 'Only the people you manage are listed; the count is everyone.',
-    'no_holders' => 'Nobody holds this role.',
+    'no_holders' => 'Staff members given this role appear here.',
     'every_store' => 'Every store',
     'store_free' => 'Every store, by its nature',
     'not_editable' => 'Only a Super Admin may change an admin role.',

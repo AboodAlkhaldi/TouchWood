@@ -51,7 +51,7 @@ return [
 
     // G2.
     'addresses' => 'العناوين',
-    'no_addresses' => 'لا يوجد عنوان محفوظ.',
+    'no_addresses' => 'تظهر هنا العناوين التي يحفظها العميل.',
     'communication_language' => 'لغة المراسلة',
     'profile_is_theirs' => 'بيانات العميل له وحده، ولا شيء هنا يغيّرها.',
     'actions' => 'الإجراءات',

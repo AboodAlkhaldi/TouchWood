@@ -33,7 +33,7 @@ return [
     // nobody says so, quoting a typed search, and offers to clear the filters (shadcn rebuild).
     'no_staff' => 'Invite a member to give them a way into the panel.',
     'no_match_title' => 'No Staff Members Match Your Filters',
-    'no_match_query' => 'No staff members match “:query”. Clear the filters to see everyone.',
+    'no_match_query' => 'Clear the filters to see everyone.',
     'no_match' => 'Widen or clear the filters to see everyone.',
     'clear_filters' => 'Clear Filters',
     // Geist's Search Input: a scoped placeholder.
@@ -88,7 +88,7 @@ return [
     // After the fact.
     'profile_saved' => 'Profile saved',
     'email_link_sent' => 'Link sent to the new address',
-    'disabled' => 'Member disabled. Every session of theirs ended.',
+    'disabled' => 'Member disabled and signed out everywhere',
     'enabled' => 'Member enabled',
     'invitation_resent' => 'Invitation resent',
     'invitation_cancelled' => 'Invitation cancelled',
@@ -109,7 +109,7 @@ return [
     'edited' => 'Edited',
     'actions_count' => ':count actions',
     'where' => 'Where It Reaches',
-    'where_hint' => 'The role says what they may do. The stores say where.',
+    'where_hint' => 'The role says what they may do; the stores say where.',
     'stores_all' => 'Every Store',
     'stores_selected' => 'Chosen Stores',
     'no_stores_to_give' => 'You can only hand out stores you manage yourself.',
@@ -136,7 +136,7 @@ return [
     'first_name' => 'First Name',
     'last_name' => 'Last Name',
     'as_admin' => 'An Admin',
-    'as_admin_hint' => 'Admins are not tied to a store. Only a Super Admin may bring one in.',
+    'as_admin_hint' => 'Admins are not tied to a store, and only a Super Admin may bring one in.',
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.

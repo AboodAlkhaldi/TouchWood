@@ -6,15 +6,15 @@ declare(strict_types=1);
 // The screens themselves (stage 2b step 1) read the same file: there are no separate frontend
 // translation files, so one line is written once and used on both sides (frontend.md §1.5).
 return [
-    'registered' => 'Account created. Check your email to confirm your address.',
+    'registered' => 'Account created; confirm your address from the email we sent',
     'verification_sent' => 'Confirmation link sent',
     'email_verified' => 'Email address confirmed',
     'code_sent' => 'Code sent to your phone',
     'reset_link_sent' => 'If this email belongs to an account, a reset link is on its way',
-    'password_reset' => 'Password changed. Sign in with your new password.',
-    'password_changed' => 'Password changed. Every other session was signed out.',
-    'email_changed' => 'Email changed. Sign in with your new email.',
-    'invitation_accepted' => 'Account created. Sign in with your email and password.',
+    'password_reset' => 'Password changed',
+    'password_changed' => 'Password changed, and every other session was signed out',
+    'email_changed' => 'Email changed',
+    'invitation_accepted' => 'Account created',
     'signed_out' => 'Signed out',
 
     // The screens (A1-A9).
@@ -84,6 +84,7 @@ return [
     'account_type_company' => 'My Company',
     'account_type_company_hint' => 'Your company details and documents come next.',
     'account_type_permanent' => 'This choice can never be changed later.',
+    'account_type_required' => 'Choose a kind of account.',
     'terms_accept' => 'I accept the terms of sale and the privacy policy.',
 
     'verify_title' => 'Confirm Your Email',

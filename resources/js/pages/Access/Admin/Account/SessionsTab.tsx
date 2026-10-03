@@ -82,7 +82,7 @@ export function SessionsTab({ account }: Props) {
                     <CardTitle className="text-heading-20 text-ink">
                         <h2>{t('access::account.sign_out_everywhere')}</h2>
                     </CardTitle>
-                    <CardDescription className="text-copy-14 text-ink-muted">{t('access::account.sign_out_everywhere_body')}</CardDescription>
+                    <CardDescription className="text-copy-14 text-ink-muted">{t('access::account.sign_out_everywhere_hint')}</CardDescription>
                 </CardHeader>
                 <CardFooter className="justify-end border-t border-line bg-surface-sunken px-6 py-4 [.border-t]:pt-4">
                     <Confirm
