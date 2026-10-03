@@ -36,6 +36,9 @@ return [
     'job_title' => 'Job Title',
     'date_of_birth' => 'Date of Birth',
     'country' => 'Country',
+    // The country picker's search (Geist's Combobox, past two hundred countries).
+    'country_search' => 'Search countries',
+    'country_none' => 'No countries match “:query”.',
     'address' => 'Address',
     'address_hint' => 'Optional.',
 
@@ -49,12 +52,13 @@ return [
     // B1 — the email, which is read only for everybody but a Super Admin.
     'email' => 'Work Email',
     'email_locked' => 'Ask an admin to change it.',
-    'change_email' => 'Change Email…',
-    'email_pending' => 'Waiting for :email. Your address changes when the link we sent there is used, and not before.',
+    'change_email' => 'Change Work Email…',
+    // Geist's Note: a one- or two-word label, then one sentence (the batch B audit).
+    'email_pending_label' => 'Pending Change',
+    'email_pending' => 'Your address becomes :email once the link sent there is used.',
     'email_dialog_title' => 'Change Work Email',
     'email_dialog_body' => 'A link goes to the new address. Your email changes when somebody opens that link, so a mistyped address changes nothing.',
     'new_email' => 'New Email',
-    'send_link' => 'Send Link',
     'email_change_sent' => 'Link sent to the new address',
 
     // B2 — the phone, behind the current password.
@@ -87,8 +91,6 @@ return [
     'notifications_hint' => 'Each switch saves the moment you flip it.',
     'by_email' => 'Email',
     'in_panel' => 'In the Panel',
-    'switch_email_for' => 'Email me about :topic',
-    'switch_panel_for' => 'Tell me in the panel about :topic',
     'topic' => [
         'NEW_ORDERS' => 'New Orders',
         'COMPANY_APPLICATIONS' => 'Company Applications',
@@ -177,14 +179,18 @@ return [
 
     'sign_out_everywhere' => 'Sign Out Everywhere',
     'sign_out_everywhere_body' => 'Ends every session, including this one, and makes every trusted browser ask for a code again. Use it when somebody else has had your account.',
-    'sign_out_everywhere_confirm' => 'Sign Out Everywhere',
 
     'trusted_browsers' => 'Browsers That Skip Your Code',
     'trusted_browsers_hint' => 'These sign in with your password alone, without an SMS code, until they expire. They are not signed in — that is the list above.',
-    'no_trusted_browsers' => 'None. Every browser asks for a code.',
+    'no_trusted_browsers' => 'Every browser asks for a code.',
     'trusted_until' => 'Until :date',
     'forget_browser' => 'Forget Browser',
     'forget_all_browsers' => 'Forget All Browsers',
+    // What each confirmation says, the consequence first (frontend.md §1.11: a confirm dialog before
+    // ending another browser's session, Forget Browser and Forget All Browsers).
+    'end_session_body' => 'That browser is signed out at once.',
+    'forget_browser_body' => 'It stays signed in if it is now, and asks for a code at its next sign-in.',
+    'forget_all_browsers_body' => 'Each one stays signed in if it is now, and asks for a code at its next sign-in.',
 
     'session_ended' => 'Browser signed out',
     'signed_out_everywhere' => 'Signed out everywhere. Every browser will ask for a code.',

@@ -155,6 +155,8 @@ describe('the account screen', function () {
                 ->where('tab', 'account')
                 // The rule in words comes from the setting, never from the screen.
                 ->where('passwordMinLength', 12)
+                // One box per digit in the phone change's code step, from the setting too.
+                ->where('codeLength', 6)
             );
     });
 

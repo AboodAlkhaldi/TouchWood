@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useTranslator } from '@/lib/t';
 
 /*
 | Picking a country from the whole world (frontend.md §3.3, C3): shadcn's `combobox-demo` as it is
@@ -20,6 +19,20 @@ import { useTranslator } from '@/lib/t';
 
 export type CountryOption = { code: string; name: string; ours: boolean };
 
+/**
+ * The picker's own words, given by the page: a page carries only its own modules' word files, so
+ * the staff screens and the account screen each name these in theirs.
+ */
+export type CountryWords = {
+    /** A scoped placeholder: "Search countries". */
+    search: string;
+    /** When nothing matches, with the typed text quoted. */
+    none: (query: string) => string;
+    /** Headings, when the store countries come first. */
+    ours?: string;
+    all?: string;
+};
+
 type Props = {
     id: string;
     label: string;
@@ -27,13 +40,14 @@ type Props = {
     value: string;
     onChange: (code: string) => void;
     error?: string;
+    words: CountryWords;
 };
 
-export function CountryCombobox({ id, label, countries, value, onChange, error }: Props) {
-    const t = useTranslator();
+export function CountryCombobox({ id, label, countries, value, onChange, error, words }: Props) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const chosen = countries.find((country) => country.code === value);
+    const ours = countries.filter((country) => country.ours);
 
     const choose = (code: string) => {
         onChange(code);
@@ -73,13 +87,14 @@ export function CountryCombobox({ id, label, countries, value, onChange, error }
                         lists' copies apart ("ours-SA", "all-SA"), and scoring it too made "al" match
                         every "all-" item (the review of batch A). cmdk's own scorer, given the words. */}
                     <Command filter={(_value, search, keywords) => defaultFilter((keywords ?? []).join(' '), search)}>
-                        <CommandInput placeholder={t('access::staff.country_search')} value={query} onValueChange={setQuery} className="h-9" />
+                        <CommandInput placeholder={words.search} value={query} onValueChange={setQuery} className="h-9" />
                         <CommandList>
-                            <CommandEmpty>{t('access::staff.country_none', { query })}</CommandEmpty>
-                            <CommandGroup heading={t('access::staff.countries_ours')}>
-                                {countries.filter((country) => country.ours).map((country) => item(country, 'ours'))}
-                            </CommandGroup>
-                            <CommandGroup heading={t('access::staff.countries_all')}>{countries.map((country) => item(country, 'all'))}</CommandGroup>
+                            <CommandEmpty>{words.none(query)}</CommandEmpty>
+                            {/* Only when there is a store country to put first: the account's list has none. */}
+                            {ours.length === 0 ? null : (
+                                <CommandGroup heading={words.ours}>{ours.map((country) => item(country, 'ours'))}</CommandGroup>
+                            )}
+                            <CommandGroup heading={ours.length === 0 ? undefined : words.all}>{countries.map((country) => item(country, 'all'))}</CommandGroup>
                         </CommandList>
                     </Command>
                 </PopoverContent>

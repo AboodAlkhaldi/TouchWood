@@ -35,6 +35,9 @@ return [
     'job_title' => 'المسمى الوظيفي',
     'date_of_birth' => 'تاريخ الميلاد',
     'country' => 'الدولة',
+    // The country picker's search (Geist's Combobox, past two hundred countries).
+    'country_search' => 'ابحث في الدول',
+    'country_none' => 'لا دول تطابق «:query».',
     'address' => 'العنوان',
     'address_hint' => 'اختياري.',
 
@@ -48,12 +51,13 @@ return [
     // ب١ — البريد، وهو للقراءة فقط لغير المدير العام.
     'email' => 'بريد العمل',
     'email_locked' => 'اطلب من أحد المديرين تغييره.',
-    'change_email' => 'تغيير البريد…',
-    'email_pending' => 'في انتظار :email. لن يتغير بريدك إلا عند استخدام الرابط الذي أرسلناه إليه.',
+    'change_email' => 'تغيير بريد العمل…',
+    // Geist's Note: a one- or two-word label, then one sentence (the batch B audit).
+    'email_pending_label' => 'تغيير معلّق',
+    'email_pending' => 'يصبح عنوانك :email حين يُستخدم الرابط المرسل إليه.',
     'email_dialog_title' => 'تغيير بريد العمل',
     'email_dialog_body' => 'يصل رابط إلى العنوان الجديد، ولا يتغير بريدك إلا عند فتح ذلك الرابط، فالعنوان المكتوب خطأً لا يغيّر شيئًا.',
     'new_email' => 'البريد الجديد',
-    'send_link' => 'إرسال الرابط',
     'email_change_sent' => 'تم إرسال الرابط إلى العنوان الجديد',
 
     // ب٢ — الجوال، خلف كلمة المرور الحالية.
@@ -86,8 +90,6 @@ return [
     'notifications_hint' => 'يُحفظ كل مفتاح فور تغييره.',
     'by_email' => 'بريد',
     'in_panel' => 'في اللوحة',
-    'switch_email_for' => 'أرسل لي بريدًا عن :topic',
-    'switch_panel_for' => 'أخبرني في اللوحة عن :topic',
     'topic' => [
         'NEW_ORDERS' => 'الطلبات الجديدة',
         'COMPANY_APPLICATIONS' => 'طلبات الشركات',
@@ -175,14 +177,18 @@ return [
 
     'sign_out_everywhere' => 'تسجيل الخروج من كل مكان',
     'sign_out_everywhere_body' => 'ينهي كل الجلسات بما فيها هذه، ويجعل كل متصفّح موثوق يطلب رمزًا من جديد. استعمله إذا دخل أحد غيرك إلى حسابك.',
-    'sign_out_everywhere_confirm' => 'تسجيل الخروج من كل مكان',
 
     'trusted_browsers' => 'متصفحات تتخطى رمزك',
     'trusted_browsers_hint' => 'هذه تدخل بكلمة مرورك وحدها دون رمز، إلى أن تنتهي مدّتها. وهي ليست داخلة الآن؛ تلك هي القائمة أعلاه.',
-    'no_trusted_browsers' => 'لا شيء. كل متصفّح يطلب رمزًا.',
+    'no_trusted_browsers' => 'كل متصفّح يطلب رمزًا.',
     'trusted_until' => 'حتى :date',
     'forget_browser' => 'إلغاء الثقة بالمتصفّح',
     'forget_all_browsers' => 'إلغاء الثقة بكل المتصفحات',
+    // What each confirmation says, the consequence first (frontend.md §1.11: a confirm dialog before
+    // ending another browser's session, Forget Browser and Forget All Browsers).
+    'end_session_body' => 'يُسجَّل خروج ذلك المتصفّح فورًا.',
+    'forget_browser_body' => 'يبقى داخلًا إن كان داخلًا الآن، ويطلب رمزًا عند دخوله التالي.',
+    'forget_all_browsers_body' => 'يبقى كل منها داخلًا إن كان داخلًا الآن، ويطلب رمزًا عند دخوله التالي.',
 
     'session_ended' => 'تم تسجيل خروج المتصفّح',
     'signed_out_everywhere' => 'تم تسجيل الخروج من كل مكان. وستطلب كل المتصفحات رمزًا.',

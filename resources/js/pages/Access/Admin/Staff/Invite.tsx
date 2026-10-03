@@ -221,6 +221,12 @@ export default function Invite(page: Props) {
                                 value={form.data.country}
                                 onChange={(code) => form.setData('country', code)}
                                 error={form.errors.country}
+                                words={{
+                                    search: t('access::staff.country_search'),
+                                    none: (query) => t('access::staff.country_none', { query }),
+                                    ours: t('access::staff.countries_ours'),
+                                    all: t('access::staff.countries_all'),
+                                }}
                             />
                             <SelectField
                                 id="locale"

@@ -12,9 +12,10 @@ declare(strict_types=1);
 | it imports statically are shared, and so is a chunk that every page loads - it is downloaded once
 | and cached, whichever page comes first; a page is its own chunk plus whatever it alone pulls in.
 | (Batch A of the shadcn rebuild, 2026-10-03: the bundler had put shadcn's common Radix code, which
-| all 57 page files the app can load pull in, in a chunk of its own, and counting it on every page
-| made each page pay for the same cached 15 KB.) Sizes are gzipped at the strongest level and counted in kilobytes of
-| 1,000 bytes, as Vite reports them.
+| every page pulls in, in chunks of its own, and counting them on every page made each page pay for
+| the same cached code.) A page is a file Inertia opens - one with a default export; a helper file
+| beside the pages counts inside the pages that import it. Sizes are gzipped at the strongest level
+| and counted in kilobytes of 1,000 bytes, as Vite reports them.
 |
 | It reads public/build, so it measures the last build - and refuses one older than the code it was
 | built from, which would let a breach pass unmeasured (the review of the foundation, 2026-10-03).
@@ -56,11 +57,17 @@ function chunksLoadedWith(array $manifest, string $key): array
 /**
  * The shared size and each page's own size, in gzipped bytes.
  *
+ * A page is a file Inertia can open - one with a default export. The app's page glob also makes an
+ * entry of every helper module beside the pages (an account tab, a form's parts); nobody opens one
+ * of those on its own, so it is counted inside the pages that import it and is not a page itself
+ * (the review of batch A: 57 entries, 39 pages).
+ *
  * @param  array<string, array{file: string, src?: string, imports?: list<string>, isDynamicEntry?: bool}>  $manifest
  * @param  callable(string): int  $gzippedSize  the gzipped size of a built file
+ * @param  (callable(string): bool)|null  $isPage  whether a source file is a page; every entry, if not given
  * @return array{shared: int, pages: array<string, int>}
  */
-function javaScriptSizes(array $manifest, callable $gzippedSize): array
+function javaScriptSizes(array $manifest, callable $gzippedSize, ?callable $isPage = null): array
 {
     $sizeOf = fn (array $keys): int => array_sum(array_map(fn (string $key): int => $gzippedSize($manifest[$key]['file']), $keys));
 
@@ -68,7 +75,9 @@ function javaScriptSizes(array $manifest, callable $gzippedSize): array
     $loaded = [];
 
     foreach ($manifest as $key => $chunk) {
-        if (($chunk['isDynamicEntry'] ?? false) && str_starts_with($chunk['src'] ?? $key, 'resources/js/pages/')) {
+        $source = $chunk['src'] ?? $key;
+
+        if (($chunk['isDynamicEntry'] ?? false) && str_starts_with($source, 'resources/js/pages/') && ($isPage === null || $isPage($source))) {
             $loaded[$key] = chunksLoadedWith($manifest, $key);
         }
     }
@@ -129,6 +138,25 @@ it('does not count a lone page as shared with itself', function () {
         ->toBe(['shared' => 10, 'pages' => ['resources/js/pages/A.tsx' => 5]]);
 });
 
+it('counts a helper module beside the pages inside the page that imports it, not as a page', function () {
+    $manifest = [
+        APP_ENTRY => ['file' => 'app.js'],
+        '_radix.js' => ['file' => 'radix.js'],
+        'resources/js/pages/Account.tsx' => ['file' => 'account.js', 'src' => 'resources/js/pages/Account.tsx', 'isDynamicEntry' => true, 'imports' => ['_radix.js', 'resources/js/pages/Tab.tsx']],
+        'resources/js/pages/Other.tsx' => ['file' => 'other.js', 'src' => 'resources/js/pages/Other.tsx', 'isDynamicEntry' => true, 'imports' => ['_radix.js']],
+        // The glob makes an entry of the tab too, though only the account page ever loads it.
+        'resources/js/pages/Tab.tsx' => ['file' => 'tab.js', 'src' => 'resources/js/pages/Tab.tsx', 'isDynamicEntry' => true],
+    ];
+    $sizes = ['app.js' => 10, 'radix.js' => 50, 'account.js' => 5, 'other.js' => 3, 'tab.js' => 20];
+    $pages = ['resources/js/pages/Account.tsx', 'resources/js/pages/Other.tsx'];
+
+    // As a page, the tab - which loads no radix - would keep radix from being every page's.
+    expect(javaScriptSizes($manifest, fn (string $file): int => $sizes[$file], fn (string $source): bool => in_array($source, $pages, true)))->toBe([
+        'shared' => 60,
+        'pages' => ['resources/js/pages/Account.tsx' => 25, 'resources/js/pages/Other.tsx' => 3],
+    ]);
+});
+
 /**
  * The files the build is made from that changed after it was made: the code and styles, the Vite
  * config and the lock file. At most five, named, which is enough to say what to rebuild for.
@@ -176,7 +204,12 @@ it('keeps the JavaScript within the budgets of frontend.md §5', function () {
 
     expect($manifest)->toHaveKey(APP_ENTRY);
 
-    $sizes = javaScriptSizes($manifest, fn (string $file): int => strlen((string) gzencode((string) file_get_contents($build.'/'.$file), 9)));
+    $sizes = javaScriptSizes(
+        $manifest,
+        fn (string $file): int => strlen((string) gzencode((string) file_get_contents($build.'/'.$file), 9)),
+        // A page is a file with a default export: what Inertia renders.
+        fn (string $source): bool => preg_match('/^export\s+default\b/m', (string) file_get_contents(dirname(__DIR__, 2).'/'.$source)) === 1,
+    );
     $overPages = array_filter($sizes['pages'], fn (int $size): bool => $size > PAGE_BUDGET);
     arsort($overPages);
 

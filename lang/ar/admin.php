@@ -47,8 +47,11 @@ return [
         'title' => 'الرئيسية',
         'subtitle' => 'لوحة الإدارة.',
         'empty' => 'تصل الشاشات مع وحداتها. وما يمكنك فتحه موجود في القائمة.',
-        // كل مدخل في القائمة ينتظر خلفه شيء (frontend.md E7).
-        'waiting' => ':label: :count بانتظارك',
+        'empty_title' => 'لا شيء هنا بعد',
+        // Above the rows of what waits (frontend.md E7; owner, 2026-10-03): Geist's Note, a label
+        // and one sentence; each row then opens its screen and shows its count.
+        'waiting_label' => 'بانتظارك',
+        'waiting_note' => 'هناك ما يحتاج إليك.',
     ],
 
     // كتلة الشخص أسفل القائمة الجانبية: حسابه الخاص، وطريق الخروج. وهي من الإطار لا من شاشات

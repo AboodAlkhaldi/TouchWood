@@ -38,7 +38,8 @@ return [
 
     'code_title' => 'Enter the Code',
     'code_sent_to' => 'The code went to :phone.',
-    'code_digit' => 'Digit :number',
+    // The code field's one label: shadcn's InputOTP is one input, not a box per digit.
+    'code_label' => 'SMS Code',
     'trust_browser' => 'Trust This Browser for :days Days',
     'confirm' => 'Verify Code',
     'resend' => 'Resend Code',

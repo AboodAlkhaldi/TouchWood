@@ -1,22 +1,24 @@
 import { useForm } from '@inertiajs/react';
 import { SignInLayout } from '@/layouts/SignInLayout';
+import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
-import { Button } from '@/components/geist';
 import { PasswordInput } from '@/components/PasswordInput';
+import { Field, FieldGroup } from '@/components/ui/field';
 import { useRepeatedPassword } from '@/lib/passwords';
 import { useTranslator } from '@/lib/t';
 import type { ResetPasswordPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
-| A5 - a new password (frontend.md §3.1), in Geist (1.10).
+| A5 - a new password (frontend.md §3.1), on shadcn's login-02 form (§1.11).
 |
 | The rule is shown in words before anyone types, and the number in it is the setting's, never a
 | number written here. Afterwards the person signs in again, code and all: a reset proves the
 | address, not the phone.
 |
 | The second box is this page's to check (see lib/passwords): the endpoint takes `password` alone,
-| so until now a typo in the box nobody can read saved a password the person did not mean. While
-| the two differ the button is out of reach and says why, in Geist's tooltip.
+| so a typo in the box nobody can read would save a password the person did not mean. While the two
+| differ the button is out of reach and says why; the message under the box waits until the person
+| leaves it or tries to send (Geist: validate on blur, not on every keystroke).
 */
 
 type Props = ResetPasswordPage;
@@ -32,6 +34,7 @@ export default function ResetPassword({ token, minimumLength }: Props) {
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
+                    repeat.tried();
 
                     // The button is already out of reach while the two differ; this is the same
                     // rule again for a form sent by pressing Enter in a field.
@@ -41,43 +44,47 @@ export default function ResetPassword({ token, minimumLength }: Props) {
 
                     form.post(`/admin/password/reset/${token}`);
                 }}
-                className="grid gap-5"
             >
-                <FormError />
+                <FieldGroup className="gap-5">
+                    <FormError />
 
-                <PasswordInput
-                    id="password"
-                    name="password"
-                    label={t('access::auth.new_password')}
-                    helper={t('access::auth.password_rule', { count: minimumLength })}
-                    error={form.errors.password}
-                    autoComplete="new-password"
-                    required
-                    autoFocus
-                    value={form.data.password}
-                    onChange={(event) => form.setData('password', event.target.value)}
-                />
+                    <PasswordInput
+                        id="password"
+                        name="password"
+                        label={t('access::auth.new_password')}
+                        helper={t('access::auth.password_rule', { count: minimumLength })}
+                        error={form.errors.password}
+                        autoComplete="new-password"
+                        required
+                        autoFocus
+                        value={form.data.password}
+                        onChange={(event) => form.setData('password', event.target.value)}
+                    />
 
-                <PasswordInput
-                    id="password_repeat"
-                    name="password_repeat"
-                    label={t('access::auth.confirm_password')}
-                    error={repeat.differs ? differ : undefined}
-                    autoComplete="new-password"
-                    required
-                    value={repeat.value}
-                    onChange={(event) => repeat.setValue(event.target.value)}
-                />
+                    <PasswordInput
+                        id="password_repeat"
+                        name="password_repeat"
+                        label={t('access::auth.confirm_password')}
+                        error={repeat.showDiffers ? differ : undefined}
+                        autoComplete="new-password"
+                        required
+                        value={repeat.value}
+                        onChange={(event) => repeat.setValue(event.target.value)}
+                        onBlur={repeat.left}
+                    />
 
-                <Button
-                    typeName="submit"
-                    data-test="save-password"
-                    loading={form.processing}
-                    disabledReason={repeat.differs ? differ : undefined}
-                    className="w-full"
-                >
-                    {t('access::auth.save_password')}
-                </Button>
+                    <Field>
+                        <ActionButton
+                            type="submit"
+                            data-test="save-password"
+                            loading={form.processing}
+                            disabledReason={repeat.differs ? differ : undefined}
+                            className="w-full"
+                        >
+                            {t('access::auth.save_password')}
+                        </ActionButton>
+                    </Field>
+                </FieldGroup>
             </form>
         </SignInLayout>
     );

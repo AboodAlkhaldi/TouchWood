@@ -204,7 +204,10 @@ it('forgets a trusted browser, in a suite with no transaction around it', functi
     $page->assertSee('متصفحات تتخطى رمزك');
 
     if ($page->script('document.querySelector(\'[data-test="forget-all-browsers"]\') !== null') === true) {
-        $page->click('[data-test="forget-all-browsers"]')->assertSee('لا شيء. كل متصفّح يطلب رمزًا.');
+        // Asked first now, like every action on this tab (frontend.md §1.11, the shadcn rebuild).
+        $page->click('[data-test="forget-all-browsers"]')
+            ->click('[data-test="confirm-forget-all-browsers"]')
+            ->assertSee('كل متصفّح يطلب رمزًا.');
     }
 
     $page->assertNoJavaScriptErrors();

@@ -38,7 +38,8 @@ return [
 
     'code_title' => 'أدخل الرمز',
     'code_sent_to' => 'أُرسل الرمز إلى :phone.',
-    'code_digit' => 'الخانة :number',
+    // The code field's one label: shadcn's InputOTP is one input, not a box per digit.
+    'code_label' => 'رمز الرسالة',
     'trust_browser' => 'الوثوق بهذا المتصفح لمدة :days يومًا',
     'confirm' => 'التحقق من الرمز',
     'resend' => 'إرسال رمز آخر',

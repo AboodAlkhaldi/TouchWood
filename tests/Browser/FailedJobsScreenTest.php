@@ -68,8 +68,11 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
         ->click('button[type="submit"]')
         ->assertPathIs('/admin');
 
-    // The owner's words (2026-09-29), from the menu this person was offered.
-    $page->assertSee('Failed Jobs: 2 waiting')
+    // From the menu this person was offered: a row that opens the failed jobs, with its count
+    // (owner, 2026-10-03: one row per waiting item, under one note - replacing the sentence of
+    // 2026-09-29).
+    $page->assertSeeIn('[data-test="waiting-platform.failed_jobs"]', 'Failed Jobs')
+        ->assertSeeIn('[data-test="waiting-platform.failed_jobs"] [data-slot="badge"]', '2')
         ->assertSeeIn('[data-test="count-platform.failed_jobs"]', '2')
         ->assertMissing('[data-test="dot-platform.failed_jobs"]')
         ->assertNoJavaScriptErrors();

@@ -126,8 +126,13 @@ export function PermissionPicker({ permissions, groups, chosen, onChange, disabl
                                                     {locked === undefined ? (
                                                         box
                                                     ) : (
+                                                        // On a span, never on the box: both are Radix parts writing
+                                                        // data-state, and the tooltip's would hide whether the box is
+                                                        // ticked (lesson 133).
                                                         <Tooltip>
-                                                            <TooltipTrigger asChild>{box}</TooltipTrigger>
+                                                            <TooltipTrigger asChild>
+                                                                <span className="inline-flex">{box}</span>
+                                                            </TooltipTrigger>
                                                             <TooltipContent>{locked}</TooltipContent>
                                                         </Tooltip>
                                                     )}

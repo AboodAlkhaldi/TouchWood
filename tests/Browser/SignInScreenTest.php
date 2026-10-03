@@ -113,6 +113,11 @@ it('will not send a new password while the two boxes differ', function () {
 
     $page->type('#password', 'a long enough password')
         ->type('#password_repeat', 'a long enough passwerd')
+        // Out of reach at once, and said once the box is left (Geist: validate on blur, not on
+        // every keystroke - the shadcn rebuild).
+        ->assertDisabled('[data-test="save-password"]')
+        ->assertDontSee((string) __('access::auth.passwords_differ', [], 'ar'))
+        ->click('#password')
         ->assertSee((string) __('access::auth.passwords_differ', [], 'ar'))
         ->assertDisabled('[data-test="save-password"]');
 

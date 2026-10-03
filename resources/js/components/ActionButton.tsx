@@ -52,14 +52,12 @@ export function ActionButton({ loading = false, disabledReason, disabled = false
         </Button>
     );
 
-    if (disabledReason === undefined) {
-        return button;
-    }
-
+    // Always inside its tooltip, shut while there is no reason: a button that gains or loses one
+    // (Resend Code, as its wait runs out) keeps its place in the tree and the keyboard focus on it.
     return (
-        <Tooltip>
+        <Tooltip open={disabledReason === undefined ? false : undefined}>
             <TooltipTrigger asChild>{button}</TooltipTrigger>
-            <TooltipContent>{disabledReason}</TooltipContent>
+            {disabledReason === undefined ? null : <TooltipContent>{disabledReason}</TooltipContent>}
         </Tooltip>
     );
 }
