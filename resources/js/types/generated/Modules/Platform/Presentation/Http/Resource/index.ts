@@ -29,6 +29,8 @@ storeName: string | null,
 ipAddress: string | null,
 changes: AuditChangeRow[],
 withheld: boolean,
+requestedByName: string | null,
+subjectName: string | null,
 };
 export type ChooseStorePage = {
 stores: StoreChoiceRow[],
@@ -143,8 +145,12 @@ taxRatePercent: string,
 timezone: string,
 position: number,
 editable: boolean,
+isActive: boolean,
+isBase: boolean,
+switchable: boolean,
 };
 export type StoresPage = {
 stores: StoreRow[],
 timezones: string[],
+maySwitch: boolean,
 };

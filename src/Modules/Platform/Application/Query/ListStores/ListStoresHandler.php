@@ -20,6 +20,10 @@ use Shared\Application\Unauthorized;
  * Viewing and changing are asked separately, because they are separate permissions and a person may
  * well hold the first without the second - a manager who reads every store's settings and edits
  * none of them.
+ *
+ * **An off store is listed only to whoever may switch stores** — a Super Admin, through the reserved
+ * `platform.store.switch` — so it can be turned back on (platform.md §1.6, §3; owner, 2026-10-01).
+ * To anyone else it is as if it were never there.
  */
 final readonly class ListStoresHandler
 {
@@ -46,6 +50,7 @@ final readonly class ListStoresHandler
         }
 
         $editable = $this->authorizer->storesWith(PlatformPermissions::STORE_UPDATE);
+        $maySwitch = $this->maySwitch();
 
         // Null from Access means every store, now and for any store added later.
         $maySee = $visible === null ? null : array_map(static fn ($store): string => $store->value, $visible);
@@ -58,13 +63,26 @@ final readonly class ListStoresHandler
                 continue;
             }
 
-            $summaries[] = $this->summary($store, $mayEdit === null || in_array($store->id, $mayEdit, true), $query->locale);
+            if (! $store->isActive && ! $maySwitch) {
+                continue;
+            }
+
+            $summaries[] = $this->summary($store, $mayEdit === null || in_array($store->id, $mayEdit, true), $maySwitch, $query->locale);
         }
 
         return $summaries;
     }
 
-    private function summary(StoreDto $store, bool $editable, string $locale): StoreSummary
+    /**
+     * Whether the person acting may turn stores on and off: a store-free, reserved permission, held
+     * everywhere or nowhere.
+     */
+    public function maySwitch(): bool
+    {
+        return $this->authorizer->storesWith(PlatformPermissions::STORE_SWITCH) !== [];
+    }
+
+    private function summary(StoreDto $store, bool $editable, bool $maySwitch, string $locale): StoreSummary
     {
         return new StoreSummary(
             $store->id,
@@ -78,6 +96,9 @@ final readonly class ListStoresHandler
             $store->timezone,
             $store->position,
             $editable,
+            $store->isActive,
+            $store->isBase,
+            $maySwitch && ! $store->isBase,
         );
     }
 }

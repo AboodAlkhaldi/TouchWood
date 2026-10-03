@@ -19,9 +19,12 @@ final class StoresPage extends Data
     /**
      * @param  list<StoreRow>  $stores  only the ones this person may see
      * @param  list<string>  $timezones  every IANA identifier, for the one field that offers a choice
+     * @param  bool  $maySwitch  whether this person may turn stores on and off — a Super Admin
+     *                           (platform.md §3; owner, 2026-10-01)
      */
     public function __construct(
         public array $stores,
         public array $timezones,
+        public bool $maySwitch,
     ) {}
 }

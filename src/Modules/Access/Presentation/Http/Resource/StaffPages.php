@@ -48,6 +48,9 @@ final readonly class StaffPages
     /** Admins, in their own short section above the rest. */
     public const string ADMINS = 'admins';
 
+    /** Super Admins, above the admins and only for another Super Admin (amendment 54). */
+    public const string SUPER_ADMINS = 'super_admins';
+
     public function __construct(
         private Application $app,
         private GrantRules $rules,
@@ -73,8 +76,20 @@ final readonly class StaffPages
             $sections[$this->sectionFor($person)][] = $this->row($person);
         }
 
+        $groups = $this->arrange($sections, $stores);
+
+        // A Super Admin reads the Super Admins first, in a section of their own — never among the
+        // admins; anyone else is given none (amendment 54).
+        if ($page->superAdmins !== []) {
+            array_unshift($groups, new StaffGroup(
+                self::SUPER_ADMINS,
+                (string) __('access::staff.super_admins', [], $this->locale()),
+                array_map($this->row(...), $page->superAdmins),
+            ));
+        }
+
         return new StaffListPage(
-            $this->arrange($sections, $stores),
+            $groups,
             $page->total,
             $search,
             $status,
@@ -87,9 +102,13 @@ final readonly class StaffPages
     public function member(string $staffId): StaffMemberPage
     {
         $person = $this->view->handle(new ViewStaff($staffId));
-        $row = $this->staff->member($staffId) ?? [];
         $may = $this->actions->forStaff($staffId);
         $stores = $this->storeNames();
+        // Access leaves the status empty for an admin this reader may see as a name and a role only
+        // (amendments 43(a), 44(e), 46(d)). Then nothing of their profile is read from the row
+        // either: it is not shown, and it is not in the page's data for anyone to find (amendment 57).
+        $open = $person->status !== null;
+        $row = $open ? ($this->staff->member($staffId) ?? []) : [];
 
         return new StaffMemberPage(
             id: $person->id,
@@ -99,11 +118,11 @@ final readonly class StaffPages
             jobTitle: $person->jobTitle,
             email: $person->email,
             phone: $person->phone,
-            // Access leaves the status empty for an admin a reader may not see in full. Reaching
-            // this screen at all means they may, so it is present - but it is read defensively
-            // rather than assumed, because a screen is not the place to learn that the hard way.
+            // Empty for an admin this reader may see as a name and a role only; the page type wants a
+            // status, and "active" is what every such admin is shown as, telling nothing.
             status: ($person->status ?? StaffStatus::Active)->value,
-            communicationLocale: $this->text($row, 'locale') ?? 'ar',
+            // Null when the summary is closed, like the three below: their language is theirs.
+            communicationLocale: $open ? ($this->text($row, 'locale') ?? 'ar') : null,
             dateOfBirth: $this->text($row, 'date_of_birth'),
             country: $this->text($row, 'country'),
             address: $this->text($row, 'address'),
@@ -428,6 +447,7 @@ final readonly class StaffPages
             $hidden ? null : $person->email,
             $person->status?->value,
             $hidden ? null : $person->joinedAt,
+            $person->formerSuperAdmin,
         );
     }
 

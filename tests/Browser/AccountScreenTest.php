@@ -166,7 +166,7 @@ it('saves a notification switch as it is flipped, and says so', function () {
         ->assertSee('قرب نفاد المخزون')
         ->click('[data-test="switch-email-LOW_STOCK"]')
         // The toast is the only thing that tells a person a switch with no Save button saved.
-        ->assertSee('تم الحفظ.')
+        ->assertSee('تم حفظ التغييرات')
         ->assertNoJavaScriptErrors();
 });
 
@@ -220,7 +220,7 @@ it('switches the account screen\'s language both ways, whatever language the acc
     $page->click('[data-test="person-menu"]')
         ->assertSeeIn('[data-test="language"]', 'English')
         ->click('[data-test="language"]')
-        ->assertSee('Account & settings');
+        ->assertSee('Account & Settings');
 
     expect($page->script('document.documentElement.lang'))->toBe('en')
         ->and($page->script('document.documentElement.dir'))->toBe('ltr');

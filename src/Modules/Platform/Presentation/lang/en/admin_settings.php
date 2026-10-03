@@ -10,11 +10,16 @@ return [
     'in_store' => 'In :store',
     'everywhere' => 'Everywhere',
     'sensitive' => 'Never shown',
-    'unchanged' => 'Leave empty to keep it',
+    'unchanged' => 'Leave it empty to keep the current value.',
     'is_default' => 'Not set; :value is in force',
-    'edit' => 'Edit',
-    'save' => 'Save',
+    'edit' => 'Edit Setting',
+    'save' => 'Save Setting',
     'cancel' => 'Cancel',
-    'saved' => 'The setting was saved.',
+    'saved' => 'Setting saved',
     'none' => 'There is no setting here that is yours to change.',
+
+    // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
+    // buttons' reasons and dialogs' own words.
+    'none_title' => 'No Settings to Change',
+    'read_only_reason' => 'Press Edit Setting to change it.',
 ];

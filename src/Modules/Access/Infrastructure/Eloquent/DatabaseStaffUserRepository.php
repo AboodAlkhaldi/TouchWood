@@ -111,6 +111,30 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             ->all();
     }
 
+    public function displayNames(array $ids): array
+    {
+        // Anything that is not a ULID is nobody's id here: an audit entry's subject may be a
+        // currency code or a setting's key.
+        $ids = array_values(array_unique(array_map(strtolower(...), array_filter($ids, Ulids::valid(...)))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        // Whether they are **or ever were** a Super Admin (amendment 57): revoking the power must not
+        // unmask everything they did while they held it.
+        foreach ($this->db->table(self::TABLE)->whereIn('id', $ids)->get(['id', 'first_name', 'last_name', 'was_super_admin']) as $row) {
+            $found[(string) $row->id] = [
+                'name' => trim($row->first_name.' '.$row->last_name),
+                'superAdmin' => (bool) $row->was_super_admin,
+            ];
+        }
+
+        return $found;
+    }
+
     public function names(array $ids): array
     {
         $found = [];
@@ -210,6 +234,7 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             'locale' => $staff->language()->value,
             'status' => $staff->status()->value,
             'is_super_admin' => $staff->isSuperAdmin(),
+            'was_super_admin' => $staff->wasSuperAdmin(),
             'invited_by' => $staff->invitedBy(),
             'session_version' => $staff->sessionVersion(),
         ];
@@ -237,6 +262,7 @@ final readonly class DatabaseStaffUserRepository implements StaffUserRepository
             (bool) $row->is_super_admin,
             $row->invited_by === null ? null : (string) $row->invited_by,
             (int) $row->session_version,
+            (bool) $row->was_super_admin,
         );
     }
 }

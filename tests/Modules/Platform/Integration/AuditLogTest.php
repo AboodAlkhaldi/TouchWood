@@ -240,13 +240,17 @@ describe('store and currency changes', function () {
     });
 
     it('audits creating a store, under that store, with its values', function () {
-        $storeId = app(PlatformApi::class)->storeByCode('xa')?->id;
+        // Read from the table: a new store is created off, and an off store's code answers as an
+        // unknown one to other modules (platform.md §1.6).
+        $storeId = DB::table('platform.stores')->where('code', 'xa')->value('id');
         $entry = (array) DB::table('platform.audit_entries')->where('action', 'platform.store.created')->first();
 
         expect($entry['subject_type'])->toBe('platform.store')
             ->and($entry['subject_id'])->toBe($storeId)
             ->and($entry['store_id'])->toBe($storeId)
-            ->and(decodedChanges($entry['changes'])['tax_rate_basis_points'])->toBe([null, 1500]);
+            ->and(decodedChanges($entry['changes'])['tax_rate_basis_points'])->toBe([null, 1500])
+            // Created off (owner, 2026-10-01), and the entry says so.
+            ->and(decodedChanges($entry['changes'])['is_active'])->toBe([null, false]);
     });
 
     it('audits a store update with the old and new value of each changed attribute', function () {

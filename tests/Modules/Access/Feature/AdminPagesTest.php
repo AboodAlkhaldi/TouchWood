@@ -237,7 +237,7 @@ describe('the admin panel itself', function () {
                 /** @var array<string, string> $words */
                 $words = $inertia->toArray()['props']['translations'];
 
-                expect($words['access::auth.sign_in'] ?? null)->toBe('Sign in');
+                expect($words['access::auth.sign_in'] ?? null)->toBe('Sign In');
             });
     });
 

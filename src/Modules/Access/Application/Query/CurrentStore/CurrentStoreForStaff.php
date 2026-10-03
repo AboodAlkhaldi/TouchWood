@@ -67,6 +67,10 @@ final readonly class CurrentStoreForStaff
      * Their stores, in the stores' own order. A Super Admin covers every store without a role
      * saying so; anyone else covers their assignment's, an exception's stores included.
      *
+     * Only stores that are **on**: an off store is not offered as a store to work in, to anyone
+     * (platform.md §1.6). A staff member whose only stores are off still signs in, and works in no
+     * store until one is on again (access.md amendment 53).
+     *
      * @return list<string>
      */
     private function storesOf(string $staffId): array

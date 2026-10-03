@@ -87,15 +87,17 @@ final readonly class SubmitApplicationHandler
             throw new EmailNotVerified;
         }
 
-        $this->db->transaction(function () use ($account): void {
-            $inHand = $this->drafts->forChange($account->id);
+        $store = $this->account->store($account);
+
+        $this->db->transaction(function () use ($account, $store): void {
+            $inHand = $this->drafts->forChange($account->id, $store);
             $draft = $inHand->draft;
             $company = $inHand->company;
             $now = CarbonImmutable::now();
 
-            // The company's store once there is one; the account's until then — the same store,
-            // since the company takes it from the account (§1.1).
-            $homeStoreId = $company?->homeStoreId() ?? $account->homeStoreId;
+            // The store the draft was made in, which is the company's once there is one: a company
+            // per store (amendment 18).
+            $homeStoreId = $draft->storeId();
             $companyId = $company?->id() ?? $this->companies->nextId();
 
             // Every value again, against today's minimums: one saved before a minimum was raised

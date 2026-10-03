@@ -89,7 +89,7 @@ function companyDraftAttach(string $documentTypeId): void
 
 function companyDraftOpen(string $customerId): Application
 {
-    return app(ApplicationRepository::class)->openFor($customerId) ?? throw new LogicException('No open application.');
+    return app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa')) ?? throw new LogicException('No open application.');
 }
 
 function companyDraftMediaExists(string $mediaId): bool
@@ -200,13 +200,13 @@ describe('starting a draft (§3.1, amendment 5)', function () {
         Fx::actAsCustomer($customerId);
 
         expect(fn () => companyDraftStart())->toThrow(CompanySuspended::class)
-            ->and(app(ApplicationRepository::class)->openFor($customerId))->toBeNull();
+            ->and(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa')))->toBeNull();
     });
 
     it('refuses a suspended company even with its draft open, and leaves that draft as it is (amendment 9(e))', function () {
         [$customerId] = companyDraftAfterRejection();
         $draftId = companyDraftOpen($customerId)->id();
-        B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId) ?? throw new LogicException);
+        B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa')) ?? throw new LogicException);
 
         expect(fn () => companyDraftStart())->toThrow(CompanySuspended::class)
             ->and(companyDraftOpen($customerId)->id())->toBe($draftId)
@@ -350,7 +350,7 @@ describe('saving the draft (§1.2, §3.1, amendments 4 and 5)', function () {
 
     it('refuses a suspended company\'s draft (scenario 9l)', function () {
         [$customerId] = companyDraftAfterRejection();
-        $company = app(CompanyRepository::class)->forCustomer($customerId);
+        $company = app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'));
         B2BFixtures::suspend($company ?? throw new LogicException);
 
         expect(fn () => companyDraftSave(['name' => 'Another name']))->toThrow(CompanySuspended::class)
@@ -436,7 +436,7 @@ describe('the draft\'s papers (§1.4, amendments 4, 5 and 9(a))', function () {
 
     it('refuses an upload into a suspended company\'s draft before anything is stored (scenario 9l)', function () {
         [$customerId] = companyDraftAfterRejection();
-        B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId) ?? throw new LogicException);
+        B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa')) ?? throw new LogicException);
         $writes = B2BFixtures::mediaWrites();
 
         expect(fn () => companyDraftAttach(companyDraftDocumentTypeIds()[0]))->toThrow(CompanySuspended::class)
@@ -471,7 +471,7 @@ describe('the draft\'s papers (§1.4, amendments 4, 5 and 9(a))', function () {
     it('refuses removing a paper while suspended: the draft is frozen (amendment 9(a))', function () {
         [$customerId] = companyDraftAfterRejection();
         $typeId = companyDraftDocumentTypeIds()[0];
-        B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId) ?? throw new LogicException);
+        B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa')) ?? throw new LogicException);
 
         expect(fn () => app(RemoveApplicationDocumentHandler::class)->handle(new RemoveApplicationDocument($typeId)))->toThrow(CompanySuspended::class)
             ->and(companyDraftOpen($customerId)->documents())->toHaveKey($typeId);
@@ -566,7 +566,7 @@ describe('answering the last rejection\'s requests (§1.2, amendments 4, 5 and 9
         $text = strtolower((string) Str::ulid());
         [$customerId] = companyDraftAfterRejection([ApplicationRequest::add($text, RequestKind::Text, 'Who signs?', 1)]);
         app(AnswerApplicationRequestHandler::class)->handle(new AnswerApplicationRequest($text, text: 'Sara Ali'));
-        B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId) ?? throw new LogicException);
+        B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa')) ?? throw new LogicException);
 
         expect(fn () => app(AnswerApplicationRequestHandler::class)->handle(new AnswerApplicationRequest($text, text: 'Someone else')))->toThrow(CompanySuspended::class)
             ->and(fn () => app(RemoveApplicationAnswerHandler::class)->handle(new RemoveApplicationAnswer($text)))->toThrow(CompanySuspended::class)
@@ -583,7 +583,7 @@ it('refuses a second open application at the database too, behind the account\'s
     companyDraftStart();
     $applications = app(ApplicationRepository::class);
 
-    expect(fn () => $applications->add(Application::draft($applications->nextId(), $customerId, null)))->toThrow(ApplicationAlreadyOpen::class);
+    expect(fn () => $applications->add(Application::draft($applications->nextId(), $customerId, null, Fx::storeId('sa'))))->toThrow(ApplicationAlreadyOpen::class);
 });
 
 it('records when each paper was uploaded (§1.4)', function () {

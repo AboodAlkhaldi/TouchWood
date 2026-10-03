@@ -68,8 +68,8 @@ final readonly class RejectCompanyHandler
 
         $this->db->transaction(function () use ($found, $staffId, $reason, $flags, $requests): void {
             $this->applications->lockAccount($found->customerId());
-            $company = $this->companies->forCustomerLocked($found->customerId()) ?? throw new CompanyNotFound;
-            $waiting = $this->applications->openFor($company->customerId());
+            $company = $this->companies->byId($found->id()) ?? throw new CompanyNotFound;
+            $waiting = $this->applications->openFor($company->customerId(), $company->homeStoreId());
 
             if ($company->status() !== CompanyStatus::Pending || $waiting?->state() !== ApplicationState::Submitted) {
                 throw new InvalidCompanyStatus('rejected', $company->status()->value);
@@ -83,7 +83,9 @@ final readonly class RejectCompanyHandler
             $this->companies->update($company);
             $this->platform->recordAudit(StaffCompanyAudit::rejected($waiting, $reason, $waiting->flags(), $waiting->requests(), $company->homeStoreId()));
             $this->events->statusChanged($company, CompanyStatus::Pending);
-            $this->messages->afterCommit($company->customerId(), static fn (SecurityMessages $messages, CustomerDto $customer) => $messages->companyRejected($customer, $reason->value));
+            // The email names the company's store: an account may hold one in each (amendment 19(c)).
+            $store = $company->homeStoreId();
+            $this->messages->afterCommit($company->customerId(), static fn (SecurityMessages $messages, CustomerDto $customer) => $messages->companyRejected($customer, $reason->value, $store));
         }, 3);
     }
 

@@ -65,7 +65,7 @@ function classes(common: Common, svgOnly: boolean, unavailable: boolean): string
         'relative inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap transition-[background-color,box-shadow,opacity] duration-150 [&_svg]:shrink-0',
         s.text,
         svgOnly || shape === 'square' || shape === 'circle' ? cx(s.square, 'p-0') : s.box,
-        shape === 'circle' || shape === 'rounded' ? 'rounded-full' : 'rounded-[var(--tw-radius)]',
+        shape === 'circle' || shape === 'rounded' ? 'rounded-[var(--tw-radius-pill)]' : 'rounded-[var(--tw-radius)]',
         unavailable ? UNAVAILABLE : LOOK[type],
         className,
     );
@@ -131,7 +131,9 @@ export function Button(props: ButtonProps) {
         </button>
     );
 
-    return disabledReason === undefined ? button : <Tooltip text={disabledReason}>{button}</Tooltip>;
+    // Always inside its tooltip, shut while there is no reason: a button that gains or loses one
+    // (Send, while a save runs) keeps its place in the tree and the keyboard focus on it.
+    return <Tooltip text={disabledReason}>{button}</Tooltip>;
 }
 
 type ButtonLinkProps = Common &

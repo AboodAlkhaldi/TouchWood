@@ -72,12 +72,13 @@ it('turns the shop dark when the button is pressed', function () {
 
     expect($page->script('document.documentElement.dataset.mode'))->toBe('light');
 
-    // The button now offers the way back, which it can only do once the server has answered:
-    // pressing only dispatches the post, and reading the page in the same breath raced and lost.
-    $page->click('[data-test="theme"]')->assertSee('فاتح');
+    // The theme switch is Geist's now: Light and Dark side by side (frontend.md 1.10). Pressing only
+    // dispatches the post, and reading the page in the same breath raced and lost, so the page is
+    // read until the server's answer has arrived (lesson 121: a promise that answers within 4 s).
+    $page->click('[data-test="theme-dark"]');
 
     // Asked for again and answered dark by the server, which is why nothing flashes.
-    expect($page->script('document.documentElement.dataset.mode'))->toBe('dark');
+    expect($page->script("new Promise((done) => { const from = Date.now(); (function look() { const mode = document.documentElement.dataset.mode; if (mode === 'dark' || Date.now() - from > 4000) { done(mode); } else { setTimeout(look, 50); } })(); })"))->toBe('dark');
 
     $page->assertNoJavaScriptErrors();
 });

@@ -138,8 +138,8 @@ it('offers a company account its page from the account, and tells it on every sh
         ->and($props['draft'])->toBeNull()
         ->and($props['maxFileBytes'])->toBe(10 * 1024 * 1024)
         ->and(array_column($props['companyTypes'], 'nameEn'))->toContain('Limited Liability Company')
-        ->and($props['accountMenu']['pages'])->toBe([['key' => 'b2b.company', 'label' => 'Company account', 'routeName' => 'storefront.company']])
-        ->and($props['shopperLines'])->toBe([['text' => 'Continue your company application', 'routeName' => 'storefront.company', 'tone' => 'info']]);
+        ->and($props['accountMenu']['pages'])->toBe([['key' => 'b2b.company', 'label' => 'Company Account', 'routeName' => 'storefront.company']])
+        ->and($props['shopperLines'])->toBe([['text' => 'Continue Company Application', 'routeName' => 'storefront.company', 'tone' => 'info']]);
 });
 
 it('says nothing of its own before the email is confirmed, where Access\'s mark already says it', function () {
@@ -186,7 +186,7 @@ it('starts the draft, saves one field at a time, and answers a wrong value on it
         ->and($props['draft']['values']['crNumber'])->toBeNull()
         // A field left out of a save keeps its value.
         ->and($props['draft']['values']['taxNumber'])->toBe('300123456700003')
-        ->and($props['shopperLines'][0]['text'])->toBe('Finish and send your company application');
+        ->and($props['shopperLines'][0]['text'])->toBe('Finish and Send Company Application');
 });
 
 it('keeps "Other" as the company\'s own words, and a listed type as its id', function () {
@@ -285,7 +285,7 @@ it('sends a complete draft: the company is under review, the application has its
     $sent = $browser->post('/sa/en/account/company/draft/send')->assertRedirect('/sa/en/account/company');
     $props = myCompanyProps($browser);
 
-    expect(AdminBrowser::flashed($sent, 'status'))->toBe('Your application was sent.')
+    expect(AdminBrowser::flashed($sent, 'status'))->toBe('Application sent')
         ->and($props['company']['status'])->toBe('PENDING')
         ->and($props['draft'])->toBeNull()
         ->and($props['history'])->toHaveCount(1)
@@ -347,7 +347,7 @@ it('lets an approved company change its address at once, and start a change of i
     $browser->post('/sa/en/account/company/draft/start');
     $props = myCompanyProps($browser);
 
-    expect(AdminBrowser::flashed($saved, 'status'))->toBe('Address saved.')
+    expect(AdminBrowser::flashed($saved, 'status'))->toBe('Address saved')
         ->and($props['company']['details']['address'])->toBe(B2BFixtures::addressText($addressId))
         ->and($props['company']['details']['addressId'])->toBe($addressId)
         ->and($props['company']['status'])->toBe('APPROVED')
@@ -362,7 +362,7 @@ it('tells a suspended company why on every shop page, refuses it a draft, and le
     [$company] = B2BFixtures::approved($customerId);
     $browser = myCompanySignedIn($customerId);
     $browser->post('/sa/en/account/company/draft/start');
-    B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId) ?? $company);
+    B2BFixtures::suspend(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa')) ?? $company);
 
     $props = myCompanyProps($browser);
     $refused = $browser->post('/sa/en/account/company/draft', ['name' => 'A new name']);
@@ -463,4 +463,40 @@ describe('what the page is told, and where each refusal lands (amendment 16)', f
         'a company account' => ['company', '/sa/en/account/company'],
         'an individual account' => ['individual', '/sa/en/account?tab=addresses'],
     ]);
+});
+
+/*
+| A company per store over HTTP (b2b.md amendments 18-20): the page of the store being browsed, the
+| companies elsewhere, "Apply in this store", and the line that offers it.
+*/
+it('shows the company of the store being browsed, names the one elsewhere, and offers applying in this store', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::approved($customerId);
+    $browser = myCompanySignedIn($customerId);
+
+    $props = myCompanyProps($browser, '/eg/en/account/company');
+    $line = [];
+    $browser->get('/eg/en')->assertOk()->assertInertia(function (AssertableInertia $page) use (&$line) {
+        $line = $page->toArray()['props']['shopperLines'] ?? [];
+    });
+    $saudiLine = [];
+    $browser->get('/sa/en')->assertOk()->assertInertia(function (AssertableInertia $page) use (&$saudiLine) {
+        $saudiLine = $page->toArray()['props']['shopperLines'] ?? [];
+    });
+
+    expect($props['company'])->toBeNull()
+        ->and($props['storeNameEn'])->toBe('Egypt')
+        ->and($props['elsewhere'])->toHaveCount(1)
+        ->and($props['elsewhere'][0]['storeNameEn'])->toBe('Saudi Arabia')
+        ->and($props['elsewhere'][0]['status'])->toBe('APPROVED')
+        ->and($props['prefill']['name'] ?? null)->toBe('Al Noor Trading')
+        ->and($props['prefill']['fromStoreNameEn'] ?? null)->toBe('Saudi Arabia')
+        ->and(array_column($line, 'text'))->toBe(['Apply in this store to order here: each store approves its own companies.'])
+        // Approved there: nothing to say in its own store.
+        ->and($saudiLine)->toBe([]);
+
+    $browser->post('/eg/en/account/company/draft/start')->assertRedirect();
+
+    expect(DB::table('b2b.applications')->where('customer_id', $customerId)->where('store_id', Fx::storeId('eg'))->value('name'))->toBe('Al Noor Trading')
+        ->and(myCompanyProps($browser, '/eg/en/account/company')['prefill'])->toBeNull();
 });

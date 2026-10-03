@@ -49,11 +49,14 @@ final readonly class DiscardApplicationDraftHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $account = $this->account->get(self::PERMISSION);
 
-        $this->db->transaction(function () use ($account): void {
-            // The same lock order as every draft action (OpenDrafts), without its suspension rule.
+        $store = $this->account->store($account);
+
+        $this->db->transaction(function () use ($account, $store): void {
+            // The same lock order as every draft action (OpenDrafts), without its suspension rule;
+            // the draft of the store being browsed (amendment 18).
             $this->applications->lockAccount($account->id);
-            $company = $this->companies->forCustomerLocked($account->id);
-            $draft = $this->applications->openFor($account->id) ?? throw new ApplicationNotFound;
+            $this->companies->forCustomerLocked($account->id, $store);
+            $draft = $this->applications->openFor($account->id, $store) ?? throw new ApplicationNotFound;
             $draft->ensureDiscardable();
 
             $held = [];
@@ -69,7 +72,7 @@ final readonly class DiscardApplicationDraftHandler
             // Its references go first — Platform deletes a file only once nothing holds it.
             $this->applications->delete($draft->id());
             $this->files->release($held);
-            $this->platform->recordAudit(CompanyAccountAudit::discarded($draft, $company?->homeStoreId() ?? $account->homeStoreId));
+            $this->platform->recordAudit(CompanyAccountAudit::discarded($draft, $draft->storeId()));
         }, 3);
     }
 }

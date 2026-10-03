@@ -1,5 +1,4 @@
-import { Link } from '@inertiajs/react';
-import { Button } from '@/components/ui/button';
+import { Button, ButtonLink, EmptyState, Note } from '@/components/geist';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type {
@@ -16,6 +15,12 @@ import type {
 | refuses it all the same. The rules come from the server, the same numbers it checks, and both trim
 | the same characters: JavaScript's `trim()` is the rule, and the server's CompanyText::trimmed
 | removes exactly what it does (amendment 17(a)).
+|
+| Geist's Input has one error colour and no "saved" one, so these fields are built from Geist's own
+| parts (frontend.md §1.8, 1.10): Geist's field box — its height, corners, type and one-pixel ring —
+| with the ring in the colour of where the field stands, Geist's Label above, and the line below that
+| says it in words. A saved address picked from a list is a tile of native radios, so the browser
+| keeps their keyboard handling and their checked state.
 */
 
 /** A value as the server keeps it: line breaks as one, and nothing at either end (17(a)). */
@@ -64,18 +69,34 @@ export function check(value: string, rule: CompanyFieldRuleData | undefined, req
     return null;
 }
 
-/** The border a control takes for how it stands. */
-export function border(look: Look): string {
-    switch (look) {
-        case 'invalid':
-            return 'border-warn';
-        case 'refused':
-            return 'border-bad';
-        case 'saved':
-            return 'border-good';
-        default:
-            return 'border-line-strong';
-    }
+/** The ring a box takes for how it stands: Geist's one pixel, in the colour of the field's state. */
+const RING: Record<Look, string> = {
+    idle: 'shadow-[0_0_0_1px_var(--tw-line-strong)]',
+    unsaved: 'shadow-[0_0_0_1px_var(--tw-line-strong)]',
+    saving: 'shadow-[0_0_0_1px_var(--tw-line-strong)]',
+    saved: 'shadow-[0_0_0_1px_var(--tw-good)]',
+    invalid: 'shadow-[0_0_0_1px_var(--tw-warn)]',
+    refused: 'shadow-[0_0_0_1px_var(--tw-bad)]',
+};
+
+/** Geist's field box; focus rings it in brand, as Geist's Input does. */
+const BOX =
+    'w-full rounded-[var(--tw-radius)] bg-surface text-copy-14 text-ink outline-none transition-shadow placeholder:text-ink-subtle focus:shadow-[0_0_0_1px_var(--tw-brand)]';
+
+const SHAPE = {
+    line: 'h-9 px-3',
+    lines: 'block resize-y px-3 py-2',
+    choice: 'h-9 appearance-none pe-9 ps-3',
+} as const;
+
+/** A control of the company form in Geist's field look, ringed in the colour of where it stands. */
+export function control(look: Look, shape: keyof typeof SHAPE): string {
+    return [BOX, SHAPE[shape], RING[look]].join(' ');
+}
+
+/** The ring alone, for a box that shows what a field keeps rather than taking input. */
+export function ring(look: Look): string {
+    return RING[look];
 }
 
 const COLOUR: Record<Look, string> = {
@@ -103,7 +124,7 @@ export function FieldState({ id, look, message }: { id: string; look: Look; mess
             aria-live={look === 'refused' ? undefined : 'polite'}
             data-test="field-state"
             data-look={look}
-            className={['mt-1 min-h-4 text-xs', COLOUR[look]].join(' ')}
+            className={['min-h-4.5 text-copy-13', COLOUR[look]].join(' ')}
         >
             {text ?? ''}
         </p>
@@ -113,9 +134,9 @@ export function FieldState({ id, look, message }: { id: string; look: Look; mess
 /**
  * The account's saved addresses to pick one from (amendment 16(f)): any store's, each as its store's
  * format writes it. One the format no longer accepts is shown and cannot be picked. With none saved,
- * the section says so; **Add an address** opens the account's Addresses tab, which brings the person
- * back here once one is saved (access.md amendment 51) — in the form, after the saves still waiting
- * (`onAdd`, amendment 17(i)).
+ * the section is Geist's Empty State; **Add an address** opens the account's Addresses tab, which
+ * brings the person back here once one is saved (access.md amendment 51) — in the form, after the
+ * saves still waiting (`onAdd`, amendment 17(i)).
  *
  * What the company or the draft keeps is a copy — shown above the list, as it was when picked. The
  * address it came from shows picked only while it still reads as that copy: edited since in the
@@ -154,89 +175,94 @@ export function AddressPicker({
     const changed = pending === null && addresses.some((address) => address.id === pickedId && !picked(address));
     const addUrl = link('storefront.account', { tab: 'addresses', return: 'b2b.company' });
 
+    // A ButtonLink goes at once; inside the form a Button leaves in its turn, after the saves.
+    const add =
+        onAdd === undefined ? (
+            <ButtonLink href={addUrl} type="secondary" size="small" data-test="add-address">
+                {t('b2b::company.address_add')}
+            </ButtonLink>
+        ) : (
+            <Button type="secondary" size="small" data-test="add-address" onClick={onAdd}>
+                {t('b2b::company.address_add')}
+            </Button>
+        );
+
     return (
         <fieldset className="grid gap-3" data-test="address-picker" aria-describedby={stateId}>
-            <legend className="text-sm font-medium text-ink">{t('b2b::company.field.address')}</legend>
-            <p className="text-xs text-ink-muted">{t('b2b::company.address_pick')}</p>
+            <legend className="mb-1.5 text-label-14 font-medium text-ink">{t('b2b::company.field.address')}</legend>
+            <p className="text-copy-13 text-ink-muted">{t('b2b::company.address_pick')}</p>
 
             {kept !== null ? (
-                <div className={['grid gap-0.5 rounded-md border p-3', border(look)].join(' ')} data-test="address-kept">
-                    <span className="text-xs text-ink-muted">{t('b2b::company.address_kept')}</span>
-                    <span dir="auto" className="text-sm whitespace-pre-line text-ink">
+                <div className={['grid gap-0.5 rounded-[var(--tw-radius)] p-3', ring(look)].join(' ')} data-test="address-kept">
+                    <span className="text-label-13 text-ink-muted">{t('b2b::company.address_kept')}</span>
+                    <span dir="auto" className="text-copy-14 whitespace-pre-line text-ink">
                         {kept}
                     </span>
                 </div>
             ) : null}
 
             {changed ? (
-                <p className="text-xs text-ink" data-test="address-changed">
+                <Note size="small" data-test="address-changed">
                     {t('b2b::company.address_changed')}
-                </p>
+                </Note>
             ) : null}
 
             {addresses.length === 0 ? (
-                <p className="text-sm text-ink" data-test="address-none">
-                    {t('b2b::company.address_none')}
-                </p>
+                <EmptyState
+                    title={t('b2b::company.address_none_title')}
+                    description={t('b2b::company.address_none')}
+                    actions={add}
+                    data-test="address-none"
+                />
             ) : (
-                <ul className="grid gap-2">
-                    {addresses.map((address, index) => {
-                        const store = locale === 'ar' ? address.storeNameAr : address.storeNameEn;
-                        const before = addresses[index - 1];
-                        const firstOfStore = before === undefined || (locale === 'ar' ? before.storeNameAr : before.storeNameEn) !== store;
-                        const id = `saved-address-${address.id}`;
+                <>
+                    <ul className="grid gap-2">
+                        {addresses.map((address, index) => {
+                            const store = locale === 'ar' ? address.storeNameAr : address.storeNameEn;
+                            const before = addresses[index - 1];
+                            const firstOfStore = before === undefined || (locale === 'ar' ? before.storeNameAr : before.storeNameEn) !== store;
+                            const id = `saved-address-${address.id}`;
 
-                        return (
-                            <li key={address.id} className="grid gap-1">
-                                {firstOfStore ? <p className="text-xs font-semibold text-ink-muted">{store}</p> : null}
-                                <label
-                                    htmlFor={id}
-                                    className={[
-                                        'flex gap-3 rounded-md border p-3',
-                                        address.id === pickedId ? 'border-brand bg-brand-soft/20' : 'border-line',
-                                        address.isComplete && !disabled ? 'cursor-pointer' : 'opacity-70',
-                                    ].join(' ')}
-                                >
-                                    <input
-                                        id={id}
-                                        type="radio"
-                                        name="company-address"
-                                        value={address.id}
-                                        checked={picked(address)}
-                                        disabled={!address.isComplete || disabled}
-                                        data-test={`pick-address-${address.id}`}
-                                        onChange={() => onPick(address.id)}
-                                        className="mt-1"
-                                    />
-                                    <span className="grid gap-0.5">
-                                        <span dir="auto" className="text-sm font-medium text-ink">
-                                            {address.label}
+                            return (
+                                <li key={address.id} className="grid gap-1.5">
+                                    {firstOfStore ? <p className="text-label-13 font-medium text-ink-muted">{store}</p> : null}
+                                    <label
+                                        htmlFor={id}
+                                        className={[
+                                            'flex gap-3 rounded-[var(--tw-radius)] p-3 transition-shadow',
+                                            address.id === pickedId ? 'bg-brand-soft/20 shadow-[0_0_0_1px_var(--tw-brand)]' : 'shadow-[0_0_0_1px_var(--tw-line)]',
+                                            address.isComplete && !disabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-70',
+                                        ].join(' ')}
+                                    >
+                                        <input
+                                            id={id}
+                                            type="radio"
+                                            name="company-address"
+                                            value={address.id}
+                                            checked={picked(address)}
+                                            disabled={!address.isComplete || disabled}
+                                            data-test={`pick-address-${address.id}`}
+                                            onChange={() => onPick(address.id)}
+                                            className="mt-0.5 size-4 shrink-0 accent-brand"
+                                        />
+                                        <span className="grid gap-0.5">
+                                            <span dir="auto" className="text-label-14 font-medium text-ink">
+                                                {address.label}
+                                            </span>
+                                            <span dir="auto" className="text-copy-13 whitespace-pre-line text-ink-muted">
+                                                {address.formatted}
+                                            </span>
+                                            {address.isComplete ? null : <span className="text-copy-13 text-warn">{t('b2b::company.address_incomplete')}</span>}
                                         </span>
-                                        <span dir="auto" className="text-sm whitespace-pre-line text-ink-muted">
-                                            {address.formatted}
-                                        </span>
-                                        {address.isComplete ? null : <span className="text-xs text-warn">{t('b2b::company.address_incomplete')}</span>}
-                                    </span>
-                                </label>
-                            </li>
-                        );
-                    })}
-                </ul>
+                                    </label>
+                                </li>
+                            );
+                        })}
+                    </ul>
+
+                    <div>{add}</div>
+                </>
             )}
-
-            <div>
-                {onAdd === undefined ? (
-                    <Button asChild variant="outline" size="sm">
-                        <Link href={addUrl} data-test="add-address">
-                            {t('b2b::company.address_add')}
-                        </Link>
-                    </Button>
-                ) : (
-                    <Button type="button" variant="outline" size="sm" data-test="add-address" onClick={onAdd}>
-                        {t('b2b::company.address_add')}
-                    </Button>
-                )}
-            </div>
 
             <FieldState id={stateId} look={look} message={message} />
         </fieldset>

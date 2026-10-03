@@ -37,8 +37,9 @@ use Modules\B2B\Domain\ValueObject\RequestAnswer;
  * compare what was rejected with what has been sent now, and an approval stays a decision about
  * particular values.
  *
- * It belongs to the **account**: a first draft has no company, because there is none until it is
- * sent (§1.1). One open application — a draft or a sent one — per account at a time.
+ * It belongs to the **account and a store** (amendments 18–20): a first draft has no company,
+ * because there is none until it is sent (§1.1), so the application carries the store it was made
+ * in. One open application — a draft or a sent one — per account **and store** at a time.
  *
  *   DRAFT → SUBMITTED → APPROVED | REJECTED     (§4.2)
  *
@@ -81,14 +82,16 @@ final class Application
         private array $flags,
         private array $requests,
         private array $answers,
+        private readonly string $storeId,
     ) {}
 
     /**
-     * A new, empty draft. $companyId is the company it will update, or null for the account's first.
+     * A new, empty draft in a store. $companyId is the company it will update, or null for the
+     * account's first in that store.
      */
-    public static function draft(string $id, string $customerId, ?string $companyId): self
+    public static function draft(string $id, string $customerId, ?string $companyId, string $storeId): self
     {
-        return new self($id, $customerId, $companyId, ApplicationState::Draft, null, null, null, null, null, null, [], null, null, null, null, null, [], [], []);
+        return new self($id, $customerId, $companyId, ApplicationState::Draft, null, null, null, null, null, null, [], null, null, null, null, null, [], [], [], strtolower($storeId));
     }
 
     /**
@@ -113,6 +116,8 @@ final class Application
             $details->name, $details->type, $details->crNumber, $details->taxNumber, $details->address, null,
             $lastSent === null ? [] : $lastSent->documents,
             null, null, null, null, null, [], [], [],
+            // The company's store: a company is reapplied for where it is (amendment 18).
+            strtolower($company->homeStoreId()),
         );
     }
 
@@ -142,6 +147,7 @@ final class Application
         array $flags,
         array $requests,
         array $answers,
+        string $storeId,
     ): self {
         // A sent application always has its number, and a draft never one (§1.2); the database's
         // CHECK holds the same.
@@ -158,6 +164,7 @@ final class Application
         return new self(
             $id, $customerId, $companyId, $state, $name, $type, $crNumber, $taxNumber, $address, $note, $documents,
             $submittedAt, $reference, $decidedAt, $decidedBy, $decisionReason, self::byKey($flags), self::byId($requests), $byRequest,
+            strtolower($storeId),
         );
     }
 
@@ -515,6 +522,14 @@ final class Application
     public function companyId(): ?string
     {
         return $this->companyId;
+    }
+
+    /**
+     * The store the application was made in, and whose company it is or will be (amendment 18).
+     */
+    public function storeId(): string
+    {
+        return $this->storeId;
     }
 
     public function state(): ApplicationState

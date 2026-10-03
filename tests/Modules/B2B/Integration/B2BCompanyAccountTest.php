@@ -189,7 +189,7 @@ describe('the address (§1.1, amendments 4, 5, 9(d) and 16(f))', function () {
         Fx::actAsCustomer($customerId);
 
         companyAccountMove($addressId);
-        $moved = app(CompanyRepository::class)->forCustomer($customerId);
+        $moved = app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'));
 
         expect($moved?->details()->address->value)->toBe(B2BFixtures::addressText($addressId))
             ->and($moved?->details()->address->addressId)->toBe($addressId)
@@ -205,8 +205,8 @@ describe('the address (§1.1, amendments 4, 5, 9(d) and 16(f))', function () {
 
         companyAccountMove($addressId);
 
-        expect(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->value)->toBe(B2BFixtures::addressText($addressId))
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->status()->value)->toBe('PENDING')
+        expect(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->address->value)->toBe(B2BFixtures::addressText($addressId))
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->status()->value)->toBe('PENDING')
             ->and(app(ApplicationRepository::class)->find($waiting->id())?->address()?->value)->toBe("King Fahd Road\nRiyadh");
     });
 
@@ -220,8 +220,8 @@ describe('the address (§1.1, amendments 4, 5, 9(d) and 16(f))', function () {
         $levels = B2BFixtures::auditLevels();
 
         expect(fn () => companyAccountMove($addressId))->toThrow(CompanySuspended::class)
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->value)->toBe("King Fahd Road\nRiyadh")
-            ->and(app(ApplicationRepository::class)->openFor($customerId)?->address()?->value)->toBe("King Fahd Road\nRiyadh")
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->address->value)->toBe("King Fahd Road\nRiyadh")
+            ->and(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->address()?->value)->toBe("King Fahd Road\nRiyadh")
             ->and(array_filter($levels->getArrayCopy(), static fn (array $entry): bool => str_starts_with($entry[0], 'b2b.')))->toBe([]);
     });
 
@@ -251,8 +251,8 @@ describe('the address (§1.1, amendments 4, 5, 9(d) and 16(f))', function () {
 
         companyAccountMove($addressId);
 
-        expect(app(ApplicationRepository::class)->openFor($customerId)?->address()?->value)->toBe(B2BFixtures::addressText($addressId))
-            ->and(app(ApplicationRepository::class)->openFor($customerId)?->address()?->addressId)->toBe($addressId);
+        expect(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->address()?->value)->toBe(B2BFixtures::addressText($addressId))
+            ->and(app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->address()?->addressId)->toBe($addressId);
     });
 
     it('changes nothing, and writes nothing, when the address already picked is picked again', function () {
@@ -280,7 +280,7 @@ describe('the address (§1.1, amendments 4, 5, 9(d) and 16(f))', function () {
         companyAccountMove($second);
 
         expect(B2BFixtures::addressText($first))->toBe(B2BFixtures::addressText($second))
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->addressId)->toBe($second)
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->address->addressId)->toBe($second)
             ->and($levels->getArrayCopy())->toBe([['b2b.company.address_changed', 2]]);
     });
 
@@ -297,10 +297,10 @@ describe('the address (§1.1, amendments 4, 5, 9(d) and 16(f))', function () {
             fields: ['administrative_area' => 'Riyadh', 'city' => 'Riyadh', 'district' => 'Al Malqa', 'street' => 'Anas Ibn Malik Road', 'building' => '9'],
             latitude: null, longitude: null, isDefault: false, addressId: $addressId,
         ));
-        $afterEdit = app(CompanyRepository::class)->forCustomer($customerId)?->details()->address;
+        $afterEdit = app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->address;
         $edited = B2BFixtures::addressText($addressId);
         app(DeleteAddressHandler::class)->handle(new DeleteAddress($addressId));
-        $afterDelete = app(CompanyRepository::class)->forCustomer($customerId)?->details()->address;
+        $afterDelete = app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->address;
 
         expect($edited)->not->toBe($kept)
             ->and($afterEdit?->value)->toBe($kept)
@@ -323,7 +323,7 @@ describe('the address (§1.1, amendments 4, 5, 9(d) and 16(f))', function () {
         $levels = B2BFixtures::auditLevels();
 
         expect(fn () => companyAccountMove($addressId))->toThrow(InvalidCompanyAttribute::class)
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->address->value)->toBe("King Fahd Road\nRiyadh")
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->address->value)->toBe("King Fahd Road\nRiyadh")
             ->and($levels->getArrayCopy())->toBe([]);
     })->with([
         'none picked' => [fn (string $customerId): string => '   '],
@@ -349,7 +349,7 @@ describe('the account\'s own files (§1.4, amendments 5 and 9(c))', function () 
         app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
         $typeId = B2BFixtures::documentTypes()[1]->id();
         app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument($typeId, B2BFixtures::pdf(), 'new.pdf'));
-        $draftFile = (string) app(ApplicationRepository::class)->openFor($customerId)?->documents()[$typeId]->mediaId;
+        $draftFile = (string) app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->documents()[$typeId]->mediaId;
 
         foreach ([$sentFile, $draftFile] as $mediaId) {
             $link = app(OpenMyApplicationFileHandler::class)->handle(new OpenMyApplicationFile($mediaId));
@@ -366,7 +366,7 @@ describe('the account\'s own files (§1.4, amendments 5 and 9(c))', function () 
         Fx::actAsCustomer($customerId);
         app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
         app(AnswerApplicationRequestHandler::class)->handle(new AnswerApplicationRequest($requestId, path: B2BFixtures::pdf(), originalFilename: 'bank.pdf'));
-        $mediaId = (string) app(ApplicationRepository::class)->openFor($customerId)?->answers()[$requestId]->mediaId;
+        $mediaId = (string) app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa'))?->answers()[$requestId]->mediaId;
 
         expect(app(OpenMyApplicationFileHandler::class)->handle(new OpenMyApplicationFile($mediaId))->url)->not->toBe('');
     });

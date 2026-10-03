@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { usePage } from '@inertiajs/react';
+import { Note, type NoteVariant } from '@/components/geist';
 import type { SharedProps } from '@/types/page';
 import type {
     CompanyTypeOptionData,
@@ -7,33 +8,33 @@ import type {
 } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 
 /*
-| Small pieces the company page is built from (b2b.md §4.5): its cards, its status box, and how a
-| time, a type or a document type is written in the page's language.
+| Small pieces the company page is built from (b2b.md §4.5), on Geist's parts (frontend.md 1.10):
+| its cards, its status box, and how a time, a type, a code or a written value is put on the page in
+| its language.
+|
+| A card is Geist's base material. The status box is Geist's Note, its colour chosen by what the
+| status means - neutral before anything is sent, amber while it waits, green once approved, red
+| when refused or suspended - and its title the Note's label, so it reads "Under Review: …" as a
+| Note does. Read-only values go in Geist's Description, where a value that is not there is an em
+| dash; `figureOr` and `writtenOr` hand it nothing rather than an empty element, so the dash shows.
 */
 
 export type Tone = 'plain' | 'good' | 'warn' | 'bad';
 
-const TONES: Record<Tone, string> = {
-    plain: 'border-line bg-surface',
-    good: 'border-good/40 bg-good-soft',
-    warn: 'border-warn/40 bg-warn-soft',
-    bad: 'border-bad/40 bg-bad-soft',
-};
-
-const DOTS: Record<Tone, string> = {
-    plain: 'bg-ink-muted',
-    good: 'bg-good',
-    warn: 'bg-warn',
-    bad: 'bg-bad',
+const NOTE: Record<Tone, NoteVariant> = {
+    plain: 'secondary',
+    good: 'success',
+    warn: 'warning',
+    bad: 'error',
 };
 
 export function Card({ title, hint, children, test }: { title?: string; hint?: string; children: ReactNode; test?: string }) {
     return (
-        <section data-test={test} className="grid gap-4 rounded-lg border border-line bg-surface p-5 shadow-card">
+        <section data-test={test} className="material-base grid gap-4 p-5">
             {title ? (
-                <header className="grid gap-0.5">
-                    <h2 className="text-base font-semibold text-ink">{title}</h2>
-                    {hint ? <p className="text-xs text-ink-muted">{hint}</p> : null}
+                <header className="grid gap-1">
+                    <h2 className="text-heading-16 text-ink">{title}</h2>
+                    {hint ? <p className="text-copy-13 text-ink-muted">{hint}</p> : null}
                 </header>
             ) : null}
             {children}
@@ -41,15 +42,16 @@ export function Card({ title, hint, children, test }: { title?: string; hint?: s
     );
 }
 
-/** The design's status box: a dot, a title, and what it means now. */
+/**
+ * The design's status box, as Geist's Note: the status as its label, then what it means now. The
+ * first sentence runs on from the label; anything after it is a paragraph of its own.
+ */
 export function StatusBox({ tone, title, children }: { tone: Tone; title: string; children?: ReactNode }) {
     return (
-        <div data-test="status-box" data-tone={tone} className={['grid gap-1 rounded-lg border p-4', TONES[tone]].join(' ')}>
-            <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                <span aria-hidden className={['size-2 rounded-full', DOTS[tone]].join(' ')} />
-                {title}
-            </p>
-            {children ? <div className="grid gap-2 text-sm text-ink">{children}</div> : null}
+        <div data-test="status-box" data-tone={tone}>
+            <Note variant={NOTE[tone]} label={title}>
+                {children}
+            </Note>
         </div>
     );
 }
@@ -89,12 +91,12 @@ export function Figure({ children }: { children: ReactNode }) {
     );
 }
 
-/** One label and its value, read-only. */
-export function Line({ label, children }: { label: string; children: ReactNode }) {
-    return (
-        <div className="grid gap-0.5 sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-3">
-            <dt className="text-xs text-ink-muted">{label}</dt>
-            <dd className="text-sm break-words whitespace-pre-line text-ink">{children}</dd>
-        </div>
-    );
+/** A code or number for a Description, or nothing - its em dash - when there is none. */
+export function figureOr(value: string | null): ReactNode {
+    return value === null || value === '' ? null : <Figure>{value}</Figure>;
+}
+
+/** Words as the company wrote them, line breaks kept, or nothing - the em dash - when there are none. */
+export function writtenOr(value: string | null): ReactNode {
+    return value === null || value === '' ? null : <span className="break-words whitespace-pre-line">{value}</span>;
 }

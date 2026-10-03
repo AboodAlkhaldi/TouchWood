@@ -329,7 +329,7 @@ describe('deactivating a company type (§1.3, amendments 5 and 10)', function ()
         staffTypesDeactivate($held->id(), shown: InactiveTypeDisplay::Greyed);
 
         expect(app(CompanyTypeRepository::class)->find($held->id())?->inactiveDisplay())->toBe(InactiveTypeDisplay::Greyed)
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($held->id())
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($held->id())
             ->and(staffTypesChanges('b2b.company_type.deactivated', $held->id()))->toBe([
                 'inactive_display' => [null, 'GREYED'],
                 'is_active' => [true, false],
@@ -360,7 +360,7 @@ describe('deactivating a company type (§1.3, amendments 5 and 10)', function ()
         staffTypesDeactivate($held->id(), $replacement->id());
 
         foreach ($companies as $state => [$customerId, $company, $application]) {
-            $now = app(CompanyRepository::class)->forCustomer($customerId);
+            $now = app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'));
 
             expect($now?->details()->type->typeId)->toBe($replacement->id(), $state)
                 ->and($now?->status())->toBe($company->status(), $state)
@@ -368,7 +368,7 @@ describe('deactivating a company type (§1.3, amendments 5 and 10)', function ()
                 ->and(staffTypesChanges('b2b.company.type_replaced', $company->id()))->toBe(['company_type_id' => [$held->id(), $replacement->id()]], $state);
         }
 
-        expect(app(CompanyRepository::class)->forCustomer($suspendedId)?->details()->type->typeId)->toBe($held->id())
+        expect(app(CompanyRepository::class)->forCustomer($suspendedId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($held->id())
             ->and(Fx::audits('b2b.company.type_replaced'))->toBe(3)
             ->and(staffTypesChanges('b2b.company_type.deactivated', $held->id()))->toBe([
                 'inactive_display' => [null, 'HIDDEN'],
@@ -386,15 +386,15 @@ describe('deactivating a company type (§1.3, amendments 5 and 10)', function ()
         app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
         // A first draft, with no company behind it, holding the same type.
         $first = B2BFixtures::companyAccount();
-        $draft = Application::draft(app(ApplicationRepository::class)->nextId(), $first, null);
+        $draft = Application::draft(app(ApplicationRepository::class)->nextId(), $first, null, Fx::storeId('sa'));
         $draft->describe(CompanyName::of('Nile Supplies'), CompanyTypeChoice::listed($held->id()), null, null, CompanyAddress::of('Riyadh'), null);
         app(ApplicationRepository::class)->add($draft);
         staffTypesAdmin();
 
         staffTypesDeactivate($held->id(), $replacement->id());
 
-        expect(app(ApplicationRepository::class)->openFor($reapplying)?->type()?->typeId)->toBe($replacement->id())
-            ->and(app(ApplicationRepository::class)->openFor($first)?->type()?->typeId)->toBe($held->id());
+        expect(app(ApplicationRepository::class)->openFor($reapplying, Fx::storeId('sa'))?->type()?->typeId)->toBe($replacement->id())
+            ->and(app(ApplicationRepository::class)->openFor($first, Fx::storeId('sa'))?->type()?->typeId)->toBe($held->id());
     });
 
     it('refuses a replacement that is inactive, unknown, another store\'s or the type itself, and writes nothing', function (Closure $replacement, string $error) {
@@ -405,7 +405,7 @@ describe('deactivating a company type (§1.3, amendments 5 and 10)', function ()
 
         expect(fn () => staffTypesDeactivate($held->id(), $replacement()))->toThrow($error)
             ->and(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue()
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($held->id())
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($held->id())
             ->and(staffTypesNotice())->toBeTrue();
     })->with([
         'inactive' => [function () {
@@ -464,7 +464,7 @@ describe('deactivating a company type (§1.3, amendments 5 and 10)', function ()
                 'inactive_display' => ['GREYED', null],
                 'is_active' => [false, true],
             ])
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($replacement->id());
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($replacement->id());
     });
 });
 
@@ -492,9 +492,9 @@ describe('replacing a company type with a new one, in one step (§1.3, amendment
             ->and($new?->name()->en)->toBe('One Person Company')
             ->and($new?->position())->toBe($held->position())
             ->and(app(CompanyTypeRepository::class)->find($held->id())?->inactiveDisplay())->toBe(InactiveTypeDisplay::Greyed)
-            ->and(array_map(static fn (string $customerId): ?string => app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId, $movers))
+            ->and(array_map(static fn (string $customerId): ?string => app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId, $movers))
             ->toBe([$newId, $newId, $newId])
-            ->and(app(CompanyRepository::class)->forCustomer($suspendedId)?->details()->type->typeId)->toBe($held->id())
+            ->and(app(CompanyRepository::class)->forCustomer($suspendedId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($held->id())
             ->and(Fx::audits('b2b.company_type.added', (string) $newId))->toBe(1)
             ->and(Fx::audits('b2b.company.type_replaced'))->toBe(3)
             ->and(staffTypesChanges('b2b.company_type.deactivated', $held->id())['replaced_by'] ?? null)->toBe([null, $newId]);
@@ -511,7 +511,7 @@ describe('replacing a company type with a new one, in one step (§1.3, amendment
             ->toThrow(Unauthorized::class)
             ->and(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue()
             ->and(B2BFixtures::companyTypes())->toHaveCount($count)
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($held->id());
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($held->id());
     });
 
     it('is all or nothing: a new name another type has leaves the old type active and its holders where they were', function () {
@@ -525,7 +525,7 @@ describe('replacing a company type with a new one, in one step (§1.3, amendment
             ->toThrow(TypeNameTaken::class)
             ->and(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue()
             ->and(B2BFixtures::companyTypes())->toHaveCount($count)
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($held->id())
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($held->id())
             ->and(staffTypesNotice())->toBeTrue();
     });
 
@@ -554,7 +554,7 @@ describe('replacing a company type with a new one, in one step (§1.3, amendment
             ->toThrow(QueryException::class, 'refused by the test')
             ->and(B2BFixtures::companyTypes())->toHaveCount($count)
             ->and(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue()
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($held->id())
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($held->id())
             ->and(Fx::audits('b2b.company_type.added'))->toBe(0);
     });
 
@@ -587,7 +587,7 @@ describe('replacing a company type with a new one, in one step (§1.3, amendment
 
         expect(app(CompanyTypeRepository::class)->find($held->id())?->isActive())->toBeTrue()
             ->and(app(CompanyTypeRepository::class)->find((string) $newId)?->position())->toBe(7)
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($newId);
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($newId);
     });
 });
 
@@ -611,13 +611,13 @@ describe('moving every company of one active type to another (§1.3, amendment 1
         staffTypesAdmin([B2BPermissions::COMPANY_TRANSFER_TYPE]);
 
         $moved = app(TransferCompanyTypeHandler::class)->handle(new TransferCompanyType($from->id(), $to->id()));
-        $first = app(CompanyRepository::class)->forCustomer($movers[0]);
+        $first = app(CompanyRepository::class)->forCustomer($movers[0], Fx::storeId('sa'));
 
         expect($moved)->toBe(3)
-            ->and(array_map(static fn (string $customerId): ?string => app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId, $movers))
+            ->and(array_map(static fn (string $customerId): ?string => app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId, $movers))
             ->toBe([$to->id(), $to->id(), $to->id()])
-            ->and(app(ApplicationRepository::class)->openFor($movers[2])?->type()?->typeId)->toBe($to->id())
-            ->and(app(CompanyRepository::class)->forCustomer($suspendedId)?->details()->type->typeId)->toBe($from->id())
+            ->and(app(ApplicationRepository::class)->openFor($movers[2], Fx::storeId('sa'))?->type()?->typeId)->toBe($to->id())
+            ->and(app(CompanyRepository::class)->forCustomer($suspendedId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($from->id())
             ->and(app(CompanyTypeRepository::class)->find($from->id())?->isActive())->toBeTrue()
             ->and(app(CompanyTypeRepository::class)->find($to->id())?->isActive())->toBeTrue()
             ->and(staffTypesChanges('b2b.company.type_transferred', (string) $first?->id()))->toBe(['company_type_id' => [$from->id(), $to->id()]])
@@ -632,7 +632,7 @@ describe('moving every company of one active type to another (§1.3, amendment 1
         staffTypesAdmin([B2BPermissions::COMPANY_CORRECT_TYPE, B2BPermissions::COMPANY_TYPE_DEACTIVATE, B2BPermissions::COMPANY_TYPE_UPDATE]);
 
         expect(fn () => app(TransferCompanyTypeHandler::class)->handle(new TransferCompanyType($from->id(), $to->id())))->toThrow(Unauthorized::class)
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe($from->id());
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId)->toBe($from->id());
     });
 
     it('refuses another store\'s type as one that does not exist, a target that is not another type of the store, and an inactive type — moving nobody', function (Closure $from, Closure $to, string $error) {
@@ -641,7 +641,7 @@ describe('moving every company of one active type to another (§1.3, amendment 1
         staffTypesAdmin([B2BPermissions::COMPANY_TRANSFER_TYPE]);
 
         expect(fn () => app(TransferCompanyTypeHandler::class)->handle(new TransferCompanyType($from(), $to())))->toThrow($error)
-            ->and(app(CompanyRepository::class)->forCustomer($customerId)?->details()->type->typeId)->toBe(B2BFixtures::companyTypes()[1]->id());
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->details()->type->typeId)->toBe(B2BFixtures::companyTypes()[1]->id());
     })->with([
         'from another store' => [fn () => B2BFixtures::companyTypes('eg')[1]->id(), fn () => B2BFixtures::companyTypes('eg')[0]->id(), TypeNotFound::class],
         'to another store' => [fn () => B2BFixtures::companyTypes()[1]->id(), fn () => B2BFixtures::companyTypes('eg')[0]->id(), InvalidCompanyAttribute::class],

@@ -74,16 +74,20 @@ interface SecurityMessages
     /**
      * @param  string|null  $note  what the staff member chose to add when approving, if anything —
      *                             the screen tells them it is sent to the customer (owner, 2026-09-27)
+     * @param  string|null  $storeId  the company's store, which the email names: an account may hold
+     *                                a company in each store (b2b.md amendments 19(c), 20(i))
      */
-    public function companyApproved(CustomerDto $customer, ?string $note): void;
+    public function companyApproved(CustomerDto $customer, ?string $note, ?string $storeId = null): void;
 
     /**
      * @param  string  $reason  why, in the staff member's words: required (b2b.md §1.1)
+     * @param  string|null  $storeId  the company's store, which the email names (amendment 19(c))
      */
-    public function companyRejected(CustomerDto $customer, string $reason): void;
+    public function companyRejected(CustomerDto $customer, string $reason, ?string $storeId = null): void;
 
     /**
      * @param  string  $reason  why, in the staff member's words: required (b2b.md §1.1)
+     * @param  string|null  $storeId  the company's store, which the email names (amendment 19(c))
      */
-    public function companySuspended(CustomerDto $customer, string $reason): void;
+    public function companySuspended(CustomerDto $customer, string $reason, ?string $storeId = null): void;
 }

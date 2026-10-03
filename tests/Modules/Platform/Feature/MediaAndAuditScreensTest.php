@@ -346,9 +346,12 @@ describe('the audit log screen', function () {
                 ->where('entries.0.withheld', true)
                 ->where('entries.0.subjectId', null)
                 ->where('entries.0.changes', [])
-                // What was done, and by whom, still reach them.
+                // What was done, and by whom, still reach them — the Super Admin who uploaded it as
+                // "System administrator", with no id and no address (access.md amendment 54).
                 ->where('entries.0.action', 'platform.media.uploaded')
-                ->where('entries.0.actorId', $adminId)
+                ->where('entries.0.actorId', null)
+                ->where('entries.0.actorName', 'System administrator')
+                ->where('entries.0.ipAddress', null)
             );
 
         $superAdmin->get('/admin/audit?action=platform.media.uploaded')
@@ -357,6 +360,8 @@ describe('the audit log screen', function () {
                 ->has('entries', 1)
                 ->where('entries.0.withheld', false)
                 ->where('entries.0.subjectId', $mediaId)
+                // Another Super Admin — here, themselves — is named, with the id (amendment 54).
+                ->where('entries.0.actorId', $adminId)
             );
     });
 });

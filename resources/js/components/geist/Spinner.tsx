@@ -30,7 +30,7 @@ export function LoadingDots({ size = 4 }: { size?: number }) {
             {[0, 1, 2].map((dot) => (
                 <span
                     key={dot}
-                    className="inline-block animate-pulse rounded-full bg-current motion-reduce:animate-none"
+                    className="inline-block animate-pulse rounded-[var(--tw-radius-pill)] bg-current motion-reduce:animate-none"
                     style={{ width: size, height: size, animationDelay: `${dot * 150}ms` }}
                 />
             ))}

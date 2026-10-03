@@ -74,17 +74,19 @@ final readonly class AuditPages
             $entry->subjectId,
             $entry->source,
             $entry->actorType,
+            // Null for a Super Admin read by anyone but another: "System administrator", with no
+            // id to show or link to (access.md amendment 54).
             $entry->actorId,
-            // Left for now: naming an actor means asking Access who a staff id belongs to, and the
-            // log records ids precisely so it never depends on a name that may since have changed.
-            // The screen shows the id, which is what the entry actually holds.
-            null,
+            // Named by Access, today's name for the id the entry holds (amendment 54).
+            $entry->actorName,
             $entry->requestedByType,
             $entry->requestedById,
             $entry->storeId === null ? null : ($stores[$entry->storeId] ?? $entry->storeId),
             $entry->ipAddress,
             $this->changes($entry->changes),
             $entry->withheld,
+            $entry->requestedByName,
+            $entry->subjectName,
         );
     }
 

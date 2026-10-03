@@ -494,6 +494,12 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   flag to the newest address left.
 - **Every field is personal data**: the audit log records that an address was added, changed or
   deleted, and never a street or a recipient's name.
+- **An off store's addresses are hidden, not deleted** (amendments 53 and 55): `OpenStores` asks
+  Platform whether the store is on, and `AccessApi::address()` / `addresses()`, deleting and making
+  one the default all answer as if it were not there; saving one in an off store is refused as an
+  unknown store, and the address book lists on stores only (Platform's `stores()`). The staff
+  customer screen hides them too, and names no home store that is off — never its id (amendment
+  57). Turned back on, everything is as it was.
 
 ### Deleting an account: locked now, anonymized in fourteen days
 
@@ -533,7 +539,22 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   because ordering by joining date would give an admin's away. A **Super
   Admin** is invisible to everyone but another Super Admin: not in a list,
   not in a count, and asked for by id the answer is the same as for an id that never existed
-  (amendment 43).
+  (amendment 43). To another Super Admin they come as a **section of their own**, first, never
+  among the admins (`StaffPage::superAdmins`, the `super_admins` group; amendments 54, 56).
+  **Once one, hidden for good:** `staff_users.was_super_admin` is set with the title and never
+  cleared, and everything that hides a Super Admin reads it — so a revoked one stays hidden, and is
+  listed to a Super Admin in that section as **"Former Super Admin"** (`StaffRow::formerSuperAdmin`).
+  Acting on one, an author who is not unlimited is answered "no such staff member", as for an id
+  that never existed (`GrantRules::requireVisible`; amendment 57).
+- **One staff member's page** (C2) carries the date of birth, country, address, language and
+  picture only when Access shows that person in full: for an admin seen by an ordinary staff member
+  they are not in the page's data at all (amendment 57).
+- **Naming a staff member to someone else** happens in one place, `StaffDisplayNames`: a Super
+  Admin, read by anyone but another Super Admin (or the console), is **"System administrator"**,
+  with no name and no id. Other modules ask `AccessApi::staffDisplayNames()` (B2B's "decided by");
+  Platform's audit log asks its own `StaffNames` contract, which Access binds to the same class, and
+  then also hides that entry's id, IP address and — for an entry about a Super Admin — its changes.
+  `AccessApi::staff()` is not masked: it is for other modules' work, never for display.
 
 ### The database is the last line of defence
 

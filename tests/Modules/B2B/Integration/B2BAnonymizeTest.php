@@ -106,7 +106,7 @@ function companyAnonymizeHistory(): array
     Fx::actAsCustomer($customerId);
     app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);
     app(AttachApplicationDocumentHandler::class)->handle(new AttachApplicationDocument(B2BFixtures::documentTypes()[0]->id(), B2BFixtures::pdf(), 'new.pdf'));
-    $draft = app(ApplicationRepository::class)->openFor($customerId) ?? throw new LogicException('No draft.');
+    $draft = app(ApplicationRepository::class)->openFor($customerId, Fx::storeId('sa')) ?? throw new LogicException('No draft.');
 
     return [
         'customerId' => $customerId,
@@ -190,7 +190,7 @@ function companyAnonymizeChanges(string $action, string $subjectId): array
 describe('a company with a history (scenario 18)', function () {
     it('empties the company and every application it sent, keeping the company, its type, status and decisions', function () {
         $history = companyAnonymizeHistory();
-        $company = app(CompanyRepository::class)->forCustomer($history['customerId']) ?? throw new LogicException('No company.');
+        $company = app(CompanyRepository::class)->forCustomer($history['customerId'], Fx::storeId('sa')) ?? throw new LogicException('No company.');
 
         companyAnonymizeRun($history['customerId']);
 
@@ -236,7 +236,7 @@ describe('a company with a history (scenario 18)', function () {
             ->and($files)->toContain($history['answerFile'], $history['draftFile'])
             ->and(count($files))->toBeGreaterThan(2)
             ->and(app(ApplicationRepository::class)->find($history['draftId']))->toBeNull()
-            ->and(app(ApplicationRepository::class)->openFor($history['customerId']))->toBeNull()
+            ->and(app(ApplicationRepository::class)->openFor($history['customerId'], Fx::storeId('sa')))->toBeNull()
             ->and(DB::table('platform.media')->whereIn('id', $files)->count())->toBe(0)
             ->and(DB::table('b2b.application_documents')->whereIn('application_id', $history['sent'])->count())->toBe(0)
             ->and(DB::table('b2b.application_request_answers')->whereIn('application_id', $history['sent'])->count())->toBe(0);
@@ -283,7 +283,7 @@ describe('a company with a history (scenario 18)', function () {
 
         companyAnonymizeRun($history['customerId']);
 
-        expect(app(CompanyRepository::class)->forCustomer($otherId)?->details()->name->value)->toBe($other->details()->name->value)
+        expect(app(CompanyRepository::class)->forCustomer($otherId, Fx::storeId('sa'))?->details()->name->value)->toBe($other->details()->name->value)
             ->and(app(ApplicationRepository::class)->find($otherSent->id())?->documents())->toHaveCount(count($otherSent->documents()))
             ->and(DB::table('platform.media')->whereIn('id', $otherFiles)->count())->toBe(count($otherFiles));
     });
@@ -401,7 +401,7 @@ describe('a company still "Other" (amendment 13(a))', function () {
         app(ApplicationRepository::class)->update($draft);
         Fx::actAsCustomer($customerId);
         app(SubmitApplicationHandler::class)->handle(new SubmitApplication);
-        $company = app(CompanyRepository::class)->forCustomer($customerId) ?? throw new LogicException('Not sent.');
+        $company = app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa')) ?? throw new LogicException('Not sent.');
 
         companyAnonymizeRun($customerId);
 
@@ -429,7 +429,7 @@ describe('from Access\'s nightly sweep (amendment 13(a))', function () {
             ->and($queued[0]->tries)->toBe(5)
             ->and($queued[0]->backoff)->toBe([10, 60, 300, 1800])
             // Nothing happens here until a worker runs it.
-            ->and(app(CompanyRepository::class)->forCustomer($history['customerId'])?->details()->name->value)->toBe('Al Noor Trading');
+            ->and(app(CompanyRepository::class)->forCustomer($history['customerId'], Fx::storeId('sa'))?->details()->name->value)->toBe('Al Noor Trading');
 
         companyAnonymizeWork($queued[0]);
 

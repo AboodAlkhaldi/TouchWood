@@ -103,6 +103,8 @@ it('drops cached stores when migrations run, so a rebuilt schema is not served f
         'currency_code' => 'SAR',
         'tax_rate_basis_points' => 1500,
         'timezone' => 'UTC',
+        // On: an off store's code answers as an unknown one (platform.md §1.6).
+        'is_active' => true,
     ]);
     event(new MigrationsEnded('up'));
 

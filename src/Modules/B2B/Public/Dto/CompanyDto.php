@@ -26,5 +26,7 @@ final readonly class CompanyDto
         public CompanyStatus $status,
         /** Why it was rejected or suspended; null otherwise. */
         public ?string $statusReason,
+        /** The store it applied in, and the one store it may order in once approved (amendment 18). */
+        public string $storeId,
     ) {}
 }

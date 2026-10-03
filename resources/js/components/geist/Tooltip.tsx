@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Tooltip as TooltipPrimitive } from 'radix-ui';
 
 /*
@@ -9,18 +9,27 @@ import { Tooltip as TooltipPrimitive } from 'radix-ui';
 | input (put help on a sibling icon button), and never holding an action a touch screen can't reach.
 |
 | Each tooltip brings its own provider, so a screen never has to remember to mount one.
+|
+| `text` may be absent: the tooltip then stays shut but stays in the tree. A control that gains or
+| loses its reason - a button disabled while a save runs - is therefore never re-mounted, and never
+| loses the keyboard focus it had (found in the Geist move, 2026-10-02). It is always controlled:
+| switching Radix between controlled and uncontrolled let a tooltip whose reason had gone keep its
+| own "open" and pop up by itself the next time a reason came (the review of the move).
 */
 
 type Props = {
-    text: ReactNode;
+    text?: ReactNode;
     children: ReactNode;
     side?: 'top' | 'bottom' | 'left' | 'right';
 };
 
 export function Tooltip({ text, children, side = 'top' }: Props) {
+    const [open, setOpen] = useState(false);
+    const silent = text === undefined || text === null || text === '';
+
     return (
         <TooltipPrimitive.Provider delayDuration={150}>
-            <TooltipPrimitive.Root>
+            <TooltipPrimitive.Root open={!silent && open} onOpenChange={setOpen}>
                 <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
                 <TooltipPrimitive.Portal>
                     <TooltipPrimitive.Content

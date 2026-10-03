@@ -7,25 +7,25 @@ declare(strict_types=1);
 // staff jobs are what the role editor shows under Companies (amendments 10 and 11).
 return [
     'company' => [
-        'apply' => 'Apply as a company',
-        'update' => 'Change the company\'s address',
-        'view' => 'View companies',
-        'review' => 'Approve and reject company applications',
-        'suspend' => 'Suspend and reinstate companies',
-        'correct_type' => 'Correct a company\'s type',
-        'transfer_type' => 'Move companies from one type to another',
+        'apply' => 'Apply as a Company',
+        'update' => 'Change the Company\'s Address',
+        'view' => 'View Companies',
+        'review' => 'Approve and Reject Company Applications',
+        'suspend' => 'Suspend and Reinstate Companies',
+        'correct_type' => 'Correct a Company\'s Type',
+        'transfer_type' => 'Move Companies from One Type to Another',
     ],
     'company_document' => [
-        'view' => 'Open company papers',
+        'view' => 'Open Company Papers',
     ],
     'company_type' => [
-        'create' => 'Add company types',
-        'update' => 'Rename and reorder company types',
-        'deactivate' => 'Deactivate and reactivate company types',
+        'create' => 'Add Company Types',
+        'update' => 'Rename and Reorder Company Types',
+        'deactivate' => 'Deactivate and Reactivate Company Types',
     ],
     'document_type' => [
-        'create' => 'Add document types',
-        'update' => 'Rename, reorder and require document types',
-        'deactivate' => 'Deactivate and reactivate document types',
+        'create' => 'Add Document Types',
+        'update' => 'Rename, Reorder and Require Document Types',
+        'deactivate' => 'Deactivate and Reactivate Document Types',
     ],
 ];

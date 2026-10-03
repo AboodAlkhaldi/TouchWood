@@ -14,12 +14,24 @@ namespace Modules\Access\Application\Query;
 interface StaffReader
 {
     /**
+     * Admins and staff — **never a Super Admin**, whoever reads (amendment 54): Super Admins are a
+     * section of their own (superAdmins()), never among the admins.
+     *
      * @param  list<string>|null  $readerStoreIds  the reader's own stores; null: every store, and
      *                                             then everyone is visible
-     * @param  bool  $withSuperAdmins  only a Super Admin reads with this true (amendment 43)
+     * @param  bool  $fullView  only a Super Admin reads with this true: every admin in full, newest
+     *                          first (amendments 43, 46(d))
      * @return array{total: int, rows: list<array<string, mixed>>}
      */
-    public function staff(?array $readerStoreIds, bool $withSuperAdmins, ?string $search, ?string $status, int $page, int $perPage): array;
+    public function staff(?array $readerStoreIds, bool $fullView, ?string $search, ?string $status, int $page, int $perPage): array;
+
+    /**
+     * Every Super Admin, newest first, matching the same search and status as the list — for the
+     * Super Admins section a Super Admin alone is given (amendment 54). Few, so not paged.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function superAdmins(?string $search, ?string $status): array;
 
     /**
      * One staff member, whoever they are: the handler decides whether this reader may see them.

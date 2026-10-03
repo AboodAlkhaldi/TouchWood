@@ -22,8 +22,18 @@ interface ApplicationRepository
     /** Locks the row: for a change, inside its transaction. */
     public function byId(string $applicationId): ?Application;
 
-    /** The account's one open application — a draft or one sent and waiting — if any. */
-    public function openFor(string $customerId): ?Application;
+    /**
+     * The account's one open application **in this store** — a draft or one sent and waiting — if
+     * any (amendment 18: one open application per account and store).
+     */
+    public function openFor(string $customerId, string $storeId): ?Application;
+
+    /**
+     * Every open application of the account, whatever its store — for anonymizing it (§1.1).
+     *
+     * @return list<Application>
+     */
+    public function openAllFor(string $customerId): array;
 
     /**
      * Every application the company has sent, newest first: what staff compare (b2b.md §1.2).
@@ -39,10 +49,11 @@ interface ApplicationRepository
     public function lastSent(string $companyId): ?Application;
 
     /**
-     * Serialises everything the account does to its applications and its company, until the
-     * transaction ends: one open application and one company per account (§1.1, §1.2) are decided
-     * here before the database's unique indexes ever have to. Every one of the company's own use
-     * cases that writes takes it first, then reads.
+     * Serialises everything the account does to its applications and its companies, until the
+     * transaction ends: one open application and one company per account and store (§1.1, §1.2,
+     * amendment 18) are decided here before the database's unique indexes ever have to. Every one
+     * of the company's own use cases that writes takes it first, then reads. One lock for the whole
+     * account, across its stores (amendment 20(d)).
      */
     public function lockAccount(string $customerId): void;
 
@@ -70,10 +81,11 @@ interface ApplicationRepository
     public function stillHeld(array $mediaIds): array;
 
     /**
-     * Whether one of the account's own applications holds this file, as a document or an answer —
-     * the only files the company may open (§1.4, amendment 5).
+     * Whether one of the account's own applications **in this store** holds this file, as a document
+     * or an answer — the only files the company may open (§1.4, amendment 5), and only where it is
+     * browsing, as every other customer route (a company per store, review of amendment 18).
      */
-    public function accountHolds(string $customerId, string $mediaId): bool;
+    public function accountHolds(string $customerId, string $storeId, string $mediaId): bool;
 
     /**
      * A draft thrown away by the customer (owner, 2026-09-27). Its references to its files go with

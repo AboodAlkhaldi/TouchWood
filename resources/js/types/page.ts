@@ -54,6 +54,8 @@ export type Shop = {
     symbol: string;
     available: { code: string; name: string; current: boolean }[];
     languages: string[];
+    /** The store's own IANA zone: every moment on a shop page is written in it (owner, 2026-10-02). */
+    timezone: string;
 };
 
 /** Whoever is signed in to the shop, as its header names them. */
@@ -79,6 +81,8 @@ export type ShopperLine = {
 export type Store = {
     id: string;
     name: string;
+    /** Its IANA zone: the panel writes every moment in the zone of the store it is working in. */
+    timezone: string;
 };
 
 /** Who is looking at the page. Null when nobody is signed in. */

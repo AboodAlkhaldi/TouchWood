@@ -85,7 +85,7 @@ it('keeps Account & settings in the language it is displayed in, and names the e
             ->where('communicationLocale', $communication)
             // The words follow the displayed language too: the page no longer contradicts itself.
             // The keys themselves contain dots, so the map is read whole rather than by a path.
-            ->where('translations', fn (Collection $words): bool => $words->get('access::account.title') === ($display === 'ar' ? 'الحساب والإعدادات' : 'Account & settings'))
+            ->where('translations', fn (Collection $words): bool => $words->get('access::account.title') === ($display === 'ar' ? 'الحساب والإعدادات' : 'Account & Settings'))
         );
 })->with([
     'read in English, written to in Arabic - the owner\'s own case' => ['en', 'ar'],

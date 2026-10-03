@@ -39,9 +39,10 @@ final readonly class OpenMyApplicationFileHandler
     public function handle(OpenMyApplicationFile $query): FileLink
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        $customerId = $this->account->get(self::PERMISSION)->id;
+        $account = $this->account->get(self::PERMISSION);
 
-        if (! $this->applications->accountHolds($customerId, $query->mediaId)) {
+        // Only a file of the store being browsed, as every other customer route (amendment 18).
+        if (! $this->applications->accountHolds($account->id, $this->account->store($account), $query->mediaId)) {
             throw new ApplicationFileNotFound;
         }
 

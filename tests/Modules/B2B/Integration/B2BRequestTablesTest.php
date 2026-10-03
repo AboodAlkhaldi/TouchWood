@@ -16,6 +16,7 @@ use Modules\B2B\Domain\ValueObject\FlaggedField;
 use Modules\B2B\Domain\ValueObject\Remark;
 use Modules\B2B\Domain\ValueObject\RequestAnswer;
 use Modules\B2B\Domain\ValueObject\RequestKind;
+use Tests\Modules\Access\Support\AccessFixtures;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\B2B\Support\B2BFixtures;
@@ -229,7 +230,7 @@ describe('the last application sent', function () {
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
         $draft = B2BFixtures::storedDraft($customerId, $company->id());
 
-        expect(app(ApplicationRepository::class)->openFor($customerId)?->id())->toBe($draft->id())
+        expect(app(ApplicationRepository::class)->openFor($customerId, AccessFixtures::storeId('sa'))?->id())->toBe($draft->id())
             ->and(app(ApplicationRepository::class)->lastSent($company->id())?->id())->toBe($rejected->id());
     });
 

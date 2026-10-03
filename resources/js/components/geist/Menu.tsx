@@ -19,18 +19,22 @@ type MenuProps = {
     trigger: ReactNode;
     children: ReactNode;
     align?: 'start' | 'end';
+    side?: 'top' | 'bottom';
+    /** As wide as the trigger - for a trigger that is itself a wide row, like the sidebar's person block. */
+    matchTriggerWidth?: boolean;
 };
 
-export function Menu({ trigger, children, align = 'end' }: MenuProps) {
+export function Menu({ trigger, children, align = 'end', side = 'bottom', matchTriggerWidth = false }: MenuProps) {
     return (
         <MenuPrimitive.Root modal={false}>
             <MenuPrimitive.Trigger asChild>{trigger}</MenuPrimitive.Trigger>
             <MenuPrimitive.Portal>
                 <MenuPrimitive.Content
                     align={align}
+                    side={side}
                     sideOffset={6}
                     collisionPadding={8}
-                    className="material-menu z-50 min-w-48 p-1.5 text-label-14 text-ink"
+                    className={cx('material-menu z-50 min-w-48 p-1.5 text-label-14 text-ink', matchTriggerWidth && 'w-(--radix-dropdown-menu-trigger-width) min-w-56')}
                 >
                     {children}
                 </MenuPrimitive.Content>
@@ -39,8 +43,10 @@ export function Menu({ trigger, children, align = 'end' }: MenuProps) {
     );
 }
 
+// The keyboard's place in the menu is a brand ring inside the item: the highlight's tint alone was
+// 1.10:1 against the menu (the review of the move).
 const ITEM =
-    'flex h-9 cursor-pointer select-none items-center gap-2 rounded-[var(--tw-radius-sm)] px-2 outline-none data-[highlighted]:bg-surface-sunken [&_svg]:size-4 [&_svg]:shrink-0';
+    'flex h-9 cursor-pointer select-none items-center gap-2 rounded-[var(--tw-radius-sm)] px-2 outline-none data-[highlighted]:bg-surface-sunken focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand [&_svg]:size-4 [&_svg]:shrink-0';
 
 type ItemProps = {
     children: ReactNode;

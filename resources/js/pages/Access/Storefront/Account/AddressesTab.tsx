@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
-import { Field } from '@/components/Field';
-import { FormError } from '@/components/FormError';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
+import { DialogError, FormError } from '@/components/FormError';
+import { Badge, Button, Checkbox, EmptyState, Input, Modal, ModalCancel, Note } from '@/components/geist';
 import { toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
@@ -15,7 +12,7 @@ import type {
 } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
-| F9 - the address book (frontend.md §3.6).
+| F9 - the address book (frontend.md §3.6), on Geist's parts (1.10).
 |
 | **Grouped by country, because an address belongs to one.** The fields themselves are that
 | country's - administrative area, city, district, street, building - and they are data a staff
@@ -24,7 +21,8 @@ import type {
 | the country changed (access.md §1.9).
 |
 | Every country is listed, not only the ones with an address in them: a customer may shop in any of
-| them whichever one they registered in, and this is where they say where to deliver.
+| them whichever one they registered in, and this is where they say where to deliver. A country
+| with nothing in it yet is Geist's Empty State, with the one action that fills it.
 |
 | **No map.** The pin is left empty in this stage - a map needs a paid provider and none is chosen
 | (decided 2026-09-19) - so what a courier gets is exactly what is written here.
@@ -43,7 +41,7 @@ export function AddressesTab({ account }: Props) {
 
     return (
         <div className="grid gap-8">
-            <p className="text-sm text-ink-muted">{t('access::account.addresses_hint')}</p>
+            <p className="text-copy-14 text-ink-muted">{t('access::account.addresses_hint')}</p>
 
             {account.addresses.map((store) => (
                 <StoreAddresses key={store.storeId} store={store} returnTo={account.returnTo} />
@@ -62,51 +60,57 @@ function StoreAddresses({
     const t = useTranslator();
     const [editing, setEditing] = useState<AddressRow | 'new' | null>(null);
 
+    // A country that holds as many addresses as it allows cannot take another: the button stays,
+    // out of reach, and says why (Geist's rule for a disabled button) rather than vanishing.
+    const add = (
+        <Button
+            type="secondary"
+            size="small"
+            className="w-fit"
+            data-test={`add-address-${store.storeCode}`}
+            disabledReason={store.full ? t('access::account.address_full', { count: store.limit }) : undefined}
+            onClick={() => setEditing('new')}
+        >
+            {t('access::account.add_address')}
+        </Button>
+    );
+
     return (
         <section className="grid gap-3" data-test={`addresses-${store.storeCode}`}>
-            <h2 className="text-sm font-semibold text-ink">{store.storeName}</h2>
+            <h2 className="text-heading-16 text-ink">{store.storeName}</h2>
 
             {/* A country we do not deliver to yet has no form at all: offering one and refusing it
-                afterwards teaches nobody anything (access.md §1.9). */}
-            {store.hasFormat ? null : (
-                <p className="rounded-md border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-muted">
-                    {t('access::account.no_format')}
-                </p>
-            )}
+                afterwards teaches nobody anything (access.md §1.9). One country of several is
+                closed, so a neutral Note in its place rather than a page-wide message. */}
+            {store.hasFormat ? null : <Note variant="secondary">{t('access::account.no_format')}</Note>}
 
             {store.hasFormat ? (
                 <>
                     {store.addresses.length === 0 ? (
-                        <p className="text-sm text-ink-muted">{t('access::account.no_addresses')}</p>
+                        // Nothing to list yet - unless the form for the first one is already open.
+                        editing === null ? (
+                            <EmptyState
+                                title={t('access::account.no_addresses_title')}
+                                description={t('access::account.no_addresses')}
+                                actions={add}
+                            />
+                        ) : null
                     ) : (
-                        <ul className="grid gap-3">
-                            {store.addresses.map((address) => (
-                                <li key={address.id}>
-                                    <SavedAddress
-                                        address={address}
-                                        returnTo={returnTo}
-                                        onEdit={() => setEditing(address)}
-                                    />
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                        <>
+                            <ul className="material-base divide-y divide-line">
+                                {store.addresses.map((address) => (
+                                    <li key={address.id}>
+                                        <SavedAddress
+                                            address={address}
+                                            returnTo={returnTo}
+                                            onEdit={() => setEditing(address)}
+                                        />
+                                    </li>
+                                ))}
+                            </ul>
 
-                    {store.full ? (
-                        <p className="text-sm text-ink-muted">
-                            {t('access::account.address_full', { count: store.limit })}
-                        </p>
-                    ) : (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="w-fit"
-                            data-test={`add-address-${store.storeCode}`}
-                            onClick={() => setEditing('new')}
-                        >
-                            {t('access::account.add_address')}
-                        </Button>
+                            {add}
+                        </>
                     )}
 
                     {editing === null ? null : (
@@ -128,6 +132,9 @@ function StoreAddresses({
  *
  * An address the country has outgrown says so here rather than at checkout, where it would stop an
  * order somebody is in the middle of placing (amendment 41).
+ *
+ * Its three actions stay on the row rather than behind a menu: an address book is visited to do
+ * exactly these things, and a customer should not have to hunt for them.
  */
 function SavedAddress({
     address,
@@ -141,41 +148,39 @@ function SavedAddress({
     const t = useTranslator();
     const link = useLink();
     const [confirming, setConfirming] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     // The way back goes on with the tab after these changes too (amendment 52).
     const carried = returnTo === null ? {} : { return: returnTo };
 
     return (
-        <div className="grid gap-2 rounded-lg border border-line p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="grid gap-0.5">
-                    <p className="text-sm font-medium text-ink">
+        <div className="grid gap-3 px-4 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="grid min-w-0 gap-0.5">
+                    <p className="flex flex-wrap items-center gap-2 text-label-14 font-medium text-ink">
                         {address.label}
                         {address.isDefault ? (
-                            <span className="ms-2 rounded-md bg-good-soft px-2 py-0.5 text-xs text-good">
+                            <Badge variant="blue-subtle" size="small">
                                 {t('access::account.is_default')}
-                            </span>
+                            </Badge>
                         ) : null}
                     </p>
 
-                    <p className="text-sm text-ink-muted">{address.recipientName}</p>
+                    <p className="text-copy-13 text-ink-muted">{address.recipientName}</p>
 
                     {/* A dialled number reads left to right, in Latin digits, in any language. */}
-                    <p className="tw-figure text-sm text-ink-muted" dir="ltr">
+                    <p className="tw-figure text-copy-13 text-ink-muted" dir="ltr">
                         {address.phone}
                     </p>
 
                     {/* The store's own template, which may hold several lines. */}
-                    <p className="whitespace-pre-line text-sm text-ink-muted">
-                        {address.formatted}
-                    </p>
+                    <p className="whitespace-pre-line text-copy-13 text-ink-muted">{address.formatted}</p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                     {address.isDefault ? null : (
                         <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
+                            type="tertiary"
+                            size="small"
                             data-test={`make-default-${address.id}`}
                             onClick={() =>
                                 router.post(
@@ -191,43 +196,45 @@ function SavedAddress({
                         </Button>
                     )}
 
-                    <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+                    <Button type="secondary" size="small" onClick={onEdit}>
                         {t('access::account.edit_address')}
                     </Button>
 
                     <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
+                        type="tertiary"
+                        size="small"
                         data-test={`delete-address-${address.id}`}
                         onClick={() => setConfirming(true)}
                     >
-                        {t('access::account.delete_address')}
+                        {/* Its own words, ending in "…" because it opens a dialog (frontend.md
+                            1.10); the dialog's confirm button says the same without them. */}
+                        {t('access::account.delete_address_open')}
                     </Button>
                 </div>
             </div>
 
             {address.isComplete ? null : (
-                <p className="rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn">
+                <Note variant="warning" size="small">
                     {t('access::account.address_incomplete')}
-                </p>
+                </Note>
             )}
 
-            {/* Asked in the page, not in the browser's own dialog: window.confirm cannot be driven
-                by a test, which is how the panel's media delete went untested for a step. */}
-            {confirming ? (
-                <div className="grid gap-2 rounded-md border border-bad/30 bg-bad-soft p-3">
-                    <p className="text-sm font-medium text-bad">
-                        {t('access::account.confirm_delete_address', { label: address.label })}
-                    </p>
-                    <p className="text-xs text-ink-muted">
-                        {t('access::account.confirm_delete_address_body')}
-                    </p>
-
-                    <div className="flex gap-2">
+            {/* Asked in Geist's Modal, not in the browser's own dialog: window.confirm cannot be
+                driven by a test, which is how the panel's media delete went untested for a step.
+                A plain destructive Modal - focus starts on Cancel - rather than a typed name: an
+                address is quick to write again, and orders already placed keep their own copy. */}
+            <Modal
+                open={confirming}
+                onOpenChange={(open) => (deleting ? undefined : setConfirming(open))}
+                title={t('access::account.confirm_delete_address', { label: address.label })}
+                description={t('access::account.confirm_delete_address_body')}
+                destructive
+                actions={
+                    <>
+                        <ModalCancel onClick={() => setConfirming(false)} disabled={deleting} />
                         <Button
-                            type="button"
-                            size="sm"
+                            type="error"
+                            loading={deleting}
                             data-test={`confirm-delete-${address.id}`}
                             onClick={() =>
                                 router.post(
@@ -235,30 +242,33 @@ function SavedAddress({
                                         address: address.id,
                                     }),
                                     carried,
-                                    { preserveScroll: true },
+                                    {
+                                        preserveScroll: true,
+                                        onStart: () => setDeleting(true),
+                                        // Closed once it is gone; a refusal keeps it open, with the
+                                        // reason inside it, so the person can try again.
+                                        onSuccess: () => setConfirming(false),
+                                        onFinish: () => setDeleting(false),
+                                    },
                                 )
                             }
                         >
                             {t('access::account.delete_address')}
                         </Button>
-
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setConfirming(false)}
-                        >
-                            {t('access::account.cancel')}
-                        </Button>
-                    </div>
-                </div>
-            ) : null}
+                    </>
+                }
+            >
+                {/* Inside the dialog: the toast sits under its backdrop and is hidden from screen
+                    readers while it is open (the review of the move). */}
+                <DialogError open={confirming} />
+            </Modal>
         </div>
     );
 }
 
 /**
- * The form for one address, new or being changed.
+ * The form for one address, new or being changed, on a raised surface so it reads as the thing
+ * being worked on.
  *
  * The fields under the first three are the **store's**, drawn from its format: their labels, their
  * order, whether each is required and how long it may be all come from the server, so a country
@@ -300,100 +310,84 @@ function AddressForm({
                     onSuccess: onDone,
                 });
             }}
-            className="grid gap-5 rounded-lg border border-brand/30 bg-brand-soft/20 p-4"
+            className="material-small grid gap-5 p-4"
             data-test={`address-form-${store.storeCode}`}
         >
             <FormError />
 
-            <Field
+            <Input
                 id={`label-${store.storeCode}`}
                 label={t('access::account.address_label')}
-                hint={t('access::account.address_label_hint')}
+                helper={t('access::account.address_label_hint')}
                 error={form.errors.label}
-            >
-                <Input
-                    id={`label-${store.storeCode}`}
-                    required
-                    value={form.data.label}
-                    onChange={(event) => form.setData('label', event.target.value)}
-                />
-            </Field>
+                required
+                value={form.data.label}
+                onChange={(event) => form.setData('label', event.target.value)}
+            />
 
             <div className="grid gap-5 sm:grid-cols-2">
-                <Field
+                <Input
                     id={`recipient-${store.storeCode}`}
                     label={t('access::account.recipient_name')}
                     error={form.errors.recipient_name}
-                >
-                    <Input
-                        id={`recipient-${store.storeCode}`}
-                        required
-                        value={form.data.recipient_name}
-                        onChange={(event) => form.setData('recipient_name', event.target.value)}
-                    />
-                </Field>
+                    required
+                    value={form.data.recipient_name}
+                    onChange={(event) => form.setData('recipient_name', event.target.value)}
+                />
 
-                <Field
+                {/* Typed in figures: the mono face is set on the box from Geist's frame, so the
+                    label and helper keep the text face. Latin digits only - they are converted
+                    as they are typed - so the mono face serves Arabic pages too (frontend.md 1.8). */}
+                <Input
                     id={`phone-${store.storeCode}`}
+                    type="tel"
                     label={t('access::account.address_phone')}
-                    hint={t('access::account.address_phone_hint')}
+                    helper={t('access::account.address_phone_hint')}
                     error={form.errors.phone}
-                >
-                    <Input
-                        id={`phone-${store.storeCode}`}
-                        type="tel"
-                        required
-                        dir="ltr"
-                        className="tw-figure"
-                        value={form.data.phone}
-                        onChange={(event) => form.setData('phone', toLatinDigits(event.target.value))}
-                    />
-                </Field>
+                    required
+                    dir="ltr"
+                    className="[&_input]:font-mono [&_input]:tabular-nums"
+                    value={form.data.phone}
+                    onChange={(event) => form.setData('phone', toLatinDigits(event.target.value))}
+                />
             </div>
 
             {store.fields.map((field) => (
-                <Field
+                <Input
                     key={field.key}
                     id={`${store.storeCode}-${field.key}`}
+                    name={`fields[${field.key}]`}
                     label={field.label}
                     error={form.errors[`fields.${field.key}` as keyof typeof form.errors] as string}
-                >
-                    <Input
-                        id={`${store.storeCode}-${field.key}`}
-                        name={`fields[${field.key}]`}
-                        required={field.required}
-                        maxLength={field.maxLength}
-                        value={form.data.fields[field.key] ?? ''}
-                        onChange={(event) =>
-                            form.setData('fields', {
-                                ...form.data.fields,
-                                [field.key]: event.target.value,
-                            })
-                        }
-                    />
-                </Field>
+                    required={field.required}
+                    maxLength={field.maxLength}
+                    value={form.data.fields[field.key] ?? ''}
+                    onChange={(event) =>
+                        form.setData('fields', {
+                            ...form.data.fields,
+                            [field.key]: event.target.value,
+                        })
+                    }
+                />
             ))}
 
             {/* The first address in a country becomes its default on its own, so this is only ever
-                a way to move the flag - never a way to leave a country without one. */}
-            <label className="flex items-center gap-2 text-sm text-ink">
-                <Checkbox
-                    checked={form.data.is_default}
-                    onCheckedChange={(checked) => form.setData('is_default', checked === true)}
-                />
+                a way to move the flag - never a way to leave a country without one. A checkbox
+                rather than a Toggle: it means nothing until the form is saved. */}
+            <Checkbox
+                id={`default-${store.storeCode}`}
+                checked={form.data.is_default}
+                onChange={(checked) => form.setData('is_default', checked)}
+            >
                 {t('access::account.default_address')}
-            </label>
+            </Checkbox>
 
             <div className="flex gap-2">
-                <Button
-                    type="submit"
-                    disabled={form.processing}
-                    data-test={`save-address-${store.storeCode}`}
-                >
+                <Button typeName="submit" loading={form.processing} data-test={`save-address-${store.storeCode}`}>
                     {t('access::account.save')}
                 </Button>
 
-                <Button type="button" variant="ghost" onClick={onDone}>
+                <Button type="tertiary" onClick={onDone}>
                     {t('access::account.cancel')}
                 </Button>
             </div>

@@ -18,7 +18,9 @@ use Modules\B2B\Domain\ValueObject\Remark;
 use Modules\B2B\Public\Enums\CompanyStatus;
 
 /**
- * The company behind a company account (b2b.md §1.1). One per account, valid in every store.
+ * The company behind a company account in one store (b2b.md §1.1). **One per account and store**
+ * (amendment 18): an account holds a company in each store it applies in, and orders in a store only
+ * while that store's company is approved.
  *
  * **There is no company until an application is sent**, and it only ever changes its registered
  * details the same way: every application — the first, a reapplication after a rejection, new
@@ -70,7 +72,8 @@ final class Company
     /**
      * The first application sent — the moment the company comes to exist (b2b.md §1.1).
      *
-     * @param  string  $homeStoreId  the account's home store, whose staff review it (§3.2)
+     * @param  string  $homeStoreId  the store the company applied in, whose staff review it (§3.2,
+     *                               amendment 18)
      */
     public static function fromFirstApplication(
         string $id,

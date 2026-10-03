@@ -19,7 +19,7 @@ use Shared\Infrastructure\Cache\VersionedCache;
  *
  * @phpstan-type Translated array{ar: string, en: string}
  * @phpstan-type CurrencyRow array{code: string, exponent: int, name: Translated, abbreviation: Translated, sign: string|null}
- * @phpstan-type StoreRow array{id: string, code: string, name: Translated, country_code: string, currency_code: string, tax_rate_basis_points: int, timezone: string, position: int}
+ * @phpstan-type StoreRow array{id: string, code: string, name: Translated, country_code: string, currency_code: string, tax_rate_basis_points: int, timezone: string, position: int, is_active: bool, is_base: bool}
  * @phpstan-type Snapshot array{stores: list<StoreRow>, currencies: array<string, CurrencyRow>}
  */
 final readonly class CachedStoreDirectory implements StoreDirectory
@@ -159,6 +159,8 @@ final readonly class CachedStoreDirectory implements StoreDirectory
                 'tax_rate_basis_points' => (int) $row->tax_rate_basis_points,
                 'timezone' => (string) $row->timezone,
                 'position' => (int) $row->position,
+                'is_active' => (bool) $row->is_active,
+                'is_base' => (bool) $row->is_base,
             ];
         }
 
@@ -185,6 +187,8 @@ final readonly class CachedStoreDirectory implements StoreDirectory
             $store['tax_rate_basis_points'],
             $store['timezone'],
             $store['position'],
+            $store['is_active'],
+            $store['is_base'],
         );
     }
 

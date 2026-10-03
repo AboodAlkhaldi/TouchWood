@@ -70,7 +70,7 @@ final readonly class CompanyTypeHolders
 
         foreach ($this->companies->holdersOf($from->id()) as $customerId) {
             $this->applications->lockAccount($customerId);
-            $company = $this->companies->forCustomerLocked($customerId);
+            $company = $this->companies->forCustomerLocked($customerId, $from->storeId());
 
             if ($company === null || $company->status() === CompanyStatus::Suspended || ! $company->details()->type->equals($held)) {
                 continue;

@@ -145,11 +145,11 @@ it('takes a company from the line under the header through its application to "u
     $addressId = B2BFixtures::savedAddress($customerId);
     $page = companyScreenSignIn($customerId);
 
-    $page->assertSee('Continue your company application')
+    $page->assertSee('Continue Company Application')
         ->click('[data-test="shopper-line"]')
         ->assertPathIs('/sa/en/account/company')
-        ->assertSee('Not sent yet')
-        ->assertSee('Your application')
+        ->assertSee('Not Sent Yet')
+        ->assertSee('Your Application')
         ->assertSee('Usually within two business days')
         ->click('[data-test="start"]')
         ->assertPresent('[data-test="company-form"]');
@@ -197,7 +197,7 @@ it('takes a company from the line under the header through its application to "u
     // does for a file too large for the server. The papers go in as the customer instead; the
     // upload itself is MyCompanyPageTest's.
     $page->attach('[data-test="file-'.B2BFixtures::documentTypes()[0]->id().'"]', B2BFixtures::pdf())
-        ->assertSee('No file arrived.');
+        ->assertSee("Couldn't upload the file.");
     companyScreenPapers($customerId);
 
     $page->navigate('/sa/en/account/company')
@@ -207,13 +207,13 @@ it('takes a company from the line under the header through its application to "u
         ->assertMissing('[data-test="send-missing"]');
 
     $page->click('[data-test="send"]')
-        ->assertSee('Your application was sent.')
-        ->assertSee('Under review')
+        ->assertSee('Application sent')
+        ->assertSee('Under Review')
         ->assertSee('Your account is under review')
         ->assertSee('TW-CO-')
         ->assertNoJavaScriptErrors();
 
-    expect(app(CompanyRepository::class)->forCustomer($customerId)?->status()->value)->toBe('PENDING')
+    expect(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->status()->value)->toBe('PENDING')
         ->and(companyScreenUntil($page, "document.querySelector('[data-test=step-review]').dataset.state === 'current'"))->toBeTrue();
 });
 
@@ -246,7 +246,9 @@ it('reads right to left in Arabic, in the dark, on a phone', function () {
     // The shop's theme is the person's choice, kept in this browser's cookie rather than read from
     // the phone (frontend.md §2.1) — chosen here before signing in, as StorefrontFrameTest does.
     $page = visit('/sa/ar/sign-in');
-    $page->click('[data-test="theme"]')->assertSee('فاتح');
+    $page->click('[data-test="theme-dark"]');
+    // Read until the server's answer is in (lesson 121), as StorefrontFrameTest does.
+    expect($page->script("new Promise((done) => { const from = Date.now(); (function look() { const mode = document.documentElement.dataset.mode; if (mode === 'dark' || Date.now() - from > 4000) { done(mode); } else { setTimeout(look, 50); } })(); })"))->toBe('dark');
     $page->type('#email', $email)
         ->type('#password', Fx::CUSTOMER_PASSWORD)
         ->click('button[type="submit"]')
@@ -278,13 +280,13 @@ it('shows a company that was not approved why, and applying again marks what to 
 
     $page->assertSee('Your company application was not approved')
         ->click('[data-test="shopper-line"]')
-        ->assertSee('Not approved')
+        ->assertSee('Not Approved')
         ->assertSee('The CR number does not match the certificate.');
 
     // Decided: the third step, with its result.
     expect(companyScreenUntil($page, "document.querySelector('[data-test=step-decision]').dataset.state === 'current'"))->toBeTrue();
 
-    $page->assertSeeIn('[data-test="step-result"]', 'Not approved')
+    $page->assertSeeIn('[data-test="step-result"]', 'Not Approved')
         ->click('[data-test="apply-again"]')
         ->assertSee('Marked in the last decision')
         ->assertSee('Who signs for the company?')
@@ -302,7 +304,7 @@ it('warns an approved company, before it sends a change, that sending it stops i
     B2BFixtures::approved($customerId);
     $page = companyScreenSignIn($customerId);
 
-    $page->assertDontSee('Continue your company application')
+    $page->assertDontSee('Continue Company Application')
         ->navigate('/sa/en/account/company')
         ->assertSee('Approved')
         // The bank account is a card of the main column now (amendment 16(e)).
@@ -428,7 +430,7 @@ it('sends a company with no saved address to add one, brings it back, and saves 
     $page = companyScreenSignIn($customerId);
 
     $page->navigate('/sa/en/account/company')
-        ->assertSee('Under review')
+        ->assertSee('Under Review')
         ->assertSee('You have no saved addresses yet.')
         ->click('[data-test="add-address"]')
         ->assertPathIs('/sa/en/account')
@@ -449,7 +451,7 @@ it('sends a company with no saved address to add one, brings it back, and saves 
     $addressId = (string) DB::table('access.addresses')->where('customer_id', $customerId)->value('id');
 
     $page->click("[data-test=\"pick-address-{$addressId}\"]")
-        ->assertSee('Address saved.')
+        ->assertSee('Address saved')
         ->assertSeeIn('[data-test="address-kept"]', 'Olaya Street')
         ->assertNoJavaScriptErrors();
 
@@ -490,7 +492,7 @@ it('shows a saved address edited since unpicked, with a note, and takes its new 
     expect($page->script("document.querySelector('[data-test=pick-address-{$addressId}]').checked"))->toBeFalse();
 
     $page->click("[data-test=\"pick-address-{$addressId}\"]")
-        ->assertSee('Address saved.')
+        ->assertSee('Address saved')
         ->assertSeeIn('[data-test="address-kept"]', 'Tahlia Street')
         ->assertMissing('[data-test="address-changed"]')
         ->assertNoJavaScriptErrors();
@@ -529,4 +531,20 @@ it('keeps what was typed after a save went out, and shows its own refusal in red
         ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->where('state', 'DRAFT')->value('tax_number'))->toBe('30012345670008812345');
 
     $page->assertNoJavaScriptErrors();
+});
+
+it('shows a company of another store, and applies in this one with its name carried over (amendments 18-20)', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    B2BFixtures::approved($customerId);
+
+    // Approved in KSA, nothing yet in Egypt: the page is about the store being browsed, and says so.
+    companyScreenSignIn($customerId)
+        ->navigate('/eg/en/account/company')
+        ->assertSee('Your company in Egypt')
+        ->assertPresent('[data-test="carried-over"]')
+        ->assertSee('Apply in This Store')
+        ->assertPresent('[data-test="elsewhere"]')
+        ->assertSeeIn('[data-test="elsewhere"]', 'Saudi Arabia')
+        ->assertSeeIn('[data-test="elsewhere"]', 'Approved')
+        ->assertNoJavaScriptErrors();
 });

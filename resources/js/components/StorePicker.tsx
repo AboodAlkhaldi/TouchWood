@@ -1,9 +1,10 @@
 import { router, usePage } from '@inertiajs/react';
+import { Select } from '@/components/geist';
 import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
 /*
-| Which store the panel is working in (frontend.md §2.2).
+| Which store the panel is working in (frontend.md §2.2), as Geist's Select (1.10).
 |
 | It never shows a store outside this person's stores - the list came from the server, which asked
 | the authorizer, not from anything the browser knows. One store means a name, with no menu to open:
@@ -24,31 +25,23 @@ export function StorePicker() {
     }
 
     if (store.available.length < 2) {
-        return (
-            <span className="text-sm font-medium text-ink">{store.current.name}</span>
-        );
+        return <span className="text-label-14 font-medium text-ink">{store.current.name}</span>;
     }
 
     return (
-        <label className="flex items-center gap-2 text-sm">
-            <span className="text-ink-muted">{t('admin.store.label')}</span>
-            <select
-                value={store.current.id}
-                onChange={(event) =>
-                    router.post(
-                        '/admin/current-store',
-                        { store: event.target.value },
-                        { preserveScroll: true },
-                    )
-                }
-                className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink"
-            >
-                {store.available.map((one) => (
-                    <option key={one.id} value={one.id}>
-                        {one.name}
-                    </option>
-                ))}
-            </select>
-        </label>
+        <Select
+            id="current-store"
+            size="small"
+            aria-label={t('admin.store.label')}
+            value={store.current.id}
+            onChange={(event) => router.post('/admin/current-store', { store: event.target.value }, { preserveScroll: true })}
+            className="w-44"
+        >
+            {store.available.map((one) => (
+                <option key={one.id} value={one.id}>
+                    {one.name}
+                </option>
+            ))}
+        </Select>
     );
 }

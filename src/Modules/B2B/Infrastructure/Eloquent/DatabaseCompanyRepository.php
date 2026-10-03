@@ -41,16 +41,49 @@ final readonly class DatabaseCompanyRepository implements CompanyRepository
         return $this->one('id', $companyId, lock: true);
     }
 
-    public function forCustomer(string $customerId): ?Company
+    public function forCustomer(string $customerId, string $storeId): ?Company
     {
-        return $this->one('customer_id', $customerId, lock: false);
+        return $this->inStore($customerId, $storeId, lock: false);
     }
 
-    public function forCustomerLocked(string $customerId): ?Company
+    public function forCustomerLocked(string $customerId, string $storeId): ?Company
     {
-        return $this->one('customer_id', $customerId, lock: true);
+        return $this->inStore($customerId, $storeId, lock: true);
     }
 
+    public function allForCustomer(string $customerId): array
+    {
+        if (! Ulids::valid($customerId)) {
+            return [];
+        }
+
+        $rows = $this->db->table(self::TABLE)
+            ->where('customer_id', strtolower($customerId))
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
+
+        return array_values(array_map(static fn (stdClass $row): Company => self::toCompany($row), $rows->all()));
+    }
+
+    private function inStore(string $customerId, string $storeId, bool $lock): ?Company
+    {
+        if (! Ulids::valid($customerId) || ! Ulids::valid($storeId)) {
+            return null;
+        }
+
+        $query = $this->db->table(self::TABLE)
+            ->where('customer_id', strtolower($customerId))
+            ->where('home_store_id', strtolower($storeId));
+        $row = ($lock ? $query->lockForUpdate() : $query)->first();
+
+        return $row instanceof stdClass ? self::toCompany($row) : null;
+    }
+
+    /**
+     * A type belongs to one store's list, so its holders are all of that store, and each account
+     * holds at most one company there (amendment 18): the account names the company.
+     */
     public function holdersOf(string $companyTypeId): array
     {
         if (! Ulids::valid($companyTypeId)) {

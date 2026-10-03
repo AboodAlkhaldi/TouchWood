@@ -63,7 +63,9 @@ final readonly class SaveAddressHandler
         $customerId = $this->current->id(self::PERMISSION);
         $storeId = $store->value;
 
-        if ($this->platform->store($store) === null) {
+        // An off store's country is not offered, and its addresses are hidden (amendment 53): it is
+        // refused exactly as a store that does not exist.
+        if ($this->platform->store($store)?->isActive !== true) {
             throw new InvalidAccessAttribute('store', 'unknown');
         }
 

@@ -99,7 +99,9 @@
     --color-sidebar-accent: var(--tw-sidebar-active);
     --color-sidebar-accent-foreground: var(--tw-sidebar-ink);
     --color-sidebar-border: var(--tw-sidebar-line);
-    --color-sidebar-ring: var(--tw-brand);
+    /* The sidebar's own ink, not the brand: navy on the navy sidebar was a 1.29:1 focus ring (review
+    | of the Geist move, 2026-10-02). */
+    --color-sidebar-ring: var(--tw-sidebar-ink);
 }
 
 @layer base {

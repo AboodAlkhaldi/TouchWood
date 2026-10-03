@@ -14,7 +14,8 @@ return [
     'pages' => 'Pages',
     // An en dash inside the range (Geist's table rules).
     'range' => ':from–:to of :total',
-    'load_more' => 'Load More',
+    // The owner's word for the next page of a keyset list (frontend.md E7), in Title Case.
+    'load_more' => 'Show More',
     'breadcrumbs' => 'Breadcrumbs',
     'request_id' => 'Request ID',
     'show_password' => 'Show password',

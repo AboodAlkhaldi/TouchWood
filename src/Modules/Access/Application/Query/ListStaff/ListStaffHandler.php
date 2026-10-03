@@ -63,6 +63,10 @@ final readonly class ListStaffHandler
             $found['total'],
             $page,
             $perPage,
+            // Only Super Admins see each other, in a section of their own (amendment 54).
+            $unlimited
+                ? array_map(fn (array $row): StaffSummary => $this->visibility->summary($row, true), $this->staff->superAdmins($query->search, $status))
+                : [],
         );
     }
 }

@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $tax_rate_basis_points
  * @property string $timezone
  * @property int $position
+ * @property bool $is_active
+ * @property bool $is_base
  */
 final class StoreRecord extends Model
 {
@@ -36,6 +38,8 @@ final class StoreRecord extends Model
             'name' => 'array',
             'tax_rate_basis_points' => 'integer',
             'position' => 'integer',
+            'is_active' => 'boolean',
+            'is_base' => 'boolean',
         ];
     }
 }

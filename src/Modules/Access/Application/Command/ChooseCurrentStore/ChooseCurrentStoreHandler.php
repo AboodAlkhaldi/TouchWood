@@ -52,8 +52,9 @@ final readonly class ChooseCurrentStoreHandler
         }
 
         // A store that does not exist is refused like one that is not theirs: the panel never
-        // confirms which ids are real.
-        if ($this->platform->store($store) === null || ! $this->covers($staffId, $store)) {
+        // confirms which ids are real. An off store is not a store to work in, for anyone — a
+        // Super Admin included (platform.md §1.6; owner, 2026-10-01).
+        if ($this->platform->store($store)?->isActive !== true || ! $this->covers($staffId, $store)) {
             throw new InvalidAccessAttribute('store', 'not one of your stores');
         }
 

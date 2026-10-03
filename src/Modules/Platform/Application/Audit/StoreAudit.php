@@ -16,7 +16,7 @@ final class StoreAudit
     private const string SUBJECT = 'platform.store';
 
     /**
-     * @return array<string, int|string|array{ar: string, en: string}>
+     * @return array<string, bool|int|string|array{ar: string, en: string}>
      */
     public static function attributes(Store $store): array
     {
@@ -28,7 +28,26 @@ final class StoreAudit
             'tax_rate_basis_points' => $store->taxRate()->basisPoints,
             'timezone' => $store->timezone()->identifier,
             'position' => $store->position(),
+            // A new store is created off (owner, 2026-10-01): its creation says so.
+            'is_active' => $store->isActive(),
         ];
+    }
+
+    /**
+     * A store turned on or off (owner, 2026-10-01): `platform.store.activated` or
+     * `platform.store.deactivated`, with the switch before and after.
+     */
+    public static function switched(Store $store): AuditEntryDto
+    {
+        $on = $store->isActive();
+
+        return new AuditEntryDto(
+            $on ? 'platform.store.activated' : 'platform.store.deactivated',
+            self::SUBJECT,
+            $store->id()->value,
+            $store->id()->value,
+            AuditChanges::none()->changed('is_active', ! $on, $on),
+        );
     }
 
     public static function created(Store $store): AuditEntryDto
@@ -43,7 +62,7 @@ final class StoreAudit
     }
 
     /**
-     * @param  array<string, int|string|array{ar: string, en: string}>  $before  attributes() taken before the change
+     * @param  array<string, bool|int|string|array{ar: string, en: string}>  $before  attributes() taken before the change
      * @param  list<string>  $changed
      */
     public static function updated(Store $store, array $before, array $changed): AuditEntryDto

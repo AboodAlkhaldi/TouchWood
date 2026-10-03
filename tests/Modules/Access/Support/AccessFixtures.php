@@ -17,6 +17,8 @@ use Modules\Access\Application\Command\CreateRole\CreateRole;
 use Modules\Access\Application\Command\CreateRole\CreateRoleHandler;
 use Modules\Access\Application\Command\RegisterCustomer\RegisterCustomer;
 use Modules\Access\Application\Command\RegisterCustomer\RegisterCustomerHandler;
+use Modules\Access\Application\Command\RevokeSuperAdmin\RevokeSuperAdmin;
+use Modules\Access\Application\Command\RevokeSuperAdmin\RevokeSuperAdminHandler;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Enums\AccessLevel;
 use Modules\Access\Public\Enums\StaffStatus;
@@ -67,9 +69,30 @@ final class AccessFixtures
             'locale' => 'en',
             'status' => $status->value,
             'is_super_admin' => $superAdmin,
+            // A Super Admin is someone who has been one (amendment 57; CHECK staff_users_super_admin_marked).
+            'was_super_admin' => $superAdmin,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        return $id;
+    }
+
+    /**
+     * A Super Admin revoked from the console the real way: the account closed, the flag cleared, and
+     * the mark kept (amendment 57). Another active Super Admin is made first when there is none,
+     * because the last one is never revoked. Call it before acting as anyone.
+     */
+    public static function formerSuperAdmin(string $firstName = 'Staff'): string
+    {
+        $id = self::staff(superAdmin: true, firstName: $firstName);
+
+        if (DB::table('access.staff_users')->where('is_super_admin', true)->where('status', StaffStatus::Active->value)->count() < 2) {
+            self::staff(superAdmin: true);
+        }
+
+        $email = (string) DB::table('access.staff_users')->where('id', $id)->value('email');
+        self::asSystem(static fn () => app(RevokeSuperAdminHandler::class)->handle(new RevokeSuperAdmin($email)));
 
         return $id;
     }

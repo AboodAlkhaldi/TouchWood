@@ -42,6 +42,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.8 | A theme is data: campaign themes must be possible without touching a component | Owner, 2026-09-22 |
 | §1.8, §3.6 F1 | **Geist is the design system**: its components, behaviour and all its rules (writing rules included), in TouchWood's look — today's colours a bit sharper, IBM Plex fonts, 10 px corners. Built before any new screen; every built screen moves to it. The store chooser and switchers list **on** stores only (platform.md §1.6) | Owner, 2026-10-01/02 (the new direction) |
 | §1.10 (new) | **The Geist foundation**: colours set B (owner's pick); Geist's type scale, materials, sizes, components and writing rules; Light and Dark only — the provisional picks marked there | Owner's overnight run, 2026-10-02 |
+| §1.10 | **Store time**: every moment in the zone of the store being worked in (owner's answer, 2026-10-02); Geist's `Time` (provisional) | Owner, 2026-10-02 (the "store time on panel screens" job) |
 
 ---
 
@@ -326,6 +327,15 @@ stylesheet, the same day.
   offers **Light and Dark only**: the theme is decided on the server (§2.1) so the first paint is
   right, and the server cannot see the device's own setting. "System" would need every dark value
   written a second time under a media query, campaigns included — the owner's call.
+- **Store time** (owner, 2026-10-02: "each store will have its own — a viewer from Egypt sees
+  Egypt's time, from KSA KSA's"; for someone in several stores, **the store they are working in**).
+  The server and the database keep UTC; every moment on a screen is written in the zone of the
+  panel's current store, or of the shop's store, with the zone's short name beside it — the store
+  screens' own times included (failed jobs, audit log, media, sessions). Geist's `Time`
+  [PROVISIONAL]: in a list a recent moment reads short and relative ("2h ago"), past seven days as
+  a date, the full moment on hover and focus; on a detail page the full moment is the text. B2B's
+  company times were already written by the server in the company's store clock (step 6) and are
+  left as they are.
 - **Writing rules** (Geist's, for every English word on a screen; Arabic follows the same
   structure — a verb and its object on a button, the toast that answers it, no "please"):
 
