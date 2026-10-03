@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Infrastructure;
 
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Application\CatalogPermissions;
@@ -21,6 +22,8 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
+use Modules\Catalog\Infrastructure\Listener\WriteStartingCategoryOrder;
+use Modules\Platform\Public\Events\StoreCreated;
 
 /**
  * What is sold, and where (catalog.md). Registered after Access: Catalog uses Access's public
@@ -47,5 +50,8 @@ final class CatalogServiceProvider extends ServiceProvider
         // Catalog sits above Access, so it declares its own permissions through Access's public
         // catalog (Access spec §2.2); Access checks them at boot like its own.
         $this->app->make(PermissionCatalog::class)->declare('catalog', ...CatalogPermissions::definitions());
+
+        // A store opened later starts with the base store's order of the menu (amendment 1(d)).
+        Event::listen(StoreCreated::class, [WriteStartingCategoryOrder::class, 'handle']);
     }
 }
