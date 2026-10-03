@@ -12,6 +12,8 @@ use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\LabelRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\Repository\WordPairRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseAttributeRepository;
@@ -19,6 +21,8 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseBrandRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseCategoryRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseProductRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseVariantRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
 use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
@@ -39,6 +43,8 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(LabelRepository::class, DatabaseLabelRepository::class);
         $this->app->bind(WarrantyRepository::class, DatabaseWarrantyRepository::class);
         $this->app->bind(WordPairRepository::class, DatabaseWordPairRepository::class);
+        $this->app->bind(ProductRepository::class, DatabaseProductRepository::class);
+        $this->app->bind(VariantRepository::class, DatabaseVariantRepository::class);
     }
 
     public function boot(): void

@@ -8,6 +8,7 @@ use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Lists\CategoryInput;
 use Modules\Catalog\Application\Lists\SharedListChange;
+use Modules\Catalog\Domain\Exception\CategoryHoldsProducts;
 use Modules\Catalog\Domain\Exception\CategoryInactive;
 use Modules\Catalog\Domain\Exception\CategoryLoop;
 use Modules\Catalog\Domain\Exception\CategoryNotFound;
@@ -18,7 +19,8 @@ use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Shared\Application\Unauthorized;
 
 /**
- * **Moving a category** (catalog.md §1.5): under another active category, never under itself or
+ * **Moving a category** (catalog.md §1.5): under another active category that holds no product,
+ * never under itself or
  * anything below it (`CategoryLoop`), and placed among its new siblings in every store. Its slugs do
  * not change — an address names the category, not its path — so its addresses stay as they were.
  */
@@ -33,7 +35,7 @@ final readonly class MoveCategoryHandler
     ) {}
 
     /**
-     * @throws CategoryInactive|CategoryLoop|CategoryNotFound|InvalidCatalogAttribute|Unauthorized
+     * @throws CategoryHoldsProducts|CategoryInactive|CategoryLoop|CategoryNotFound|InvalidCatalogAttribute|Unauthorized
      */
     public function handle(MoveCategory $command): void
     {
@@ -48,6 +50,7 @@ final readonly class MoveCategoryHandler
             // reason to be refused.
             $category->moveUnder($parentId, $this->categories->idsBelow($category->id()));
             $this->input->parent($parentId);
+            $this->input->requireNoProducts($parentId);
             $changes = $category->pullChanges();
 
             // Under the same parent nothing moves, and each store's order stays its admins'.

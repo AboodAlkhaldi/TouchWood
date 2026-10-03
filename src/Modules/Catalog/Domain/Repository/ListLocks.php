@@ -26,5 +26,12 @@ interface ListLocks
 
     public const string WORD_PAIRS = 'word_pairs';
 
+    /**
+     * Every product change: codes and slugs are decided across products under it. Taken after no
+     * list's lock — a product change reads the list rows it points at with a row lock instead, and a
+     * list's change never takes this one, so the two never wait on each other in a circle.
+     */
+    public const string PRODUCTS = 'products';
+
     public function lock(string $list): void;
 }

@@ -11,12 +11,13 @@ use Modules\Catalog\Domain\Exception\CategoryNotEmpty;
 use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Shared\Application\Unauthorized;
 
 /**
  * **Deleting a category** (catalog.md §1.5): only one with no sub-category; otherwise refused until
- * they are moved. Its slugs and each store's place for it go with it. "Holds a product, in any
- * stage" joins the refusal with the products (step 3); until then no category holds one.
+ * they are moved. Its slugs and each store's place for it go with it. **Never one that holds a
+ * product, in any stage** (`CategoryNotEmpty`), asked after its row is locked.
  */
 final readonly class DeleteCategoryHandler
 {
@@ -25,6 +26,7 @@ final readonly class DeleteCategoryHandler
     public function __construct(
         private SharedListChange $change,
         private CategoryRepository $categories,
+        private ProductRepository $products,
     ) {}
 
     /**
@@ -37,7 +39,7 @@ final readonly class DeleteCategoryHandler
         $this->change->run(ListLocks::CATEGORIES, function () use ($command): array {
             $category = $this->categories->byId($command->categoryId) ?? throw new CategoryNotFound($command->categoryId);
 
-            if ($this->categories->childrenOf($category->id()) !== []) {
+            if ($this->categories->childrenOf($category->id()) !== [] || $this->products->anyInCategory($category->id())) {
                 throw new CategoryNotEmpty;
             }
 

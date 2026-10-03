@@ -53,6 +53,15 @@ return [
     'warranty.activated' => 'أُعيد تفعيل ضمان',
     'warranty.deleted' => 'حُذف ضمان',
 
+    'product.added' => 'أُنشئ منتج',
+    'product.edited' => 'عُدّل منتج',
+    'product.deleted' => 'حُذفت مسودة منتج',
+
+    'variant.added' => 'أُضيف نوع منتج',
+    'variant.edited' => 'عُدّل نوع منتج',
+    'variant.deleted' => 'حُذف نوع من مسودة منتج',
+    'variant.code_corrected' => 'صُحّح رمز نوع منتج',
+
     'word_pair.added' => 'أُضيف مرادف بحث',
     'word_pair.deleted' => 'حُذف مرادف بحث',
 ];

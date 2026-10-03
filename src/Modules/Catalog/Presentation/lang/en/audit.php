@@ -53,6 +53,15 @@ return [
     'warranty.activated' => 'Warranty reactivated',
     'warranty.deleted' => 'Warranty deleted',
 
+    'product.added' => 'Product created',
+    'product.edited' => 'Product edited',
+    'product.deleted' => 'Draft product deleted',
+
+    'variant.added' => 'Variant added',
+    'variant.edited' => 'Variant edited',
+    'variant.deleted' => 'Draft variant deleted',
+    'variant.code_corrected' => 'Variant code corrected',
+
     'word_pair.added' => 'Search word pair added',
     'word_pair.deleted' => 'Search word pair deleted',
 ];
