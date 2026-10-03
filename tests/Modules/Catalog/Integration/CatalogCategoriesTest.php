@@ -176,9 +176,14 @@ describe('adding, editing and moving', function () {
     });
 
     it('refuses a place outside 0 to 10000, before anything is written', function () {
+        $queries = Cx::recordQueries();
+
         expect(fn () => catalogCategoriesAdd('Doors', ['rank' => -1]))->toThrow(InvalidCatalogAttribute::class, 'rank')
             ->and(fn () => catalogCategoriesAdd('Doors', ['rank' => 10001]))->toThrow(InvalidCatalogAttribute::class, 'rank')
-            ->and(DB::table('catalog.categories')->count())->toBe(0);
+            ->and(fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory(catalogCategoriesAdd('Kitchens'), null, 10001)))->toThrow(InvalidCatalogAttribute::class, 'rank')
+            ->and(DB::table('catalog.categories')->count())->toBe(1)
+            // Not even written and rolled back: nothing reached the category tables for the two refused.
+            ->and(count(array_filter((array) $queries, static fn (array $query): bool => preg_match('/^\s*insert into "catalog"\."categories"/i', $query['sql']) === 1)))->toBe(1);
     });
 
     it('adds under an active parent, and refuses one that is deactivated or unknown', function () {
@@ -431,5 +436,61 @@ describe('what the database refuses behind the code', function () {
 
         expect(fn () => DB::transaction(fn () => DB::table('catalog.categories')->where('id', $kitchens)->delete()))
             ->toThrow(QueryException::class, 'categories_parent');
+    });
+});
+
+describe('review of step 2', function () {
+    beforeEach(function () {
+        Cx::actAsStaffWith([CatalogPermissions::CATEGORY_MANAGE, CatalogPermissions::CATEGORY_RANK]);
+    });
+
+    it('keeps a category that went with its parent off when it is moved, and its new parent comes back', function () {
+        $old = catalogCategoriesAdd('Old');
+        $moved = catalogCategoriesAdd('Moved', ['parentId' => $old]);
+        $new = catalogCategoriesAdd('New');
+        app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($old));
+
+        app(MoveCategoryHandler::class)->handle(new MoveCategory($moved, strtoupper($new)));
+
+        // Now off on its own: the parent it went with is not above it any more.
+        expect(catalogCategoriesState($moved))->toBe([false, false])
+            ->and(app(CategoryRepository::class)->find($moved)?->parentId())->toBe($new);
+
+        app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($new));
+        app(ActivateCategoryHandler::class)->handle(new ActivateCategory($new));
+
+        expect(catalogCategoriesState($new))->toBe([true, false])
+            ->and(catalogCategoriesState($moved))->toBe([false, false]);
+    });
+
+    it('refuses an Arabic slug another category holds', function () {
+        catalogCategoriesAdd('Kitchens', ['nameAr' => 'مطابخ']);
+
+        expect(fn () => catalogCategoriesAdd('Kitchen units', ['nameAr' => 'مطابخ']))->toThrow(SlugTaken::class, 'مطابخ');
+    });
+
+    it('changes a store\'s order only while the store is on, and only to whole numbers, at most 500 at once', function () {
+        $kitchens = catalogCategoriesAdd('Kitchens');
+        // Its id taken while it is on: an off store's code finds no store.
+        $ae = Fx::storeId('ae');
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('ae')));
+        $eg = Fx::storeId('eg');
+
+        expect(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories($ae, [$kitchens => 2])))->toThrow(InvalidCatalogAttribute::class, 'store')
+            ->and(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories($eg, [$kitchens => '2'])))->toThrow(InvalidCatalogAttribute::class, 'rank')
+            ->and(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories($eg, [$kitchens => null])))->toThrow(InvalidCatalogAttribute::class, 'rank')
+            ->and(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories($eg, array_fill_keys(array_map(static fn (int $i): string => "k{$i}", range(1, 501)), 1))))->toThrow(InvalidCatalogAttribute::class, 'rank')
+            ->and(catalogCategoriesRanks($kitchens))->toBe(['ae' => 0, 'eg' => 0, 'sa' => 0]);
+    });
+
+    it('takes the categories\' lock, inside its own transaction, to give a new store its order', function () {
+        catalogCategoriesAdd('Kitchens');
+        $eg = Fx::storeId('eg');
+        DB::table('catalog.store_category_ranks')->where('store_id', $eg)->delete();
+        $locks = Cx::recordLocks();
+
+        event(new StoreCreated('e1', $eg, CarbonImmutable::now()));
+
+        expect(array_values(array_filter((array) $locks, static fn (array $lock): bool => $lock['key'] === 'catalog:categories')))->toBe([['key' => 'catalog:categories', 'level' => 2]]);
     });
 });

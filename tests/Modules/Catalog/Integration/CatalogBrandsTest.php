@@ -114,6 +114,16 @@ describe('the seed', function () {
 
         expect(DB::table('catalog.brands')->count())->toBe(1);
     });
+
+    it('makes TouchWood the default when staff added a brand before it', function () {
+        Cx::actAsStaffWith([CatalogPermissions::BRAND_MANAGE]);
+        $blum = catalogBrandsAdd('Blum');
+
+        seed(CatalogSeeder::class);
+
+        expect(DB::table('catalog.brands')->where('is_default', true)->value('name_en'))->toBe('TouchWood')
+            ->and(DB::table('catalog.brands')->where('id', $blum)->value('is_default'))->toBeFalse();
+    });
 });
 
 describe('who may change brands', function () {
@@ -227,9 +237,26 @@ describe('adding and editing', function () {
             ->and(fn () => catalogBrandsAdd('Hettich', ['originCountry' => 'Germany']))->toThrow(InvalidCatalogAttribute::class, 'origin_country');
     });
 
-    it('answers a brand that does not exist as not found', function () {
-        expect(fn () => catalogBrandsEdit('01j8z3k4m5n6p7q8r9s0t1v2w3'))->toThrow(LogicException::class)
-            ->and(fn () => app(DeactivateBrandHandler::class)->handle(new DeactivateBrand('not-an-id')))->toThrow(BrandNotFound::class);
+    it('answers a brand that does not exist as not found, an id or not', function () {
+        // Every brand change with a well-formed id that is not in the list: CatalogListGuardsTest.
+        expect(fn () => app(DeactivateBrandHandler::class)->handle(new DeactivateBrand('not-an-id')))->toThrow(BrandNotFound::class);
+    });
+
+    it('refuses an Arabic slug another brand holds', function () {
+        catalogBrandsAdd('Blum', ['nameAr' => 'بلوم']);
+
+        expect(fn () => catalogBrandsAdd('Blum hinges', ['nameAr' => 'بلوم']))->toThrow(SlugTaken::class, 'بلوم');
+    });
+
+    it('takes a description in Arabic only as missing its English side', function () {
+        $id = catalogBrandsAdd('Blum');
+        $plain = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'نمساوية']]]]];
+
+        expect(fn () => catalogBrandsEdit($id, ['descriptionAr' => $plain]))->toThrow(InvalidCatalogAttribute::class, 'description_en');
+    });
+
+    it('reads a blank origin country as none', function () {
+        expect(app(BrandRepository::class)->find(catalogBrandsAdd('Blum', ['originCountry' => '  ']))?->originCountry())->toBeNull();
     });
 });
 

@@ -152,6 +152,27 @@ describe('structured text', function () {
     });
 });
 
+describe('review of step 2', function () {
+    it('refuses formatted text that is only spaces', function () {
+        expect(fn () => StructuredText::of('terms_en', ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => "  \u{00A0} "]]]]], 100))
+            ->toThrow(InvalidCatalogAttribute::class, 'required');
+    });
+
+    it('refuses a line or paragraph separator, in formatted and in one-line text', function (string $separator) {
+        expect(fn () => StructuredText::of('terms_en', ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => "Oak{$separator}Black"]]]]], 100))
+            ->toThrow(InvalidCatalogAttribute::class, 'terms_en')
+            ->and(fn () => CatalogText::oneLine('name_en', "Oak{$separator}Black", 100))->toThrow(InvalidCatalogAttribute::class, 'name_en');
+    })->with(['line separator' => ["\u{2028}"], 'paragraph separator' => ["\u{2029}"]]);
+
+    it('counts formatted text run by run, and stops at the limit', function () {
+        $runs = array_fill(0, 101, ['text' => 'a']);
+
+        expect(fn () => StructuredText::of('terms_en', ['blocks' => [['type' => 'paragraph', 'runs' => $runs]]], 100))
+            ->toThrow(InvalidCatalogAttribute::class, 'terms_en')
+            ->and(StructuredText::of('terms_en', ['blocks' => [['type' => 'paragraph', 'runs' => array_slice($runs, 0, 100)]]], 100)->plain())->toBe(str_repeat('a', 100));
+    });
+});
+
 describe('labels', function () {
     it('takes one or two words, in each language', function () {
         $label = Label::add('01j8z3k4m5n6p7q8r9s0t1v2w3', LocalizedName::of('عرض خاص', 'Best Seller', Label::NAME_MAX), LabelTone::Healthy, 1);

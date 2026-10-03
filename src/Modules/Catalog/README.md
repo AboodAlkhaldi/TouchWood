@@ -25,7 +25,7 @@ come after the Geist foundation. This file grows with each step. **Steps 1 and 2
 | `Application/Command` | One folder per change: a command and its handler, which names its `PERMISSION` and authorizes first. Step 2: the six shared lists and each store's order of the menu (below) |
 | `Application/Lists` | What the lists' handlers share: `SharedListChange` (the permission with All stores, the transaction, the list's lock, the audit), the forms' parsing (`BrandInput`, `CategoryInput`, `AttributeInput`, `LabelInput`, `WarrantyInput`, `SetMembers`), `CatalogImages` (a logo or photo must be a public image) and `StartingCategoryOrder` |
 | `Application/Audit/ListAudit.php` | Every list change's audit entry, by value: `catalog.{list}.{what}` |
-| `Domain/Model` | Brand, Category, Attribute, AttributeValue, AttributeSet, Label, Warranty, WordPair — each keeps what one row can know, and a `ChangeLog` of what an edit changed |
+| `Domain/Model` | Brand, Category, Attribute, AttributeValue, AttributeSet, Label, Warranty, WordPair — each keeps what one row can know; all but WordPair (added and deleted, never edited) keep a `ChangeLog` of what an edit changed |
 | `Domain/ValueObject` | Names in both languages, slugs, the structured text of descriptions and terms, list positions, a label's look (`LabelTone`, the Badge's ten), a warranty's period |
 | `Domain/Service/ArabicText.php` | Arabic as search compares it (handoff §5.2): marks off, alef and yeh forms folded, digits Latin, lower case |
 | `Domain/Exception` | `CatalogError` and the fourteen refusals of step 2, named in both languages in `lang/{ar,en}/errors.php` |
@@ -33,7 +33,7 @@ come after the Geist foundation. This file grows with each step. **Steps 1 and 2
 | `Infrastructure/Eloquent` | The repositories on the query builder; `SlugHistory`; `DatabaseListLocks`; Catalog's own `Ulids` (amendment 1(h)) |
 | `Infrastructure/Media/CatalogImagesUsage.php` | Brand logos and category photos as Platform media (below) |
 | `Infrastructure/Listener` | A store opened later takes the base store's order of the menu |
-| `Infrastructure/Persistence` | `CatalogSchema` (step 1) and the migrations: step 2's lists, each rule in code backed by a named CHECK or index |
+| `Infrastructure/Persistence` | `CatalogSchema` (step 1) and the migrations: step 2's lists, every rule one row can hold backed by a named CHECK, index or key |
 | `Presentation/lang/{ar,en}` | The permissions' names, the errors, and the audit log's name for every action |
 | `Public/Enums` | `AttributeKind`, `AgencyType` — and so their TypeScript types |
 
@@ -42,7 +42,10 @@ come after the Geist foundation. This file grows with each step. **Steps 1 and 2
 **The same shape as Access and B2B.** Every change goes through a command handler that authorizes
 first, works inside one transaction and audits what it changed; repositories write with the query
 builder; ids are lower-case ULIDs, and anything that is not one is "not found" without a query. Every
-rule is in code first and in the database behind it (handoff §5.3).
+rule is in code first; a rule one row can hold is in the database behind it (handoff §5.3). Rules that
+read other rows or another table — a category's loops, a swatch only on a colour attribute's values,
+a set's members, a job locked by values, "at least one default" — are the code's alone, under the
+list's lock.
 
 **One permission per job, none admin-only** (catalog.md §3). A store's own row — its choice, selling
 terms, "Not available now", labels, ranks — is checked in that store. A product's shared data is
@@ -68,9 +71,9 @@ transaction, none when nothing changed.
 
 | List | What the code keeps |
 |---|---|
-| Brands | Two slugs, one per language, global, each kept forever in the history table so an old address redirects and is never given to another; **exactly one default** — the first brand becomes it, moving it un-marks the old one in the same step, the default is never deactivated or deleted; an optional two-letter origin country (amendment 1(j)); a description in both languages or neither. The seed adds TouchWood «تاتش وود» only |
+| Brands | Two slugs, one per language, global — Arabic letters and digits for `ar`, `a-z` and digits for `en` (§5.3) — each kept in the history table while the brand exists, so a slug it once held is never given to another (the redirect itself arrives with the storefront, step 5; what deleting a brand does to its old slugs is waiting for the owner); **exactly one default** — the first brand becomes it, moving it un-marks the old one in the same step, the default is never deactivated or deleted; an optional two-letter origin country (amendment 1(j)); a description in both languages or neither. The seed adds TouchWood «تاتش وود» only |
 | Categories | One tree, nesting without limit, never under itself or below itself; a new or moved category goes under an **active** parent only, and **its place among its siblings is chosen by whoever adds or moves it** and written into every store, on or off (amendment 1(d)); each store's admins reorder their own menu with `RankCategories` (`catalog.category.rank` in that store). Deactivating takes every active category below it, each remembering it went with its parent, so activating brings back exactly that; a category under a deactivated parent cannot be activated. Only an empty category is deleted |
-| Attributes | A job — details only, filter, or variant-making — that changes, with being a colour, **only while the attribute has no values** (amendment 1(i)); an attribute a set holds stays variant-making. Values: never two alike in either language ignoring case; a colour attribute's values need a `#rrggbb` swatch, no other's take one. Sets: one to ten variant-making attributes in order; a member deactivated later may stay, so the set can still be renamed |
+| Attributes | A job — details only, filter, or variant-making — that changes, with being a colour, **only while the attribute has no values** (amendment 1(i)); an attribute a set holds stays variant-making. Values: never two alike in either language ignoring case; a colour attribute's values need a `#rrggbb` swatch, no other's take one; an attribute is deleted only after its values (RESTRICT, §5.3), which its handler deletes and audits one by one. Sets: one to ten variant-making attributes in order; a member deactivated later may stay, so the set can still be renamed |
 | Labels | «الشارات»: one or two words in each language, at most 30 characters, and one of the Badge's ten looks, chosen by meaning (amendment 1(e), (f)) |
 | Warranties | Name and formatted terms in both languages, 1–600 months or for life |
 | Word pairs | Kept as search compares words, in byte order, once whichever way they were typed; added and deleted, never edited. The ordering CHECK compares with `COLLATE "C"`: the database's language order ignores spaces and hyphens and would refuse pairs the code accepts |
@@ -111,9 +114,12 @@ public surface never references Access.
 | `Integration/CatalogSmallListsTest` | Labels, warranties and word pairs, including a pair the database's language order would sort the other way |
 | `Integration/CatalogImagesUsageTest` | Deleting a logo or photo's file: detached and audited, or refused with nothing changed |
 | `Integration/CatalogAuditNamesTest` | Every action the code records is named in both languages, and nothing else is |
+| `Integration/CatalogListGuardsTest` | For every one of the forty list changes: its list's lock is the first query inside its own transaction; an id not in its list is answered as not found; a change that changes nothing writes nothing to the lists and records nothing; and what the audit log keeps reads from what was to what is |
+| `Integration/CatalogListConstraintsTest` | The database's named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code; an id that is not a ULID never reaching the database |
+| `Unit/CatalogListLocksTest` | A list's lock is refused outside a transaction |
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 
-Each list's tests check the lock is taken inside the handler's own transaction (level 2 under
-`RefreshDatabase`), by recording the advisory-lock queries. Run everything with `composer check`.
+`CatalogListGuardsTest` records every query to check each change takes its list's lock first, inside
+its own transaction (level 2 under `RefreshDatabase`). Run everything with `composer check`.
 The test database is `touchwood_test`.

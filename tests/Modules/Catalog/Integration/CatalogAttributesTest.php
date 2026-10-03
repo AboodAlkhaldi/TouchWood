@@ -112,7 +112,7 @@ function catalogAttributesValue(string $attributeId, string $nameEn, array $over
 }
 
 /**
- * @param  list<string>  $attributeIds
+ * @param  array<array-key, mixed>  $attributeIds  as a request may send them
  */
 function catalogAttributesSet(string $nameEn, array $attributeIds): string
 {
@@ -342,6 +342,16 @@ describe('attribute sets', function () {
             ->and(fn () => catalogAttributesSet('Off', [$width, $off]))->toThrow(ListItemInactive::class)
             ->and(fn () => catalogAttributesSet('Twice', [$width, $width]))->toThrow(InvalidCatalogAttribute::class, 'attribute_ids')
             ->and(fn () => catalogAttributesSet('Eleven', $eleven))->toThrow(InvalidCatalogAttribute::class, 'attribute_ids')
+            ->and(DB::table('catalog.attribute_sets')->count())->toBe(0);
+    });
+
+    it('refuses more than ten members before reading any, and a member that is not an id', function () {
+        $ten = array_map(fn (int $i): string => catalogAttributesAdd("Size {$i}"), range(1, 10));
+
+        // The eleventh is unknown: refused for the count, so it was never looked up.
+        expect(fn () => catalogAttributesSet('Eleven', [...$ten, '01j8z3k4m5n6p7q8r9s0t1v2w3']))->toThrow(InvalidCatalogAttribute::class, 'attribute_ids')
+            ->and(fn () => catalogAttributesSet('Not ids', [$ten[0], ['id' => $ten[1]]]))->toThrow(InvalidCatalogAttribute::class, 'attribute_ids')
+            ->and(fn () => catalogAttributesSet('Null', [null]))->toThrow(InvalidCatalogAttribute::class, 'attribute_ids')
             ->and(DB::table('catalog.attribute_sets')->count())->toBe(0);
     });
 

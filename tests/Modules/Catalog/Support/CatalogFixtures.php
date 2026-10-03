@@ -62,6 +62,24 @@ final class CatalogFixtures
     }
 
     /**
+     * Every query from now on, in order, with its bindings and the transaction level it ran at — to
+     * tell what a change did first inside its own transaction (level 2 under RefreshDatabase).
+     *
+     * @return ArrayObject<int, array{sql: string, bindings: array<array-key, mixed>, level: int}>
+     */
+    public static function recordQueries(): ArrayObject
+    {
+        /** @var ArrayObject<int, array{sql: string, bindings: array<array-key, mixed>, level: int}> $queries */
+        $queries = new ArrayObject;
+
+        DB::listen(function (QueryExecuted $query) use ($queries): void {
+            $queries[] = ['sql' => $query->sql, 'bindings' => $query->bindings, 'level' => DB::transactionLevel()];
+        });
+
+        return $queries;
+    }
+
+    /**
      * Every advisory lock taken from now on, with the transaction level it was taken at (lesson 110):
      * a list's lock must be taken inside its change's own transaction.
      *

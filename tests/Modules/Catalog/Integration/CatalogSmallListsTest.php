@@ -101,6 +101,11 @@ describe('labels', function () {
             ->and(array_values(array_filter((array) $locks, static fn (array $lock): bool => $lock['key'] === 'catalog:labels')))->toBe([['key' => 'catalog:labels', 'level' => 2]]);
     });
 
+    it('refuses a name past 30 characters', function () {
+        expect(fn () => app(AddLabelHandler::class)->handle(new AddLabel('جديد', str_repeat('a', 31), 'blue')))->toThrow(InvalidCatalogAttribute::class, 'name_en')
+            ->and(app(AddLabelHandler::class)->handle(new AddLabel('جديد', str_repeat('a', 30), 'blue')))->toBeString();
+    });
+
     it('refuses a look outside the ten, and a name of three words in either language', function () {
         expect(fn () => app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'New', 'purple')))->toThrow(InvalidCatalogAttribute::class, 'tone')
             ->and(fn () => app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'Brand new item', 'blue')))->toThrow(InvalidCatalogAttribute::class, 'name_en')
@@ -201,6 +206,13 @@ describe('word pairs', function () {
 
         expect([app(WordPairRepository::class)->find($id)?->wordA, app(WordPairRepository::class)->find($id)?->wordB])->toBe(['a b', 'a-a'])
             ->and(app(WordPairRepository::class)->find($soft)?->wordA)->toBe('soft close');
+    });
+
+    it('measures a word as it is kept: lowered, it may grow past 50 characters', function () {
+        // "İ" lowered is two characters: 50 of them are 100 once kept.
+        expect(fn () => app(AddWordPairHandler::class)->handle(new AddWordPair(str_repeat('İ', 50), 'hinge')))->toThrow(InvalidCatalogAttribute::class, 'word_a')
+            ->and(fn () => app(AddWordPairHandler::class)->handle(new AddWordPair('hinge', str_repeat('İ', 26))))->toThrow(InvalidCatalogAttribute::class, 'word_b')
+            ->and(DB::table('catalog.word_pairs')->count())->toBe(0);
     });
 
     it('deletes a pair, audited, and answers one that is not there as not found', function () {

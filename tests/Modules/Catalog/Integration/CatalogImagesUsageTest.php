@@ -40,9 +40,27 @@ it('reports a logo and a photo as uses that do not block, and detaches both', fu
     $brand = app(AddBrandHandler::class)->handle(new AddBrand('بلوم', 'Blum', 'DISTRIBUTOR', logoMediaId: $image));
     $category = app(AddCategoryHandler::class)->handle(new AddCategory('مطابخ', 'Kitchens', imageMediaId: $image));
 
+    $queries = Cx::recordQueries();
+
     app(DeleteMediaHandler::class)->handle(new DeleteMedia($image));
 
-    expect(DB::table('platform.media')->where('id', $image)->exists())->toBeFalse()
+    $sql = array_map(static fn (array $query): string => $query['sql'].' '.json_encode($query['bindings']), (array) $queries);
+    $at = static function (string $needle) use ($sql): int {
+        foreach ($sql as $index => $line) {
+            if (str_contains($line, $needle)) {
+                return $index;
+            }
+        }
+
+        return -1;
+    };
+    $changes = (array) json_decode((string) DB::table('platform.audit_entries')->where('action', 'catalog.brand.logo_detached')->value('changes'), true);
+
+    // Each list's lock before its rows change.
+    expect($at('catalog:brands'))->toBeGreaterThan(-1)->toBeLessThan($at('update "catalog"."brands"'))
+        ->and($at('catalog:categories'))->toBeGreaterThan(-1)->toBeLessThan($at('update "catalog"."categories"'))
+        ->and($changes)->toBe(['logo_media_id' => [$image, null]])
+        ->and(DB::table('platform.media')->where('id', $image)->exists())->toBeFalse()
         ->and(DB::table('catalog.brands')->where('id', $brand)->value('logo_media_id'))->toBeNull()
         ->and(DB::table('catalog.categories')->where('id', $category)->value('image_media_id'))->toBeNull()
         ->and(Fx::audits('catalog.brand.logo_detached', $brand))->toBe(1)
