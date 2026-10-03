@@ -32,10 +32,16 @@ use Modules\Catalog\Application\Command\AddCategory\AddCategory;
 use Modules\Catalog\Application\Command\AddCategory\AddCategoryHandler;
 use Modules\Catalog\Application\Command\AddLabel\AddLabel;
 use Modules\Catalog\Application\Command\AddLabel\AddLabelHandler;
+use Modules\Catalog\Application\Command\AddVariant\AddVariant;
+use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
 use Modules\Catalog\Application\Command\AddWarranty\AddWarranty;
 use Modules\Catalog\Application\Command\AddWarranty\AddWarrantyHandler;
 use Modules\Catalog\Application\Command\AddWordPair\AddWordPair;
 use Modules\Catalog\Application\Command\AddWordPair\AddWordPairHandler;
+use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCode;
+use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCodeHandler;
+use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
+use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
 use Modules\Catalog\Application\Command\DeactivateAttribute\DeactivateAttribute;
 use Modules\Catalog\Application\Command\DeactivateAttribute\DeactivateAttributeHandler;
 use Modules\Catalog\Application\Command\DeactivateAttributeSet\DeactivateAttributeSet;
@@ -60,6 +66,10 @@ use Modules\Catalog\Application\Command\DeleteBrand\DeleteBrand;
 use Modules\Catalog\Application\Command\DeleteBrand\DeleteBrandHandler;
 use Modules\Catalog\Application\Command\DeleteCategory\DeleteCategory;
 use Modules\Catalog\Application\Command\DeleteCategory\DeleteCategoryHandler;
+use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProduct;
+use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProductHandler;
+use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariant;
+use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariantHandler;
 use Modules\Catalog\Application\Command\DeleteLabel\DeleteLabel;
 use Modules\Catalog\Application\Command\DeleteLabel\DeleteLabelHandler;
 use Modules\Catalog\Application\Command\DeleteWarranty\DeleteWarranty;
@@ -78,6 +88,8 @@ use Modules\Catalog\Application\Command\EditCategory\EditCategory;
 use Modules\Catalog\Application\Command\EditCategory\EditCategoryHandler;
 use Modules\Catalog\Application\Command\EditLabel\EditLabel;
 use Modules\Catalog\Application\Command\EditLabel\EditLabelHandler;
+use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
+use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\EditWarranty\EditWarranty;
 use Modules\Catalog\Application\Command\EditWarranty\EditWarrantyHandler;
 use Modules\Catalog\Application\Command\MakeBrandDefault\MakeBrandDefault;
@@ -86,9 +98,13 @@ use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
 use Modules\Catalog\Application\Command\RankCategories\RankCategories;
 use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
+use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
+use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
 use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
+use Modules\Catalog\Domain\Exception\ProductNotFound;
+use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 
@@ -107,7 +123,14 @@ const CATALOG_GUARDS_UNKNOWN = '01j8z3k4m5n6p7q8r9s0t1v2w3';
 
 beforeEach(function () {
     seed(PlatformSeeder::class);
-    Cx::actAsStaffWith([...CatalogPermissions::sharedLists(), CatalogPermissions::CATEGORY_RANK]);
+    Cx::actAsStaffWith([
+        ...CatalogPermissions::sharedLists(),
+        CatalogPermissions::CATEGORY_RANK,
+        CatalogPermissions::PRODUCT_CREATE,
+        CatalogPermissions::PRODUCT_UPDATE,
+        CatalogPermissions::PRODUCT_ARCHIVE,
+        CatalogPermissions::VARIANT_CORRECT_CODE,
+    ]);
 });
 
 function catalogGuardsNext(): int
@@ -180,6 +203,20 @@ function catalogGuardsWarranty(): string
     $n = catalogGuardsNext();
 
     return app(AddWarrantyHandler::class)->handle(new AddWarranty("ضمان {$n}", "Warranty {$n}", catalogGuardsTerms(), catalogGuardsTerms(), 12));
+}
+
+/** A draft on a brand of its own (no default brand exists in these tests), made first if not given. */
+function catalogGuardsProduct(?string $brandId = null): string
+{
+    $brandId ??= catalogGuardsBrand();
+    $n = catalogGuardsNext();
+
+    return app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), "منتج {$n}", "Product {$n}", $brandId));
+}
+
+function catalogGuardsVariant(string $productId): string
+{
+    return app(AddVariantHandler::class)->handle(new AddVariant($productId, (string) (1000 + catalogGuardsNext())));
 }
 
 function catalogGuardsPair(): string
@@ -391,6 +428,42 @@ function catalogGuardsChanges(): array
 
             return fn () => app(DeleteWarrantyHandler::class)->handle(new DeleteWarranty($id));
         }],
+        'create a product' => ['products', function () {
+            $brand = catalogGuardsBrand();
+
+            return fn () => catalogGuardsProduct($brand);
+        }],
+        'edit a product' => ['products', function () {
+            $id = catalogGuardsProduct();
+            $brand = catalogGuardsBrand();
+
+            return fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, 'منتج معدل', 'Edited product', $brand));
+        }],
+        'delete a draft product' => ['products', function () {
+            $id = catalogGuardsProduct();
+
+            return fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($id));
+        }],
+        'add a variant' => ['products', function () {
+            $id = catalogGuardsProduct();
+
+            return fn () => catalogGuardsVariant($id);
+        }],
+        'update a variant' => ['products', function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+
+            return fn () => app(UpdateVariantHandler::class)->handle(new UpdateVariant($id, '99', position: 2));
+        }],
+        'delete a draft variant' => ['products', function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+
+            return fn () => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($id));
+        }],
+        'correct a code' => ['products', function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+
+            return fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($id, '98'));
+        }],
         'add a word pair' => ['word_pairs', fn () => fn () => catalogGuardsPair()],
         'delete a word pair' => ['word_pairs', function () {
             $id = catalogGuardsPair();
@@ -458,6 +531,12 @@ describe('an id that is not in its list', function () {
         'activate a warranty' => [ListItemNotFound::class, fn () => app(ActivateWarrantyHandler::class)->handle(new ActivateWarranty(CATALOG_GUARDS_UNKNOWN))],
         'delete a warranty' => [ListItemNotFound::class, fn () => app(DeleteWarrantyHandler::class)->handle(new DeleteWarranty(CATALOG_GUARDS_UNKNOWN))],
         'delete a word pair' => [ListItemNotFound::class, fn () => app(DeleteWordPairHandler::class)->handle(new DeleteWordPair(CATALOG_GUARDS_UNKNOWN))],
+        'edit a product' => [ProductNotFound::class, fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails(CATALOG_GUARDS_UNKNOWN, 'منتج', 'Product', catalogGuardsBrand()))],
+        'delete a draft product' => [ProductNotFound::class, fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct(CATALOG_GUARDS_UNKNOWN))],
+        'add a variant to an unknown product' => [ProductNotFound::class, fn () => app(AddVariantHandler::class)->handle(new AddVariant(CATALOG_GUARDS_UNKNOWN, '1001'))],
+        'update a variant' => [VariantNotFound::class, fn () => app(UpdateVariantHandler::class)->handle(new UpdateVariant(CATALOG_GUARDS_UNKNOWN, '1001'))],
+        'delete a draft variant' => [VariantNotFound::class, fn () => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant(CATALOG_GUARDS_UNKNOWN))],
+        'correct a code' => [VariantNotFound::class, fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode(CATALOG_GUARDS_UNKNOWN, '1001'))],
     ]);
 });
 
@@ -568,6 +647,24 @@ describe('a change that changes nothing', function () {
             $id = catalogGuardsWarranty();
 
             return fn () => app(ActivateWarrantyHandler::class)->handle(new ActivateWarranty($id));
+        }],
+        'edit a product to what it is' => [function () {
+            $id = catalogGuardsProduct();
+            $row = DB::table('catalog.products')->where('id', $id)->sole();
+
+            return fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, (string) $row->name_ar, (string) $row->name_en, (string) $row->brand_id));
+        }],
+        'update a variant to what it is' => [function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+            $code = (string) DB::table('catalog.variants')->where('id', $id)->value('code');
+
+            return fn () => app(UpdateVariantHandler::class)->handle(new UpdateVariant($id, $code));
+        }],
+        'correct a code to itself' => [function () {
+            $id = catalogGuardsVariant(catalogGuardsProduct());
+            $code = (string) DB::table('catalog.variants')->where('id', $id)->value('code');
+
+            return fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($id, " {$code} "));
         }],
     ]);
 });
