@@ -68,6 +68,8 @@ final readonly class ProductPhotosUsage implements MediaUsage
         $changed = [];
 
         foreach ($this->products->withPhoto($mediaId) as $productId) {
+            $this->access->authorizeFor(CatalogPermissions::PRODUCT_UPDATE, $productId);
+
             if ($this->blocks($productId, $mediaId)) {
                 throw new ProductNotReady(['photos']);
             }
@@ -78,6 +80,12 @@ final readonly class ProductPhotosUsage implements MediaUsage
         }
 
         foreach ($this->variants->withPhoto($mediaId) as $variantId) {
+            $variantProduct = $this->variants->find($variantId)?->productId();
+
+            if ($variantProduct !== null) {
+                $this->access->authorizeFor(CatalogPermissions::PRODUCT_UPDATE, $variantProduct);
+            }
+
             $this->variants->removePhoto($variantId, $mediaId);
             $this->platform->recordAudit(ListAudit::replaced('variant', 'photo_detached', $variantId, 'media_id', strtolower($mediaId), null));
             $productId = $this->variants->find($variantId)?->productId();

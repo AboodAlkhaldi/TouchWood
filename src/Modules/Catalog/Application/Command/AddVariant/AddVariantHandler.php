@@ -59,6 +59,7 @@ final readonly class AddVariantHandler
 
         return $this->change->run(ListLocks::PRODUCTS, function () use ($command, $code, $measures, $id): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $this->access->authorizeFor(self::PERMISSION, $product->id());
             $this->input->freeCode($product, $code);
             $combination = $this->input->combination($product, $command->values);
 

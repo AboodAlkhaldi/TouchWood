@@ -47,6 +47,7 @@ final readonly class SetRelationsHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command, $column): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $this->access->authorizeFor(self::PERMISSION, $product->id());
             $before = $this->products->relations($product->id(), $command->kind);
             $after = $this->parts->relations($product->id(), $command->productIds, $before);
 

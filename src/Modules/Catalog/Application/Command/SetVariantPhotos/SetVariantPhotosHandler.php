@@ -50,6 +50,7 @@ final readonly class SetVariantPhotosHandler
             $variant = $this->variants->byId($command->variantId) ?? throw new VariantNotFound($command->variantId);
             // A variant never outlives its product (the key cascades), so this always finds it.
             $product = $this->products->byId($variant->productId()) ?? throw new LogicException('A variant without its product.');
+            $this->access->authorizeFor(self::PERMISSION, $product->id());
             $before = $this->variants->photos($variant->id());
             $after = $this->parts->photos('photos', $command->mediaIds, self::MAX);
 

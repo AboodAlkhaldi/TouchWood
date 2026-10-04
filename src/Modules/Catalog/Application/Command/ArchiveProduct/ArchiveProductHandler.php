@@ -41,6 +41,7 @@ final readonly class ArchiveProductHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $this->access->authorizeFor(self::PERMISSION, $product->id());
             $was = $product->stage()->value;
             $product->archive();
 

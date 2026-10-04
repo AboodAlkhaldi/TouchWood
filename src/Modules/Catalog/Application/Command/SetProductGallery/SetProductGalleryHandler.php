@@ -48,6 +48,7 @@ final readonly class SetProductGalleryHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $this->access->authorizeFor(self::PERMISSION, $product->id());
             $before = $this->products->gallery($product->id());
             $after = $this->parts->photos('photos', $command->mediaIds, self::MAX);
 

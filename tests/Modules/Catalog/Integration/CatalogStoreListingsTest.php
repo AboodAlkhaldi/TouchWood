@@ -7,6 +7,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\AddLabel\AddLabel;
@@ -31,6 +32,10 @@ use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProduct;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProductHandler;
+use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
+use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWords;
+use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWordsHandler;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
@@ -42,10 +47,14 @@ use Modules\Catalog\Domain\Exception\NotChosenInStore;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Exception\TooMany;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
+use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
@@ -351,5 +360,37 @@ describe('archiving', function () {
 
         expect(catalogListingActive(Fx::storeId('sa'), $ready['product']))->toBe([$eighty])
             ->and(catalogListingActive(Fx::storeId('eg'), $ready['product']))->toBe([$eighty]);
+    });
+});
+
+describe('the shared data of a product a store sells', function () {
+    it('needs the job in every store where the product is Active; Active nowhere, in any store', function () {
+        $ready = Px::ready();
+        catalogListingChoose('eg', $ready['product']);
+        $words = fn (string $word) => app(SetSearchWordsHandler::class)->handle(new SetSearchWords($ready['product'], [$word]));
+
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE], ['sa']);
+
+        expect(fn () => $words('slide'))->toThrow(Unauthorized::class);
+
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE], ['sa', 'eg']);
+        $words('slide');
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('eg'), $ready['product'], false)));
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE], ['sa']);
+        $words('rail');
+
+        expect(array_column(app(ProductRepository::class)->searchWords($ready['product']), 'word'))->toBe(['rail']);
+    });
+
+    it('needs it in every such store to take a deleted photo\'s file out of the product', function () {
+        Storage::fake('local');
+        $ready = Px::ready();
+        $photo = Cx::media();
+        Fx::asSystem(fn () => app(SetProductGalleryHandler::class)->handle(new SetProductGallery($ready['product'], [...app(ProductRepository::class)->gallery($ready['product']), $photo])));
+        catalogListingChoose('eg', $ready['product']);
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE, PlatformPermissions::MEDIA_DELETE], ['sa']);
+
+        expect(fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($photo)))->toThrow(Unauthorized::class)
+            ->and(app(ProductRepository::class)->gallery($ready['product']))->toContain($photo);
     });
 });

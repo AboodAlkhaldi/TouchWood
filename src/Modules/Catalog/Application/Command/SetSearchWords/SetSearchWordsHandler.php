@@ -43,6 +43,7 @@ final readonly class SetSearchWordsHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command, $words): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $this->access->authorizeFor(self::PERMISSION, $product->id());
             $before = SearchWords::reconstitute($this->products->searchWords($product->id()));
 
             if ($before->words === $words->words) {

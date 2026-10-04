@@ -62,6 +62,7 @@ final readonly class EditProductDetailsHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command, $name, $slugs, $descriptionAr, $descriptionEn): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $this->access->authorizeFor(self::PERMISSION, $product->id());
             $this->input->requireFreeSlugs($slugs, $product->id());
 
             $product->editDetails(
