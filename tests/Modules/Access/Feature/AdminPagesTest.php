@@ -118,7 +118,10 @@ describe('the admin sign-in screens', function () {
             ->assertOk()
             ->assertSee('<link rel="icon" type="image/svg+xml" href="/favicon.svg">', false);
 
-        expect(file_get_contents(public_path('favicon.svg')))->toContain('viewBox="0 0 100 100"');
+        // The owner's frame, on the navy tile.
+        expect(file_get_contents(public_path('favicon.svg')))
+            ->toContain('fill="#02365e"')
+            ->toContain('d="M2210 9617 l0 -1559');
     });
 
     it('sends only the admin routes to an admin page, never the storefront\'s', function () {

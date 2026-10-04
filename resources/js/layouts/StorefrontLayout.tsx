@@ -58,7 +58,7 @@ export function StorefrontLayout({ title, children }: Props) {
                             href={shop === null || shop === undefined ? '/' : `/${shop.code}/${locale}`}
                             className="flex items-center gap-3"
                         >
-                            <Logo tone="auto" />
+                            <Logo tone="auto" decorative />
                             <span className="text-heading-16">TouchWood</span>
                         </Link>
 

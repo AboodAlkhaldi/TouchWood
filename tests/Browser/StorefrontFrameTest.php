@@ -87,7 +87,9 @@ it('draws the logo on a cream tile on a light page and a navy tile on a dark one
     // The owner's logo answers of 2026-10-04 (frontend.md §1.11): the tile follows the page, by the
     // stylesheet, so the first paint is already right.
     $light = visit('/sa/en');
-    expect($light->script("getComputedStyle(document.querySelector('header [data-logo=\"auto\"] rect')).fill"))->toBe('rgb(246, 239, 232)');
+    expect(browserUntil($light, "getComputedStyle(document.querySelector('header [data-logo=\"auto\"] rect')).fill === 'rgb(246, 239, 232)'"))->toBeTrue()
+        // The frame in the deep copper on cream, as the owner's pictures.
+        ->and($light->script("getComputedStyle(document.querySelector('header [data-logo=\"auto\"] [data-logo-part=\"frame\"]')).fill"))->toBe('rgb(134, 71, 32)');
 
     $dark = visit('/sa/en')->inDarkMode();
     expect(browserUntil($dark, "getComputedStyle(document.querySelector('header [data-logo=\"auto\"] rect')).fill === 'rgb(2, 54, 94)'"))->toBeTrue();

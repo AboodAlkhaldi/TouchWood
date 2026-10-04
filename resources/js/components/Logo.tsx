@@ -23,40 +23,45 @@ const RIDGES = [
     'M6070 7714 c-378 -48 -773 -205 -1100 -438 -220 -157 -396 -318 -845 -776 -149 -151 -295 -300 -325 -330 -142 -145 -403 -442 -512 -585 -81 -106 -194 -287 -250 -400 -110 -219 -172 -427 -209 -705 -28 -201 -30 -554 -5 -735 63 -450 231 -886 494 -1280 158 -236 277 -364 382 -414 45 -21 69 -26 135 -26 94 0 158 24 218 83 67 64 82 103 82 212 0 119 -12 145 -134 294 -158 191 -250 330 -346 521 -94 186 -135 296 -184 498 -99 400 -72 889 69 1237 103 256 179 367 486 712 148 166 992 1011 1109 1110 369 314 758 470 1175 471 280 1 474 -53 677 -190 284 -191 453 -556 453 -980 0 -224 -59 -463 -165 -673 -38 -76 -162 -256 -256 -371 -317 -392 -850 -863 -1142 -1010 -191 -96 -401 -93 -499 8 -109 112 -108 289 2 458 40 61 67 93 383 459 256 296 328 389 437 561 113 180 131 244 91 323 -36 71 -134 97 -211 57 -18 -9 -98 -78 -179 -152 -80 -75 -191 -176 -246 -227 -489 -448 -707 -687 -815 -896 -69 -134 -91 -218 -97 -371 -6 -139 8 -232 52 -342 77 -188 240 -348 436 -425 126 -50 171 -57 349 -57 176 1 201 5 388 66 435 143 1201 763 1599 1294 201 269 344 574 402 860 103 511 12 1100 -228 1467 -144 222 -313 372 -562 502 -325 170 -727 239 -1109 190z',
 ];
 
-type Tone = 'navy' | 'cream' | 'auto' | 'mark';
+type Tone = 'navy' | 'auto' | 'mark';
 
 const TILE: Record<Exclude<Tone, 'mark'>, string> = {
     navy: 'fill-(--tw-logo-navy)',
-    cream: 'fill-(--tw-logo-cream)',
     auto: 'fill-(--tw-logo-cream) dark:fill-(--tw-logo-navy)',
 };
 
 const FRAME_FILL: Record<Tone, string> = {
     navy: 'fill-(--tw-logo-copper-light)',
-    cream: 'fill-(--tw-logo-copper-deep)',
     auto: 'fill-(--tw-logo-copper-deep) dark:fill-(--tw-logo-copper-light)',
     mark: 'fill-(--tw-logo-copper-deep) dark:fill-(--tw-logo-copper-light)',
 };
 
 const PRINT: Record<Tone, string> = {
     navy: 'fill-(--tw-logo-cream)',
-    cream: 'fill-(--tw-logo-navy)',
     auto: 'fill-(--tw-logo-navy) dark:fill-(--tw-logo-cream)',
     mark: 'fill-current',
 };
 
 /** A hairline round the tile, so a navy tile holds its edge on the navy sidebar and a cream one on
- * a white header, as the soft edge in the owner's pictures. */
+ * a white header, as the soft edge in the owner's pictures. Drawn inside the tile: on the sidebar's
+ * rail of icons the button clips anything outside it. */
 const EDGE: Record<Exclude<Tone, 'mark'>, string> = {
     navy: 'ring-sidebar-line',
-    cream: 'ring-line',
     auto: 'ring-line',
 };
 
-export function Logo({ tone = 'mark', className }: { tone?: Tone; className?: string }) {
+type Props = {
+    tone?: Tone;
+    /** Beside the written name - "TouchWood" - say nothing, or a screen reader says it twice. */
+    decorative?: boolean;
+    className?: string;
+};
+
+export function Logo({ tone = 'mark', decorative = false, className }: Props) {
+    const named = decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': 'TouchWood' };
     const mark = (
         <g transform="translate(0,1246) scale(0.1,-0.1)">
-            <path className={FRAME_FILL[tone]} d={FRAME} />
+            <path className={FRAME_FILL[tone]} d={FRAME} data-logo-part="frame" />
             {RIDGES.map((d) => (
                 <path key={d.slice(0, 12)} className={PRINT[tone]} d={d} />
             ))}
@@ -65,7 +70,7 @@ export function Logo({ tone = 'mark', className }: { tone?: Tone; className?: st
 
     if (tone === 'mark') {
         return (
-            <svg viewBox="0 0 1263 1246" className={cn('size-9', className)} role="img" aria-label="TouchWood" data-logo="mark">
+            <svg viewBox="0 0 1263 1246" className={cn('size-9', className)} {...named} data-logo="mark">
                 {mark}
             </svg>
         );
@@ -73,7 +78,7 @@ export function Logo({ tone = 'mark', className }: { tone?: Tone; className?: st
 
     // A rounded tile, the mark inset in it as in the owner's pictures.
     return (
-        <svg viewBox="0 0 100 100" className={cn('size-9 rounded-[22%] ring-1', EDGE[tone], className)} role="img" aria-label="TouchWood" data-logo={tone}>
+        <svg viewBox="0 0 100 100" className={cn('size-9 rounded-[22%] ring-1 ring-inset', EDGE[tone], className)} {...named} data-logo={tone}>
             <rect width="100" height="100" rx="22" className={TILE[tone]} />
             <svg x="15" y="15" width="70" height="70" viewBox="0 0 1263 1246">
                 {mark}

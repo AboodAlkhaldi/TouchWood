@@ -528,9 +528,9 @@ and examples. Only when neither has it, show the owner what was searched and ask
     the sidebar and on the home page are written in the page's digits too (§1.8).
   - **the logo** is the owner's files of 2026-10-04 — a frame and a fingerprint, drawn rather than
     fetched: **a navy tile on dark surfaces** (the sidebar, navy in both themes, and dark mode;
-    the phone's home-screen icon) and **a cream tile on light ones** (the shop's header and the
-    sign-in pages in light mode), the frame in our copper, the colours theme tokens
-    (`--tw-logo-*`); the tab's icon is the navy tile as an SVG. The PNG sizes — for older browsers,
+    the phone's home-screen icon, once the PNGs arrive) and **a cream tile on light ones** (the
+    shop's header and the sign-in pages in light mode), the frame in our copper, the colours theme
+    tokens (`--tw-logo-*`); the tab's icon is the navy tile as an SVG. The PNG sizes — for older browsers,
     phones' home screens and emails — are the owner's own exports, added when they arrive. The
     outlined file is for print and engraving; the glass tile of the pictures is not used.
 
