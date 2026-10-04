@@ -189,8 +189,9 @@ describe('the menu', function () {
             ->and($order('ae'))->toBe([$second, $first]);
     });
 
-    it('leaves out a category deactivated by hand, even with a product left in it', function () {
-        $category = Px::category('Hinges');
+    it('leaves out a category deactivated by hand, even with a product left in it — and a parent with nothing else', function () {
+        $parent = Px::category('Kitchens');
+        $category = Px::category('Hinges', $parent);
         catalogShopProduct($category);
 
         Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'LEAVE')));
@@ -307,7 +308,8 @@ describe('a brand page', function () {
 describe('a product page', function () {
     it('is available while a shopper can find it here, with the variants on sale and the store\'s labels — and no code anywhere', function () {
         $p = Px::ready(['60 cm', '80 cm']);
-        catalogShopChoose('sa', $p['product'], variantIds: [$p['variants'][1]]);
+        catalogShopChoose('sa', $p['product']);
+        Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $p['product'], $p['variants'][0])));
         $label = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'New', 'green', 0)));
         Fx::asSystem(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels(Fx::storeId('sa'), $p['product'], [$label])));
 

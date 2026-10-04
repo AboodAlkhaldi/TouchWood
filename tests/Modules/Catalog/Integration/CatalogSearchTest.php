@@ -102,8 +102,10 @@ describe('the ranking', function () {
         $exact = catalogSearchProduct('Drawer', 'درج');
         $prefixLower = catalogSearchProduct('Drawer runner', 'سكة درج');
         $prefixHigher = catalogSearchProduct('Drawer slide', 'منزلق درج');
-        // One letter short: not a prefix of it, but near (pg_trgm's word similarity, 0.71).
-        $nearest = catalogSearchProduct('Drawe panel', 'لوح');
+        // Not a prefix of it, but near (pg_trgm's word similarity): one letter short (0.71), and
+        // one doubled (0.67) — added after, so newest-first alone would put it first.
+        $nearer = catalogSearchProduct('Drawe panel', 'لوح');
+        $near = catalogSearchProduct('Drawwer panel', 'لوح مزدوج');
         $word = catalogSearchProduct('Slide', 'منزلق');
         Fx::asSystem(fn () => app(SetSearchWordsHandler::class)->handle(new SetSearchWords($word, ['drawer'])));
         $category = catalogSearchProduct('Panel', 'لوح خشب', Px::category('Drawers'));
@@ -115,8 +117,8 @@ describe('the ranking', function () {
 
         $found = app(ShopSearch::class)->results(catalogSearchStore(), 'en', 'Drawer');
 
-        expect(catalogSearchIds($found->cards))->toBe([$exact, $prefixHigher, $prefixLower, $nearest, $word, $category])
-            ->and($found->total)->toBe(6);
+        expect(catalogSearchIds($found->cards))->toBe([$exact, $prefixHigher, $prefixLower, $nearer, $near, $word, $category])
+            ->and($found->total)->toBe(7);
     });
 
     it('finds a product by either language\'s name on every page, shown in the page\'s language', function () {
