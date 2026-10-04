@@ -20,6 +20,13 @@ use Modules\Catalog\Application\Command\AddWarranty\AddWarranty;
 use Modules\Catalog\Application\Command\AddWarranty\AddWarrantyHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
+use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
+use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
+use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
+use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
+use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
+use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
 /**
@@ -95,6 +102,38 @@ final class CatalogProducts
     public static function variant(string $productId, string $code, array $values = []): string
     {
         return Fx::asSystem(fn (): string => app(AddVariantHandler::class)->handle(new AddVariant($productId, $code, $values)));
+    }
+
+    /**
+     * A ready product — both names and descriptions, a lowest active category, a photo whose sizes are
+     * ready — with one variant per size of a set of widths, each its own code.
+     *
+     * @param  list<string>  $sizes
+     * @return array{product: string, variants: list<string>, width: string}
+     */
+    public static function ready(array $sizes = ['60 cm'], ?string $categoryId = null): array
+    {
+        $width = self::attribute('Width');
+        $values = array_map(static fn (string $size): string => self::value($width, $size), $sizes);
+        $set = self::set([$width]);
+        $category = $categoryId ?? self::category();
+        $id = self::product('Drawer');
+        $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Drawer']]]]];
+
+        $variants = Fx::asSystem(function () use ($id, $set, $category, $text, $width, $values): array {
+            $product = app(ProductRepository::class)->find($id) ?? throw new \LogicException('No such product.');
+            app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
+                $id, $product->name()->ar, $product->name()->en, $product->brandId(),
+                descriptionAr: $text, descriptionEn: $text, categoryId: $category, attributeSetId: $set,
+            ));
+            $variants = array_map(fn (string $value): string => app(AddVariantHandler::class)->handle(new AddVariant($id, (string) (5_000_000 + self::next()), [$width => $value])), $values);
+            app(SetProductGalleryHandler::class)->handle(new SetProductGallery($id, [CatalogFixtures::media()]));
+            app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
+
+            return $variants;
+        });
+
+        return ['product' => $id, 'variants' => $variants, 'width' => $width];
     }
 
     private static function next(): int
