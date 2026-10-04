@@ -9,6 +9,7 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Listing\ListingRows;
+use Modules\Catalog\Application\Query\Shop\ShopReader;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
@@ -26,6 +27,7 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListingRows;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseProductRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseShopReader;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseStoreListingRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseVariantRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
@@ -56,6 +58,7 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(VariantRepository::class, DatabaseVariantRepository::class);
         $this->app->bind(StoreListingRepository::class, DatabaseStoreListingRepository::class);
         $this->app->bind(ListingRows::class, DatabaseListingRows::class);
+        $this->app->bind(ShopReader::class, DatabaseShopReader::class);
     }
 
     public function boot(): void
