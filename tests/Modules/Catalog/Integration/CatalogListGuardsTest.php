@@ -642,6 +642,7 @@ describe('the lock', function () {
         expect($inside)->not->toBeEmpty()
             ->and($inside[0]['sql'])->toContain('pg_advisory_xact_lock')
             ->and($inside[0]['bindings'])->toBe([$keys[0]])
+            ->and(array_map(static fn (array $query): mixed => $query['bindings'][0] ?? null, array_slice($inside, 0, count($keys))))->toBe($keys)
             ->and($taken)->toBe($keys);
     })->with(catalogGuardsChanges());
 });

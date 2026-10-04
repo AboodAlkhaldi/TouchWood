@@ -10,8 +10,10 @@ use Modules\Catalog\Application\Listing\StoreListingChange;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\NotChosenInStore;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
+use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
+use Modules\Catalog\Domain\Repository\VariantRepository;
 use Shared\Application\Unauthorized;
 
 /**
@@ -29,10 +31,11 @@ final readonly class MarkNotAvailableNowHandler
         private StoreListingChange $change,
         private ProductRepository $products,
         private StoreListingRepository $listings,
+        private VariantRepository $variants,
     ) {}
 
     /**
-     * @throws InvalidCatalogAttribute|NotChosenInStore|ProductNotFound|Unauthorized
+     * @throws InvalidCatalogAttribute|NotChosenInStore|ProductNotFound|Unauthorized|VariantNotFound
      */
     public function handle(MarkNotAvailableNow $command): void
     {
@@ -41,7 +44,14 @@ final readonly class MarkNotAvailableNowHandler
         $this->change->run(function () use ($command, $store): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
             $listing = $this->listings->of($store->value, $product->id());
-            $listing->markUnavailable($command->variantId === null ? null : strtolower($command->variantId), true);
+            $variantId = null;
+
+            if ($command->variantId !== null) {
+                $variant = $this->variants->find($command->variantId);
+                $variantId = $variant !== null && $variant->productId() === $product->id() ? $variant->id() : throw new VariantNotFound($command->variantId);
+            }
+
+            $listing->markUnavailable($variantId, true);
             $entry = ListAudit::changed('listing', 'unavailable_marked', $product->id(), $listing->pullChanges(), $listing->snapshot(), $store->value);
 
             if ($entry === null) {

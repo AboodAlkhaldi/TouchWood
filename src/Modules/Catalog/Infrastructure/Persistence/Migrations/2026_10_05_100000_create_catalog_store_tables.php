@@ -60,6 +60,7 @@ return new class extends Migration
             $table->foreign(['product_id', 'variant_id'], 'store_variants_variant')->references(['product_id', 'id'])->on('catalog.variants')->cascadeOnDelete();
             $table->index(['product_id', 'is_active'], 'store_variants_product_idx');
             $table->index('variant_id', 'store_variants_variant_idx');
+            $table->index(['store_id', 'product_id'], 'store_variants_store_product_idx');
         });
 
         // At least one selling mode (§1.3).

@@ -133,16 +133,15 @@ describe('a category deactivated', function () {
             ->and(catalogDeactivationsState($t['ready'])['category'])->toBe($t['drawers']);
     });
 
-    it('leaves a product under a sub-category already off with the fate it had then', function () {
+    it('asks again about the products under a sub-category switched off before', function () {
         $t = catalogDeactivationsTree();
-        app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($t['sinks'], 'LEAVE'));
+        app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($t['sinks'], 'HIDE'));
 
-        // The archived sink was reached when Sinks went; Kitchens' step reaches the drawers only.
-        expect(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($t['kitchens'], 'HIDE', products: [$t['archived'] => ['choice' => 'HIDE']])))->toThrow(InvalidCatalogAttribute::class, 'products');
-
-        app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($t['kitchens'], 'HIDE'));
+        // The owner, 2026-10-04 (amendment 4(g)): their earlier choice may change — left now.
+        app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($t['kitchens'], 'HIDE', products: [$t['archived'] => ['choice' => 'LEAVE']]));
 
         expect(catalogDeactivationsState($t['archived'])['hidden_by_category'])->toBeFalse()
+            ->and(Fx::audits('catalog.product.left', $t['archived']))->toBe(1)
             ->and(catalogDeactivationsState($t['ready'])['hidden_by_category'])->toBeTrue();
     });
 
@@ -217,5 +216,57 @@ describe('a product hidden with its brand', function () {
         Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, $product->name()->ar, $product->name()->en, $other, categoryId: $product->categoryId())));
 
         expect(catalogDeactivationsState($id))->toMatchArray(['brand' => $other, 'hidden_by_brand' => false]);
+    });
+});
+
+describe('what a deactivation keeps', function () {
+    /**
+     * @return array<string, mixed>
+     */
+    function catalogDeactivationsAudit(string $action, string $subjectId): array
+    {
+        return (array) json_decode((string) DB::table('platform.audit_entries')->where('action', $action)->where('subject_id', $subjectId)->orderByDesc('id')->value('changes'), true);
+    }
+
+    it('records each product\'s change by value, and tells the modules above of a ready one', function () {
+        $t = catalogDeactivationsTree();
+        Event::fake([ProductChanged::class]);
+
+        app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($t['kitchens'], 'HIDE', products: [$t['draft'] => ['choice' => 'MOVE', 'move_to' => $t['tables']]]));
+
+        expect(catalogDeactivationsAudit('catalog.product.hidden', $t['ready']))->toBe(['hidden_by_category' => [false, true]])
+            ->and(catalogDeactivationsAudit('catalog.product.moved', $t['draft']))->toBe(['category_id' => [$t['drawers'], $t['tables']]]);
+        // The ready drawer and the sink archived after being ready are known outside Catalog; the draft is not.
+        Event::assertDispatchedTimes(ProductChanged::class, 2);
+        Event::assertDispatched(ProductChanged::class, fn (ProductChanged $event): bool => $event->productId === $t['ready']);
+        Event::assertDispatched(ProductChanged::class, fn (ProductChanged $event): bool => $event->productId === $t['archived']);
+        Event::assertNotDispatched(ProductChanged::class, fn (ProductChanged $event): bool => $event->productId === $t['draft']);
+    });
+
+    it('records a brand\'s products hidden and moved, and brings back and tells of a ready one', function () {
+        $ready = Px::ready();
+        $brand = (string) DB::table('catalog.products')->where('id', $ready['product'])->value('brand_id');
+        $other = Px::brand('Hettich');
+        $moved = catalogDeactivationsDraft(Px::category(), $brand);
+        Event::fake([ProductChanged::class]);
+
+        app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($brand, 'HIDE', products: [$moved => ['choice' => 'MOVE', 'move_to' => $other]]));
+        app(ActivateBrandHandler::class)->handle(new ActivateBrand($brand));
+
+        expect(catalogDeactivationsAudit('catalog.product.hidden', $ready['product']))->toBe(['hidden_by_brand' => [false, true]])
+            ->and(catalogDeactivationsAudit('catalog.product.moved', $moved))->toBe(['brand_id' => [$brand, $other]])
+            ->and(catalogDeactivationsAudit('catalog.product.shown', $ready['product']))->toBe(['hidden_by_brand' => [true, false]]);
+        Event::assertDispatchedTimes(ProductChanged::class, 2);
+    });
+
+    it('refuses a brand\'s choice for a product it does not reach, and a choice that is not one', function () {
+        [$brand, $elsewhere] = [Px::brand('Blum'), Px::brand('Grass')];
+        catalogDeactivationsDraft(Px::category(), $brand);
+        $theirs = catalogDeactivationsDraft(Px::category(), $elsewhere);
+        $t = catalogDeactivationsTree();
+
+        expect(fn () => app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($brand, 'HIDE', products: [$theirs => ['choice' => 'HIDE']])))->toThrow(InvalidCatalogAttribute::class, 'products')
+            ->and(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($t['kitchens'], products: [$t['ready'] => 'HIDE'])))->toThrow(InvalidCatalogAttribute::class, 'products')
+            ->and(DB::table('catalog.brands')->where('id', $brand)->value('is_active'))->toBeTrue();
     });
 });

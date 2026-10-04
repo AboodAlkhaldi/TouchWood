@@ -8,8 +8,8 @@ use Shared\Domain\Error\ErrorCategory;
 
 /**
  * A product's selling terms in a store that cannot hold (catalog.md §1.3, §7): a variant with no
- * selling mode, a maximum below its minimum, wholesale on with no wholesale minimum. The rule broken
- * is named in the context.
+ * selling mode, a limit outside 1–100,000, a maximum below its minimum or with none, wholesale on
+ * with no wholesale minimum. The rule broken is named in the context.
  */
 final class InvalidSellingTerms extends CatalogError
 {

@@ -92,7 +92,7 @@ final readonly class DeactivateBrandHandler
         if ($fate === ProductFate::Hide) {
             $product->hideWithBrand(true);
         } else {
-            $product->moveToBrand($this->references->brand($moveTo ?? throw new InvalidCatalogAttribute('move_to', 'where to move it')));
+            $product->moveToBrand($this->references->brand($moveTo === null || trim($moveTo) === '' ? throw new InvalidCatalogAttribute('move_to', 'where to move it') : $moveTo));
         }
 
         // Each action written out, so the audit log's names can be checked against the code.

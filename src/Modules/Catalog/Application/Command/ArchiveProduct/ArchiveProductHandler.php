@@ -18,7 +18,8 @@ use Shared\Application\Unauthorized;
 /**
  * **Archiving a product** (catalog.md §4.1, §9.3 #19): `catalog.product.archive`, as its shared data —
  * a ready product retired, or a draft abandoned. It becomes Inactive in every store (their rows,
- * step 4); its codes stay with it; restoring brings it back.
+ * step 4); its codes stay with it; restoring brings it back to the stage it left, its store rows
+ * still off.
  */
 final readonly class ArchiveProductHandler
 {

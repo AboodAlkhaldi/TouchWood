@@ -208,6 +208,7 @@ describe('choosing', function () {
         catalogListingChoose('sa', $ready['product'], true, [$ready['variants'][0]]);
         catalogListingChoose('sa', $ready['product']);
         catalogListingChoose('sa', $ready['product']);
+        catalogListingChoose('sa', $ready['product'], false);
 
         Event::assertDispatchedTimes(StoreListingChanged::class, 2);
         Event::assertDispatched(StoreListingChanged::class, fn (StoreListingChanged $event): bool => $event->storeId === Fx::storeId('sa') && $event->variantIds === [$ready['variants'][1]]);
@@ -246,7 +247,8 @@ describe('selling terms', function () {
         expect([$row->retail_minimum, $row->retail_maximum, $row->wholesale_minimum, $row->wholesale_maximum])->toBe([2, 50, 10, 500])
             ->and(Fx::audits('catalog.listing.terms_set', $ready['product']))->toBe(1)
             ->and(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], [$variant => 'retail'])))->toThrow(InvalidCatalogAttribute::class, 'modes')
-            ->and(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], [strtolower((string) Str::ulid()) => ['retail' => true, 'wholesale' => false]])))->toThrow(NotChosenInStore::class);
+            ->and(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], [strtolower((string) Str::ulid()) => ['retail' => true, 'wholesale' => false]])))->toThrow(VariantNotFound::class)
+            ->and(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], [$variant => ['retail' => 'yes', 'wholesale' => false]])))->toThrow(InvalidCatalogAttribute::class, 'modes');
     });
 });
 
@@ -290,8 +292,11 @@ describe('"Not available now"', function () {
         app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow($sa, $ready['product']));
         app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow($sa, $ready['product']));
 
+        app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow($eg, $ready['product'], $sixty));
+
         expect((bool) DB::table('catalog.store_products')->where('store_id', $sa)->where('product_id', $ready['product'])->value('not_available_now'))->toBeFalse()
-            ->and(Fx::audits('catalog.listing.unavailable_cleared', $ready['product']))->toBe(1);
+            ->and(DB::table('catalog.store_variants')->where('not_available_now', true)->count())->toBe(0)
+            ->and(Fx::audits('catalog.listing.unavailable_cleared', $ready['product']))->toBe(2);
 
         Cx::actAsStaffWith([CatalogPermissions::LISTING_CHOOSE]);
 
@@ -444,4 +449,112 @@ describe('every change to a product\'s shared data', function () {
             app(RestoreVariantHandler::class)->handle(new RestoreVariant($r['variants'][1]));
         }],
     ]);
+});
+
+describe('what step 4\'s review found', function () {
+    it('writes no row for what a store never chose: switching it off, or archiving a variant it did not take', function () {
+        $ready = Px::ready(['60 cm', '80 cm']);
+        [$sixty, $eighty] = $ready['variants'];
+        catalogListingChoose('eg', $ready['product'], false);
+        catalogListingChoose('sa', $ready['product'], true, [$sixty]);
+
+        Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($eighty)));
+
+        expect(DB::table('catalog.store_products')->where('store_id', Fx::storeId('eg'))->exists())->toBeFalse()
+            ->and(DB::table('catalog.store_variants')->where('variant_id', $eighty)->exists())->toBeFalse()
+            ->and(catalogListingActive(Fx::storeId('sa'), $ready['product']))->toBe([$sixty]);
+    });
+
+    it('switches on no archived product', function () {
+        $ready = Px::ready();
+        Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($ready['product'])));
+
+        expect(fn () => catalogListingChoose('sa', $ready['product']))->toThrow(InvalidCatalogAttribute::class, 'product');
+    });
+
+    it('keeps in the audit log, in the store, what the store\'s choice was and is', function () {
+        $ready = Px::ready(['60 cm', '80 cm']);
+        $ids = $ready['variants'];
+        sort($ids);
+        catalogListingChoose('sa', $ready['product']);
+        $entry = DB::table('platform.audit_entries')->where('action', 'catalog.listing.chosen')->where('subject_id', $ready['product'])->sole();
+
+        expect($entry->store_id)->toBe(Fx::storeId('sa'))
+            ->and((array) json_decode((string) $entry->changes, true))->toMatchArray([
+                'active_variants' => [null, implode(',', $ids)],
+                'retail_variants' => [null, implode(',', $ids)],
+            ]);
+    });
+
+    it('takes each limit at its bounds, a maximum equal to its minimum', function () {
+        $ready = Px::ready();
+        $sa = Fx::storeId('sa');
+        catalogListingChoose('sa', $ready['product']);
+
+        app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], [$ready['variants'][0] => ['retail' => true, 'wholesale' => true]], 100_000, 100_000, 1, 1));
+        $row = DB::table('catalog.store_products')->where('store_id', $sa)->where('product_id', $ready['product'])->sole();
+
+        expect([$row->retail_minimum, $row->retail_maximum, $row->wholesale_minimum, $row->wholesale_maximum])->toBe([100_000, 100_000, 1, 1])
+            ->and(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], wholesaleMaximum: 4)))->toThrow(InvalidSellingTerms::class, 'wholesale maximum');
+    });
+
+    it('keeps a wholesale minimum while another variant still sells wholesale, and edits a product switched off', function () {
+        $ready = Px::ready(['60 cm', '80 cm']);
+        [$sixty, $eighty] = $ready['variants'];
+        $sa = Fx::storeId('sa');
+        catalogListingChoose('sa', $ready['product']);
+        app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], [$sixty => ['retail' => true, 'wholesale' => true]], wholesaleMinimum: 10));
+        catalogListingChoose('sa', $ready['product'], false);
+
+        // Switched off, still the store's to edit (amendment 4(e)).
+        app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], [$sixty => ['retail' => true, 'wholesale' => true]], 2, wholesaleMinimum: 10));
+
+        expect(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], [$eighty => ['retail' => true, 'wholesale' => false]])))->toThrow(InvalidSellingTerms::class, 'a wholesale minimum')
+            ->and(DB::table('catalog.store_products')->where('store_id', $sa)->value('retail_minimum'))->toBe(2);
+    });
+
+    it('answers a variant that is not the product\'s as not found, and one the store did not take as not chosen', function () {
+        $ready = Px::ready(['60 cm', '80 cm']);
+        [$sixty, $eighty] = $ready['variants'];
+        $other = Px::ready();
+        $sa = Fx::storeId('sa');
+        catalogListingChoose('sa', $ready['product'], true, [$sixty]);
+
+        expect(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow($sa, $ready['product'], $other['variants'][0])))->toThrow(VariantNotFound::class)
+            ->and(fn () => app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow($sa, $ready['product'], strtolower((string) Str::ulid()))))->toThrow(VariantNotFound::class)
+            ->and(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], [$eighty => ['retail' => true, 'wholesale' => false]])))->toThrow(NotChosenInStore::class);
+    });
+
+    it('counts labels before reading any, and takes them by their ids only', function () {
+        $ready = Px::ready();
+        $sa = Fx::storeId('sa');
+
+        expect(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels($sa, $ready['product'], array_map(static fn (): string => strtolower((string) Str::ulid()), range(1, 11)))))->toThrow(TooMany::class)
+            ->and(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels($sa, $ready['product'], [7])))->toThrow(InvalidCatalogAttribute::class, 'labels');
+    });
+
+    it('needs the job in every store that sells a product to take a deleted file out of its variant', function () {
+        Storage::fake('local');
+        $ready = Px::ready();
+        $photo = Cx::media();
+        Fx::asSystem(fn () => app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($ready['variants'][0], [$photo])));
+        catalogListingChoose('eg', $ready['product']);
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE, PlatformPermissions::MEDIA_DELETE], ['sa']);
+
+        expect(fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($photo)))->toThrow(Unauthorized::class);
+    });
+
+    it('takes the products\' lock before a list\'s when a deleted file is a logo and a product\'s photo', function () {
+        Storage::fake('local');
+        $ready = Px::ready();
+        $photo = Cx::media();
+        Fx::asSystem(fn () => app(SetProductGalleryHandler::class)->handle(new SetProductGallery($ready['product'], [...app(ProductRepository::class)->gallery($ready['product']), $photo])));
+        DB::table('catalog.brands')->where('id', DB::table('catalog.products')->where('id', $ready['product'])->value('brand_id'))->update(['logo_media_id' => $photo]);
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE, CatalogPermissions::BRAND_MANAGE, PlatformPermissions::MEDIA_DELETE]);
+        $locks = Cx::recordLocks();
+
+        app(DeleteMediaHandler::class)->handle(new DeleteMedia($photo));
+
+        expect(array_values(array_unique(array_column((array) $locks, 'key'))))->toBe(['catalog:products', 'catalog:brands']);
+    });
 });

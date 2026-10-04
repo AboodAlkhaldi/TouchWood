@@ -76,6 +76,7 @@ return [
     'product.hidden' => 'Product hidden with its category or brand',
     'product.moved' => 'Product moved when its category or brand was deactivated',
     'product.shown' => 'Product shown again with its category or brand',
+    'product.left' => 'Product left in its deactivated category',
     'variant.photo_detached' => 'Variant photo removed with its file',
 
     'variant.added' => 'Variant added',

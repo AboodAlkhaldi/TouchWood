@@ -21,7 +21,7 @@ come after the Geist foundation. This file grows with each step. **Steps 1 to 4 
 
 | Folder | What is in it |
 |---|---|
-| `Application/CatalogPermissions.php` | The twenty permissions of catalog.md §3, declared into Access's catalog at boot: seventeen jobs a role may hold, and three reserved to a Super Admin and the system |
+| `Application/CatalogPermissions.php` | The twenty permissions declared so far of catalog.md §3's twenty-one (`catalog.listing.fill` comes with the admins' store file, step 6), declared into Access's catalog at boot: seventeen jobs a role may hold, and three reserved to a Super Admin and the system |
 | `Application/Command` | One folder per change: a command and its handler, which names its `PERMISSION` and authorizes first. Step 2: the six shared lists and each store's order of the menu; step 3: products and variants; step 4: each store's choice (below) |
 | `Application/Lists` | What the lists' handlers share: `SharedListChange` (the permission with All stores, the transaction, the list's lock — after the products' for a change that changes products — the audit), `ProductFates` (each product's fate in a deactivation), the forms' parsing (`BrandInput`, `CategoryInput`, `AttributeInput`, `LabelInput`, `WarrantyInput`, `SetMembers`) and `CatalogImages` (a logo or photo must be a public image) |
 | `Application/Products` | What the product handlers share: `ProductAccess` (who may change a product's shared data), `ProductReferences` (the list rows a product points at, row-locked), `ProductInput`, `VariantInput` and `ProductParts` (the forms' parsing), `Readiness` and `ReadyPhotos` (what a product needs to be shown) |
@@ -60,7 +60,7 @@ changes it. `CatalogPermissions::sharedLists()` names those six.
 **Which step brings which handler:** step 2 the six shared-list jobs and `catalog.category.rank`;
 step 3 `product.create`, `product.update`, `variant.correct_code`, `product.publish` and
 `product.archive`; `product.view`'s reads come with the screens, as the lists' do; step 4 `listing.choose`, `listing.selling`, `listing.unavailable`
-and `listing.labels`; step 5 `listing.rebuild` and `search_log.prune`; step 6 `import.run`.
+and `listing.labels`; step 5 `listing.rebuild` and `search_log.prune`; step 6 `import.run` and `listing.fill`.
 
 ### The shared lists (step 2)
 
@@ -103,8 +103,8 @@ place there as everywhere else.
 `catalog:products`: a product's codes and slugs are decided across products under it. **No lock
 cycle with the lists:** a product change reads the list rows it points at with a row lock
 (`ProductReferences`), and a list's change locks the same row before it asks "is it in use?" but
-never takes the products' lock — so a brand deleted while a product takes it is either seen gone,
-or sees the product. Where a change locks an attribute and one of its values, **the attribute comes
+never takes the products' lock — except the four that change products, which take it first (step 4,
+below) — so a brand deleted while a product takes it is either seen gone, or sees the product. Where a change locks an attribute and one of its values, **the attribute comes
 first**, on both sides. And a product change writes no row whose key would lock a row it has not
 locked itself: archiving a variant writes the variant's row alone, and a photo that stays in a
 gallery is moved, never written again — deleting its file holds the media row while it waits for
@@ -185,11 +185,13 @@ admins' file that fills a store with codes, and its "needs completion" list, com
 (`ProductFates`): its own choice or the one for all — **hide** (`hidden_by_category`,
 `hidden_by_brand`), **leave** (categories only), or **move** to an active lowest category outside
 what goes, or an active brand. A product with no choice, or a choice for a product not reached,
-refuses the whole step. A product under a sub-category already off keeps the fate it had then.
+refuses the whole step. Products under a sub-category switched off before are asked again
+(amendment 4(g)): "leave" now brings one hidden then back to unlisted but reachable.
 Activating brings back what hid with it, except under a sub-category still off; a hidden product
 that moves to another category or brand is no longer hidden. **These four changes take the
 products' lock before their list's** (`SharedListChange::runAfterProducts`): a product change holds
-the products' lock before it row-locks a category or brand, so the two never wait in a circle.
+the products' lock before it row-locks a category or brand, so the two never wait in a circle;
+deleting a photo's file takes them in the same order (`CatalogImagesUsage`).
 
 **The schema.** `catalog`, on `config/database.php`'s search path so `migrate:fresh` wipes it; the
 first migration also creates `pg_trgm`, which the search's nearness ranking needs (catalog.md

@@ -26,9 +26,9 @@ use Shared\Application\Unauthorized;
  * remembering it went with its parent, so activating it again brings back only what was active
  * before. **Each product in what goes, in any stage, has its fate** (amendment 4(d)) — its own, or
  * the one for all: **hidden** with it, **left** in it (unlisted, still reached), or **moved** to
- * another active lowest category outside what goes. A product under a sub-category deactivated on its
- * own before keeps the fate it had then. One step, all of it or none of it; each category's and each
- * product's change audited. It changes products, so it takes the products' lock before the
+ * another active lowest category outside what goes — those under a sub-category switched off before
+ * included, their earlier choice asked again (amendment 4(g)): left now, one hidden then is no longer
+ * hidden. One step, all of it or none of it; each category's and each product's change audited. It changes products, so it takes the products' lock before the
  * categories'.
  */
 final readonly class DeactivateCategoryHandler
@@ -71,7 +71,7 @@ final readonly class DeactivateCategoryHandler
                 }
             }
 
-            $reached = $this->products->idsInCategories($gone);
+            $reached = $this->products->idsInCategories([$category->id(), ...$this->categories->idsBelow($category->id())]);
             $fates->requireWithin($reached);
 
             foreach ($reached as $productId) {
@@ -112,11 +112,6 @@ final readonly class DeactivateCategoryHandler
     private function settle(string $productId, ProductFates $fates): ?AuditEntryDto
     {
         [$fate, $moveTo] = $fates->for($productId);
-
-        if ($fate === ProductFate::Leave) {
-            return null;
-        }
-
         // Read under the products' lock, which this change holds.
         $product = $this->products->byId($productId);
 
@@ -124,17 +119,18 @@ final readonly class DeactivateCategoryHandler
             return null;
         }
 
-        if ($fate === ProductFate::Hide) {
+        // Each action written out, so the audit log's names can be checked against the code.
+        if ($fate === ProductFate::Leave) {
+            $product->hideWithCategory(false);
+            $entry = ListAudit::changed('product', 'left', $product->id(), $product->pullChanges(), $product->snapshot());
+        } elseif ($fate === ProductFate::Hide) {
             $product->hideWithCategory(true);
+            $entry = ListAudit::changed('product', 'hidden', $product->id(), $product->pullChanges(), $product->snapshot());
         } else {
             $target = $this->references->category($moveTo) ?? throw new InvalidCatalogAttribute('move_to', 'where to move it');
             $product->moveToCategory($target);
+            $entry = ListAudit::changed('product', 'moved', $product->id(), $product->pullChanges(), $product->snapshot());
         }
-
-        // Each action written out, so the audit log's names can be checked against the code.
-        $entry = $fate === ProductFate::Hide
-            ? ListAudit::changed('product', 'hidden', $product->id(), $product->pullChanges(), $product->snapshot())
-            : ListAudit::changed('product', 'moved', $product->id(), $product->pullChanges(), $product->snapshot());
 
         if ($entry !== null) {
             $this->products->update($product);

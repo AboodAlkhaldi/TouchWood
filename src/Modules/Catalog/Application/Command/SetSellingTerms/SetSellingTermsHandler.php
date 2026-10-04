@@ -11,8 +11,10 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\InvalidSellingTerms;
 use Modules\Catalog\Domain\Exception\NotChosenInStore;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
+use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
+use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\ValueObject\SellingLimits;
 use Shared\Application\Unauthorized;
 
@@ -30,10 +32,11 @@ final readonly class SetSellingTermsHandler
         private StoreListingChange $change,
         private ProductRepository $products,
         private StoreListingRepository $listings,
+        private VariantRepository $variants,
     ) {}
 
     /**
-     * @throws InvalidCatalogAttribute|InvalidSellingTerms|NotChosenInStore|ProductNotFound|Unauthorized
+     * @throws InvalidCatalogAttribute|InvalidSellingTerms|NotChosenInStore|ProductNotFound|Unauthorized|VariantNotFound
      */
     public function handle(SetSellingTerms $command): void
     {
@@ -43,6 +46,14 @@ final readonly class SetSellingTermsHandler
 
         $this->change->run(function () use ($command, $store, $modes, $limits): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $own = array_map(static fn ($variant): string => $variant->id(), $this->variants->ofProduct($product->id()));
+
+            foreach (array_keys($modes) as $variantId) {
+                if (! in_array($variantId, $own, true)) {
+                    throw new VariantNotFound($variantId);
+                }
+            }
+
             $listing = $this->listings->of($store->value, $product->id());
             $listing->setTerms($modes, $limits);
             $entry = ListAudit::changed('listing', 'terms_set', $product->id(), $listing->pullChanges(), $listing->snapshot(), $store->value);

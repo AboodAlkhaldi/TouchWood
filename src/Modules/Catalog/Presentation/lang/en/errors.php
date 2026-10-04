@@ -118,7 +118,7 @@ return [
     ],
     'invalid_selling_terms' => [
         'title' => 'Check the selling terms',
-        'detail' => 'Each variant needs a selling mode, a maximum is never below its minimum, and wholesale needs its minimum.',
+        'detail' => 'Each variant needs a selling mode, each limit is from 1 to 100,000, a maximum is never below its minimum, and wholesale needs its minimum.',
     ],
     'fields' => [
         'agency_type' => 'agency type',

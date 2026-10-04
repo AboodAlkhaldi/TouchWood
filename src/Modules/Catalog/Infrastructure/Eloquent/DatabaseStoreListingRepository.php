@@ -78,11 +78,15 @@ final readonly class DatabaseStoreListingRepository implements StoreListingRepos
             $this->db->table(self::VARIANTS)->upsert($rows, ['store_id', 'variant_id'], ['is_active', 'not_available_now', 'sells_retail', 'sells_wholesale', 'updated_at']);
         }
 
-        // Written again whole: every label here was read with its row locked by the change.
-        $this->db->table(self::LABELS)->where($key)->delete();
+        // A label that stays keeps its row: written again, it would take a key lock on a label that
+        // archiving — which saves every store's rows — never locked.
+        $labels = $listing->labelIds();
+        $this->db->table(self::LABELS)->where($key)->whereNotIn('label_id', $labels)->delete();
+        $held = array_map('strval', $this->db->table(self::LABELS)->where($key)->pluck('label_id')->all());
+        $new = array_values(array_diff($labels, $held));
 
-        if ($listing->labelIds() !== []) {
-            $this->db->table(self::LABELS)->insert(array_map(static fn (string $labelId): array => [...$key, 'label_id' => $labelId], $listing->labelIds()));
+        if ($new !== []) {
+            $this->db->table(self::LABELS)->insert(array_map(static fn (string $labelId): array => [...$key, 'label_id' => $labelId], $new));
         }
     }
 

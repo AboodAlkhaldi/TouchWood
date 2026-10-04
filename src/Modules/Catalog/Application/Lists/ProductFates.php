@@ -10,8 +10,9 @@ use Modules\Catalog\Public\Enums\ProductFate;
 /**
  * Each product's fate when its category or brand is deactivated (catalog.md §1.5, §1.6), as the
  * request sent it: one per product, and an "apply to all" for the rest. A product the deactivation
- * reaches with neither is refused, as is a product it does not reach — every product ends with a
- * choice, and nothing is silently ignored.
+ * reaches with neither is refused, as is a product it does not reach, so every product ends with a
+ * choice. A move with nowhere to go is refused where the move happens. A deactivation that changes
+ * nothing — the category or brand already off — reads no choice at all.
  */
 final readonly class ProductFates
 {
@@ -33,11 +34,6 @@ final readonly class ProductFates
     public static function of(?string $every, ?string $moveTo, array $products, array $allowed): self
     {
         $everyFate = $every === null ? null : self::fate($every, $allowed);
-
-        if ($everyFate === ProductFate::Move && ($moveTo === null || trim($moveTo) === '')) {
-            throw new InvalidCatalogAttribute('move_to', 'where to move them');
-        }
-
         $byProduct = [];
 
         foreach ($products as $productId => $choice) {
@@ -47,11 +43,6 @@ final readonly class ProductFates
 
             $fate = self::fate($choice['choice'], $allowed);
             $target = $choice['move_to'] ?? null;
-
-            if ($fate === ProductFate::Move && (! is_string($target) || trim($target) === '')) {
-                throw new InvalidCatalogAttribute('move_to', 'where to move it');
-            }
-
             $byProduct[strtolower((string) $productId)] = [$fate, is_string($target) ? $target : null];
         }
 
