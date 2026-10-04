@@ -10,9 +10,11 @@ use Modules\Catalog\Application\Query\Shop\CardLabel;
 use Modules\Catalog\Application\Query\Shop\CardPage;
 use Modules\Catalog\Application\Query\Shop\Cursor;
 use Modules\Catalog\Application\Query\Shop\ProductCard;
+use Modules\Catalog\Application\Query\Shop\SearchResults;
 use Modules\Catalog\Application\Query\Shop\ShopReader;
 use Modules\Catalog\Application\Query\Shop\ShopVariant;
 use Modules\Catalog\Application\Query\Shop\VariantChoice;
+use Modules\Catalog\Application\Search\SearchTerms;
 use stdClass;
 
 /**
@@ -243,6 +245,48 @@ final readonly class DatabaseShopReader implements ShopReader
             ->orderBy('position')
             ->pluck('related_id')
             ->all()));
+    }
+
+    public function wordPairs(array $words): array
+    {
+        if ($words === []) {
+            return [];
+        }
+
+        // The words hold letters and digits only (SearchTerms), so none is a LIKE wildcard. The
+        // list is short and shared; the words are matched exactly by SearchTerms afterwards.
+        $patterns = '{'.implode(',', array_map(static fn (string $word): string => '"%'.$word.'%"', $words)).'}';
+
+        return array_values(array_map(
+            static fn (stdClass $row): array => [(string) $row->word_a, (string) $row->word_b],
+            $this->db->select(
+                'SELECT word_a, word_b FROM catalog.word_pairs WHERE word_a LIKE ANY(?::text[]) OR word_b LIKE ANY(?::text[]) ORDER BY word_a, word_b LIMIT 200',
+                [$patterns, $patterns],
+            ),
+        ));
+    }
+
+    public function search(string $storeId, string $locale, SearchTerms $terms, int $limit): SearchResults
+    {
+        // The nearness text is the page's name, then the other one, a line apart (DatabaseListingRows).
+        $rows = $this->db->select(
+            'SELECT * FROM (SELECT l.product_id, l.name, l.slug, l.card_photo, l.label_ids, l.sales_rank,'
+            .' CASE WHEN split_part(l.search_text, chr(10), 1) = ?::text OR split_part(l.search_text, chr(10), 2) = ?::text THEN 1'
+            ." WHEN l.search_document @@ to_tsquery('simple', ?) THEN 2"
+            .' WHEN ?::text <% l.search_text THEN 3'
+            ." WHEN l.search_document @@ to_tsquery('simple', ?) THEN 4"
+            .' ELSE 5 END AS tier,'
+            .' word_similarity(?::text, l.search_text) AS nearness,'
+            .' count(*) OVER () AS total'
+            .' FROM '.self::LISTING.' l'
+            .' WHERE l.store_id = ? AND l.locale = ? AND l.orderable'
+            ." AND (l.search_document @@ to_tsquery('simple', ?) OR ?::text <% l.search_text)) found"
+            .' ORDER BY tier, CASE WHEN tier = 3 THEN nearness END DESC NULLS LAST, sales_rank ASC NULLS LAST, product_id DESC'
+            .' LIMIT ?',
+            [$terms->text, $terms->text, $terms->inNames(), $terms->text, $terms->inWords(), $terms->text, $storeId, $locale, $terms->anywhere(), $terms->text, $limit],
+        );
+
+        return new SearchResults($this->cards($rows, $locale), $rows === [] ? 0 : (int) $rows[0]->total);
     }
 
     /** What a shopper can order in this store, in this language. */

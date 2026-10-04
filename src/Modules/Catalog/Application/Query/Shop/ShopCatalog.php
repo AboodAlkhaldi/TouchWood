@@ -51,7 +51,7 @@ final readonly class ShopCatalog
 
         $byParent = [];
 
-        foreach ($this->reader->menu($store->value, $base, self::locale($locale), $brandId === null ? null : strtolower($brandId)) as $row) {
+        foreach ($this->reader->menu($store->value, $base, ShopLocale::of($locale), $brandId === null ? null : strtolower($brandId)) as $row) {
             $byParent[$row['parent_id'] ?? ''][] = $row;
         }
 
@@ -68,7 +68,7 @@ final readonly class ShopCatalog
      */
     public function category(StoreId $store, string $locale, string $slug, array $brandIds = [], ?string $after = null, int $limit = self::PAGE): CategoryPage|Moved|null
     {
-        $locale = self::locale($locale);
+        $locale = ShopLocale::of($locale);
         $cursor = Cursor::parse($after);
         $owner = $this->reader->slugOwner('category', $locale, self::slug($locale, $slug));
         $category = $owner === null ? null : $this->reader->category($owner['id'], $locale);
@@ -99,7 +99,7 @@ final readonly class ShopCatalog
      */
     public function brand(StoreId $store, string $locale, string $slug, ?string $after = null, int $limit = self::PAGE): BrandPage|Moved|null
     {
-        $locale = self::locale($locale);
+        $locale = ShopLocale::of($locale);
         $cursor = Cursor::parse($after);
         $owner = $this->reader->slugOwner('brand', $locale, self::slug($locale, $slug));
         $brand = $owner === null ? null : $this->reader->brand($owner['id'], $locale);
@@ -124,7 +124,7 @@ final readonly class ShopCatalog
      */
     public function product(StoreId $store, string $locale, string $slug): ProductPage|Moved|null
     {
-        $locale = self::locale($locale);
+        $locale = ShopLocale::of($locale);
         $owner = $this->reader->slugOwner('product', $locale, self::slug($locale, $slug));
         $product = $owner === null ? null : $this->reader->product($owner['id'], $locale);
 
@@ -168,7 +168,7 @@ final readonly class ShopCatalog
      */
     public function relations(StoreId $store, string $locale, string $productId, int $limit = self::SUGGESTIONS_MAX): Relations
     {
-        $locale = self::locale($locale);
+        $locale = ShopLocale::of($locale);
         $limit = self::limit($limit, self::SUGGESTIONS_MAX);
         $product = $this->reader->product(strtolower($productId), $locale);
 
@@ -203,20 +203,6 @@ final readonly class ShopCatalog
             static fn (array $row): MenuCategory => new MenuCategory($row['id'], $row['name'], $row['slug'], $row['image_media_id'], self::branch($byParent, $row['id'])),
             $byParent[$parentId] ?? [],
         );
-    }
-
-    /**
-     * @return 'ar'|'en'
-     *
-     * @throws InvalidCatalogAttribute
-     */
-    private static function locale(string $locale): string
-    {
-        return match ($locale) {
-            'ar' => 'ar',
-            'en' => 'en',
-            default => throw new InvalidCatalogAttribute('locale', 'ar or en'),
-        };
     }
 
     /** An English slug is kept in small letters (§5.1); an Arabic one as it is. */

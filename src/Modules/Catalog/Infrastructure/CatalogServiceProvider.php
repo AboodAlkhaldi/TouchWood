@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Infrastructure;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Query\Shop\ShopReader;
+use Modules\Catalog\Application\Search\SearchLog;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
@@ -27,6 +29,7 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListingRows;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseProductRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseSearchLog;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseShopReader;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseStoreListingRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseVariantRepository;
@@ -35,6 +38,7 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
 use Modules\Catalog\Infrastructure\Listener\RefreshCardPhotos;
 use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
 use Modules\Catalog\Infrastructure\Media\ProductPhotosUsage;
+use Modules\Catalog\Infrastructure\Queue\PruneSearchLogJob;
 use Modules\Catalog\Presentation\Console\RebuildListingCommand;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Events\MediaVariantsReady;
@@ -59,6 +63,7 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(StoreListingRepository::class, DatabaseStoreListingRepository::class);
         $this->app->bind(ListingRows::class, DatabaseListingRows::class);
         $this->app->bind(ShopReader::class, DatabaseShopReader::class);
+        $this->app->bind(SearchLog::class, DatabaseSearchLog::class);
     }
 
     public function boot(): void
@@ -81,5 +86,12 @@ final class CatalogServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([RebuildListingCommand::class]);
         }
+
+        // The search log keeps twelve months (§1.11). Scheduled work is queued as a job, never
+        // command() or call() (owner's decision, 2026-09-18): 01:00 where the application runs, 04:00
+        // in Riyadh, away from Access's midnight sweep.
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $schedule->job(PruneSearchLogJob::class)->dailyAt('01:00')->onOneServer();
+        });
     }
 }

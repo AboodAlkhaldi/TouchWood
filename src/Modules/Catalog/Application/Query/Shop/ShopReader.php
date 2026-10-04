@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application\Query\Shop;
 
+use Modules\Catalog\Application\Search\SearchTerms;
+
 /**
  * What a shopper reads (catalog.md §1.4, §1.5, §1.10), from the listing (§5.4) and the slugs. Reads
  * never lock a row, and **nothing they answer holds a code** (amendment 5(d)). Every list of cards
@@ -98,6 +100,21 @@ interface ShopReader
      * @return list<ShopVariant>
      */
     public function variantsOnSale(string $storeId, string $locale, string $productId): array;
+
+    /**
+     * The shared word pairs one of whose sides holds any of these words (§1.11), as stored.
+     *
+     * @param  list<string>  $words  normalised
+     * @return list<array{string, string}>
+     */
+    public function wordPairs(array $words): array;
+
+    /**
+     * The search (§1.11, amendment 5(c)–(h)): what a shopper can order here whose names, search
+     * words (or a pair of them) or categories' names hold every word typed, ranked exact, prefix,
+     * nearest, a search word or pair, a category's name; ties by sales rank, then newest.
+     */
+    public function search(string $storeId, string $locale, SearchTerms $terms, int $limit): SearchResults;
 
     /**
      * Hand-picked related products of one kind, in their order.
