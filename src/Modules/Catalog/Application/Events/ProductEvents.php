@@ -29,12 +29,9 @@ final readonly class ProductEvents
         private Dispatcher $events,
     ) {}
 
+    /** Always sent: the product has just been made ready. */
     public function madeReady(Product $product): void
     {
-        if (! $product->hasBeenReady()) {
-            return;
-        }
-
         $this->events->dispatch(new ProductMadeReady((string) Str::uuid(), $product->id(), CarbonImmutable::now()));
     }
 
