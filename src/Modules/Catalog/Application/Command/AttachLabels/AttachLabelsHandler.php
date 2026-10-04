@@ -45,10 +45,7 @@ final readonly class AttachLabelsHandler
     {
         $store = $this->change->authorize(self::PERMISSION, $command->storeId);
 
-        // Counted before any is looked up.
-        if (count($command->labelIds) > StoreListing::MAX_LABELS) {
-            throw new TooMany('labels', StoreListing::MAX_LABELS);
-        }
+        StoreListing::checkLabelCount(count($command->labelIds));
 
         $labelIds = [];
 

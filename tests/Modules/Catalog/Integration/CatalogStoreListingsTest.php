@@ -24,20 +24,34 @@ use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\ClearNotAvailableNow\ClearNotAvailableNow;
 use Modules\Catalog\Application\Command\ClearNotAvailableNow\ClearNotAvailableNowHandler;
+use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCode;
+use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCodeHandler;
 use Modules\Catalog\Application\Command\DeactivateLabel\DeactivateLabel;
 use Modules\Catalog\Application\Command\DeactivateLabel\DeactivateLabelHandler;
 use Modules\Catalog\Application\Command\DeleteLabel\DeleteLabel;
 use Modules\Catalog\Application\Command\DeleteLabel\DeleteLabelHandler;
+use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
+use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProduct;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProductHandler;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariantHandler;
+use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValues;
+use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValuesHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Catalog\Application\Command\SetRelations\SetRelations;
+use Modules\Catalog\Application\Command\SetRelations\SetRelationsHandler;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWords;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWordsHandler;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
+use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotos;
+use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotosHandler;
+use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
+use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\InvalidSellingTerms;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
@@ -302,14 +316,15 @@ describe('labels', function () {
         $ready = Px::ready();
         $sa = Fx::storeId('sa');
         catalogListingChoose('sa', $ready['product']);
-        [$sale, $new, $last] = [catalogListingLabel('Sale', 1), catalogListingLabel('New', 2), catalogListingLabel('Last pieces', 3)];
+        // Placed in the list against the order they were made in.
+        [$sale, $new, $last] = [catalogListingLabel('Sale', 2), catalogListingLabel('New', 1), catalogListingLabel('Last pieces', 3)];
 
         app(AttachLabelsHandler::class)->handle(new AttachLabels($sa, $ready['product'], [$new, $sale]));
         Fx::asSystem(fn () => app(DeactivateLabelHandler::class)->handle(new DeactivateLabel($sale)));
         app(AttachLabelsHandler::class)->handle(new AttachLabels($sa, $ready['product'], [$sale, $new]));
         Fx::asSystem(fn () => app(DeactivateLabelHandler::class)->handle(new DeactivateLabel($last)));
 
-        expect(app(StoreListingRepository::class)->of($sa, $ready['product'])->labelIds())->toBe([$sale, $new])
+        expect(app(StoreListingRepository::class)->of($sa, $ready['product'])->labelIds())->toBe([$new, $sale])
             ->and(Fx::audits('catalog.listing.labels_attached', $ready['product']))->toBe(1)
             ->and(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels($sa, $ready['product'], [$sale, $new, $last])))->toThrow(ListItemInactive::class)
             ->and(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels($sa, $ready['product'], [$new, $new])))->toThrow(InvalidCatalogAttribute::class, 'labels')
@@ -393,4 +408,40 @@ describe('the shared data of a product a store sells', function () {
         expect(fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($photo)))->toThrow(Unauthorized::class)
             ->and(app(ProductRepository::class)->gallery($ready['product']))->toContain($photo);
     });
+});
+
+describe('every change to a product\'s shared data', function () {
+    it('needs the job in each store that sells it', function (string $permission, Closure $change) {
+        $ready = Px::ready(['60 cm', '80 cm']);
+        catalogListingChoose('eg', $ready['product']);
+        Cx::actAsStaffWith([$permission], ['sa']);
+
+        expect(fn () => $change($ready))->toThrow(Unauthorized::class);
+    })->with([
+        'its details' => [CatalogPermissions::PRODUCT_UPDATE, function (array $r): void {
+            $product = app(ProductRepository::class)->find($r['product']) ?? throw new LogicException('No such product.');
+            app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
+                $r['product'], 'درج مختلف', $product->name()->en, $product->brandId(),
+                descriptionAr: $product->descriptionAr()?->toArray(), descriptionEn: $product->descriptionEn()?->toArray(),
+                categoryId: $product->categoryId(), attributeSetId: $product->attributeSetId(),
+            ));
+        }],
+        'a new variant' => [CatalogPermissions::PRODUCT_UPDATE, fn (array $r) => app(AddVariantHandler::class)->handle(new AddVariant($r['product'], '7100001', [$r['width'] => Px::value($r['width'], '100 cm')]))],
+        'a variant' => [CatalogPermissions::PRODUCT_UPDATE, fn (array $r) => app(UpdateVariantHandler::class)->handle(new UpdateVariant($r['variants'][0], (string) DB::table('catalog.variants')->where('id', $r['variants'][0])->value('code'), [$r['width'] => Px::value($r['width'], '100 cm')]))],
+        'a code' => [CatalogPermissions::VARIANT_CORRECT_CODE, fn (array $r) => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($r['variants'][0], '7100002'))],
+        'its gallery' => [CatalogPermissions::PRODUCT_UPDATE, fn (array $r) => app(SetProductGalleryHandler::class)->handle(new SetProductGallery($r['product'], [Cx::media()]))],
+        'a variant\'s photos' => [CatalogPermissions::PRODUCT_UPDATE, fn (array $r) => app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($r['variants'][0], [Cx::media()]))],
+        'its search words' => [CatalogPermissions::PRODUCT_UPDATE, fn (array $r) => app(SetSearchWordsHandler::class)->handle(new SetSearchWords($r['product'], ['slide']))],
+        'its filter values' => [CatalogPermissions::PRODUCT_UPDATE, function (array $r): void {
+            $finish = Px::attribute('Finish', 'FILTERABLE');
+            app(SetFilterValuesHandler::class)->handle(new SetFilterValues($r['product'], [Px::value($finish, 'Oak')]));
+        }],
+        'its relations' => [CatalogPermissions::PRODUCT_UPDATE, fn (array $r) => app(SetRelationsHandler::class)->handle(new SetRelations($r['product'], 'RELATED', [Px::ready()['product']]))],
+        'archiving it' => [CatalogPermissions::PRODUCT_ARCHIVE, fn (array $r) => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($r['product']))],
+        'a variant archived' => [CatalogPermissions::PRODUCT_UPDATE, fn (array $r) => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($r['variants'][1]))],
+        'a variant restored' => [CatalogPermissions::PRODUCT_UPDATE, function (array $r): void {
+            Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($r['variants'][1])));
+            app(RestoreVariantHandler::class)->handle(new RestoreVariant($r['variants'][1]));
+        }],
+    ]);
 });

@@ -206,3 +206,16 @@ describe('a brand deactivated', function () {
             ->and(catalogDeactivationsState($product)['brand'])->toBe($brand);
     });
 });
+
+describe('a product hidden with its brand', function () {
+    it('comes back when it moves to another brand', function () {
+        [$brand, $other] = [Px::brand('Blum'), Px::brand('Hettich')];
+        $id = catalogDeactivationsDraft(Px::category(), $brand);
+        app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($brand, 'HIDE'));
+        $product = app(ProductRepository::class)->find($id) ?? throw new LogicException('No such product.');
+
+        Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, $product->name()->ar, $product->name()->en, $other, categoryId: $product->categoryId())));
+
+        expect(catalogDeactivationsState($id))->toMatchArray(['brand' => $other, 'hidden_by_brand' => false]);
+    });
+});

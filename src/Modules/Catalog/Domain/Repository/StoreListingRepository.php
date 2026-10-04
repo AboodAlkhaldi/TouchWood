@@ -23,7 +23,7 @@ interface StoreListingRepository
      */
     public function inEveryStore(string $productId): array;
 
-    /** Writes the rows as they now are; a listing never chosen writes nothing. */
+    /** Writes the rows of a listing the store has chosen, as they now are. */
     public function save(StoreListing $listing): void;
 
     /**

@@ -44,10 +44,6 @@ final readonly class DatabaseStoreListingRepository implements StoreListingRepos
 
     public function save(StoreListing $listing): void
     {
-        if (! $listing->isChosen()) {
-            return;
-        }
-
         $now = CarbonImmutable::now();
         $key = ['store_id' => $listing->storeId(), 'product_id' => $listing->productId()];
         $limits = $listing->limits();
@@ -82,15 +78,11 @@ final readonly class DatabaseStoreListingRepository implements StoreListingRepos
             $this->db->table(self::VARIANTS)->upsert($rows, ['store_id', 'variant_id'], ['is_active', 'not_available_now', 'sells_retail', 'sells_wholesale', 'updated_at']);
         }
 
-        // A label that stays keeps its row: writing it again would take a key lock on the label,
-        // which its handler has locked, but a list change may hold otherwise.
-        $labels = $listing->labelIds();
-        $this->db->table(self::LABELS)->where($key)->whereNotIn('label_id', $labels)->delete();
-        $held = array_map('strval', $this->db->table(self::LABELS)->where($key)->pluck('label_id')->all());
-        $new = array_values(array_diff($labels, $held));
+        // Written again whole: every label here was read with its row locked by the change.
+        $this->db->table(self::LABELS)->where($key)->delete();
 
-        if ($new !== []) {
-            $this->db->table(self::LABELS)->insert(array_map(static fn (string $labelId): array => [...$key, 'label_id' => $labelId], $new));
+        if ($listing->labelIds() !== []) {
+            $this->db->table(self::LABELS)->insert(array_map(static fn (string $labelId): array => [...$key, 'label_id' => $labelId], $listing->labelIds()));
         }
     }
 

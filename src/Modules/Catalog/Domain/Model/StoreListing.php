@@ -139,19 +139,29 @@ final class StoreListing
     }
 
     /**
-     * The labels the store shows on the product, each once, at most ten.
+     * At most ten labels on a product in a store — counted by the handler before any label is looked
+     * up, so a request of thousands is refused without reading one.
+     *
+     * @throws TooMany
+     */
+    public static function checkLabelCount(int $count): void
+    {
+        if ($count > self::MAX_LABELS) {
+            throw new TooMany('labels', self::MAX_LABELS);
+        }
+    }
+
+    /**
+     * The labels the store shows on the product, each once — their count already checked
+     * (`checkLabelCount`).
      *
      * @param  list<string>  $labelIds
      *
-     * @throws InvalidCatalogAttribute|NotChosenInStore|TooMany
+     * @throws InvalidCatalogAttribute|NotChosenInStore
      */
     public function attachLabels(array $labelIds): void
     {
         $this->requireChosen();
-
-        if (count($labelIds) > self::MAX_LABELS) {
-            throw new TooMany('labels', self::MAX_LABELS);
-        }
 
         if (count(array_unique($labelIds)) !== count($labelIds)) {
             throw new InvalidCatalogAttribute('labels', 'each label once');
