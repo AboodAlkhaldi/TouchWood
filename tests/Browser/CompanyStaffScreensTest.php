@@ -121,7 +121,7 @@ it('finds a waiting company in the list and approves it with a note', function (
     $page->click("[data-test=\"company-{$company->id()}\"]")
         ->assertPathIs("/admin/companies/{$company->id()}");
 
-    expect(companyStaffBrowserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Pending')"))->toBeTrue();
+    expect(companyStaffBrowserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Under Review')"))->toBeTrue();
 
     $page->click('[data-test="approve"]')
         ->type('#approve-note', 'Welcome aboard.')
@@ -157,11 +157,17 @@ it('rejects with a marked item and a request, then suspends from the menu and re
     expect(DB::table('b2b.application_flags')->where('application_id', $application)->value('field'))->toBe('cr_number')
         ->and(DB::table('b2b.application_requests')->where('application_id', $application)->value('label'))->toBe('A bank letter confirming the account');
 
-    // Suspend lives in the page's actions menu, last (Geist's menu rules).
+    // Suspend lives in the page's actions menu, last (Geist's menu rules), and asks for the company's
+    // name to be typed (amendment 23(c)): until it is, the button stays out of reach.
+    $name = (string) DB::table('b2b.companies')->where('id', $company->id())->value('name');
     $page->click('[data-test="company-actions"]')
         ->click('[data-test="suspend"]')
-        ->type('#suspend-reason', 'The tax number is being checked.')
-        ->click('[data-test="confirm-suspend"]');
+        ->type('#suspend-reason', 'The tax number is being checked.');
+
+    expect(companyStaffBrowserUntil($page, "document.querySelector('[data-test=\"destructive-confirm\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
+
+    $page->type('[data-test="destructive-verification"]', $name)
+        ->click('[data-test="destructive-confirm"]');
 
     expect(companyStaffBrowserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Suspended')"))->toBeTrue()
         ->and(companyStaffBrowserStatus($company->id()))->toBe('SUSPENDED');
@@ -194,7 +200,11 @@ it('says why Approve and Open File are disabled, beside each', function () {
     expect(companyStaffBrowserUntil($page, "document.querySelector('[data-test=\"open-{$paper}\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue()
         // Nothing on the page names the file: no link to it, no id in an attribute (amendment 8(c)).
         ->and($page->script("document.querySelectorAll('a[href*=\"/files/\"]').length"))->toBe(0);
-    $page->hover("[data-test=\"open-{$paper}\"]");
+    // A second, small move inside the button, as a real pointer makes: the tooltips share one Radix
+    // provider, which reads the driver's single jump away from Approve's tooltip as still on its way
+    // there, and opens nothing for that one move.
+    $page->hover("[data-test=\"open-{$paper}\"]")
+        ->hover("[data-test=\"open-{$paper}\"] svg");
     expect(companyStaffBrowserUntil($page, "document.body.innerText.includes('Opening company papers is not one of your jobs.')"))->toBeTrue();
 
     $page->assertNoJavaScriptErrors();

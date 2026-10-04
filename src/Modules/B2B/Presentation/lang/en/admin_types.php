@@ -18,7 +18,7 @@ return [
 
     'copied' => [
         'label' => 'Starting Lists',
-        'body' => 'These are the lists every store starts with, written for Saudi forms and papers. Change what this store needs, or mark the lists reviewed.',
+        'body' => 'This store still has the starting lists, written for Saudi forms and papers: change what it needs, or mark them reviewed.',
         'button' => 'Mark Lists Reviewed',
     ],
 
@@ -40,7 +40,6 @@ return [
         'yes' => 'Required',
         'no' => 'Optional',
     ],
-    'row_actions' => 'Open actions for :name',
     'empty' => [
         'company' => 'No Company Types Yet',
         'document' => 'No Document Types Yet',

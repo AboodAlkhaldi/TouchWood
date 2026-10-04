@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
+import { intlLocale } from '@/lib/digits';
 import type { SharedProps } from '@/types/page';
 
 // Loaded when the picker first opens, never with the page (DateRangeCalendar, the page budget).
@@ -96,7 +97,7 @@ export function DateRangeField({ id, label, from: askedFrom, until: askedUntil, 
     const from = asDate(askedFrom) === undefined ? '' : askedFrom;
     const until = asDate(askedUntil) === undefined ? '' : askedUntil;
     const selected: DateRange | undefined = from === '' && until === '' ? undefined : { from: asDate(from), to: asDate(until) };
-    const shown = new Intl.DateTimeFormat(locale === 'ar' ? 'ar' : 'en', { day: 'numeric', month: 'short', year: 'numeric' });
+    const shown = new Intl.DateTimeFormat(intlLocale(locale), { day: 'numeric', month: 'short', year: 'numeric' });
 
     const text =
         from === '' && until === ''

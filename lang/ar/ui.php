@@ -16,6 +16,7 @@ return [
     'loading' => 'جارٍ التحميل',
     // Geist's Copy Button, said to a screen reader once the text is on the clipboard.
     'copied' => 'تم النسخ',
+    'copy_failed' => 'تعذّر النسخ. حدّد النص وانسخه يدويًا.',
     // The search field's clear button (Geist's Search Input), named for a screen reader.
     'clear_search' => 'مسح البحث',
     // The ⋯ button that holds a page's or a row's other actions (Geist's Dots Menu), named for a

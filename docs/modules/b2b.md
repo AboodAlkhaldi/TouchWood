@@ -693,7 +693,7 @@ its fields, its company types or its address differ from this spec, the spec hol
   draft is the one thing left (§1.1). **The lifecycle is hidden** while suspended (amendment
   16(e)).
 - **Approved**: the details, and **Change company details**, which opens the form at once, filled
-  in (amendment 14(e)). **The form says, at its top and again above Send**, that the changes go to
+  in (amendment 14(e)). **The form says, in one Note at its top** (amendment 24), that the changes go to
   staff as a new application, that the company keeps ordering until it sends them, and that from
   then until they are approved it cannot order (§1.1). **Its bank account** is a card in the main
   column (amendment 16(e)): the IBAN, the bank and the holder, with Copy, while bank transfer is on;
@@ -765,13 +765,14 @@ number, tax number, or an application's reference), the status, and the store �
 the reader covers, and no store filter at all when that is one store**. A company whose
 waiting application's type was deactivated since it was sent carries an amber **Type Deactivated**
 mark beside its name, for information (§1.3, amendment 11(a)). Nothing in the list changes anything;
-each row opens the company. **Times are in the store being worked in** — the panel's current store,
+**the whole row opens the company** (amendment 24). **Times are in the store being worked in** — the panel's current store,
 its zone beside them, as on every panel screen (frontend.md §1.10; amendment 23(b), owner
 2026-10-03) — on the list and on the company page alike.
 
 **The company page** (`ViewCompany`), read only except for its buttons:
 
-- **Status**: the status as a badge, the reason it carries, when it last changed and by whom, whether
+- **Status**: the status as a badge — Approved green, Pending amber, Rejected and Suspended red, the
+  same colours the shop shows (amendment 24) —, the reason it carries, when it last changed and by whom, whether
   it may order, and its store.
 - **Company Details**: name, type — a listed type's name, or **Other** with the company's own words,
   marked as still to be corrected —, CR number, tax number and address, as the company holds them now.
@@ -802,24 +803,26 @@ Its buttons, each offered only to whoever holds the job **and** only when it can
 - **Approve Company is disabled, with its reason, while the company is "Other"** — correct the type
   first (amendment 13(b)) — **and while the account is erased** — reject it instead (13(e)); shown
   disabled with the reason rather than hidden.
-- **Reject and Suspend are destructive**, both with focus starting on Cancel and the button disabled
-  until a reason is written. **Reject Application** is a plain destructive Modal: an everyday review
-  decision, which the company can answer by applying again. **Suspend Company** is Geist's
-  **Destructive Action Modal**: the button also waits for the company's name to be typed, because
-  suspending stops all ordering and emails the customer (amendment 23(c), owner 2026-10-03). Approve
-  and Reinstate use a plain Modal.
+- **Reject and Suspend are destructive**, both with the button out of reach until a reason is
+  written. **Reject Application** is a plain destructive Modal, focus starting on Cancel: an everyday
+  review decision, which the company can answer by applying again. **Suspend Company** is Geist's
+  **Destructive Action Modal**, focus starting on the name to type: the button also waits for the
+  company's name to be typed, because suspending stops all ordering and emails the customer
+  (amendment 23(c), owner 2026-10-03); a reason or a name written keeps it from closing on a click
+  outside. Approve and Reinstate use a plain Modal.
 - **Where they sit**: Approve and Reject at the top of the page; Reinstate there while
   suspended; Correct Company Type and Suspend in the page's actions menu, Suspend last (Geist's menu
   rules).
-- A refusal shows as the module's own error (§7), in a red note at the top of the page and a toast
-  (frontend.md §2.1); a reason the domain refuses shows under the reason.
+- A refusal shows as the module's own error (§7), in a red note inside the dialog that sent it -
+  which stays open to try again - or at the top of the page, and a toast (frontend.md §2.1); a
+  reason the domain refuses shows under the reason.
 
 **The types page** (one store's two lists):
 
 - **The "copied" notice** (§1.3, amendments 6(a) and 10(d)), above either list while the store's lists
   are marked copied, not yet reviewed, with **Mark Lists Reviewed** for holders of either list's
-  update job, worded: "These are the lists every store starts with, written for Saudi forms and
-  papers. Change what this store needs, or mark the lists reviewed."
+  update job, worded (amendment 24(e)): "This store still has the starting lists, written for Saudi
+  forms and papers: change what it needs, or mark them reviewed."
 - **A table per list**: Position · Arabic Name · English Name · Status (Active, or Hidden / Greyed Out
   when deactivated) · for company types, **Companies** — how many hold it — · for document types,
   **Required**. Ordered as the form orders them (§1.3). Each row's actions in a menu.
@@ -1073,3 +1076,4 @@ place in the sections named; this table records what changed and why.
 | 21 | §4.6, §8 (43–49) | **Step 7, the staff screens** — written and built in the overnight run of 2026-10-02 while the owner slept; every pick below was the option the builder would recommend, **settled by the owner in amendment 23** (2026-10-03: (b), (g) for Suspend and (i) changed, the rest confirmed). (a) **Three menu entries in the Companies group** — Companies, Company Types, Document Types — at `/admin/companies`, `/admin/companies/{id}`, `/admin/company-types`, `/admin/document-types`; the two type lists are one types page with a tab each, **for the store in the panel's header**. (b) **The type entries are offered to holders of each list's update job**; holders of only another job on a list open it by its address — offering them the entry needs a Platform addition (a menu entry for any of several permissions), the owner's call. (c) **Reading a type list is part of every job on it**, in that store; no new permission. (d) **The company list**: Company · Status · Store · Sent · Last Change, 25 a page, the store filter offering only the reader's stores and hidden when they have one; the "type deactivated since sent" mark beside the name. (e) **The company page**: status, details, account holder, applications newest first with who decided each, the newest open; papers open through a 30-minute link; without the job a paper shows its type and date but neither its file's name nor its id, and the Open button is disabled with its reason. (f) **Buttons offered only when they can happen next**; Approve **disabled with its reason** while "Other" or the account is erased. (g) **Reject and Suspend use Geist's destructive Modal, not the typed confirmation** — both can be undone; Approve and Reinstate a plain Modal; Approve and Reject at the top of the page, Correct Company Type and Suspend in its actions menu. (h) **Correct Company Type** offers deactivated types, marked, only to someone who may also activate types, and "Other" only to a company not approved. (i) **Times** on the list and the page are each company's home store's. (j) **The types page**: a table per list — position, both names, status, holders (company types) or required (document types) —, row actions in a menu; Activate, Make Required and Make Optional act at once; a new type's position defaults to ten after the last; the "copied" notice's words are the builder's. (k) **Every English and Arabic word** on the screens is the builder's, after Geist's writing rules. | B2B's last step: the staff side of §3.2, built in Geist as frontend.md §1.8 decided (2026-10-01/02). The owner was asleep and the lead agent asked for the recommended option at every open point, each marked to be confirmed in the morning. | Builder, 2026-10-02; **settled by the owner in amendment 23** (2026-10-03) |
 | 22 | §5.1, §8 (37, 42) | **The company page on shadcn's code** (owner, 2026-10-02, frontend.md §1.11). (a) **How a field says where it stands** (replaces 16(a)'s colours, not its rules): while saving, the field's end shows "Saving…" with a spinner, then "✓ Saved" once the server holds the value; under the field, its rule in grey, which turns red, with the reason, when the field must be fixed — a value not valid that is left behind (or its saved value cleared, 17(k)), a server refusal, or the last decision's mark (17(f)); the edge is plain, or red — no yellow, no green edge. A value not valid is still never sent; the field stays editable while it saves. (b) **The side column is Geist's Progress with stops** — Form, Under Review, Decision — the bar at the latest application's stop, back at the first when the company applies again, hidden while suspended; it replaces 16(e)'s numbered steps, each with its sentence. (c) **The saved-address tiles are shadcn's field-choice-card**, each tile naming its store, with no store headings (16(f)). | The owner's rule: use what Geist and shadcn have; the owner asked for the commonly used pattern for field states — the state in the field, the reason under it. | Owner, 2026-10-02 |
 | 23 | §4.6, §8 (43–49) | **Step 7's picks, settled** (owner, 2026-10-03, one by one with pictures). (a) **The Company Types and Document Types entries are offered to anyone holding any job on that list** in the store being worked in — adding, renaming, deactivating, moving companies between types — through platform.md's new menu entry for any of several permissions; replaces 21(b). (b) **Times on the staff screens are in the store being worked in**, as on every other panel screen (frontend.md §1.10, store time); replaces 21(i) and §4.6's "the company's home store's". (c) **Suspend Company asks for the company's name to be typed** — Geist's Destructive Action Modal — because suspending stops all ordering and emails the customer; the reason is still required. **Reject Application stays a plain destructive Modal** with a required reason, as an everyday review decision. Replaces 21(g) for Suspend. (d) **Confirmed as built**: all of amendment 20, and the rest of 21; 21(k)'s words are checked again against Geist's writing rules in the rebuild. | The owner's answers to the overnight picks; Geist's rule for a serious, reversible action; the store-time rule everywhere in the panel. | Owner, 2026-10-03 |
+| 24 | §4.5, §4.6, §8 (37, 42) | **The rebuild's B2B picks** (owner, 2026-10-04, each from a picture; frontend.md §1.11). (a) **The status badges are one map on both sides**: Approved green; Pending and Under Review amber; Rejected and Suspended red (Geist's Badge, after Atlassian's lozenges); an application waiting for a decision reads "Under Review" on both sides. (b) **The staff Companies list: the whole row opens the company**, as the roles list. (c) **The saved-address picker shows up to six choice cards, then a searchable list** (Geist's Choicebox: "cap at 4–6 tiles"). (d) **An approved company's change warning is one Note, at the top of the form**; replaces §4.5's "at its top and again above Send". (e) **Every word that breaks Geist's writing rules is rewritten**, Arabic and English saying the same: a status box, a note, a helper one sentence; a field's error names the field ("Company name needs at least 2 characters."); under each field its rule in grey ("2 to 200 characters.", 22(a)). | The owner's answers to the rebuild's questions for batches C to F. | Owner, 2026-10-04 |

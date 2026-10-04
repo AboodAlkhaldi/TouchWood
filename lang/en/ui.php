@@ -20,6 +20,7 @@ return [
     'loading' => 'Loading',
     // Geist's Copy Button, said to a screen reader once the text is on the clipboard.
     'copied' => 'Copied',
+    'copy_failed' => "Couldn't copy. Select the text and copy it by hand.",
     // The search field's clear button (Geist's Search Input), named for a screen reader.
     'clear_search' => 'Clear Search',
     // The ⋯ button that holds a page's or a row's other actions (Geist's Dots Menu), named for a

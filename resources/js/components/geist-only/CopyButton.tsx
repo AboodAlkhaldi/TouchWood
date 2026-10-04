@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTranslator } from '@/lib/t';
 
@@ -12,7 +12,9 @@ import { useTranslator } from '@/lib/t';
 | - an icon-only button names the action and the target ("Copy deployment URL"), never the icon
 |   ("Copy") - so the caller passes the name;
 | - it gives feedback when copied: the icon turns to a check for a moment, and a screen reader
-|   hears "Copied" from a polite status line beside it.
+|   hears "Copied" from a polite status line beside it;
+| - a copy the browser refuses (an insecure origin, a denied permission) is said too, the same way:
+|   a cross for a moment, and "Couldn't copy" with what to do instead - never a silent button.
 */
 
 type Props = {
@@ -25,7 +27,7 @@ type Props = {
 
 export function CopyButton({ text, label, className }: Props) {
     const t = useTranslator();
-    const [copied, setCopied] = useState(false);
+    const [said, setSaid] = useState<'copied' | 'failed' | null>(null);
     const timer = useRef<number | null>(null);
 
     useEffect(() => () => {
@@ -35,30 +37,31 @@ export function CopyButton({ text, label, className }: Props) {
     }, []);
 
     async function copy() {
+        let result: 'copied' | 'failed' = 'copied';
+
         try {
             await navigator.clipboard.writeText(text);
         } catch {
-            // A browser that refuses the clipboard (an insecure origin, a denied permission) leaves
-            // the text where it is to select by hand; nothing is claimed.
-            return;
+            // The text stays where it is, to select by hand; the button says so.
+            result = 'failed';
         }
 
-        setCopied(true);
+        setSaid(result);
 
         if (timer.current !== null) {
             window.clearTimeout(timer.current);
         }
 
-        timer.current = window.setTimeout(() => setCopied(false), 2000);
+        timer.current = window.setTimeout(() => setSaid(null), 2000);
     }
 
     return (
         <>
             <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} onClick={copy} className={className} data-test="copy-button">
-                {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                {said === 'copied' ? <Check aria-hidden="true" /> : said === 'failed' ? <X aria-hidden="true" className="text-bad" /> : <Copy aria-hidden="true" />}
             </Button>
             <span role="status" className="sr-only">
-                {copied ? t('ui.copied') : ''}
+                {said === 'copied' ? t('ui.copied') : said === 'failed' ? t('ui.copy_failed') : ''}
             </span>
         </>
     );

@@ -1,39 +1,38 @@
-import { useState, type ReactNode } from 'react';
-import { Ellipsis, ExternalLink } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
+import { ChevronDown, ExternalLink, MoreHorizontal } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
-import {
-    Badge,
-    Button,
-    ButtonLink,
-    Collapse,
-    Description,
-    Entity,
-    EntityList,
-    Menu,
-    MenuDivider,
-    MenuItem,
-    Note,
-    type DescriptionItem,
-} from '@/components/geist';
+import { ActionButton } from '@/components/ActionButton';
+import { FormError } from '@/components/FormError';
+import { Note } from '@/components/Note';
+import { Time } from '@/components/Time';
+import { Description, type DescriptionItem } from '@/components/geist-only/Description';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from '@/components/ui/item';
 import { useTranslator } from '@/lib/t';
-import type {
-    CompanyValuesData,
-    StaffApplicationData,
-    StaffCompanyPage,
-} from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
-import { applicationStateLook, companyStatusLook, FormNote, nameIn, useLocale, when, type Locale } from '../shared';
+import { tone } from '@/lib/tones';
+import type { CompanyValuesData, StaffApplicationData, StaffCompanyPage } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
+import { applicationStateTone, companyStatusTone } from '../../status';
+import { nameIn, useLocale, type Locale } from '../shared';
 import { ApproveModal, CorrectTypeModal, ReinstateModal, RejectModal, SuspendModal } from './Decisions';
 
 /*
-| One company, as staff review it (b2b.md §3.2, §4.6, amendment 21).
+| One company, as staff review it (b2b.md §3.2, §4.6, amendments 21 and 23), on shadcn's parts with
+| Geist's rules (frontend.md §1.11).
 |
 | Read only but for its buttons, each drawn only when B2B says this reader holds the job and it can
 | happen next (StaffCompanyActionsForReader); every handler behind them asks again. Approve and Reject
 | sit at the top while an application waits, Reinstate while suspended; Correct Company Type and
-| Suspend in the actions menu, Suspend last (Geist's menu rules).
+| Suspend in the ⋯ menu, Suspend last after a divider (Geist's menu rules; confirmed by the owner,
+| 2026-10-03).
 |
-| Times are the home store's, written by the server (HANDOFF §4). The applications are the ones sent,
-| newest first - never a draft - the newest open and the older ones folded.
+| Times are moments in the store being worked in (amendment 23(b)): shadcn's HoverCard through Time,
+| the full moment on the page, its zone and UTC on hover. The applications are the ones sent, newest
+| first - never a draft - each one of shadcn's Collapsibles, the newest open. A paper is an Item with
+| its Open File; a written answer is Geist's Description, so a long one is read whole.
 */
 
 type Dialog = 'approve' | 'reject' | 'suspend' | 'reinstate' | 'correct' | null;
@@ -42,57 +41,56 @@ export default function Show({ company, holder, applications, actions, typeChoic
     const t = useTranslator();
     const locale = useLocale();
     const [dialog, setDialog] = useState<Dialog>(null);
+    const more = useRef<HTMLButtonElement>(null);
     const waiting = applications[0]?.state === 'SUBMITTED' ? applications[0] : null;
     const values = company.values;
 
-    const typeNote =
-        waiting !== null && waiting.typeDeactivatedSinceSent
-            ? t('b2b::admin_companies.application.type_changed.body', { type: typeOf(values, locale, t) })
-            : null;
+    const typeNote = waiting !== null && waiting.typeDeactivatedSinceSent ? t('b2b::admin_companies.application.type_changed.body', { type: typeOf(values, locale, t) }) : null;
 
     const opened = (next: Dialog) => (open: boolean) => setDialog(open ? next : null);
 
     const top = (
         <div className="flex flex-wrap items-center gap-2">
             {actions.mayReject ? (
-                <Button type="secondary" onClick={() => setDialog('reject')} data-test="reject">
+                <Button type="button" variant="outline" onClick={() => setDialog('reject')} data-test="reject">
                     {t('b2b::admin_companies.reject.button')}
                 </Button>
             ) : null}
             {actions.mayApprove ? (
-                <Button
+                <ActionButton
                     onClick={() => setDialog('approve')}
                     disabledReason={actions.approveRefusal === null ? undefined : t(`b2b::admin_companies.approve.${actions.approveRefusal}`)}
                     data-test="approve"
                 >
                     {t('b2b::admin_companies.approve.button')}
-                </Button>
+                </ActionButton>
             ) : null}
             {actions.mayReinstate ? (
-                <Button onClick={() => setDialog('reinstate')} data-test="reinstate">
+                <ActionButton onClick={() => setDialog('reinstate')} data-test="reinstate">
                     {t('b2b::admin_companies.reinstate.button')}
-                </Button>
+                </ActionButton>
             ) : null}
             {actions.mayCorrectType || actions.maySuspend ? (
-                <Menu
-                    trigger={
-                        <Button type="tertiary" svgOnly aria-label={t('b2b::admin_companies.actions')} data-test="company-actions">
-                            <Ellipsis className="size-4" />
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button ref={more} type="button" variant="outline" size="icon" aria-label={t('b2b::admin_companies.actions')} title={t('b2b::admin_companies.actions')} data-test="company-actions">
+                            <MoreHorizontal aria-hidden="true" />
                         </Button>
-                    }
-                >
-                    {actions.mayCorrectType ? (
-                        <MenuItem onSelect={() => setDialog('correct')} data-test="correct-type">
-                            {t('b2b::admin_companies.correct.menu')}
-                        </MenuItem>
-                    ) : null}
-                    {actions.mayCorrectType && actions.maySuspend ? <MenuDivider /> : null}
-                    {actions.maySuspend ? (
-                        <MenuItem type="error" onSelect={() => setDialog('suspend')} data-test="suspend">
-                            {t('b2b::admin_companies.suspend.menu')}
-                        </MenuItem>
-                    ) : null}
-                </Menu>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-56">
+                        {actions.mayCorrectType ? (
+                            <DropdownMenuItem onSelect={() => setDialog('correct')} data-test="correct-type">
+                                {t('b2b::admin_companies.correct.menu')}
+                            </DropdownMenuItem>
+                        ) : null}
+                        {actions.mayCorrectType && actions.maySuspend ? <DropdownMenuSeparator /> : null}
+                        {actions.maySuspend ? (
+                            <DropdownMenuItem variant="destructive" onSelect={() => setDialog('suspend')} data-test="suspend">
+                                {t('b2b::admin_companies.suspend.menu')}
+                            </DropdownMenuItem>
+                        ) : null}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             ) : null}
         </div>
     );
@@ -100,7 +98,7 @@ export default function Show({ company, holder, applications, actions, typeChoic
     return (
         <AdminLayout title={values.name ?? ''} subtitle={t('b2b::admin_companies.subtitle_company')} action={top}>
             <div className="grid gap-6">
-                <FormNote />
+                <FormError />
 
                 <Section title={t('b2b::admin_companies.section.status')} test="company-status-section">
                     <Description
@@ -109,7 +107,7 @@ export default function Show({ company, holder, applications, actions, typeChoic
                             {
                                 title: t('b2b::admin_companies.field.status'),
                                 content: (
-                                    <Badge variant={companyStatusLook(company.status)} data-test="company-status">
+                                    <Badge className={tone(companyStatusTone(company.status))} data-test="company-status">
                                         {t(`b2b::admin_companies.status.${company.status}`)}
                                     </Badge>
                                 ),
@@ -124,7 +122,7 @@ export default function Show({ company, holder, applications, actions, typeChoic
                                 content: company.statusReason === null ? null : <span className="whitespace-pre-line">{company.statusReason}</span>,
                                 'data-test': 'company-reason',
                             },
-                            { title: t('b2b::admin_companies.field.changed_at'), content: ltr(when(company.statusChangedAt)) },
+                            { title: t('b2b::admin_companies.field.changed_at'), content: moment(company.statusChangedAt) },
                             { title: t('b2b::admin_companies.field.changed_by'), content: company.statusChangedBy },
                         ]}
                     />
@@ -169,49 +167,27 @@ export default function Show({ company, holder, applications, actions, typeChoic
                     )}
                 </Section>
 
-                <section className="material-base grid gap-1 px-5 py-4 sm:px-6" data-test="company-applications">
-                    <h2 className="text-heading-20 text-ink">{t('b2b::admin_companies.section.applications')}</h2>
-                    {applications.map((application, index) => (
-                        <Collapse
-                            key={application.id}
-                            defaultOpen={index === 0}
-                            title={
-                                <span className="inline-flex flex-wrap items-center gap-2" data-test={`application-${application.reference}`}>
-                                    <bdi dir="ltr" className="text-label-14-mono">
-                                        {application.reference}
-                                    </bdi>
-                                    <Badge variant={applicationStateLook(application.state)} size="small">
-                                        {t(`b2b::admin_companies.application.state.${application.state}`)}
-                                    </Badge>
-                                    <span className="tw-figure text-copy-13 text-ink-muted">
-                                        <bdi dir="ltr">{when(application.submittedAt)}</bdi>
-                                    </span>
-                                </span>
-                            }
-                        >
-                            <Application
+                <Section title={t('b2b::admin_companies.section.applications')} test="company-applications">
+                    <div className="grid divide-y divide-line">
+                        {applications.map((application, index) => (
+                            <ApplicationCollapse
+                                key={application.id}
                                 application={application}
+                                defaultOpen={index === 0}
                                 companyId={company.id}
                                 mayOpen={actions.mayOpenDocuments}
                                 typeNote={index === 0 ? typeNote : null}
                             />
-                        </Collapse>
-                    ))}
-                </section>
+                        ))}
+                    </div>
+                </Section>
             </div>
 
             {actions.mayApprove ? <ApproveModal open={dialog === 'approve'} onOpenChange={opened('approve')} companyId={company.id} typeNote={typeNote} /> : null}
             {actions.mayReject ? (
-                <RejectModal
-                    open={dialog === 'reject'}
-                    onOpenChange={opened('reject')}
-                    companyId={company.id}
-                    typeNote={typeNote}
-                    papers={waiting?.documents ?? []}
-                    locale={locale}
-                />
+                <RejectModal open={dialog === 'reject'} onOpenChange={opened('reject')} companyId={company.id} typeNote={typeNote} papers={waiting?.documents ?? []} locale={locale} />
             ) : null}
-            {actions.maySuspend ? <SuspendModal open={dialog === 'suspend'} onOpenChange={opened('suspend')} companyId={company.id} /> : null}
+            {actions.maySuspend ? <SuspendModal open={dialog === 'suspend'} onOpenChange={opened('suspend')} companyId={company.id} companyName={values.name ?? ''} returnFocusTo={more} /> : null}
             {actions.mayReinstate ? (
                 <ReinstateModal
                     open={dialog === 'reinstate'}
@@ -225,6 +201,7 @@ export default function Show({ company, holder, applications, actions, typeChoic
                     open={dialog === 'correct'}
                     onOpenChange={opened('correct')}
                     companyId={company.id}
+                    returnFocusTo={more}
                     choices={typeChoices}
                     mayChooseOther={actions.mayChooseOther}
                     currentTypeId={values.companyTypeId}
@@ -238,18 +215,23 @@ export default function Show({ company, holder, applications, actions, typeChoic
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
+/** A section of the page: one of shadcn's Cards, in Geist's material. */
 function Section({ title, test, children }: { title: string; test: string; children: ReactNode }) {
     return (
-        <section className="material-base grid gap-4 p-5 sm:p-6" data-test={test}>
-            <h2 className="text-heading-20 text-ink">{title}</h2>
-            {children}
-        </section>
+        <Card className="material-base gap-0 border-0 py-0" data-test={test}>
+            <CardHeader className="px-5 pt-5 pb-4 sm:px-6">
+                <CardTitle>
+                    <h2 className="text-heading-20 text-ink">{title}</h2>
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 px-5 pb-5 sm:px-6">{children}</CardContent>
+        </Card>
     );
 }
 
 /**
- * A value that reads left to right — a number, an email, a time — kept whole on an Arabic page; in
- * the figures' face unless it is words, as an email is.
+ * A value that reads left to right — a number, an email — kept whole on an Arabic page; in the
+ * figures' face unless it is words, as an email is.
  */
 function ltr(value: string | null, figures = true): ReactNode {
     return value === null || value === '' ? null : (
@@ -257,6 +239,11 @@ function ltr(value: string | null, figures = true): ReactNode {
             {value}
         </bdi>
     );
+}
+
+/** A moment on a detail page: whole, in the store being worked in (amendment 23(b)). */
+function moment(at: string | null): ReactNode {
+    return at === null ? null : <Time value={at} mode="absolute" />;
 }
 
 /** A listed type's name, or "Other" with the company's own words (§1.3). */
@@ -281,22 +268,51 @@ function details(values: CompanyValuesData, locale: Locale, t: Translate): Descr
     ];
 }
 
-/** One sent application: its decision, what it sent, its papers, and what its rejection marked and asked. */
-function Application({
+/** One sent application, folded or open: shadcn's Collapsible in Geist's Collapse look. */
+function ApplicationCollapse({
     application,
+    defaultOpen,
     companyId,
     mayOpen,
     typeNote,
 }: {
     application: StaffApplicationData;
+    defaultOpen: boolean;
     companyId: string;
     mayOpen: boolean;
     typeNote: string | null;
 }) {
     const t = useTranslator();
+
+    return (
+        <Collapsible defaultOpen={defaultOpen} className="group/collapse py-1">
+            <CollapsibleTrigger asChild>
+                <button type="button" className="flex w-full items-center justify-between gap-3 rounded-[var(--tw-radius-sm)] py-3 text-start outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+                    <span className="inline-flex flex-wrap items-center gap-2" data-test={`application-${application.reference}`}>
+                        <bdi dir="ltr" className="text-label-14-mono text-ink">
+                            {application.reference}
+                        </bdi>
+                        <Badge className={tone(applicationStateTone(application.state))}>{t(`b2b::admin_companies.application.state.${application.state}`)}</Badge>
+                        <span className="text-copy-13 text-ink-muted">{application.submittedAt === null ? null : <Time value={application.submittedAt} focusable={false} />}</span>
+                    </span>
+                    <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-ink-muted transition-transform group-data-[state=open]/collapse:rotate-180" />
+                </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pb-4">
+                <Application application={application} companyId={companyId} mayOpen={mayOpen} typeNote={typeNote} />
+            </CollapsibleContent>
+        </Collapsible>
+    );
+}
+
+/** One sent application: its decision, what it sent, its papers, and what its rejection marked and asked. */
+function Application({ application, companyId, mayOpen, typeNote }: { application: StaffApplicationData; companyId: string; mayOpen: boolean; typeNote: string | null }) {
+    const t = useTranslator();
     const locale = useLocale();
     const approved = application.state === 'APPROVED';
     const values = application.values;
+    const written = application.answers.filter((answer) => !answer.isFile);
+    const files = application.answers.filter((answer) => answer.isFile);
 
     return (
         <div className="grid gap-5 pt-1">
@@ -310,8 +326,8 @@ function Application({
                 columns={3}
                 items={[
                     { title: t('b2b::admin_companies.application.reference'), content: ltr(application.reference) },
-                    { title: t('b2b::admin_companies.application.sent'), content: ltr(when(application.submittedAt)) },
-                    { title: t('b2b::admin_companies.application.decided'), content: ltr(when(application.decidedAt)) },
+                    { title: t('b2b::admin_companies.application.sent'), content: moment(application.submittedAt) },
+                    { title: t('b2b::admin_companies.application.decided'), content: moment(application.decidedAt) },
                     { title: t('b2b::admin_companies.application.decided_by'), content: application.decidedBy, 'data-test': 'decided-by' },
                     {
                         title: approved ? t('b2b::admin_companies.application.approval_note') : t('b2b::admin_companies.application.reason'),
@@ -335,31 +351,36 @@ function Application({
                 {application.documents.length === 0 ? (
                     <p className="text-copy-14 text-ink-muted">{t('b2b::admin_companies.application.no_papers')}</p>
                 ) : (
-                    <EntityList>
-                        {application.documents.map((paper) => (
-                            <Entity
-                                key={paper.documentTypeId}
-                                data-test={`paper-${paper.documentTypeId}`}
-                                title={nameIn(locale, paper.documentTypeNameAr, paper.documentTypeNameEn) || t('b2b::admin_companies.application.paper')}
-                                description={[paper.fileName, t('b2b::admin_companies.application.uploaded', { date: when(paper.uploadedAt) })]
-                                    .filter((part) => part !== '')
-                                    .join(' · ')}
-                                actions={<OpenFile companyId={companyId} mediaId={paper.mediaId} mayOpen={mayOpen} test={`open-${paper.documentTypeId}`} />}
-                            />
+                    <ItemGroup className="material-base overflow-hidden">
+                        {application.documents.map((paper, index) => (
+                            <div key={paper.documentTypeId} role="listitem">
+                                {index === 0 ? null : <ItemSeparator className="my-0" />}
+                                <Item size="sm" className="rounded-none px-4" data-test={`paper-${paper.documentTypeId}`}>
+                                    <ItemContent className="min-w-0">
+                                        <ItemTitle className="text-label-14 text-ink">{nameIn(locale, paper.documentTypeNameAr, paper.documentTypeNameEn) || t('b2b::admin_companies.application.paper')}</ItemTitle>
+                                        <ItemDescription className="text-copy-13 text-ink-muted">
+                                            {paper.fileName === '' ? null : <bdi>{paper.fileName}</bdi>}
+                                            {paper.fileName === '' ? null : ' · '}
+                                            {t('b2b::admin_companies.application.uploaded_on')} <Time value={paper.uploadedAt} focusable={false} inSentence />
+                                        </ItemDescription>
+                                    </ItemContent>
+                                    <ItemActions>
+                                        <OpenFile companyId={companyId} mediaId={paper.mediaId} mayOpen={mayOpen} test={`open-${paper.documentTypeId}`} />
+                                    </ItemActions>
+                                </Item>
+                            </div>
                         ))}
-                    </EntityList>
+                    </ItemGroup>
                 )}
             </div>
 
             {application.flags.length === 0 ? null : (
                 <div className="grid gap-2" data-test="application-flags">
                     <h3 className="text-heading-16 text-ink">{t('b2b::admin_companies.application.flags')}</h3>
-                    <ul className="list-disc ps-5 text-copy-14 text-ink">
+                    <ul className="ms-5 list-disc text-copy-14 text-ink [&>li]:mt-1">
                         {application.flags.map((flag) => (
                             <li key={flag.field ?? flag.documentTypeId ?? ''}>
-                                {flag.field !== null
-                                    ? t(`b2b::admin_companies.application.flag.${flag.field}`)
-                                    : paperName(application, flag.documentTypeId, locale) || t('b2b::admin_companies.application.paper')}
+                                {flag.field !== null ? t(`b2b::admin_companies.application.flag.${flag.field}`) : paperName(application, flag.documentTypeId, locale) || t('b2b::admin_companies.application.paper')}
                             </li>
                         ))}
                     </ul>
@@ -369,7 +390,7 @@ function Application({
             {application.requests.length === 0 ? null : (
                 <div className="grid gap-2" data-test="application-requests">
                     <h3 className="text-heading-16 text-ink">{t('b2b::admin_companies.application.requests')}</h3>
-                    <ul className="list-disc ps-5 text-copy-14 text-ink">
+                    <ul className="ms-5 list-disc text-copy-14 text-ink [&>li]:mt-1">
                         {application.requests.map((request) => (
                             <li key={request.id}>
                                 {request.label} <span className="text-ink-muted">({t(`b2b::admin_companies.application.kind.${request.kind}`)})</span>
@@ -382,16 +403,38 @@ function Application({
             {application.answers.length === 0 ? null : (
                 <div className="grid gap-3" data-test="application-answers">
                     <h3 className="text-heading-16 text-ink">{t('b2b::admin_companies.application.answers')}</h3>
-                    <EntityList>
-                        {application.answers.map((answer) => (
-                            <Entity
-                                key={answer.requestId}
-                                title={answer.label ?? t('b2b::admin_companies.application.answer')}
-                                description={answer.text ?? answer.fileName ?? undefined}
-                                actions={answer.isFile ? <OpenFile companyId={companyId} mediaId={answer.mediaId} mayOpen={mayOpen} test={`open-answer-${answer.requestId}`} /> : undefined}
-                            />
-                        ))}
-                    </EntityList>
+                    {/* A written answer is read whole (Geist's Description), never cut to a line. */}
+                    {written.length === 0 ? null : (
+                        <Description
+                            columns={1}
+                            items={written.map((answer) => ({
+                                title: answer.label ?? t('b2b::admin_companies.application.answer'),
+                                content: answer.text === null ? null : <span className="whitespace-pre-line">{answer.text}</span>,
+                            }))}
+                        />
+                    )}
+                    {files.length === 0 ? null : (
+                        <ItemGroup className="material-base overflow-hidden">
+                            {files.map((answer, index) => (
+                                <div key={answer.requestId} role="listitem">
+                                    {index === 0 ? null : <ItemSeparator className="my-0" />}
+                                    <Item size="sm" className="rounded-none px-4">
+                                        <ItemContent className="min-w-0">
+                                            <ItemTitle className="text-label-14 text-ink">{answer.label ?? t('b2b::admin_companies.application.answer')}</ItemTitle>
+                                            {answer.fileName === null ? null : (
+                                                <ItemDescription className="text-copy-13 text-ink-muted">
+                                                    <bdi>{answer.fileName}</bdi>
+                                                </ItemDescription>
+                                            )}
+                                        </ItemContent>
+                                        <ItemActions>
+                                            <OpenFile companyId={companyId} mediaId={answer.mediaId} mayOpen={mayOpen} test={`open-answer-${answer.requestId}`} />
+                                        </ItemActions>
+                                    </Item>
+                                </div>
+                            ))}
+                        </ItemGroup>
+                    )}
                 </div>
             )}
         </div>
@@ -406,24 +449,27 @@ function paperName(application: StaffApplicationData, documentTypeId: string | n
 
 /**
  * A paper opens through a link that lasts 30 minutes, and the opening is audited (amendment 10(f)).
- * Without the job the file's id never reaches the page (amendment 8(c)): the button stays, disabled,
- * saying why, and is named after the paper's type or the request rather than the file.
+ * Without the job the file's id never reaches the page (amendment 8(c)): the button stays, out of
+ * reach, saying why, and is named after the paper's type or the request rather than the file.
  */
 function OpenFile({ companyId, mediaId, mayOpen, test }: { companyId: string; mediaId: string | null; mayOpen: boolean; test: string }) {
     const t = useTranslator();
-    const open = mayOpen && mediaId !== null;
+
+    if (!mayOpen || mediaId === null) {
+        return (
+            <ActionButton variant="outline" size="sm" disabledReason={t('b2b::admin_companies.application.open_locked')} data-test={test}>
+                <ExternalLink aria-hidden="true" />
+                {t('b2b::admin_companies.application.open')}
+            </ActionButton>
+        );
+    }
 
     return (
-        <ButtonLink
-            external
-            type="secondary"
-            size="small"
-            href={open ? `/admin/companies/${companyId}/files/${mediaId}` : ''}
-            prefix={<ExternalLink className="size-4" />}
-            disabledReason={open ? undefined : t('b2b::admin_companies.application.open_locked')}
-            data-test={test}
-        >
-            {t('b2b::admin_companies.application.open')}
-        </ButtonLink>
+        <Button asChild variant="outline" size="sm">
+            <a href={`/admin/companies/${companyId}/files/${mediaId}`} target="_blank" rel="noopener noreferrer" data-test={test}>
+                <ExternalLink aria-hidden="true" />
+                {t('b2b::admin_companies.application.open')}
+            </a>
+        </Button>
     );
 }

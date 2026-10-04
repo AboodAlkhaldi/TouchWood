@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { usePage } from '@inertiajs/react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { intlLocale } from '@/lib/digits';
 import type { SharedProps } from '@/types/page';
 
 /*
@@ -49,8 +50,9 @@ export function useMoments(): { full: (iso: string) => string; date: (iso: strin
     return { full: (iso) => formatMoment(iso, zone, locale), date: (iso) => formatDate(iso, zone, locale) };
 }
 
+/** Intl's tag for the page's language: Arabic-Indic digits on an Arabic page (lib/digits.ts). */
 function language(locale: string): string {
-    return locale === 'ar' ? 'ar' : 'en';
+    return intlLocale(locale);
 }
 
 /**
@@ -120,7 +122,7 @@ function formatRelative(iso: string, locale: string, now: number, inSentence: bo
               ? words.format(hours, 'hour')
               : words.format(Math.round(hours / 24), 'day');
 
-    return language(locale) === 'en' && !inSentence ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+    return locale !== 'ar' && !inSentence ? text.charAt(0).toUpperCase() + text.slice(1) : text;
 }
 
 type Props = {

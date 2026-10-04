@@ -55,6 +55,11 @@ type Props = {
     onConfirm: () => void;
     /** Where focus goes back when the opener is gone: the ⋯ button of the menu that opened it. */
     returnFocusTo?: RefObject<HTMLElement | null>;
+    /** Why the confirm waits even once the phrase is typed - a reason the body asks for and is
+     * still empty - one sentence, shown as the button's tooltip (Geist's Button). */
+    waitingFor?: string;
+    /** Something the body holds is written - a reason - so an outside click does not throw it away. */
+    dirty?: boolean;
 };
 
 export function DestructiveActionDialog({
@@ -72,6 +77,8 @@ export function DestructiveActionDialog({
     error,
     onConfirm,
     returnFocusTo,
+    waitingFor,
+    dirty = false,
 }: Props) {
     const t = useTranslator();
     const id = useId();
@@ -96,14 +103,14 @@ export function DestructiveActionDialog({
             <DialogContent
                 showCloseButton={false}
                 onCloseAutoFocus={returnFocus}
-                onInteractOutside={(event) => (loading || typed !== '' ? event.preventDefault() : undefined)}
+                onInteractOutside={(event) => (loading || typed !== '' || dirty ? event.preventDefault() : undefined)}
                 className="material-modal gap-0 overflow-hidden border-0 p-0 sm:max-w-md"
                 data-test="destructive-dialog"
             >
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
-                        if (matches && !loading) {
+                        if (matches && waitingFor === undefined && !loading) {
                             onConfirm();
                         }
                     }}
@@ -152,7 +159,14 @@ export function DestructiveActionDialog({
                         <Button type="button" variant="outline" disabled={loading} onClick={() => onOpenChange(false)} data-test="modal-cancel">
                             {cancelLabel ?? t('ui.cancel')}
                         </Button>
-                        <ActionButton type="submit" variant="destructive" loading={loading} disabled={!matches} data-test="destructive-confirm">
+                        <ActionButton
+                            type="submit"
+                            variant="destructive"
+                            loading={loading}
+                            disabled={!matches}
+                            disabledReason={matches ? waitingFor : undefined}
+                            data-test="destructive-confirm"
+                        >
                             {confirmLabel ?? title}
                         </ActionButton>
                     </DialogFooter>

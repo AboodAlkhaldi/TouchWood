@@ -17,7 +17,14 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 | are scored on their label and value only, with cmdk's own scorer.
 */
 
-export type SearchOption = { value: string; label: string };
+export type SearchOption = {
+    value: string;
+    label: string;
+    /** A second line under the label. */
+    description?: string;
+    /** Shown, and out of reach: its description says why. */
+    disabled?: boolean;
+};
 
 export type SearchWords = {
     /** A scoped placeholder: "Search time zones". */
@@ -87,9 +94,22 @@ export function SearchCombobox({ id, label, options, value, onChange, words, hel
                         <CommandList>
                             <CommandEmpty>{words.none(query)}</CommandEmpty>
                             {options.map((option) => (
-                                <CommandItem key={option.value} value={`option-${option.value}`} keywords={[option.label, option.value]} onSelect={() => choose(option.value)}>
-                                    {text(option.label)}
-                                    <Check aria-hidden="true" className={cn('ms-auto', value === option.value ? 'opacity-100' : 'opacity-0')} />
+                                <CommandItem
+                                    key={option.value}
+                                    value={`option-${option.value}`}
+                                    keywords={[option.label, option.value, option.description ?? '']}
+                                    disabled={option.disabled}
+                                    onSelect={() => choose(option.value)}
+                                >
+                                    {option.description === undefined ? (
+                                        text(option.label)
+                                    ) : (
+                                        <span className="grid min-w-0 gap-0.5">
+                                            <span className="truncate">{text(option.label)}</span>
+                                            <span className="text-copy-12 whitespace-pre-line text-ink-muted">{option.description}</span>
+                                        </span>
+                                    )}
+                                    <Check aria-hidden="true" className={cn('ms-auto shrink-0', value === option.value ? 'opacity-100' : 'opacity-0')} />
                                 </CommandItem>
                             ))}
                         </CommandList>

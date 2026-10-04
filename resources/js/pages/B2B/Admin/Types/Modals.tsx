@@ -1,18 +1,27 @@
-import { useEffect } from 'react';
+import { type RefObject, useEffect } from 'react';
 import { useForm } from '@inertiajs/react';
-import { Button, Checkbox, Input, Modal, ModalCancel, Note, RadioGroup, Select } from '@/components/geist';
+import { ActionButton } from '@/components/ActionButton';
+import { SelectField, TextField } from '@/components/Fields';
+import { Note } from '@/components/Note';
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
+import { NativeSelectOption } from '@/components/ui/native-select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { StaffTypeRowData } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { figure, nameIn, useLocale } from '../shared';
+import { StaffDialog } from '../StaffDialog';
 
 /*
 | The types page's dialogs (b2b.md §1.3, §4.6): adding, renaming and moving a type; deactivating one,
 | with what happens to the companies holding a company type; and moving every company of one active
-| type to another. Each in Geist's Modal: a title stating what happens, the button repeating it.
+| type to another. Each in the staff dialog frame (StaffDialog): a title stating what happens, the
+| button repeating it, a refusal said inside it.
 |
 | A type's names and position are checked by the domain, and a refusal comes back beside the field
 | it names. Positions accept Arabic-Indic digits, as every number input does (frontend.md §1.8).
+| Deactivating is destructive (shadcn's AlertDialog); the rest are plain Dialogs.
 */
 
 export type Kind = 'company' | 'document';
@@ -31,6 +40,7 @@ export function TypeFormModal({
     open,
     onOpenChange,
     nextPosition,
+    returnFocusTo,
 }: {
     mode: 'add' | 'rename' | 'move';
     kind: Kind;
@@ -38,6 +48,7 @@ export function TypeFormModal({
     open: boolean;
     onOpenChange: (open: boolean) => void;
     nextPosition: number;
+    returnFocusTo?: RefObject<HTMLElement | null>;
 }) {
     const t = useTranslator();
     const form = useForm<TypeForm>({
@@ -72,24 +83,23 @@ export function TypeFormModal({
     }
 
     return (
-        <Modal
+        <StaffDialog
             open={open}
+            returnFocusTo={returnFocusTo}
             onOpenChange={onOpenChange}
             title={title}
             description={body}
-            actions={
-                <>
-                    <ModalCancel onClick={() => onOpenChange(false)} />
-                    <Button loading={form.processing} onClick={submit} data-test={`confirm-${mode}`}>
-                        {title}
-                    </Button>
-                </>
+            busy={form.processing}
+            confirm={
+                <ActionButton loading={form.processing} onClick={submit} data-test={`confirm-${mode}`}>
+                    {title}
+                </ActionButton>
             }
         >
             <div className="grid gap-4">
                 {mode === 'move' ? null : (
                     <>
-                        <Input
+                        <TextField
                             id="type-name-ar"
                             dir="rtl"
                             label={t('b2b::admin_types.field.name_ar')}
@@ -98,7 +108,7 @@ export function TypeFormModal({
                             onChange={(event) => form.setData('name_ar', event.target.value)}
                             data-test="type-name-ar"
                         />
-                        <Input
+                        <TextField
                             id="type-name-en"
                             dir="ltr"
                             label={t('b2b::admin_types.field.name_en')}
@@ -110,11 +120,12 @@ export function TypeFormModal({
                     </>
                 )}
                 {mode === 'rename' ? null : (
-                    <Input
+                    <TextField
                         id="type-position"
                         dir="ltr"
                         inputMode="numeric"
-                        className="w-40"
+                        className="max-w-40"
+                        inputClassName="tw-figure"
                         label={t('b2b::admin_types.field.position')}
                         helper={t('b2b::admin_types.field.position_helper')}
                         value={form.data.position}
@@ -123,16 +134,30 @@ export function TypeFormModal({
                         data-test="type-position"
                     />
                 )}
+                {/* One setting on its own is a switch, its sentence tied to it (Geist's Toggle,
+                    shadcn's field-switch). */}
                 {mode === 'add' && kind === 'document' ? (
-                    <div className="grid gap-1">
-                        <Checkbox id="type-required" checked={form.data.required} onChange={(on) => form.setData('required', on)} data-test="type-required">
-                            {t('b2b::admin_types.field.required')}
-                        </Checkbox>
-                        <p className="ps-6 text-copy-13 text-ink-muted">{t('b2b::admin_types.field.required_helper')}</p>
-                    </div>
+                    <Field orientation="horizontal">
+                        <FieldContent>
+                            <FieldLabel htmlFor="type-required" className="text-label-14 text-ink">
+                                {t('b2b::admin_types.field.required')}
+                            </FieldLabel>
+                            <FieldDescription id="type-required-helper" className="text-copy-13 text-ink-muted">
+                                {t('b2b::admin_types.field.required_helper')}
+                            </FieldDescription>
+                        </FieldContent>
+                        <Switch
+                            id="type-required"
+                            checked={form.data.required}
+                            onCheckedChange={(on) => form.setData('required', on)}
+                            aria-describedby="type-required-helper"
+                            className="data-[state=unchecked]:bg-ink-subtle"
+                            data-test="type-required"
+                        />
+                    </Field>
                 ) : null}
             </div>
-        </Modal>
+        </StaffDialog>
     );
 }
 
@@ -144,6 +169,51 @@ type DeactivateForm = {
     new_name_en: string;
     new_position: string;
 };
+
+/** A radio group as shadcn's field-radio writes it: the legend, its sentence inside the set, and each choice a labelled radio. */
+function Choices({
+    name,
+    legend,
+    helper,
+    value,
+    onChange,
+    options,
+    error,
+}: {
+    name: string;
+    legend: string;
+    helper?: string;
+    value: string;
+    onChange: (value: string) => void;
+    options: { value: string; label: string }[];
+    error?: string;
+}) {
+    const described = [helper === undefined ? null : `${name}-helper`, error ? `${name}-error` : null].filter(Boolean).join(' ');
+
+    return (
+        <FieldSet className="gap-3" data-invalid={error ? true : undefined}>
+            <FieldLegend variant="label" className="text-label-14 text-ink">
+                {legend}
+            </FieldLegend>
+            {helper === undefined ? null : (
+                <FieldDescription id={`${name}-helper`} className="text-copy-13 text-ink-muted">
+                    {helper}
+                </FieldDescription>
+            )}
+            <RadioGroup name={name} value={value} onValueChange={onChange} aria-describedby={described === '' ? undefined : described} className="gap-2">
+                {options.map((option) => (
+                    <Field key={option.value} orientation="horizontal" className="gap-2">
+                        <RadioGroupItem id={`${name}-${option.value}`} value={option.value} aria-invalid={error ? true : undefined} />
+                        <FieldLabel htmlFor={`${name}-${option.value}`} className="text-label-14 font-normal text-ink">
+                            {option.label}
+                        </FieldLabel>
+                    </Field>
+                ))}
+            </RadioGroup>
+            {error ? <FieldError id={`${name}-error`}>{error}</FieldError> : null}
+        </FieldSet>
+    );
+}
 
 /**
  * How it shows to new applications (amendment 5); for a company type that companies hold, what
@@ -157,6 +227,7 @@ export function DeactivateModal({
     mayIntoNew,
     open,
     onOpenChange,
+    returnFocusTo,
 }: {
     kind: Kind;
     type: StaffTypeRowData;
@@ -164,6 +235,7 @@ export function DeactivateModal({
     mayIntoNew: boolean;
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    returnFocusTo?: RefObject<HTMLElement | null>;
 }) {
     const t = useTranslator();
     const locale = useLocale();
@@ -176,42 +248,40 @@ export function DeactivateModal({
     }
 
     return (
-        <Modal
+        <StaffDialog
             open={open}
+            returnFocusTo={returnFocusTo}
             onOpenChange={onOpenChange}
             destructive
             title={title}
             description={t(`b2b::admin_types.list.${kind}.deactivate_body`, { name: nameIn(locale, type.nameAr, type.nameEn) })}
-            actions={
-                <>
-                    <ModalCancel onClick={() => onOpenChange(false)} />
-                    <Button type="error" loading={form.processing} onClick={submit} data-test="confirm-deactivate">
-                        {title}
-                    </Button>
-                </>
+            busy={form.processing}
+            confirm={
+                <ActionButton variant="destructive" loading={form.processing} onClick={submit} data-test="confirm-deactivate">
+                    {title}
+                </ActionButton>
             }
         >
             <div className="grid gap-5">
-                <div className="grid gap-1">
-                    <RadioGroup
-                        name="shown"
-                        legend={t('b2b::admin_types.shown.legend')}
-                        value={form.data.shown}
-                        onChange={(value) => form.setData('shown', value)}
-                        error={form.errors.shown}
-                        options={[
-                            { value: 'HIDDEN', label: t('b2b::admin_types.shown.HIDDEN') },
-                            { value: 'GREYED', label: t('b2b::admin_types.shown.GREYED') },
-                        ]}
-                    />
-                    <p className="text-copy-13 text-ink-muted">{t('b2b::admin_types.shown.helper')}</p>
-                </div>
+                <Choices
+                    name="shown"
+                    legend={t('b2b::admin_types.shown.legend')}
+                    helper={t('b2b::admin_types.shown.helper')}
+                    value={form.data.shown}
+                    onChange={(value) => form.setData('shown', value)}
+                    error={form.errors.shown}
+                    options={[
+                        { value: 'HIDDEN', label: t('b2b::admin_types.shown.HIDDEN') },
+                        { value: 'GREYED', label: t('b2b::admin_types.shown.GREYED') },
+                    ]}
+                />
 
                 {holders > 0 ? (
                     <div className="grid gap-3" data-test="holders-choice">
-                        <RadioGroup
+                        <Choices
                             name="holders"
                             legend={t('b2b::admin_types.holders.legend')}
+                            helper={t('b2b::admin_types.holders.count', { count: figure(locale, holders) })}
                             value={form.data.holders}
                             onChange={(value) => form.setData('holders', value)}
                             options={[
@@ -221,29 +291,30 @@ export function DeactivateModal({
                                 ...(mayIntoNew ? [{ value: 'new', label: t('b2b::admin_types.holders.new') }] : []),
                             ]}
                         />
-                        <p className="tw-figure text-copy-13 text-ink-muted">{t('b2b::admin_types.holders.count', { count: figure(locale, holders) })}</p>
 
                         {form.data.holders === 'replace' ? (
-                            <Select
+                            <SelectField
                                 id="deactivate-replacement"
                                 label={t('b2b::admin_types.holders.replacement')}
-                                placeholder={t('b2b::admin_types.list.company.choose')}
                                 value={form.data.replacement}
                                 error={form.errors.replacement}
                                 onChange={(event) => form.setData('replacement', event.target.value)}
                                 data-test="deactivate-replacement"
                             >
+                                <NativeSelectOption value="" disabled>
+                                    {t('b2b::admin_types.list.company.choose')}
+                                </NativeSelectOption>
                                 {others.map((other) => (
-                                    <option key={other.id} value={other.id}>
+                                    <NativeSelectOption key={other.id} value={other.id}>
                                         {nameIn(locale, other.nameAr, other.nameEn)}
-                                    </option>
+                                    </NativeSelectOption>
                                 ))}
-                            </Select>
+                            </SelectField>
                         ) : null}
 
                         {form.data.holders === 'new' ? (
                             <div className="grid gap-3">
-                                <Input
+                                <TextField
                                     id="deactivate-new-name-ar"
                                     dir="rtl"
                                     label={t('b2b::admin_types.field.name_ar')}
@@ -252,7 +323,7 @@ export function DeactivateModal({
                                     onChange={(event) => form.setData('new_name_ar', event.target.value)}
                                     data-test="deactivate-new-name-ar"
                                 />
-                                <Input
+                                <TextField
                                     id="deactivate-new-name-en"
                                     dir="ltr"
                                     label={t('b2b::admin_types.field.name_en')}
@@ -261,11 +332,12 @@ export function DeactivateModal({
                                     onChange={(event) => form.setData('new_name_en', event.target.value)}
                                     data-test="deactivate-new-name-en"
                                 />
-                                <Input
+                                <TextField
                                     id="deactivate-new-position"
                                     dir="ltr"
                                     inputMode="numeric"
-                                    className="w-40"
+                                    className="max-w-40"
+                                    inputClassName="tw-figure"
                                     label={t('b2b::admin_types.field.position')}
                                     helper={t('b2b::admin_types.holders.new_position_helper')}
                                     value={form.data.new_position}
@@ -281,7 +353,7 @@ export function DeactivateModal({
                     </div>
                 ) : null}
             </div>
-        </Modal>
+        </StaffDialog>
     );
 }
 
@@ -291,11 +363,13 @@ export function TransferModal({
     others,
     open,
     onOpenChange,
+    returnFocusTo,
 }: {
     type: StaffTypeRowData;
     others: StaffTypeRowData[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    returnFocusTo?: RefObject<HTMLElement | null>;
 }) {
     const t = useTranslator();
     const locale = useLocale();
@@ -303,44 +377,45 @@ export function TransferModal({
     const title = t('b2b::admin_types.list.company.transfer_title');
 
     return (
-        <Modal
+        <StaffDialog
             open={open}
+            returnFocusTo={returnFocusTo}
             onOpenChange={onOpenChange}
             title={title}
             description={t('b2b::admin_types.list.company.transfer_body', { name: nameIn(locale, type.nameAr, type.nameEn) })}
-            actions={
-                <>
-                    <ModalCancel onClick={() => onOpenChange(false)} />
-                    <Button
-                        loading={form.processing}
-                        onClick={() => form.post(`/admin/company-types/${type.id}/transfer`, { preserveScroll: true, onSuccess: () => onOpenChange(false) })}
-                        data-test="confirm-transfer"
-                    >
-                        {title}
-                    </Button>
-                </>
+            busy={form.processing}
+            confirm={
+                <ActionButton
+                    loading={form.processing}
+                    onClick={() => form.post(`/admin/company-types/${type.id}/transfer`, { preserveScroll: true, onSuccess: () => onOpenChange(false) })}
+                    data-test="confirm-transfer"
+                >
+                    {title}
+                </ActionButton>
             }
         >
             <div className="grid gap-4">
-                <Select
+                <SelectField
                     id="transfer-target"
                     label={t('b2b::admin_types.list.company.transfer_target')}
-                    placeholder={t('b2b::admin_types.list.company.choose')}
                     value={form.data.target}
                     error={form.errors.target}
                     onChange={(event) => form.setData('target', event.target.value)}
                     data-test="transfer-target"
                 >
+                    <NativeSelectOption value="" disabled>
+                        {t('b2b::admin_types.list.company.choose')}
+                    </NativeSelectOption>
                     {others.map((other) => (
-                        <option key={other.id} value={other.id}>
+                        <NativeSelectOption key={other.id} value={other.id}>
                             {nameIn(locale, other.nameAr, other.nameEn)}
-                        </option>
+                        </NativeSelectOption>
                     ))}
-                </Select>
+                </SelectField>
                 <Note variant="secondary" size="small">
                     {t('b2b::admin_types.holders.suspended')}
                 </Note>
             </div>
-        </Modal>
+        </StaffDialog>
     );
 }
