@@ -6,6 +6,7 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Str;
 use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\ProductRepository;
@@ -254,6 +255,34 @@ final readonly class DatabaseProductRepository implements ProductRepository
         return Ulids::valid($id) && $this->db->table(self::TABLE)->where($column, strtolower($id))->exists();
     }
 
+    public function idsInCategories(array $categoryIds): array
+    {
+        return $categoryIds === [] ? [] : $this->ids($this->db->table(self::TABLE)->whereIn('category_id', $categoryIds));
+    }
+
+    public function idsWithBrand(string $brandId): array
+    {
+        return Ulids::valid($brandId) ? $this->ids($this->db->table(self::TABLE)->where('brand_id', strtolower($brandId))) : [];
+    }
+
+    public function idsHiddenByCategoryIn(array $categoryIds): array
+    {
+        return $categoryIds === [] ? [] : $this->ids($this->db->table(self::TABLE)->whereIn('category_id', $categoryIds)->where('hidden_by_category', true));
+    }
+
+    public function idsHiddenByBrand(string $brandId): array
+    {
+        return Ulids::valid($brandId) ? $this->ids($this->db->table(self::TABLE)->where('brand_id', strtolower($brandId))->where('hidden_by_brand', true)) : [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function ids(Builder $query): array
+    {
+        return array_values(array_map('strval', $query->orderBy('id')->pluck('id')->all()));
+    }
+
     private function read(string $productId, bool $lock): ?Product
     {
         if (! Ulids::valid($productId)) {
@@ -280,6 +309,8 @@ final readonly class DatabaseProductRepository implements ProductRepository
             $row->attribute_set_id === null ? null : (string) $row->attribute_set_id,
             ProductStage::from((string) $row->stage),
             $row->archived_from === null ? null : ProductStage::from((string) $row->archived_from),
+            (bool) $row->hidden_by_category,
+            (bool) $row->hidden_by_brand,
         );
     }
 
@@ -299,6 +330,8 @@ final readonly class DatabaseProductRepository implements ProductRepository
             'attribute_set_id' => $product->attributeSetId(),
             'stage' => $product->stage()->value,
             'archived_from' => $product->archivedFrom()?->value,
+            'hidden_by_category' => $product->hiddenByCategory(),
+            'hidden_by_brand' => $product->hiddenByBrand(),
         ];
     }
 }

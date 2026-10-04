@@ -194,8 +194,8 @@ describe('editing details', function () {
         $id = Px::product(brandId: $brand);
         catalogProductsEdit($id, ['categoryId' => $category, 'warrantyId' => $warranty]);
         Fx::asSystem(function () use ($brand, $category, $warranty): void {
-            app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($brand));
-            app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category));
+            app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($brand, 'HIDE'));
+            app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'LEAVE'));
             app(DeactivateWarrantyHandler::class)->handle(new DeactivateWarranty($warranty));
         });
 

@@ -43,6 +43,31 @@ final readonly class SharedListChange
     }
 
     /**
+     * As run(), for a list change that changes products too — deactivating or activating a category
+     * or a brand: **the products' lock first, then the list's**. A product change holds the products'
+     * lock before it row-locks a category or brand, so the two never wait on each other in a circle.
+     *
+     * @template T
+     *
+     * @param  Closure(): array{T, list<AuditEntryDto>}  $work
+     * @return T
+     */
+    public function runAfterProducts(string $list, Closure $work): mixed
+    {
+        return $this->db->transaction(function () use ($list, $work): mixed {
+            $this->locks->lock(ListLocks::PRODUCTS);
+            $this->locks->lock($list);
+            [$result, $entries] = $work();
+
+            foreach ($entries as $entry) {
+                $this->platform->recordAudit($entry);
+            }
+
+            return $result;
+        }, 3);
+    }
+
+    /**
      * @template T
      *
      * @param  Closure(): array{T, list<AuditEntryDto>}  $work  answers its result and its audit entries

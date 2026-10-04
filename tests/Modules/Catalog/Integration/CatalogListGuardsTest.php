@@ -322,12 +322,12 @@ function catalogGuardsChanges(): array
 
             return fn () => app(MakeBrandDefaultHandler::class)->handle(new MakeBrandDefault($id));
         }],
-        'deactivate a brand' => ['brands', function () {
+        'deactivate a brand' => ['products,brands', function () {
             $id = catalogGuardsOtherBrand();
 
             return fn () => app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($id));
         }],
-        'activate a brand' => ['brands', function () {
+        'activate a brand' => ['products,brands', function () {
             $id = catalogGuardsOtherBrand();
             app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($id));
 
@@ -350,12 +350,12 @@ function catalogGuardsChanges(): array
 
             return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($id, $parent, 1));
         }],
-        'deactivate a category' => ['categories', function () {
+        'deactivate a category' => ['products,categories', function () {
             $id = catalogGuardsCategory();
 
             return fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($id));
         }],
-        'activate a category' => ['categories', function () {
+        'activate a category' => ['products,categories', function () {
             $id = catalogGuardsCategory();
             app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($id));
 
@@ -632,10 +632,17 @@ describe('the lock', function () {
         // it, at level 1; everything the change reads and writes comes after the lock.
         $inside = array_values(array_filter((array) $queries, static fn (array $query): bool => $query['level'] >= 2));
 
+        // A change that changes products as well as its list takes the products' lock first (step 4).
+        $keys = array_map(static fn (string $key): string => "catalog:{$key}", explode(',', $list));
+        $taken = array_values(array_unique(array_map(
+            static fn (array $query): string => (string) ($query['bindings'][0] ?? ''),
+            array_filter($inside, static fn (array $query): bool => str_contains($query['sql'], 'pg_advisory_xact_lock')),
+        )));
+
         expect($inside)->not->toBeEmpty()
             ->and($inside[0]['sql'])->toContain('pg_advisory_xact_lock')
-            ->and($inside[0]['bindings'])->toBe(["catalog:{$list}"])
-            ->and(array_filter($inside, static fn (array $query): bool => str_contains($query['sql'], 'pg_advisory_xact_lock') && $query['bindings'] !== ["catalog:{$list}"]))->toBe([]);
+            ->and($inside[0]['bindings'])->toBe([$keys[0]])
+            ->and($taken)->toBe($keys);
     })->with(catalogGuardsChanges());
 });
 

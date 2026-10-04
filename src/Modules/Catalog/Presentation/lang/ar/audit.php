@@ -73,6 +73,9 @@ return [
     'listing.unavailable_marked' => 'وُضع «غير متوفر الآن»',
     'listing.unavailable_cleared' => 'أُزيل «غير متوفر الآن»',
     'listing.labels_attached' => 'تغيّرت شارات المتجر',
+    'product.hidden' => 'أُخفي منتج مع قسمه أو ماركته',
+    'product.moved' => 'نُقل منتج عند إيقاف قسمه أو ماركته',
+    'product.shown' => 'ظهر منتج من جديد مع قسمه أو ماركته',
     'variant.photo_detached' => 'أُزيلت صورة نوع منتج مع ملفها',
 
     'variant.added' => 'أُضيف نوع منتج',

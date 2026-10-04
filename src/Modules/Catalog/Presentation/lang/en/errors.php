@@ -168,5 +168,8 @@ return [
         'modes' => 'selling modes',
         'product' => 'product',
         'variants' => 'variants',
+        'choice' => 'choice',
+        'move_to' => 'where to move',
+        'products' => 'products',
     ],
 ];

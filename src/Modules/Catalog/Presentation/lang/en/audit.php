@@ -73,6 +73,9 @@ return [
     'listing.unavailable_marked' => 'Marked not available now',
     'listing.unavailable_cleared' => 'Not available now cleared',
     'listing.labels_attached' => 'Store labels changed',
+    'product.hidden' => 'Product hidden with its category or brand',
+    'product.moved' => 'Product moved when its category or brand was deactivated',
+    'product.shown' => 'Product shown again with its category or brand',
     'variant.photo_detached' => 'Variant photo removed with its file',
 
     'variant.added' => 'Variant added',
