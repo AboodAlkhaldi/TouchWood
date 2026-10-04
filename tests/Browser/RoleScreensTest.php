@@ -52,6 +52,26 @@ function newSuperAdminEmail(): string
         ->value('email');
 }
 
+/**
+ * Whether the person has landed in the panel within four seconds. The code's submit only starts
+ * the sign-in; a page opened before its answer lands is the sign-in screen again (this raced, and
+ * lost, in CI on 2026-10-04), and the plugin's own assertions read the page once (lesson 121).
+ */
+function roleScreenSignedIn(mixed $page): bool
+{
+    return $page->script(<<<'JS'
+        () => new Promise((resolve) => {
+            // Under the plugin's own five seconds for a script, so it answers rather than times out.
+            const until = Date.now() + 4000;
+            const tick = () => {
+                const held = window.location.pathname === '/admin';
+                if (held || Date.now() > until) { resolve(held); } else { setTimeout(tick, 50); }
+            };
+            tick();
+        })
+        JS) === true;
+}
+
 it('draws the roles screen, and offers it from the menu', function () {
     $name = 'Shopkeeper '.Str::random(6);
     Fx::role([AccessPermissions::STAFF_VIEW], nameEn: $name);
@@ -65,8 +85,10 @@ it('draws the roles screen, and offers it from the menu', function () {
         // (this raced, and lost, 2026-09-24).
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/roles');
+        ->click('button[type="submit"]');
+
+    expect(roleScreenSignedIn($page))->toBeTrue();
+    $page->navigate('/admin/roles');
 
     // In English, because the fixture's staff member keeps English as their own language and the
     // panel is read in the reader's language, not the system's.
@@ -89,8 +111,10 @@ it('groups the actions by business area in the editor, rather than by declaratio
         // (this raced, and lost, 2026-09-24).
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/roles/new');
+        ->click('button[type="submit"]');
+
+    expect(roleScreenSignedIn($page))->toBeTrue();
+    $page->navigate('/admin/roles/new');
 
     // The areas staff think in (stage 2b, P2), not the order the modules happened to load.
     $page->assertSee('Staff and Permissions')
@@ -109,8 +133,10 @@ it('creates a role from the screen, ticking an action and saving it', function (
         // (this raced, and lost, 2026-09-24).
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/roles/new');
+        ->click('button[type="submit"]');
+
+    expect(roleScreenSignedIn($page))->toBeTrue();
+    $page->navigate('/admin/roles/new');
 
     $page->type('#name_ar', 'أمين المستودع '.Str::random(4))
         ->type('#name_en', $english)
@@ -146,8 +172,10 @@ it('shows an admin no way into a role that is not theirs to change', function ()
     // raced, and lost, 2026-09-24).
     $page->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/roles')
+        ->click('button[type="submit"]');
+
+    expect(roleScreenSignedIn($page))->toBeTrue();
+    $page->navigate('/admin/roles')
         ->assertSee($name)
         ->assertNoJavaScriptErrors();
 });
@@ -165,8 +193,10 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/roles');
+        ->click('button[type="submit"]');
+
+    expect(roleScreenSignedIn($page))->toBeTrue();
+    $page->navigate('/admin/roles');
 
     $page->assertSee('Permissions by Role')->assertNoJavaScriptErrors();
 

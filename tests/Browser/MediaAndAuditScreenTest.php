@@ -166,6 +166,26 @@ function libraryScreenShownDate(string $mediaId): string
     return substr((string) DB::table('platform.media')->where('id', $mediaId)->value('created_at'), 0, 10);
 }
 
+/**
+ * Whether the expression comes to hold in the page within four seconds: a click only starts the
+ * visit it sends, and the plugin's own assertions read the page once (lesson 121).
+ */
+function libraryScreenUntil(mixed $page, string $expression): bool
+{
+    return $page->script(<<<JS
+        () => new Promise((resolve) => {
+            // Under the plugin's own five seconds for a script, so it answers rather than times out.
+            const until = Date.now() + 4000;
+            const tick = () => {
+                let held = false;
+                try { held = Boolean({$expression}); } catch (error) { held = false; }
+                if (held || Date.now() > until) { resolve(held); } else { setTimeout(tick, 50); }
+            };
+            tick();
+        })
+        JS) === true;
+}
+
 it('shows a private file in the table as its name, date and use, with no picture, type or size, and Describe and Delete for a Super Admin', function () {
     $paper = 'paper-'.Str::random(8).'.pdf';
     $photo = 'photo-'.Str::random(8).'.jpg';
@@ -410,6 +430,10 @@ it('counts the days of the date filter in UTC, and takes a date in the address t
         ->assertPathIs('/admin/audit');
 
     $today = gmdate('Y-m-d');
+
+    // The path was this one before Apply as well, so its visit is waited for by the address itself
+    // (read before it landed, CI 2026-10-04: the hand-edited "today" was still there).
+    expect(libraryScreenUntil($page, "new URLSearchParams(window.location.search).get('from') === '{$today}'"))->toBeTrue();
 
     expect($page->script('() => new URLSearchParams(window.location.search).get("from")'))->toBe($today)
         ->and($page->script('() => new URLSearchParams(window.location.search).get("until")'))->toBe($today);
