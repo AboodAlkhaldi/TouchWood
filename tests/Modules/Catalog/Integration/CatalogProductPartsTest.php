@@ -206,7 +206,7 @@ describe('relations', function () {
         catalogPartsReady($hinge);
         catalogPartsReady($plate);
         app(SetRelationsHandler::class)->handle(new SetRelations($product, 'RELATED', [$hinge]));
-        DB::table('catalog.products')->whereIn('id', [$hinge, $plate])->update(['stage' => 'ARCHIVED']);
+        DB::table('catalog.products')->whereIn('id', [$hinge, $plate])->update(['stage' => 'ARCHIVED', 'archived_from' => 'READY']);
 
         app(SetRelationsHandler::class)->handle(new SetRelations($product, 'RELATED', [$hinge]));
 
@@ -220,23 +220,30 @@ describe('a photo\'s file deleted from the media library', function () {
         Storage::fake('local');
     });
 
-    it('takes it out of the gallery and the variant\'s photos, audited, the product changed once', function () {
+    it('takes it out of the gallery and the variant\'s photos, audited, each product that has been ready changed once', function () {
         $product = Px::product();
         $variant = Px::variant($product, '1001');
         $other = Px::product();
         $otherVariant = Px::variant($other, '1002');
-        $photo = Cx::media();
-        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [$photo]));
+        $draft = Px::product();
+        $draftVariant = Px::variant($draft, '1003');
+        [$photo, $kept] = [Cx::media(), Cx::media()];
+        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [$photo, $kept]));
         app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($variant, [$photo]));
         app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($otherVariant, [$photo]));
+        app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($draftVariant, [$photo]));
+        catalogPartsReady($product);
+        catalogPartsReady($other);
         Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE, PlatformPermissions::MEDIA_DELETE]);
         Event::fake([ProductChanged::class]);
 
         app(DeleteMediaHandler::class)->handle(new DeleteMedia($photo));
 
-        expect(app(ProductRepository::class)->gallery($product))->toBe([])
+        // The draft loses its photo too, and sends nothing: it is Catalog's alone (amendment 3(m)).
+        expect(app(ProductRepository::class)->gallery($product))->toBe([$kept])
             ->and(app(VariantRepository::class)->photos($variant))->toBe([])
             ->and(app(VariantRepository::class)->photos($otherVariant))->toBe([])
+            ->and(app(VariantRepository::class)->photos($draftVariant))->toBe([])
             ->and(catalogPartsAudit('catalog.product.photo_detached'))->toBe(['media_id' => [$photo, null]])
             ->and(Fx::audits('catalog.variant.photo_detached', $variant))->toBe(1);
         Event::assertDispatchedTimes(ProductChanged::class, 2);

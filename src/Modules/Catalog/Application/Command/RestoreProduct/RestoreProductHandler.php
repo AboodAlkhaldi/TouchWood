@@ -15,12 +15,14 @@ use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Exception\ProductNotReady;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Public\Enums\ProductStage;
 use Shared\Application\Unauthorized;
 
 /**
  * **Restoring an archived product** (catalog.md §4.1): `catalog.product.archive`, as its shared data.
- * It comes back ready, Inactive in every store — so every readiness rule must hold, as for making a
- * draft ready (`ProductNotReady`): a draft archived when abandoned comes back only once it is whole.
+ * It comes back to the stage it left (amendment 3(m)): a draft abandoned comes back a draft, so making
+ * it ready stays `catalog.product.publish`'s; a ready product comes back ready, Inactive in every
+ * store — every readiness rule holding, as for making a draft ready (`ProductNotReady`).
  */
 final readonly class RestoreProductHandler
 {
@@ -49,16 +51,19 @@ final readonly class RestoreProductHandler
                 return [null, []];
             }
 
-            $missing = $this->readiness->missing($product);
+            // Back to ready only whole; a draft abandoned comes back a draft (amendment 3(m)).
+            if ($product->stage() === ProductStage::Ready) {
+                $missing = $this->readiness->missing($product);
 
-            if ($missing !== []) {
-                throw new ProductNotReady($missing);
+                if ($missing !== []) {
+                    throw new ProductNotReady($missing);
+                }
             }
 
             $this->products->update($product);
-            $this->events->restored($product->id());
+            $this->events->restored($product);
 
-            return [null, [ListAudit::replaced('product', 'restored', $product->id(), 'stage', 'ARCHIVED', 'READY')]];
+            return [null, [ListAudit::replaced('product', 'restored', $product->id(), 'stage', 'ARCHIVED', $product->stage()->value)]];
         });
     }
 }

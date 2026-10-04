@@ -119,7 +119,7 @@ which must be on (amendment 3(j)).
 | `AddVariant`, `UpdateVariant`, `DeleteDraftVariant` | `product.update` | One active value of every attribute of the set, in the set's order — a combination no other variant of the product has, archived ones included; details and measures; a code changed here only in a draft |
 | `CorrectVariantCode` | `variant.correct_code` | Every variant of the product carrying the code takes the new one |
 | `SetProductGallery`, `SetVariantPhotos`, `SetSearchWords`, `SetFilterValues`, `SetRelations` | `product.update` | Public images in order (20 and 10); search words (30, each once as search reads it); values of filter attributes (amendment 3(a)); related products that are ready, at most 20 (amendment 3(d)) |
-| `MarkProductReady`, `ArchiveProduct`, `RestoreProduct` | `product.publish`, `product.archive` | Ready only with every rule met; restored only the same way |
+| `MarkProductReady`, `ArchiveProduct`, `RestoreProduct` | `product.publish`, `product.archive` | Ready only with every rule met; restored to the stage it left (`archived_from`) — to ready only the same way (amendment 3(m)) |
 | `ArchiveVariant`, `RestoreVariant` | `product.update` | A variant retired instead of deleted once the product is ready |
 | `DeleteDraftProduct` | `product.archive` | Only a draft is deleted (amendment 3(h)) — whole, its slugs and codes free again |
 
@@ -133,10 +133,12 @@ the key refusing midway.
 **Readiness** (`Readiness`, catalog.md §1.1). A product is shown only with its English name (and so
 its English slug), the description in both languages, an active lowest category, a variant not
 archived, and a gallery photo whose sizes are ready. A ready product keeps every rule: a change that
-would take one away is refused, naming what it would leave missing (`ProductNotReady`). An archived
-product refuses every change but restoring (`ProductArchived`). The database holds the category and
-the English name **while ready** (`products_category_when_ready`, `products_english_when_ready`): a
-draft abandoned is archived as it is (amendment 3(l)).
+would take one away is refused, naming what it would leave missing (`ProductNotReady`) — except
+that **a category deactivated after it was placed there stays** (amendment 3(m)). **An archived
+product may be edited**, so it can be made whole, and is restored to the stage it left; while
+archived it is not made ready, deleted, nor are its variants deleted (`ProductArchived`). The
+database holds the category and the English name **while ready** (`products_category_when_ready`,
+`products_english_when_ready`): a draft abandoned is archived as it is (amendment 3(l)).
 
 **Product and variant photos.** `ProductPhotosUsage` reports them to Platform. Deleting a photo's
 file takes it out of the gallery or the variant's photos, audited, and the product is
@@ -145,7 +147,8 @@ file takes it out of the gallery or the variant's photos, audited, and the produ
 may have been made ready in between.
 
 **Events** (catalog.md §6.1): ids only, implementing `ShouldDispatchAfterCommit`, so a change that
-rolls back sends none. They fire for drafts too.
+rolls back sends none. **Only for a product that has been ready** (`Product::hasBeenReady`,
+amendment 3(m)): a draft, and a draft archived when abandoned, is Catalog's alone.
 
 **The schema.** `catalog`, on `config/database.php`'s search path so `migrate:fresh` wipes it; the
 first migration also creates `pg_trgm`, which the search's nearness ranking needs (catalog.md

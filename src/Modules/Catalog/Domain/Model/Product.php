@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Domain\Model;
 
+use LogicException;
 use Modules\Catalog\Domain\Exception\AttributeSetLocked;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
@@ -21,7 +22,8 @@ use Modules\Catalog\Public\Enums\ProductStage;
  *
  * **Created as a draft** with its Arabic name at least (amendment 3(g)); everything else may wait
  * until it is made ready. **Its attribute set is fixed once it has a variant** (§1.7). Its stage moves
- * draft → ready → archived → ready (§4.1), never back to draft.
+ * draft → ready; either is archived, and restored to the stage it left (§4.1, amendment 3(m)); never
+ * from ready back to draft.
  */
 final class Product
 {
@@ -40,13 +42,14 @@ final class Product
         private ?string $warrantyId,
         private ?string $attributeSetId,
         private ProductStage $stage,
+        private ?ProductStage $archivedFrom,
     ) {
         $this->changes = new ChangeLog;
     }
 
     public static function create(string $id, ProductName $name, ProductSlugs $slugs, string $brandId): self
     {
-        return new self($id, $name, $slugs, null, null, $brandId, null, null, null, ProductStage::Draft);
+        return new self($id, $name, $slugs, null, null, $brandId, null, null, null, ProductStage::Draft, null);
     }
 
     public static function reconstitute(
@@ -60,8 +63,9 @@ final class Product
         ?string $warrantyId,
         ?string $attributeSetId,
         ProductStage $stage,
+        ?ProductStage $archivedFrom,
     ): self {
-        return new self($id, $name, $slugs, $descriptionAr, $descriptionEn, $brandId, $categoryId, $warrantyId, $attributeSetId, $stage);
+        return new self($id, $name, $slugs, $descriptionAr, $descriptionEn, $brandId, $categoryId, $warrantyId, $attributeSetId, $stage, $archivedFrom);
     }
 
     /**
@@ -117,16 +121,24 @@ final class Product
     }
 
     /**
-     * Retired, a draft abandoned or a ready product (§4.1, §9.3 #19). One archived already stays so.
+     * Retired, a draft abandoned or a ready product (§4.1, §9.3 #19), remembering which it was. One
+     * archived already stays so.
      */
     public function archive(): void
     {
+        if ($this->stage === ProductStage::Archived) {
+            return;
+        }
+
+        $this->archivedFrom = $this->stage;
         $this->moveTo(ProductStage::Archived);
     }
 
     /**
-     * Back to ready (§4.1): only an archived product is restored, every readiness rule checked by its
-     * handler; a ready one is left as it is, a draft is made ready instead.
+     * Back to the stage it was archived from (§4.1, amendment 3(m)): a draft abandoned comes back a
+     * draft, so making it ready stays the publish job's; a ready product comes back ready, every
+     * readiness rule checked by its handler. A ready one is left as it is; a draft is made ready
+     * instead.
      *
      * @throws InvalidStageChange
      */
@@ -136,7 +148,13 @@ final class Product
             throw new InvalidStageChange;
         }
 
-        $this->moveTo(ProductStage::Ready);
+        if ($this->stage === ProductStage::Ready) {
+            return;
+        }
+
+        $to = $this->archivedFrom ?? throw new LogicException('An archived product without the stage it left.');
+        $this->archivedFrom = null;
+        $this->moveTo($to);
     }
 
     public function id(): string
@@ -192,6 +210,21 @@ final class Product
     public function isDraft(): bool
     {
         return $this->stage === ProductStage::Draft;
+    }
+
+    /** While archived, the stage it left; null otherwise. */
+    public function archivedFrom(): ?ProductStage
+    {
+        return $this->archivedFrom;
+    }
+
+    /**
+     * Whether it has ever been ready, and so is known outside Catalog (§6.1, amendment 3(m)): a draft
+     * never was, nor a draft archived when abandoned.
+     */
+    public function hasBeenReady(): bool
+    {
+        return $this->stage === ProductStage::Ready || $this->archivedFrom === ProductStage::Ready;
     }
 
     /**

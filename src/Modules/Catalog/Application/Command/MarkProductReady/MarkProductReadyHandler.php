@@ -57,7 +57,7 @@ final readonly class MarkProductReadyHandler
             }
 
             $this->products->update($product);
-            $this->events->madeReady($product->id());
+            $this->events->madeReady($product);
 
             return [null, [ListAudit::replaced('product', 'made_ready', $product->id(), 'stage', 'DRAFT', 'READY')]];
         });

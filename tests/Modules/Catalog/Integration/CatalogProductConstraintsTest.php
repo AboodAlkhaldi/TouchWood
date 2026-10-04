@@ -119,4 +119,7 @@ it('refuses what the code would never write', function (Closure $write, string $
     'deleting a variant photo\'s file' => [fn (array $r) => DB::table('platform.media')->where('id', $r['variantPhoto'])->delete(), 'variant_photos_media'],
     'deleting a related product' => [fn (array $r) => DB::table('catalog.products')->where('id', $r['related'])->delete(), 'product_relations_related'],
     'deleting an attribute a detail is of' => [fn (array $r) => DB::table('catalog.attributes')->where('id', $r['material'])->delete(), 'variant_details_attribute'],
+    'archived without the stage it left' => [fn (array $r) => DB::table('catalog.products')->where('id', $r['product'])->update(['stage' => 'ARCHIVED']), 'products_archived_from'],
+    'archived from a stage that is no stage to leave' => [fn (array $r) => DB::table('catalog.products')->where('id', $r['product'])->update(['stage' => 'ARCHIVED', 'archived_from' => 'ARCHIVED']), 'products_archived_from'],
+    'a stage left while not archived' => [fn (array $r) => DB::table('catalog.products')->where('id', $r['product'])->update(['archived_from' => 'DRAFT']), 'products_archived_from'],
 ]);

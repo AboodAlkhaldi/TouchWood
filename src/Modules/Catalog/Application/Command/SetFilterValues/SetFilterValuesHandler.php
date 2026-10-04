@@ -10,11 +10,9 @@ use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ProductParts;
-use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
-use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Exception\TooMany;
 use Modules\Catalog\Domain\Repository\ListLocks;
@@ -36,12 +34,11 @@ final readonly class SetFilterValuesHandler
         private SharedListChange $change,
         private ProductRepository $products,
         private ProductParts $parts,
-        private Readiness $readiness,
         private ProductEvents $events,
     ) {}
 
     /**
-     * @throws InvalidCatalogAttribute|ListItemInactive|ListItemNotFound|ProductArchived|ProductNotFound|TooMany|Unauthorized
+     * @throws InvalidCatalogAttribute|ListItemInactive|ListItemNotFound|ProductNotFound|TooMany|Unauthorized
      */
     public function handle(SetFilterValues $command): void
     {
@@ -49,7 +46,6 @@ final readonly class SetFilterValuesHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
-            $this->readiness->requireNotArchived($product);
             $before = $this->products->filterValues($product->id());
             $after = $this->parts->filterValues($command->valueIds, $before);
             $sortedBefore = array_keys($before);
@@ -62,7 +58,7 @@ final readonly class SetFilterValuesHandler
             }
 
             $this->products->replaceFilterValues($product->id(), $after);
-            $this->events->changed($product->id());
+            $this->events->changed($product);
 
             return [null, [ListAudit::replaced('product', 'filter_values_changed', $product->id(), 'value_ids', implode(',', $sortedBefore) ?: null, implode(',', $sortedAfter) ?: null)]];
         });

@@ -10,7 +10,6 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
-use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Application\Products\VariantInput;
 use Modules\Catalog\Domain\Exception\CodeTaken;
 use Modules\Catalog\Domain\Exception\DuplicateCombination;
@@ -18,7 +17,6 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
-use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
@@ -45,12 +43,11 @@ final readonly class UpdateVariantHandler
         private ProductRepository $products,
         private VariantRepository $variants,
         private VariantInput $input,
-        private Readiness $readiness,
         private ProductEvents $events,
     ) {}
 
     /**
-     * @throws CodeTaken|DuplicateCombination|InvalidCatalogAttribute|InvalidStageChange|ListItemInactive|ListItemNotFound|ProductArchived|Unauthorized|VariantNotFound
+     * @throws CodeTaken|DuplicateCombination|InvalidCatalogAttribute|InvalidStageChange|ListItemInactive|ListItemNotFound|Unauthorized|VariantNotFound
      */
     public function handle(UpdateVariant $command): void
     {
@@ -62,7 +59,6 @@ final readonly class UpdateVariantHandler
             $variant = $this->variants->byId($command->variantId) ?? throw new VariantNotFound($command->variantId);
             // A variant never outlives its product (the key cascades), so this always finds it.
             $product = $this->products->byId($variant->productId()) ?? throw new LogicException('A variant without its product.');
-            $this->readiness->requireNotArchived($product);
             $oldCode = $variant->code();
 
             if (! $code->equals($oldCode)) {
@@ -89,7 +85,7 @@ final readonly class UpdateVariantHandler
 
             $this->products->holdCode($product->id(), $code->value);
             $this->variants->update($variant);
-            $this->events->changed($product->id());
+            $this->events->changed($product);
 
             if (! $code->equals($oldCode) && ! $this->variants->codeInUse($product->id(), $oldCode->value)) {
                 $this->products->releaseCode($product->id(), $oldCode->value);

@@ -88,7 +88,11 @@ final readonly class ProductPhotosUsage implements MediaUsage
         }
 
         foreach (array_keys($changed) as $productId) {
-            $this->events->changed((string) $productId);
+            $product = $this->products->find((string) $productId);
+
+            if ($product !== null) {
+                $this->events->changed($product);
+            }
         }
     }
 

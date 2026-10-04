@@ -11,7 +11,6 @@ use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\Readiness;
-use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\ProductNotReady;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Model\Variant;
@@ -39,7 +38,7 @@ final readonly class ArchiveVariantHandler
     ) {}
 
     /**
-     * @throws ProductArchived|ProductNotReady|Unauthorized|VariantNotFound
+     * @throws ProductNotReady|Unauthorized|VariantNotFound
      */
     public function handle(ArchiveVariant $command): void
     {
@@ -48,7 +47,6 @@ final readonly class ArchiveVariantHandler
         $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
             $variant = $this->variants->byId($command->variantId) ?? throw new VariantNotFound($command->variantId);
             $product = $this->products->byId($variant->productId()) ?? throw new LogicException('A variant without its product.');
-            $this->readiness->requireNotArchived($product);
             $variant->archive();
             $entry = ListAudit::changed('variant', 'archived', $variant->id(), $variant->pullChanges(), $variant->snapshot());
 
@@ -62,7 +60,7 @@ final readonly class ArchiveVariantHandler
                 $this->variants->ofProduct($product->id()),
             ));
             $this->variants->updateRow($variant);
-            $this->events->variantArchived($product->id(), $variant->id());
+            $this->events->variantArchived($product, $variant->id());
 
             return [null, [$entry]];
         });

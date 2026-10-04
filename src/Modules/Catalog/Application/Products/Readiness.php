@@ -19,9 +19,12 @@ use Modules\Platform\Public\Enums\MediaVariantsStatus;
  * (amendment 3(g)), the description in both languages, an active category with no sub-categories, at
  * least one variant not archived — each with its code — and at least one gallery photo whose sizes
  * are ready. **A ready product keeps every rule** (§9.3 #7): a change that would take one away is
- * refused, naming what it would leave missing.
+ * refused, naming what it would leave missing — except that **a category deactivated after it was
+ * placed there stays** (amendment 3(m)): it was active and the lowest when chosen, and a category
+ * holding products takes no sub-category, so only its being switched off changed.
  *
- * Every product change also refuses an archived product, which only restoring changes (§7).
+ * An archived product may be edited, so it can be made whole; it is not made ready, deleted, nor are
+ * its variants deleted until it is restored (§4.1, amendment 3(m)).
  */
 final readonly class Readiness
 {
@@ -43,8 +46,8 @@ final readonly class Readiness
     }
 
     /**
-     * What the product lacks, as it would be — with this gallery or these variants instead of its
-     * own, when a change is about them.
+     * What the product lacks to be made ready or restored ready, as it would be — with this gallery or
+     * these variants instead of its own, when a change is about them.
      *
      * @param  list<string>|null  $gallery  media ids
      * @param  list<Variant>|null  $variants
@@ -52,6 +55,39 @@ final readonly class Readiness
      *                      `category`, `variants`, `photos`
      */
     public function missing(Product $product, ?array $gallery = null, ?array $variants = null): array
+    {
+        return $this->lacking($product, $gallery, $variants, keeping: false);
+    }
+
+    /**
+     * For a ready product, after a change: every rule still met, a category deactivated since it was
+     * placed there kept.
+     *
+     * @param  list<string>|null  $gallery
+     * @param  list<Variant>|null  $variants
+     *
+     * @throws ProductNotReady
+     */
+    public function requireKept(Product $product, ?array $gallery = null, ?array $variants = null): void
+    {
+        if ($product->stage() !== ProductStage::Ready) {
+            return;
+        }
+
+        $missing = $this->lacking($product, $gallery, $variants, keeping: true);
+
+        if ($missing !== []) {
+            throw new ProductNotReady($missing);
+        }
+    }
+
+    /**
+     * @param  list<string>|null  $gallery
+     * @param  list<Variant>|null  $variants
+     * @param  bool  $keeping  a ready product staying ready: its category need only be there
+     * @return list<string>
+     */
+    private function lacking(Product $product, ?array $gallery, ?array $variants, bool $keeping): array
     {
         $missing = [];
 
@@ -67,7 +103,7 @@ final readonly class Readiness
             $missing[] = 'description_en';
         }
 
-        if (! $this->categoryShowable($product->categoryId())) {
+        if ($keeping ? $product->categoryId() === null : ! $this->categoryShowable($product->categoryId())) {
             $missing[] = 'category';
         }
 
@@ -86,27 +122,6 @@ final readonly class Readiness
         }
 
         return $missing;
-    }
-
-    /**
-     * For a ready product, after a change: every rule still met.
-     *
-     * @param  list<string>|null  $gallery
-     * @param  list<Variant>|null  $variants
-     *
-     * @throws ProductNotReady
-     */
-    public function requireKept(Product $product, ?array $gallery = null, ?array $variants = null): void
-    {
-        if ($product->stage() !== ProductStage::Ready) {
-            return;
-        }
-
-        $missing = $this->missing($product, $gallery, $variants);
-
-        if ($missing !== []) {
-            throw new ProductNotReady($missing);
-        }
     }
 
     private function categoryShowable(?string $categoryId): bool

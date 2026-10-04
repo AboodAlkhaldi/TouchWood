@@ -279,6 +279,7 @@ final readonly class DatabaseProductRepository implements ProductRepository
             $row->warranty_id === null ? null : (string) $row->warranty_id,
             $row->attribute_set_id === null ? null : (string) $row->attribute_set_id,
             ProductStage::from((string) $row->stage),
+            $row->archived_from === null ? null : ProductStage::from((string) $row->archived_from),
         );
     }
 
@@ -297,6 +298,7 @@ final readonly class DatabaseProductRepository implements ProductRepository
             'warranty_id' => $product->warrantyId(),
             'attribute_set_id' => $product->attributeSetId(),
             'stage' => $product->stage()->value,
+            'archived_from' => $product->archivedFrom()?->value,
         ];
     }
 }

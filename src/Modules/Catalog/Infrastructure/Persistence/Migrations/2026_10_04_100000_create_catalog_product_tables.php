@@ -54,6 +54,8 @@ return new class extends Migration
             $table->ulid('warranty_id')->nullable();
             $table->ulid('attribute_set_id')->nullable();
             $table->string('stage', 16);
+            // The stage it was archived from, so restoring brings it back there (amendment 3(m)).
+            $table->string('archived_from', 16)->nullable();
             // Set when a deactivation chose "hide" (§1.5, §1.6) — step 4.
             $table->boolean('hidden_by_category')->default(false);
             $table->boolean('hidden_by_brand')->default(false);
@@ -71,12 +73,12 @@ return new class extends Migration
         });
 
         DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_stage CHECK (stage IN ('DRAFT','READY','ARCHIVED'))");
+        DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_archived_from CHECK ((stage = 'ARCHIVED') = (archived_from IS NOT NULL) AND (archived_from IS NULL OR archived_from IN ('DRAFT','READY')))");
         DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_name_ar_present CHECK (btrim(name_ar) <> '' AND name_ar !~ '[[:cntrl:]]')");
         DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_name_en_present CHECK (name_en IS NULL OR (btrim(name_en) <> '' AND name_en !~ '[[:cntrl:]]'))");
         DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_description_object CHECK ((description_ar IS NULL OR jsonb_typeof(description_ar) = 'object') AND (description_en IS NULL OR jsonb_typeof(description_en) = 'object'))");
         // A ready product has a category (§5.1) and an English name (amendment 3(g)). Ready, not "past
-        // draft": a draft abandoned is archived as it is (§9.3 #19), and an archived product changes
-        // only by being restored — ready again, with both.
+        // draft": a draft abandoned is archived as it is (§9.3 #19), and comes back a draft (3(m)).
         DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_category_when_ready CHECK (stage <> 'READY' OR category_id IS NOT NULL)");
         DB::statement("ALTER TABLE catalog.products ADD CONSTRAINT products_english_when_ready CHECK (stage <> 'READY' OR name_en IS NOT NULL)");
     }

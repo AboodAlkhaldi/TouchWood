@@ -55,7 +55,7 @@ final readonly class DeleteDraftVariantHandler
 
             $was = ['product_id' => $product->id(), ...$variant->snapshot()];
             $this->variants->delete($variant->id());
-            $this->events->changed($product->id());
+            $this->events->changed($product);
 
             if (! $this->variants->codeInUse($product->id(), $variant->code()->value)) {
                 $this->products->releaseCode($product->id(), $variant->code()->value);

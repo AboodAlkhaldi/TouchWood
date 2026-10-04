@@ -47,7 +47,7 @@ final readonly class ArchiveProductHandler
             }
 
             $this->products->update($product);
-            $this->events->archived($product->id());
+            $this->events->archived($product);
 
             return [null, [ListAudit::replaced('product', 'archived', $product->id(), 'stage', $was, 'ARCHIVED')]];
         });

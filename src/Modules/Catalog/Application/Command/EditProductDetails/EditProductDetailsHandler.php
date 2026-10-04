@@ -21,7 +21,6 @@ use Modules\Catalog\Domain\Exception\CategoryNotLowest;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
-use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Exception\ProductNotReady;
 use Modules\Catalog\Domain\Exception\SlugTaken;
@@ -52,7 +51,7 @@ final readonly class EditProductDetailsHandler
     ) {}
 
     /**
-     * @throws AttributeSetLocked|BrandInactive|BrandNotFound|CategoryInactive|CategoryNotFound|CategoryNotLowest|InvalidCatalogAttribute|ListItemInactive|ListItemNotFound|ProductArchived|ProductNotFound|ProductNotReady|SlugTaken|Unauthorized
+     * @throws AttributeSetLocked|BrandInactive|BrandNotFound|CategoryInactive|CategoryNotFound|CategoryNotLowest|InvalidCatalogAttribute|ListItemInactive|ListItemNotFound|ProductNotFound|ProductNotReady|SlugTaken|Unauthorized
      */
     public function handle(EditProductDetails $command): void
     {
@@ -63,7 +62,6 @@ final readonly class EditProductDetailsHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command, $name, $slugs, $descriptionAr, $descriptionEn): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
-            $this->readiness->requireNotArchived($product);
             $this->input->requireFreeSlugs($slugs, $product->id());
 
             $product->editDetails(
@@ -85,7 +83,7 @@ final readonly class EditProductDetailsHandler
 
             $this->readiness->requireKept($product);
             $this->products->update($product);
-            $this->events->changed($product->id());
+            $this->events->changed($product);
 
             return [null, [$entry]];
         });

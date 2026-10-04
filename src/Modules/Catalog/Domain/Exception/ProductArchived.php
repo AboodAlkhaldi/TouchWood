@@ -7,7 +7,8 @@ namespace Modules\Catalog\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * Changing an archived product other than restoring it (catalog.md §7).
+ * Making an archived product ready, deleting it, or deleting its variant: it is restored first
+ * (catalog.md §4.1, §7, amendment 3(m)). Its other changes are allowed, so it can be made whole.
  */
 final class ProductArchived extends CatalogError
 {

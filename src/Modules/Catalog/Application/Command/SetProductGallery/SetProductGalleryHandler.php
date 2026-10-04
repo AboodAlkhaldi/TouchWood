@@ -12,7 +12,6 @@ use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ProductParts;
 use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
-use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Exception\ProductNotReady;
 use Modules\Catalog\Domain\Exception\TooMany;
@@ -41,7 +40,7 @@ final readonly class SetProductGalleryHandler
     ) {}
 
     /**
-     * @throws InvalidCatalogAttribute|ProductArchived|ProductNotFound|ProductNotReady|TooMany|Unauthorized
+     * @throws InvalidCatalogAttribute|ProductNotFound|ProductNotReady|TooMany|Unauthorized
      */
     public function handle(SetProductGallery $command): void
     {
@@ -49,7 +48,6 @@ final readonly class SetProductGalleryHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
-            $this->readiness->requireNotArchived($product);
             $before = $this->products->gallery($product->id());
             $after = $this->parts->photos('photos', $command->mediaIds, self::MAX);
 
@@ -60,7 +58,7 @@ final readonly class SetProductGalleryHandler
             // A ready product keeps a photo whose sizes are ready (§1.1).
             $this->readiness->requireKept($product, gallery: $after);
             $this->products->replaceGallery($product->id(), $after);
-            $this->events->changed($product->id());
+            $this->events->changed($product);
 
             return [null, [ListAudit::replaced('product', 'gallery_changed', $product->id(), 'media_ids', implode(',', $before) ?: null, implode(',', $after) ?: null)]];
         });

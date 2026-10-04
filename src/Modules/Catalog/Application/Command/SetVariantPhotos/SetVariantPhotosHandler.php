@@ -11,9 +11,7 @@ use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ProductParts;
-use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
-use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\TooMany;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Repository\ListLocks;
@@ -37,13 +35,12 @@ final readonly class SetVariantPhotosHandler
         private SharedListChange $change,
         private VariantRepository $variants,
         private ProductRepository $products,
-        private Readiness $readiness,
         private ProductEvents $events,
         private ProductParts $parts,
     ) {}
 
     /**
-     * @throws InvalidCatalogAttribute|ProductArchived|TooMany|Unauthorized|VariantNotFound
+     * @throws InvalidCatalogAttribute|TooMany|Unauthorized|VariantNotFound
      */
     public function handle(SetVariantPhotos $command): void
     {
@@ -53,7 +50,6 @@ final readonly class SetVariantPhotosHandler
             $variant = $this->variants->byId($command->variantId) ?? throw new VariantNotFound($command->variantId);
             // A variant never outlives its product (the key cascades), so this always finds it.
             $product = $this->products->byId($variant->productId()) ?? throw new LogicException('A variant without its product.');
-            $this->readiness->requireNotArchived($product);
             $before = $this->variants->photos($variant->id());
             $after = $this->parts->photos('photos', $command->mediaIds, self::MAX);
 
@@ -62,7 +58,7 @@ final readonly class SetVariantPhotosHandler
             }
 
             $this->variants->replacePhotos($variant->id(), $after);
-            $this->events->changed($product->id());
+            $this->events->changed($product);
 
             return [null, [ListAudit::replaced('variant', 'photos_changed', $variant->id(), 'media_ids', implode(',', $before) ?: null, implode(',', $after) ?: null)]];
         });

@@ -10,8 +10,6 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
-use Modules\Catalog\Application\Products\Readiness;
-use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
@@ -31,12 +29,11 @@ final readonly class RestoreVariantHandler
         private SharedListChange $change,
         private ProductRepository $products,
         private VariantRepository $variants,
-        private Readiness $readiness,
         private ProductEvents $events,
     ) {}
 
     /**
-     * @throws ProductArchived|Unauthorized|VariantNotFound
+     * @throws Unauthorized|VariantNotFound
      */
     public function handle(RestoreVariant $command): void
     {
@@ -45,7 +42,6 @@ final readonly class RestoreVariantHandler
         $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
             $variant = $this->variants->byId($command->variantId) ?? throw new VariantNotFound($command->variantId);
             $product = $this->products->byId($variant->productId()) ?? throw new LogicException('A variant without its product.');
-            $this->readiness->requireNotArchived($product);
             $variant->restore();
             $entry = ListAudit::changed('variant', 'restored', $variant->id(), $variant->pullChanges(), $variant->snapshot());
 
@@ -54,7 +50,7 @@ final readonly class RestoreVariantHandler
             }
 
             $this->variants->updateRow($variant);
-            $this->events->variantRestored($product->id(), $variant->id());
+            $this->events->variantRestored($product, $variant->id());
 
             return [null, [$entry]];
         });
