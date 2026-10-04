@@ -4,8 +4,8 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { toLatinDigits } from '@/lib/digits';
 
 /*
-| An SMS code, one box per digit, on shadcn's InputOTP (frontend.md §1.11: staff sign-in, accepting
-| an invitation, and the staff Change Phone Number dialog). One real input with boxes drawn over it:
+| An SMS code, one box per digit, on shadcn's InputOTP (frontend.md §1.11: the staff sign-in, the
+| staff Change Phone Number dialog and the customer's Change Phone Number). One real input with boxes drawn over it:
 | pasting the whole code, the browser filling it from the message (it is marked one-time-code), the
 | caret and the arrow keys are all input-otp's own, where the boxes before were each their own input.
 |
@@ -60,7 +60,7 @@ export function CodeInput({ id, label, length, value, onChange, helper, error, a
                     >
                         <InputOTPGroup>
                             {Array.from({ length }, (_, index) => (
-                                <InputOTPSlot key={index} index={index} aria-invalid={invalid || undefined} className="tw-figure size-12 text-label-20" />
+                                <InputOTPSlot key={index} index={index} aria-invalid={invalid || undefined} className="tw-figure size-10 text-label-20 sm:size-12" />
                             ))}
                         </InputOTPGroup>
                     </InputOTP>

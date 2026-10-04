@@ -64,7 +64,9 @@ export function CountryCombobox({ id, label, countries, value, onChange, error, 
 
     return (
         <Field>
-            <FieldLabel htmlFor={id}>{label}</FieldLabel>
+            <FieldLabel id={`${id}-label`} htmlFor={id}>
+                {label}
+            </FieldLabel>
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                     <Button
@@ -73,12 +75,14 @@ export function CountryCombobox({ id, label, countries, value, onChange, error, 
                         variant="outline"
                         role="combobox"
                         aria-expanded={open}
+                        // The field's name and then the country chosen: the label alone would hide it.
+                        aria-labelledby={`${id}-label ${id}-value`}
                         aria-invalid={error ? true : undefined}
                         aria-describedby={error ? `${id}-error` : undefined}
                         className="w-full justify-between font-normal"
                         data-test={id}
                     >
-                        {chosen?.name ?? ''}
+                        <span id={`${id}-value`}>{chosen?.name ?? ''}</span>
                         <ChevronsUpDown aria-hidden="true" className="opacity-50" />
                     </Button>
                 </PopoverTrigger>

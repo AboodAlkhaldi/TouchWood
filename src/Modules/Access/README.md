@@ -498,8 +498,13 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   Platform whether the store is on, and `AccessApi::address()` / `addresses()`, deleting and making
   one the default all answer as if it were not there; saving one in an off store is refused as an
   unknown store, and the address book lists on stores only (Platform's `stores()`). The staff
-  customer screen hides them too, and names no home store that is off — never its id (amendment
-  57). Turned back on, everything is as it was.
+  customer screen names an off home store and shows the addresses saved in an off store, each
+  marked Off (amendment 58(d), replacing 57's hiding) — the customer still cannot use them while
+  it is off. The panel's store switcher shows an off store to the staff who cover it, marked Off and
+  disabled with its reason, and only a Super Admin may work in it, to prepare it (58(a)); the staff
+  editor keeps an off store a person holds (58(b)); and a change to an off store's own data — its
+  address form — is refused unless a Super Admin makes it (58(f)). Turned back on, everything is as
+  it was.
 
 ### Deleting an account: locked now, anonymized in fourteen days
 

@@ -101,7 +101,12 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
                                 <DropdownMenuItem onSelect={() => setCloning(true)} data-test="action-clone">
                                     {`${t('access::roles.clone')}…`}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={refresh} disabled={refreshing} data-test="action-refresh">
+                                <DropdownMenuItem
+                                    // Busy, it stays in reach (aria-disabled), as a locked item does.
+                                    aria-disabled={refreshing || undefined}
+                                    onSelect={(event) => (refreshing ? event.preventDefault() : refresh())}
+                                    data-test="action-refresh"
+                                >
                                     {t('access::roles.refresh')}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
@@ -205,7 +210,8 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
                     <form
                         onSubmit={(event) => {
                             event.preventDefault();
-                            copy.post(`/admin/roles/${id}/clone`);
+                            // Closed once the copy is made: the answer opens the copy on this same page.
+                            copy.post(`/admin/roles/${id}/clone`, { onSuccess: () => setCloning(false) });
                         }}
                     >
                         <div className="grid gap-4 p-6">

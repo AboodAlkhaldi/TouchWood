@@ -5,8 +5,6 @@ declare(strict_types=1);
 // كلمات نظام التصميم نفسه (frontend.md 1.10): ما تقوله مكوّنات Geist في أي شاشة.
 return [
     'cancel' => 'إلغاء',
-    'close' => 'إغلاق',
-    'done' => 'تم',
     'previous' => 'السابق',
     'next' => 'التالي',
     'pages' => 'الصفحات',
@@ -26,7 +24,6 @@ return [
     // The phone's sidebar, which shadcn names in English (frontend.md §1.11, edit 5).
     'sidebar' => 'الشريط الجانبي',
     'sidebar_description' => 'يعرض الشريط الجانبي على الهاتف.',
-    'request_id' => 'رقم الطلب',
     'show_password' => 'إظهار كلمة المرور',
     'to_confirm' => 'للتأكيد، اكتب «:phrase»',
     'to_confirm_named' => 'للتأكيد، اكتب :label «:phrase»',

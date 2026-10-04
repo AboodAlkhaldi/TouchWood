@@ -50,10 +50,15 @@ export default function SignInCode({ maskedPhone, length, trustDays, resendIn, a
     return (
         <SignInLayout title={t('access::auth.code_title')} subtitle={maskedPhone === null ? undefined : t('access::auth.code_sent_to', { phone: maskedPhone })}>
             <form
+                // Enter on a short code says why under it: the button only says so on hover, and
+                // does nothing when pressed (the final review).
+                onKeyDown={(event) => (event.key === 'Enter' && incomplete !== undefined ? form.setError('code', incomplete) : undefined)}
                 onSubmit={(event) => {
                     event.preventDefault();
 
                     if (incomplete !== undefined) {
+                        form.setError('code', incomplete);
+
                         return;
                     }
 
@@ -68,7 +73,10 @@ export default function SignInCode({ maskedPhone, length, trustDays, resendIn, a
                         label={t('access::auth.code_label')}
                         length={length}
                         value={form.data.code}
-                        onChange={(code) => form.setData('code', code)}
+                        onChange={(code) => {
+                            form.setData('code', code);
+                            form.clearErrors('code');
+                        }}
                         error={form.errors.code}
                         autoFocus
                     />

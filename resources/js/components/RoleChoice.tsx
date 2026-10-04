@@ -117,14 +117,28 @@ function SavedRolePicker({ roles, value, edited, onPick }: Props) {
 
     return (
         <Field>
-            <FieldLabel htmlFor="saved-role">{t('access::staff.saved_role')}</FieldLabel>
+            <FieldLabel id="saved-role-label" htmlFor="saved-role">
+                {t('access::staff.saved_role')}
+            </FieldLabel>
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
-                    <Button id="saved-role" type="button" variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal" data-test="saved-role">
+                    <Button
+                        id="saved-role"
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={open}
+                        // The field's name and then the role chosen: the label alone would hide it.
+                        aria-labelledby="saved-role-label saved-role-value"
+                        className="w-full justify-between font-normal"
+                        data-test="saved-role"
+                    >
                         {chosen === null ? (
-                            <span className="text-ink-muted">{t('access::staff.choose_saved_role')}</span>
+                            <span id="saved-role-value" className="text-ink-muted">
+                                {t('access::staff.choose_saved_role')}
+                            </span>
                         ) : (
-                            <span className="flex min-w-0 items-center gap-2">
+                            <span id="saved-role-value" className="flex min-w-0 items-center gap-2">
                                 <span className="truncate">{chosen.name}</span>
                                 <span className="tw-figure text-copy-13 text-ink-muted">{t('access::staff.actions_count', { count: chosen.permissionCount })}</span>
                                 {edited ? <Badge className={tone('amber-subtle')}>{t('access::staff.edited')}</Badge> : null}

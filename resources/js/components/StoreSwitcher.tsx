@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { ChevronsUpDown, Lock } from 'lucide-react';
+import { ChevronsUpDown, Home, Lock } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { StoreOffBadge } from '@/components/StoreOffBadge';
 import {
@@ -7,6 +7,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
@@ -23,8 +24,13 @@ import type { SharedProps, Store } from '@/types/page';
 |
 | An off store is shown only to the staff who cover it, marked Off, and only a Super Admin may work
 | in it, to prepare it before it opens; anyone else sees it disabled, with the reason (access.md
-| amendment 58(a); Geist: a disabled action says why). The block's keyboard shortcuts and its "Add
-| team" row are left out: neither does anything here, and a row that does nothing is a lie.
+| amendment 58(a); Geist: a disabled action says why) - a staff member whose one store is off sees it
+| here too, with the reason, in place of the menu. The block's keyboard shortcuts and its "Add team"
+| row are left out: neither does anything here, and a row that does nothing is a lie. Its first row
+| is Home, since the header no longer links there once it opens a menu (the final review).
+|
+| A switch loads the page afresh (`preserveState: false`): a form open on the page - a setting's
+| value - must not keep the store it was filled for (the final review).
 */
 
 export function StoreSwitcher() {
@@ -33,7 +39,12 @@ export function StoreSwitcher() {
     const t = useTranslator();
 
     const current = store?.current ?? null;
-    const title = current?.name ?? 'TouchWood';
+    // A staff member's only store, when it is off: named, marked Off, and its reason said.
+    const only = store !== null && store.available.length === 1 ? (store.available[0] ?? null) : null;
+    const lockedOnly = current === null && only !== null && !only.choosable ? only : null;
+    const title = current?.name ?? lockedOnly?.name ?? 'TouchWood';
+    // The menu's name and the store it holds, for a screen reader.
+    const name = `${t('admin.store.label')}: ${title}`;
 
     const header = (
         <>
@@ -42,11 +53,17 @@ export function StoreSwitcher() {
             </div>
             <div className="grid flex-1 text-start text-sm leading-tight">
                 <span className="truncate font-medium">{title}</span>
-                <span className="truncate text-xs">{t('admin.panel')}</span>
+                {lockedOnly === null ? (
+                    <span className="truncate text-xs">{t('admin.panel')}</span>
+                ) : (
+                    <span className="text-xs" data-test="only-store-off">
+                        {t('admin.store.off_reason', { store: lockedOnly.name })}
+                    </span>
+                )}
             </div>
             {/* A Super Admin preparing an off store sees it said where they work, not only in the
                 list (the review of the foundation, 2026-10-03). */}
-            {current !== null && !current.isActive ? (
+            {(current !== null && !current.isActive) || lockedOnly !== null ? (
                 <StoreOffBadge className="border-sidebar-foreground/40 text-sidebar-foreground" />
             ) : null}
         </>
@@ -72,6 +89,7 @@ export function StoreSwitcher() {
                         <SidebarMenuButton
                             size="lg"
                             tooltip={title}
+                            aria-label={name}
                             data-test="store-switcher"
                             className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                         >
@@ -85,6 +103,15 @@ export function StoreSwitcher() {
                         side={isMobile ? 'bottom' : 'right'}
                         sideOffset={4}
                     >
+                        <DropdownMenuItem asChild className="gap-2 p-2">
+                            <Link href="/admin" data-test="admin-home">
+                                <div aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center rounded-md border">
+                                    <Home className="size-3.5" />
+                                </div>
+                                {t('admin.home.title')}
+                            </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuLabel className="text-xs text-muted-foreground">{t('admin.store.stores')}</DropdownMenuLabel>
                         {store.available.map((one) => (
                             <StoreRow key={one.id} store={one} current={one.id === current?.id} />
@@ -118,7 +145,7 @@ function StoreRow({ store, current }: { store: Store; current: boolean }) {
                 }
 
                 if (!current) {
-                    router.post('/admin/current-store', { store: store.id }, { preserveScroll: true });
+                    router.post('/admin/current-store', { store: store.id }, { preserveScroll: true, preserveState: false });
                 }
             }}
         >

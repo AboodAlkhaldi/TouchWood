@@ -119,6 +119,7 @@ them here.
 | `input-otp` | 1.5.0 (2026-10-03) | Under shadcn's InputOTP, the SMS code boxes (owner, 2026-10-02) |
 | `@dnd-kit/core`, `/sortable`, `/modifiers`, `/utilities` | 6.3.1, 10.0.0, 9.0.0, 3.2.2 (2026-10-03) | Under shadcn's `dashboard-01` drag handles, for the address form's field order - by mouse, touch or keyboard (owner, 2026-10-03) |
 | `sonner` | 2.0.8 (2026-10-03) | Under shadcn's toasts; `next-themes`, which shadcn adds with it, is removed (§1.11 edit 2) |
+| `react-day-picker`, `date-fns` | 10.0.2, 4.4.0 (2026-10-04) | Under shadcn's calendar, the audit log's date range (loaded when the picker first opens) |
 | `tightenco/ziggy` | v2.6.4 | **[DECIDED 2026-09-19]** Links to named routes, with TypeScript types |
 | `spatie/laravel-typescript-transformer` | 3.3.0 (supports Laravel 13) | **[DECIDED 2026-09-19]** TypeScript types generated from page data |
 | `spatie/laravel-data` | 4.23 (already installed) | Page data classes (presentation layer only, handoff §3) |
@@ -392,10 +393,10 @@ and examples. Only when neither has it, show the owner what was searched and ask
      checks it.
   5. **shadcn's own screen-reader words** (owner, 2026-10-03, after the review of the foundation) —
      a few words shadcn writes in English inside its code (the phone sidebar's title and
-     description; later a dialog's "Close", the pager's "Previous" and "Next", "Loading") read our
-     words from the design system's file (`lang/{ar,en}/ui.php`), each where a prop cannot reach it.
-     Words a prop can give - the sidebar trigger's, the rail's, the breadcrumb's - are given from
-     outside, with no edit.
+     description) read our words from the design system's file (`lang/{ar,en}/ui.php`), where a
+     prop cannot reach them. Words a prop can give - the sidebar trigger's, the rail's, the
+     breadcrumb's, a Spinner's name, the pager's Previous and Next (our own links) - are given from
+     outside, with no edit; a dialog's own Close button is never drawn (`showCloseButton={false}`).
 - **The CLI's CSS**: installing a component may add shadcn's default colours to `app.css` (the
   sidebar's, for one). They are not kept: our tokens already feed those names (Look, above).
 - **Geist's pieces that shadcn lacks**, built exactly from Geist's own page, with no invention:
@@ -462,6 +463,12 @@ and examples. Only when neither has it, show the owner what was searched and ask
   messages — Access's, Platform's and B2B's `Presentation/lang/{ar,en}/errors.php` — are rewritten:
   "Couldn't …" for the person's own state, "Failed to …" for the system's, then the fix; titles
   are Title Case statements. The tests that read them change with them, never weakened.
+  Built in batch F (2026-10-04), with the shared `lang/{ar,en}/errors.php` too, as two sentences —
+  “Couldn't save the role: another role is already called "Sales". Choose another name.” — the
+  Arabic "تعذّر …" / "فشل …". Kept as written: the owner's own words for a code asked for too soon
+  (2026-09-22) and for marked items not replaced (b2b.md amendment 6(e)), which already name the way
+  forward. A message staff meet as well as customers gets a fix that holds for both ("Reload the
+  page.").
 - **The owner's answers for batches C to F** (2026-10-04, each from a picture):
   - registration: the kind of account starts with **nothing chosen** (Geist's Radio: no default when
     the choice has real consequences); sending without one says "Choose a kind of account." on the
@@ -504,7 +511,8 @@ layout of the area they occur in.
 - **Direction:** Arabic pages mirror the whole layout, sidebar included, as the design does.
 - **[DECIDED 2026-09-19] Light and dark themes, admin and storefront**, chosen with a toggle and
   remembered **per browser** in a cookie, so the server renders the right theme with no flash.
-  **Light until the person chooses.** The design's dark palette (`html[data-theme="dark"]`) is used
+  **System until the person chooses** — the device's own setting (§1.11, 2026-10-03; it replaced
+  "Light until the person chooses"). The design's dark palette (`html[data-theme="dark"]`) is used
   as it is. Every screen is checked in both themes.
 - **[DECIDED 2026-09-19] Fonts are served from our own domain**, not a font service.
 - **[DECIDED 2026-09-19] Phones are supported, admin and storefront.** The design has no phone
@@ -534,7 +542,8 @@ From the design, with the decided rules applied:
   page (the design's "This screen is next in the build queue"), **to Super Admins only**. Their
   permissions do not exist yet, so they cannot be checked; everyone else sees only screens they
   can use. A module's entries become real, permission-checked items when its screens ship.
-- **Header:** the sidebar toggle, breadcrumbs, the store picker, and "View store". **[DECIDED
+- **Header:** the sidebar toggle, breadcrumbs, and "View store"; the store picker sits in the
+  sidebar's own header (§1.11: `sidebar-07`'s team switcher), with Home as its first row. **[DECIDED
   2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a module gives them
   content: search with Catalog and Sales, the bell with Ops.
 - **[DECIDED 2026-09-19] The store picker** is **remembered on the staff account**. URLs carry no
@@ -653,7 +662,7 @@ edits is what Access already allows (`UpdateOwnStaffProfile`, `ChangeOwnStaffPho
 
 | # | Tab | Shows and edits |
 |---|---|---|
-| B1 | Account | Picture; first and last name, job title, date of birth, country, address; the **communication language** (emails and SMS codes, Access amendment 16), labelled so it is not confused with the display toggle. The email is read only, with "Ask an admin to change it"; a Super Admin instead has "Change email", which sends a link to the new address (Access amendment 17) and shows the change as pending until it is used. |
+| B1 | Account | Picture; first and last name, job title, date of birth, country, address; the **communication language** (emails and SMS codes, Access amendment 16), labelled so it is not confused with the display toggle. The email is read only, its locked Change Email saying "Ask an admin to change it"; a Super Admin instead has "Change email", which sends a link to the new address (Access amendment 17) and shows the change as pending until it is used. |
 | B2 | Account → phone | The phone, with "Change": a dialog asks for the **current password** (R2) and the new number, sends a code to it, and takes the code. The old number stays in use until the new one is confirmed (access.md §1.4). A wrong password is counted like a wrong one at sign-in, so the dialog shows the lockout message too. |
 | B3 | Security | Change password: current, new, confirmation, with the rule in words. Afterwards: "Every other session was signed out." (Access's message). No two-factor switch (§2.7). |
 | B4 | Notifications | For each topic — new orders, company applications, low stock, campaign expiry — an email switch and an in-panel switch (access.md §1.4). **[DECIDED 2026-09-19]** Each switch saves as it is flipped, with a small "Saved" toast. |

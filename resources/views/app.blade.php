@@ -4,8 +4,9 @@
 |
 | The language, the direction and the theme are decided on the server and written here, so the very
 | first paint is already right: no flash of the wrong theme, and no moment of left-to-right before
-| an Arabic page turns around. The SSR renderer produces the same markup a browser would, because
-| none of this is decided in the browser.
+| an Arabic page turns around - but for the "System" theme, which only the device knows: a one-line
+| script in the head sets the dark mode from it before the first paint. Everything else the SSR
+| renderer produces is the markup a browser would.
 --}}
 {{-- The campaign and the mode are separate: a campaign has its own light and its own dark. --}}
 <html lang="{{ $page['props']['locale'] ?? app()->getLocale() }}"

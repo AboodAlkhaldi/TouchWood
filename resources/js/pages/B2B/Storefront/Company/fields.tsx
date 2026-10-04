@@ -284,7 +284,7 @@ export function AddressPicker({
                 </Empty>
             ) : addresses.length > TILES ? (
                 <>
-                    <Suspense fallback={<Spinner className="text-ink-muted" />}>
+                    <Suspense fallback={<Spinner className="text-ink-muted" aria-label={t('ui.loading')} />}>
                         <SearchCombobox
                             id="company-address-search"
                             label={t('b2b::company.address_saved_list')}
@@ -295,7 +295,8 @@ export function AddressPicker({
                                 disabled: !address.isComplete || busy,
                             }))}
                             value={value}
-                            onChange={onPick}
+                            // The address already picked is not saved again.
+                            onChange={(next) => (next === value ? undefined : onPick(next))}
                             words={{ search: t('b2b::company.address_search'), none: (query) => t('b2b::company.address_search_none', { query }) }}
                             data-test="address-search"
                         />
@@ -351,6 +352,8 @@ export function AddressPicker({
                 </>
             )}
 
+            {/* "Saving…" and "✓ Saved" seen, as every field of the form shows them (amendment 22(a)). */}
+            <SaveBeside look={problem === null ? look : 'idle'} />
             <FieldState id={stateId} look={look} rule={null} problem={problem} />
         </FieldSet>
     );

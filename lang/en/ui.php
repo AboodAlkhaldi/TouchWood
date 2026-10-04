@@ -7,8 +7,6 @@ declare(strict_types=1);
 // (App\Http\Page::DESIGN_SYSTEM). Geist's writing rules apply: buttons in Title Case.
 return [
     'cancel' => 'Cancel',
-    'close' => 'Close',
-    'done' => 'Done',
     'previous' => 'Previous',
     'next' => 'Next',
     'pages' => 'Pages',
@@ -30,7 +28,6 @@ return [
     // The phone's sidebar, which shadcn names in English (frontend.md §1.11, edit 5).
     'sidebar' => 'Sidebar',
     'sidebar_description' => 'Displays the mobile sidebar.',
-    'request_id' => 'Request ID',
     'show_password' => 'Show password',
     'to_confirm' => 'To confirm, type ":phrase"',
     'to_confirm_named' => 'To confirm, type the :label ":phrase"',

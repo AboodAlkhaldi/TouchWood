@@ -53,6 +53,7 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string) {
 
         out.current = true;
         appending.current = true;
+        let arrived = false;
 
         router.get(url, cursor, {
             only,
@@ -60,12 +61,19 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string) {
             preserveScroll: true,
             preserveUrl: true,
             onStart: () => setLoading(true),
+            onSuccess: () => {
+                arrived = true;
+            },
+            // However it ended - cancelled, refused, a server or network failure - a page that never
+            // came leaves the list replaced by the next answer, not appended to (the final review).
             onFinish: () => {
                 out.current = false;
                 setLoading(false);
+
+                if (!arrived) {
+                    gone();
+                }
             },
-            onCancel: gone,
-            onError: gone,
         });
     }
 

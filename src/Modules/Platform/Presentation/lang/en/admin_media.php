@@ -32,7 +32,7 @@ return [
     'uploading' => 'Uploading… :percent%',
     'visibility_public' => 'Anyone with the Link',
     'visibility_private' => 'Only the Panel',
-    'no_file' => 'Couldn\'t upload the file. It may be larger than this server accepts.',
+    'no_file' => 'Couldn\'t upload the file: it may be larger than this server accepts. Choose a smaller file, or try again.',
 
     'alt' => 'Description',
     'alt_hint' => 'Read aloud to somebody who cannot see the image.',

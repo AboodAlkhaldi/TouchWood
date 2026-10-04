@@ -98,7 +98,7 @@ return [
     'too_large' => 'This file is larger than :size MB.',
     'duplicate_file' => 'A file with this name is already under “:section”, and the same file can\'t go into two sections.',
     'file_added' => 'File added',
-    'no_file' => 'Couldn\'t upload the file. It may be larger than the server accepts.',
+    'no_file' => 'Couldn\'t upload the file: it may be larger than the server accepts. Choose a smaller file, or try again.',
 
     'requests_hint' => 'Answer each one before you send.',
     'answer' => 'Your Answer',

@@ -62,14 +62,15 @@ export default function Home() {
                             ))}
                         </ItemGroup>
                     </section>
-                ) : null}
-
-                <Empty className="material-base">
-                    <EmptyHeader>
-                        <EmptyTitle>{t('admin.home.empty_title')}</EmptyTitle>
-                        <EmptyDescription>{t('admin.home.empty')}</EmptyDescription>
-                    </EmptyHeader>
-                </Empty>
+                ) : (
+                    // Said only while nothing waits: under the waiting rows it would contradict them.
+                    <Empty className="material-base">
+                        <EmptyHeader>
+                            <EmptyTitle>{t('admin.home.empty_title')}</EmptyTitle>
+                            <EmptyDescription>{t('admin.home.empty')}</EmptyDescription>
+                        </EmptyHeader>
+                    </Empty>
+                )}
             </div>
         </AdminLayout>
     );

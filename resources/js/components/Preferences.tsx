@@ -29,8 +29,9 @@ import type { SharedProps } from '@/types/page';
 /**
  * Make the choice and ask for the page again.
  *
- * Exported because the panel's person menu offers the same two choices as plain menu items rather
- * than as the pill buttons below - the same action, worn differently, not a second way of doing it.
+ * Exported because the panel's person menu offers the same two choices - the language as a menu
+ * item, the theme as Geist's Theme Switcher inside the menu - rather than as the buttons below: the
+ * same action, worn differently, not a second way of doing it.
  */
 export function choosePreference(preference: 'theme' | 'locale', value: string, to: string) {
     choose(preference, value, to);

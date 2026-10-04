@@ -60,7 +60,8 @@ export function SentApplication({
     /** Shown open, without a fold: the application the page is about. */
     open?: boolean;
 }) {
-    const line = <Line application={application} />;
+    // Folded, the line is the fold's button, and a moment inside a button takes no focus of its own.
+    const line = <Line application={application} inControl={!open} />;
     const body = <Body application={application} previous={previous} documentTypes={documentTypes} />;
 
     if (open) {
@@ -86,7 +87,7 @@ export function SentApplication({
 }
 
 /** An application's line: its number, what came of it, and when it was sent. */
-function Line({ application }: { application: CompanyApplicationData }) {
+function Line({ application, inControl }: { application: CompanyApplicationData; inControl: boolean }) {
     const t = useTranslator();
 
     return (
@@ -99,7 +100,7 @@ function Line({ application }: { application: CompanyApplicationData }) {
             </Badge>
             {application.submittedAt === null ? null : (
                 <span className="text-copy-13 text-ink-muted">
-                    <Phrase text={t('b2b::company.sent_at', { date: MARK })} moment={<Time value={application.submittedAt} focusable={false} inSentence />} />
+                    <Phrase text={t('b2b::company.sent_at', { date: MARK })} moment={<Time value={application.submittedAt} focusable={!inControl} inSentence />} />
                 </span>
             )}
         </span>

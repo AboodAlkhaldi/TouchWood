@@ -369,7 +369,7 @@ describe('B1 - the email', function () {
         // this is an action taken on a screen they are already reading (owner, 2026-09-24). What
         // matters either way is that nothing happened.
         $response->assertRedirect();
-        expect(accountFieldError($response, 'form'))->toBe('You do not have permission to do this.')
+        expect(accountFieldError($response, 'form'))->toBe("Couldn't do that: it isn't one of your jobs. Ask an administrator for it.")
             ->and(RecordingSecurityMessages::installed()->emailChanges)->toBe([]);
     });
 });

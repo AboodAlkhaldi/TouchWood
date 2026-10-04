@@ -107,7 +107,7 @@ export type Viewer = {
 };
 
 export type CurrentStore = {
-    /** Null when the person has no stores at all. */
+    /** Null when the person has no stores at all, or none they may work in now (all of them off). */
     current: Store | null;
     /** Only the stores that are theirs, on or off; one store means the header shows a name, not a picker. */
     available: Store[];

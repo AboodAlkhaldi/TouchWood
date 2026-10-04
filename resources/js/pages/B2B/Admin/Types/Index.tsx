@@ -293,7 +293,7 @@ function Row({
                                 // under it: still in the menu, so nobody wonders where it went.
                                 <DropdownMenuItem
                                     aria-disabled={nobodyToMove || undefined}
-                                    className={cn(nobodyToMove && 'cursor-not-allowed opacity-60')}
+                                    className={cn(nobodyToMove && 'cursor-not-allowed')}
                                     onSelect={(event) => {
                                         if (nobodyToMove) {
                                             event.preventDefault();
@@ -305,7 +305,8 @@ function Row({
                                     data-test="transfer-type"
                                 >
                                     <span className="grid gap-0.5">
-                                        <span>{t('b2b::admin_types.list.company.transfer')}</span>
+                                        {/* The name dimmed; the reason in full ink, as on the roles page. */}
+                                        <span className={nobodyToMove ? 'opacity-60' : undefined}>{t('b2b::admin_types.list.company.transfer')}</span>
                                         {nobodyToMove ? <span className="text-copy-12 text-ink-muted">{t('b2b::admin_types.list.company.transfer_none')}</span> : null}
                                     </span>
                                 </DropdownMenuItem>

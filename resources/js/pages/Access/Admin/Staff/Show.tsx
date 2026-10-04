@@ -59,7 +59,7 @@ import type { StaffMemberPage } from '@/types/generated/Modules/Access/Presentat
 
 type Props = StaffMemberPage;
 
-type Action = { key: string; label: string; run: () => void; busy?: boolean; href?: string; destructive?: boolean };
+type Action = { key: string; label: string; run: () => void; busy?: boolean; href?: string };
 
 export default function Show(person: Props) {
     const t = useTranslator();
@@ -132,8 +132,8 @@ export default function Show(person: Props) {
     const everyday = everydayOffered.filter((action): action is Action => action !== null);
 
     const destructiveOffered: (Action | null)[] = [
-        person.mayCancelInvitation ? { key: 'cancel-invitation', label: `${t('access::staff.cancel_invitation')}…`, run: () => setCancelling(true), destructive: true } : null,
-        person.mayDisable ? { key: 'disable', label: `${t('access::staff.disable')}…`, run: () => setDisabling(true), destructive: true } : null,
+        person.mayCancelInvitation ? { key: 'cancel-invitation', label: `${t('access::staff.cancel_invitation')}…`, run: () => setCancelling(true) } : null,
+        person.mayDisable ? { key: 'disable', label: `${t('access::staff.disable')}…`, run: () => setDisabling(true) } : null,
     ];
     const destructive = destructiveOffered.filter((action): action is Action => action !== null);
 
@@ -178,11 +178,33 @@ export default function Show(person: Props) {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="min-w-56">
-                                    {rest.map((action) => (
-                                        <DropdownMenuItem key={action.key} onSelect={action.run} disabled={action.busy} data-test={`action-${action.key}`}>
-                                            {action.label}
-                                        </DropdownMenuItem>
-                                    ))}
+                                    {rest.map((action) =>
+                                        // A page to go to is a link in the menu too, so it can be opened in a new tab like any link.
+                                        action.href !== undefined ? (
+                                            <DropdownMenuItem key={action.key} asChild data-test={`action-${action.key}`}>
+                                                <Link href={action.href}>{action.label}</Link>
+                                            </DropdownMenuItem>
+                                        ) : (
+                                            <DropdownMenuItem
+                                                key={action.key}
+                                                // Busy, it stays in reach and says so (aria-disabled), as a
+                                                // locked item does: Radix's `disabled` would drop it from the keys.
+                                                aria-disabled={action.busy || undefined}
+                                                onSelect={(event) => {
+                                                    if (action.busy) {
+                                                        event.preventDefault();
+
+                                                        return;
+                                                    }
+
+                                                    action.run();
+                                                }}
+                                                data-test={`action-${action.key}`}
+                                            >
+                                                {action.label}
+                                            </DropdownMenuItem>
+                                        ),
+                                    )}
                                     {rest.length > 0 && destructive.length > 0 ? <DropdownMenuSeparator /> : null}
                                     {destructive.map((action) => (
                                         <DropdownMenuItem key={action.key} variant="destructive" onSelect={action.run} data-test={`action-${action.key}`}>

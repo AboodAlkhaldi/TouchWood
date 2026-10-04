@@ -7,6 +7,7 @@ import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
 import { intlLocale } from '@/lib/digits';
+import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
 // Loaded when the picker first opens, never with the page (DateRangeCalendar, the page budget).
@@ -91,6 +92,7 @@ function firstShown(start: Date | undefined, latest: Date): Date {
 
 export function DateRangeField({ id, label, from: askedFrom, until: askedUntil, onChange, words }: Props) {
     const { locale } = usePage<SharedProps>().props;
+    const t = useTranslator();
     const [open, setOpen] = useState(false);
     const now = today();
     // Only plain days count; anything else in the address is no date at all.
@@ -151,7 +153,7 @@ export function DateRangeField({ id, label, from: askedFrom, until: askedUntil, 
                     <Suspense
                         fallback={
                             <div className="grid min-h-72 place-items-center sm:min-w-[34rem]">
-                                <Spinner className="text-ink-muted" />
+                                <Spinner className="text-ink-muted" aria-label={t('ui.loading')} />
                             </div>
                         }
                     >

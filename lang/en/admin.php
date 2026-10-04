@@ -25,8 +25,6 @@ return [
         'system' => 'System',
         'light' => 'Light',
         'dark' => 'Dark',
-        'switch_to_light' => 'Switch to Light Theme',
-        'switch_to_dark' => 'Switch to Dark Theme',
     ],
 
     'store' => [

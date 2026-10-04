@@ -128,8 +128,6 @@ return [
         ],
     ],
 
-    'actions' => 'Open company actions',
-
     'approve' => [
         'button' => 'Approve Company',
         'title' => 'Approve Company',

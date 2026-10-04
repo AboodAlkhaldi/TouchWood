@@ -137,11 +137,19 @@ export function PhoneBlock({ account }: Props) {
                         </form>
                     ) : (
                         <form
+                            // Enter on a short code says why under it, as the button does on hover (the final review).
+                            onKeyDown={(event) =>
+                                event.key === 'Enter' && confirm.data.code.length < account.codeLength
+                                    ? confirm.setError('code', t('access::account.code_incomplete', { count: account.codeLength }))
+                                    : undefined
+                            }
                             onSubmit={(event) => {
                                 event.preventDefault();
 
                                 // Not sent until the code is whole; the button says so (the review of batch C).
                                 if (confirm.data.code.length < account.codeLength) {
+                                    confirm.setError('code', t('access::account.code_incomplete', { count: account.codeLength }));
+
                                     return;
                                 }
 
@@ -159,7 +167,10 @@ export function PhoneBlock({ account }: Props) {
                                     label={t('access::account.phone_code')}
                                     length={account.codeLength}
                                     value={confirm.data.code}
-                                    onChange={(code) => confirm.setData('code', code)}
+                                    onChange={(code) => {
+                                        confirm.setData('code', code);
+                                        confirm.clearErrors('code');
+                                    }}
                                     error={confirm.errors.code}
                                     autoFocus
                                 />

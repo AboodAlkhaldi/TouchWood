@@ -796,7 +796,7 @@ variant transition, an over-long file name or alt text, a malformed checksum); t
   "type": "platform.store_code_taken",
   "title": "رمز المتجر مستخدم",
   "status": 409,
-  "detail": "Another store already uses the code \"sa\".",
+  "detail": "Couldn't use the code \"sa\": another store already has it. Choose another code.",
   "correlation_id": "01J…"
 }
 ```

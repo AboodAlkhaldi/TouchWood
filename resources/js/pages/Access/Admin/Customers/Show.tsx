@@ -263,7 +263,14 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
         form.clearErrors();
     }
 
+    // The confirm waits for a reason, and says so: one is kept with every change (the final review).
+    const missing = form.data.reason.trim() === '' ? t('access::customers.reason_missing') : undefined;
+
     function send() {
+        if (missing !== undefined) {
+            return;
+        }
+
         form.post(url, { preserveScroll: true, onSuccess: () => setOpen(false) });
     }
 
@@ -314,7 +321,7 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
                             <AlertDialogCancel disabled={form.processing} data-test="modal-cancel">
                                 {t('ui.cancel')}
                             </AlertDialogCancel>
-                            <ActionButton variant="destructive" loading={form.processing} onClick={send} data-test={`confirm-${name}`}>
+                            <ActionButton variant="destructive" loading={form.processing} disabledReason={missing} onClick={send} data-test={`confirm-${name}`}>
                                 {title}
                             </ActionButton>
                         </AlertDialogFooter>
@@ -341,7 +348,7 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
                                 <Button type="button" variant="outline" disabled={form.processing} onClick={close} data-test="modal-cancel">
                                     {t('ui.cancel')}
                                 </Button>
-                                <ActionButton type="submit" loading={form.processing} data-test={`confirm-${name}`}>
+                                <ActionButton type="submit" loading={form.processing} disabledReason={missing} data-test={`confirm-${name}`}>
                                     {title}
                                 </ActionButton>
                             </DialogFooter>

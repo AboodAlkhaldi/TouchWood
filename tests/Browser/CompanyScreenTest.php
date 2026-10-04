@@ -197,7 +197,7 @@ it('takes a company from the line under the header through its application to "u
     // does for a file too large for the server. The papers go in as the customer instead; the
     // upload itself is MyCompanyPageTest's.
     $page->attach('[data-test="file-'.B2BFixtures::documentTypes()[0]->id().'"]', B2BFixtures::pdf())
-        ->assertSee("Couldn't upload the file.");
+        ->assertSee("Couldn't upload the file: it may be larger than the server accepts. Choose a smaller file, or try again.");
     companyScreenPapers($customerId);
 
     $page->navigate('/sa/en/account/company')
@@ -206,9 +206,10 @@ it('takes a company from the line under the header through its application to "u
         ->assertValue('#company-cr_number', '1010123456')
         ->assertMissing('[data-test="send-missing"]');
 
-    $page->click('[data-test="send"]')
-        ->assertSee('Application sent')
-        ->assertSee('Under Review')
+    $page->click('[data-test="send"]');
+    // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
+    expect(companyScreenUntil($page, "document.body.innerText.includes('Application sent')"))->toBeTrue();
+    $page->assertSee('Under Review')
         ->assertSee('Your account is under review')
         ->assertSee('TW-CO-')
         ->assertNoJavaScriptErrors();
@@ -450,9 +451,10 @@ it('sends a company with no saved address to add one, brings it back, and saves 
 
     $addressId = (string) DB::table('access.addresses')->where('customer_id', $customerId)->value('id');
 
-    $page->click("[data-test=\"pick-address-{$addressId}\"]")
-        ->assertSee('Address saved')
-        ->assertSeeIn('[data-test="address-kept"]', 'Olaya Street')
+    $page->click("[data-test=\"pick-address-{$addressId}\"]");
+    // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
+    expect(companyScreenUntil($page, "document.body.innerText.includes('Address saved')"))->toBeTrue();
+    $page->assertSeeIn('[data-test="address-kept"]', 'Olaya Street')
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('b2b.companies')->where('customer_id', $customerId)->value('address_id'))->toBe($addressId)
@@ -491,9 +493,10 @@ it('shows a saved address edited since unpicked, with a note, and takes its new 
 
     expect($page->script("document.querySelector('[data-test=pick-address-{$addressId}]').getAttribute('aria-checked')"))->toBe('false');
 
-    $page->click("[data-test=\"pick-address-{$addressId}\"]")
-        ->assertSee('Address saved')
-        ->assertSeeIn('[data-test="address-kept"]', 'Tahlia Street')
+    $page->click("[data-test=\"pick-address-{$addressId}\"]");
+    // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
+    expect(companyScreenUntil($page, "document.body.innerText.includes('Address saved')"))->toBeTrue();
+    $page->assertSeeIn('[data-test="address-kept"]', 'Tahlia Street')
         ->assertMissing('[data-test="address-changed"]')
         ->assertNoJavaScriptErrors();
 

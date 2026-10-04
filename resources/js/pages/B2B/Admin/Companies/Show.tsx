@@ -29,8 +29,9 @@ import { ApproveModal, CorrectTypeModal, ReinstateModal, RejectModal, SuspendMod
 | Suspend in the ⋯ menu, Suspend last after a divider (Geist's menu rules; confirmed by the owner,
 | 2026-10-03).
 |
-| Times are moments in the store being worked in (amendment 23(b)): shadcn's HoverCard through Time,
-| the full moment on the page, its zone and UTC on hover. The applications are the ones sent, newest
+| Times are moments in the store being worked in (amendment 23(b)), through Time: whole in the
+| details; relative on an application's line and a paper, with the full moment, its zone and UTC on
+| hover (shadcn's HoverCard). The applications are the ones sent, newest
 | first - never a draft - each one of shadcn's Collapsibles, the newest open. A paper is an Item with
 | its Open File; a written answer is Geist's Description, so a long one is read whole.
 */
@@ -73,7 +74,7 @@ export default function Show({ company, holder, applications, actions, typeChoic
             {actions.mayCorrectType || actions.maySuspend ? (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button ref={more} type="button" variant="outline" size="icon" aria-label={t('b2b::admin_companies.actions')} title={t('b2b::admin_companies.actions')} data-test="company-actions">
+                        <Button ref={more} type="button" variant="outline" size="icon" aria-label={`${t('ui.more_actions')}: ${values.name ?? ''}`} title={t('ui.more_actions')} data-test="company-actions">
                             <MoreHorizontal aria-hidden="true" />
                         </Button>
                     </DropdownMenuTrigger>
@@ -361,7 +362,7 @@ function Application({ application, companyId, mayOpen, typeNote }: { applicatio
                                         <ItemDescription className="text-copy-13 text-ink-muted">
                                             {paper.fileName === '' ? null : <bdi>{paper.fileName}</bdi>}
                                             {paper.fileName === '' ? null : ' · '}
-                                            {t('b2b::admin_companies.application.uploaded_on')} <Time value={paper.uploadedAt} focusable={false} inSentence />
+                                            {t('b2b::admin_companies.application.uploaded_on')} <Time value={paper.uploadedAt} inSentence />
                                         </ItemDescription>
                                     </ItemContent>
                                     <ItemActions>

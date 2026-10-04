@@ -321,7 +321,7 @@ function fieldStillFlagged(field: string, draft: CompanyDraftData, lastSent: Com
  * refuses on (§1.2): every value, a type still accepted, every required paper, nothing no longer
  * accepted, every marked item replaced, every request answered.
  */
-export function missingItems(page: CompanyPage, draft: CompanyDraftData, lastSent: CompanyApplicationData | null, t: Translate, figure: (value: number) => string): string[] {
+function missingItems(page: CompanyPage, draft: CompanyDraftData, lastSent: CompanyApplicationData | null, t: Translate, figure: (value: number) => string): string[] {
     const values = fieldValues(draft.values);
     const items = (['name', 'company_type', 'cr_number', 'tax_number', 'address'] as const)
         .filter((field) => values[field] === null || (field === 'company_type' && draft.typeNoLongerAccepted))
@@ -752,7 +752,8 @@ function TypeChoice({
                             <NativeSelectOption value={OTHER}>{t('b2b::company.field.other')}</NativeSelectOption>
                         </NativeSelect>
                     </div>
-                    <SaveBeside look={selectLook} />
+                    {/* Never "Saved" beside a red line. */}
+                    <SaveBeside look={selectProblem === null ? selectLook : 'idle'} />
                 </div>
                 <FieldState id="company-type-state" look={selectLook} rule={null} problem={selectProblem} />
             </Field>
@@ -1068,7 +1069,7 @@ function DocumentRow({
             <span className="grid min-w-0 gap-0.5">
                 <MiddleTruncate value={file.fileName} />
                 <span>
-                    <Phrase text={t('b2b::company.uploaded', { date: MARK })} moment={<Time value={file.uploadedAt} focusable={false} inSentence />} />
+                    <Phrase text={t('b2b::company.uploaded', { date: MARK })} moment={<Time value={file.uploadedAt} inSentence />} />
                 </span>
             </span>
         ) : type.greyed ? (

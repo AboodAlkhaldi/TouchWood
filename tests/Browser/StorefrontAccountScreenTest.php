@@ -131,7 +131,7 @@ it('refuses a registration in the shop\'s own words, on the form', function () {
         ->click('[data-test="terms"]')
         ->click('button[type="submit"]')
         ->assertPathIs('/sa/en/register')
-        ->assertSee((string) __('access::errors.email_already_registered.detail', [], 'en'))
+        ->assertSee("Couldn't create the account: this email already has one. Sign in instead.")
         ->assertNoJavaScriptErrors();
 });
 

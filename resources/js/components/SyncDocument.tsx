@@ -12,8 +12,9 @@ import type { SharedProps } from '@/types/page';
 | and the dark theme changed nothing at all until something forced a reload (found by running it,
 | 2026-09-22).
 |
-| This puts the two back in step: the server still decides, and the document follows what it
-| decided, on the first paint and on every visit after it.
+| This puts the two back in step: the server still decides - the "System" theme excepted, which the
+| device settles in the browser - and the document follows what was decided, on the first paint and
+| on every visit after it.
 |
 | It renders nothing. It is in every layout rather than in one place high up, because a page is
 | reached through its layout and there is no component above them all inside the Inertia tree.

@@ -346,7 +346,7 @@ function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayU
                                         variant="destructive"
                                         aria-disabled={file.deleteBlocked || undefined}
                                         data-test={`delete-${file.id}`}
-                                        className={cn(file.deleteBlocked && 'cursor-not-allowed opacity-60')}
+                                        className={cn(file.deleteBlocked && 'cursor-not-allowed')}
                                         onSelect={(event) => {
                                             if (file.deleteBlocked) {
                                                 event.preventDefault();
@@ -357,7 +357,8 @@ function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayU
                                         }}
                                     >
                                         <span className="grid gap-0.5">
-                                            <span>{t('platform::admin_media.delete_open')}</span>
+                                            {/* The name dimmed; the reason in full ink, as on the roles page. */}
+                                            <span className={file.deleteBlocked ? 'opacity-60' : undefined}>{t('platform::admin_media.delete_open')}</span>
                                             {file.deleteBlocked ? <span className="text-copy-12 text-ink-muted">{t('platform::admin_media.delete_blocked')}</span> : null}
                                         </span>
                                     </DropdownMenuItem>
