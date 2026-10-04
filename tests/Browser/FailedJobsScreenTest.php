@@ -73,18 +73,21 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
     // 2026-09-29).
     $page->assertSeeIn('[data-test="waiting-platform.failed_jobs"]', 'Failed Jobs')
         ->assertSeeIn('[data-test="waiting-platform.failed_jobs"] [data-slot="badge"]', '2')
+        // The menu's System area holds one screen, so it is that screen's link, its count beside it
+        // (frontend.md §1.11, the owner's fix list, 2026-10-04).
+        ->assertSeeIn('[data-test="area-system"]', 'Failed Jobs')
         ->assertSeeIn('[data-test="count-platform.failed_jobs"]', '2')
-        ->assertMissing('[data-test="dot-platform.failed_jobs"]')
+        ->assertMissing('[data-test="dot-system"]')
         ->assertNoJavaScriptErrors();
 
-    // On the rail of icons the number has no room; a dot on the icon says something waits (owner,
-    // 2026-09-29). Opened again after, as the rest of the test reads the full sidebar.
+    // On the rail of icons the number has no room; a dot on the area's icon says something waits
+    // (owner, 2026-09-29). Opened again after, as the rest of the test reads the full sidebar.
     $page->click('[data-sidebar="trigger"]')
-        ->assertVisible('[data-test="dot-platform.failed_jobs"]')
+        ->assertVisible('[data-test="dot-system"]')
         ->assertMissing('[data-test="count-platform.failed_jobs"]')
         ->click('[data-sidebar="trigger"]')
         ->assertVisible('[data-test="count-platform.failed_jobs"]')
-        ->assertMissing('[data-test="dot-platform.failed_jobs"]');
+        ->assertMissing('[data-test="dot-system"]');
 
     $page->click('[data-test="waiting-platform.failed_jobs"]')
         ->assertPathIs('/admin/failed-jobs')

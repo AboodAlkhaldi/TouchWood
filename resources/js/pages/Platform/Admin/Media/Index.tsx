@@ -1,5 +1,5 @@
 import { type RefObject, useMemo, useRef, useState } from 'react';
-import { router, useForm } from '@inertiajs/react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import { FileText, ImageOff, MoreHorizontal } from 'lucide-react';
 import { cn } from 'cn';
 import { AdminLayout } from '@/layouts/AdminLayout';
@@ -32,11 +32,13 @@ import { NativeSelectOption } from '@/components/ui/native-select';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { fileSize } from '@/lib/file-size';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import { useLoadMore } from '@/lib/use-load-more';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import type { MediaFileRow, MediaPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 
 /*
 | E5 - the media library (frontend.md §3.5), on shadcn's parts with Geist's rules (§1.11).
@@ -178,6 +180,13 @@ function Unknown() {
     return <span className="text-ink-subtle">—</span>;
 }
 
+/** A file's size in the page's language and digits (frontend.md §1.8); none known, an em dash. */
+function Size({ bytes }: { bytes: number | null }) {
+    const { locale } = usePage<SharedProps>().props;
+
+    return bytes === null ? <Unknown /> : <>{fileSize(bytes, locale)}</>;
+}
+
 /** The picture, when there is one ready to show; otherwise a plain mark, never a broken image. */
 function Picture({ file }: { file: MediaFileRow }) {
     if (file.thumbnailUrl === null) {
@@ -211,7 +220,9 @@ function Tile({ file }: { file: MediaFileRow }) {
                             </span>
                         </>
                     ) : (
-                        <span className="tw-figure">{file.size}</span>
+                        <span className="tw-figure">
+                            <Size bytes={file.bytes} />
+                        </span>
                     )}
                 </AttachmentDescription>
                 <SizesBadge file={file} />
@@ -298,7 +309,7 @@ function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayU
             </TableCell>
             {/* What a private file is stays with those who may see it: an em dash, Geist's unknown. */}
             <TableCell className="text-copy-13 text-ink-muted">{isPrivate(file) || file.mime === null ? <Unknown /> : <bdi dir="ltr">{file.mime}</bdi>}</TableCell>
-            <TableCell className="tw-figure text-end text-copy-13 text-ink-muted">{isPrivate(file) ? <Unknown /> : file.size}</TableCell>
+            <TableCell className="tw-figure text-end text-copy-13 text-ink-muted">{isPrivate(file) ? <Unknown /> : <Size bytes={file.bytes} />}</TableCell>
             <TableCell className="max-w-56 whitespace-normal text-copy-13 text-ink-muted">
                 <UsedIn file={file} />
             </TableCell>

@@ -50,6 +50,15 @@ final class HandleInertiaRequests extends Middleware
      */
     public const string SIDEBAR_COOKIE = 'sidebar_state';
 
+    /**
+     * Which of the admin sidebar's business areas are open, their keys joined by dots - several may
+     * be open at once (frontend.md §1.11, the owner's fix list of 2026-10-04).
+     *
+     * Written in the browser by the sidebar, as the one above is, and exempt from encryption for
+     * the same reason: it says how the panel looks and nothing more.
+     */
+    public const string SIDEBAR_SECTIONS_COOKIE = 'sidebar_sections';
+
     /** A year: the choice is a preference, and re-choosing it every session would be a nuisance. */
     public const int COOKIE_MINUTES = 525600;
 

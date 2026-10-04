@@ -241,3 +241,28 @@ it('marks a store\'s lists reviewed, adds a company type, moves its holders off 
 
     $page->assertNoJavaScriptErrors();
 });
+
+it('lays a type list out in the page\'s language, and keeps it right to left after a switch to Arabic', function () {
+    // Both lists, so the page draws its tabs: with one list there are none.
+    $page = companyStaffBrowserSignIn([B2BPermissions::DOCUMENT_TYPE_UPDATE, B2BPermissions::COMPANY_TYPE_UPDATE], ['sa']);
+    expect(signedInToPanel($page))->toBeTrue();
+
+    // The position a narrow column of its own, and the page's language's name first (b2b.md
+    // amendment 25).
+    $page->navigate('/admin/document-types')
+        ->assertPresent('[data-test="column-position"]')
+        ->assertSeeIn('[data-test="column-name-first"]', 'English Name');
+
+    $page->click('[data-test="person-menu"]')->click('[data-test="language"]');
+    expect(browserUntil($page, "document.documentElement.lang === 'ar'"))->toBeTrue();
+
+    $page->assertSeeIn('[data-test="column-name-first"]', 'الاسم بالعربية');
+
+    // The tabs and their table right to left as well. Choosing a language answers with the same
+    // address, which Inertia does not count as a navigation, so Radix's direction stayed left to
+    // right until the next click (the owner's fix list, 2026-10-04).
+    expect(browserUntil($page, "document.querySelector('[data-slot=\"tabs\"]')?.getAttribute('dir') === 'rtl'"))->toBeTrue()
+        ->and($page->script("getComputedStyle(document.querySelector('table')).direction"))->toBe('rtl');
+
+    $page->assertNoJavaScriptErrors();
+});

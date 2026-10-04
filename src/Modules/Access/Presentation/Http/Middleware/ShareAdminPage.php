@@ -65,6 +65,8 @@ final readonly class ShareAdminPage
             // sidebar component itself, and read back here so the server's first paint already has
             // it right - worked out in the browser instead, the page would flicker on every load.
             'sidebarOpen' => $request->cookie(HandleInertiaRequests::SIDEBAR_COOKIE) !== 'false',
+            // Which of its business areas are open, read back for the same reason.
+            'sidebarSections' => $this->openSections($request),
             'store' => fn (): ?array => $this->store($locale, $opening),
             // Only the admin group: a page here never carries the storefront's URLs (§1.4). It
             // travels with the page because Blade's @routes never reaches the SSR renderer.
@@ -108,6 +110,28 @@ final readonly class ShareAdminPage
             'avatarUrl' => $viewer->avatarUrl,
             'isSuperAdmin' => $viewer->isSuperAdmin,
         ];
+    }
+
+    /**
+     * The sidebar's open business areas, as this browser left them: their keys, joined by dots in a
+     * cookie the browser writes. It arrives as typed by whoever holds the browser, so only what can
+     * be a group's key is kept - a word of letters and underscores - and no more of them than the
+     * menu could ever hold; a key that names no group simply opens nothing.
+     *
+     * @return list<string>
+     */
+    private function openSections(Request $request): array
+    {
+        $cookie = $request->cookie(HandleInertiaRequests::SIDEBAR_SECTIONS_COOKIE);
+
+        if (! is_string($cookie) || $cookie === '') {
+            return [];
+        }
+
+        // \z, not $: a $ would let a key through with a newline after it.
+        $keys = array_filter(explode('.', $cookie), fn (string $key): bool => preg_match('/^[a-z_]{1,40}\z/', $key) === 1);
+
+        return array_slice(array_values(array_unique($keys)), 0, 20);
     }
 
     /**

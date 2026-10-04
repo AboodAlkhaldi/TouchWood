@@ -211,6 +211,14 @@ it('shows a private file in the table as its name, date and use, with no picture
                     && row.querySelectorAll('button').length === 1;
             })()
             JS)
+        // The public file beside it shows its size, written by the screen in the page's language
+        // (the owner's fix list, 2026-10-04: the server's "2.3 MB" read "MB 2.3" on an Arabic page).
+        ->assertScript(<<<JS
+            (() => {
+                const row = document.querySelector('[data-test="file-menu-{$photoId}"]')?.closest('tr');
+                return row !== null && row !== undefined && row.textContent.includes('2.3 MB');
+            })()
+            JS)
         ->assertNoJavaScriptErrors();
 });
 

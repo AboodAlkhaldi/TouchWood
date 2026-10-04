@@ -32,7 +32,7 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Platform | [approved](platform.md) — **Stage 1 delivery implemented** (spec §3); admin view use cases come with Access. B2B step 3 adds `PlatformApi::deleteMediaFor` and the admin-only private-files permission, `platform.media.private.view` (platform.md §9.4). See [its README](../../src/Modules/Platform/README.md) | — |
 | Access | [approved](access.md), amendments 1–58 — **built and merged** (2026-09-21): all seven steps; 47 (a staff member's own sessions), 48 (what B2B needs), 49 (Platform's admin-only private-files permission, B2B step 3) and 50–58 (what other modules add to the shop's frame, the way back from the addresses, off stores, invisible Super Admins, and their reviews and settled picks) since. See [its README](../../src/Modules/Access/README.md) | — |
 | Frontend foundation (stage 2b, not a module) | [approved](frontend.md) — revised 2026-09-22 against the merged Access; built; **rebuilt on shadcn's code with Geist's rules** (§1.11, 2026-10-03/04): every screen, its words and its error messages | — |
-| B2B | [accepted](b2b.md) 2026-09-26, amendments 1–24 — **built and merged** (seven steps, from 2026-09-27; its screens rebuilt on shadcn, amendments 22–24). See [its README](../../src/Modules/B2B/README.md) | — |
+| B2B | [accepted](b2b.md) 2026-09-26, amendments 1–25 — **built and merged** (seven steps, from 2026-09-27; its screens rebuilt on shadcn, amendments 22–25). See [its README](../../src/Modules/B2B/README.md) | — |
 | Feedback | not started | Catalog, Sales — built with Sales (stage 6) |
 | Catalog | not started | external provider schema + real product sample |
 | Pricing | not started | Catalog |

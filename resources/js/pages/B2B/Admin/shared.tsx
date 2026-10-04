@@ -1,5 +1,4 @@
 import { usePage } from '@inertiajs/react';
-import { intlLocale } from '@/lib/digits';
 import type { SharedProps } from '@/types/page';
 
 /*
@@ -19,7 +18,5 @@ export function nameIn(locale: Locale, ar: string | null, en: string | null): st
     return (locale === 'ar' ? ar : en) ?? '';
 }
 
-/** A whole number in the page's digits (frontend.md §1.8): Arabic-Indic on an Arabic page. */
-export function figure(locale: Locale, value: number): string {
-    return new Intl.NumberFormat(intlLocale(locale)).format(value);
-}
+/** A whole number in the page's digits (frontend.md §1.8), shared with the panel's frame. */
+export { figure } from '@/lib/digits';

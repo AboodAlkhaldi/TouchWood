@@ -40,6 +40,7 @@ const HREF: Record<Kind, string> = { company: '/admin/company-types', document: 
 
 export default function Index({ kind: listed, storeName, copiedNotReviewed, types, actions }: StaffTypeListPage) {
     const t = useTranslator();
+    const locale = useLocale();
     const kind: Kind = listed === 'document' ? 'document' : 'company';
     const [dialog, setDialog] = useState<Dialog>(null);
     const [reviewing, setReviewing] = useState(false);
@@ -109,9 +110,24 @@ export default function Index({ kind: listed, storeName, copiedNotReviewed, type
                         <TableCaption className="sr-only">{t(`b2b::admin_types.title.${kind}`)}</TableCaption>
                         <TableHeader className="bg-surface-sunken">
                             <TableRow>
-                                <TableHead className="text-end">{t('b2b::admin_types.column.position')}</TableHead>
-                                <TableHead>{t('b2b::admin_types.column.name_ar')}</TableHead>
-                                <TableHead>{t('b2b::admin_types.column.name_en')}</TableHead>
+                                {/* The position, a narrow column of its own: aligned to its far edge
+                                    it read as part of the name beside it (b2b.md amendment 25). */}
+                                <TableHead className="w-12" data-test="column-position">
+                                    <span aria-hidden="true">#</span>
+                                    <span className="sr-only">{t('b2b::admin_types.column.position')}</span>
+                                </TableHead>
+                                {/* The two names, the page's language first (amendment 25). */}
+                                {locale === 'ar' ? (
+                                    <>
+                                        <TableHead data-test="column-name-first">{t('b2b::admin_types.column.name_ar')}</TableHead>
+                                        <TableHead>{t('b2b::admin_types.column.name_en')}</TableHead>
+                                    </>
+                                ) : (
+                                    <>
+                                        <TableHead data-test="column-name-first">{t('b2b::admin_types.column.name_en')}</TableHead>
+                                        <TableHead>{t('b2b::admin_types.column.name_ar')}</TableHead>
+                                    </>
+                                )}
                                 <TableHead>{t('b2b::admin_types.column.status')}</TableHead>
                                 {kind === 'company' ? (
                                     <TableHead className="text-end">{t('b2b::admin_types.column.holders')}</TableHead>
@@ -235,13 +251,28 @@ function Row({
 
     return (
         <TableRow data-test={`type-${type.id}`}>
-            <TableCell className="tw-figure text-end">{figure(locale, type.position)}</TableCell>
-            <TableCell>
-                <span dir="rtl">{type.nameAr}</span>
+            <TableCell className="tw-figure text-ink-muted" data-test="type-position">
+                {figure(locale, type.position)}
             </TableCell>
-            <TableCell>
-                <span dir="ltr">{type.nameEn}</span>
-            </TableCell>
+            {locale === 'ar' ? (
+                <>
+                    <TableCell>
+                        <span dir="rtl">{type.nameAr}</span>
+                    </TableCell>
+                    <TableCell>
+                        <span dir="ltr">{type.nameEn}</span>
+                    </TableCell>
+                </>
+            ) : (
+                <>
+                    <TableCell>
+                        <span dir="ltr">{type.nameEn}</span>
+                    </TableCell>
+                    <TableCell>
+                        <span dir="rtl">{type.nameAr}</span>
+                    </TableCell>
+                </>
+            )}
             <TableCell>
                 <Badge className={tone(type.active ? 'green-subtle' : 'gray-subtle')} data-test="type-state">
                     {type.active ? t('b2b::admin_types.state.active') : t(`b2b::admin_types.state.${type.inactiveDisplay ?? 'HIDDEN'}`)}

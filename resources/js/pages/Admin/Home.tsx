@@ -5,6 +5,7 @@ import { Note } from '@/components/Note';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from '@/components/ui/item';
+import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { MenuEntry, SharedProps } from '@/types/page';
@@ -26,7 +27,7 @@ import type { MenuEntry, SharedProps } from '@/types/page';
 
 export default function Home() {
     const t = useTranslator();
-    const { menu } = usePage<SharedProps>().props;
+    const { menu, locale } = usePage<SharedProps>().props;
     const waiting: MenuEntry[] = menu.flatMap((group) => group.entries).filter((entry) => entry.count !== null && entry.count > 0);
 
     return (
@@ -51,7 +52,7 @@ export default function Home() {
                                                 {/* The number for the eye; the same said in words for a screen reader,
                                                     as the sidebar says it. */}
                                                 <Badge className={`tw-figure ${tone('amber-subtle')}`} aria-hidden="true">
-                                                    {entry.count}
+                                                    {figure(locale, entry.count ?? 0)}
                                                 </Badge>
                                                 <span className="sr-only">{t('admin.menu_waiting', { count: String(entry.count) })}</span>
                                                 <ChevronRight aria-hidden="true" className="size-4 text-ink-muted rtl:rotate-180" />

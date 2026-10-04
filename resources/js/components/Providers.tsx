@@ -15,22 +15,34 @@ import type { Direction } from '@/types/page';
 | The direction is the page's own, and it changes without a reload: choosing Arabic is an Inertia
 | visit, and the root is never mounted again. So it starts from the first page and follows every
 | page after it, the way SyncDocument keeps <html> in step.
+|
+| Every page, not every *navigation*: Inertia fires `navigate` only for a visit that adds to the
+| history, and choosing a language answers with the same address, which replaces it - so the tabs,
+| the menus and everything else Radix lays out stayed left to right on an Arabic page until the next
+| click (the glitch the owner saw on switching languages, 2026-10-04). `beforeUpdate` comes
+| with every page the server sends, before it is drawn; `navigate` still covers Back and Forward.
 */
 
 export function Providers({ direction, children }: { direction: Direction; children: ReactNode }) {
     const [dir, setDir] = useState<Direction>(direction);
 
-    useEffect(
-        () =>
-            router.on('navigate', (event) => {
-                const next = (event.detail.page.props as { direction?: unknown }).direction;
+    useEffect(() => {
+        const follow = (props: unknown) => {
+            const next = (props as { direction?: unknown }).direction;
 
-                if (next === 'rtl' || next === 'ltr') {
-                    setDir(next);
-                }
-            }),
-        [],
-    );
+            if (next === 'rtl' || next === 'ltr') {
+                setDir(next);
+            }
+        };
+
+        const stopAnswers = router.on('beforeUpdate', (event) => follow(event.detail.page.props));
+        const stopHistory = router.on('navigate', (event) => follow(event.detail.page.props));
+
+        return () => {
+            stopAnswers();
+            stopHistory();
+        };
+    }, []);
 
     return (
         <DirectionProvider dir={dir}>

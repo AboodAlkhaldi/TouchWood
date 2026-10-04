@@ -152,6 +152,8 @@ export type SharedProps = {
     shopperLines?: ShopperLine[];
     /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */
     sidebarOpen: boolean;
+    /** The sidebar's business areas this browser left open (group keys); several may be. */
+    sidebarSections: string[];
     store: CurrentStore | null;
     flash: Flash;
     errors: PageErrors;

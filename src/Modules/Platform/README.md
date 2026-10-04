@@ -364,7 +364,7 @@ on `/admin/failed-jobs` — nothing removes one on its own, so a failure is neve
   forever. The name and when it failed are enough to say what was handled.
 - **Noticed without opening the screen**: a menu entry may carry a count (`MenuCount`), resolved only
   for people the entry is offered to; the admin home lists every entry with something waiting, and
-  the collapsed sidebar shows a dot on the entry's icon where the number has no room.
+  the collapsed sidebar shows a dot on its business area's icon where the number has no room.
 
 ---
 

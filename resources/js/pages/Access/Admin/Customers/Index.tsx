@@ -238,9 +238,16 @@ function Row({ customer }: { customer: CustomerRow }) {
     const t = useTranslator();
 
     return (
-        <TableRow>
+        // The whole row opens the customer (the owner's fix list, 2026-10-04, as the companies and
+        // roles lists): the name's link stretches over it, still the one link a keyboard and a
+        // screen reader meet; the moments sit above it, so their full time still opens.
+        <TableRow data-test={`customer-row-${customer.id}`} className="relative hover:bg-surface-sunken">
             <TableCell>
-                <Link href={`/admin/customers/${customer.id}`} data-test={`customer-${customer.id}`} className="font-medium text-ink hover:text-brand">
+                <Link
+                    href={`/admin/customers/${customer.id}`}
+                    data-test={`customer-${customer.id}`}
+                    className="font-medium text-ink after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
+                >
                     {customer.name}
                 </Link>
             </TableCell>
@@ -272,7 +279,9 @@ function Row({ customer }: { customer: CustomerRow }) {
             </TableCell>
 
             <TableCell className="text-ink-muted">
-                <Time value={customer.registeredAt} />
+                <span className="relative z-10">
+                    <Time value={customer.registeredAt} />
+                </span>
             </TableCell>
 
             <TableCell>
@@ -305,7 +314,7 @@ function Status({ customer }: { customer: CustomerRow }) {
         return (
             <span className="inline-flex flex-wrap items-center gap-1.5">
                 <Badge className={tone('amber-subtle')}>{t('access::customers.closing')}</Badge>
-                <span className="text-copy-13 text-ink-muted">
+                <span className="relative z-10 text-copy-13 text-ink-muted">
                     <Time value={customer.deletionScheduledFor} />
                 </span>
             </span>

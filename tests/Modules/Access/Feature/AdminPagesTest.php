@@ -203,6 +203,24 @@ describe('the admin panel itself', function () {
             });
     });
 
+    it('reads back which areas of the sidebar this browser left open, keeping only what can be an area', function () {
+        $browser = signedInBrowser();
+
+        $browser->get('/admin')->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->where('sidebarSections', fn (Collection $keys): bool => $keys->isEmpty())
+        );
+
+        // Written by the sidebar in the browser, unencrypted, the keys joined by dots (frontend.md
+        // §1.11, the owner's fix list, 2026-10-04). What it carries is typed by whoever holds the
+        // browser: anything that cannot be an area's key goes - a key with a newline after it too -
+        // and so does a repeat.
+        $browser->setPlainCookie(HandleInertiaRequests::SIDEBAR_SECTIONS_COOKIE, "companies.staff_and_permissions.<b>.companies.system\n");
+
+        $browser->get('/admin')->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->where('sidebarSections', fn (Collection $keys): bool => $keys->all() === ['companies', 'staff_and_permissions'])
+        );
+    });
+
     it('tells the panel who is looking at it, and which store they are in', function () {
         $browser = signedInBrowser([PlatformPermissions::STORE_VIEW]);
 

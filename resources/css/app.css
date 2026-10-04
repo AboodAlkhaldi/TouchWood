@@ -148,6 +148,52 @@
         color: var(--tw-ink);
     }
 
+    /*
+    | Scrollbars (the owner's fix list, 2026-10-04; frontend.md §1.11): thin, in the theme's colours,
+    | and the browser's dark ones in dark mode - nothing told it the page was dark, so it drew its
+    | light grey bar on dark pages and on the navy sidebar. The page keeps its bar's room, so a long
+    | page - the audit log - no longer shifts everything sideways when its bar appears. Thin, never
+    | hidden: a hidden bar gives no sign there is more to scroll (MDN, scrollbar-width), and Vercel's
+    | guidelines ask only that a bar be useful. shadcn's ScrollArea already draws its thumb in our line.
+    | The colour is inherited; the width is not, so it is set on every element.
+    */
+    :root {
+        color-scheme: light;
+        scrollbar-color: var(--tw-line-strong) transparent;
+        scrollbar-gutter: stable;
+    }
+
+    *,
+    ::before,
+    ::after {
+        scrollbar-width: thin;
+    }
+
+    [data-mode='dark'] {
+        color-scheme: dark;
+    }
+
+    /*
+    | A menu, a dialog or a sheet locks the page's scroll (Radix's scroll lock), and makes up for the
+    | scrollbar it hides with a margin of the bar's width on <body>. The page already keeps that room
+    | (the gutter above), so the margin would move everything sideways twice over each time a ⋯ menu
+    | opens: none is needed (the reviews of the owner's fix list, 2026-10-04).
+    */
+    html body[data-scroll-locked] {
+        margin-right: 0 !important;
+        --removed-body-scroll-bar-size: 0px;
+    }
+
+    /* The sidebar's own bar shows only under the pointer or keyboard focus: on the navy it is noise. */
+    [data-slot='sidebar-content'] {
+        scrollbar-color: transparent transparent;
+    }
+
+    [data-slot='sidebar-content']:hover,
+    [data-slot='sidebar-content']:focus-within {
+        scrollbar-color: color-mix(in srgb, var(--tw-sidebar-ink-muted) 45%, transparent) transparent;
+    }
+
     body {
         margin: 0;
         -webkit-font-smoothing: antialiased;

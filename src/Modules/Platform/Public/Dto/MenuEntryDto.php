@@ -34,9 +34,10 @@ final readonly class MenuEntryDto
      *                                                register
      * @param  int  $position  where it sits among the entries of its group, lowest first
      * @param  string|null  $icon  the entry's icon, named from the panel's own short list (see
-     *                             `MenuIcon` in the frontend). The sidebar collapses to a rail of
-     *                             icons, so an entry without one is a blank square on that rail;
-     *                             an unknown name falls back rather than breaking the page
+     *                             `MenuIcon` in the frontend). The sidebar's rows carry their
+     *                             business area's icon; an entry's own shows in the menu an area's
+     *                             icon opens on the collapsed rail. An unknown name, or none, draws
+     *                             the fallback rather than breaking the page
      * @param  string|null  $count  the class of a `MenuCount`: how many things wait behind the entry
      *                              — failed jobs, say — shown beside it and on the admin home; asked
      *                              only for people offered the entry

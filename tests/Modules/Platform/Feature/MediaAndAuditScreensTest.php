@@ -83,8 +83,10 @@ describe('the media library screen', function () {
             ->assertInertia(fn (AssertableInertia $inertia) => $inertia
                 ->component('Platform/Admin/Media/Index')
                 ->has('media', 1)
-                // The size as a person reads it, not a count of bytes.
-                ->where('media.0.size', '2.3 MB')
+                // The bytes: the screen writes them for a person, in the page's own language and
+                // digits (the owner's fix list, 2026-10-04; the browser test reads "2.3 MB").
+                ->where('media.0.bytes', 2_400_000)
+                ->missing('media.0.size')
                 ->where('mayUpdate', true)
                 ->where('mayUpload', false)
                 ->where('mayDelete', false)
@@ -222,7 +224,6 @@ describe('private files in the media library screen', function () {
             // The public file beside it keeps everything, so the nulls are the private rule's.
             ->and($rows[$public]['mime'])->toBe('image/jpeg')
             ->and($rows[$public]['bytes'])->toBe(2_400_000)
-            ->and($rows[$public]['size'])->toBe('2.3 MB')
             ->and($rows[$public]['variantsStatus'])->toBe('READY')
             ->and($rows[$public]['retryable'])->toBeFalse()
             ->and($rows[$public]['deleteBlocked'])->toBeFalse();

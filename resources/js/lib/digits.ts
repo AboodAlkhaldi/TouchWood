@@ -47,3 +47,8 @@ export function toLatinDigits(value: string): string {
 export function intlLocale(locale: string): string {
     return locale === 'ar' ? 'ar-u-nu-arab' : 'en';
 }
+
+/** A whole number in the page's digits (frontend.md §1.8): Arabic-Indic on an Arabic page. */
+export function figure(locale: string, value: number): string {
+    return new Intl.NumberFormat(intlLocale(locale)).format(value);
+}

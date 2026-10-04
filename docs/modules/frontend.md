@@ -46,6 +46,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.10, §1.11 (new) | **shadcn's real code, Geist's look and rules on top.** Components come from shadcn's CLI and stay unchanged, apart from the edits §1.11 lists; the hand-built `components/geist/` goes; where Geist's rule and shadcn's code disagree, Geist's rule wins; nothing is built that either system has, and anything neither has is put to the owner first | Owner, 2026-10-02, after seeing the Geist screens: "dont ever create something if they had it" |
 | §1.10, §2.3, §3.4, §3.5 | The owner's answer for each piece neither system has (§1.11 table); the theme switch with System, once per area; SMS codes in shadcn's InputOTP | Owner, 2026-10-02, one by one with pictures |
 | §1.10, §1.11 | §1.10's provisional picks settled (type, surfaces, store time stand); the overnight review's Geist rules applied in the rebuild; every module's error messages rewritten in Geist's form | Owner, 2026-10-03 |
+| §1.11, §2.2 | **The owner's fix list after testing the rebuild**: the sidebar as `sidebar-07`'s main navigation (areas that fold, several open, a single screen as its link), thin themed scrollbars that keep the page's room, whole rows, the type lists' "#", the language switch laying the whole page out at once, sizes and counts in the page's digits; the builder's sidebar picks marked [PROVISIONAL] | Owner, 2026-10-04 |
 
 ---
 
@@ -495,6 +496,36 @@ and examples. Only when neither has it, show the owner what was searched and ask
     counting only real pages.
   The SMS code on the customer's Change Phone Number is InputOTP, its length sent by the server
   (`CustomerAccountPage.codeLength`), as on the staff side.
+- **The owner's fix list after testing the rebuild** (2026-10-04, afternoon; its screen fixes go
+  into the rebuild's PR):
+  - **the sidebar is shadcn's `sidebar-07` main navigation**, from the owner's screenshot of it:
+    each business area is one row with its icon and a chevron, its screens indented under it
+    without icons; **several areas may be open at once**; the screen being read is highlighted and
+    its area opens by itself; which areas the person opened is remembered per browser, in a cookie
+    the server reads back like `sidebar_state`, so the first paint is already right. **An area with
+    a single screen — for this person, as the menu holds only what they may use — is that screen's
+    link**, named for where it goes and with no chevron; it folds once a second screen joins it
+    (owner, 2026-10-04);
+  - **[PROVISIONAL] the builder's picks for the sidebar, shown to the owner**: no label above the
+    areas; an area folded while something waits in it carries the count, and one folded around the
+    screen being read is lit; on the rail of icons an area's icon opens its screens as a menu
+    (`sidebar-06`'s "submenus as dropdowns", here with the area's name above and each screen's
+    icon), since a folded rail has no room for them;
+  - **scrollbars are thin, in the theme's colours, and dark in dark mode** (`color-scheme`); the
+    page keeps its scrollbar's room (`scrollbar-gutter: stable`), so a long page — the audit log —
+    no longer shifts everything sideways when its bar appears, nor when a menu or a dialog locks the
+    page's scroll; the sidebar's bar shows only under the pointer or keyboard focus. Vercel's
+    interface guidelines: "Only render useful scrollbars";
+  - **the customers list's whole row opens the customer**, as the companies and roles lists do;
+  - **B2B's two type lists**: the position is a narrow "#" column of its own, and the two names
+    follow the page's language, its own first (b2b.md amendment 25);
+  - **switching the language lays the whole page out in it at once**: the tabs, toggles and menus
+    Radix lays out stayed left to right on an Arabic page until the next click, since choosing a
+    language answers with the same address and Inertia counts that as no navigation — the
+    direction now follows every page the server sends;
+  - **a file's size is written in the page's language and digits** ("٢٫٣ م.ب" on an Arabic page;
+    the server's "2.3 MB" read "MB 2.3" there): the media library is sent the bytes, and counts in
+    the sidebar and on the home page are written in the page's digits too (§1.8).
 
 ---
 
@@ -529,7 +560,8 @@ layout of the area they occur in.
 
 From the design, with the decided rules applied:
 
-- **Sidebar:** the logo with "Admin panel"; groups that open one at a time; count badges; at the
+- **Sidebar:** the logo with "Admin panel"; business areas that fold, several open at once
+  (§1.11, the owner's fix list, 2026-10-04); count badges; at the
   bottom, the person's avatar, name and role, and the language toggle (ع / EN). The language is not
   in the URL **[DECIDED 2026-09-19]**. The toggle changes **only what is displayed**, at once; the
   staff member's saved `locale` is their communication language (emails, SMS codes) and changes
