@@ -12,6 +12,7 @@ use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Shared\Application\Unauthorized;
 
 /**
@@ -27,6 +28,7 @@ final readonly class ArchiveProductHandler
         private ProductAccess $access,
         private SharedListChange $change,
         private ProductRepository $products,
+        private StoreListingRepository $listings,
         private ProductEvents $events,
     ) {}
 
@@ -48,8 +50,20 @@ final readonly class ArchiveProductHandler
 
             $this->products->update($product);
             $this->events->archived($product);
+            $entries = [ListAudit::replaced('product', 'archived', $product->id(), 'stage', $was, 'ARCHIVED')];
 
-            return [null, [ListAudit::replaced('product', 'archived', $product->id(), 'stage', $was, 'ARCHIVED')]];
+            // Inactive in every store (§1.3): each store's rows switched off, audited there.
+            foreach ($this->listings->inEveryStore($product->id()) as $listing) {
+                $listing->switchOff();
+                $entry = ListAudit::changed('listing', 'chosen', $product->id(), $listing->pullChanges(), $listing->snapshot(), $listing->storeId());
+
+                if ($entry !== null) {
+                    $this->listings->save($listing);
+                    $entries[] = $entry;
+                }
+            }
+
+            return [null, $entries];
         });
     }
 }

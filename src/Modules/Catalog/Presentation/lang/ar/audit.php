@@ -68,6 +68,11 @@ return [
     'product.filter_values_changed' => 'تغيّرت قيم تصفية منتج',
     'product.relations_changed' => 'تغيّرت المنتجات المرتبطة',
     'variant.photos_changed' => 'تغيّرت صور نوع منتج',
+    'listing.chosen' => 'تغيّر اختيار المتجر',
+    'listing.terms_set' => 'تغيّرت شروط البيع',
+    'listing.unavailable_marked' => 'وُضع «غير متوفر الآن»',
+    'listing.unavailable_cleared' => 'أُزيل «غير متوفر الآن»',
+    'listing.labels_attached' => 'تغيّرت شارات المتجر',
     'variant.photo_detached' => 'أُزيلت صورة نوع منتج مع ملفها',
 
     'variant.added' => 'أُضيف نوع منتج',

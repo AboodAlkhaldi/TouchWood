@@ -16,6 +16,7 @@ use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Model\Variant;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Shared\Application\Unauthorized;
 
@@ -34,6 +35,7 @@ final readonly class ArchiveVariantHandler
         private ProductRepository $products,
         private VariantRepository $variants,
         private Readiness $readiness,
+        private StoreListingRepository $listings,
         private ProductEvents $events,
     ) {}
 
@@ -61,8 +63,20 @@ final readonly class ArchiveVariantHandler
             ));
             $this->variants->updateRow($variant);
             $this->events->variantArchived($product, $variant->id());
+            $entries = [$entry];
 
-            return [null, [$entry]];
+            // Inactive in every store (§4.2): each store's row switched off, audited there.
+            foreach ($this->listings->inEveryStore($product->id()) as $listing) {
+                $listing->switchOff([$variant->id()]);
+                $switched = ListAudit::changed('listing', 'chosen', $product->id(), $listing->pullChanges(), $listing->snapshot(), $listing->storeId());
+
+                if ($switched !== null) {
+                    $this->listings->save($listing);
+                    $entries[] = $switched;
+                }
+            }
+
+            return [null, $entries];
         });
     }
 }

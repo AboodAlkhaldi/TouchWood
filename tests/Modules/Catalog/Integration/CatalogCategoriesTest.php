@@ -6,6 +6,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ActivateCategory\ActivateCategory;
 use Modules\Catalog\Application\Command\ActivateCategory\ActivateCategoryHandler;
@@ -463,17 +464,20 @@ describe('review of step 2', function () {
         expect(fn () => catalogCategoriesAdd('Kitchen units', ['nameAr' => 'مطابخ']))->toThrow(SlugTaken::class, 'مطابخ');
     });
 
-    it('changes a store\'s order only while the store is on, and only to whole numbers, at most 500 at once', function () {
+    it('changes a store\'s order while the store is off too, in a store that exists, to whole numbers, at most 500 at once', function () {
         $kitchens = catalogCategoriesAdd('Kitchens');
         // Its id taken while it is on: an off store's code finds no store.
         $ae = Fx::storeId('ae');
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('ae')));
         $eg = Fx::storeId('eg');
 
-        expect(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories($ae, [$kitchens => 2])))->toThrow(InvalidCatalogAttribute::class, 'store')
+        // Prepared before it opens (owner, 2026-10-04, amendment 4(f)).
+        app(RankCategoriesHandler::class)->handle(new RankCategories($ae, [$kitchens => 2]));
+
+        expect(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(strtolower((string) Str::ulid()), [$kitchens => 2])))->toThrow(InvalidCatalogAttribute::class, 'store')
             ->and(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories($eg, [$kitchens => '2'])))->toThrow(InvalidCatalogAttribute::class, 'rank')
             ->and(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories($eg, [$kitchens => null])))->toThrow(InvalidCatalogAttribute::class, 'rank')
             ->and(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories($eg, array_fill_keys(array_map(static fn (int $i): string => "k{$i}", range(1, 501)), 1))))->toThrow(InvalidCatalogAttribute::class, 'rank')
-            ->and(catalogCategoriesRanks($kitchens))->toBe(['ae' => 0, 'eg' => 0, 'sa' => 0]);
+            ->and(catalogCategoriesRanks($kitchens))->toBe(['ae' => 2, 'eg' => 0, 'sa' => 0]);
     });
 });

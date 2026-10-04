@@ -13,6 +13,7 @@ use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\LabelRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\Repository\WordPairRepository;
@@ -22,6 +23,7 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseCategoryRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseProductRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseStoreListingRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseVariantRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
@@ -46,6 +48,7 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(WordPairRepository::class, DatabaseWordPairRepository::class);
         $this->app->bind(ProductRepository::class, DatabaseProductRepository::class);
         $this->app->bind(VariantRepository::class, DatabaseVariantRepository::class);
+        $this->app->bind(StoreListingRepository::class, DatabaseStoreListingRepository::class);
     }
 
     public function boot(): void

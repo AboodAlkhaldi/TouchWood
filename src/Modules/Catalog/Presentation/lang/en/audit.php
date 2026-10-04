@@ -68,6 +68,11 @@ return [
     'product.filter_values_changed' => 'Product filter values changed',
     'product.relations_changed' => 'Related products changed',
     'variant.photos_changed' => 'Variant photos changed',
+    'listing.chosen' => 'Store choice changed',
+    'listing.terms_set' => 'Selling terms changed',
+    'listing.unavailable_marked' => 'Marked not available now',
+    'listing.unavailable_cleared' => 'Not available now cleared',
+    'listing.labels_attached' => 'Store labels changed',
     'variant.photo_detached' => 'Variant photo removed with its file',
 
     'variant.added' => 'Variant added',
