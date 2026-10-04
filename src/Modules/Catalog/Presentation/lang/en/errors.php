@@ -112,6 +112,14 @@ return [
         'title' => 'Product archived',
         'detail' => 'This product is archived. Restore it before making it ready, or deleting it or one of its variants.',
     ],
+    'not_chosen_in_store' => [
+        'title' => 'Not chosen in this store',
+        'detail' => 'This store has not chosen that product. Choose it first.',
+    ],
+    'invalid_selling_terms' => [
+        'title' => 'Check the selling terms',
+        'detail' => 'Each variant needs a selling mode, each limit is from 1 to 100,000, a maximum is never below its minimum, and wholesale needs its minimum.',
+    ],
     'fields' => [
         'agency_type' => 'agency type',
         'attribute' => 'attribute',
@@ -156,5 +164,12 @@ return [
         'values' => 'values',
         'weight_grams' => 'weight',
         'width_mm' => 'width',
+        'labels' => 'labels',
+        'modes' => 'selling modes',
+        'product' => 'product',
+        'variants' => 'variants',
+        'choice' => 'choice',
+        'move_to' => 'where to move',
+        'products' => 'products',
     ],
 ];

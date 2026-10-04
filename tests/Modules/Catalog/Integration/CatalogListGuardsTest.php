@@ -42,6 +42,12 @@ use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
+use Modules\Catalog\Application\Command\AttachLabels\AttachLabels;
+use Modules\Catalog\Application\Command\AttachLabels\AttachLabelsHandler;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\ClearNotAvailableNow\ClearNotAvailableNow;
+use Modules\Catalog\Application\Command\ClearNotAvailableNow\ClearNotAvailableNowHandler;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCode;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCodeHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
@@ -98,6 +104,8 @@ use Modules\Catalog\Application\Command\EditWarranty\EditWarranty;
 use Modules\Catalog\Application\Command\EditWarranty\EditWarrantyHandler;
 use Modules\Catalog\Application\Command\MakeBrandDefault\MakeBrandDefault;
 use Modules\Catalog\Application\Command\MakeBrandDefault\MakeBrandDefaultHandler;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
@@ -116,6 +124,8 @@ use Modules\Catalog\Application\Command\SetRelations\SetRelations;
 use Modules\Catalog\Application\Command\SetRelations\SetRelationsHandler;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWords;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWordsHandler;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
 use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotos;
 use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotosHandler;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
@@ -127,6 +137,7 @@ use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
+use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 
 use function Pest\Laravel\seed;
 
@@ -151,8 +162,26 @@ beforeEach(function () {
         CatalogPermissions::PRODUCT_ARCHIVE,
         CatalogPermissions::VARIANT_CORRECT_CODE,
         CatalogPermissions::PRODUCT_PUBLISH,
+        CatalogPermissions::LISTING_CHOOSE,
+        CatalogPermissions::LISTING_SELLING,
+        CatalogPermissions::LISTING_UNAVAILABLE,
+        CatalogPermissions::LISTING_LABELS,
     ]);
 });
+
+/**
+ * A ready product chosen in the base store.
+ *
+ * @return array{string, string} the store's id, the product's
+ */
+function catalogGuardsChosen(): array
+{
+    $ready = Px::ready();
+    $store = Fx::storeId('sa');
+    app(ChooseInStoreHandler::class)->handle(new ChooseInStore($store, $ready['product'], true));
+
+    return [$store, $ready['product']];
+}
 
 function catalogGuardsNext(): int
 {
@@ -293,12 +322,12 @@ function catalogGuardsChanges(): array
 
             return fn () => app(MakeBrandDefaultHandler::class)->handle(new MakeBrandDefault($id));
         }],
-        'deactivate a brand' => ['brands', function () {
+        'deactivate a brand' => ['products,brands', function () {
             $id = catalogGuardsOtherBrand();
 
             return fn () => app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($id));
         }],
-        'activate a brand' => ['brands', function () {
+        'activate a brand' => ['products,brands', function () {
             $id = catalogGuardsOtherBrand();
             app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($id));
 
@@ -321,12 +350,12 @@ function catalogGuardsChanges(): array
 
             return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($id, $parent, 1));
         }],
-        'deactivate a category' => ['categories', function () {
+        'deactivate a category' => ['products,categories', function () {
             $id = catalogGuardsCategory();
 
             return fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($id));
         }],
-        'activate a category' => ['categories', function () {
+        'activate a category' => ['products,categories', function () {
             $id = catalogGuardsCategory();
             app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($id));
 
@@ -534,6 +563,33 @@ function catalogGuardsChanges(): array
 
             return fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
         }],
+        'choose in a store' => ['products', function () {
+            $ready = Px::ready();
+
+            return fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true));
+        }],
+        'set selling terms' => ['products', function () {
+            [$store, $product] = catalogGuardsChosen();
+
+            return fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($store, $product, retailMinimum: 2));
+        }],
+        'mark not available now' => ['products', function () {
+            [$store, $product] = catalogGuardsChosen();
+
+            return fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow($store, $product));
+        }],
+        'clear not available now' => ['products', function () {
+            [$store, $product] = catalogGuardsChosen();
+            app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow($store, $product));
+
+            return fn () => app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow($store, $product));
+        }],
+        'attach labels' => ['products', function () {
+            [$store, $product] = catalogGuardsChosen();
+            $label = catalogGuardsLabel();
+
+            return fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels($store, $product, [$label]));
+        }],
         'restore a product' => ['products', function () {
             $id = catalogGuardsWhole();
             app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
@@ -576,10 +632,18 @@ describe('the lock', function () {
         // it, at level 1; everything the change reads and writes comes after the lock.
         $inside = array_values(array_filter((array) $queries, static fn (array $query): bool => $query['level'] >= 2));
 
+        // A change that changes products as well as its list takes the products' lock first (step 4).
+        $keys = array_map(static fn (string $key): string => "catalog:{$key}", explode(',', $list));
+        $taken = array_values(array_unique(array_map(
+            static fn (array $query): string => (string) ($query['bindings'][0] ?? ''),
+            array_filter($inside, static fn (array $query): bool => str_contains($query['sql'], 'pg_advisory_xact_lock')),
+        )));
+
         expect($inside)->not->toBeEmpty()
             ->and($inside[0]['sql'])->toContain('pg_advisory_xact_lock')
-            ->and($inside[0]['bindings'])->toBe(["catalog:{$list}"])
-            ->and(array_filter($inside, static fn (array $query): bool => str_contains($query['sql'], 'pg_advisory_xact_lock') && $query['bindings'] !== ["catalog:{$list}"]))->toBe([]);
+            ->and($inside[0]['bindings'])->toBe([$keys[0]])
+            ->and(array_map(static fn (array $query): mixed => $query['bindings'][0] ?? null, array_slice($inside, 0, count($keys))))->toBe($keys)
+            ->and($taken)->toBe($keys);
     })->with(catalogGuardsChanges());
 });
 
@@ -639,6 +703,11 @@ describe('an id that is not in its list', function () {
         'set search words' => [ProductNotFound::class, fn () => app(SetSearchWordsHandler::class)->handle(new SetSearchWords(CATALOG_GUARDS_UNKNOWN, []))],
         'set filter values' => [ProductNotFound::class, fn () => app(SetFilterValuesHandler::class)->handle(new SetFilterValues(CATALOG_GUARDS_UNKNOWN, []))],
         'set relations' => [ProductNotFound::class, fn () => app(SetRelationsHandler::class)->handle(new SetRelations(CATALOG_GUARDS_UNKNOWN, 'RELATED', []))],
+        'choose in a store' => [ProductNotFound::class, fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), CATALOG_GUARDS_UNKNOWN, true))],
+        'set selling terms' => [ProductNotFound::class, fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), CATALOG_GUARDS_UNKNOWN))],
+        'mark not available now' => [ProductNotFound::class, fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), CATALOG_GUARDS_UNKNOWN))],
+        'clear not available now' => [ProductNotFound::class, fn () => app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow(Fx::storeId('sa'), CATALOG_GUARDS_UNKNOWN))],
+        'attach labels' => [ProductNotFound::class, fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels(Fx::storeId('sa'), CATALOG_GUARDS_UNKNOWN, []))],
     ]);
 });
 
@@ -822,6 +891,34 @@ describe('a change that changes nothing', function () {
             $code = (string) DB::table('catalog.variants')->where('id', $id)->value('code');
 
             return fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($id, " {$code} "));
+        }],
+        'choose what is chosen' => [function () {
+            [$store, $product] = catalogGuardsChosen();
+
+            return fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore($store, $product, true));
+        }],
+        'set the same selling terms' => [function () {
+            [$store, $product] = catalogGuardsChosen();
+
+            return fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($store, $product));
+        }],
+        'mark what is marked' => [function () {
+            [$store, $product] = catalogGuardsChosen();
+            app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow($store, $product));
+
+            return fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow($store, $product));
+        }],
+        'clear what is clear' => [function () {
+            [$store, $product] = catalogGuardsChosen();
+
+            return fn () => app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow($store, $product));
+        }],
+        'attach the same labels' => [function () {
+            [$store, $product] = catalogGuardsChosen();
+            $label = catalogGuardsLabel();
+            app(AttachLabelsHandler::class)->handle(new AttachLabels($store, $product, [$label]));
+
+            return fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels($store, $product, [$label]));
         }],
     ]);
 });

@@ -46,6 +46,7 @@ final readonly class SetFilterValuesHandler
 
         $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
+            $this->access->authorizeFor(self::PERMISSION, $product->id());
             $before = $this->products->filterValues($product->id());
             $after = $this->parts->filterValues($command->valueIds, $before);
             $sortedBefore = array_keys($before);

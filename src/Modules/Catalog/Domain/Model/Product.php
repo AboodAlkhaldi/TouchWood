@@ -43,13 +43,15 @@ final class Product
         private ?string $attributeSetId,
         private ProductStage $stage,
         private ?ProductStage $archivedFrom,
+        private bool $hiddenByCategory,
+        private bool $hiddenByBrand,
     ) {
         $this->changes = new ChangeLog;
     }
 
     public static function create(string $id, ProductName $name, ProductSlugs $slugs, string $brandId): self
     {
-        return new self($id, $name, $slugs, null, null, $brandId, null, null, null, ProductStage::Draft, null);
+        return new self($id, $name, $slugs, null, null, $brandId, null, null, null, ProductStage::Draft, null, false, false);
     }
 
     public static function reconstitute(
@@ -64,8 +66,10 @@ final class Product
         ?string $attributeSetId,
         ProductStage $stage,
         ?ProductStage $archivedFrom,
+        bool $hiddenByCategory,
+        bool $hiddenByBrand,
     ): self {
-        return new self($id, $name, $slugs, $descriptionAr, $descriptionEn, $brandId, $categoryId, $warrantyId, $attributeSetId, $stage, $archivedFrom);
+        return new self($id, $name, $slugs, $descriptionAr, $descriptionEn, $brandId, $categoryId, $warrantyId, $attributeSetId, $stage, $archivedFrom, $hiddenByCategory, $hiddenByBrand);
     }
 
     /**
@@ -91,6 +95,16 @@ final class Product
         }
 
         $before = $this->snapshot();
+
+        // Hidden with its category or brand, it comes back when it moves to another (§5.1).
+        if ($categoryId !== $this->categoryId) {
+            $this->hiddenByCategory = false;
+        }
+
+        if ($brandId !== $this->brandId) {
+            $this->hiddenByBrand = false;
+        }
+
         $this->name = $name;
         $this->slugs = $slugs;
         $this->descriptionAr = $descriptionAr;
@@ -212,6 +226,59 @@ final class Product
         return $this->stage === ProductStage::Draft;
     }
 
+    /**
+     * Hidden with its category when it was deactivated, or brought back with it (§1.5, amendment 4).
+     */
+    public function hideWithCategory(bool $hidden): void
+    {
+        $before = $this->snapshot();
+        $this->hiddenByCategory = $hidden;
+        $this->record($before);
+    }
+
+    /**
+     * Hidden with its brand when it was deactivated, or brought back with it (§1.6).
+     */
+    public function hideWithBrand(bool $hidden): void
+    {
+        $before = $this->snapshot();
+        $this->hiddenByBrand = $hidden;
+        $this->record($before);
+    }
+
+    /**
+     * Moved to another category when its own is deactivated (§1.5): no longer hidden by one. Its
+     * handler has checked the new one is active and the lowest of its branch.
+     */
+    public function moveToCategory(string $categoryId): void
+    {
+        $before = $this->snapshot();
+        $this->categoryId = $categoryId;
+        $this->hiddenByCategory = false;
+        $this->record($before);
+    }
+
+    /**
+     * Moved to another brand when its own is deactivated (§1.6), never to none: no longer hidden by one.
+     */
+    public function moveToBrand(string $brandId): void
+    {
+        $before = $this->snapshot();
+        $this->brandId = $brandId;
+        $this->hiddenByBrand = false;
+        $this->record($before);
+    }
+
+    public function hiddenByCategory(): bool
+    {
+        return $this->hiddenByCategory;
+    }
+
+    public function hiddenByBrand(): bool
+    {
+        return $this->hiddenByBrand;
+    }
+
     /** While archived, the stage it left; null otherwise. */
     public function archivedFrom(): ?ProductStage
     {
@@ -247,6 +314,8 @@ final class Product
             'warranty_id' => $this->warrantyId,
             'attribute_set_id' => $this->attributeSetId,
             'stage' => $this->stage->value,
+            'hidden_by_category' => $this->hiddenByCategory,
+            'hidden_by_brand' => $this->hiddenByBrand,
         ];
     }
 
@@ -256,6 +325,16 @@ final class Product
     public function pullChanges(): array
     {
         return $this->changes->pull();
+    }
+
+    /**
+     * @param  array<string, string|int|bool|null>  $before
+     */
+    private function record(array $before): void
+    {
+        foreach ($this->snapshot() as $column => $now) {
+            $this->changes->record($column, $before[$column], $now);
+        }
     }
 
     private function moveTo(ProductStage $stage): void

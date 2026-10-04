@@ -59,6 +59,7 @@ final readonly class UpdateVariantHandler
             $variant = $this->variants->byId($command->variantId) ?? throw new VariantNotFound($command->variantId);
             // A variant never outlives its product (the key cascades), so this always finds it.
             $product = $this->products->byId($variant->productId()) ?? throw new LogicException('A variant without its product.');
+            $this->access->authorizeFor(self::PERMISSION, $product->id());
             $oldCode = $variant->code();
 
             if (! $code->equals($oldCode)) {

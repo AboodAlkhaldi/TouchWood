@@ -105,4 +105,34 @@ interface ProductRepository
      * @param  list<string>  $relatedIds  in order
      */
     public function replaceRelations(string $productId, string $kind, array $relatedIds): void;
+
+    /**
+     * The products in these categories, in any stage — whose fate a deactivation chooses.
+     *
+     * @param  list<string>  $categoryIds
+     * @return list<string>
+     */
+    public function idsInCategories(array $categoryIds): array;
+
+    /**
+     * The products of this brand, in any stage.
+     *
+     * @return list<string>
+     */
+    public function idsWithBrand(string $brandId): array;
+
+    /**
+     * The products hidden with their category, in these categories.
+     *
+     * @param  list<string>  $categoryIds
+     * @return list<string>
+     */
+    public function idsHiddenByCategoryIn(array $categoryIds): array;
+
+    /**
+     * The products hidden with this brand.
+     *
+     * @return list<string>
+     */
+    public function idsHiddenByBrand(string $brandId): array;
 }

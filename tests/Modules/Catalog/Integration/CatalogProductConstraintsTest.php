@@ -8,6 +8,9 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Modules\Catalog\Application\Command\AddLabel\AddLabel;
+use Modules\Catalog\Application\Command\AddLabel\AddLabelHandler;
 use Modules\Catalog\Application\Command\AddVariant\AddVariant;
 use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
@@ -76,7 +79,36 @@ function catalogProductConstraintsRows(): array
         return $variant;
     });
 
-    return compact('product', 'variant', 'width', 'eighty', 'material', 'finish', 'set', 'category', 'warranty', 'photo', 'variantPhoto', 'related', 'other');
+    $store = Fx::storeId('sa');
+    $label = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('عرض', 'Sale', 'green')));
+
+    return compact('product', 'variant', 'width', 'eighty', 'material', 'finish', 'set', 'category', 'warranty', 'photo', 'variantPhoto', 'related', 'other', 'store', 'label');
+}
+
+/**
+ * A store's row for a product, as its repository writes one, with these columns changed.
+ *
+ * @param  array<string, mixed>  $columns
+ */
+function catalogProductConstraintsStoreRow(string $store, string $product, array $columns = []): void
+{
+    DB::table('catalog.store_products')->insert([
+        'store_id' => $store, 'product_id' => $product, 'not_available_now' => false, 'retail_minimum' => 1,
+        'created_at' => CarbonImmutable::now(), 'updated_at' => CarbonImmutable::now(), ...$columns,
+    ]);
+}
+
+/**
+ * A store's row for a variant, with these columns changed.
+ *
+ * @param  array<string, mixed>  $columns
+ */
+function catalogProductConstraintsVariantRow(string $store, string $product, string $variant, array $columns = []): void
+{
+    DB::table('catalog.store_variants')->insert([
+        'store_id' => $store, 'product_id' => $product, 'variant_id' => $variant, 'is_active' => true, 'not_available_now' => false,
+        'sells_retail' => true, 'sells_wholesale' => false, 'created_at' => CarbonImmutable::now(), 'updated_at' => CarbonImmutable::now(), ...$columns,
+    ]);
 }
 
 it('refuses what the code would never write', function (Closure $write, string $constraint) {
@@ -122,4 +154,26 @@ it('refuses what the code would never write', function (Closure $write, string $
     'archived without the stage it left' => [fn (array $r) => DB::table('catalog.products')->where('id', $r['product'])->update(['stage' => 'ARCHIVED']), 'products_archived_from'],
     'archived from a stage that is no stage to leave' => [fn (array $r) => DB::table('catalog.products')->where('id', $r['product'])->update(['stage' => 'ARCHIVED', 'archived_from' => 'ARCHIVED']), 'products_archived_from'],
     'a stage left while not archived' => [fn (array $r) => DB::table('catalog.products')->where('id', $r['product'])->update(['archived_from' => 'DRAFT']), 'products_archived_from'],
+    'a store that does not exist' => [fn (array $r) => catalogProductConstraintsStoreRow(strtolower((string) Str::ulid()), $r['product']), 'store_products_store'],
+    'a retail minimum of nothing' => [fn (array $r) => catalogProductConstraintsStoreRow($r['store'], $r['product'], ['retail_minimum' => 0]), 'store_products_retail_minimum_range'],
+    'a retail maximum past the range' => [fn (array $r) => catalogProductConstraintsStoreRow($r['store'], $r['product'], ['retail_maximum' => 100_001]), 'store_products_retail_maximum_range'],
+    'a wholesale minimum of nothing' => [fn (array $r) => catalogProductConstraintsStoreRow($r['store'], $r['product'], ['wholesale_minimum' => 0]), 'store_products_wholesale_minimum_range'],
+    'a label on a product the store has no row for' => [fn (array $r) => DB::table('catalog.store_product_labels')->insert(['store_id' => $r['store'], 'product_id' => $r['product'], 'label_id' => $r['label']]), 'store_product_labels_store_product'],
+    'a wholesale maximum past the range' => [fn (array $r) => catalogProductConstraintsStoreRow($r['store'], $r['product'], ['wholesale_minimum' => 1, 'wholesale_maximum' => 100_001]), 'store_products_wholesale_maximum_range'],
+    'a retail maximum below its minimum' => [fn (array $r) => catalogProductConstraintsStoreRow($r['store'], $r['product'], ['retail_minimum' => 5, 'retail_maximum' => 4]), 'store_products_retail_order'],
+    'a wholesale maximum with no minimum' => [fn (array $r) => catalogProductConstraintsStoreRow($r['store'], $r['product'], ['wholesale_maximum' => 4]), 'store_products_wholesale_order'],
+    'a variant row with no selling mode' => [function (array $r): void {
+        catalogProductConstraintsStoreRow($r['store'], $r['product']);
+        catalogProductConstraintsVariantRow($r['store'], $r['product'], $r['variant'], ['sells_retail' => false]);
+    }, 'store_variants_one_mode'],
+    'a variant row without its product\'s row' => [fn (array $r) => catalogProductConstraintsVariantRow($r['store'], $r['product'], $r['variant']), 'store_variants_store_product'],
+    'a variant row under another product' => [function (array $r): void {
+        catalogProductConstraintsStoreRow($r['store'], $r['other']);
+        catalogProductConstraintsVariantRow($r['store'], $r['other'], $r['variant']);
+    }, 'store_variants_variant'],
+    'deleting a label a store shows' => [function (array $r): void {
+        catalogProductConstraintsStoreRow($r['store'], $r['product']);
+        DB::table('catalog.store_product_labels')->insert(['store_id' => $r['store'], 'product_id' => $r['product'], 'label_id' => $r['label']]);
+        DB::table('catalog.labels')->where('id', $r['label'])->delete();
+    }, 'store_product_labels_label'],
 ]);

@@ -56,6 +56,12 @@ final readonly class CatalogImagesUsage implements MediaUsage
             $this->authorizer->authorize(CatalogPermissions::CATEGORY_MANAGE, PermissionScope::allStores());
         }
 
+        // The products' lock before a list's, as every change that takes both (amendment 4(k)): a
+        // file a product shows too is detached from it next, under the products' lock.
+        if ($brandIds !== [] || $categoryIds !== []) {
+            $this->locks->lock(ListLocks::PRODUCTS);
+        }
+
         if ($brandIds !== []) {
             $this->locks->lock(ListLocks::BRANDS);
 

@@ -22,8 +22,9 @@ use Modules\Catalog\Domain\Repository\WarrantyRepository;
  * The list rows a product points at, read inside the product's change **with their rows locked**
  * (catalog.md §1.1). A list's own change locks the same row before it asks whether a product uses
  * it, so the two meet on the row: a brand deleted while a product takes it is either seen gone here,
- * or sees the product there — never a product pointing at nothing. A list's change never takes the
- * products' lock, so the two never wait on each other in a circle.
+ * or sees the product there — never a product pointing at nothing. A list's change takes the
+ * products' lock only when it changes products too, and then first, before its list's (amendment
+ * 4(k)), so the two never wait on each other in a circle.
  *
  * What a product **newly** points at must be active (and a category the lowest of its branch); what
  * it already points at may stay after it was deactivated — each product's fate there is chosen when

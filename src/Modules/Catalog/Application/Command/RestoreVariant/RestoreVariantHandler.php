@@ -42,6 +42,7 @@ final readonly class RestoreVariantHandler
         $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
             $variant = $this->variants->byId($command->variantId) ?? throw new VariantNotFound($command->variantId);
             $product = $this->products->byId($variant->productId()) ?? throw new LogicException('A variant without its product.');
+            $this->access->authorizeFor(self::PERMISSION, $product->id());
             $variant->restore();
             $entry = ListAudit::changed('variant', 'restored', $variant->id(), $variant->pullChanges(), $variant->snapshot());
 

@@ -179,7 +179,7 @@ describe('making a product ready', function () {
     })->with([
         'a photo still being sized' => [fn (string $id, string $variant, string $photo) => DB::table('platform.media')->where('id', $photo)->update(['variants_status' => 'PENDING']), 'photos'],
         'its only variant archived' => [fn (string $id, string $variant) => DB::table('catalog.variants')->where('id', $variant)->update(['is_archived' => true]), 'variants'],
-        'a category deactivated since' => [fn (string $id) => Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory((string) DB::table('catalog.products')->where('id', $id)->value('category_id')))), 'category'],
+        'a category deactivated since' => [fn (string $id) => Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory((string) DB::table('catalog.products')->where('id', $id)->value('category_id'), 'LEAVE'))), 'category'],
     ]);
 
     it('needs catalog.product.publish, and never reaches an archived product', function () {
@@ -218,7 +218,7 @@ describe('a ready product stays whole', function () {
         $category = (string) DB::table('catalog.products')->where('id', $id)->value('category_id');
         $closed = Px::category();
         Fx::asSystem(function () use ($category, $closed): void {
-            app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category));
+            app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'LEAVE'));
             app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($closed));
         });
 
@@ -268,7 +268,7 @@ describe('archiving and restoring', function () {
         app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
         app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
         $category = (string) DB::table('catalog.products')->where('id', $id)->value('category_id');
-        Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category)));
+        Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'LEAVE')));
 
         expect(fn () => app(RestoreProductHandler::class)->handle(new RestoreProduct($id)))->toThrow(ProductNotReady::class, 'category')
             ->and(catalogStagesStage($id))->toBe('ARCHIVED');
