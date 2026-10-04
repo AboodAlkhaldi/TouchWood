@@ -26,8 +26,8 @@ use Shared\Application\Unauthorized;
  * `catalog.variant.correct_code`, as the product's shared data. **Every variant of the product
  * carrying the code takes the new one** (amendment 3(e)); the new code is one the product holds or no
  * other product holds or held. **The mistyped code stays with the product** — a code it ever held is
- * never given to another while it exists — except in a draft, where a code given up is free again
- * (amendment 3(c)). Each variant renamed is audited.
+ * never given to another while it exists — except for a product never ready, a draft archived or
+ * not, where a code given up is free again (amendment 3(c), (m)). Each variant renamed is audited.
  */
 final readonly class CorrectVariantCodeHandler
 {
@@ -72,7 +72,7 @@ final readonly class CorrectVariantCodeHandler
                 $this->events->codeCorrected($product, $sibling->id());
             }
 
-            if ($product->isDraft()) {
+            if (! $product->hasBeenReady()) {
                 $this->products->releaseCode($product->id(), $old->value);
             }
 

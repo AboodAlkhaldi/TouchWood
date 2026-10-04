@@ -126,7 +126,8 @@ which must be on (amendment 3(j)).
 **Codes** (amendment 3(e)). Digits only, 1 to 10, kept as text so a leading zero stays.
 `product_codes` holds every code a product ever held, the code its key: a code is never given to
 another product while its holder exists. Sizes of one product may share a code, as the owner's
-sheet does. A code leaves a product only when a draft is deleted or a draft gives it up; the
+sheet does. A code leaves a product only when a draft is deleted, or when a product never ready —
+a draft, archived or not — gives it up (amendment 3(c), (m)); the
 variants' key to `product_codes` is `NO ACTION`, so deleting a draft cascades through both without
 the key refusing midway.
 

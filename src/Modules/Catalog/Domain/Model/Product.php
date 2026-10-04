@@ -107,7 +107,7 @@ final class Product
 
     /**
      * Out of its draft (§4.1): its handler has checked every readiness rule. A ready product is left
-     * as it is; an archived one changes only by being restored (§7).
+     * as it is; an archived one is restored first (§7, amendment 3(m)).
      *
      * @throws ProductArchived
      */

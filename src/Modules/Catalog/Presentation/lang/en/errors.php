@@ -110,7 +110,7 @@ return [
     ],
     'product_archived' => [
         'title' => 'Product archived',
-        'detail' => 'This product is archived. Restore it before changing it.',
+        'detail' => 'This product is archived. Restore it before making it ready, or deleting it or one of its variants.',
     ],
     'fields' => [
         'agency_type' => 'agency type',

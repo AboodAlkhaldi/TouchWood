@@ -21,7 +21,7 @@ use Shared\Application\Unauthorized;
  * **Deleting a draft** (catalog.md §4.1, §9.5 #2, amendment 3(h)): under `catalog.product.archive`,
  * only a product never shown or sold. It goes whole — variants, slugs, codes — and its slugs and
  * codes are free again; a draft also lets go of a code no variant of it carries any more (amendment
- * 3(c)). A product that was ever ready is archived instead, and an archived one is only restored.
+ * 3(c)). A product that was ever ready is archived instead; an archived one is restored first.
  */
 final readonly class DeleteDraftProductHandler
 {

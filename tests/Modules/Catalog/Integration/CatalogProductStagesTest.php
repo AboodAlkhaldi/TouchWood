@@ -64,8 +64,9 @@ use function Pest\Laravel\seed;
 
 /*
 | A product's stage (catalog.md §1.1, §4.1, §6.1, §7): made ready only when whole, each missing rule
-| named; kept whole while ready; archived and restored, an archived product changed by nothing but
-| restoring; a variant archived and restored on its own. Each change sends its event, ids only.
+| named; kept whole while ready, a category deactivated since kept; archived, edited while archived,
+| and restored to the stage it left; a variant archived and restored on its own. Each change sends its
+| event, ids only — for a product that has been ready (amendment 3(m)).
 */
 
 uses(RefreshDatabase::class);
@@ -512,5 +513,50 @@ describe('what the audit log keeps', function () {
             ->and(catalogStagesAudit('catalog.variant.code_corrected', $variant))->toBe(['code' => ['1304', '1307']])
             ->and(catalogStagesAudit('catalog.product.made_ready', $id))->toBe(['stage' => ['DRAFT', 'READY']])
             ->and(catalogStagesAudit('catalog.product.restored', $id))->toBe(['stage' => ['ARCHIVED', 'READY']]);
+    });
+});
+
+describe('an archived product made whole', function () {
+    it('may lose a rule while archived, and comes back ready only with every one', function () {
+        [$id, $variant] = catalogStagesWhole();
+        app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
+        app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
+
+        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($id, []));
+        app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($variant));
+        catalogStagesEdit($id, ['categoryId' => null]);
+        $refused = null;
+
+        try {
+            app(RestoreProductHandler::class)->handle(new RestoreProduct($id));
+        } catch (ProductNotReady $error) {
+            $refused = $error;
+        }
+
+        expect($refused?->missing)->toBe(['category', 'variants', 'photos'])
+            ->and(catalogStagesStage($id))->toBe('ARCHIVED');
+    });
+});
+
+describe('codes while archived', function () {
+    it('frees the code a product never ready gives up by a correction, archived or not', function () {
+        [$id, $variant] = catalogStagesWhole();
+        app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
+
+        app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($variant, '1340'));
+
+        expect(DB::table('catalog.product_codes')->where('product_id', $id)->pluck('code')->all())->toBe(['1340'])
+            ->and(Px::variant(Px::product('Hinge'), '1304'))->toBeString();
+    });
+
+    it('keeps the code a product that was ready gives up, and changes no code through the variant form', function () {
+        [$id, $variant, , $width, $eighty] = catalogStagesWhole();
+        app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
+        app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id));
+
+        app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($variant, '1340'));
+
+        expect(DB::table('catalog.product_codes')->where('product_id', $id)->orderBy('code')->pluck('code')->all())->toBe(['1304', '1340'])
+            ->and(fn () => app(UpdateVariantHandler::class)->handle(new UpdateVariant($variant, '1350', [$width => $eighty])))->toThrow(InvalidStageChange::class);
     });
 });
