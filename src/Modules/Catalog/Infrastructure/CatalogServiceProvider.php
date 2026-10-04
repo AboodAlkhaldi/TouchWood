@@ -8,6 +8,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Catalog\Application\CatalogApiImpl;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Query\Shop\ShopReader;
@@ -40,6 +41,7 @@ use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
 use Modules\Catalog\Infrastructure\Media\ProductPhotosUsage;
 use Modules\Catalog\Infrastructure\Queue\PruneSearchLogJob;
 use Modules\Catalog\Presentation\Console\RebuildListingCommand;
+use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Events\MediaVariantsReady;
 
@@ -64,6 +66,9 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(ListingRows::class, DatabaseListingRows::class);
         $this->app->bind(ShopReader::class, DatabaseShopReader::class);
         $this->app->bind(SearchLog::class, DatabaseSearchLog::class);
+        // What the modules above Catalog may ask it (§2.1). ListingFacts is declared, and bound with
+        // stage 5, which first calls it (amendment 5(i)).
+        $this->app->bind(CatalogApi::class, CatalogApiImpl::class);
     }
 
     public function boot(): void
