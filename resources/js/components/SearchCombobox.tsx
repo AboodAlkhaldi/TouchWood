@@ -57,7 +57,9 @@ export function SearchCombobox({ id, label, options, value, onChange, words, hel
 
     return (
         <Field className={className}>
-            <FieldLabel htmlFor={id}>{label}</FieldLabel>
+            <FieldLabel id={`${id}-label`} htmlFor={id}>
+                {label}
+            </FieldLabel>
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                     <Button
@@ -66,12 +68,16 @@ export function SearchCombobox({ id, label, options, value, onChange, words, hel
                         variant="outline"
                         role="combobox"
                         aria-expanded={open}
+                        // The field's name and then the value chosen: the label alone would hide it.
+                        aria-labelledby={`${id}-label ${id}-value`}
                         aria-invalid={error ? true : undefined}
                         aria-describedby={described}
                         className="w-full justify-between font-normal"
                         data-test={rest['data-test'] ?? id}
                     >
-                        <span className="truncate">{chosen === undefined ? '' : text(chosen.label)}</span>
+                        <span id={`${id}-value`} className="truncate">
+                            {chosen === undefined ? '' : text(chosen.label)}
+                        </span>
                         <ChevronsUpDown aria-hidden="true" className="opacity-50" />
                     </Button>
                 </PopoverTrigger>

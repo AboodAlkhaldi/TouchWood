@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -33,10 +33,12 @@ export default function Index({ jobs, nextFailedAt, nextId }: FailedJobsPage) {
     const t = useTranslator();
     const [confirming, setConfirming] = useState<string | null>(null);
     const list = useLoadMore(jobs, (job) => job.id);
+    // Where focus goes once a deleted job's row, and its Delete button, are gone.
+    const top = useRef<HTMLDivElement>(null);
 
     return (
         <AdminLayout title={t('platform::admin_failed_jobs.title')} subtitle={t('platform::admin_failed_jobs.subtitle')}>
-            <div className="grid gap-4">
+            <div ref={top} tabIndex={-1} className="grid gap-4 outline-none">
                 <FormError />
 
                 {list.rows.length === 0 ? (
@@ -79,7 +81,7 @@ export default function Index({ jobs, nextFailedAt, nextId }: FailedJobsPage) {
                 ) : null}
             </div>
 
-            <DeleteConfirmation id={confirming} onClose={() => setConfirming(null)} />
+            <DeleteConfirmation id={confirming} onClose={() => setConfirming(null)} returnTo={top} />
         </AdminLayout>
     );
 }

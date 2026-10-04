@@ -403,7 +403,8 @@ and examples. Only when neither has it, show the owner what was searched and ask
   stops" (shadcn's Progress has no stops; the bar itself stays shadcn's).
 - **Earlier choices that give way to Geist** (owner: "Geist, keep store time"): a setting's switch
   saves the moment it flips (Settings are no longer read-only until "Edit"); a Delete that cannot
-  be done is shown disabled, with the reason as its tooltip (media); B2B's staff screens show their
+  be done is shown disabled, with the reason written under it (media: inside its ⋯ menu, where a
+  tooltip would sit over the next item; batch D, 2026-10-04); B2B's staff screens show their
   moments through `Time`; store time (§1.10) stays — the hover shows the store's zone and UTC.
 - **SMS codes**: shadcn's InputOTP, one box per digit (the package `input-otp`), on staff sign-in,
   accepting an invitation, the staff Change Phone Number dialog and the customer's Change Phone

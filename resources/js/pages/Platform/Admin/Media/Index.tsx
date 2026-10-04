@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { type RefObject, useMemo, useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { FileText, ImageOff, MoreHorizontal } from 'lucide-react';
 import { cn } from 'cn';
@@ -27,6 +27,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { ItemMedia } from '@/components/ui/item';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -74,31 +75,34 @@ export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpda
     const t = useTranslator();
     const [view, setView] = useState<'table' | 'grid'>('table');
     const list = useLoadMore(media, (file) => file.id);
+    // Where focus goes once a deleted file's row, and its ⋯ button, are gone.
+    const top = useRef<HTMLDivElement>(null);
 
     return (
         <AdminLayout
             title={t('platform::admin_media.title')}
             subtitle={t('platform::admin_media.subtitle')}
             action={
+                // Geist's Switch: a sunken track with the chosen view raised on it.
                 <ToggleGroup
                     type="single"
-                    variant="outline"
                     value={view}
                     // A pressed item pressed again would clear it; a view is always one of the two.
                     onValueChange={(next) => (next === 'table' || next === 'grid' ? setView(next) : undefined)}
                     aria-label={t('platform::admin_media.view')}
                     data-test="view-switch"
+                    className="gap-0.5 rounded-[var(--tw-radius)] bg-surface-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--tw-line)]"
                 >
-                    <ToggleGroupItem value="table" data-test="view-table" className="px-3">
+                    <ToggleGroupItem value="table" data-test="view-table" className={SWITCH_ITEM}>
                         {t('platform::admin_media.table')}
                     </ToggleGroupItem>
-                    <ToggleGroupItem value="grid" data-test="view-grid" className="px-3">
+                    <ToggleGroupItem value="grid" data-test="view-grid" className={SWITCH_ITEM}>
                         {t('platform::admin_media.grid')}
                     </ToggleGroupItem>
                 </ToggleGroup>
             }
         >
-            <div className="grid gap-4">
+            <div ref={top} tabIndex={-1} className="grid gap-4 outline-none">
                 <FormError />
 
                 {mayUpload ? <UploadCard mayUploadPrivate={mayUploadPrivate} /> : null}
@@ -126,7 +130,7 @@ export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpda
                                 <TableRow>
                                     <TableHead>{t('platform::admin_media.file')}</TableHead>
                                     <TableHead>{t('platform::admin_media.type')}</TableHead>
-                                    <TableHead>{t('platform::admin_media.size')}</TableHead>
+                                    <TableHead className="text-end">{t('platform::admin_media.size')}</TableHead>
                                     <TableHead>{t('platform::admin_media.used_in')}</TableHead>
                                     <TableHead>{t('platform::admin_media.uploaded')}</TableHead>
                                     <TableHead>
@@ -136,7 +140,7 @@ export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpda
                             </TableHeader>
                             <TableBody>
                                 {list.rows.map((file) => (
-                                    <Row key={file.id} file={file} mayUpdate={mayUpdate} mayDelete={mayDelete} />
+                                    <Row key={file.id} file={file} mayUpdate={mayUpdate} mayDelete={mayDelete} listTop={top} />
                                 ))}
                             </TableBody>
                         </Table>
@@ -164,6 +168,14 @@ function SizesBadge({ file }: { file: MediaFileRow }) {
             {file.variantsStatus === 'FAILED' ? t('platform::admin_media.variants_failed') : t('platform::admin_media.variants_pending')}
         </Badge>
     );
+}
+
+/** Geist's Switch items: the chosen one raised on the track. */
+const SWITCH_ITEM = 'h-8 rounded-[calc(var(--tw-radius)-2px)] px-3 text-label-13 text-ink-muted hover:bg-transparent hover:text-ink data-[state=on]:bg-surface data-[state=on]:text-ink data-[state=on]:shadow-[var(--tw-shadow-small)]';
+
+/** A value that is not known or not shown: Geist's em dash. */
+function Unknown() {
+    return <span className="text-ink-subtle">—</span>;
 }
 
 /** The picture, when there is one ready to show; otherwise a plain mark, never a broken image. */
@@ -235,7 +247,7 @@ function UsedIn({ file }: { file: MediaFileRow }) {
     );
 }
 
-function Row({ file, mayUpdate, mayDelete }: { file: MediaFileRow; mayUpdate: boolean; mayDelete: boolean }) {
+function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayUpdate: boolean; mayDelete: boolean; listTop: RefObject<HTMLDivElement | null> }) {
     const t = useTranslator();
     const [describing, setDescribing] = useState(false);
     const [confirming, setConfirming] = useState(false);
@@ -243,7 +255,9 @@ function Row({ file, mayUpdate, mayDelete }: { file: MediaFileRow; mayUpdate: bo
     const [retrying, setRetrying] = useState(false);
     const more = useRef<HTMLButtonElement>(null);
     const describeFocus = useReturnFocus(describing, more);
-    const deleteFocus = useReturnFocus(confirming, more);
+    // The row's ⋯ button while the row is there; the list once the file is deleted (the review of batch D).
+    const afterDelete = useMemo<RefObject<HTMLElement | null>>(() => ({ get current() { return more.current?.isConnected ? more.current : listTop.current; } }), [listTop]);
+    const deleteFocus = useReturnFocus(confirming, afterDelete);
     const alt = useForm({ alt_ar: file.altAr ?? '', alt_en: file.altEn ?? '' });
     const hasMenu = file.retryable || mayUpdate || mayDelete;
 
@@ -262,15 +276,17 @@ function Row({ file, mayUpdate, mayDelete }: { file: MediaFileRow; mayUpdate: bo
 
     return (
         <TableRow>
-            <TableCell className="max-w-72">
+            <TableCell>
                 {/* The picture belongs in the table too, not only in the grid (owner, 2026-09-24):
                     the one question somebody has about a file is what it looks like. A private file
                     is the exception: its name only (amendment 6). */}
-                <div className="flex min-w-0 items-center gap-3">
+                {/* The width is capped here, not on the cell, which a table's layout ignores: past
+                    it, the name is cut in the middle (the review of batch D). */}
+                <div className="flex w-72 max-w-72 min-w-0 items-center gap-3">
                     {isPrivate(file) ? null : (
-                        <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-[var(--tw-radius-sm)] border border-line bg-surface-sunken text-ink-muted [&_img]:size-full [&_img]:object-cover [&_svg]:size-5">
+                        <ItemMedia variant={file.thumbnailUrl === null ? 'icon' : 'image'} className="size-12 border-line bg-surface-sunken text-ink-muted [&_svg:not([class*='size-'])]:size-5">
                             <Picture file={file} />
-                        </span>
+                        </ItemMedia>
                     )}
                     <span className="grid min-w-0 gap-1">
                         <MiddleTruncate value={file.filename} className="text-ink" />
@@ -280,8 +296,9 @@ function Row({ file, mayUpdate, mayDelete }: { file: MediaFileRow; mayUpdate: bo
                     </span>
                 </div>
             </TableCell>
-            <TableCell className="text-copy-13 text-ink-muted">{isPrivate(file) ? null : <bdi dir="ltr">{file.mime}</bdi>}</TableCell>
-            <TableCell className="tw-figure text-copy-13 text-ink-muted">{isPrivate(file) ? null : file.size}</TableCell>
+            {/* What a private file is stays with those who may see it: an em dash, Geist's unknown. */}
+            <TableCell className="text-copy-13 text-ink-muted">{isPrivate(file) || file.mime === null ? <Unknown /> : <bdi dir="ltr">{file.mime}</bdi>}</TableCell>
+            <TableCell className="tw-figure text-end text-copy-13 text-ink-muted">{isPrivate(file) ? <Unknown /> : file.size}</TableCell>
             <TableCell className="max-w-56 whitespace-normal text-copy-13 text-ink-muted">
                 <UsedIn file={file} />
             </TableCell>
@@ -475,7 +492,13 @@ function UploadCard({ mayUploadPrivate }: { mayUploadPrivate: boolean }) {
                         <FieldLabel htmlFor="upload-file">{t('platform::admin_media.file')}</FieldLabel>
                         <Input id="upload-file" ref={picker} type="file" data-test="file" onChange={(event) => form.setData('file', event.target.files?.[0] ?? null)} />
                     </Field>
-                    <SelectField id="upload-visibility" label={t('platform::admin_media.visibility')} value={form.data.visibility} onChange={(event) => form.setData('visibility', event.target.value)}>
+                    <SelectField
+                        id="upload-visibility"
+                        label={t('platform::admin_media.visibility')}
+                        value={form.data.visibility}
+                        error={form.errors.visibility}
+                        onChange={(event) => form.setData('visibility', event.target.value)}
+                    >
                         <NativeSelectOption value="PUBLIC">{t('platform::admin_media.visibility_public')}</NativeSelectOption>
                         {/* Only for someone who may also see private files: the upload refuses
                             anyone else (amendment 6). */}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -101,7 +101,10 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
     const t = useTranslator();
     const [confirmingOff, setConfirmingOff] = useState(false);
     const [switching, setSwitching] = useState(false);
-    const returnFocus = useReturnFocus(confirmingOff);
+    // The on/off button in the card: once the store is off, Turn Off is replaced by Turn On, which
+    // takes focus back (the review of batch D).
+    const onOff = useRef<HTMLButtonElement>(null);
+    const returnFocus = useReturnFocus(confirmingOff, onOff);
     const baseReason = store.switchable ? undefined : t('platform::admin_stores.base_hint');
 
     const turn = (way: 'activate' | 'deactivate', onSuccess?: () => void) =>
@@ -144,12 +147,12 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
                     </CardDescription>
                     <CardAction className="flex flex-wrap items-center gap-2">
                         {maySwitch && !store.isActive ? (
-                            <ActionButton variant="outline" loading={switching} disabledReason={baseReason} data-test={`turn-on-${store.code}`} onClick={() => turn('activate')}>
+                            <ActionButton ref={onOff} variant="outline" loading={switching} disabledReason={baseReason} data-test={`turn-on-${store.code}`} onClick={() => turn('activate')}>
                                 {t('platform::admin_stores.turn_on')}
                             </ActionButton>
                         ) : null}
                         {maySwitch && store.isActive ? (
-                            <ActionButton variant="outline" disabledReason={baseReason} data-test={`turn-off-${store.code}`} onClick={() => setConfirmingOff(true)}>
+                            <ActionButton ref={onOff} variant="outline" disabledReason={baseReason} data-test={`turn-off-${store.code}`} onClick={() => setConfirmingOff(true)}>
                                 {/* Its own words, ending in "…": it opens a dialog (frontend.md §1.10). */}
                                 {t('platform::admin_stores.turn_off_open')}
                             </ActionButton>

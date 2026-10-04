@@ -85,19 +85,39 @@ export function MiddleTruncate({ value, className }: { value: string; className?
         measure();
         const observer = new ResizeObserver(measure);
         observer.observe(element);
+        // Measured again once the web fonts are in: before, the fallback font's widths were used.
+        let alive = true;
+        void document.fonts?.ready.then(() => (alive ? measure() : undefined));
 
-        return () => observer.disconnect();
+        return () => {
+            alive = false;
+            observer.disconnect();
+        };
     }, [value]);
 
     // Copying any of it copies all of it (Geist: "Copying truncated text yields the full original
-    // string").
+    // string") - when the selection is inside the name; a selection running past it, a whole table
+    // row, is copied as the browser would.
     const copyWhole = (event: ClipboardEvent<HTMLSpanElement>) => {
+        const selection = window.getSelection();
+        const element = box.current;
+
+        if (selection === null || element === null || !element.contains(selection.anchorNode) || !element.contains(selection.focusNode)) {
+            return;
+        }
+
         event.preventDefault();
         event.clipboardData.setData('text/plain', value);
     };
 
     const text = (
-        <span ref={box} onCopy={copyWhole} className={cn('block min-w-0 overflow-hidden whitespace-nowrap', className)}>
+        // Cut, it takes focus, so a keyboard can open the tooltip with the whole name too.
+        <span
+            ref={box}
+            onCopy={copyWhole}
+            tabIndex={shown !== value ? 0 : undefined}
+            className={cn('block min-w-0 overflow-hidden whitespace-nowrap rounded-[var(--tw-radius-sm)] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50', className)}
+        >
             <span aria-hidden="true">{shown}</span>
             <span className="sr-only">{value}</span>
         </span>

@@ -382,3 +382,37 @@ it('draws the audit log with its filters', function () {
         ->assertPathIs('/admin/audit')
         ->assertNoJavaScriptErrors();
 });
+
+it('counts the days of the date filter in UTC, and takes a date in the address that is not a plain day as none', function () {
+    $page = visit('/admin/sign-in')
+        ->type('#email', libraryScreenEmail())
+        ->type('#password', LIBRARY_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        // Hand-edited: the server passes it on, and the page must not die on it (the review of batch D).
+        ->navigate('/admin/audit?from=today');
+
+    $page->assertSee('Audit Log')
+        ->assertSeeIn('[data-test="dates"]', 'Any Date')
+        ->assertSee('Days are counted in UTC.')
+        ->assertNoJavaScriptErrors();
+
+    // The calendar loads when the picker first opens, not with the page (the page budget).
+    $page->click('[data-test="dates"]')
+        ->assertVisible('[data-slot="calendar"]');
+
+    // "Today" is today in UTC, as the server compares the days.
+    $page->click('[data-test="dates-today"]')
+        ->click('[data-test="apply"]')
+        ->assertPathIs('/admin/audit');
+
+    $today = gmdate('Y-m-d');
+
+    expect($page->script('() => new URLSearchParams(window.location.search).get("from")'))->toBe($today)
+        ->and($page->script('() => new URLSearchParams(window.location.search).get("until")'))->toBe($today);
+
+    $page->assertNoJavaScriptErrors();
+});

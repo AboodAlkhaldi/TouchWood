@@ -99,7 +99,7 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
         ->assertSee('The job will not run. This cannot be undone.')
         ->click("[data-test=\"delete-confirm-{$deleted}\"]")
         ->assertSee('Job deleted')
-        ->assertSee((string) __('platform::admin_failed_jobs.none', [], 'en'))
+        ->assertSee('Background work that fails its last try waits here.')
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('failed_jobs')->count())->toBe(0)

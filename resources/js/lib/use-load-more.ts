@@ -15,6 +15,9 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string) {
     const [rows, setRows] = useState(items);
     const [loading, setLoading] = useState(false);
     const appending = useRef(false);
+    // Which "more" visit is the latest, and whether one is out: a double click sends one.
+    const latest = useRef(0);
+    const out = useRef(false);
 
     useEffect(() => {
         if (!appending.current) {
@@ -35,6 +38,20 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string) {
 
     /** Fetches the next page into the list: the props it names are the ones that change. */
     function more(url: string, cursor: Record<string, string | number | null>, only: string[]) {
+        if (out.current) {
+            return;
+        }
+
+        const visit = ++latest.current;
+        // A page that never came adds nothing - but only this visit's own end says so, never an
+        // older one ending after a newer one began (the review of batch D).
+        const gone = () => {
+            if (latest.current === visit) {
+                appending.current = false;
+            }
+        };
+
+        out.current = true;
         appending.current = true;
 
         router.get(url, cursor, {
@@ -43,14 +60,12 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string) {
             preserveScroll: true,
             preserveUrl: true,
             onStart: () => setLoading(true),
-            onFinish: () => setLoading(false),
-            // A page that never came adds nothing.
-            onCancel: () => {
-                appending.current = false;
+            onFinish: () => {
+                out.current = false;
+                setLoading(false);
             },
-            onError: () => {
-                appending.current = false;
-            },
+            onCancel: gone,
+            onError: gone,
         });
     }
 

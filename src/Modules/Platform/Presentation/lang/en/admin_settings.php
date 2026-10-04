@@ -17,7 +17,7 @@ return [
     'unchanged_reason' => 'Change the value first.',
     'cancel' => 'Cancel',
     'saved' => 'Setting saved',
-    'none' => 'There is no setting here that is yours to change.',
+    'none' => 'Settings appear here once you are given the job of changing them.',
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.

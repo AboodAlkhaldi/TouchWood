@@ -57,7 +57,8 @@ export default function Index({ currencies, exponents }: Props) {
                     type="button"
                     variant={adding ? 'outline' : 'default'}
                     aria-expanded={adding}
-                    aria-controls="add-currency-form"
+                    // Only while the form is there: an id that points at nothing helps nobody.
+                    aria-controls={adding ? 'add-currency-form' : undefined}
                     data-test="add-currency"
                     onClick={() => setAdding((open) => !open)}
                 >
@@ -201,7 +202,6 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                                         : t('platform::admin_currencies.exponent_hint')
                                 }
                                 error={form.errors.exponent}
-                                dir="ltr"
                                 disabled={currency.exponentLocked}
                                 value={form.data.exponent}
                                 onChange={(event) => form.setData('exponent', event.target.value)}
@@ -281,7 +281,6 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                         label={t('platform::admin_currencies.exponent')}
                         helper={t('platform::admin_currencies.exponent_hint')}
                         error={form.errors.exponent}
-                        dir="ltr"
                         value={form.data.exponent}
                         onChange={(event) => form.setData('exponent', toLatinDigits(event.target.value))}
                     >

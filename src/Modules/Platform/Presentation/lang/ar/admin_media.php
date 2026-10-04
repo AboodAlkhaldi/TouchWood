@@ -18,7 +18,6 @@ return [
     'dimensions' => ':width في :height',
 
     'variants_pending' => 'قيد المعالجة',
-    'variants_ready' => 'جاهزة',
     'variants_failed' => 'فشلت المعالجة',
     'retry' => 'إعادة المعالجة',
     'retrying' => 'بدأت إعادة المعالجة',

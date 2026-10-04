@@ -190,8 +190,15 @@ function Value({ setting, storeName }: { setting: SettingRowData; storeName: str
 
                 form.post(`/admin/settings/${setting.key}`, {
                     preserveScroll: true,
-                    // Saved: what was typed is now what is stored. A secret goes back to empty.
-                    onSuccess: () => form.setDefaults({ value: setting.sensitive ? '' : form.data.value }),
+                    // Saved: what was typed is now what is stored. A secret goes back to empty, in
+                    // the field too - it is never shown again, not even to whoever typed it.
+                    onSuccess: () => {
+                        if (setting.sensitive) {
+                            form.setData('value', '');
+                        }
+
+                        form.setDefaults({ value: setting.sensitive ? '' : form.data.value });
+                    },
                 });
             }}
             className="grid gap-3"

@@ -18,7 +18,6 @@ return [
     'dimensions' => ':width by :height',
 
     'variants_pending' => 'Being Processed',
-    'variants_ready' => 'Ready',
     'variants_failed' => 'Processing Failed',
     'retry' => 'Retry Processing',
     'retrying' => 'Processing restarted',

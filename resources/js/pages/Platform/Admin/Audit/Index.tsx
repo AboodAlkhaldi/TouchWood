@@ -102,6 +102,7 @@ export default function Index({ entries, actions, actionLabels, sources, filters
                                         month: t('platform::admin_audit.preset_month'),
                                         monthToDate: t('platform::admin_audit.preset_month_to_date'),
                                     },
+                                    helper: t('platform::admin_audit.dates_helper'),
                                 }}
                             />
 
