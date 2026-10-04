@@ -43,6 +43,10 @@ it('saves one setting on its own, leaving the rest of the screen alone', functio
     $staffId = Fx::staffWith([AccessPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
     $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
     $key = CustomerSecuritySettings::LOCKOUT_MINUTES;
+    // The browser suite keeps its data, so the setting starts from its default, with no stored row:
+    // a 27 left by an earlier run would make typing 27 no change at all, and Cancel would never show.
+    DB::table('platform.settings')->where('store_id', Fx::storeId('sa'))->where('key', $key)->delete();
+    app(SettingValues::class)->invalidate();
 
     $page = visit('/admin/sign-in')
         ->type('#email', $email)

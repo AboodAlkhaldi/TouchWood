@@ -50,25 +50,6 @@ function failedJobsBrowserFailed(): string
     return $id;
 }
 
-/**
- * Whether the expression comes to hold in the page within four seconds, under the plugin's own five
- * for a script (lesson 121): its assertions read the page once.
- */
-function failedJobsScreenUntil(mixed $page, string $expression): bool
-{
-    return $page->script(<<<JS
-        () => new Promise((resolve) => {
-            const until = Date.now() + 4000;
-            const tick = () => {
-                let held = false;
-                try { held = Boolean({$expression}); } catch (error) { held = false; }
-                if (held || Date.now() > until) { resolve(held); } else { setTimeout(tick, 50); }
-            };
-            tick();
-        })
-        JS) === true;
-}
-
 it('tells the admin on the home page, counts in the menu, and retries one job and deletes another', function () {
     DB::table('failed_jobs')->delete();
     DB::table('jobs')->delete();
@@ -112,14 +93,14 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
 
     $page->click("[data-test=\"retry-{$retried}\"]");
     // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
-    expect(failedJobsScreenUntil($page, "document.body.innerText.includes('Job requeued')"))->toBeTrue();
+    expect(browserUntil($page, "document.body.innerText.includes('Job requeued')"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 
     $page->click("[data-test=\"delete-{$deleted}\"]")
         ->assertSee('The job will not run. This cannot be undone.')
         ->click("[data-test=\"delete-confirm-{$deleted}\"]");
     // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
-    expect(failedJobsScreenUntil($page, "document.body.innerText.includes('Job deleted')"))->toBeTrue();
+    expect(browserUntil($page, "document.body.innerText.includes('Job deleted')"))->toBeTrue();
     $page->assertSee('Background work that fails its last try waits here.')
         ->assertNoJavaScriptErrors();
 

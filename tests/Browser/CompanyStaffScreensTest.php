@@ -80,25 +80,6 @@ function companyStaffBrowserStatus(string $companyId): string
     return (string) DB::table('b2b.companies')->where('id', $companyId)->value('status');
 }
 
-/**
- * Waits, inside the page, until an expression holds — under the plugin's own five seconds for a
- * script — since its assertions read the page once and do not wait (lesson 121).
- */
-function companyStaffBrowserUntil(mixed $page, string $expression): bool
-{
-    return $page->script(<<<JS
-        () => new Promise((resolve) => {
-            const until = Date.now() + 4000;
-            const tick = () => {
-                let held = false;
-                try { held = Boolean({$expression}); } catch (error) { held = false; }
-                if (held || Date.now() > until) { resolve(held); } else { setTimeout(tick, 50); }
-            };
-            tick();
-        })
-        JS) === true;
-}
-
 function companyStaffBrowserText(string $selector): string
 {
     return "(document.querySelector('{$selector}')?.innerText ?? '')";
@@ -116,18 +97,18 @@ it('finds a waiting company in the list and approves it with a note', function (
 
     // The pager's range, its placeholders filled the way Laravel fills them: ":to" never eats the
     // start of ":total" (it read "1–1 of 1tal" before lib/t.ts filled the longest first).
-    expect(companyStaffBrowserUntil($page, "document.querySelector('nav[aria-label=\"Pages\"] p')?.innerText.trim() === '1–1 of 1'"))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('nav[aria-label=\"Pages\"] p')?.innerText.trim() === '1–1 of 1'"))->toBeTrue();
 
     $page->click("[data-test=\"company-{$company->id()}\"]")
         ->assertPathIs("/admin/companies/{$company->id()}");
 
-    expect(companyStaffBrowserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Under Review')"))->toBeTrue();
+    expect(browserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Under Review')"))->toBeTrue();
 
     $page->click('[data-test="approve"]')
         ->type('#approve-note', 'Welcome aboard.')
         ->click('[data-test="confirm-approve"]');
 
-    expect(companyStaffBrowserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Approved')"))->toBeTrue()
+    expect(browserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Approved')"))->toBeTrue()
         ->and(companyStaffBrowserStatus($company->id()))->toBe('APPROVED')
         ->and(DB::table('b2b.applications')->where('company_id', $company->id())->value('decision_reason'))->toBe('Welcome aboard.');
 
@@ -144,7 +125,7 @@ it('rejects with a marked item and a request, then suspends from the menu and re
 
     $page->click('[data-test="reject"]');
     // The button waits for a reason (21(g)).
-    expect(companyStaffBrowserUntil($page, "document.querySelector('[data-test=\"confirm-reject\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('[data-test=\"confirm-reject\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
 
     $page->type('#reject-reason', 'The CR number does not match the certificate.')
         ->click('[data-test="flag-cr_number"]')
@@ -152,7 +133,7 @@ it('rejects with a marked item and a request, then suspends from the menu and re
         ->type('#request-label-0', 'A bank letter confirming the account')
         ->click('[data-test="confirm-reject"]');
 
-    expect(companyStaffBrowserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Rejected')"))->toBeTrue();
+    expect(browserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Rejected')"))->toBeTrue();
     $application = (string) DB::table('b2b.applications')->where('company_id', $company->id())->value('id');
     expect(DB::table('b2b.application_flags')->where('application_id', $application)->value('field'))->toBe('cr_number')
         ->and(DB::table('b2b.application_requests')->where('application_id', $application)->value('label'))->toBe('A bank letter confirming the account');
@@ -164,12 +145,12 @@ it('rejects with a marked item and a request, then suspends from the menu and re
         ->click('[data-test="suspend"]')
         ->type('#suspend-reason', 'The tax number is being checked.');
 
-    expect(companyStaffBrowserUntil($page, "document.querySelector('[data-test=\"destructive-confirm\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('[data-test=\"destructive-confirm\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
 
     $page->type('[data-test="destructive-verification"]', $name)
         ->click('[data-test="destructive-confirm"]');
 
-    expect(companyStaffBrowserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Suspended')"))->toBeTrue()
+    expect(browserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Suspended')"))->toBeTrue()
         ->and(companyStaffBrowserStatus($company->id()))->toBe('SUSPENDED');
 
     $page->click('[data-test="reinstate"]')
@@ -177,7 +158,7 @@ it('rejects with a marked item and a request, then suspends from the menu and re
         ->type('#reinstate-reason', 'The tax number checks out.')
         ->click('[data-test="confirm-reinstate"]');
 
-    expect(companyStaffBrowserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Rejected')"))->toBeTrue()
+    expect(browserUntil($page, companyStaffBrowserText('[data-test="company-status"]').".includes('Rejected')"))->toBeTrue()
         ->and(companyStaffBrowserStatus($company->id()))->toBe('REJECTED');
 
     $page->assertNoJavaScriptErrors();
@@ -192,12 +173,12 @@ it('says why Approve and Open File are disabled, beside each', function () {
 
     // Disabled, and still there to point at, so the reason can be read (Geist's Button rules). A real
     // pointer over it, not a scripted focus(), which did not reliably reach React here.
-    expect(companyStaffBrowserUntil($page, "document.querySelector('[data-test=\"approve\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('[data-test=\"approve\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
     $page->hover('[data-test="approve"]');
-    expect(companyStaffBrowserUntil($page, "document.body.innerText.includes('Correct the company type to a listed type first.')"))->toBeTrue();
+    expect(browserUntil($page, "document.body.innerText.includes('Correct the company type to a listed type first.')"))->toBeTrue();
 
     $paper = B2BFixtures::documentTypes()[0]->id();
-    expect(companyStaffBrowserUntil($page, "document.querySelector('[data-test=\"open-{$paper}\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue()
+    expect(browserUntil($page, "document.querySelector('[data-test=\"open-{$paper}\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue()
         // Nothing on the page names the file: no link to it, no id in an attribute (amendment 8(c)).
         ->and($page->script("document.querySelectorAll('a[href*=\"/files/\"]').length"))->toBe(0);
     // A second, small move inside the button, as a real pointer makes: the tooltips share one Radix
@@ -205,7 +186,7 @@ it('says why Approve and Open File are disabled, beside each', function () {
     // there, and opens nothing for that one move.
     $page->hover("[data-test=\"open-{$paper}\"]")
         ->hover("[data-test=\"open-{$paper}\"] svg");
-    expect(companyStaffBrowserUntil($page, "document.body.innerText.includes('Opening company papers is not one of your jobs.')"))->toBeTrue();
+    expect(browserUntil($page, "document.body.innerText.includes('Opening company papers is not one of your jobs.')"))->toBeTrue();
 
     $page->assertNoJavaScriptErrors();
 });
@@ -228,7 +209,7 @@ it('marks a store\'s lists reviewed, adds a company type, moves its holders off 
         ->assertVisible('[data-test="tab-document"]')
         ->click('[data-test="mark-reviewed"]');
 
-    expect(companyStaffBrowserUntil($page, "document.querySelector('[data-test=\"copied-notice\"]') === null"))->toBeTrue()
+    expect(browserUntil($page, "document.querySelector('[data-test=\"copied-notice\"]') === null"))->toBeTrue()
         ->and((bool) DB::table('b2b.store_type_lists')->where('store_id', Fx::storeId('ae'))->value('copied_not_reviewed'))->toBeFalse();
 
     $page->click('[data-test="add-type"]')
@@ -237,7 +218,7 @@ it('marks a store\'s lists reviewed, adds a company type, moves its holders off 
         ->type('#type-position', '9000')
         ->click('[data-test="confirm-add"]');
 
-    expect(companyStaffBrowserUntil($page, "document.body.innerText.includes('{$english}')"))->toBeTrue();
+    expect(browserUntil($page, "document.body.innerText.includes('{$english}')"))->toBeTrue();
     $typeId = (string) DB::table('b2b.company_types')->where('store_id', Fx::storeId('ae'))->where('name_en', $english)->value('id');
     expect($typeId)->not->toBe('');
 
@@ -254,7 +235,7 @@ it('marks a store\'s lists reviewed, adds a company type, moves its holders off 
         ->select('#deactivate-replacement', (string) $replacement)
         ->click('[data-test="confirm-deactivate"]');
 
-    expect(companyStaffBrowserUntil($page, companyStaffBrowserText("[data-test=\"type-{$typeId}\"] [data-test=\"type-state\"]").".includes('Hidden')"))->toBeTrue()
+    expect(browserUntil($page, companyStaffBrowserText("[data-test=\"type-{$typeId}\"] [data-test=\"type-state\"]").".includes('Hidden')"))->toBeTrue()
         ->and((bool) DB::table('b2b.company_types')->where('id', $typeId)->value('is_active'))->toBeFalse()
         ->and(DB::table('b2b.companies')->where('id', $holder->id())->value('company_type_id'))->toBe($replacement);
 

@@ -49,8 +49,10 @@ it('draws the list, opens a customer, and blocks them with a reason', function (
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/customers');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/customers');
 
     $page->assertSee('Customers')
         ->assertSee($email)

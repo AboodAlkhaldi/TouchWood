@@ -78,7 +78,7 @@ it('turns the shop dark when the button is pressed', function () {
     $page->click('[data-test="theme-dark"]');
 
     // Asked for again and answered dark by the server, which is why nothing flashes.
-    expect($page->script("new Promise((done) => { const from = Date.now(); (function look() { const mode = document.documentElement.dataset.mode; if (mode === 'dark' || Date.now() - from > 4000) { done(mode); } else { setTimeout(look, 50); } })(); })"))->toBe('dark');
+    expect(browserUntil($page, "document.documentElement.dataset.mode === 'dark'"))->toBeTrue();
 
     $page->assertNoJavaScriptErrors();
 });

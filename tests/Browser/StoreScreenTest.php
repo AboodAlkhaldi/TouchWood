@@ -45,8 +45,10 @@ it('draws the stores and saves one from its own card', function () {
         // answered it (this raced, and lost, 2026-09-24).
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/stores');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/stores');
 
     // In English, because the fixture's staff member keeps English as their own language.
     $page->assertSee('Stores')
@@ -73,8 +75,10 @@ it('offers no edit form on a store somebody may only read', function () {
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/stores');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/stores');
 
     // Not offered rather than offered and refused (access.md amendment 9): the card carries the
     // store's details and no way to change them.
@@ -103,8 +107,10 @@ describe('the on/off switch (platform.md §1.1, §9.5)', function () {
             ->click('button[type="submit"]')
             ->assertPathIs('/admin/sign-in/code')
             ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-            ->click('button[type="submit"]')
-            ->navigate('/admin/stores');
+            ->click('button[type="submit"]');
+
+        expect(signedInToPanel($page))->toBeTrue();
+        $page->navigate('/admin/stores');
 
         // The base store is never off: its button stays, and says why instead of acting.
         $page->assertSee('Base Store')

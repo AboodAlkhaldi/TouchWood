@@ -86,7 +86,7 @@ it('follows a dark device on a first visit', function () {
  */
 function panelFrameThemeSaved(mixed $page, string $choice): bool
 {
-    return $page->script("new Promise((done) => { const until = Date.now() + 4000; (function look() { if (document.querySelector('[data-test=\"theme-{$choice}\"]')?.dataset.state === 'on') { done(true); } else if (Date.now() > until) { done(false); } else { setTimeout(look, 50); } })(); })") === true;
+    return browserUntil($page, "document.querySelector('[data-test=\"theme-{$choice}\"]')?.dataset.state === 'on'");
 }
 
 it('stays light on a dark device once Light is chosen, and follows it again on System', function () {

@@ -42,8 +42,10 @@ it('draws the currencies, shows a sign as a price will, and settles the decimal 
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/currencies');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/currencies');
 
     $page->assertSee('Currencies')
         ->assertSee('SAR')
@@ -80,8 +82,10 @@ it('adds a currency from the screen', function () {
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/currencies');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/currencies');
 
     // Named: the panel's own header carries buttons too, and "header button" finds one of those.
     $page->click('[data-test="add-currency"]')

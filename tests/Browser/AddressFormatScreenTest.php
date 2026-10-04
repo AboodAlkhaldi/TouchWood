@@ -42,8 +42,10 @@ it('adds a field, names it, and the country asks for it afterwards', function ()
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/address-formats');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/address-formats');
 
     // What a field is called lives in an input's value, not in the page's text, so the screen is
     // read for its own words and the fields are read where they are actually kept (a first go
@@ -137,8 +139,10 @@ it('moves a field by its handle from the keyboard, and the country asks for them
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/address-formats?store=ae');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/address-formats?store=ae');
 
     // dnd-kit's keyboard drag, as shadcn's dashboard-01 sets it up: Space picks the first field up,
     // the down arrow moves it one place, Space puts it down (owner, 2026-10-03: drag handles).

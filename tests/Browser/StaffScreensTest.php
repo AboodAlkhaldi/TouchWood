@@ -64,8 +64,10 @@ it('draws the staff list grouped by store, and opens one person', function () {
         // (this raced, and lost, 2026-09-24).
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/staff');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/staff');
 
     // In English, because the fixture's staff member keeps English as their own language and the
     // panel is read in the reader's language, not the system's.
@@ -95,8 +97,10 @@ it('saves a role and its stores from the editor', function () {
         // (this raced, and lost, 2026-09-24).
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate("/admin/staff/{$staffId}/role");
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate("/admin/staff/{$staffId}/role");
 
     $page->assertSee('Change Role and Stores')
         ->assertSee('A Role of Their Own')
@@ -119,8 +123,10 @@ it('walks the invitation through its three steps, sending nothing before the las
         // (this raced, and lost, 2026-09-24).
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/staff/invite');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/staff/invite');
 
     $email = 'invited.'.Str::lower(Str::random(8)).'@touchwood.test';
 

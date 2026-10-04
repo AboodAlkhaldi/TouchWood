@@ -77,6 +77,9 @@ function accountScreenSignedIn(): PendingAwaitablePage
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]');
 
+    // Every caller opens its screen next, so the sign-in must have landed first.
+    expect(signedInToPanel($page))->toBeTrue();
+
     return $page;
 }
 

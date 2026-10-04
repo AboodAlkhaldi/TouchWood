@@ -19,3 +19,38 @@ pest()->extend(TestCase::class)->in(
     'Modules/*/Feature',
     'Browser',
 );
+
+/*
+| Waiting in a browser test. The plugin's own assertions read the page once and do not wait (lesson
+| 121), and a click only starts the request it sends - so a test that must see what a request
+| changes polls for it inside the page, here, rather than with a copy of this in every file.
+*/
+
+/**
+ * Whether the JavaScript expression comes to hold in the page within four seconds: under the
+ * plugin's own five seconds for a script, so it answers rather than times out.
+ */
+function browserUntil(mixed $page, string $expression): bool
+{
+    return $page->script(<<<JS
+        () => new Promise((resolve) => {
+            const until = Date.now() + 4000;
+            const tick = () => {
+                let held = false;
+                try { held = Boolean({$expression}); } catch (error) { held = false; }
+                if (held || Date.now() > until) { resolve(held); } else { setTimeout(tick, 50); }
+            };
+            tick();
+        })
+        JS) === true;
+}
+
+/**
+ * Whether the staff member has landed in the panel. The code's submit only starts the sign-in, and
+ * a page opened before its answer lands is the sign-in screen again (it raced, and lost, in CI on
+ * 2026-10-04) - so every sign-in waits for this before it opens the screen under test.
+ */
+function signedInToPanel(mixed $page): bool
+{
+    return browserUntil($page, "window.location.pathname === '/admin'");
+}
