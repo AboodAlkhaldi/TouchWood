@@ -48,9 +48,12 @@ export function StoreSwitcher() {
 
     const header = (
         <>
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <Logo className="size-4" />
-            </div>
+            {/* The navy tile: the sidebar is navy in both themes (owner's logo answers, 2026-10-04).
+                Boxed, as sidebar-07's team switcher boxes its logo: the menu button sizes any svg
+                directly inside it to an icon's 16 px. */}
+            <span className="flex aspect-square size-8 shrink-0 items-center justify-center">
+                <Logo tone="navy" className="size-8" />
+            </span>
             <div className="grid flex-1 text-start text-sm leading-tight">
                 <span className="truncate font-medium">{title}</span>
                 {lockedOnly === null ? (

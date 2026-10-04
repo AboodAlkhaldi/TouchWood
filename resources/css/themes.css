@@ -67,6 +67,14 @@
     --tw-accent: #864720;
     --tw-accent-soft: #f6efe8;
 
+    /* The logo's tiles (owner, 2026-10-04): navy on dark surfaces, cream on light ones, the frame
+    | in copper. The tile, not the mode, picks them, so they are the same in both modes - a
+    | campaign may change them. */
+    --tw-logo-navy: #02365e;
+    --tw-logo-cream: #f6efe8;
+    --tw-logo-copper-deep: #864720;
+    --tw-logo-copper-light: #dca071;
+
     /* The admin sidebar, which is dark in both themes by design. */
     --tw-sidebar: #01233c;
     --tw-sidebar-ink: #ffffff;
@@ -142,6 +150,11 @@
     --tw-brand-soft: #17293a;
     --tw-accent: #dca071;
     --tw-accent-soft: #131e27;
+
+    --tw-logo-navy: #02365e;
+    --tw-logo-cream: #f6efe8;
+    --tw-logo-copper-deep: #864720;
+    --tw-logo-copper-light: #dca071;
 
     --tw-sidebar: #0a151e;
     --tw-sidebar-ink: #eaf2f8;

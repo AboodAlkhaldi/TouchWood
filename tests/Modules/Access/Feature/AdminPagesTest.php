@@ -111,6 +111,16 @@ describe('the admin sign-in screens', function () {
             ->assertSee('data-campaign="base"', false);
     });
 
+    it('names the logo on its navy tile as the tab\'s icon', function () {
+        // The owner's logo answers of 2026-10-04 (frontend.md §1.11): the shell links it, in place
+        // of the old, empty favicon.ico.
+        (new AdminBrowser('10.2.0.8'))->get('/admin/sign-in')
+            ->assertOk()
+            ->assertSee('<link rel="icon" type="image/svg+xml" href="/favicon.svg">', false);
+
+        expect(file_get_contents(public_path('favicon.svg')))->toContain('viewBox="0 0 100 100"');
+    });
+
     it('sends only the admin routes to an admin page, never the storefront\'s', function () {
         $page = (new AdminBrowser)->get('/admin/sign-in');
 

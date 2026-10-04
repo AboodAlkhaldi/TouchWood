@@ -444,7 +444,7 @@ and examples. Only when neither has it, show the owner what was searched and ask
 | 12 | Picking a saved address on the company form | **shadcn's field-choice-card**, each tile naming its store, no headings (b2b.md amendment 22(c)) |
 | — | The phone-number fields | No question: plain shadcn Inputs with a helper line; nothing is built |
 | — | The two-step phone change (number, then code) | No question: two forms of Input and Button, InputOTP for the code |
-| — | The TouchWood mark | No question: our own logo, an SVG |
+| — | The TouchWood mark | Our own logo, an SVG — the owner's files of 2026-10-04, drawn on a navy or a cream tile (§1.11, the owner's fix list) |
 
 - **Applied in the rebuild, each a Geist rule** (owner, 2026-10-03, from the overnight review):
   - a page header keeps **one main button** and puts the rest in a ⋯ menu, destructive last (Geist
@@ -526,6 +526,13 @@ and examples. Only when neither has it, show the owner what was searched and ask
   - **a file's size is written in the page's language and digits** ("٢٫٣ م.ب" on an Arabic page;
     the server's "2.3 MB" read "MB 2.3" there): the media library is sent the bytes, and counts in
     the sidebar and on the home page are written in the page's digits too (§1.8).
+  - **the logo** is the owner's files of 2026-10-04 — a frame and a fingerprint, drawn rather than
+    fetched: **a navy tile on dark surfaces** (the sidebar, navy in both themes, and dark mode;
+    the phone's home-screen icon) and **a cream tile on light ones** (the shop's header and the
+    sign-in pages in light mode), the frame in our copper, the colours theme tokens
+    (`--tw-logo-*`); the tab's icon is the navy tile as an SVG. The PNG sizes — for older browsers,
+    phones' home screens and emails — are the owner's own exports, added when they arrive. The
+    outlined file is for print and engraving; the glass tile of the pictures is not used.
 
 ---
 

@@ -163,6 +163,9 @@ it('folds the menu into business areas, opens the one being read, lets several s
         ->assertAttribute('[data-test="area-staff_and_permissions"]', 'aria-expanded', 'false')
         ->assertAttribute('[data-test="area-staff_and_permissions"]', 'data-active', 'true');
 
+    // The logo on its navy tile: the sidebar is navy in both themes (owner, 2026-10-04).
+    expect($page->script("getComputedStyle(document.querySelector('[data-logo=\"navy\"] rect')).fill"))->toBe('rgb(2, 54, 94)');
+
     // The sidebar's own bar is thin too: the width is set on every element, not inherited.
     expect($page->script("getComputedStyle(document.querySelector('[data-slot=\"sidebar-content\"]')).scrollbarWidth"))->toBe('thin');
 

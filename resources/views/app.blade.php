@@ -28,6 +28,11 @@
 
     <title inertia>{{ config('app.name') }}</title>
 
+    {{-- The tab's icon: the logo on its navy tile, readable on a light or a dark tab bar (owner's
+         logo answers, 2026-10-04). The PNG sizes for older browsers and phones' home screens join
+         it when the owner's exported files arrive. --}}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
     {{-- The design's fonts, downloaded at build time and served from this domain (decision of
          2026-09-19): no page asks a font service for anything. --}}
     @fonts

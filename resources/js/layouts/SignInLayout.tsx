@@ -33,9 +33,8 @@ export function SignInLayout({ title, subtitle, children }: Props) {
                 <div className="flex flex-col gap-4 p-6 md:p-10">
                     <div className="flex items-center justify-between gap-2">
                         <span className="flex items-center gap-2 font-medium">
-                            <span className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                                <Logo className="size-4" />
-                            </span>
+                            {/* Cream on a light page, navy on a dark one (owner, 2026-10-04). */}
+                            <Logo tone="auto" className="size-7" />
                             TouchWood
                         </span>
                         <LanguageToggle to="/admin/preferences" />
@@ -56,7 +55,7 @@ export function SignInLayout({ title, subtitle, children }: Props) {
                 {/* Decoration only, and never read out: everything it carries is said in words on
                     the other side. The block's photograph is our mark, until there is one. */}
                 <div aria-hidden="true" className="relative hidden bg-muted lg:flex lg:items-center lg:justify-center">
-                    <Logo className="size-40 text-primary/25" />
+                    <Logo className="size-40 text-primary opacity-25" />
                 </div>
             </div>
 
