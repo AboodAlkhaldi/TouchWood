@@ -60,6 +60,58 @@ return [
         'title' => 'Job cannot change',
         'detail' => 'This attribute has values, so its job stays as it is.',
     ],
+    'product_not_found' => [
+        'title' => 'Product not found',
+        'detail' => 'That product does not exist.',
+    ],
+    'variant_not_found' => [
+        'title' => 'Variant not found',
+        'detail' => 'That variant does not exist.',
+    ],
+    'code_taken' => [
+        'title' => 'Code already used',
+        'detail' => 'The code :code belongs to another product.',
+    ],
+    'duplicate_combination' => [
+        'title' => 'Variant already there',
+        'detail' => 'Another variant of this product has the same values. Restore it, or choose other values.',
+    ],
+    'attribute_set_locked' => [
+        'title' => 'Attribute set cannot change',
+        'detail' => 'This product has variants, so its attribute set stays as it is.',
+    ],
+    'category_not_lowest' => [
+        'title' => 'Choose a lower category',
+        'detail' => 'Products go only into a category with no sub-categories.',
+    ],
+    'category_holds_products' => [
+        'title' => 'Category holds products',
+        'detail' => 'This category holds products, so it takes no sub-category. Move the products first.',
+    ],
+    'brand_in_use' => [
+        'title' => 'Brand still in use',
+        'detail' => 'Products carry this brand. Move them to another brand first, or deactivate it.',
+    ],
+    'invalid_stage_change' => [
+        'title' => 'Not possible now',
+        'detail' => 'This is not possible at the product\'s current stage.',
+    ],
+    'attribute_set_in_use' => [
+        'title' => 'Set in use',
+        'detail' => 'Products with variants use this set, so its attributes stay. Rename it, or make a new set for new products.',
+    ],
+    'too_many' => [
+        'title' => 'Too many',
+        'detail' => 'At most :max :attribute.',
+    ],
+    'product_not_ready' => [
+        'title' => 'Product not ready',
+        'detail' => 'The product still needs some details before it can be shown. Fill them in, then try again.',
+    ],
+    'product_archived' => [
+        'title' => 'Product archived',
+        'detail' => 'This product is archived. Restore it before making it ready, or deleting it or one of its variants.',
+    ],
     'fields' => [
         'agency_type' => 'agency type',
         'attribute' => 'attribute',
@@ -90,5 +142,19 @@ return [
         'word_a' => 'first word',
         'word_b' => 'second word',
         'word_pair' => 'word pair',
+        'code' => 'code',
+        'details' => 'details',
+        'filter_values' => 'filter values',
+        'height_mm' => 'height',
+        'length_mm' => 'length',
+        'number' => 'number',
+        'photos' => 'photos',
+        'relations' => 'related products',
+        'search_words' => 'search words',
+        'text_ar' => 'Arabic text',
+        'text_en' => 'English text',
+        'values' => 'values',
+        'weight_grams' => 'weight',
+        'width_mm' => 'width',
     ],
 ];

@@ -21,7 +21,7 @@ use Shared\Application\PermissionScope;
  * shared list, so it takes that list's job with All stores, as editing it would, under the list's
  * lock, and each brand or category that lost its picture is audited.
  *
- * Product photos join with the products (step 3).
+ * Product and variant photos are `ProductPhotosUsage`'s.
  */
 final readonly class CatalogImagesUsage implements MediaUsage
 {

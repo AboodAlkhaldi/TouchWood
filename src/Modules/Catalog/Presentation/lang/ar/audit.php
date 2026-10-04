@@ -53,6 +53,28 @@ return [
     'warranty.activated' => 'أُعيد تفعيل ضمان',
     'warranty.deleted' => 'حُذف ضمان',
 
+    'product.added' => 'أُنشئ منتج',
+    'product.edited' => 'عُدّل منتج',
+    'product.deleted' => 'حُذفت مسودة منتج',
+
+    'product.made_ready' => 'جُعل المنتج جاهزًا',
+    'product.archived' => 'أُرشف منتج',
+    'product.restored' => 'أُعيد منتج من الأرشيف',
+    'variant.archived' => 'أُرشف نوع منتج',
+    'variant.restored' => 'أُعيد نوع منتج من الأرشيف',
+    'product.gallery_changed' => 'تغيّرت صور منتج',
+    'product.photo_detached' => 'أُزيلت صورة منتج مع ملفها',
+    'product.search_words_changed' => 'تغيّرت كلمات بحث منتج',
+    'product.filter_values_changed' => 'تغيّرت قيم تصفية منتج',
+    'product.relations_changed' => 'تغيّرت المنتجات المرتبطة',
+    'variant.photos_changed' => 'تغيّرت صور نوع منتج',
+    'variant.photo_detached' => 'أُزيلت صورة نوع منتج مع ملفها',
+
+    'variant.added' => 'أُضيف نوع منتج',
+    'variant.edited' => 'عُدّل نوع منتج',
+    'variant.deleted' => 'حُذف نوع من مسودة منتج',
+    'variant.code_corrected' => 'صُحّح رمز نوع منتج',
+
     'word_pair.added' => 'أُضيف مرادف بحث',
     'word_pair.deleted' => 'حُذف مرادف بحث',
 ];

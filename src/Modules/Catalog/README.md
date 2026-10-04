@@ -13,7 +13,7 @@ how the code is organised and why.
 **Being built** (from 2026-10-02), backend first, in seven steps: 1 foundation · 2 the shared lists
 · 3 products and variants · 4 each store's choice · 5 listing, search and the public contract ·
 6 the JSON import · 7 the module's own pass. The admin and storefront screens, with their endpoints,
-come after the Geist foundation. This file grows with each step. **Steps 1 and 2 are built.**
+come after the Geist foundation. This file grows with each step. **Steps 1, 2 and 3 are built.**
 
 ---
 
@@ -22,19 +22,22 @@ come after the Geist foundation. This file grows with each step. **Steps 1 and 2
 | Folder | What is in it |
 |---|---|
 | `Application/CatalogPermissions.php` | The twenty permissions of catalog.md §3, declared into Access's catalog at boot: seventeen jobs a role may hold, and three reserved to a Super Admin and the system |
-| `Application/Command` | One folder per change: a command and its handler, which names its `PERMISSION` and authorizes first. Step 2: the six shared lists and each store's order of the menu (below) |
+| `Application/Command` | One folder per change: a command and its handler, which names its `PERMISSION` and authorizes first. Step 2: the six shared lists and each store's order of the menu; step 3: products and variants (below) |
 | `Application/Lists` | What the lists' handlers share: `SharedListChange` (the permission with All stores, the transaction, the list's lock, the audit), the forms' parsing (`BrandInput`, `CategoryInput`, `AttributeInput`, `LabelInput`, `WarrantyInput`, `SetMembers`) and `CatalogImages` (a logo or photo must be a public image) |
-| `Application/Audit/ListAudit.php` | Every list change's audit entry, by value: `catalog.{list}.{what}` |
-| `Domain/Model` | Brand, Category, Attribute, AttributeValue, AttributeSet, Label, Warranty, WordPair — each keeps what one row can know; all but WordPair (added and deleted, never edited) keep a `ChangeLog` of what an edit changed |
-| `Domain/ValueObject` | Names in both languages, slugs, the structured text of descriptions and terms, list positions, a label's look (`LabelTone`, the Badge's ten), a warranty's period |
+| `Application/Products` | What the product handlers share: `ProductAccess` (who may change a product's shared data), `ProductReferences` (the list rows a product points at, row-locked), `ProductInput`, `VariantInput` and `ProductParts` (the forms' parsing), `Readiness` and `ReadyPhotos` (what a product needs to be shown) |
+| `Application/Events/ProductEvents.php` | The eight events of catalog.md §6.1, sent from inside a change and delivered after it commits |
+| `Application/Audit/ListAudit.php` | Every list and product change's audit entry, by value: `catalog.{subject}.{what}` |
+| `Domain/Model` | Brand, Category, Attribute, AttributeValue, AttributeSet, Label, Warranty, WordPair, Product, Variant — each keeps what one row can know; all but WordPair (added and deleted, never edited) keep a `ChangeLog` of what an edit changed |
+| `Domain/ValueObject` | Names in both languages, slugs, the structured text of descriptions and terms, list positions, a label's look (`LabelTone`, the Badge's ten), a warranty's period; a product's name (Arabic required, English optional) and slugs, a code (`ProductCode`), a variant's combination, details and measures, search words |
 | `Domain/Service/ArabicText.php` | Arabic as search compares it (handoff §5.2): marks off, alef and yeh forms folded, digits Latin, lower case |
-| `Domain/Exception` | `CatalogError` and the fourteen refusals of step 2, named in both languages in `lang/{ar,en}/errors.php` |
-| `Domain/Repository` | The lists' repositories and `ListLocks` |
+| `Domain/Exception` | `CatalogError`, the fourteen refusals of step 2 and the thirteen of step 3, named in both languages in `lang/{ar,en}/errors.php` |
+| `Domain/Repository` | The lists', the products' and the variants' repositories, and `ListLocks` |
 | `Infrastructure/Eloquent` | The repositories on the query builder; `SlugHistory`; `DatabaseListLocks`; Catalog's own `Ulids` (amendment 1(h)) |
-| `Infrastructure/Media/CatalogImagesUsage.php` | Brand logos and category photos as Platform media (below) |
-| `Infrastructure/Persistence` | `CatalogSchema` (step 1) and the migrations: step 2's lists, every rule one row can hold backed by a named CHECK, index or key |
+| `Infrastructure/Media` | `CatalogImagesUsage`: brand logos and category photos as Platform media; `ProductPhotosUsage`: product and variant photos (below) |
+| `Infrastructure/Persistence` | `CatalogSchema` (step 1) and the migrations: step 2's lists, step 3's products, variants and their parts — every rule one row can hold backed by a named CHECK, index or key |
 | `Presentation/lang/{ar,en}` | The permissions' names, the errors, and the audit log's name for every action |
-| `Public/Enums` | `AttributeKind`, `AgencyType` — and so their TypeScript types |
+| `Public/Enums` | `AttributeKind`, `AgencyType`, `ProductStage` — and so their TypeScript types |
+| `Public/Events` | `ProductMadeReady`, `ProductArchived`, `ProductRestored`, `ProductChanged`, `VariantAdded`, `VariantArchived`, `VariantRestored`, `VariantCodeCorrected`: ids only |
 
 ## How it is built
 
@@ -54,8 +57,8 @@ with `PermissionScope::allStores()`: only a Super Admin or someone given the job
 changes it. `CatalogPermissions::sharedLists()` names those six.
 
 **Which step brings which handler:** step 2 the six shared-list jobs and `catalog.category.rank`;
-step 3 `product.create`, `product.update`, `variant.correct_code`, `product.publish`,
-`product.archive`, `product.view`; step 4 `listing.choose`, `listing.selling`, `listing.unavailable`
+step 3 `product.create`, `product.update`, `variant.correct_code`, `product.publish` and
+`product.archive`; `product.view`'s reads come with the screens, as the lists' do; step 4 `listing.choose`, `listing.selling`, `listing.unavailable`
 and `listing.labels`; step 5 `listing.rebuild` and `search_log.prune`; step 6 `import.run`.
 
 ### The shared lists (step 2)
@@ -77,9 +80,11 @@ transaction, none when nothing changed.
 | Warranties | Name and formatted terms in both languages, 1–600 months or for life |
 | Word pairs | Kept as search compares words, in byte order, once whichever way they were typed; added and deleted, never edited. The ordering CHECK compares with `COLLATE "C"`: the database's language order ignores spaces and hyphens and would refuse pairs the code accepts |
 
-**What waits for the products.** "Holds a product" (deleting a category, a brand, a warranty, a
-value), "a category with products takes no sub-category", and each product's fate when its category
-or brand is deactivated join with the products in steps 3 and 4; each handler's comment says which.
+**What the products changed (step 3).** A list item a product or variant uses is not deleted
+(`BrandInUse`, `CategoryNotEmpty`, `ListItemInUse`); a category holding products takes no
+sub-category and moves under none (`CategoryHoldsProducts`); a set that variants are built on keeps
+its members (`AttributeSetInUse`); an attribute's job stays once variants carry details of it.
+**What waits for step 4:** each product's fate when its category or brand is deactivated.
 
 **Photos as Platform media.** A brand's logo and a category's photo must be public images.
 `CatalogImagesUsage` reports them to Platform as uses that never block a delete: deleting the file
@@ -89,6 +94,62 @@ anyone else is refused and nothing changes.
 
 **A store opened later** starts with no order of its menu: its admins set it (owner, amendment
 2(b)). A category added after it opened gets its place there as everywhere else.
+
+### Products and variants (step 3)
+
+**One change, one shape**, the lists' (`SharedListChange::run`), under the products' own lock,
+`catalog:products`: a product's codes and slugs are decided across products under it. **No lock
+cycle with the lists:** a product change reads the list rows it points at with a row lock
+(`ProductReferences`), and a list's change locks the same row before it asks "is it in use?" but
+never takes the products' lock — so a brand deleted while a product takes it is either seen gone,
+or sees the product. Where a change locks an attribute and one of its values, **the attribute comes
+first**, on both sides. And a product change writes no row whose key would lock a row it has not
+locked itself: archiving a variant writes the variant's row alone, and a photo that stays in a
+gallery is moved, never written again — deleting its file holds the media row while it waits for
+the products' lock.
+
+**Who may.** `ProductAccess` asks for the permission in every store where the product is Active
+(catalog.md §1.1). Stores choose products from step 4, so for now every product is Active nowhere,
+and the question is "this permission in some store". Creating checks the creator's working store,
+which must be on (amendment 3(j)).
+
+| Handler | Permission | What it keeps |
+|---|---|---|
+| `CreateProduct`, `EditProductDetails` | `product.create`, `product.update` | Arabic name required, English optional in a draft (amendment 3(g)); slugs made from the names, held while the product exists; what it newly points at is active, a category the lowest of its branch; the attribute set fixed once it has a variant |
+| `AddVariant`, `UpdateVariant`, `DeleteDraftVariant` | `product.update` | One active value of every attribute of the set, in the set's order — a combination no other variant of the product has, archived ones included; details and measures; a code changed here only in a draft |
+| `CorrectVariantCode` | `variant.correct_code` | Every variant of the product carrying the code takes the new one |
+| `SetProductGallery`, `SetVariantPhotos`, `SetSearchWords`, `SetFilterValues`, `SetRelations` | `product.update` | Public images in order (20 and 10); search words (30, each once as search reads it); values of filter attributes (amendment 3(a)); related products that are ready, at most 20 (amendment 3(d)) |
+| `MarkProductReady`, `ArchiveProduct`, `RestoreProduct` | `product.publish`, `product.archive` | Ready only with every rule met; restored to the stage it left (`archived_from`) — to ready only the same way (amendment 3(m)) |
+| `ArchiveVariant`, `RestoreVariant` | `product.update` | A variant retired instead of deleted once the product is ready |
+| `DeleteDraftProduct` | `product.archive` | Only a draft is deleted (amendment 3(h)) — whole, its slugs and codes free again |
+
+**Codes** (amendment 3(e)). Digits only, 1 to 10, kept as text so a leading zero stays.
+`product_codes` holds every code a product ever held, the code its key: a code is never given to
+another product while its holder exists. Sizes of one product may share a code, as the owner's
+sheet does. A code leaves a product only when a draft is deleted, or when a product never ready —
+a draft, archived or not — gives it up (amendment 3(c), (m)); the
+variants' key to `product_codes` is `NO ACTION`, so deleting a draft cascades through both without
+the key refusing midway.
+
+**Readiness** (`Readiness`, catalog.md §1.1). A product is shown only with its English name (and so
+its English slug), the description in both languages, an active lowest category, a variant not
+archived, and a gallery photo whose sizes are ready. A ready product keeps every rule: a change that
+would take one away is refused, naming what it would leave missing (`ProductNotReady`) — except
+that **a category deactivated after it was placed there stays** (amendment 3(m)). **An archived
+product may be edited**, so it can be made whole, and is restored to the stage it left; while
+archived it is not made ready, deleted, nor are its variants deleted (`ProductArchived`). The
+database holds the category and the English name **while ready** (`products_category_when_ready`,
+`products_english_when_ready`): a draft abandoned is archived as it is (amendment 3(l)).
+
+**Product and variant photos.** `ProductPhotosUsage` reports them to Platform. Deleting a photo's
+file takes it out of the gallery or the variant's photos, audited, and the product is
+`ProductChanged` — **except the last ready photo of a ready product**, which blocks the delete
+(amendment 3(b)). The blocking question is asked again under the products' lock, since the product
+may have been made ready in between.
+
+**Events** (catalog.md §6.1): ids only, implementing `ShouldDispatchAfterCommit`, so a change that
+rolls back sends none. **Only for a product that has been ready** (`Product::hasBeenReady`,
+amendment 3(m)): a draft, and a draft archived when abandoned, is Catalog's alone.
 
 **The schema.** `catalog`, on `config/database.php`'s search path so `migrate:fresh` wipes it; the
 first migration also creates `pg_trgm`, which the search's nearness ranking needs (catalog.md
@@ -113,12 +174,21 @@ public surface never references Access.
 | `Integration/CatalogSmallListsTest` | Labels, warranties and word pairs, including a pair the database's language order would sort the other way |
 | `Integration/CatalogImagesUsageTest` | Deleting a logo or photo's file: detached and audited, or refused with nothing changed |
 | `Integration/CatalogAuditNamesTest` | Every action the code records is named in both languages, and nothing else is |
-| `Integration/CatalogListGuardsTest` | For every one of the forty list changes: its list's lock is the first query inside its own transaction; an id not in its list is answered as not found; a change that changes nothing writes nothing to the lists and records nothing; and what the audit log keeps reads from what was to what is |
+| `Integration/CatalogProductsTest` | Creating and editing a product: who may, the working store on, names and slugs, what it points at, the set fixed once it has a variant, deleting a draft, the database's CHECKs |
+| `Integration/CatalogVariantsTest` | Combinations, details and measures; codes held, shared by sizes, taken, freed by a draft and corrected on every variant carrying them |
+| `Integration/CatalogListsInUseTest` | A list item a product or variant uses: not deleted, a category's sub-categories, a set's members, an attribute's job |
+| `Integration/CatalogProductPartsTest` | Gallery and variant photos, search words, filter values, relations; a photo's file deleted from the media library |
+| `Integration/CatalogProductStagesTest` | Making ready, archiving and restoring a product and a variant; a ready product keeping every rule; each change's own job; the events; what the audit log keeps |
+| `Integration/CatalogProductConstraintsTest` | The products' named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code |
+| `Integration/CatalogListGuardsTest` | For every one of the fifty-seven list and product changes: its lock is the first query inside its own transaction; an id not in its list is answered as not found; a change that changes nothing writes nothing and records nothing; and what the audit log keeps reads from what was to what is |
 | `Integration/CatalogListConstraintsTest` | The database's named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code; an id that is not a ULID never reaching the database |
 | `Unit/CatalogListLocksTest` | A list's lock is refused outside a transaction |
+| `Unit/CatalogProductTest` | A product archived remembers the stage it left — archived twice or not — and restoring goes back there |
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 
-`CatalogListGuardsTest` records every query to check each change takes its list's lock first, inside
-its own transaction (level 2 under `RefreshDatabase`). Run everything with `composer check`.
+`CatalogListGuardsTest` records every query to check each change takes its lock first, inside its
+own transaction (level 2 under `RefreshDatabase`); `CatalogFixtures::lockedTables` reads from the
+same record which rows a change locked, in order. `Support/CatalogProducts` makes the products,
+variants and the lists they use, as the system. Run everything with `composer check`.
 The test database is `touchwood_test`.

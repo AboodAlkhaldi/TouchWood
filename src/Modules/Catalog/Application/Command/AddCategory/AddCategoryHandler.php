@@ -9,6 +9,7 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Lists\CatalogImages;
 use Modules\Catalog\Application\Lists\CategoryInput;
 use Modules\Catalog\Application\Lists\SharedListChange;
+use Modules\Catalog\Domain\Exception\CategoryHoldsProducts;
 use Modules\Catalog\Domain\Exception\CategoryInactive;
 use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
@@ -21,8 +22,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Adding a category** (catalog.md §1.5), under `catalog.category.manage` with All stores: the tree
- * is every store's. Its parent must be active. "A category that holds products takes no
- * sub-category" joins the refusals with the products (step 3); until then no category holds one.
+ * is every store's. Its parent must be active, and **hold no product**: products sit at the end of
+ * the tree (`CategoryHoldsProducts`).
  */
 final readonly class AddCategoryHandler
 {
@@ -38,7 +39,7 @@ final readonly class AddCategoryHandler
     /**
      * @return string the new category's id
      *
-     * @throws CategoryInactive|CategoryNotFound|InvalidCatalogAttribute|SlugTaken|Unauthorized
+     * @throws CategoryHoldsProducts|CategoryInactive|CategoryNotFound|InvalidCatalogAttribute|SlugTaken|Unauthorized
      */
     public function handle(AddCategory $command): string
     {
@@ -51,6 +52,7 @@ final readonly class AddCategoryHandler
             // Inside, so a retried attempt asks again: the file may have been deleted meanwhile.
             $image = $this->images->check('image_media_id', $command->imageMediaId);
             $parentId = $this->input->parent($command->parentId);
+            $this->input->requireNoProducts($parentId);
             $this->input->requireFreeSlugs($slugs);
 
             $category = Category::add($id, $parentId, $name, $slugs, $image);

@@ -35,7 +35,19 @@ final readonly class SlugHistory
      */
     public function record(string $ownerId, Slugs $slugs): void
     {
-        foreach (['ar' => $slugs->ar->value, 'en' => $slugs->en->value] as $locale => $slug) {
+        $this->recordLocales($ownerId, ['ar' => $slugs->ar->value, 'en' => $slugs->en->value]);
+    }
+
+    /**
+     * As record(), for an owner that may lack a locale's slug — a draft product named in Arabic only
+     * (catalog.md amendment 3(g)). A locale given as null has no current slug: the ones it held stay
+     * held, so an English name taken away from a draft leaves its English address to no one else.
+     *
+     * @param  array<string, string|null>  $slugs  locale => slug
+     */
+    public function recordLocales(string $ownerId, array $slugs): void
+    {
+        foreach ($slugs as $locale => $slug) {
             $current = $this->db->table($this->table)->where($this->owner, $ownerId)->where('locale', $locale)->where('is_current', true)->value('slug');
 
             if ($current === $slug) {
@@ -43,6 +55,10 @@ final readonly class SlugHistory
             }
 
             $this->db->table($this->table)->where($this->owner, $ownerId)->where('locale', $locale)->update(['is_current' => false]);
+
+            if ($slug === null) {
+                continue;
+            }
 
             $held = $this->db->table($this->table)->where($this->owner, $ownerId)->where('locale', $locale)->where('slug', $slug)->exists();
 

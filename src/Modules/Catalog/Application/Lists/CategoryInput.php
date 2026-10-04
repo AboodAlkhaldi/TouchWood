@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application\Lists;
 
+use Modules\Catalog\Domain\Exception\CategoryHoldsProducts;
 use Modules\Catalog\Domain\Exception\CategoryInactive;
 use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Model\Category;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Domain\ValueObject\Slugs;
@@ -24,6 +26,7 @@ final readonly class CategoryInput
 {
     public function __construct(
         private CategoryRepository $categories,
+        private ProductRepository $products,
         private PlatformApi $platform,
     ) {}
 
@@ -72,6 +75,20 @@ final readonly class CategoryInput
         }
 
         return $parent->id();
+    }
+
+    /**
+     * Products sit at the end of the tree (§1.5): a category holding one takes no sub-category. Asked
+     * after the parent's row is locked by parent(), which a product's change locks too before
+     * putting a product in it.
+     *
+     * @throws CategoryHoldsProducts
+     */
+    public function requireNoProducts(?string $parentId): void
+    {
+        if ($parentId !== null && $this->products->anyInCategory($parentId)) {
+            throw new CategoryHoldsProducts;
+        }
     }
 
     /**

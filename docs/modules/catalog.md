@@ -59,16 +59,17 @@ for every store. **Every product has at least one variant**; a simple product ha
 | Attribute | Invariant |
 |---|---|
 | `id` | ULID. |
-| `name` | Arabic and English. **[ACCEPTED 2026-10-02, §9.3 #2]** One line, at most 200 characters each. |
+| `name` | Arabic and English. **[ACCEPTED 2026-10-02, §9.3 #2]** One line, at most 200 characters each. **A draft may have its Arabic name only**; the English name — and so the English slug — is required to be made ready: every product shown has both (owner, 2026-10-03, amendment 3(g)). |
 | `slug` | **One Arabic slug and one English slug, used in every store** **[DECIDED 2026-10-02]** — replacing handoff §4.1's "slugs are store-scoped", which disagreed with §9.1. Arabic letters for `ar`, Latin for `en` (handoff §5.2). Unique per language among products. Every slug the product has ever had is kept, so an old address answers with a 301 (handoff §5.2) **[ACCEPTED 2026-10-02, §9.3 #3]**. |
 | `description` | Arabic and English. **Simple formatting** **[DECIDED 2026-10-02]**: paragraphs, bullet lists, bold and headings, kept as safe structured text — no raw HTML is stored, so nothing typed can run as a script. **[ACCEPTED 2026-10-02, §9.3 #4]** at most 20,000 characters each. |
 | `brand_id` | **Exactly one brand, never none** (handoff §9.4, NOT NULL; **[DECIDED 2026-10-02]**: "no products with no brand"). The form starts on the default brand (§1.6). An inactive brand cannot be chosen. |
-| `category_id` | **Exactly one category** **[DECIDED 2026-10-02]**, and only a category with no sub-categories (§1.5). Empty while the product is a draft; required to leave `DRAFT`. |
+| `category_id` | **Exactly one category** **[DECIDED 2026-10-02]**, and only a category with no sub-categories (§1.5). Empty while the product is a draft; required to leave `DRAFT`. **A ready product keeps a category deactivated after it was placed there**; making a product ready, restoring it or moving it still needs an active one (owner, 2026-10-04, amendment 3(m)). |
 | `warranty_id` | **At most one warranty**, from the list (§1.9) **[DECIDED 2026-10-02]**, the same in every store. |
 | `stage` | `DRAFT`, `READY` or `ARCHIVED` (§4.1) — **one for the product everywhere** **[DECIDED 2026-10-02]**. Each store's own on/off is its choice (§1.3). |
-| `search_words` | **Extra words staff type to help search** **[DECIDED 2026-10-02]**, in either language ("slide", "rail"). **[ACCEPTED 2026-10-02, §9.3 #5]** at most 30 words, each one line of at most 50 characters. |
-| gallery | **An ordered gallery of photos** (Platform public media) **[DECIDED 2026-10-02]**. **[ACCEPTED 2026-10-02, §9.3 #6]** at most 20. |
-| relations | **Hand-picked "Related"** and **hand-picked "Goes with"** products, each ordered **[DECIDED 2026-10-02]** (§1.10). |
+| `search_words` | **Extra words staff type to help search** **[DECIDED 2026-10-02]**, in either language ("slide", "rail"). **[ACCEPTED 2026-10-02, §9.3 #5]** at most 30 words, each one line of at most 50 characters. A word typed twice, or two spellings search reads as one ("مفصلة", "مفصله"), is kept once, quietly (amendment 3(f)). |
+| gallery | **An ordered gallery of photos** (Platform public media) **[DECIDED 2026-10-02]**. **[ACCEPTED 2026-10-02, §9.3 #6]** at most 20, each photo once. Deleting a photo's file from the media library takes it out of the gallery, audited — except **the last ready photo of a `READY` product, whose delete is refused** (owner, 2026-10-03, amendment 3(b)). |
+| relations | **Hand-picked "Related"** and **hand-picked "Goes with"** products, each ordered **[DECIDED 2026-10-02]** (§1.10). **Only `READY` products can be picked**, at most 20 in each list; one archived later stays linked and is not shown (owner, 2026-10-03, amendment 3(d)). |
+| filter values | **Values of filter attributes, set on the product** for all its variants, **several for one attribute allowed** ("Suitable for: Kitchen, Bathroom"); each variant's variant-making values count as filters too (owner, 2026-10-03, amendment 3(a)). |
 
 **Leaving `DRAFT`** (becoming `READY`) needs **[DECIDED 2026-10-02]**: the name and the slug in both
 languages (handoff §5.2), the description in both languages, a brand, a category, at least one
@@ -95,8 +96,8 @@ One purchasable configuration of a product: a length, a finish.
 |---|---|
 | `id` | ULID. |
 | `product_id` | Its product; never moves to another. |
-| `code` | **The only identifier of a variant** **[DECIDED 2026-10-02]**: it is the SKU customers see on the technical list, the provider's code (handoff §9.1, §12.2), and the import's key. **Unique across every variant of every product** — "no two products will hold the same code even if they were the same product but a different variant" (owner) — **ignoring letter case**, and **never used again**, archived or not **[DECIDED 2026-10-02]**. **Staff may correct a mistyped code** under its own permission, audited; the next provider pull and the next import then match the corrected code; an order keeps the code it was placed with (Sales snapshots it). **[ACCEPTED 2026-10-02, §9.3 #8]** one line, 1 to 64 characters of letters, digits, spaces and `- . _ /`, compared after trimming; **a corrected (mistyped) code stays taken** too: a code that ever named a variant is never given to another. |
-| attribute values | One value for each variant-making attribute of the product's attribute set (§1.7), and its informational values. **No two variants of one product have the same combination.** |
+| `code` | The SKU customers see on the technical list, the provider's internal reference (handoff §9.1, §12.2), and the import's key. **Digits only, 1 to 10 of them** (owner, 2026-10-03, amendment 3(j)), kept as text, compared after trimming (owner, 2026-10-03: "they are numbers only", "they will still be numbers only"). **A code belongs to one product: its variants may share it — the same drawer in 60, 80 and 90 cm, as the provider holds them — or have codes of their own; two products never share a code**, and every code a product's variants ever held — a corrected typo included — **stays with that product until the product is deleted**, which only a draft can be (§4.1); then it is free again (owner, 2026-10-03, amendment 3(e), replacing "unique across every variant … never used again" of 2026-10-02). **Staff may correct a mistyped code** under its own permission, audited: the correction changes it on every variant of the product that holds it. **In a draft**, a variant's code is edited, and a variant deleted, with the product's own permission, and a code given up is free again (amendment 3(c)). An order keeps the code it was placed with (Sales snapshots it). |
+| attribute values | One value for each variant-making attribute of the product's attribute set (§1.7), and its informational values. **No two variants of one product have the same combination.** **They stay editable, a `READY` product's too** (owner, 2026-10-03, amendment 3(j)); an order keeps the values it was placed with (Sales snapshots them). |
 | `weight`, `length`, `width`, `height` | **Physical facts, per variant, in Catalog** **[DECIDED 2026-10-02]**, optional now; Shipping reads them and decides later what it requires. **[ACCEPTED 2026-10-02, §9.3 #9]** whole grams and whole millimetres, each 1 to 1,000,000. |
 | photos | **Its own ordered photos**, shown when the variant is chosen, falling back to the product's gallery **[DECIDED 2026-10-02]**. They hang off the variant, not its code, so correcting a code leaves them in place. **[ACCEPTED 2026-10-02, §9.3 #6]** at most 10. |
 | `is_archived` | **A variant can be archived on its own**, product-wide (a discontinued length), and **restored** **[DECIDED 2026-10-02]**. Archiving makes it Inactive in every store. Its code stays taken. |
@@ -129,8 +130,8 @@ show each store's status … from there we can activate, deactivate or deal with
 can't edit a product at the Egypt store". **Each store's row is changed only by someone holding the
 permission in that store.**
 
-**Archiving a product** makes it Inactive in every store; **restoring it** brings it back `READY`,
-Inactive everywhere **[DECIDED 2026-10-02]**.
+**Archiving a product** makes it Inactive in every store; **restoring it** brings it back to the
+stage it left — `READY` if it was ready — Inactive everywhere **[DECIDED 2026-10-02]**, amendment 3(m).
 
 **Out of stock is never shown** (handoff §9.2). Until Inventory exists (stage 5), "orderable now" in a
 store means: the product `READY`, the variant Active there and not archived, and neither the variant
@@ -176,7 +177,8 @@ name, photo and description, no Add to Cart, hidden from search engines (noindex
   it, staff choose** — with an "apply to all" shortcut — to **hide** it (no longer listed, searched or
   suggested; a direct link shows "Not available now"; activating the category brings it back), to
   **leave** it (it keeps the inactive category, so it still has exactly one, unlisted but reachable),
-  or to **move** it to another active lowest category. The whole deactivation is **one step: all of
+  or to **move** it to another active lowest category. A product left, or hidden with its category,
+  is still edited as before (owner, 2026-10-04, amendment 3(m)). The whole deactivation is **one step: all of
   it happens, or none of it**, and each product's change is audited.
 - **Deleting a category** **[DECIDED 2026-10-02]**: only one that holds no product (in any stage) and
   no sub-category; otherwise refused until they are moved. Its addresses are freed with it: another
@@ -224,7 +226,8 @@ Global, one row per brand (handoff §9.4): `slug` (one per language **[DECIDED 2
 - A **colour** attribute's values carry a **swatch** — the design's **Colours** library.
 - An **attribute set** — the design's **Variations**, "attribute sets, measurement and finish, that
   generate variants" — is a named group of variant-making attributes. A product takes one set; its
-  variants are the combinations of values staff pick from those attributes.
+  variants are the combinations of values staff pick from those attributes. **Its attributes stay
+  while any variant is built on it**; its name may still change (amendment 3(k)).
 - **Price is per combination, never additive**, and **the server resolves the variant** from the values
   a shopper picks; the frontend never does (handoff §9.1).
 - **[ACCEPTED 2026-10-02, §9.3 #13]** informational values: per variant, as text in both languages or a number with the
@@ -310,7 +313,7 @@ to need, from the handoff:
 | Method | For |
 |---|---|
 | `variant(string $variantId): ?VariantDto` | Pricing, Inventory, Sales, Shipping — the code, the product, the attribute values, weight and dimensions |
-| `variantByCode(string $code): ?VariantDto` | Sync (the provider's codes, ignoring letter case), the import's later sections |
+| `variantsByCode(string $code): list<VariantDto>` | Sync (the provider's codes), the import's later sections — every variant holding the code, all of one product (amendment 3(e)); telling one size from another by the provider's data is open for stage 5 (§9.2 #6) |
 | `product(string $productId): ?ProductDto` | Sales (snapshot), Feedback, Content |
 | `storeVariant(StoreId $store, string $variantId): ?StoreVariantDto` | Sales: in that store, whether the variant is Active and orderable (§1.3), "Not available now" (its own or its product's), its selling modes, and its product's minimums and maximums for each mode |
 | `resolveVariant(string $productId, array $valueIds): ?string` | Sales: the variant a shopper's picked values name (handoff §9.1) |
@@ -362,7 +365,7 @@ none is admin-only. **The shared lists use one permission each.** Names below ar
 
 | Use case | Permission | Scope |
 |---|---|---|
-| `CreateProduct` — a draft, Active nowhere | `catalog.product.create` | The staff member's working store |
+| `CreateProduct` — a draft, Active nowhere | `catalog.product.create` | The staff member's working store, which must be on (amendment 3(j)) |
 | `UpdateProduct` — names, slugs, description, brand, category, warranty, search words, gallery, relations; `AddVariant`, `UpdateVariant`, `ArchiveVariant`, `RestoreVariant` | `catalog.product.update` | **Every store where the product is Active**; any store when it is Active nowhere |
 | `CorrectVariantCode` | `catalog.variant.correct_code` | As `UpdateProduct` |
 | `MarkProductReady` | `catalog.product.publish` | As `UpdateProduct` |
@@ -394,14 +397,21 @@ Every change is audited (Platform), **by value**: product data names no person.
 |---|---|---|
 | (none) | `CreateProduct` | `DRAFT` |
 | `DRAFT` | `MarkProductReady` — every §1.1 requirement met | `READY` |
+| `DRAFT` | `ArchiveProduct` — abandoned | `ARCHIVED` |
 | `READY` | `ArchiveProduct` — Inactive in every store | `ARCHIVED` |
-| `ARCHIVED` | `RestoreProduct` — Inactive everywhere | `READY` |
+| `ARCHIVED` | `RestoreProduct` — back to the stage it was archived from; to `READY` only with every §1.1 requirement met, Inactive everywhere | `DRAFT` or `READY` |
 
 **[ACCEPTED 2026-10-02, §9.3 #19]** no way from `READY` back to `DRAFT` (a store hides a product by making it
 Inactive), and a `DRAFT` is archived or deleted when abandoned. **[ACCEPTED 2026-10-02, §9.5 #2]** Deleting a draft
 (`DeleteDraftProduct`, under `catalog.product.archive`) removes it whole, with its variants, photos'
-links and slugs: it was never shown or sold, so its slugs and codes become free again — the one
-exception to "a code is never given to another variant".
+links and slugs: it was never shown or sold, so its slugs and codes become free again. A draft also
+lets go of a code none of its variants carries any more (amendment 3(c)); otherwise a code stays with
+the product that held it (amendment 3(e)).
+
+**An archived product is shown nowhere but may still be edited**, so it can be made whole before it
+is restored; while archived it is not made ready, not deleted, and its variants are not deleted —
+it is restored first. Restoring brings it back to the stage it left, so making an abandoned draft
+ready stays `catalog.product.publish`'s (owner, 2026-10-04, amendment 3(m)).
 
 ### 4.2 A variant in a store
 
@@ -430,15 +440,16 @@ relations, variants and theirs) are removed with it — which happens only when 
 
 | Table | Columns |
 |---|---|
-| `catalog.products` | `id` PK · `name_ar`, `name_en` `varchar(200)` NOT NULL · `description_ar`, `description_en` `jsonb` NULL — the structured text (§1.1), each at most 20,000 characters of text, CHECK `jsonb_typeof = 'object'` · `brand_id` FK → `brands` RESTRICT NOT NULL · `category_id` FK → `categories` RESTRICT NULL — CHECK `products_category_unless_draft` (present unless `DRAFT`) · `warranty_id` FK → `warranties` RESTRICT NULL · `attribute_set_id` FK → `attribute_sets` RESTRICT NULL · `stage` `varchar(16)` CHECK (`DRAFT`, `READY`, `ARCHIVED`) · `hidden_by_category`, `hidden_by_brand` `boolean` NOT NULL DEFAULT false — set when a deactivation chose "hide" (§1.5, §1.6), cleared when it is undone or the product moves · timestamps |
+| `catalog.products` | `id` PK · `name_ar` `varchar(200)` NOT NULL · `name_en` `varchar(200)` NULL — present while `READY`, CHECK `products_english_when_ready` (amendment 3(g), (l)) · `description_ar`, `description_en` `jsonb` NULL — the structured text (§1.1), each at most 20,000 characters of text, CHECK `jsonb_typeof = 'object'` · `brand_id` FK → `brands` RESTRICT NOT NULL · `category_id` FK → `categories` RESTRICT NULL — CHECK `products_category_when_ready` (present while `READY`: a draft abandoned is archived as it is, §9.3 #19; amendment 3(l)) · `warranty_id` FK → `warranties` RESTRICT NULL · `attribute_set_id` FK → `attribute_sets` RESTRICT NULL · `stage` `varchar(16)` CHECK (`DRAFT`, `READY`, `ARCHIVED`) · `archived_from` `varchar(16)` NULL — the stage it was archived from, `DRAFT` or `READY`, set exactly while `ARCHIVED` (CHECK `products_archived_from`, amendment 3(m)) · `hidden_by_category`, `hidden_by_brand` `boolean` NOT NULL DEFAULT false — set when a deactivation chose "hide" (§1.5, §1.6), cleared when it is undone or the product moves · timestamps |
 | `catalog.product_slugs` | (`locale` `char(2)`, `slug` `varchar(200)`) PK — **every slug ever used**, so none is given to another product · `product_id` FK CASCADE · `is_current` — exactly one current per product and locale (partial unique `product_slugs_one_current`) · CHECK the slug's letters: Arabic letters, digits and `-` for `ar`; `a-z`, digits and `-` for `en` |
 | `catalog.product_search_words` | (`product_id` FK CASCADE, `normalized` `varchar(50)`) PK · `word` `varchar(50)` — as typed; at most 30 per product (code rule) |
 | `catalog.product_photos` | (`product_id` FK CASCADE, `media_id` FK → `platform.media` RESTRICT) PK · `position` — at most 20 per product (code rule) |
 | `catalog.product_relations` | (`product_id` FK CASCADE, `related_id` FK → `products` RESTRICT, `kind`) PK — `kind` CHECK (`RELATED`, `GOES_WITH`) · `position` · CHECK `product_id <> related_id` |
-| `catalog.variants` | `id` PK · `product_id` FK CASCADE · `code` `varchar(64)` NOT NULL — trimmed, CHECK `variants_code_format` · `combination` `varchar(600)` — the variant's value ids in attribute order; unique (`product_id`, `combination`) `variants_one_per_combination`, archived ones included · `weight_grams`, `length_mm`, `width_mm`, `height_mm` `integer` NULL, each CHECK 1–1,000,000 · `is_archived` · `position` · timestamps |
-| `catalog.variant_codes` | `code_key` `varchar(64)` PK — `lower(code)`: **every code a variant ever held**, so a code is never given to another variant (§1.2) · `variant_id` FK CASCADE · `is_current` — exactly one current per variant (partial unique) |
-| `catalog.variant_values` | (`variant_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `value_id` FK → `attribute_values` RESTRICT — the value belongs to that attribute (code rule) |
-| `catalog.variant_details` | (`variant_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `text_ar`, `text_en` `varchar(200)` NULL · `number` `numeric(12,3)` NULL — either both texts or the number (CHECK `variant_details_one_kind`) |
+| `catalog.variants` | `id` PK · `product_id` FK CASCADE · `code` `varchar(10)` NOT NULL — digits only, CHECK `variants_code_format`; FK (`product_id`, `code`) → `product_codes` (amendment 3(e)) · `combination` `varchar(600)` — the variant's value ids in attribute order; unique (`product_id`, `combination`) `variants_one_per_combination`, archived ones included · `weight_grams`, `length_mm`, `width_mm`, `height_mm` `integer` NULL, each CHECK 1–1,000,000 · `is_archived` · `position` · timestamps |
+| `catalog.product_codes` | `code` `varchar(10)` PK — **every code the product's variants ever held**, so a code is never given to another product while this one exists (§1.2, amendment 3(e)) · `product_id` FK CASCADE · unique (`product_id`, `code`) for the variants' key |
+| `catalog.product_filter_values` | (`product_id` FK CASCADE, `value_id` FK → `attribute_values` RESTRICT) PK · `attribute_id` FK RESTRICT — a filter attribute's value (code rule), belonging to that attribute: FK (`attribute_id`, `value_id`) → `attribute_values` (`attribute_id`, `id`) `product_filter_values_value` (amendment 3(a)) |
+| `catalog.variant_values` | (`variant_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `value_id` — FK (`attribute_id`, `value_id`) → `attribute_values` (`attribute_id`, `id`) RESTRICT `variant_values_value`: the value belongs to that attribute |
+| `catalog.variant_details` | (`variant_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `text_ar`, `text_en` `varchar(200)` NULL · `number` `numeric(12,3)` NULL — either both texts or the number (CHECK `variant_details_one_kind`), a text present and on one line (CHECK `variant_details_text_present`) |
 | `catalog.variant_photos` | (`variant_id` FK CASCADE, `media_id` FK → `platform.media` RESTRICT) PK · `position` — at most 10 per variant (code rule) |
 
 **5.2 Each store's choice** — store-scoped models (`BelongsToStore`, handoff §4.1)
@@ -487,7 +498,9 @@ by job" for the ordinary case, and keeps the job for repairs.
 **[ACCEPTED 2026-10-02, §9.3 #21]** `ProductMadeReady`, `ProductArchived`, `ProductRestored`, `ProductChanged` (shared
 data), `VariantAdded`, `VariantArchived`, `VariantRestored`, `VariantCodeCorrected` (Sync re-matches),
 `StoreListingChanged` (`storeId`, variant ids — Pricing and Inventory learn a store took up a variant
-that needs a price and stock). None is among handoff §4.5's critical outbox events.
+that needs a price and stock). None is among handoff §4.5's critical outbox events. **Only for a
+product that has been ready** (owner, 2026-10-04, amendment 3(m)): a draft, and a draft archived when
+abandoned, is Catalog's alone and sends nothing.
 
 ### 6.2 Consumed
 
@@ -509,11 +522,11 @@ exactly as one that does not exist, as B2B's and Access's do.
 |---|---|---|
 | `ProductNotFound`, `VariantNotFound`, `CategoryNotFound`, `BrandNotFound` | NOT_FOUND | Unknown, or not one the reader may see |
 | `ListItemNotFound` | NOT_FOUND | An attribute, value, set, label, warranty or word pair that does not exist |
-| `CodeTaken` | CONFLICT | A code another variant holds or once held, ignoring letter case (§1.2) |
+| `CodeTaken` | CONFLICT | A code another product holds or once held (§1.2, amendment 3(e)) |
 | `SlugTaken` | CONFLICT | A slug another product, category or brand holds or once held (§1.1) |
 | `DuplicateCombination` | CONFLICT | A variant with the same values as another of the product, archived ones included |
 | `ProductNotReady` | INVALID | Marking ready, or editing a ready product, without every §1.1 requirement — it names what is missing |
-| `ProductArchived` | CONFLICT | Changing an archived product other than restoring it |
+| `ProductArchived` | CONFLICT | Making an archived product ready, deleting it, or deleting its variant — it is restored first (amendment 3(m)) |
 | `InvalidStageChange` | CONFLICT | A move §4.1 does not allow |
 | `NotChosenInStore` | CONFLICT | Selling terms or labels for a product the store does not sell |
 | `InvalidSellingTerms` | INVALID | No selling mode, a maximum below its minimum, wholesale on with no wholesale minimum |
@@ -525,7 +538,8 @@ exactly as one that does not exist, as B2B's and Access's do.
 | `BrandInUse`, `ListItemInUse` | CONFLICT | Deleting what a product still uses |
 | `DefaultBrandRequired` | CONFLICT | Deactivating or deleting the default brand (§1.6) |
 | `AttributeSetLocked` | CONFLICT | Changing a product's attribute set once it has variants (§1.7) |
-| `TooMany` | CONFLICT | Over a limit: photos, search words |
+| `AttributeSetInUse` | CONFLICT | Changing a set's attributes while variants are built on it (amendment 3(k)) |
+| `TooMany` | CONFLICT | Over a limit: photos, search words, filter values, related products |
 | `InvalidCatalogAttribute` | INVALID | Any other value the domain refuses — a length, a format, a swatch |
 | `ImportRefused` | INVALID | An import whose preview found errors; it lists them all |
 
@@ -540,15 +554,17 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 1. A product leaves `DRAFT` only with names, slugs and description in both languages, a brand, a
    lowest active category, a variant with a code and a photo whose sizes are ready; each missing
    item is named. A ready product refuses an edit that removes one.
-2. A code is unique across every variant ignoring letter case and surrounding spaces; correcting one
-   is its own permission and audited; no code a variant ever held — archived or corrected — is given
-   to another variant.
+2. A code is digits only and belongs to one product — its variants may share it — and no code another
+   product holds or held is given to this one, until that product (a draft) is deleted; correcting one
+   is its own permission and audited; a code stays with its product — archived or corrected — except
+   that a product never ready, a draft archived or not, lets go of a code none of its variants carries
+   any more (amendment 3(c), (m)).
 3. Two variants of one product never share a combination; the server resolves the variant from
    picked values; price is never added up from values.
 4. A slug is unique per language among products (and among categories, among brands); an old slug
    answers with a redirect to the current one.
-5. Archiving a product makes it Inactive in every store; restoring brings it back ready and Inactive
-   everywhere; a variant archives and restores on its own.
+5. Archiving a product makes it Inactive in every store; restoring brings it back to the stage it
+   left, a ready one Inactive everywhere; a variant archives and restores on its own.
 
 **Stores**
 
@@ -659,6 +675,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 | 3 | Product add-ons ("Product apps"), bundles | A later stage (handoff §15.2) |
 | 4 | **Filling a new store in bulk** (owner, 2026-10-03, amendment 2(b)): when a store is created, its admins may bring in the existing products (and their categories) instead of choosing them one by one; a Super Admin may upload a JSON of the product codes to add; admins may pick products by code in bulk. Prices and stock then come from Odoo where the store is wired, or are entered by hand — "just an option" beside choosing each product | Step 4 (each store's choice) and step 6 (the import): its rules asked then |
 | 5 | How a store's menu orders a category it has no place for yet (a store opened later, amendment 2(b)) | Step 5 (the listing) |
+| 6 | **Telling sizes apart in the provider's data**: a code shared by a product's variants cannot say, alone, which size the provider's stock or price is for (amendment 3(e)); the provider's own id for each item is the likely key | Stage 5 (Sync) |
+| 7 | **The owner's product sheet** (2026-10-03, read, not kept: 678 items under 8 groups, Arabic names only, codes of 3–4 digits): rows sharing a code are one product's sizes; **codes shared by different items are mistakes to fix in the source** (owner) — 1002, 1011, 1076, 1098, 1372 (two rows named «فارغ»), 1496, 1596, 1603, 1815; three group headings count more rows than they hold | Step 6 (the import): a code whose rows sit in different categories is refused and listed |
 
 ### 9.3 My proposals — accepted by the owner, 2026-10-02, except #10
 
@@ -670,9 +688,10 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 4. Description at most 20,000 characters per language.
 5. At most 30 search words per product, each at most 50 characters.
 6. At most 20 gallery photos per product, 10 per variant.
-7. A `READY` product keeps every ready requirement: an edit that removes one is refused.
-8. A code: one line, 1–64 characters of letters, digits, spaces and `- . _ /`, compared after
-   trimming. A corrected typo **keeps the mistyped code taken**, like every code that ever existed —
+7. A `READY` product keeps every ready requirement: an edit that removes one is refused. A category
+   deactivated since it was placed there stays (amendment 3(m)).
+8. ~~A code: one line, 1–64 characters of letters, digits, spaces and `- . _ /`, compared after
+   trimming.~~ **Replaced by amendment 3(e)**: digits only, a code belongs to one product. A corrected typo **keeps the mistyped code taken**, like every code that ever existed —
    one rule, "a code is never given to another variant" (the alternative: free it, since it named
    nothing real).
 9. Weight in whole grams, sizes in whole millimetres, each 1 to 1,000,000.
@@ -716,10 +735,11 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 1. **The quantity limits' range**: each minimum and maximum a whole number from 1 to 100,000, a
    maximum never below its minimum (§1.3).
 2. **Deleting a draft** frees its slugs and its variants' codes — it was never shown or sold — the one
-   exception to "a code is never given to another variant" (§4.1).
+   exception to "a code is never given to another variant" (§4.1). (Amended since: codes belong to a
+   product, and a draft also lets go of a code it no longer uses — amendment 3(c), (e).)
 3. **A combination is never made twice**: a variant with the same values as an archived one is
    refused; the archived one is restored instead (§5.1, `DuplicateCombination`).
-4. **Creating a product needs both names** (its slugs are made from them, §9.3 #3); everything else
+4. ~~**Creating a product needs both names**~~ **Replaced by amendment 3(g)**: a draft may have its Arabic name only. Formerly: **Creating a product needs both names** (its slugs are made from them, §9.3 #3); everything else
    may wait until it is made ready.
 
 ### 9.6 Amendments during the build
@@ -731,3 +751,4 @@ sections named.
 |---|---|---|---|
 | 1 | §1.5, §1.6, §1.8, §2.4, §3, §5.3 | **Before step 2** (owner, 2026-10-03). (a) The two system permissions keep their step-1 names, `catalog.listing.rebuild` and `catalog.search_log.prune`. (b) Labels are **«الشارات»** in Arabic. (c) **The seed creates TouchWood alone**, «تاتش وود» / "TouchWood", the default brand; every other brand and every category comes from staff or the import. (d) **A new category's place among its siblings is chosen by whoever adds it**, starting the same in every store; each store's admins change it afterwards. (e) **A label's colour follows Geist's meanings** — green always healthy, red error, amber warning, blue information, gray neutral — strong or subtle: Geist Badge's ten variants, named on screen by meaning. (f) **A label name is one or two words** in each language (Geist), at most 30 characters. (g) **Every attached label shows on the card**, for now. (h) **Catalog keeps its own copy of `Ulids`**: Access and B2B are not touched ("the access is well working so we don't have to mess with it"). (i) **An attribute's job** — information only, filter, or making variants — **can change only while it has no values**; after that it stays. (j) **A brand's origin country is optional** ("brand must not require an origin country"); when given, a two-letter country code, checked for its shape only. Also corrected: §2.4's store-switch row, now built (#76). | Owner, 2026-10-03 |
 | 2 | §1.5, §1.6, §6.2, §9.2, §9.3 | **The review of step 2** (owner, 2026-10-03). (a) **Deleting a brand or a category frees its slugs**: another may take them later. (b) **A store opened later starts with no menu order**; its admins set it (§6.2 stands: a new store chooses nothing). The owner's **bulk filling of a new store** — existing products brought in, a JSON of codes, picking by code; prices and stock from Odoo or by hand — is written as open item §9.2 #4, for steps 4 and 6. (c) **Moving a category**: the mover chooses its place among the new siblings, written into every store as when adding. (d) **Word pairs are added and deleted only**; §9.3 #14 corrected. (e) **An empty slug on an edit is made from the name.** (f) **My choices in the build, accepted**: the first brand becomes the default when none is; a brand description at most 5,000 characters, in both languages or neither; an attribute set holds 1–10 attributes, and one deactivated later may stay but is never added again; a colour attribute's values need a `#rrggbb` swatch, and being a colour is locked with the job; an attribute a set holds stays variant-making; a category is added or moved under an active parent only; a store's order changes only while the store is on, at most 500 categories at once; deleting an attribute deletes and audits its values first, refused while a set holds it; a value may be added to a deactivated attribute; a word pair already listed is refused as "already in the list"; names of attributes, labels, warranties and sets need not be unique (an attribute's values must); deleting a logo's or photo's file needs that list's job with All stores; a typed Arabic slug takes the digits 0–9; two errors not in §7: `NameTaken` ("already in the list") and `AttributeKindLocked`. (g) Conforming fixes found by the review: a category moved away from the parent it went with stays off; `attribute_values.attribute_id` is RESTRICT as §5.3 says; Arabic slugs take Arabic letters and digits only, as §5.3 says. | Owner, 2026-10-03 |
+| 3 | §1.1, §1.2, §2.1, §5.1, §7, §8, §9.2, §9.3, §9.5 | **Before step 3: products and variants** (owner, 2026-10-03). (a) **Filter values sit on the product**, several per attribute allowed; each variant's variant-making values count as filters too (new table `product_filter_values`). (b) **The last ready photo of a `READY` product cannot be deleted** from the media library; any other product or variant photo is detached when its file is deleted. (c) **In a draft**, variant codes are edited and variants deleted under `catalog.product.update`, a code given up free again; once ready, only `catalog.variant.correct_code` and archiving. (d) **Relations pick `READY` products only**, at most 20 per list. (e) **The code** — read from the owner's sheet, "the sheet is what Odoo contains": **digits only; it belongs to one product, whose variants may share it or have their own; two products never share one; every code a product ever held stays with it until the product (a draft) is deleted**; a correction changes it on every variant holding it (`variant_codes` becomes `product_codes`; `variantByCode` becomes `variantsByCode`; §9.2 #6 opened for Sync). (f) **Search words**: a duplicate, as typed or as search reads it, is kept once, quietly. (g) **A draft may have its Arabic name only; the English name is required to be made ready** ("all products must have English names"). (h) **Only a draft is ever deleted** (§4.1 stands). (i) **Accepted**: a product's attribute set is chosen among active sets and fixed once it has a variant; each variant takes one active value of every attribute of the set; its details (text in both languages or a number with the unit) use active "details only" attributes; a `READY` product refuses an edit that would break a readiness rule, naming it — its last variant archived, its last ready photo removed, its category cleared; photos are public images, each once, a variant's needing no ready sizes; a product or variant photo's file deleted is detached and audited under `catalog.product.update`; product changes are split into several commands under that one permission (details, gallery, search words, filter values, relations, variants); until step 4 creates store rows, "every store where the product is Active" is "any store where the person holds the job"; and step 2's deferred refusals arrive — a category holding products takes no sub-category and is not deleted, a brand, warranty, attribute, value or set a product uses is not deleted. (j) **On the plan** (owner, 2026-10-03): step 3 is **one PR**; **a variant's values stay editable**, a ready product's too, its combination still unique; **a product is created from a store that is on**; **a code is 1 to 10 digits**. (k) **While building** (owner, 2026-10-03, asked with the drawer 1304 as the example): **an attribute set's attributes stay while any variant is built on it** — its name may still change; for other attributes, a new set (`AttributeSetInUse`); and **an attribute's job is fixed once variants carry details of it**, as once it has values (amendment 1(i)). (l) **Found while building**: §5.1's `products_category_unless_draft` would refuse archiving a draft abandoned without a category, which §9.3 #19 allows — the category and the English name are now required **while ready** (`products_category_when_ready`, `products_english_when_ready`); an archived product changes only by being restored, ready again with both. (m) **On PR #79** (owner, 2026-10-04, asked with the drawer 1304): **restoring brings a product back to the stage it left** — an archived draft comes back a draft, so making it ready stays `catalog.product.publish`'s (`products.archived_from`); **an archived product may be edited**, shown nowhere, and restored once whole — while archived it is not made ready, not deleted, and its variants are not deleted (this replaces (l)'s "changes only by being restored"); **a ready product keeps a category deactivated since it was placed there** — making ready, restoring or moving still needs an active lowest one; step 4's "leave" keeps a product in the closed category, and a product hidden with its category is still edited; **events only for a product that has been ready** — a draft is Catalog's alone; **the limits** ("a lot but it works"): at most 100 details per variant, 100 filter values per product, 300 search words sent at once (30 kept), positions 0–10,000; **accepted**: archiving an archived product or restoring a ready one changes nothing, restoring a draft is refused; correcting a code in a draft frees the old one; a code changed through the variant form, or a variant deleted, once ready answers `InvalidStageChange`; a product change locks the list rows it points at and a list change never takes the products' lock (instead of the plan's list-then-products order); two rare races are left as they are — a photo added to a gallery the instant its file is deleted fails with a server error, the data intact; a store switched off the instant a product is created from it does not stop the create. After the review (owner, 2026-10-04): **a product never ready — a draft, archived or not — lets go of a code it gives up by a correction**, as a draft does. | Owner, 2026-10-03; (m) 2026-10-04 |

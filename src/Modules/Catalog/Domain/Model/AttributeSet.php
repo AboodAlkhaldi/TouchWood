@@ -12,7 +12,7 @@ use Modules\Catalog\Public\Enums\AttributeKind;
 /**
  * An attribute set — the design's **Variations**, "attribute sets, measurement and finish, that
  * generate variants" (catalog.md §1.7): a named, ordered group of **variant-making attributes**. A
- * product takes one set, and its variants are combinations of those attributes' values (step 3).
+ * product takes one set, and its variants are combinations of those attributes' values.
  *
  * Its members are given as attributes read now, so the rules are checked against what they are:
  * at least one, none twice, every one variant-making, and every one it newly takes active.

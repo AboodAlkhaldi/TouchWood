@@ -276,8 +276,8 @@ return new class extends Migration
 
         DB::statement("ALTER TABLE catalog.{$table} ADD CONSTRAINT {$table}_locale CHECK (locale IN ('ar','en'))");
         // §5.3 (as product_slugs): Arabic letters and digits for ar, a-z and digits for en, single
-        // hyphens between, none at either end — the letters Slug takes, written as PostgreSQL's
-        // \u escapes (single-quoted here, so PHP leaves them alone).
+        // hyphens between, none at either end — the letters Slug takes, as the ranges themselves:
+        // hamza to ghain, feh to yeh, alef wasla to yeh barree (U+0621–063F, 0641–064A, 0671–06D3).
         $arabic = '[ء-ؿف-يٱ-ۓ0-9]+';
         DB::statement("ALTER TABLE catalog.{$table} ADD CONSTRAINT {$table}_shape CHECK (CASE locale"
             ." WHEN 'en' THEN slug ~ '^[a-z0-9]+(-[a-z0-9]+)*\$'"

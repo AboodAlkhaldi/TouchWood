@@ -53,6 +53,28 @@ return [
     'warranty.activated' => 'Warranty reactivated',
     'warranty.deleted' => 'Warranty deleted',
 
+    'product.added' => 'Product created',
+    'product.edited' => 'Product edited',
+    'product.deleted' => 'Draft product deleted',
+
+    'product.made_ready' => 'Product made ready',
+    'product.archived' => 'Product archived',
+    'product.restored' => 'Product restored',
+    'variant.archived' => 'Variant archived',
+    'variant.restored' => 'Variant restored',
+    'product.gallery_changed' => 'Product photos changed',
+    'product.photo_detached' => 'Product photo removed with its file',
+    'product.search_words_changed' => 'Product search words changed',
+    'product.filter_values_changed' => 'Product filter values changed',
+    'product.relations_changed' => 'Related products changed',
+    'variant.photos_changed' => 'Variant photos changed',
+    'variant.photo_detached' => 'Variant photo removed with its file',
+
+    'variant.added' => 'Variant added',
+    'variant.edited' => 'Variant edited',
+    'variant.deleted' => 'Draft variant deleted',
+    'variant.code_corrected' => 'Variant code corrected',
+
     'word_pair.added' => 'Search word pair added',
     'word_pair.deleted' => 'Search word pair deleted',
 ];
