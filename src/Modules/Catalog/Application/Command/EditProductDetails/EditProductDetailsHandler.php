@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Command\EditProductDetails;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ProductInput;
@@ -48,6 +49,7 @@ final readonly class EditProductDetailsHandler
         private ProductReferences $references,
         private Readiness $readiness,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -85,6 +87,7 @@ final readonly class EditProductDetailsHandler
             $this->readiness->requireKept($product);
             $this->products->update($product);
             $this->events->changed($product);
+            $this->listingRows->refresh([$product->id()]);
 
             return [null, [$entry]];
         });

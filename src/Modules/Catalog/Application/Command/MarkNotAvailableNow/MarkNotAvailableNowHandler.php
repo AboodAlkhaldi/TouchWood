@@ -6,6 +6,7 @@ namespace Modules\Catalog\Application\Command\MarkNotAvailableNow;
 
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Listing\StoreListingChange;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\NotChosenInStore;
@@ -32,6 +33,7 @@ final readonly class MarkNotAvailableNowHandler
         private ProductRepository $products,
         private StoreListingRepository $listings,
         private VariantRepository $variants,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -59,6 +61,7 @@ final readonly class MarkNotAvailableNowHandler
             }
 
             $this->listings->save($listing);
+            $this->listingRows->refresh([$product->id()]);
 
             return [null, [$entry]];
         });

@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Command\ArchiveProduct;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
@@ -31,6 +32,7 @@ final readonly class ArchiveProductHandler
         private ProductRepository $products,
         private StoreListingRepository $listings,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -64,6 +66,8 @@ final readonly class ArchiveProductHandler
                     $entries[] = $entry;
                 }
             }
+
+            $this->listingRows->refresh([$product->id()]);
 
             return [null, $entries];
         });

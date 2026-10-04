@@ -8,6 +8,7 @@ use LogicException;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\Readiness;
@@ -37,6 +38,7 @@ final readonly class ArchiveVariantHandler
         private Readiness $readiness,
         private StoreListingRepository $listings,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -76,6 +78,8 @@ final readonly class ArchiveVariantHandler
                     $entries[] = $switched;
                 }
             }
+
+            $this->listingRows->refresh([$product->id()]);
 
             return [null, $entries];
         });

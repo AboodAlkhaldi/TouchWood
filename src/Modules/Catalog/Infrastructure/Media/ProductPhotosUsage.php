@@ -7,6 +7,7 @@ namespace Modules\Catalog\Infrastructure\Media;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ReadyPhotos;
 use Modules\Catalog\Domain\Exception\ProductNotReady;
@@ -25,7 +26,7 @@ use Modules\Platform\Public\Dto\MediaUseDto;
  * without a photo. Detaching changes the product's shared data, so it takes `catalog.product.update`
  * as editing it would, under the products' lock — and asks the blocking question again there, since a
  * product may have been made ready after Platform asked. Each product whose photos changed is
- * `ProductChanged`, once.
+ * `ProductChanged`, once, and its listing rows written again.
  */
 final readonly class ProductPhotosUsage implements MediaUsage
 {
@@ -37,6 +38,7 @@ final readonly class ProductPhotosUsage implements MediaUsage
         private ListLocks $locks,
         private PlatformApi $platform,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     public function usesOf(string $mediaId): array
@@ -102,6 +104,9 @@ final readonly class ProductPhotosUsage implements MediaUsage
                 $this->events->changed($product);
             }
         }
+
+        // A card showing the photo shows the next ready one, before the file's row goes (§5.4).
+        $this->listingRows->refresh(array_map('strval', array_keys($changed)));
     }
 
     private function blocks(string $productId, string $mediaId): bool

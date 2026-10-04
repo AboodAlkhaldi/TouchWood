@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Command\SetSearchWords;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
@@ -31,6 +32,7 @@ final readonly class SetSearchWordsHandler
         private SharedListChange $change,
         private ProductRepository $products,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -52,6 +54,7 @@ final readonly class SetSearchWordsHandler
 
             $this->products->replaceSearchWords($product->id(), $words->words);
             $this->events->changed($product);
+            $this->listingRows->refresh([$product->id()]);
 
             return [null, [ListAudit::replaced('product', 'search_words_changed', $product->id(), 'search_words', $before->asText(), $words->asText())]];
         });

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Infrastructure;
 
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
@@ -21,15 +23,19 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseAttributeRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseBrandRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseCategoryRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseListingRows;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseProductRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseStoreListingRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseVariantRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWordPairRepository;
+use Modules\Catalog\Infrastructure\Listener\RefreshCardPhotos;
 use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
 use Modules\Catalog\Infrastructure\Media\ProductPhotosUsage;
+use Modules\Catalog\Presentation\Console\RebuildListingCommand;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Events\MediaVariantsReady;
 
 /**
  * What is sold, and where (catalog.md). Registered after Access: Catalog uses Access's public
@@ -49,6 +55,7 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(ProductRepository::class, DatabaseProductRepository::class);
         $this->app->bind(VariantRepository::class, DatabaseVariantRepository::class);
         $this->app->bind(StoreListingRepository::class, DatabaseStoreListingRepository::class);
+        $this->app->bind(ListingRows::class, DatabaseListingRows::class);
     }
 
     public function boot(): void
@@ -64,5 +71,12 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->make(MediaUsages::class)->register('catalog', CatalogImagesUsage::class);
         // Product and variant photos: detached, except a ready product's last ready one (amendment 3(b)).
         $this->app->make(MediaUsages::class)->register('catalog', ProductPhotosUsage::class);
+
+        // A photo whose sizes became ready may be a card's photo now (§6.2).
+        Event::listen(MediaVariantsReady::class, [RefreshCardPhotos::class, 'handle']);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([RebuildListingCommand::class]);
+        }
     }
 }

@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Command\SetFilterValues;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ProductParts;
@@ -35,6 +36,7 @@ final readonly class SetFilterValuesHandler
         private ProductRepository $products,
         private ProductParts $parts,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -60,6 +62,7 @@ final readonly class SetFilterValuesHandler
 
             $this->products->replaceFilterValues($product->id(), $after);
             $this->events->changed($product);
+            $this->listingRows->refresh([$product->id()]);
 
             return [null, [ListAudit::replaced('product', 'filter_values_changed', $product->id(), 'value_ids', implode(',', $sortedBefore) ?: null, implode(',', $sortedAfter) ?: null)]];
         });
