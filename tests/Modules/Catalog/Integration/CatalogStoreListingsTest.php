@@ -522,6 +522,7 @@ describe('what step 4\'s review found', function () {
 
         expect(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow($sa, $ready['product'], $other['variants'][0])))->toThrow(VariantNotFound::class)
             ->and(fn () => app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow($sa, $ready['product'], strtolower((string) Str::ulid()))))->toThrow(VariantNotFound::class)
+            ->and(fn () => app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow($sa, $ready['product'], $other['variants'][0])))->toThrow(VariantNotFound::class)
             ->and(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($sa, $ready['product'], [$eighty => ['retail' => true, 'wholesale' => false]])))->toThrow(NotChosenInStore::class);
     });
 
