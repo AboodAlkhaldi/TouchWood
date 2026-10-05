@@ -74,7 +74,9 @@ source.)
 ### 1.3 Names in the file
 
 Brands, categories, attributes, values, attribute sets and warranties are written **by name**, as they
-appear in the panel, in **Arabic or English** — a brand also **by its number**. Names are matched
+appear in the panel, in **Arabic or English** — a brand also **by its number**, written as a number:
+`2`, not `"2"` (in quotes it is read as a name). A category's name never holds a `/`: it separates the
+levels of a path. Names are matched
 ignoring upper/lower case, extra spaces, Arabic marks (tashkeel) and letter forms (أ/إ/آ = ا, ة = ه,
 ى = ي).
 
@@ -84,7 +86,12 @@ uploading. **Values, categories and attribute sets may be new.**
 **A name the catalog does not have yet is not an error.** The import's page lists it, and the Super
 Admin decides there: it is a typo for an existing one (pick it), or — for a value, a category or a set
 only — create it (fixing the wording and giving its name in the other language), or refuse it. A
-refused brand becomes the default brand (TouchWood).
+refused brand becomes the default brand (TouchWood). A name **several** catalog items answer to — two
+warranties both called "Two years" — is asked about the same way, to pick which.
+
+Two products of a file with the same name, or a product named like one already in the catalog, would
+get the same web address: the page lists them and asks for an address for each (`slug` in the file
+avoids it).
 
 In the example file, the runner names its brand as `"TouchWood"` and the hinge as `2` — the brand the
 panel shows as number 2 (Tallsen, in that panel).
@@ -131,6 +138,20 @@ has the wrong type; a product has no Arabic name or no variant; a code is not 1�
 products share a code; two variants of one product have the same values; a photo named in the JSON is
 not in the zip (or photos are named in a JSON uploaded alone); a number is out of range; a list is too
 long; the file is over its limits. Nothing is kept from a refused file.
+
+Once the file is in its format, it is read against the catalog, and also refused — every problem of
+this second reading listed — if:
+
+- an attribute is used for two jobs in the file (in `values`, `filters` or `details`), or for a job
+  the catalog's attribute of that name does not have;
+- a `category` path ends at a category that has sub-categories;
+- a product's variants do not give exactly the attributes of its catalog `attribute_set`, or two
+  products give a new set different attributes;
+- a photo is not JPEG, PNG or WebP, or is over the media library's limit (10 MB by default);
+- a product's codes belong to two different products already in the catalog.
+
+A name the catalog does not have, or that several catalog items share, is **not** an error: the
+import's page asks about it (§1.3).
 
 A file that passes changes **nothing** until the Super Admin decides on its page: new names, codes the
 catalog already has (update that product, replace it whole, skip, or give another code). There, all
