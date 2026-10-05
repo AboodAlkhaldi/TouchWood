@@ -24,6 +24,9 @@ final readonly class ShopCatalog
     /** At most as many suggestions in each list as staff may pick (§1.1). */
     public const int SUGGESTIONS_MAX = 20;
 
+    /** Brands a shopper may pick at once in a category's filter. */
+    public const int BRANDS_MAX = 50;
+
     public function __construct(
         private ShopReader $reader,
         private PlatformApi $platform,
@@ -32,14 +35,14 @@ final readonly class ShopCatalog
     /**
      * The store's menu (§1.5): each category shown by itself once the store lists something in it or
      * below it, in the store's order — or the base store's, until its admins place it (amendment
-     * 5(a)). With a brand, that brand's section of the tree (handoff §9.3); without, a brand hidden
-     * from default listings fills none of it (5(h)).
+     * 5(a)). A secondary brand is reached through its own category, which shows here as any other
+     * (5(k)).
      *
      * @return list<MenuCategory>
      *
      * @throws InvalidCatalogAttribute
      */
-    public function menu(StoreId $store, string $locale, ?string $brandId = null): array
+    public function menu(StoreId $store, string $locale): array
     {
         $base = null;
 
@@ -51,7 +54,7 @@ final readonly class ShopCatalog
 
         $byParent = [];
 
-        foreach ($this->reader->menu($store->value, $base, ShopLocale::of($locale), $brandId === null ? null : strtolower($brandId)) as $row) {
+        foreach ($this->reader->menu($store->value, $base, ShopLocale::of($locale)) as $row) {
             $byParent[$row['parent_id'] ?? ''][] = $row;
         }
 
@@ -59,8 +62,9 @@ final readonly class ShopCatalog
     }
 
     /**
-     * A category's page (§1.5): everything listed in it or below it. A category that is off, or
-     * lists nothing here, is not in this store — no page.
+     * A category's page (§1.5): everything listed in it or below it, of every brand (amendment 5(k))
+     * — or of the brands the shopper picked in the filter, which narrows the page and never takes it
+     * away. A category that is off, or lists nothing here, is not in this store: no page.
      *
      * @param  list<string>  $brandIds  the brands the shopper picked in the filter
      *
@@ -70,10 +74,15 @@ final readonly class ShopCatalog
     {
         $locale = ShopLocale::of($locale);
         $cursor = Cursor::parse($after);
+
+        if (count($brandIds) > self::BRANDS_MAX) {
+            throw new InvalidCatalogAttribute('brands', 'at most '.self::BRANDS_MAX.' brands');
+        }
+
         $owner = $this->reader->slugOwner('category', $locale, self::slug($locale, $slug));
         $category = $owner === null ? null : $this->reader->category($owner['id'], $locale);
 
-        if ($owner === null || $category === null || ! $category['is_active']) {
+        if ($owner === null || $category === null || ! $this->reader->categoryLists($store->value, $locale, $owner['id'])) {
             return null;
         }
 
@@ -82,13 +91,8 @@ final readonly class ShopCatalog
         }
 
         $brands = array_values(array_unique(array_map(static fn (string $id): string => strtolower($id), $brandIds)));
-        $cards = $this->reader->categoryCards($store->value, $locale, $owner['id'], $brands, $cursor, self::limit($limit, self::PAGE_MAX));
 
-        if ($cursor === null && $cards->cards === []) {
-            return null;
-        }
-
-        return new CategoryPage($owner['id'], $category['name'], $owner['slug'], $cards);
+        return new CategoryPage($owner['id'], $category['name'], $owner['slug'], $this->reader->categoryCards($store->value, $locale, $owner['id'], $brands, $cursor, self::limit($limit, self::PAGE_MAX)));
     }
 
     /**
@@ -161,8 +165,9 @@ final readonly class ShopCatalog
 
     /**
      * What a product's page suggests (§1.10), only what a shopper can order here: the hand-picked
-     * "Related" — or, when staff picked none, the same category's, then the same brand's — and the
-     * hand-picked "Goes with".
+     * "Related" — or, when staff picked none, the same category's, then the same brand's, a secondary
+     * brand's products only on its own products' pages (amendment 5(l)) — and the hand-picked "Goes
+     * with".
      *
      * @throws InvalidCatalogAttribute
      */
@@ -182,11 +187,11 @@ final readonly class ShopCatalog
         if ($picked !== []) {
             $mayAlsoLike = array_slice($this->reader->cardsOf($store->value, $locale, $picked), 0, $limit);
         } else {
-            $mayAlsoLike = $product['category_id'] === null ? [] : $this->reader->cardsSharing($store->value, $locale, 'category_id', $product['category_id'], [$id], $limit);
+            $mayAlsoLike = $product['category_id'] === null ? [] : $this->reader->cardsSharing($store->value, $locale, 'category_id', $product['category_id'], $product['brand_id'], [$id], $limit);
 
             if (count($mayAlsoLike) < $limit) {
                 $shown = [$id, ...array_map(static fn (ProductCard $card): string => $card->productId, $mayAlsoLike)];
-                array_push($mayAlsoLike, ...$this->reader->cardsSharing($store->value, $locale, 'brand_id', $product['brand_id'], $shown, $limit - count($mayAlsoLike)));
+                array_push($mayAlsoLike, ...$this->reader->cardsSharing($store->value, $locale, 'brand_id', $product['brand_id'], $product['brand_id'], $shown, $limit - count($mayAlsoLike)));
             }
         }
 

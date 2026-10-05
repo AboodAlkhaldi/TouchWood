@@ -202,53 +202,69 @@ deleting a photo's file takes them in the same order (`CatalogImagesUsage`).
 ### The listing, search and the contract (step 5)
 
 **One row per store, language and product a shopper can find there** (`catalog.listing`, §5.4):
-ready, hidden by neither its category's nor its brand's deactivation, its brand active, not "Not
-available now" there, and at least one variant switched on there, not archived and not "Not
-available now". A product **left** in an inactive category keeps its rows, marked out of the
-category pages (§1.4). A row holds the name and slug in its language, the brand and whether it shows
-in default listings, the category and every id above it, the filter values (the product's and those
-of the variants on sale there), the labels in the list's order, the card photo (the first ready one,
-its addresses asked of Platform as the row is written) and the search's text. **Never a code**
-(amendment 5(d)). Until stage 5 every row is orderable, with no price and no rank (§2.2).
+ready, not hidden with its category, its brand active (a brand's deactivation hides or moves every
+product of it), not "Not available now" there, and at least one variant switched on there, not
+archived and not "Not available now". **A hidden product is inactive** (amendment 5(j)). A product
+**left** in an inactive category keeps its rows, marked out of the category pages (§1.4). A row
+holds the name and slug in its language, the brand and whether it shows in default listings, the
+category and every id above it, the filter values (the product's and those of the variants on sale
+there), the labels, the card photo (the first ready one, its addresses asked of Platform as the row
+is written) and the search's text. **Never a code** (amendment 5(d)). Until stage 5 every row is
+orderable, with no price and no rank (§2.2) — and since every change writes a product's rows again
+from Catalog's own tables, stage 5 keeps what it pushes in a table the writer reads.
 
 **Written inside every change that alters it** (`ListingRows::refresh`, §9.3 #20), under the
 products' lock: the product changes that touch a row (details, a variant's values, the gallery,
 search words, filter values, archiving a product or a variant), the four store changes (choosing,
 "Not available now" on and off, labels), the four deactivations and activations, **a category
 renamed or moved** and **a brand's place in default listings** — those three now take the products'
-lock before their list's — a photo's file deleted, and a photo's sizes becoming ready. A row that
-stays is **updated in place**, never deleted and written again: a new row takes a key lock on its
-card photo's media row, which deleting that file holds while it waits for the products' lock. An
-unchanged row is not written at all. `catalog:listing:rebuild` (`RebuildListing`, reserved to the
-system) writes every row again the same way; `CatalogListingTest` checks, after each of
-twenty-six changes, that what the change wrote is exactly what the repair writes.
+lock before their list's — and a photo's file deleted. **A photo's sizes becoming ready** writes its
+products' rows from the queue (`RefreshCardPhotos`, three tries), taking the products' lock before it
+reads which galleries hold the photo, so a gallery saved meanwhile is read once it is saved. A row
+that stays is **updated in place**, never deleted and written again: a new row takes a key lock on
+its card photo's media row, which deleting that file holds while it waits for the products' lock (a
+change that makes a photo being deleted the card at that very moment can still meet the delete;
+PostgreSQL ends one and both retry, as for a gallery). An unchanged row is not written at all.
+`catalog:listing:rebuild` (`RebuildListing`, reserved to the system) writes every row again the same
+way, in one transaction holding the products' lock — product changes wait while it runs.
+`CatalogListingTest` checks, after each of twenty-nine changes, that what the change wrote is exactly
+what the repair writes, and that eight changes which alter nothing a row holds write nothing.
 
 **What a shopper reads** (`ShopCatalog`, no permission — what a shopper may not see is not in the
 listing): **the menu** — a category shown by itself once the store lists something in it or below
-it, in the store's order, else the base store's (amendment 5(a)); a category deactivated by hand in
-none; a brand hidden from default listings fills only its own section (5(h)). **A category's page**
-— everything below it, best-selling then newest, a page at a time by keyset (`Cursor`); a hidden
-brand's products only once picked; a category off, or listing nothing here, has none. **A brand's
-page.** **A product's page** — available while a shopper can find it here, with the variants on
-sale and the labels; otherwise **one "Not available now" page** (name, photos, description,
+it, of any brand, in the store's order, else the base store's (amendment 5(a)); a category
+deactivated by hand in none. **A secondary brand** — one hidden from default listings — **is reached
+through its own category** (amendment 5(k)), shown as any other. **A category's page** — everything
+below it, of every brand, best-selling then newest, a page at a time by keyset (`Cursor`); the
+shopper's brand filter narrows it and never takes it away; a category off, or listing nothing here,
+has none. A card's labels follow the list's order as it is now: moving a label rewrites no row. **A
+brand's page.** **A product's page** — available while a shopper can find it here, with the variants
+on sale and the labels; otherwise **one "Not available now" page** (name, photos, description,
 noindex); nothing for a slug that never existed or a product never made ready; an old slug answers
-with the current one (`Moved`). **Suggestions** — the hand-picked "Related", or, when none was
-picked, the same category's then the same brand's; "Goes with" as picked; only what the store lists.
+with the current one (`Moved`). It asks Platform for each gallery photo's addresses — up to twenty
+reads — which the storefront screens' query budget will settle. **Suggestions** — the hand-picked
+"Related", or, when none was picked, the same category's then the same brand's, a secondary brand's
+products only on its own products' pages (5(l)); "Goes with" as picked; only what the store lists.
 
 **The search** (`ShopSearch`, §1.11): both languages' names, the search words, the shared word
 pairs and the names of every category from the product's up (amendment 5(c), (f), (g)) — never the
-brand, the code or the description. Normalised as the rows are; each word matches the start of a
-word; a pair widens a word, or a run of words, by its partner (`SearchTerms`). Ranked exact, prefix,
-nearest (pg_trgm's word similarity, at its default 0.6), a search word or pair, a category's name;
-ties by sales rank, then newest. A product left in an inactive category and a hidden brand's are
-found. **Only a submitted search is logged** — the words as read, the store, the language, how many,
-no person (5(e)) — and `PruneSearchLogJob` removes entries older than twelve months, queued at
-01:00 UTC (`PruneSearchLog`, reserved to the system).
+brand, the code or the description, and **only the brands shown in default listings** (5(k)).
+Normalised as the rows are, its words one space apart, so "drawer." and "drawer" are one search;
+each word matches the start of a word; a pair widens a word, or a run of words, by its partner — the
+words typed in any order, or the partner's side by side — so a pair only ever adds results
+(`SearchTerms`). Ranked exact, prefix, nearest (pg_trgm's word similarity, at its default 0.6), a
+search word or pair, a category's name; ties by sales rank, then newest. A product left in an
+inactive category is found. **Only a submitted search is logged** — the words as read, the store,
+the language, how many, no person (5(e)) — and `PruneSearchLogJob` removes entries older than twelve
+months, queued at 01:00 UTC (`PruneSearchLog`, reserved to the system). The results come as one list
+of up to a hundred; paging them comes with the screens.
 
-**The contract** (`CatalogApi`, §2.1): a variant with its code, values in both languages and
-measures; every variant holding a code; a product; a variant in a store (switched on, orderable by
-§1.3, "Not available now", its modes and its product's limits there); and the variant a shopper's
-picked values name — the server's answer, never the browser's. `ListingFacts` is declared; stage 5
+**The contract** (`CatalogApi`, §2.1): a variant with its code — for staff and the modules above,
+never a shopper — values in both languages and measures; every variant holding a code; a product; a
+variant in a store (switched on, orderable by §1.3 and never while hidden, "Not available now", its
+modes — kept while it is switched off — and its product's limits there; whether the store is on is
+Platform's); and the variant a shopper's picked values name — the server's answer, never the
+browser's, a product with no attribute set named by no values. `ListingFacts` is declared; stage 5
 implements it and decides which price a card shows (amendment 5(i)).
 
 **The schema.** `catalog`, on `config/database.php`'s search path so `migrate:fresh` wipes it; the
@@ -284,10 +300,10 @@ public surface never references Access.
 | `Integration/CatalogDeactivationsTest` | A category or brand deactivated with each product's fate, all or nothing; activating bringing back what hid with it |
 | `Integration/CatalogListGuardsTest` | For every one of the sixty-two list, product and store changes: its lock is the first query inside its own transaction (the products' before its list's, for the seven that change products or their listing rows); an id not in its list is answered as not found; a change that changes nothing writes nothing and records nothing; and what the audit log keeps reads from what was to what is |
 | `Integration/CatalogListConstraintsTest` | The database's named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code; an id that is not a ULID never reaching the database |
-| `Integration/CatalogListingTest` | Which products have rows, and what a row holds — never a code; each of twenty-six changes writing exactly what the repair writes; a row that stays updated in place; the card photo; the repair and its locks |
-| `Integration/CatalogShopTest` | The menu per store and its order; a category's page by keyset, a hidden brand's products, slugs moved; a brand's page; a product's page or "Not available now"; suggestions |
-| `Integration/CatalogSearchTest` | The ranking; both languages; Arabic normalised; word pairs; what is found and what never is; the search log and its nightly removal |
-| `Integration/CatalogApiTest` | `CatalogApi`: variants, codes, products, a variant in a store, resolving the variant |
+| `Integration/CatalogListingTest` | Which products have rows, and what a row holds — never a code; each of twenty-nine changes writing exactly what the repair writes, eight that alter nothing writing nothing; a row that stays updated in place; the card photo; the repair and its locks |
+| `Integration/CatalogShopTest` | The menu per store and its order, a secondary brand's own category in it; a category's page by keyset, ties included, every brand, the brand filter, labels in the list's order, slugs moved; a brand's page; a product's page or "Not available now"; suggestions |
+| `Integration/CatalogSearchTest` | The ranking and the total; both languages, the other's name exact; Arabic normalised, a typo near; word pairs only adding; what is found and what never is — a secondary brand's product; the search log and its nightly removal, to the second |
+| `Integration/CatalogApiTest` | `CatalogApi`: variants, codes (one corrected away), products, a variant in a store (switched off, hidden), resolving the variant (a product with no set) |
 | `Unit/CatalogListLocksTest` | A list's lock is refused outside a transaction |
 | `Unit/CatalogListingRowsTest` | The listing is never written outside a transaction |
 | `Unit/CatalogSearchTermsTest` | What was typed, as search reads it; word pairs, a run of words before one |

@@ -17,6 +17,8 @@ use Modules\Catalog\Application\Command\ActivateCategory\ActivateCategory;
 use Modules\Catalog\Application\Command\ActivateCategory\ActivateCategoryHandler;
 use Modules\Catalog\Application\Command\AddLabel\AddLabel;
 use Modules\Catalog\Application\Command\AddLabel\AddLabelHandler;
+use Modules\Catalog\Application\Command\AddVariant\AddVariant;
+use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
@@ -27,6 +29,8 @@ use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\ClearNotAvailableNow\ClearNotAvailableNow;
 use Modules\Catalog\Application\Command\ClearNotAvailableNow\ClearNotAvailableNowHandler;
+use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCode;
+use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCodeHandler;
 use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrand;
 use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrandHandler;
 use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategory;
@@ -39,24 +43,37 @@ use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
+use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
+use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
 use Modules\Catalog\Application\Command\RebuildListing\RebuildListing;
 use Modules\Catalog\Application\Command\RebuildListing\RebuildListingHandler;
+use Modules\Catalog\Application\Command\RestoreProduct\RestoreProduct;
+use Modules\Catalog\Application\Command\RestoreProduct\RestoreProductHandler;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariantHandler;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValues;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValuesHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Catalog\Application\Command\SetRelations\SetRelations;
+use Modules\Catalog\Application\Command\SetRelations\SetRelationsHandler;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWords;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWordsHandler;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
+use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
+use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotos;
+use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotosHandler;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Application\Listing\ListingRows;
+use Modules\Catalog\Application\Search\SearchTerms;
 use Modules\Catalog\Domain\Repository\ProductRepository;
-use Modules\Catalog\Domain\Service\ArabicText;
 use Modules\Catalog\Presentation\Console\RebuildListingCommand;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Events\MediaVariantsReady;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -199,11 +216,11 @@ describe('a row', function () {
                 ->and(catalogRowsArray($row->value_ids))->toBe($both)
                 ->and(catalogRowsArray($row->label_ids))->toBe([])
                 ->and($row->card_media_id)->toBe($gallery[0])
-                ->and(array_keys((array) json_decode((string) $row->card_photo, true)))->toContain('card')
+                ->and(json_decode((string) $row->card_photo, true))->toEqual(app(PlatformApi::class)->mediaUrls($gallery[0])?->variants)
                 ->and($row->orderable)->toBeTrue()
                 ->and($row->price_minor)->toBeNull()
                 ->and($row->sales_rank)->toBeNull()
-                ->and($row->search_text)->toBe(ArabicText::normalize($name)."\n".ArabicText::normalize($other));
+                ->and($row->search_text)->toBe(SearchTerms::canonical($name)."\n".SearchTerms::canonical($other));
         }
 
         // Egypt sells one size: only its values are filters there.
@@ -430,6 +447,74 @@ describe('kept current', function () {
 
             return fn () => app(DeleteMediaHandler::class)->handle(new DeleteMedia($gallery[0]));
         }],
+        'activating its category after hiding it' => [function (array $p) {
+            $category = (string) app(ProductRepository::class)->find($p['product'])?->categoryId();
+            app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'HIDE'));
+
+            return fn () => app(ActivateCategoryHandler::class)->handle(new ActivateCategory($category));
+        }],
+        'deactivating the category above it, leaving it' => [function (array $p) {
+            $parent = Px::category('Kitchens');
+            app(MoveCategoryHandler::class)->handle(new MoveCategory((string) app(ProductRepository::class)->find($p['product'])?->categoryId(), $parent));
+
+            return fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($parent, 'LEAVE'));
+        }],
+        'moving the category above it' => [function (array $p) {
+            $parent = Px::category('Kitchens');
+            $elsewhere = Px::category('Wardrobes');
+            app(MoveCategoryHandler::class)->handle(new MoveCategory((string) app(ProductRepository::class)->find($p['product'])?->categoryId(), $parent));
+
+            return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($parent, $elsewhere));
+        }],
+    ]);
+
+    it('is not written by a change that alters nothing a row holds', function (Closure $prepare) {
+        $p = Px::ready(['60 cm', '80 cm']);
+        catalogRowsChoose('sa', $p['product'], variantIds: [$p['variants'][0]]);
+        $change = Fx::asSystem(static fn (): Closure => $prepare($p));
+        $before = catalogRowsSnapshot();
+
+        Fx::asSystem($change);
+        $after = catalogRowsSnapshot();
+        catalogRowsRebuild();
+
+        expect($after)->toBe($before)
+            ->and(catalogRowsSnapshot())->toBe($before);
+    })->with([
+        'restoring a variant' => [function (array $p) {
+            app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($p['variants'][1]));
+
+            return fn () => app(RestoreVariantHandler::class)->handle(new RestoreVariant($p['variants'][1]));
+        }],
+        'restoring a product' => [function (array $p) {
+            app(ArchiveProductHandler::class)->handle(new ArchiveProduct($p['product']));
+
+            return fn () => app(RestoreProductHandler::class)->handle(new RestoreProduct($p['product']));
+        }],
+        'making another product ready' => [function (array $p) {
+            $draft = Px::product('Cabinet');
+            $product = app(ProductRepository::class)->find($p['product']) ?? throw new LogicException('No product.');
+            $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Cabinet']]]]];
+            $own = app(ProductRepository::class)->find($draft) ?? throw new LogicException('No draft.');
+            app(EditProductDetailsHandler::class)->handle(new EditProductDetails($draft, $own->name()->ar, $own->name()->en, $own->brandId(), descriptionAr: $text, descriptionEn: $text, categoryId: $product->categoryId()));
+            Px::variant($draft, '7777777');
+            app(SetProductGalleryHandler::class)->handle(new SetProductGallery($draft, [Cx::media()]));
+
+            return fn () => app(MarkProductReadyHandler::class)->handle(new MarkProductReady($draft));
+        }],
+        'adding a variant' => [function (array $p) {
+            $value = Px::value($p['width'], '90 cm');
+
+            return fn () => app(AddVariantHandler::class)->handle(new AddVariant($p['product'], '7777778', [$p['width'] => $value]));
+        }],
+        'correcting a code' => [fn (array $p) => fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($p['variants'][0], '7777779'))],
+        'picking related products' => [function (array $p) {
+            $other = Px::ready()['product'];
+
+            return fn () => app(SetRelationsHandler::class)->handle(new SetRelations($p['product'], 'RELATED', [$other]));
+        }],
+        'setting a variant\'s own photos' => [fn (array $p) => fn () => app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($p['variants'][0], [Cx::media()]))],
+        'setting the selling terms' => [fn (array $p) => fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $p['product'], [$p['variants'][0] => ['retail' => true, 'wholesale' => true]], wholesaleMinimum: 10))],
     ]);
 
     it('changes a row that stays in place, and leaves one that did not change unwritten', function () {
@@ -486,19 +571,19 @@ describe('the card photo', function () {
             ->and(DB::table('platform.media')->where('id', $first)->exists())->toBeFalse();
     });
 
-    it('takes the products\' lock inside its own transaction, and nothing for a photo no product has', function () {
+    it('takes the products\' lock inside its own transaction before it reads which galleries hold the photo', function () {
         $p = Px::ready();
         catalogRowsChoose('sa', $p['product']);
         $photo = app(ProductRepository::class)->gallery($p['product'])[0];
-        $locks = Cx::recordLocks();
-
-        event(new MediaVariantsReady((string) Str::uuid(), Cx::media(), CarbonImmutable::now()));
-
-        expect($locks->getArrayCopy())->toBe([]);
+        $queries = Cx::recordQueries();
 
         event(new MediaVariantsReady((string) Str::uuid(), $photo, CarbonImmutable::now()));
+        $inside = array_values(array_filter($queries->getArrayCopy(), static fn (array $query): bool => $query['level'] >= 2));
 
-        expect($locks->getArrayCopy())->toBe([['key' => 'catalog:products', 'level' => 2]]);
+        // A gallery saved while the photo's sizes were made is read once it is saved.
+        expect($inside[0]['sql'] ?? null)->toContain('pg_advisory_xact_lock')
+            ->and($inside[0]['bindings'] ?? null)->toBe(['catalog:products'])
+            ->and(array_values(array_filter($queries->getArrayCopy(), static fn (array $query): bool => str_contains($query['sql'], 'product_photos') && $query['level'] < 2)))->toBe([]);
     });
 });
 

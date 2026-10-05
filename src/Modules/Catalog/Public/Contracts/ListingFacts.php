@@ -14,6 +14,11 @@ use Shared\Domain\ValueObject\StoreId;
  * stage 6). **Declared in step 5; Catalog implements it with stage 5**, which first calls it and
  * decides, for one, which price a card shows (owner, 2026-10-05, amendment 5(i)). Until then every
  * listed product is orderable as §1.3 says, with no price and no rank.
+ *
+ * **For stage 5:** every change rewrites a product's listing rows from Catalog's own tables
+ * (`ListingRows`), the price and the rank with them. A fact pushed here must therefore be kept where
+ * that writer reads it — its own table — never only in the listing's columns, which the next change
+ * to the product would write over.
  */
 interface ListingFacts
 {

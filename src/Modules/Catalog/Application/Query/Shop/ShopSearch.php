@@ -14,8 +14,9 @@ use Shared\Domain\ValueObject\StoreId;
  * word pairs and the names of its categories — never the brand, the code or the description
  * (amendment 5(c), (d), (f), (g)) — ranked in one expression: exact, prefix, nearest to what was
  * typed, then a search word or a pair, then a category's name; ties by sales rank, then newest.
- * Everything a shopper can order here is searched: a product left in an inactive category and a
- * brand hidden from default listings included (§1.4, amendment 5(h)). Anyone may search; no
+ * What a shopper can order here is searched — a product left in an inactive category included
+ * (§1.4) — **of the brands shown in default listings only**: a secondary brand is reached through
+ * its own category, never by search (owner, 2026-10-05, amendment 5(k)). Anyone may search; no
  * permission is asked.
  */
 final readonly class ShopSearch

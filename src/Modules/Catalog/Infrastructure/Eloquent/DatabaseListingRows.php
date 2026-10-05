@@ -7,6 +7,7 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 use Illuminate\Database\ConnectionInterface;
 use LogicException;
 use Modules\Catalog\Application\Listing\ListingRows;
+use Modules\Catalog\Application\Search\SearchTerms;
 use Modules\Catalog\Domain\Service\ArabicText;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use stdClass;
@@ -25,7 +26,8 @@ use stdClass;
  * - **The search reads** the names (A), the search words (B) and the names of its category and of
  *   every category above it (C), **in both languages on every page** (amendment 5(f), (g)), each as
  *   search compares words (handoff §5.2) — never the brand, the code or the description (5(c), (d)).
- *   The nearness text holds the page's name first, then the other one, a line apart.
+ *   The nearness text holds the page's name first, then the other one, a line apart, each as its
+ *   words one space apart (`SearchTerms::canonical`), as what a shopper types is read.
  */
 final readonly class DatabaseListingRows implements ListingRows
 {
@@ -95,7 +97,7 @@ final readonly class DatabaseListingRows implements ListingRows
         $ids = '{'.implode(',', $productIds).'}';
 
         $this->db->delete(
-            'DELETE FROM '.self::TABLE.' AS l WHERE l.product_id = ANY(?::text[]) AND NOT EXISTS ('
+            'DELETE FROM '.self::TABLE.' AS l WHERE l.product_id = ANY(?::bpchar[]) AND NOT EXISTS ('
             .'SELECT 1 FROM jsonb_to_recordset(?::jsonb) AS r('.self::RECORD.')'
             .' WHERE r.store_id = l.store_id AND r.locale = l.locale AND r.product_id = l.product_id)',
             [$ids, $json],
@@ -134,7 +136,8 @@ final readonly class DatabaseListingRows implements ListingRows
             ->whereIn('p.id', $productIds)
             ->where('p.stage', 'READY')
             ->where('p.hidden_by_category', false)
-            ->where('p.hidden_by_brand', false)
+            // A brand's deactivation hides or moves every product of it, never leaves one (§1.6):
+            // its being active says whether it hid the product.
             ->where('b.is_active', true)
             ->orderBy('p.id')
             ->get(['p.id', 'p.name_ar', 'p.name_en', 'p.brand_id', 'p.category_id', 'b.show_in_default_listings', 'c.is_active as category_active'])
@@ -168,7 +171,7 @@ final readonly class DatabaseListingRows implements ListingRows
 
             $card = $this->cardPhoto($id);
             $categoryId = (string) $product->category_id;
-            $searched = ['ar' => ArabicText::normalize((string) $product->name_ar), 'en' => ArabicText::normalize((string) $product->name_en)];
+            $searched = ['ar' => SearchTerms::canonical((string) $product->name_ar), 'en' => SearchTerms::canonical((string) $product->name_en)];
 
             foreach ($sellable[$id] as $storeId => $variantIds) {
                 $values = $filterValues[$id] ?? [];
@@ -269,7 +272,7 @@ final readonly class DatabaseListingRows implements ListingRows
     {
         $rows = $this->db->select(
             'WITH RECURSIVE up (start_id, id, parent_id, name_ar, name_en, depth) AS ('
-            .' SELECT id, id, parent_id, name_ar, name_en, 0 FROM catalog.categories WHERE id = ANY(?::text[])'
+            .' SELECT id, id, parent_id, name_ar, name_en, 0 FROM catalog.categories WHERE id = ANY(?::bpchar[])'
             .' UNION ALL SELECT up.start_id, c.id, c.parent_id, c.name_ar, c.name_en, up.depth + 1 FROM catalog.categories c JOIN up ON c.id = up.parent_id'
             .') SELECT start_id, id, name_ar, name_en FROM up ORDER BY start_id, depth DESC',
             ['{'.implode(',', $categoryIds).'}'],

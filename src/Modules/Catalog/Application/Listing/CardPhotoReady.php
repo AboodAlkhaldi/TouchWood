@@ -25,11 +25,7 @@ final readonly class CardPhotoReady
 
     public function handle(string $mediaId): void
     {
-        // Most photos ready are no product's: nothing to lock for them.
-        if ($this->products->withPhoto($mediaId) === []) {
-            return;
-        }
-
+        // The lock before the gallery is read: a gallery saved meanwhile is read once it is saved.
         $this->db->transaction(function () use ($mediaId): void {
             $this->locks->lock(ListLocks::PRODUCTS);
             $this->listingRows->refresh($this->products->withPhoto($mediaId));

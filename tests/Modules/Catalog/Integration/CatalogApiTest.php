@@ -12,6 +12,12 @@ use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCode;
+use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCodeHandler;
+use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrand;
+use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrandHandler;
+use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategory;
+use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategoryHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
@@ -122,6 +128,12 @@ describe('variants and products', function () {
             ->and($ids(catalogApi()->variantsByCode('1305')))->toBe([$p['variants']['60-white']])
             ->and(catalogApi()->variantsByCode('9999'))->toBe([])
             ->and(catalogApi()->variantsByCode('13a4'))->toBe([]);
+
+        // A code corrected away stays the product's (amendment 3(e)), but no variant carries it now.
+        Fx::asSystem(fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($p['variants']['80-white'], '1307')));
+
+        expect(catalogApi()->variantsByCode('1306'))->toBe([])
+            ->and($ids(catalogApi()->variantsByCode('1307')))->toBe([$p['variants']['80-white']]);
     });
 
     it('answers a product, a draft with its Arabic name only included', function () {
@@ -184,6 +196,30 @@ describe('a variant in a store', function () {
             ->and(catalogApi()->storeVariant(catalogApiStore(), $p['variants']['80-white'])?->isActive)->toBeFalse()
             ->and(catalogApi()->storeVariant(catalogApiStore(), '01k6abcdefghjkmnpqrstvwxyz'))->toBeNull();
     });
+
+    it('says a variant switched off keeps the modes it had, for when it is switched on again', function () {
+        $p = catalogApiProduct();
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true)));
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], false, [$p['variants']['60-black']])));
+        $off = catalogApi()->storeVariant(catalogApiStore(), $p['variants']['60-black']);
+
+        expect([$off?->isActive, $off?->orderable, $off?->saleModes])->toBe([false, false, [SaleMode::Retail]]);
+    });
+
+    it('says a variant cannot be ordered while its product is hidden with its category or brand — hidden is inactive', function (string $list) {
+        $p = catalogApiProduct();
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true)));
+        $product = app(ProductRepository::class)->find($p['product']) ?? throw new LogicException('No product.');
+
+        expect(catalogApi()->storeVariant(catalogApiStore(), $p['variants']['60-black'])?->orderable)->toBeTrue();
+
+        Fx::asSystem(fn () => $list === 'category'
+            ? app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory((string) $product->categoryId(), 'HIDE'))
+            : app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($product->brandId(), 'HIDE')));
+        $hidden = catalogApi()->storeVariant(catalogApiStore(), $p['variants']['60-black']);
+
+        expect([$hidden?->isActive, $hidden?->orderable, $hidden?->notAvailableNow])->toBe([true, false, false]);
+    })->with(['category', 'brand']);
 });
 
 describe('resolving the variant', function () {
@@ -197,6 +233,22 @@ describe('resolving the variant', function () {
             ->and(catalogApi()->resolveVariant($p['product'], [$v['w60'], $v['black'], $v['white']]))->toBeNull()
             ->and(catalogApi()->resolveVariant($p['product'], []))->toBeNull()
             ->and(catalogApi()->resolveVariant(Px::ready()['product'], [$v['w60'], $v['black']]))->toBeNull();
+    });
+
+    it('resolves a product with no attribute set — one variant, nothing to pick — from no values', function () {
+        $id = Px::product('Bracket');
+        $product = app(ProductRepository::class)->find($id) ?? throw new LogicException('No product.');
+        $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Bracket']]]]];
+        Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, $product->name()->ar, $product->name()->en, $product->brandId(), descriptionAr: $text, descriptionEn: $text, categoryId: Px::category())));
+        $only = Px::variant($id, '4242');
+        Fx::asSystem(function () use ($id): void {
+            app(SetProductGalleryHandler::class)->handle(new SetProductGallery($id, [Cx::media()]));
+            app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
+        });
+
+        expect(catalogApi()->resolveVariant($id, []))->toBe($only)
+            ->and(catalogApi()->resolveVariant($id, [Px::value(Px::attribute('Width'), '60 cm')]))->toBeNull()
+            ->and(catalogApi()->resolveVariant(catalogApiProduct()['product'], []))->toBeNull();
     });
 
     it('never resolves an archived variant', function () {

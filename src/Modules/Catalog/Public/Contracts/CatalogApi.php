@@ -16,7 +16,11 @@ use Shared\Domain\ValueObject\StoreId;
  */
 interface CatalogApi
 {
-    /** For Pricing, Inventory, Sales, Shipping: the code, the product, the values, weight and dimensions. */
+    /**
+     * For Pricing, Inventory, Sales, Shipping: the code, the product, the values, weight and
+     * dimensions. **The code is for staff and the modules above — never shown to a shopper**, an
+     * order's own pages included (owner, 2026-10-04, amendment 5(d)).
+     */
     public function variant(string $variantId): ?VariantDto;
 
     /**
@@ -30,7 +34,11 @@ interface CatalogApi
     /** For Sales's record of an order, Feedback, Content. */
     public function product(string $productId): ?ProductDto;
 
-    /** For Sales: the variant in that store (§1.3). Null for a variant that does not exist. */
+    /**
+     * For Sales: the variant in that store (§1.3). Null for a variant that does not exist. Whether
+     * the store is on is Platform's to say (`PlatformApi::store`); a store that is off still answers
+     * here, as it is prepared before it opens (amendment 4(e)).
+     */
     public function storeVariant(StoreId $store, string $variantId): ?StoreVariantDto;
 
     /**

@@ -22,15 +22,20 @@ use Modules\Catalog\Application\Command\EditBrand\EditBrand;
 use Modules\Catalog\Application\Command\EditBrand\EditBrandHandler;
 use Modules\Catalog\Application\Command\EditCategory\EditCategory;
 use Modules\Catalog\Application\Command\EditCategory\EditCategoryHandler;
+use Modules\Catalog\Application\Command\EditLabel\EditLabel;
+use Modules\Catalog\Application\Command\EditLabel\EditLabelHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
 use Modules\Catalog\Application\Command\RankCategories\RankCategories;
 use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
+use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
+use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
 use Modules\Catalog\Application\Command\SetRelations\SetRelations;
 use Modules\Catalog\Application\Command\SetRelations\SetRelationsHandler;
 use Modules\Catalog\Application\Query\Shop\BrandPage;
+use Modules\Catalog\Application\Query\Shop\CardLabel;
 use Modules\Catalog\Application\Query\Shop\CategoryPage;
 use Modules\Catalog\Application\Query\Shop\MenuCategory;
 use Modules\Catalog\Application\Query\Shop\Moved;
@@ -41,6 +46,7 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 
 use function Pest\Laravel\seed;
@@ -199,16 +205,17 @@ describe('the menu', function () {
         expect(app(ShopCatalog::class)->menu(catalogShopStore('sa'), 'en'))->toBe([]);
     });
 
-    it('leaves a category holding only a hidden brand\'s products out of the main menu, and shows it in that brand\'s section', function () {
-        $shown = Px::category('Kitchens');
-        $tallsenOnly = Px::category('Baskets');
+    it('shows a secondary brand\'s own category as any other, its sub-categories with it — the way in to its products', function () {
+        $kitchens = Px::category('Kitchens');
+        $tallsen = Px::category('Tallsen');
+        $baskets = Px::category('Baskets', $tallsen);
         $brand = Px::brand('Tallsen');
         catalogShopHideBrandFromDefaults($brand);
-        catalogShopProduct($shown);
-        catalogShopProduct($tallsenOnly, brandId: $brand);
+        catalogShopProduct($kitchens);
+        catalogShopProduct($baskets, brandId: $brand);
+        Fx::asSystem(fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('sa'), [$kitchens => 1, $tallsen => 2])));
 
-        expect(catalogShopTree(app(ShopCatalog::class)->menu(catalogShopStore('sa'), 'en')))->toBe([$shown => []])
-            ->and(catalogShopTree(app(ShopCatalog::class)->menu(catalogShopStore('sa'), 'en', $brand)))->toBe([$tallsenOnly => []]);
+        expect(catalogShopTree(app(ShopCatalog::class)->menu(catalogShopStore('sa'), 'en')))->toBe([$kitchens => [], $tallsen => [$baskets => []]]);
     });
 });
 
@@ -217,14 +224,18 @@ describe('a category page', function () {
         $parent = Px::category('Kitchens');
         $left = Px::category('Drawers', $parent);
         $right = Px::category('Runners', $parent);
-        $ids = [catalogShopProduct($left), catalogShopProduct($left), catalogShopProduct($right), catalogShopProduct($right), catalogShopProduct($left)];
-        // Sales pushes ranks from stage 6 (§2.2): two are ranked, the rest follow, newest first.
+        $ids = [catalogShopProduct($left), catalogShopProduct($left), catalogShopProduct($right), catalogShopProduct($right), catalogShopProduct($left), catalogShopProduct($right)];
+        // Sales pushes ranks from stage 6 (§2.2): three are ranked — two of them alike, the newer
+        // first — and the rest follow, newest first.
         DB::table('catalog.listing')->where('product_id', $ids[3])->update(['sales_rank' => 1]);
-        DB::table('catalog.listing')->where('product_id', $ids[0])->update(['sales_rank' => 2]);
+        DB::table('catalog.listing')->whereIn('product_id', [$ids[0], $ids[5]])->update(['sales_rank' => 2]);
+        $tied = [$ids[0], $ids[5]];
+        rsort($tied);
         $unranked = [$ids[1], $ids[2], $ids[4]];
         rsort($unranked);
 
-        expect(catalogShopAllCards('sa', $parent, 2))->toBe([$ids[3], $ids[0], ...$unranked])
+        expect(catalogShopAllCards('sa', $parent, 2))->toBe([$ids[3], ...$tied, ...$unranked])
+            ->and(catalogShopAllCards('sa', $parent, 1))->toBe([$ids[3], ...$tied, ...$unranked])
             ->and(catalogShopAllCards('sa', $left, 1))->toBe(array_values(array_filter([$ids[0], ...$unranked], static fn (string $id): bool => in_array($id, [$ids[0], $ids[1], $ids[4]], true))));
     });
 
@@ -240,15 +251,41 @@ describe('a category page', function () {
         expect(catalogShopAllCards('sa', $parent, 10))->toBe([$shown]);
     });
 
-    it('leaves a hidden brand\'s products out until the shopper picks the brand', function () {
+    it('lists every brand\'s products, a secondary brand\'s too, the shopper\'s brand filter narrowing the page and never taking it away', function () {
         $category = Px::category('Baskets');
         $brand = Px::brand('Tallsen');
         catalogShopHideBrandFromDefaults($brand);
         $house = catalogShopProduct($category);
         $tallsen = catalogShopProduct($category, brandId: $brand);
+        $both = [$house, $tallsen];
+        rsort($both);
+        $page = app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', catalogShopSlug('category', $category), [Px::brand('Hettich')]);
 
-        expect(catalogShopAllCards('sa', $category, 10))->toBe([$house])
-            ->and(catalogShopAllCards('sa', $category, 10, [$brand]))->toBe([$tallsen]);
+        expect(catalogShopAllCards('sa', $category, 10))->toBe($both)
+            ->and(catalogShopAllCards('sa', $category, 10, [strtoupper($brand), 'not-a-brand']))->toBe([$tallsen])
+            ->and($page)->toBeInstanceOf(CategoryPage::class)
+            ->and($page instanceof CategoryPage ? $page->products->cards : null)->toBe([])
+            ->and(fn () => app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', catalogShopSlug('category', $category), array_fill(0, ShopCatalog::BRANDS_MAX + 1, $brand)))
+            ->toThrow(InvalidCatalogAttribute::class);
+    });
+
+    it('shows a card\'s labels in the list\'s order as it is now', function () {
+        $category = Px::category('Baskets');
+        $product = catalogShopProduct($category);
+        $first = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('أول', 'First', 'green', 1)));
+        $second = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('ثان', 'Second', 'blue', 2)));
+        Fx::asSystem(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels(Fx::storeId('sa'), $product, [$first, $second])));
+        $labels = static function () use ($category): array {
+            $page = app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', catalogShopSlug('category', $category));
+
+            return $page instanceof CategoryPage ? array_map(static fn (CardLabel $label): string => $label->name, $page->products->cards[0]->labels) : [];
+        };
+
+        expect($labels())->toBe(['First', 'Second']);
+
+        Fx::asSystem(fn () => app(EditLabelHandler::class)->handle(new EditLabel($second, 'ثان', 'Second', 'blue', 0)));
+
+        expect($labels())->toBe(['Second', 'First']);
     });
 
     it('answers an old slug with the current one, and nothing for a category off, unknown or listing nothing here', function () {
@@ -292,6 +329,24 @@ describe('a brand page', function () {
 
         expect($page)->toBeInstanceOf(BrandPage::class)
             ->and($page instanceof BrandPage ? array_map(static fn (ProductCard $card): string => $card->productId, $page->products->cards) : null)->toBe($expected);
+
+        $first = app(ShopCatalog::class)->brand(catalogShopStore('sa'), 'en', catalogShopSlug('brand', $brand), limit: 1);
+        $next = $first instanceof BrandPage ? app(ShopCatalog::class)->brand(catalogShopStore('sa'), 'en', catalogShopSlug('brand', $brand), $first->products->next, 1) : null;
+
+        expect($first instanceof BrandPage ? $first->products->cards[0]->productId : null)->toBe($expected[0])
+            ->and($next instanceof BrandPage ? [$next->products->cards[0]->productId, $next->products->next] : null)->toBe([$expected[1], null]);
+    });
+
+    it('answers an old slug with the current one, and nothing for an unknown one', function () {
+        $brand = Px::brand('Hettich');
+        catalogShopProduct(Px::category('Drawers'), brandId: $brand);
+        $old = catalogShopSlug('brand', $brand);
+        $row = DB::table('catalog.brands')->where('id', $brand)->first() ?? throw new LogicException('No brand.');
+        Fx::asSystem(fn () => app(EditBrandHandler::class)->handle(new EditBrand($brand, (string) $row->name_ar, 'Hettich fittings', (string) $row->agency_type, true, (int) $row->position, slugEn: 'hettich-fittings')));
+
+        expect(app(ShopCatalog::class)->brand(catalogShopStore('sa'), 'en', $old))->toEqual(new Moved('hettich-fittings'))
+            ->and(app(ShopCatalog::class)->brand(catalogShopStore('sa'), 'en', 'hettich-fittings'))->toBeInstanceOf(BrandPage::class)
+            ->and(app(ShopCatalog::class)->brand(catalogShopStore('sa'), 'en', 'no-such-brand'))->toBeNull();
     });
 
     it('has none for an inactive brand', function () {
@@ -310,8 +365,13 @@ describe('a product page', function () {
         $p = Px::ready(['60 cm', '80 cm']);
         catalogShopChoose('sa', $p['product']);
         Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $p['product'], $p['variants'][0])));
-        $label = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'New', 'green', 0)));
-        Fx::asSystem(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels(Fx::storeId('sa'), $p['product'], [$label])));
+        $later = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('عرض', 'Offer', 'amber', 2)));
+        $label = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'New', 'green', 1)));
+        Fx::asSystem(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels(Fx::storeId('sa'), $p['product'], [$later, $label])));
+        // A photo whose sizes are not ready yet is not shown.
+        $pending = Cx::media();
+        DB::table('platform.media')->where('id', $pending)->update(['variants_status' => 'PENDING', 'variants_generated_at' => null]);
+        Fx::asSystem(fn () => app(SetProductGalleryHandler::class)->handle(new SetProductGallery($p['product'], [$pending, ...app(ProductRepository::class)->gallery($p['product'])])));
 
         $page = app(ShopCatalog::class)->product(catalogShopStore('sa'), 'en', catalogShopSlug('product', $p['product']));
 
@@ -324,7 +384,7 @@ describe('a product page', function () {
             ->and(array_map(static fn ($variant): string => $variant->variantId, $page->variants))->toBe([$p['variants'][1]])
             ->and($page->variants[0]->values[0]->value)->toBe('80 cm')
             ->and($page->variants[0]->values[0]->attributeId)->toBe($p['width'])
-            ->and($page->labels[0]->name)->toBe('New')
+            ->and(array_map(static fn (CardLabel $label): string => $label->name, $page->labels))->toBe(['New', 'Offer'])
             ->and($page->photos)->toHaveCount(1)
             ->and($page->description)->toHaveKey('blocks');
 
@@ -407,5 +467,21 @@ describe('suggestions', function () {
 
         expect($cards($relations->mayAlsoLike))->toBe([$sameBrand])
             ->and($cards($relations->goesWith))->toBe([$sameCategory]);
+    });
+
+    it('suggests a secondary brand\'s products on its own products\' pages only', function () {
+        $category = Px::category('Baskets');
+        $tallsen = Px::brand('Tallsen');
+        catalogShopHideBrandFromDefaults($tallsen);
+        $house = catalogShopProduct($category);
+        $basket = catalogShopProduct($category, brandId: $tallsen);
+        $otherBasket = catalogShopProduct($category, brandId: $tallsen);
+        $cards = static fn (array $cards): array => array_map(static fn (ProductCard $card): string => $card->productId, $cards);
+        // Same category, newest first: the other basket, then the house product.
+        $expected = [$otherBasket, $house];
+        usort($expected, static fn (string $one, string $other): int => strcmp($other, $one));
+
+        expect($cards(app(ShopCatalog::class)->relations(catalogShopStore('sa'), 'en', $house)->mayAlsoLike))->toBe([])
+            ->and($cards(app(ShopCatalog::class)->relations(catalogShopStore('sa'), 'en', $basket)->mayAlsoLike))->toBe($expected);
     });
 });

@@ -14,14 +14,14 @@ use Modules\Catalog\Application\Search\SearchTerms;
 interface ShopReader
 {
     /**
-     * The categories in a store's menu (§1.5, amendment 5(a), (h)): active, with something listed in
-     * them or below them — of the brand asked for, or else of a brand shown in default listings — in
+     * The categories in a store's menu (§1.5, amendment 5(a), (k)): active, with something listed in
+     * them or below them — of any brand: a secondary brand is reached through its own category — in
      * the store's own order among their siblings, or the base store's until the store's admins place
      * them, then by name.
      *
      * @return list<array{id: string, parent_id: string|null, name: string, slug: string, image_media_id: string|null}>
      */
-    public function menu(string $storeId, ?string $baseStoreId, string $locale, ?string $brandId): array;
+    public function menu(string $storeId, ?string $baseStoreId, string $locale): array;
 
     /**
      * Who holds a slug of this kind in this language — now or before — and their slug there now.
@@ -32,9 +32,12 @@ interface ShopReader
     public function slugOwner(string $kind, string $locale, string $slug): ?array;
 
     /**
-     * @return array{name: string, is_active: bool}|null
+     * @return array{name: string}|null
      */
     public function category(string $categoryId, string $locale): ?array;
+
+    /** Whether a category's pages list anything in this store — a category that is off lists nothing. */
+    public function categoryLists(string $storeId, string $locale, string $categoryId): bool;
 
     /**
      * @return array{name: string, is_active: bool, logo_media_id: string|null}|null
@@ -42,8 +45,8 @@ interface ShopReader
     public function brand(string $brandId, string $locale): ?array;
 
     /**
-     * A category's page: what is listed in it or below it — of these brands when the shopper picked
-     * some, or else of brands shown in default listings (handoff §9.4, amendment 5(h)).
+     * A category's page: what is listed in it or below it, of every brand — or of these brands, when
+     * the shopper picked some (amendment 5(k)).
      *
      * @param  list<string>  $brandIds
      */
@@ -64,13 +67,15 @@ interface ShopReader
     public function cardsOf(string $storeId, string $locale, array $productIds): array;
 
     /**
-     * Cards sharing a category or a brand with a product, best-selling first, leaving some out.
+     * Cards sharing a category or a brand with a product, best-selling first, leaving some out: of
+     * brands shown in default listings, or of the product's own brand — a secondary brand's products
+     * are suggested on its own products' pages only (amendment 5(l)).
      *
      * @param  'category_id'|'brand_id'  $column
      * @param  list<string>  $except
      * @return list<ProductCard>
      */
-    public function cardsSharing(string $storeId, string $locale, string $column, string $value, array $except, int $limit): array;
+    public function cardsSharing(string $storeId, string $locale, string $column, string $value, string $brandId, array $except, int $limit): array;
 
     /**
      * A product as its page needs it, in that language, whatever its stage.
@@ -110,9 +115,10 @@ interface ShopReader
     public function wordPairs(array $words): array;
 
     /**
-     * The search (§1.11, amendment 5(c)–(h)): what a shopper can order here whose names, search
-     * words (or a pair of them) or categories' names hold every word typed, ranked exact, prefix,
-     * nearest, a search word or pair, a category's name; ties by sales rank, then newest.
+     * The search (§1.11, amendment 5(c)–(g), (k)): what a shopper can order here, of a brand shown in
+     * default listings, whose names, search words (or a pair of them) or categories' names hold every
+     * word typed, ranked exact, prefix, nearest, a search word or pair, a category's name; ties by
+     * sales rank, then newest.
      */
     public function search(string $storeId, string $locale, SearchTerms $terms, int $limit): SearchResults;
 

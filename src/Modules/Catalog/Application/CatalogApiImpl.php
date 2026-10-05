@@ -105,8 +105,10 @@ final readonly class CatalogApiImpl implements CatalogApi
             $product->id(),
             $row['active'],
             // Until Inventory pushes it (§2.2): ready, switched on, not archived, neither it nor its
-            // product "Not available now" there (§1.3) — and no price needed yet (amendment 5(b)).
-            $product->stage() === ProductStage::Ready && $row['active'] && ! $variant->isArchived() && ! $unavailable,
+            // product "Not available now" there (§1.3), and not hidden with its category or brand —
+            // hidden is inactive (owner, 2026-10-05, amendment 5(j)) — and no price needed yet (5(b)).
+            $product->stage() === ProductStage::Ready && $row['active'] && ! $variant->isArchived() && ! $unavailable
+                && ! $product->hiddenByCategory() && ! $product->hiddenByBrand(),
             $unavailable,
             $modes,
             $limits->retailMinimum,
@@ -118,12 +120,9 @@ final readonly class CatalogApiImpl implements CatalogApi
 
     public function resolveVariant(string $productId, array $valueIds): ?string
     {
+        // A product with no attribute set has one variant, made of no values: nothing picked names it.
         $picked = array_values(array_unique(array_map(static fn (string $id): string => strtolower(trim($id)), $valueIds)));
         sort($picked);
-
-        if ($picked === []) {
-            return null;
-        }
 
         foreach ($this->variants->ofProduct(strtolower(trim($productId))) as $variant) {
             $made = array_values($variant->combination()->valueIds);

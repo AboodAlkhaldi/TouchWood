@@ -10,10 +10,11 @@ use Modules\Catalog\Application\Search\SearchTerms;
 | the shared word pairs, a run of words before a single one.
 */
 
-it('reads what was typed as the listing was written: normalised, words of letters and digits only', function () {
+it('reads what was typed as the listing was written: normalised, words of letters and digits only, one space apart', function () {
     $terms = SearchTerms::of("  Soft-Close   مِفْصَلة & ٣٥mm ' | !  ");
 
-    expect($terms->text)->toBe("soft-close مفصله & 35mm ' | !")
+    expect($terms->text)->toBe('soft close مفصله 35mm')
+        ->and(SearchTerms::canonical('Soft-Close  مِفْصَلة!'))->toBe('soft close مفصله')
         ->and($terms->words)->toBe(['soft', 'close', 'مفصله', '35mm'])
         ->and($terms->inNames())->toBe('soft:*A & close:*A & مفصله:*A & 35mm:*A')
         ->and($terms->inWords())->toBe('(soft:*AB) & (close:*AB) & (مفصله:*AB) & (35mm:*AB)')
@@ -25,11 +26,12 @@ it('searches nothing for words with no letter or digit', function (string $typed
 })->with(['nothing' => [''], 'spaces' => ['   '], 'marks only' => ['?! & | :*']]);
 
 it('keeps at most ten words and two hundred characters, as the log does', function () {
-    $terms = SearchTerms::of(implode(' ', array_map(static fn (int $n): string => "w{$n}", range(1, 15))).' '.str_repeat('x', 300));
+    $terms = SearchTerms::of(implode(' ', array_map(static fn (int $n): string => "w{$n}", range(1, 15))));
 
     expect($terms->words)->toHaveCount(SearchTerms::WORDS_MAX)
         ->and($terms->words[9])->toBe('w10')
-        ->and(mb_strlen($terms->text))->toBe(SearchTerms::TEXT_MAX);
+        ->and($terms->text)->toBe('w1 w2 w3 w4 w5 w6 w7 w8 w9 w10')
+        ->and(mb_strlen(SearchTerms::of(str_repeat('x', 300))->text))->toBe(SearchTerms::TEXT_MAX);
 });
 
 it('widens a word by each pair that names it, either way round', function () {
@@ -44,7 +46,8 @@ it('widens a word by each pair that names it, either way round', function () {
 it('widens a run of words by a pair of several words before any one of them', function () {
     $terms = SearchTerms::of('soft close hinge')->withPairs([['close', 'غلق'], ['soft close', 'ناعم الاغلاق'], ['hinge', 'مفصله']]);
 
-    expect($terms->inWords())->toBe('(soft:*AB <-> close:*AB | ناعم:*AB <-> الاغلاق:*AB) & (hinge:*AB | مفصله:*AB)');
+    // The words typed in any order, as without the pair; the partner's side by side.
+    expect($terms->inWords())->toBe('(soft:*AB & close:*AB | ناعم:*AB <-> الاغلاق:*AB) & (hinge:*AB | مفصله:*AB)');
 });
 
 it('leaves a pair that names only part of a word, or no word typed, out', function () {

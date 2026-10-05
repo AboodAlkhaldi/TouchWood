@@ -10,8 +10,10 @@ use Modules\Catalog\Domain\Service\ArabicText;
  * What a shopper typed, as search reads it (catalog.md §1.11): normalised as every word in the
  * listing was (handoff §5.2), cut into words — letters and digits only, so nothing typed can reach
  * the query's own syntax — and each word, or run of words, widened by the shared word pairs that
- * name it ("مفصلة" ↔ "hinge"). Each word matches the start of a word (a prefix), so a shopper still
- * typing is already answered.
+ * name it ("مفصلة" ↔ "hinge"): the words typed, in any order, or the pair's partner, its words side by
+ * side. A pair only ever adds results. Each word matches the start of a word (a prefix), so a
+ * shopper still typing is already answered. The text kept — for the exact match, the nearness and
+ * the log — is the words, one space apart, so "drawer." and "drawer" are one search.
  *
  * The three questions it asks of a row's search document (§5.4): every word in a **name** (A); every
  * word, or its pair, in a name or a **search word** (A, B); and the same in the **names of its
@@ -37,10 +39,18 @@ final readonly class SearchTerms
 
     public static function of(string $typed): self
     {
-        $text = mb_substr(ArabicText::normalize($typed), 0, self::TEXT_MAX);
-        $words = array_slice(self::words($text), 0, self::WORDS_MAX);
+        $words = array_slice(self::words(ArabicText::normalize($typed)), 0, self::WORDS_MAX);
 
-        return new self($text, $words, array_map(static fn (string $word): array => ['words' => [$word], 'alternatives' => []], $words));
+        return new self(mb_substr(implode(' ', $words), 0, self::TEXT_MAX), $words, array_map(static fn (string $word): array => ['words' => [$word], 'alternatives' => []], $words));
+    }
+
+    /**
+     * A name as search compares it: normalised, its words one space apart (the listing's nearness
+     * text, DatabaseListingRows).
+     */
+    public static function canonical(string $text): string
+    {
+        return implode(' ', self::words(ArabicText::normalize($text)));
     }
 
     public function isEmpty(): bool
@@ -140,10 +150,14 @@ final readonly class SearchTerms
 
     private function query(string $weights): string
     {
-        $phrase = static fn (array $words): string => implode(' <-> ', array_map(static fn (string $word): string => "{$word}:*{$weights}", $words));
+        $lexemes = static fn (array $words, string $join): string => implode($join, array_map(static fn (string $word): string => "{$word}:*{$weights}", $words));
 
+        // The words typed in any order, as without the pair; the partner's side by side.
         return implode(' & ', array_map(
-            static fn (array $group): string => '('.implode(' | ', array_map($phrase, [$group['words'], ...$group['alternatives']])).')',
+            static fn (array $group): string => '('.implode(' | ', [
+                $lexemes($group['words'], ' & '),
+                ...array_map(static fn (array $words): string => $lexemes($words, ' <-> '), $group['alternatives']),
+            ]).')',
             $this->groups,
         ));
     }

@@ -100,8 +100,8 @@ function catalogSearchFound(string $typed, string $locale = 'en', string $store 
 describe('the ranking', function () {
     it('ranks exact, then prefix, then nearest, then a search word, then a category\'s name — ties by sales rank', function () {
         $exact = catalogSearchProduct('Drawer', 'درج');
-        $prefixLower = catalogSearchProduct('Drawer runner', 'سكة درج');
-        $prefixHigher = catalogSearchProduct('Drawer slide', 'منزلق درج');
+        $prefixHigher = catalogSearchProduct('Drawer runner', 'سكة درج');
+        $prefixLower = catalogSearchProduct('Drawer slide', 'منزلق درج');
         // Not a prefix of it, but near (pg_trgm's word similarity): one letter short (0.71), and
         // one doubled (0.67) — added after, so newest-first alone would put it first.
         $nearer = catalogSearchProduct('Drawe panel', 'لوح');
@@ -109,7 +109,7 @@ describe('the ranking', function () {
         $word = catalogSearchProduct('Slide', 'منزلق');
         Fx::asSystem(fn () => app(SetSearchWordsHandler::class)->handle(new SetSearchWords($word, ['drawer'])));
         $category = catalogSearchProduct('Panel', 'لوح خشب', Px::category('Drawers'));
-        // Sales pushes ranks from stage 6 (§2.2).
+        // Sales pushes ranks from stage 6 (§2.2): the older of the two sells better.
         DB::table('catalog.listing')->where('product_id', $prefixLower)->update(['sales_rank' => 2]);
         DB::table('catalog.listing')->where('product_id', $prefixHigher)->update(['sales_rank' => 1]);
         // Found by nothing but its description, its brand or its code, a product is not found.
@@ -119,6 +119,26 @@ describe('the ranking', function () {
 
         expect(catalogSearchIds($found->cards))->toBe([$exact, $prefixHigher, $prefixLower, $nearer, $near, $word, $category])
             ->and($found->total)->toBe(7);
+
+        // The total counts every match, not only those on the page.
+        $page = app(ShopSearch::class)->results(catalogSearchStore(), 'en', 'drawer.', 2);
+
+        expect(catalogSearchIds($page->cards))->toBe([$exact, $prefixHigher])
+            ->and($page->total)->toBe(7);
+    });
+
+    it('takes the other language\'s name, whole, as an exact match too', function () {
+        $exact = catalogSearchProduct('Pivot', 'مفصلة');
+        // Newer, and a prefix match: newest-first alone would put it first.
+        $prefix = catalogSearchProduct('Door pivot', 'مفصلة باب');
+
+        expect(catalogSearchFound('مفصلة'))->toBe([$exact, $prefix]);
+    });
+
+    it('finds an Arabic name typed with one letter wrong, by nearness', function () {
+        $id = catalogSearchProduct('Soft hinge', 'مفصلة ناعمة');
+
+        expect(catalogSearchFound('مفصلا', 'ar'))->toBe([$id]);
     });
 
     it('finds a product by either language\'s name on every page, shown in the page\'s language', function () {
@@ -142,19 +162,23 @@ describe('the ranking', function () {
         $hinge = catalogSearchProduct('Pivot', 'مفصلة');
         $soft = catalogSearchProduct('Damper', 'مخمد');
         Fx::asSystem(fn () => app(SetSearchWordsHandler::class)->handle(new SetSearchWords($soft, ['ناعم'])));
+        // Its words apart and in another order: found by what was typed, with or without the pair.
+        $apart = catalogSearchProduct('Close soft drawer', 'درج ناعم الاغلاق');
 
-        expect(catalogSearchFound('hinge'))->toBe([]);
+        expect(catalogSearchFound('hinge'))->toBe([])
+            ->and(catalogSearchFound('soft close'))->toBe([$apart]);
 
         Fx::asSystem(fn () => app(AddWordPairHandler::class)->handle(new AddWordPair('مفصلة', 'hinge')));
         Fx::asSystem(fn () => app(AddWordPairHandler::class)->handle(new AddWordPair('soft close', 'ناعم')));
 
+        // Typed words in its name before the pair's partner among its search words.
         expect(catalogSearchFound('hinge'))->toBe([$hinge])
-            ->and(catalogSearchFound('soft close', 'ar'))->toBe([$soft])
+            ->and(catalogSearchFound('soft close', 'ar'))->toBe([$apart, $soft])
             // A pair's partner is one more way in, never a way around a word typed with it.
             ->and(catalogSearchFound('hinge damper'))->toBe([]);
     });
 
-    it('finds what a shopper can order here — a product left in an inactive category and a hidden brand\'s included — and nothing else', function () {
+    it('finds what a shopper can order here, a product left in an inactive category included — never a secondary brand\'s, nor anything else', function () {
         $category = Px::category('Hinges');
         $left = catalogSearchProduct('Cabinet hinge', 'مفصلة خزانة', $category);
         Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'LEAVE')));
@@ -165,10 +189,10 @@ describe('the ranking', function () {
         $notHere = catalogSearchProduct('Door hinge', 'مفصلة باب', stores: ['eg']);
         $unavailable = catalogSearchProduct('Glass hinge', 'مفصلة زجاج');
         Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $unavailable)));
-        $both = [$left, $hidden];
-        rsort($both);
-
-        expect(catalogSearchFound('hinge'))->toBe($both)
+        // A secondary brand's product is reached through its own category only (owner, 2026-10-05).
+        expect(catalogSearchFound('hinge'))->toBe([$left])
+            ->and(catalogSearchFound('corner'))->toBe([])
+            ->and(DB::table('catalog.listing')->where('product_id', $hidden)->exists())->toBeTrue()
             ->and(catalogSearchFound('hinge', 'en', 'eg'))->toBe([$notHere]);
     });
 
@@ -188,7 +212,7 @@ describe('the search log', function () {
     it('keeps a submitted search — the words as read, the store, the language, how many — and no person', function () {
         catalogSearchProduct('Drawer', 'درج');
 
-        app(ShopSearch::class)->results(catalogSearchStore(), 'en', '  DRAWER ');
+        app(ShopSearch::class)->results(catalogSearchStore(), 'en', '  DRAWER. ');
         app(ShopSearch::class)->results(catalogSearchStore('eg'), 'ar', 'مُفصلة');
 
         expect(Schema::getColumnListing('catalog.search_log'))->toEqualCanonicalizing(['id', 'store_id', 'locale', 'query', 'results', 'searched_at'])
@@ -211,14 +235,14 @@ describe('the search log', function () {
         CarbonImmutable::setTestNow('2027-06-15 01:00:00');
         $store = Fx::storeId('sa');
 
-        foreach (['2026-06-14 23:59:59', '2026-06-15 01:00:01', '2027-06-01 10:00:00'] as $at) {
+        foreach (['2026-06-14 23:59:59', '2026-06-15 00:59:59', '2026-06-15 01:00:00', '2027-06-01 10:00:00'] as $at) {
             DB::table('catalog.search_log')->insert(['store_id' => $store, 'locale' => 'en', 'query' => 'drawer', 'results' => 0, 'searched_at' => $at]);
         }
 
         Fx::asSystem(fn () => app(PruneSearchLogJob::class)->handle(app(PruneSearchLogHandler::class)));
 
         expect(DB::table('catalog.search_log')->orderBy('searched_at')->pluck('searched_at')->map(static fn (mixed $at): string => CarbonImmutable::parse((string) $at)->utc()->toDateTimeString())->all())
-            ->toBe(['2026-06-15 01:00:01', '2027-06-01 10:00:00']);
+            ->toBe(['2026-06-15 01:00:00', '2027-06-01 10:00:00']);
 
         CarbonImmutable::setTestNow();
     });
