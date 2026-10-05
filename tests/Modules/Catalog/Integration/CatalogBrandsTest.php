@@ -338,3 +338,20 @@ describe('what the database refuses behind the code', function () {
             ->toThrow(QueryException::class, 'brand_slugs_pkey');
     });
 });
+
+describe('the brand\'s fixed number (amendment 7(b))', function () {
+    it('numbers each brand as it is added, never again after a delete, and never by hand', function () {
+        Cx::actAsStaffWith([CatalogPermissions::BRAND_MANAGE]);
+        $blum = catalogBrandsAdd('Blum');
+        $hettich = catalogBrandsAdd('Hettich');
+        app(DeleteBrandHandler::class)->handle(new DeleteBrand($hettich));
+        $tallsen = catalogBrandsAdd('Tallsen');
+
+        // A sequence's numbers: a rolled-back test does not wind it back, so they count from Blum's.
+        $first = (int) DB::table('catalog.brands')->where('id', $blum)->value('number');
+
+        expect(app(BrandRepository::class)->numbers())->toBe([$first => $blum, $first + 2 => $tallsen]);
+        expect(fn () => DB::transaction(fn () => DB::table('catalog.brands')->where('id', $blum)->update(['number' => 7])))
+            ->toThrow(QueryException::class, 'number');
+    });
+});

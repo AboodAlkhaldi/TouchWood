@@ -52,7 +52,7 @@
         "ar": "مفصلة بزاوية فتح 110 درجة.",
         "en": "A hinge that opens to 110 degrees."
       },
-      "brand": "Tallsen",
+      "brand": 2,
       "category": "Tallsen / Hinges",
       "variants": [
         { "code": "2001", "weight_g": 90 }

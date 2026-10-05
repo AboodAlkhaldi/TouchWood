@@ -109,7 +109,10 @@ final class CatalogCheck
     {
         $at = "product {$product->number}";
 
-        if ($product->brand !== null && $this->names->brand($product->brand) === null) {
+        // A brand by its number is listed as "#2", apart from any brand named "2".
+        if ($product->brandNumber !== null && $this->names->brandNumbered($product->brandNumber) === null) {
+            $this->need(ImportNameRow::BRAND, "#{$product->brandNumber}", ["#{$product->brandNumber}"], null, null, $product->number);
+        } elseif ($product->brand !== null && $this->names->brand($product->brand) === null) {
             $this->need(ImportNameRow::BRAND, $product->brand, [$product->brand], null, null, $product->number);
         }
 

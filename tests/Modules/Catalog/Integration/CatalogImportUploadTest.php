@@ -173,6 +173,18 @@ describe('a file that passes', function () {
         expect(Ix::names($id))->toBe(['VALUE' => ['80 cm']]);
     });
 
+    it('finds a brand by its fixed number, and lists a number the catalog lacks apart from names', function () {
+        $blum = Px::brand('Blum');
+        // Numbers come from a sequence a rolled-back test does not wind back: read them, never assume them.
+        $number = (int) DB::table('catalog.brands')->where('id', $blum)->value('number');
+        $touchWood = (int) DB::table('catalog.brands')->where('is_default', true)->value('number');
+        $missing = $number + 1000;
+
+        $id = Ix::uploadProducts([Ix::product('1', ['brand' => $number]), Ix::product('2', ['brand' => $touchWood]), Ix::product('3', ['brand' => $missing]), Ix::product('4', ['brand' => (string) $missing])]);
+
+        expect(Ix::names($id))->toBe(['BRAND' => ["#{$missing}", (string) $missing]]);
+    });
+
     it('lists only the levels of a category path the catalog lacks, each under its parent', function () {
         $kitchens = Px::category('Kitchens');
         $kitchensEn = (string) DB::table('catalog.categories')->where('id', $kitchens)->value('name_en');
@@ -298,9 +310,13 @@ describe('a zip', function () {
         expect($archive)->toBe("catalog-imports/{$id}.zip");
         Storage::disk('local')->assertExists($archive);
 
+        // The hinge names brand number 2. Only TouchWood is here, and the sequence numbering brands is
+        // not wound back between tests, so TouchWood may be number 2 itself.
+        $two = DB::table('catalog.brands')->where('number', 2)->exists() ? [] : ['BRAND' => ['#2']];
+
         expect(Ix::names($id))->toBe([
             'ATTRIBUTE' => ['Closing', 'Finish', 'Length', 'Load', 'Material', 'Use'],
-            'BRAND' => ['Tallsen'],
+            ...$two,
             'CATEGORY' => ['Handles', 'Kitchens', 'Kitchens / Drawers', 'Kitchens / Drawers / Runners', 'Tallsen', 'Tallsen / Hinges'],
             'SET' => ['Runner sizes'],
             'VALUE' => ['45 cm', '50 cm', 'Black', 'Kitchen', 'Soft-close', 'Wardrobe', 'Zinc'],

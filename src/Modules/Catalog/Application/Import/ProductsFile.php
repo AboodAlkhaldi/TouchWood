@@ -161,6 +161,7 @@ final readonly class ProductsFile
         [$descriptionAr, $descriptionEn] = self::descriptions($raw['description'] ?? null, "{$at} › description", $problems);
         $set = self::listName($raw['attribute_set'] ?? null, "{$at} › attribute_set", $problems);
         $variants = self::variants($raw['variants'] ?? null, $set !== null || array_key_exists('attribute_set', $raw), $at, $zip, $problems);
+        [$brand, $brandNumber] = self::brand($raw['brand'] ?? null, "{$at} › brand", $problems);
 
         return new FileProduct(
             $number,
@@ -170,7 +171,7 @@ final readonly class ProductsFile
             $slugEn,
             $descriptionAr,
             $descriptionEn,
-            self::listName($raw['brand'] ?? null, "{$at} › brand", $problems),
+            $brand,
             self::category($raw['category'] ?? null, "{$at} › category", $problems),
             self::listName($raw['warranty'] ?? null, "{$at} › warranty", $problems),
             $set,
@@ -181,7 +182,34 @@ final readonly class ProductsFile
             self::codes($raw['related'] ?? null, "{$at} › related", $problems),
             self::codes($raw['goes_with'] ?? null, "{$at} › goes_with", $problems),
             self::stores($raw['stores'] ?? null, "{$at} › stores", $problems),
+            $brandNumber,
         );
+    }
+
+    /**
+     * The brand's fixed number, or its name (amendment 7(b)).
+     *
+     * @return array{string|null, int|null} the name, or the number
+     */
+    private static function brand(mixed $raw, string $at, FileProblems $problems): array
+    {
+        if (is_int($raw)) {
+            if ($raw >= 1) {
+                return [null, $raw];
+            }
+
+            $problems->add($at, "the brand's number, from 1, or its name");
+
+            return [null, null];
+        }
+
+        if ($raw !== null && ! is_string($raw)) {
+            $problems->add($at, "the brand's number, from 1, or its name");
+
+            return [null, null];
+        }
+
+        return [self::listName($raw, $at, $problems), null];
     }
 
     /**

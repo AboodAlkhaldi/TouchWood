@@ -77,6 +77,17 @@ final readonly class DatabaseBrandRepository implements BrandRepository
         return $this->toBrands($this->db->table(self::TABLE)->orderBy('position')->orderBy('name_en')->orderBy('id')->get()->all());
     }
 
+    public function numbers(): array
+    {
+        $numbers = [];
+
+        foreach ($this->db->table(self::TABLE)->orderBy('number')->get(['number', 'id']) as $row) {
+            $numbers[(int) $row->number] = (string) $row->id;
+        }
+
+        return $numbers;
+    }
+
     public function withLogo(string $mediaId): array
     {
         return array_values(array_map('strval', $this->db->table(self::TABLE)->where('logo_media_id', strtolower($mediaId))->orderBy('id')->pluck('id')->all()));

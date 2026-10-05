@@ -39,9 +39,9 @@ unless this guide says otherwise.
 | `name` | **Yes** | `{"ar": text, "en": text}` | `ar` is **required**; `en` is optional but **needed for the product to be ready**. Each at most 200 characters. |
 | `slug` | No | `{"ar": text, "en": text}` | The web address. Left out, it is made from the name. `ar`: Arabic letters, digits and single hyphens; `en`: `a-z`, digits and single hyphens (`soft-close-runner`). |
 | `description` | No | `{"ar": text, "en": text}` | Both are **needed for the product to be ready**. At most 20,000 characters each. May span lines — see §1.4. |
-| `brand` | No | text | A brand's name, in Arabic or English. Left out, the default brand (TouchWood). |
+| `brand` | No | number or text | The brand's **number** as the panel shows it (`2`) — best, no typo possible — or its name in Arabic or English. Left out, the default brand (TouchWood). The brand must already be in the catalog. |
 | `category` | No | text | The path from the top, names separated by ` / ` (space, slash, space): `"Kitchens / Drawers / Runners"`. It must end at a category with **no sub-categories**. **Needed for the product to be ready.** |
-| `warranty` | No | text | A warranty's name. |
+| `warranty` | No | text | A warranty's name. It must already be in the catalog. |
 | `attribute_set` | When variants have `values` | text | The set whose attributes make the variants (e.g. `"Runner sizes"` = Length + Finish). |
 | `variants` | **Yes** | list | **At least one.** See §1.2. |
 | `photos` | No | list of text | The gallery, in order: **paths inside the zip**, at most 20, each once. **At least one is needed for the product to be ready.** Leave out when uploading the JSON alone. |
@@ -74,12 +74,20 @@ source.)
 ### 1.3 Names in the file
 
 Brands, categories, attributes, values, attribute sets and warranties are written **by name**, as they
-appear in the panel, in **Arabic or English**. They are matched ignoring upper/lower case, extra
-spaces, Arabic marks (tashkeel) and letter forms (أ/إ/آ = ا, ة = ه, ى = ي).
+appear in the panel, in **Arabic or English** — a brand also **by its number**. Names are matched
+ignoring upper/lower case, extra spaces, Arabic marks (tashkeel) and letter forms (أ/إ/آ = ا, ة = ه,
+ى = ي).
+
+**Brands, warranties and attributes must already be in the catalog** — add them in the panel before
+uploading. **Values, categories and attribute sets may be new.**
 
 **A name the catalog does not have yet is not an error.** The import's page lists it, and the Super
-Admin decides there: it is a typo for an existing one (pick it), create it (fixing the wording and
-giving its name in the other language), or refuse it.
+Admin decides there: it is a typo for an existing one (pick it), or — for a value, a category or a set
+only — create it (fixing the wording and giving its name in the other language), or refuse it. A
+refused brand becomes the default brand (TouchWood).
+
+In the example file, the runner names its brand as `"TouchWood"` and the hinge as `2` — the brand the
+panel shows as number 2 (Tallsen, in that panel).
 
 ### 1.4 Writing a description
 
@@ -125,8 +133,11 @@ not in the zip (or photos are named in a JSON uploaded alone); a number is out o
 long; the file is over its limits. Nothing is kept from a refused file.
 
 A file that passes changes **nothing** until the Super Admin decides on its page: new names, codes the
-catalog already has (update that product, replace it whole, skip, or give another code), then
-**bring the products in**, then accept, archive or delete them.
+catalog already has (update that product, replace it whole, skip, or give another code). There, all
+the products or the selected ones can also be changed at once — brand, warranty, category, the stores
+to switch on in with a price and stock, search words, filter values — replacing what they have or only
+filling the ones that have none. Then **bring the products in** (the confirm: until then all of it is a
+draft), then accept, archive or delete them.
 
 ---
 

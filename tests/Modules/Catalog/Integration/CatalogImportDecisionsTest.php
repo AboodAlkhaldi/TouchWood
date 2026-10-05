@@ -132,21 +132,30 @@ describe('a name the catalog lacks', function () {
         expect(catalogDecidedName($name)['target_id'])->toBe($use);
     });
 
-    it('is created with its names in both languages, each on one line', function () {
-        $import = Ix::uploadProducts([Ix::product('1', ['brand' => 'Tallsen'])]);
-        $name = Ix::nameId($import, 'BRAND', 'Tallsen');
+    it('is created with its names in both languages, each on one line: a category or a set', function () {
+        $import = Ix::uploadProducts([Ix::product('1', ['category' => 'Hinges'])]);
+        $name = Ix::nameId($import, 'CATEGORY', 'Hinges');
 
-        expect(fn () => catalogDecideNames($import, [['name_id' => $name, 'decision' => 'CREATE', 'name_ar' => 'تالسن']]))->toThrow(InvalidCatalogAttribute::class, 'Invalid decisions.0.name_en: required');
+        expect(fn () => catalogDecideNames($import, [['name_id' => $name, 'decision' => 'CREATE', 'name_ar' => 'مفصلات']]))->toThrow(InvalidCatalogAttribute::class, 'Invalid decisions.0.name_en: required');
 
-        catalogDecideNames($import, [['name_id' => $name, 'decision' => 'CREATE', 'name_ar' => ' تالسن ', 'name_en' => 'Tallsen']]);
-        expect(catalogDecidedName($name))->toBe(['decision' => 'CREATE', 'target_id' => null, 'name_ar' => 'تالسن', 'name_en' => 'Tallsen']);
+        catalogDecideNames($import, [['name_id' => $name, 'decision' => 'CREATE', 'name_ar' => ' مفصلات ', 'name_en' => 'Hinges']]);
+        expect(catalogDecidedName($name))->toBe(['decision' => 'CREATE', 'target_id' => null, 'name_ar' => 'مفصلات', 'name_en' => 'Hinges']);
+    });
+
+    it('is never created when it is a brand, a warranty or an attribute: those are added in the panel first', function () {
+        $import = Ix::uploadProducts([Ix::product('1', ['brand' => 'Tallsen', 'warranty' => 'Two years', 'variants' => [['code' => '1', 'details' => ['Material' => ['ar' => 'فولاذ', 'en' => 'Steel']]]]])]);
+
+        foreach ([['BRAND', 'Tallsen'], ['WARRANTY', 'Two years'], ['ATTRIBUTE', 'Material']] as [$kind, $written]) {
+            expect(fn () => catalogDecideNames($import, [['name_id' => Ix::nameId($import, $kind, $written), 'decision' => 'CREATE', 'name_ar' => 'اسم', 'name_en' => 'Name']]))
+                ->toThrow(InvalidCatalogAttribute::class, 'Invalid decisions.0.decision: EXISTING or REFUSE: brands, warranties and attributes are added in the panel first');
+        }
     });
 
     it('is refused, and decided again as often as needed before bringing in, audited each time it changes', function () {
-        $import = Ix::uploadProducts([Ix::product('1', ['brand' => 'Tallsen'])]);
-        $name = Ix::nameId($import, 'BRAND', 'Tallsen');
+        $import = Ix::uploadProducts([Ix::product('1', ['category' => 'Hinges'])]);
+        $name = Ix::nameId($import, 'CATEGORY', 'Hinges');
 
-        catalogDecideNames($import, [['name_id' => $name, 'decision' => 'CREATE', 'name_ar' => 'تالسن', 'name_en' => 'Tallsen']]);
+        catalogDecideNames($import, [['name_id' => $name, 'decision' => 'CREATE', 'name_ar' => 'مفصلات', 'name_en' => 'Hinges']]);
         catalogDecideNames($import, [['name_id' => $name, 'decision' => 'REFUSE']]);
         catalogDecideNames($import, [['name_id' => $name, 'decision' => 'REFUSE']]);
 
@@ -178,7 +187,8 @@ describe('a value the catalog lacks', function () {
         $attribute = Ix::nameId($import, 'ATTRIBUTE', 'Widht');
         $value = Ix::nameId($import, 'VALUE', '60 cm');
 
-        expect(fn () => catalogDecideNames($import, [['name_id' => $value, 'decision' => 'EXISTING', 'target_id' => $sixty]]))->toThrow(InvalidCatalogAttribute::class, 'once it is one the catalog has');
+        expect(fn () => catalogDecideNames($import, [['name_id' => $value, 'decision' => 'EXISTING', 'target_id' => $sixty]]))->toThrow(InvalidCatalogAttribute::class, 'once it is one the catalog has')
+            ->and(fn () => catalogDecideNames($import, [['name_id' => $value, 'decision' => 'CREATE', 'name_ar' => 'ستون', 'name_en' => '61 cm']]))->toThrow(InvalidCatalogAttribute::class, 'a value of Widht is created once Widht is one the catalog has');
 
         // Together, in the order sent: the attribute first, then its value.
         catalogDecideNames($import, [
@@ -188,7 +198,7 @@ describe('a value the catalog lacks', function () {
         expect(catalogDecidedName($value)['target_id'])->toBe($sixty);
 
         // The attribute decided again: its value waits again.
-        catalogDecideNames($import, [['name_id' => $attribute, 'decision' => 'CREATE', 'name_ar' => 'العرض', 'name_en' => 'Width']]);
+        catalogDecideNames($import, [['name_id' => $attribute, 'decision' => 'EXISTING', 'target_id' => Px::attribute('Depth')]]);
         expect(catalogDecidedName($value))->toBe(['decision' => null, 'target_id' => null, 'name_ar' => null, 'name_en' => null])
             ->and(Fx::audits('catalog.import_name.decided', $value))->toBe(2);
     });

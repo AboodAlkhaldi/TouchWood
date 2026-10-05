@@ -37,11 +37,13 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Deciding the names a products file uses that the catalog lacks** (catalog.md §1.12, page part 1;
- * amendment 6(c)): `catalog.import.run`. Each name **means one the catalog has** — a typo: an active
- * one of that list; an attribute doing the job the file uses it for; a value of its attribute, once
- * the catalog has that attribute or it is decided as one the catalog has —, is **created** with its
- * names in both languages, or is **refused**. Decided while the import is deciding, or again after
- * bringing it in failed. An attribute decided again sends the values decided under it back to wait.
+ * amendments 6(c), 7(a)): `catalog.import.run`. Each name **means one the catalog has** — a typo: an
+ * active one of that list; an attribute doing the job the file uses it for; a value of its attribute,
+ * once the catalog has that attribute or it is decided as one the catalog has —, is **created** with
+ * its names in both languages — a value (under such an attribute), a category or a set; brands,
+ * warranties and attributes are added in the panel first —, or is **refused**. Decided while the
+ * import is deciding, or again after bringing it in failed. An attribute decided again sends the
+ * values picked or created under it back to wait.
  *
  * Only the decision is kept here: the catalog changes when the products are brought in, where every
  * decision is checked again against the catalog as it is then. Each decision that changes something
@@ -54,6 +56,9 @@ final readonly class DecideImportNamesHandler
 
     /** Decisions sent at once. */
     public const int MAX = 500;
+
+    /** What the page may create; brands, warranties and attributes are added in the panel first (amendment 7(a)). */
+    private const array CREATED = [ImportNameRow::VALUE, ImportNameRow::CATEGORY, ImportNameRow::SET];
 
     public function __construct(
         private Authorizer $authorizer,
@@ -101,10 +106,10 @@ final readonly class DecideImportNamesHandler
                 $names[$name->id] = $decided;
                 $changed[$name->id] = true;
 
-                // The values decided under an attribute decided again wait for a decision again.
+                // The values picked or created under an attribute decided again wait for a decision again.
                 if ($name->kind === ImportNameRow::ATTRIBUTE && $decided->targetId !== $name->targetId) {
                     foreach ($names as $id => $value) {
-                        if ($value->kind === ImportNameRow::VALUE && $value->decision === ImportName::EXISTING && ImportNameRow::keyOf([(string) $value->attribute]) === $name->key) {
+                        if ($value->kind === ImportNameRow::VALUE && in_array($value->decision, [ImportName::EXISTING, ImportName::CREATE], true) && ImportNameRow::keyOf([(string) $value->attribute]) === $name->key) {
                             $names[$id] = $value->undecided();
                             $changed[$id] = true;
                         }
@@ -139,7 +144,9 @@ final readonly class DecideImportNamesHandler
     {
         return match ($decision['decision']) {
             ImportName::EXISTING => $name->decided(ImportName::EXISTING, $this->target($name, $decision['target_id'] ?? throw new InvalidCatalogAttribute("{$at}.target_id", 'required'), $names, $catalog, $at), null, null),
-            ImportName::CREATE => $this->created($name, $decision, $names, $catalog, $at),
+            ImportName::CREATE => in_array($name->kind, self::CREATED, true)
+                ? $this->created($name, $decision, $names, $catalog, $at)
+                : throw new InvalidCatalogAttribute("{$at}.decision", 'EXISTING or REFUSE: brands, warranties and attributes are added in the panel first'),
             ImportName::REFUSE => $name->decided(ImportName::REFUSE, null, null, null),
             default => throw new InvalidCatalogAttribute("{$at}.decision", 'EXISTING, CREATE or REFUSE'),
         };
@@ -201,11 +208,13 @@ final readonly class DecideImportNamesHandler
         $nameAr = CatalogText::oneLine("{$at}.name_ar", (string) $decision['name_ar'], ProductsFile::NAME_MAX);
         $nameEn = CatalogText::oneLine("{$at}.name_en", (string) $decision['name_en'], ProductsFile::NAME_MAX);
 
-        // An attribute's values are its own, each once (§1.7): a value it has already is chosen, not made again.
+        // A value is made under an attribute the catalog has, each once (§1.7): one it has already is
+        // chosen, not made again.
         if ($name->kind === ImportNameRow::VALUE) {
-            $attributeId = $this->attributeOf($name, $names, $catalog);
+            $attributeId = $this->attributeOf($name, $names, $catalog)
+                ?? throw new InvalidCatalogAttribute("{$at}.decision", "a value of {$name->attribute} is created once {$name->attribute} is one the catalog has");
 
-            if ($attributeId !== null && ($catalog->value($attributeId, $nameAr) ?? $catalog->value($attributeId, $nameEn)) !== null) {
+            if (($catalog->value($attributeId, $nameAr) ?? $catalog->value($attributeId, $nameEn)) !== null) {
                 throw new NameTaken('name');
             }
         }

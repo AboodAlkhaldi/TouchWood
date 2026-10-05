@@ -39,6 +39,11 @@ interface BrandRepository
     public function all(): array;
 
     /**
+     * @return array<int, string> every brand's fixed number (§1.6, amendment 7(b)) => its id
+     */
+    public function numbers(): array;
+
+    /**
      * @return list<string> the brands whose logo this media is
      */
     public function withLogo(string $mediaId): array;

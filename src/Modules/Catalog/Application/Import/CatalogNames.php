@@ -34,6 +34,7 @@ final readonly class CatalogNames
      * @param  array<string, string>  $sets  key => id
      * @param  array<string, list<string>>  $members  set id => its attributes' ids, in order
      * @param  array<string, string>  $warranties  key => id
+     * @param  array<int, string>  $brandNumbers  a brand's fixed number => its id
      */
     private function __construct(
         private array $brands,
@@ -43,6 +44,7 @@ final readonly class CatalogNames
         private array $sets,
         private array $members,
         private array $warranties,
+        private array $brandNumbers,
     ) {}
 
     public static function load(BrandRepository $brands, CategoryRepository $categories, AttributeRepository $attributes, WarrantyRepository $warranties): self
@@ -83,6 +85,7 @@ final readonly class CatalogNames
             self::index(array_map(static fn (AttributeSet $set): array => [$set->id(), $set->name()], $sets)),
             $members,
             self::index(array_map(static fn (Warranty $warranty): array => [$warranty->id(), $warranty->name()], $warranties->all())),
+            $brands->numbers(),
         );
     }
 
@@ -95,6 +98,12 @@ final readonly class CatalogNames
     public function brand(string $name): ?string
     {
         return $this->brands[self::key($name)] ?? null;
+    }
+
+    /** The brand with this fixed number (§1.6, amendment 7(b)). */
+    public function brandNumbered(int $number): ?string
+    {
+        return $this->brandNumbers[$number] ?? null;
     }
 
     /**

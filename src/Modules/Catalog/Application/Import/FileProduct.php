@@ -23,6 +23,7 @@ final readonly class FileProduct
      * @param  list<string>  $related  codes
      * @param  list<string>  $goesWith  codes
      * @param  array<string, array{price: string|null, stock: int|null}>  $stores  store code => as the file gave it
+     * @param  int|null  $brandNumber  the brand's fixed number, when the file gave a number instead of a name (amendment 7(b))
      */
     public function __construct(
         public int $number,
@@ -43,6 +44,7 @@ final readonly class FileProduct
         public array $related,
         public array $goesWith,
         public array $stores,
+        public ?int $brandNumber = null,
     ) {}
 
     /**
@@ -95,6 +97,7 @@ final readonly class FileProduct
             'related' => $this->related,
             'goes_with' => $this->goesWith,
             'stores' => $this->stores,
+            'brand_number' => $this->brandNumber,
         ];
     }
 
@@ -143,6 +146,7 @@ final readonly class FileProduct
             $related,
             $goesWith,
             $stores,
+            is_int($data['brand_number'] ?? null) ? $data['brand_number'] : null,
         );
     }
 

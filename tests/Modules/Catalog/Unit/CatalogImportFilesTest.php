@@ -64,7 +64,7 @@ describe('the guide\'s examples', function () {
             ->and([$runner->nameAr, $runner->nameEn, $runner->slugEn])->toBe(['مجرى درج تلسكوبي ناعم الإغلاق', 'Soft-close telescopic drawer runner', 'soft-close-drawer-runner'])
             ->and($runner->descriptionEn['blocks'][0] ?? null)->toBe(['type' => 'heading', 'runs' => [['text' => 'Soft-close drawer runner']]])
             ->and($runner->descriptionEn['blocks'][2]['items'][0] ?? null)->toBe([['text' => 'Holds up to '], ['text' => '35 kg', 'bold' => true]])
-            ->and([$runner->brand, $runner->category, $runner->warranty, $runner->attributeSet])->toBe(['TouchWood', ['Kitchens', 'Drawers', 'Runners'], 'Two years', 'Runner sizes'])
+            ->and([$runner->brand, $runner->brandNumber, $runner->category, $runner->warranty, $runner->attributeSet])->toBe(['TouchWood', null, ['Kitchens', 'Drawers', 'Runners'], 'Two years', 'Runner sizes'])
             ->and($runner->codes())->toBe(['1304', '1305'])
             ->and($runner->variants[0]->values)->toBe(['Length' => '45 cm', 'Finish' => 'Zinc'])
             ->and($runner->variants[0]->details)->toBe(['Load' => '35', 'Material' => ['ar' => 'فولاذ', 'en' => 'Steel']])
@@ -76,11 +76,12 @@ describe('the guide\'s examples', function () {
             ->and($runner->filters)->toBe(['Use' => ['Kitchen', 'Wardrobe'], 'Closing' => ['Soft-close']])
             ->and([$runner->related, $runner->goesWith])->toBe([['1306'], ['2001']])
             ->and($runner->stores)->toBe(['sa' => ['price' => '120.5', 'stock' => 40], 'eg' => ['price' => '3900', 'stock' => null]])
-            ->and([$hinge->brand, $hinge->category, $hinge->attributeSet, $hinge->codes()])->toBe(['Tallsen', ['Tallsen', 'Hinges'], null, ['2001']])
+            ->and([$hinge->brand, $hinge->brandNumber, $hinge->category, $hinge->attributeSet, $hinge->codes()])->toBe([null, 2, ['Tallsen', 'Hinges'], null, ['2001']])
             ->and([$handle->nameAr, $handle->nameEn, $handle->descriptionAr, $handle->codes()])->toBe(['مقبض ألمنيوم 128 مم', null, null, ['1306']]);
 
         // Kept as it was read, for the import's page and the step that brings it in.
-        expect(FileProduct::fromArray($runner->toArray()))->toEqual($runner);
+        expect(FileProduct::fromArray($runner->toArray()))->toEqual($runner)
+            ->and(FileProduct::fromArray($hinge->toArray()))->toEqual($hinge);
     });
 
     it('reads the example store file', function () {
@@ -113,6 +114,8 @@ describe('what refuses a product file', function () {
             ->and(implode(' | ', array_column(array_filter($problems, static fn (array $item): bool => $item['at'] === $at), 'problem')))->toContain($problem);
     })->with([
         'a field the format does not have' => [fn (array $p) => [...$p, 'colour' => 'red'], 'product 1 › colour', 'not a field'],
+        'a brand number below 1' => [fn (array $p) => [...$p, 'brand' => 0], 'product 1 › brand', "the brand's number, from 1, or its name"],
+        'a brand neither a number nor a name' => [fn (array $p) => [...$p, 'brand' => 2.5], 'product 1 › brand', "the brand's number, from 1, or its name"],
         'no Arabic name' => [fn (array $p) => [...$p, 'name' => ['en' => 'Drawer']], 'product 1 › name', 'Arabic name'],
         'a name over 200 characters' => [fn (array $p) => [...$p, 'name' => ['ar' => str_repeat('د', 201)]], 'product 1 › name', '200'],
         'a slug not in its shape' => [fn (array $p) => [...$p, 'slug' => ['en' => 'Not A Slug']], 'product 1 › slug › en', ''],
