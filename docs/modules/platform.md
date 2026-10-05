@@ -68,6 +68,10 @@ Global, not store-scoped.
 
 `Money` never assumes an exponent (handoff §5.1); it is always read from this row.
 
+**A currency no store uses — on or off — may be deleted** by a Super Admin; one any store uses
+never is (`CurrencyInUse`), since a store's currency never changes (§1.1). The currencies screen
+names the stores using each currency (§9.7, owner 2026-10-04).
+
 **[DECIDED] How a price shows its currency:** the `sign` when the currency has one; otherwise
 the `abbreviation` in the page's language. If a sign cannot be displayed — no Unicode character
 yet, or the site's font has no glyph for it — the `sign` is cleared on the currency row and every
@@ -405,7 +409,8 @@ tests bind fakes for `Authorizer` and `ActorContext`.
 Permissions follow `{module}.{resource}.{action}`. **Reserved** means Super Admin only: the
 permission exists so every handler asserts one, but it is never offered in the role editor.
 **[DECIDED 2026-09-18]** Creating a store, creating or changing a currency, and the variants job
-stay reserved: each reaches every store at once.
+stay reserved: each reaches every store at once. Deleting a currency no store uses joins them
+(§9.7).
 
 | Use case | Who | Permission | Store-checked |
 |---|---|---|---|
@@ -415,6 +420,7 @@ stay reserved: each reaches every store at once.
 | `ListStores` / `ViewStore` (admin) | Staff | `platform.store.view` | Only stores in the actor's scope; an **off** store only to a Super Admin (§1.6) |
 | `CreateCurrency` | Super Admin | `platform.currency.create` (reserved) | Global |
 | `UpdateCurrency` — name, abbreviation, sign (including clearing it); exponent only while no store uses it | Super Admin | `platform.currency.update` (reserved) | Global |
+| `DeleteCurrency` — only while no store, on or off, uses it (`CurrencyInUse`); audited (§9.7) | Super Admin | `platform.currency.delete` (reserved) | Global |
 | `ViewSettings` | Staff | `platform.settings.view` | That store; ``GLOBAL` keys need all-stores access |
 | `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update`. Platform's own settings (the media upload limits) use `platform.settings.update` **[DECIDED 2026-09-18]** | That store; `GLOBAL` keys need all-stores access |
 | `UploadMedia` | Staff | `platform.media.upload` | Global (media belongs to no store) |
@@ -771,6 +777,7 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── CurrencyAlreadyExists                 CONFLICT  ¹
 ├── InvalidCurrencyAttribute              INVALID     code, exponent or sign format  ¹
 ├── CurrencyExponentLocked                CONFLICT
+├── CurrencyInUse                         CONFLICT    deleting a currency a store uses (§9.7)
 ├── UnknownSetting                        INVALID
 ├── InvalidSettingValue                   INVALID
 ├── SettingScopeMismatch                  INVALID
@@ -835,7 +842,9 @@ stack traces, SQL, or another customer's data.
 - Migrations create the `platform` schema, every table, check constraint and index above.
 - Audit triggers reject `UPDATE`, `DELETE` and `TRUNCATE` on `audit_entries`.
 - Settings uniqueness holds for both store rows and global (NULL store) rows.
-- A currency used by a store cannot be deleted.
+- A currency used by a store cannot be deleted — by `DeleteCurrency` (`CurrencyInUse`, a store on
+  or off), and by the database (`RESTRICT`); one no store uses is, by a Super Admin only, audited,
+  and gone from the directory at once (§9.7).
 - Deleting media another module uses: the module detaches it in the same transaction and the
   audit entry lists where it was used; a use that blocks refuses the delete with `MediaInUse`
   naming it, and nothing changes; a module refusing its own change cancels the whole delete; a
@@ -1024,3 +1033,16 @@ and #5 is replaced (below).
 | 4 | §1.5, §6.1 | **[Confirmed by the owner, 2026-10-03]** **Audit**: `platform.store.activated` and `platform.store.deactivated`, each with `is_active` before and after; `platform.store.created` also records `is_active` (false). A switch to the state the store is already in writes, audits and announces nothing | Each switch is a change someone may ask about later; nothing happened when nothing changed |
 | 5 | §1.6 | **[Replaced by the owner, 2026-10-03]** The overnight pick, that an off store was a store to work in for nobody, a Super Admin included, is replaced. **A Super Admin may work inside an off store, to prepare it before it opens**: the panel's store switcher offers it to them, marked Off, and they may choose it as the store they work in and set its settings, address format and B2B lists. A staff member who covers it sees it in the switcher, marked Off and disabled with the reason, and cannot choose it. Anyone else never sees it. The shop, customers, guests and other modules still treat it as never there (§1.6) | The owner: a store is prepared before it opens, without showing it half ready (access.md amendment 58(a)) |
 | 6 | §1.6 | **[Replaced by the owner, 2026-10-03, after the review of the foundation: access.md amendment 58(f)]** The overnight pick read: the handlers that change one store's data by id — a setting, an address format, a B2B list — do not refuse an off store themselves; no screen offers it. Refused in code: choosing the panel's store, saving a customer's address, and the stores screen's own update (#3) | Kept small for the night; the screens are where an off store must not appear |
+
+### 9.7 The owner's fix list — 2026-10-04 (point 11, currencies)
+
+The owner asked what creating a currency does, and how to know whether one is used. Answered: a
+currency is only a store's currency, fixed when the store is opened (from the command line); adding
+one changes nothing until a store is opened with it. **The owner's answer (D15):** keep "Add
+Currency"; add **Delete** for a currency no store uses; **name the stores** using each; fix "1
+stores" and the digits.
+
+| # | Sections | Decision |
+|---|---|---|
+| 1 | §1.2, §3, §7 | **`DeleteCurrency`**: a Super Admin (`platform.currency.delete`, reserved like creating and changing one) deletes a currency **no store — on or off — uses**; any store using it refuses the delete (`CurrencyInUse`), with the foreign key's `RESTRICT` behind it. The currency row is locked before the stores are counted, so a store opened with it at the same moment cannot slip through. Audited (`platform.currency.deleted`, with what it was); the directory's cache is invalidated in the same transaction. |
+| 2 | frontend.md E3 | **The currencies screen names the stores** using each currency — "Used by Saudi Arabia, Egypt", an off store marked Off — instead of a count (which read "1 stores"), and "No store yet" otherwise; the exponent's lock names them too. A card no store uses offers **Delete Currency…**, confirmed in Geist's Destructive Action Modal by typing the code. Numbers in a sentence are in the page's digits (frontend.md §1.8). |

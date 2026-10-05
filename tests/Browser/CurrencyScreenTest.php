@@ -49,12 +49,16 @@ it('draws the currencies, shows a sign as a price will, and settles the decimal 
 
     $page->assertSee('Currencies')
         ->assertSee('SAR')
+        // The store using it named, not counted - ":count stores" once read "1 stores"; and no
+        // delete for a currency a store uses (platform.md §9.7).
+        ->assertSeeIn('[data-test="stores-SAR"]', 'Used by Saudi Arabia')
+        ->assertMissing('[data-test="delete-SAR"]')
         ->assertNoJavaScriptErrors();
 
     // The riyal: one store charges in it, so its decimal places are settled and the screen says
     // why rather than offering a change that would be refused.
     $page->click('[data-test="edit-SAR"]')
-        ->assertSee('Settled')
+        ->assertSee('Used by Saudi Arabia, so it is settled')
         // The sign as a price shows it, as Geist's Description: "Preview" and the sample price.
         ->assertSeeIn('[data-test="sign-preview"]', 'Preview')
         ->assertSeeIn('[data-test="sign-preview"]', '1,234.50')
@@ -73,7 +77,11 @@ it('adds a currency from the screen', function () {
 
     // Unique, because these tests leave the database as they found it by not colliding with it -
     // and letters only, because a currency code is three letters and Str::random gives digits too.
-    $code = collect(range('A', 'Z'))->shuffle()->take(3)->implode('');
+    // Drawn again while taken: a seeded code (SAR, AED, EGP) or one an earlier run left would make
+    // the add refuse it (the review of P7).
+    do {
+        $code = collect(range('A', 'Z'))->shuffle()->take(3)->implode('');
+    } while (DB::table('platform.currencies')->where('code', $code)->exists());
     $name = 'Currency '.Str::random(6);
 
     $page = visit('/admin/sign-in')
@@ -99,4 +107,16 @@ it('adds a currency from the screen', function () {
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('platform.currencies')->where('code', $code)->exists())->toBeTrue();
+
+    // No store charges in it: it can go, once its code is typed (Geist's Destructive Action Modal,
+    // platform.md §9.7) - which also leaves the database as this test found it.
+    $page->assertSeeIn("[data-test=\"stores-{$code}\"]", 'No store yet')
+        ->click("[data-test=\"delete-{$code}\"]")
+        ->type('[data-test="destructive-verification"]', $code)
+        ->click('[data-test="destructive-confirm"]');
+
+    // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
+    expect(browserUntil($page, "document.body.innerText.includes('Currency deleted')"))->toBeTrue()
+        ->and(DB::table('platform.currencies')->where('code', $code)->exists())->toBeFalse();
+    $page->assertMissing("[data-test=\"currency-{$code}\"]")->assertNoJavaScriptErrors();
 });

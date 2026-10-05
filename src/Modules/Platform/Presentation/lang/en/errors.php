@@ -43,6 +43,10 @@ return [
         'title' => 'Decimal Places Locked',
         'detail' => 'Couldn\'t change the decimal places of ":code": a store already uses it. Leave them as they are.',
     ],
+    'currency_in_use' => [
+        'title' => 'Currency in Use',
+        'detail' => 'Couldn\'t delete ":code": a store uses it, and a store\'s currency never changes. Keep it.',
+    ],
     'invalid_currency_attribute' => [
         'title' => 'Invalid Currency Details',
         'detail' => 'Couldn\'t save the currency: the :attribute isn\'t valid. Check it and try again.',

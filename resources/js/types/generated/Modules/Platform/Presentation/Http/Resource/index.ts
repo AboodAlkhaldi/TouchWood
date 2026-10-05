@@ -49,8 +49,13 @@ abbreviationAr: string,
 abbreviationEn: string,
 sign: string | null,
 exponent: number,
-storeCount: number,
+stores: CurrencyStoreRow[],
 exponentLocked: boolean,
+deletable: boolean,
+};
+export type CurrencyStoreRow = {
+name: string,
+isActive: boolean,
 };
 export type FailedJobPage = {
 job: FailedJobRowData,

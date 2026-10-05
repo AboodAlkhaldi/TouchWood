@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use Inertia\Response;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
+use Modules\Platform\Application\Command\DeleteCurrency\DeleteCurrency;
+use Modules\Platform\Application\Command\DeleteCurrency\DeleteCurrencyHandler;
 use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrency;
 use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrencyHandler;
 use Modules\Platform\Application\Query\ListCurrencies\ListCurrenciesHandler;
@@ -20,8 +22,9 @@ use Shared\Domain\Error\DomainError;
 /**
  * The currencies screen (frontend.md 3.5, E3).
  *
- * Created and edited in the panel, by a Super Admin alone [DECIDED 2026-09-19]: both permissions
- * are reserved (platform.md 3), so no role can carry them and nobody else reaches this screen.
+ * Created and edited in the panel, by a Super Admin alone [DECIDED 2026-09-19], and deleted while
+ * no store uses one (platform.md §9.7): the permissions are reserved (platform.md 3), so no role
+ * can carry them and nobody else reaches this screen.
  *
  * This controller checks nothing. The read model refuses whoever may not be here, and each handler
  * refuses again before it writes.
@@ -93,6 +96,18 @@ final readonly class CurrenciesController
         }
 
         return back()->with('status', __('platform::admin_currencies.saved'));
+    }
+
+    /** A currency no store uses (platform.md §9.7). */
+    public function destroy(Request $request, string $code, DeleteCurrencyHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new DeleteCurrency($code));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        return back()->with('status', __('platform::admin_currencies.deleted'));
     }
 
     private function sign(Request $request): ?string

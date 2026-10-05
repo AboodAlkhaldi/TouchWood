@@ -1,18 +1,21 @@
-import { useState } from 'react';
-import { useForm } from '@inertiajs/react';
+import { useRef, useState } from 'react';
+import { useForm, usePage } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
+import { DestructiveActionDialog } from '@/components/DestructiveActionDialog';
 import { SelectField, TextField } from '@/components/Fields';
-import { FormError } from '@/components/FormError';
+import { FormError, useFreshRefusal } from '@/components/FormError';
 import { Description } from '@/components/geist-only/Description';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { NativeSelectOption } from '@/components/ui/native-select';
-import { toLatinDigits } from '@/lib/digits';
+import { figure, toLatinDigits } from '@/lib/digits';
+import { useList } from '@/lib/list';
 import { useTranslator } from '@/lib/t';
 import type { CurrenciesPage, CurrencyRow } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 
 /*
 | E3 - the currencies (frontend.md §3.5), each one of shadcn's Cards in Geist's Fieldset form
@@ -126,6 +129,15 @@ type CardProps = {
 
 function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
     const t = useTranslator();
+    const list = useList();
+    const { locale } = usePage<SharedProps>().props;
+    const [deleting, setDeleting] = useState(false);
+    const deleteButton = useRef<HTMLButtonElement>(null);
+    // Only the delete's own refusal, never an older one from saving (useFreshRefusal).
+    const deleteRefusal = useFreshRefusal(deleting);
+    const remove = useForm({});
+    // The stores are named, not counted (platform.md §9.7): ":count stores" once read "1 stores".
+    const storeNames = list(currency.stores.map((store) => (store.isActive ? store.name : t('platform::admin_currencies.store_off', { name: store.name }))));
 
     const form = useForm({
         name_ar: currency.nameAr,
@@ -161,10 +173,25 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                         <bdi dir="ltr" className="tw-figure">
                             {currency.sign ?? currency.abbreviationEn}
                         </bdi>{' '}
-                        · {t('platform::admin_currencies.exponent')}: <span className="tw-figure">{currency.exponent}</span> ·{' '}
-                        {currency.storeCount === 0 ? t('platform::admin_currencies.in_use_none') : t('platform::admin_currencies.in_use', { count: currency.storeCount })}
+                        · {t('platform::admin_currencies.exponent')}: {figure(locale, currency.exponent)} ·{' '}
+                        <span data-test={`stores-${currency.code}`}>
+                            {currency.stores.length === 0 ? t('platform::admin_currencies.in_use_none') : t('platform::admin_currencies.in_use', { stores: storeNames })}
+                        </span>
                     </CardDescription>
-                    <CardAction>
+                    <CardAction className="flex gap-2">
+                        {/* Only a currency no store uses can go (platform.md §9.7); one in use says so on its line. */}
+                        {currency.deletable ? (
+                            <Button
+                                ref={deleteButton}
+                                type="button"
+                                variant="outline"
+                                className="text-bad"
+                                data-test={`delete-${currency.code}`}
+                                onClick={() => setDeleting(true)}
+                            >
+                                {`${t('platform::admin_currencies.delete')}…`}
+                            </Button>
+                        ) : null}
                         <CollapsibleTrigger asChild>
                             <Button type="button" variant="outline" data-test={`edit-${currency.code}`}>
                                 {t(open ? 'platform::admin_currencies.cancel' : 'platform::admin_currencies.edit')}
@@ -198,8 +225,8 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                                 label={t('platform::admin_currencies.exponent')}
                                 helper={
                                     currency.exponentLocked
-                                        ? t('platform::admin_currencies.exponent_locked', { count: currency.storeCount })
-                                        : t('platform::admin_currencies.exponent_hint')
+                                        ? t('platform::admin_currencies.exponent_locked', { stores: storeNames })
+                                        : t('platform::admin_currencies.exponent_hint', { two: figure(locale, 2), zero: figure(locale, 0) })
                                 }
                                 error={form.errors.exponent}
                                 disabled={currency.exponentLocked}
@@ -208,7 +235,7 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                             >
                                 {exponents.map((places) => (
                                     <NativeSelectOption key={places} value={String(places)}>
-                                        {places}
+                                        {figure(locale, places)}
                                     </NativeSelectOption>
                                 ))}
                             </SelectField>
@@ -225,6 +252,22 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                         </CardFooter>
                     </form>
                 </CollapsibleContent>
+
+                {/* Geist's Destructive Action Modal: the code typed before it goes (platform.md §9.7). */}
+                <DestructiveActionDialog
+                    open={deleting}
+                    onOpenChange={setDeleting}
+                    title={t('platform::admin_currencies.delete_title')}
+                    confirmLabel={t('platform::admin_currencies.delete_confirm')}
+                    description={t('platform::admin_currencies.delete_body', { code: currency.code, name: currency.name })}
+                    irreversibleDescription={t('platform::admin_currencies.delete_irreversible', { code: currency.code })}
+                    verificationPhrase={currency.code}
+                    verificationLabel={t('platform::admin_currencies.verification_label')}
+                    loading={remove.processing}
+                    error={deleteRefusal}
+                    onConfirm={() => remove.post(`/admin/currencies/${currency.code}/delete`, { onSuccess: () => setDeleting(false) })}
+                    returnFocusTo={deleteButton}
+                />
             </Card>
         </Collapsible>
     );
@@ -232,6 +275,7 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
 
 function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => void }) {
     const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
 
     const form = useForm({
         code: '',
@@ -279,14 +323,14 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                     <SelectField
                         id="new-exponent"
                         label={t('platform::admin_currencies.exponent')}
-                        helper={t('platform::admin_currencies.exponent_hint')}
+                        helper={t('platform::admin_currencies.exponent_hint', { two: figure(locale, 2), zero: figure(locale, 0) })}
                         error={form.errors.exponent}
                         value={form.data.exponent}
                         onChange={(event) => form.setData('exponent', toLatinDigits(event.target.value))}
                     >
                         {exponents.map((places) => (
                             <NativeSelectOption key={places} value={String(places)}>
-                                {places}
+                                {figure(locale, places)}
                             </NativeSelectOption>
                         ))}
                     </SelectField>

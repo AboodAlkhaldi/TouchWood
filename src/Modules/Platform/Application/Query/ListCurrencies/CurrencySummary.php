@@ -17,8 +17,13 @@ final readonly class CurrencySummary
         public string $abbreviationAr,
         public string $abbreviationEn,
         public ?string $sign,
-        /** How many stores charge in it. */
-        public int $storeCount,
+        /**
+         * The stores that charge in it, on and off, in the stores' own order - named on the screen
+         * rather than counted (platform.md §9.7, owner 2026-10-04).
+         *
+         * @var list<CurrencyStore>
+         */
+        public array $stores,
         /**
          * Whether the number of decimal places is settled.
          *
@@ -27,5 +32,7 @@ final readonly class CurrencySummary
          * riyals at two places and a thousand at none.
          */
         public bool $exponentLocked,
+        /** No store charges in it, so it may still be deleted (platform.md §9.7). */
+        public bool $deletable,
     ) {}
 }

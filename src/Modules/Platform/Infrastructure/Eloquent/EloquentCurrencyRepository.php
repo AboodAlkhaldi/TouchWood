@@ -50,6 +50,11 @@ final class EloquentCurrencyRepository implements CurrencyRepository
         CurrencyRecord::query()->whereKey($currency->code()->value)->firstOrFail()->update($this->attributes($currency));
     }
 
+    public function delete(CurrencyCode $code): void
+    {
+        CurrencyRecord::query()->whereKey($code->value)->delete();
+    }
+
     /**
      * @return array<string, mixed>
      */

@@ -18,6 +18,8 @@ use Modules\Platform\Application\Command\CreateStore\CreateStore;
 use Modules\Platform\Application\Command\CreateStore\CreateStoreHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Application\Command\DeleteCurrency\DeleteCurrency;
+use Modules\Platform\Application\Command\DeleteCurrency\DeleteCurrencyHandler;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
 use Modules\Platform\Application\Command\GenerateMediaVariants\GenerateMediaVariants;
@@ -130,6 +132,11 @@ it('checks the right permission, against the right scope, in every handler', fun
 })->with([
     'create a currency' => [fn () => app(CreateCurrencyHandler::class)->handle(new CreateCurrency('XTS', 2, 'عملة', 'Currency', 'ع', 'XTS', null)), 'platform.currency.create', 'global'],
     'update a currency' => [fn () => app(UpdateCurrencyHandler::class)->handle(new UpdateCurrency('SAR', nameEn: 'Riyal')), 'platform.currency.update', 'global'],
+    'delete a currency' => [function () {
+        // One no store uses, written straight in so that only the delete's own check is logged.
+        DB::table('platform.currencies')->insert(['code' => 'XTS', 'exponent' => 2, 'name' => json_encode(['ar' => 'عملة', 'en' => 'Currency']), 'abbreviation' => json_encode(['ar' => 'ع', 'en' => 'XTS']), 'created_at' => now(), 'updated_at' => now()]);
+        app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XTS'));
+    }, 'platform.currency.delete', 'global'],
     'create a store' => [fn () => app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', 'SAR', 1500, 'UTC', 9)), 'platform.store.create', 'global'],
     // Per-store: an admin of one store must not be able to edit another.
     'update a store' => [fn () => app(UpdateStoreHandler::class)->handle(new UpdateStore('eg', taxRateBasisPoints: 1500)), 'platform.store.update', 'eg'],

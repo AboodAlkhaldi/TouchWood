@@ -12,12 +12,15 @@ use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
 use Modules\Platform\Application\Command\CreateStore\CreateStoreHandler;
+use Modules\Platform\Application\Command\DeleteCurrency\DeleteCurrency;
+use Modules\Platform\Application\Command\DeleteCurrency\DeleteCurrencyHandler;
 use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrency;
 use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrencyHandler;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStore;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
 use Modules\Platform\Domain\Exception\CurrencyAlreadyExists;
 use Modules\Platform\Domain\Exception\CurrencyExponentLocked;
+use Modules\Platform\Domain\Exception\CurrencyInUse;
 use Modules\Platform\Domain\Exception\CurrencyNotFound;
 use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
 use Modules\Platform\Domain\Exception\StoreAttributeImmutable;
@@ -197,4 +200,53 @@ describe('updating a currency', function () {
     it('reports a currency that does not exist', function () {
         app(UpdateCurrencyHandler::class)->handle(new UpdateCurrency('XXX', nameEn: 'Nothing'));
     })->throws(CurrencyNotFound::class);
+});
+
+describe('deleting a currency (platform.md §9.7)', function () {
+    it('deletes a currency no store uses, audits what it was, and serves it no longer', function () {
+        givenCurrency();
+        expect(platform()->currency('XTS'))->not->toBeNull(); // warm the cache
+
+        app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XTS'));
+
+        $entry = DB::table('platform.audit_entries')->where('action', 'platform.currency.deleted')->where('subject_id', 'XTS')->first();
+
+        expect(DB::table('platform.currencies')->where('code', 'XTS')->exists())->toBeFalse()
+            ->and(platform()->currency('XTS'))->toBeNull()
+            ->and($entry)->not->toBeNull()
+            ->and(json_decode((string) $entry?->changes, true)['exponent'] ?? null)->toBe([2, null]);
+    });
+
+    it('refuses a currency a store uses, on or off, and deletes nothing', function (bool $on) {
+        givenCurrency();
+        app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', 'XTS', 1500, 'Asia/Riyadh', 1));
+
+        if ($on) {
+            app(ActivateStoreHandler::class)->handle(new ActivateStore('xa'));
+        }
+
+        expect(fn () => app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XTS')))->toThrow(CurrencyInUse::class)
+            ->and(DB::table('platform.currencies')->where('code', 'XTS')->exists())->toBeTrue()
+            ->and(DB::table('platform.audit_entries')->where('action', 'platform.currency.deleted')->exists())->toBeFalse();
+    })->with(['an on store' => [true], 'an off store' => [false]]);
+
+    it('reports a currency that does not exist', function () {
+        app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XXX'));
+    })->throws(CurrencyNotFound::class);
+
+    it('deletes nothing when the actor is not allowed', function () {
+        // Written straight in: through its handler, the authorizer would already be built for the
+        // system, and the actor set below would never reach it.
+        DB::table('platform.currencies')->insert(['code' => 'XTS', 'exponent' => 2, 'name' => json_encode(['ar' => 'عملة', 'en' => 'Currency']), 'abbreviation' => json_encode(['ar' => 'ع', 'en' => 'XTS']), 'created_at' => now(), 'updated_at' => now()]);
+        app()->instance(ActorContext::class, new class implements ActorContext
+        {
+            public function current(): Actor
+            {
+                return Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3');
+            }
+        });
+
+        expect(fn () => app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XTS')))->toThrow(Unauthorized::class)
+            ->and(DB::table('platform.currencies')->where('code', 'XTS')->exists())->toBeTrue();
+    });
 });
