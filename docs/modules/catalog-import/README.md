@@ -1,5 +1,11 @@
 # TouchWood product files — how to fill them
 
+> **What this folder is.** The agreed format of the two files that bring products into TouchWood's
+> catalog, kept here so the owner — and any agent — can always find it: this guide, and a complete
+> example of each file. The owner fills real files from it, often with another AI agent's help. The
+> Catalog import (stage 4, step 6) reads **exactly** this format. **Change it only with the owner's
+> agreement**, and change the guide, both examples and `catalog.md` §1.12 together.
+
 Two kinds of file go into the catalog (catalog.md §1.12 and §1.3, amendment 6, agreed with the owner
 on 2026-10-05). This guide is written so a person, or another AI agent, can fill them exactly.
 

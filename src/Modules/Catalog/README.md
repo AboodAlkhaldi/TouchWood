@@ -8,7 +8,10 @@ Catalog owns **what is sold, and where**: products and their variants, the codes
 category tree, brands, attributes, labels, warranties, each store's choice of what it sells, search,
 and the JSON import. It owns nothing about how many (Inventory) or for how much (Pricing). The rules
 are in the specification, [docs/modules/catalog.md](../../../docs/modules/catalog.md); this file says
-how the code is organised and why.
+how the code is organised and why. **The import's file format** — a guide and a complete example of
+each file, which the owner fills real files from — is in
+[docs/modules/catalog-import/](../../../docs/modules/catalog-import/README.md): the import reads exactly
+that, so a change to it changes the guide and both examples too.
 
 **Being built** (from 2026-10-02), backend first, in seven steps: 1 foundation · 2 the shared lists
 · 3 products and variants · 4 each store's choice · 5 listing, search and the public contract ·
