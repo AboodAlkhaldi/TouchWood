@@ -248,7 +248,11 @@ Not an aggregate — a rule that holds for every request, job and command.
     owner] may work inside it to prepare it before it opens**: the panel's switcher offers it to
     them, marked Off, and its settings, address format and B2B lists can be set (§9.6 #5);
   - work already under way in it continues: its open orders stay with staff to finish, and jobs
-    dispatched in it still run.
+    dispatched in it still run;
+  - **[2026-10-05, the staff view — access.md §1.11]** a staff member viewing the shop from the
+    panel sees the off stores they cover: their pages open to look only (a form sent there is still
+    a 404), and the shop's store switch lists them marked Off. Platform does not know who that is: it asks the **off-store viewers** other modules
+    register (§2.6), and with none saying yes, the store is a 404 as above (§9.9).
 - **[DECIDED 2026-09-18] The language is the second segment:** `brand.com/sa/ar/...` and
   `brand.com/sa/en/...`, so search engines see one address per language. The supported languages
   are `ar` and `en` (every name in the system has both); anything else is a 404. The page, its
@@ -397,6 +401,25 @@ cannot import Platform's interior. They count toward the ~20-class ceiling.
 
 Until Access exists, Platform's own code runs with a system actor from console commands, and
 tests bind fakes for `Authorizer` and `ActorContext`.
+
+### 2.6 `Modules\Platform\Public\Contracts\OffStoreViewers` — who may see an off store in the shop (§9.9)
+
+(Numbered 2.6 here; the admin home's cards take 2.6 on their own branch, and one moves when both
+are in.) An off store is a 404 in the shop (§1.6). The one exception — a staff member viewing the
+shop from the panel (access.md §1.11) — is Access's to recognise, and Platform sits below Access, so
+Access tells Platform through a registry, as it does for the audit log's names.
+
+| Type | Purpose |
+|---|---|
+| `OffStoreViewer` (interface) | `mayView(StoreId $store): bool` — whether the request now being answered may see this off store's shop. Asked only about an off store. |
+| `OffStoreViewers` (registry) | `register(string $module, string $viewer)` — a class implementing `OffStoreViewer`, one per module, resolved each time it is asked so it reads the request being answered. Platform's own side asks whether any registered viewer says yes; none registered: no. |
+
+`ResolveStore` asks it for an off store's code before answering 404 — **for a request that only
+reads** (GET, HEAD): a form sent into a closed store would write into it, so it stays a 404 for
+everyone (the review of P6); `ShareStorefront` asks it for
+each off store before leaving it out of the shop's store switch, and lists the ones it may show with
+`isActive: false`. Nothing else changes: `PlatformApi::storeByCode()` and `stores()` still answer as
+if an off store were not there, for every other caller.
 
 ---
 
@@ -1024,3 +1047,13 @@ and #5 is replaced (below).
 | 4 | §1.5, §6.1 | **[Confirmed by the owner, 2026-10-03]** **Audit**: `platform.store.activated` and `platform.store.deactivated`, each with `is_active` before and after; `platform.store.created` also records `is_active` (false). A switch to the state the store is already in writes, audits and announces nothing | Each switch is a change someone may ask about later; nothing happened when nothing changed |
 | 5 | §1.6 | **[Replaced by the owner, 2026-10-03]** The overnight pick, that an off store was a store to work in for nobody, a Super Admin included, is replaced. **A Super Admin may work inside an off store, to prepare it before it opens**: the panel's store switcher offers it to them, marked Off, and they may choose it as the store they work in and set its settings, address format and B2B lists. A staff member who covers it sees it in the switcher, marked Off and disabled with the reason, and cannot choose it. Anyone else never sees it. The shop, customers, guests and other modules still treat it as never there (§1.6) | The owner: a store is prepared before it opens, without showing it half ready (access.md amendment 58(a)) |
 | 6 | §1.6 | **[Replaced by the owner, 2026-10-03, after the review of the foundation: access.md amendment 58(f)]** The overnight pick read: the handlers that change one store's data by id — a setting, an address format, a B2B list — do not refuse an off store themselves; no screen offers it. Refused in code: choosing the panel's store, saving a customer's address, and the stores screen's own update (#3) | Kept small for the night; the screens are where an off store must not appear |
+
+### 9.9 The staff view's off stores — 2026-10-05 (the owner's fix list, point 13)
+
+(§9.7 and §9.8 are the currencies page and the admin home, on their own branches.) D14: the staff
+view shows the shop as a visitor sees it, **plus the stores that are switched off** (access.md §1.11,
+amendment 60).
+
+| # | Sections | Decision |
+|---|---|---|
+| 1 | §1.6, §2.6 | **An off store opens in the shop for a staff view that covers it — to look only** (GET, HEAD), and the shop's store switch lists it marked Off; for everyone else it stays a 404 and unlisted. Platform asks the **off-store viewers** registered by other modules (`OffStoreViewers`), because only Access knows a staff view; `storeByCode()` and `stores()` are unchanged for every other caller. Which staff "cover" a store is Access's rule — the panel's own: a Super Admin every store, anyone else their assignment's **[PROVISIONAL]**. |

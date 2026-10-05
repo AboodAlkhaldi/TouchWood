@@ -57,7 +57,8 @@ export type Shop = {
     name: string;
     currency: string;
     symbol: string;
-    available: { code: string; name: string; current: boolean }[];
+    /** On stores; an off one only during a staff view that covers it, marked by isActive false. */
+    available: { code: string; name: string; current: boolean; isActive: boolean }[];
     languages: string[];
     /** The store's own IANA zone: every moment on a shop page is written in it (owner, 2026-10-02). */
     timezone: string;
@@ -68,6 +69,11 @@ export type Shopper = {
     id: string;
     name: string;
     emailVerified: boolean;
+};
+
+/** A staff member looking at the shop from the panel (access.md §1.11); nobody is a shopper meanwhile. */
+export type StaffView = {
+    name: string;
 };
 
 /** The account's side list: its own tabs, and the pages other modules add (access.md amendment 50). */
@@ -147,6 +153,8 @@ export type SharedProps = {
     /** Shop pages only; the panel shares its own "store", which is a different thing. */
     shop?: Shop | null;
     shopper?: Shopper | null;
+    /** Shop pages only, during a staff view. */
+    staffView?: StaffView | null;
     /** Shop pages only, and only for somebody signed in. */
     accountMenu?: AccountMenu | null;
     shopperLines?: ShopperLine[];

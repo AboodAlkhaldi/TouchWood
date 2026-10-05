@@ -10,6 +10,7 @@ use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Session\StaffSessionDirectory;
+use Modules\Access\Application\StaffView\StaffViews;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
@@ -47,6 +48,7 @@ final readonly class SignOutEverywhereHandler
         private StaffUserRepository $staff,
         private StaffTokenRepository $tokens,
         private StaffSessionDirectory $sessions,
+        private StaffViews $views,
         private PlatformApi $platform,
         private Connection $db,
     ) {}
@@ -70,6 +72,8 @@ final readonly class SignOutEverywhereHandler
 
             $this->tokens->forgetTrustedBrowsers($staffId);
             $this->sessions->endAll($staffId);
+            // And every staff view opened from those sessions (§1.11), wherever it is being looked at.
+            $this->views->endAllOf($staffId);
 
             // **The number a session is checked against is the cached one**, not the row: a
             // session is accepted when its version matches the grants cache (LaravelStaffSessions).

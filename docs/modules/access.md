@@ -263,7 +263,7 @@ member changing their own password. Each permission has an **audience**:
 | Audience | Held by | Examples |
 |---|---|---|
 | `ROLE` | Staff, only through their role | `access.staff.invite`, `platform.store.update` |
-| `EVERY_STAFF` | Every active staff member, automatically | `access.own_account.update` |
+| `EVERY_STAFF` | Every active staff member, automatically | `access.own_account.update`, `access.staff_view.open` |
 | `EVERY_CUSTOMER` | Every active customer, automatically | `access.account.update`, `access.address.manage` |
 | `EVERY_GUEST` | Every visitor not signed in, automatically | `access.account.register`, `access.session.sign_in` |
 
@@ -364,7 +364,8 @@ they change without a deploy; customer settings are per store (handoff §7.7), s
 - **The admin area uses its own session cookie**, separate from the storefront's, so its idle
   limit, 2FA and sign-out never touch a customer session in the same browser — and a staff member
   can also be a customer. It keeps its rows in its own table as well (`access.admin_sessions`,
-  amendment 40), so neither side's housekeeping can end the other's sessions.
+  amendment 40), so neither side's housekeeping can end the other's sessions. **The staff view**
+  (§1.11) crosses to the shop with a pass of its own, never by widening the admin cookie.
 - **Registrations and reset requests are limited per address**: 10 an hour, a per-store setting
   (amendment 40).
 - Signing in regenerates the session id; changing or resetting a password ends every other session
@@ -443,6 +444,50 @@ Handoff §7.9: anonymize, never hard-delete. **[DECIDED 2026-09-19]:**
   may register again as a new account.
 - Orders keep their snapshot; reviews and questions survive as "Deleted customer" (handoff §7.9) —
   Access publishes `CustomerAnonymized` and those modules keep their own copies.
+
+### 1.11 The staff view (amendment 60)
+
+The owner's fix list of 2026-10-04, point 13 — D13 (b), D14: a staff member moves from the admin
+panel to the shop **as themselves**, sees it as a visitor does plus the stores that are switched off,
+and cannot order; and moves back.
+
+- **View Store**, in the admin panel's header, opens the shop's home page of the store being worked
+  in, **in the same tab** **[PROVISIONAL]**, in the panel's language — every store offers both
+  (platform.md §1.6). No store worked in, no button. Every
+  active staff member may — admins, Super Admins and staff (the owner's words): an automatic
+  permission, `access.staff_view.open`.
+- **A pass, not a session** **[PROVISIONAL]**: opening it creates a row in `access.staff_views` and
+  a random token in its own cookie, `tw_staff_view` — path `/`, HTTP-only, SameSite Lax, encrypted as
+  every cookie is, **stored only as a hash** (as a trusted browser's). No secret is written in an
+  address, a link or a log, and **the admin cookie stays on `/admin`**. The shop reads the pass on
+  every page beside its own session and **never touches that session**: a staff member who is also
+  a customer (§1.8) stays signed in to the shop underneath, and is shown again once the pass ends.
+- **What the shop shows while the pass holds** (D14):
+  - **the shop as a visitor sees it**: the request stays a **guest** for everything the shop reads,
+    and **no customer is identified** — so nothing customer-only opens (it sends them to the store's
+    home page, as for a visitor) and **nothing can be ordered**;
+  - **plus the off stores they cover** (platform.md §1.6): a Super Admin every off store; anyone
+    else the off stores of their assignment, as the panel's store switcher lists them
+    **[PROVISIONAL: covering staff, not only Super Admins — it is a read-only view]**. Their pages
+    open **to look only** — a request that reads; a form sent there is a 404, so nothing is written
+    into a closed store (the review of P6) — and the shop's store switch lists them marked Off. A
+    visitor still gets the 404. In a store that is on, a staff view may do what a visitor may;
+    signing in or registering there ends the view;
+  - the frame says so (frontend.md §2.3): a line under the header with **Back to Admin Panel**, and
+    the person menu holds their name, **Admin Panel** and **Leave Staff View**, with no Sign in.
+- **A pass ends with the admin session it came from** **[PROVISIONAL]**: it keeps a hash of that
+  session's id, and every shop page checks the session's row is still there — so it ends once that
+  session is signed out, ended from another device (the account's sessions list), replaced by
+  signing in again, found idle, expired or out of date on a panel request, or ended by **sign out
+  everywhere**. It ends at the next shop page when the staff member is disabled or their session
+  version changes (a password change or reset), and **12 hours after that admin sign-in** (the staff
+  maximum, §1.8) whatever happens in the shop. It keeps **its own idle clock** on shop pages — the
+  staff idle limit, 30 minutes — so a staff member busy in the shop keeps it while the panel sits
+  idle, up to that maximum. It ends too when they **Leave Staff View** (a post to the shop's top
+  level, `/staff-view/leave`, which an off store's pages cannot take), and when that browser **signs
+  in as a customer** (or registers). One pass per admin session: View Store again replaces it.
+- **Audited**: `access.staff_user.staff_view_opened`, with the store. Leaving is not, as signing out
+  is not.
 
 ---
 
@@ -619,7 +664,9 @@ role; `every staff`, `every customer` and `every guest` automatically, for their
 | `RoleEditorPermissions` — what the author may put in a role, with names, kinds and their own stores (amendment 8) | role | `access.role.manage` or `access.staff.assign_role` | The author's own permissions |
 | `MyPermissions` — what I may do, and where; the admin menu is built from it (amendment 8) | every staff | none: it shows only the reader's own permissions | Own data |
 | `UpdateOwnStaffProfile` / `ChangeOwnStaffPassword` / the own phone change (`RequestOwnPhoneChange` + `VerifyOwnPhoneChange`, the current password first) / `UpdateOwnNotificationPreferences` | every staff | `access.own_account.update` | Global |
-| `SignOutStaff` | every staff | `access.own_account.update` | Global |
+| `SignOutStaff` — also ends the staff views opened from that session (§1.11) | every staff | `access.own_account.update` | Global |
+| `OpenStaffView` — the pass to the shop (§1.11) | every staff | `access.staff_view.open` | Global; the store must be one they cover, and on unless they are a Super Admin |
+| `LeaveStaffView` — ends this browser's pass (§1.11), at `/staff-view/leave` | every guest (the shop's request during a staff view, or any request there: it identifies nobody) | `access.staff_view.leave` | Global; only the pass this browser holds |
 | `CreateSuperAdmin` / `RevokeSuperAdmin` — never the last active one; create promotes an existing staff member / `ResetSuperAdminPhone` (amendments 14, 18) / `ResendSuperAdminInvitation` / `CancelSuperAdminInvitation` (amendment 30) | system (console) | `access.super_admin.manage` (reserved) | Global |
 | `CancelExpiredSuperAdminInvitations` — a scheduled job (amendment 30) | system | `access.super_admin.manage` (reserved) | Global |
 | `ChangeStaffEmail` → `ConfirmStaffEmailChange` (the link sent to the new address, 72 hours; amendment 17). Someone invited gets a new invitation instead (amendment 25) | role (`access.staff.update`) / every guest with the link (`access.staff.accept_invitation`) | as named | Every store of the staff member and every action of their role (amendment 26) / Global — the requester must still be allowed when the link is used |
@@ -766,6 +813,7 @@ The verification link is a signed URL, so it needs no table. `pending_phone_chan
 | `access.staff_sign_in_codes` | `staff_user_id` PK/FK, `phone` (where it went), `code_hash`, `attempts`, `expires_at`, `sent_at` |
 | `access.staff_trusted_browsers` | `id`, `staff_user_id` FK, `token_hash` unique, `expires_at`, `created_at`, `last_used_at` |
 | `access.staff_notification_preferences` | (`staff_user_id`, `topic`) PK, `email` bool, `panel` bool |
+| `access.staff_views` | `id`, `staff_user_id` FK CASCADE, `token_hash` unique, `admin_session_hash` (the admin session it came from; one pass each, unique with the staff member), `store_id` FK → `platform.stores` (where it opened), `session_version`, `signed_in_at` (that admin sign-in), `seen_at`, `created_at` — the staff view's passes (§1.11, amendment 60); CHECKs on the hashes' shape and on `seen_at` ≥ `signed_in_at` |
 
 ### 5.4 Roles
 
@@ -1047,3 +1095,4 @@ admin's name and role only, and a Super Admin not at all (owner, 2026-09-20; ame
 | 56 | §1.6, §2.1, §2.4, §3.3 | **Building amendment 54** (Super Admins are invisible, 2026-10-02): (a) **one place names staff to a reader**, Access's `StaffDisplayNames`: other modules ask `AccessApi::staffDisplayNames(ids)` (a `StaffDisplayNameDto`: `id`, `name`, `systemAdministrator`), and Platform's audit log asks a new Platform contract, `StaffNames`, which Access binds to the same class (Platform sits below Access); `AccessApi::staff()` stays unmasked and is documented as not for display; (b) **who sees Super Admins**: a Super Admin, and the console acting for nobody; a job sees what the person who queued it would; a customer or a guest never; (c) "System administrator" is `access::staff.system_administrator` — "System administrator" / "مدير النظام" — in the reader's language; (d) **the audit log**, to anyone but a Super Admin: a Super Admin actor shows that name with **no id and no IP address**; a Super Admin who queued a job, the same as the requester; an entry **about** a Super Admin keeps its action and time but gives no subject id and no changes, and names the subject "System administrator"; filtering the log by a Super Admin's id answers no entries, as an id that never existed; (e) **the staff list**: Super Admins are never in the list or its total, for anyone; to a Super Admin they come as a section of their own, **first**, above the admins (`super_admins`), with the same search and status filter, newest first; (f) B2B's "decided by" and "status changed by" ask (a). | The spec said what must hold; these are where the code had to decide how. | Builder, 2026-10-02; **confirmed by the owner in amendment 58** (2026-10-03) |
 | 57 | §1.6, §1.9, §3.2, §3.3, §5.3 | **From the independent security review of amendments 53–56** (2026-10-02): (a) **a former Super Admin stays hidden.** Revoking the title cleared `is_super_admin`, and everything that hid a Super Admin read that flag, so a revoke unmasked everything the person had done. A permanent mark, `staff_users.was_super_admin`, is set when a Super Admin is made or promoted and **never cleared**; the migration fills it from the flag and from the audit log (any entry about the staff member that recorded `is_super_admin` as true), and a CHECK, `staff_users_super_admin_marked`, holds that a Super Admin is marked. Display names, the audit log, the staff list and its total, one staff member's page and the management actions all read the mark, not the flag; (b) to a Super Admin, a former one is listed **in the Super Admins section**, marked **"Former Super Admin" / "مدير عام سابق"** (`access::staff.former_super_admin`; `StaffRow.formerSuperAdmin`), with their account's status, Cancelled — never among the admins or the staff; (c) an author who is not unlimited, acting on a Super Admin or a former one, is answered **"no such staff member"** (`StaffNotFound`), as for an id that never existed — disabling, enabling, editing the profile, changing the role or the email, resending or cancelling an invitation, cancelling an account, refreshing permissions, deleting their picture. Enabling asks this before it says the account has no role (`GrantRules::requireVisible`). A Super Admin acting on another still gets "not editable"; (d) filtering the audit log by a hidden staff member's id runs **the same query for a fresh id that never existed**, instead of returning early, so not even the time it takes tells the two apart; (e) the staff customer screen (G2) **hides an off store's addresses**, as every other read does (amendment 55(a)), and a customer whose home store is off shows **no store name** — never the store's id; (f) one staff member's page (C2) fills the date of birth, country, address, communication language and picture **only when Access shows the person in full**: for an admin seen by an ordinary staff member (amendments 43(a), 44(e), 46(d)) they are left out of the page's data, not only off the screen, and `communicationLocale` is null. **Open question for the owner, not changed here:** inviting staff refuses a phone another staff member already uses (`InviteStaffHandler`, before the account is made), and so does editing a staff member's phone (`UpdateStaffProfileHandler`) — so an admin can learn that a number belongs to someone they cannot see, a Super Admin. | A revoke must not undo amendment 54; and a refusal, a filter or a page's data that differs between "hidden" and "not there" says who is there. | Builder, 2026-10-02; **settled by the owner in amendment 58** (2026-10-03) |
 | 58 | §1.1, §1.5, §1.9, §3.3 | **The overnight picks of amendments 55–57, settled** (owner, 2026-10-03, one by one with pictures). (a) **The panel's store switcher**: a Super Admin may choose an off store, marked Off, to prepare it before it opens (platform.md §1.6, §9.6 #5); this replaces 55(c)'s "for a Super Admin too". A staff member who covers an off store sees it **marked Off and disabled**, with the reason ("Egypt is switched off.") as its tooltip (built written under the row, as every locked menu item's reason is - frontend.md §1.11, 2026-10-04), and cannot choose it; staff who do not cover it never see it. (b) **The staff editor** shows an off store the person holds, **marked Off**, and **saving keeps it**; an admin who covers that store may still untick it, or give it to someone, while it is off. This replaces 55(d): saving no longer drops it, and `requireKnownStores` accepts any existing store the author covers, on or off. Amendment 11's reach rules are unchanged. (c) **Customers whose home store is off stay listed** to that store's staff, as 55(e) built it, **with an Off flag** beside the store: they are customers still, shopping in every store that is on (amendment 53). (d) **The customer's page (G2)** names an off home store with an Off flag and **shows the addresses saved in an off store, marked Off**. This replaces 57(e)'s "hides an off store's addresses" and "no store name". The customer still cannot use them while the store is off (55(a) stands). (e) **Confirmed as built**: 55(a)(b); all of 56; 57(a)–(d) and (f). The "Super Admin granted" and "Super Admin removed" entries stay visible to admins, named "System administrator". A phone another account uses is refused without saying whose. (f) **The server refuses it too** (owner, after the review of the foundation, 2026-10-03): a change to an off store's own data - its address form, its company and document type lists - is refused unless it comes from a Super Admin, with the same answer as for a store or a type that does not exist, a request sent straight to the server included; the screens hiding it is not the only guard. This replaces platform.md §9.6 #6. | The overnight build took each point as the builder recommended; the owner settled them. A closed store loses no one: its staff and its customers stay, marked, so it can reopen as it was. | Owner, 2026-10-03 |
+| 60 | §1.5, §1.8, §1.11, §3.2, §5.3 | **The staff view** (the owner's fix list of 2026-10-04, point 13; D13 (b), D14 answered 2026-10-05; 59 is the role reach, on its own branch). A staff member opens the shop from the panel's **View Store** as themselves: the shop as a visitor sees it plus the off stores they cover, no customer, no ordering; **Back to Admin Panel** and **Leave Staff View** in the shop. Built as **a pass in its own cookie** (`tw_staff_view`, path `/`, its token kept only as a hash in `access.staff_views`), so the admin cookie stays on `/admin` and a customer signed in to the shop in the same browser is never touched. The pass ends with the admin session it came from (its row is checked on every shop page), on sign out everywhere, with the staff member disabled or their session version raised, 12 hours after that admin sign-in, after 30 minutes without a shop page, on leaving, and on signing in as a customer. An off store's pages open to it **to look only** (GET). Two automatic permissions: `access.staff_view.open` (every staff) and `access.staff_view.leave` (every guest — the shop's request during a staff view is a guest's). Audited on opening. **[PROVISIONAL]** points, taken as the builder recommends because the owner asked P6 to go ahead without stopping: the pass instead of the plan's one-time link; covering staff, not only Super Admins, see off stores; the same tab; the lifetimes. | The owner asked to move between the panel and the shop with the same staff account, viewing but not ordering. A link opening a session in the shop would have had to replace a customer signed in there, which §1.8 forbids. | Owner, 2026-10-05 (D13, D14); **[PROVISIONAL]** picks by the builder, to be confirmed |

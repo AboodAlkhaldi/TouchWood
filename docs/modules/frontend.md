@@ -47,6 +47,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.10, §2.3, §3.4, §3.5 | The owner's answer for each piece neither system has (§1.11 table); the theme switch with System, once per area; SMS codes in shadcn's InputOTP | Owner, 2026-10-02, one by one with pictures |
 | §1.10, §1.11 | §1.10's provisional picks settled (type, surfaces, store time stand); the overnight review's Geist rules applied in the rebuild; every module's error messages rewritten in Geist's form | Owner, 2026-10-03 |
 | §1.11, §2.2 | **The owner's fix list after testing the rebuild**: the sidebar as `sidebar-07`'s main navigation (areas that fold, several open, a single screen as its link), thin themed scrollbars that keep the page's room, whole rows, the type lists' "#", the language switch laying the whole page out at once, sizes and counts in the page's digits; the builder's sidebar picks marked [PROVISIONAL] | Owner, 2026-10-04 |
+| §2.2, §2.3 | **The staff view** (the fix list, point 13; D13 (b), D14): View Store in the panel's header; in the shop, the staff-view line with Back to Admin Panel, and a person menu with Admin Panel and Leave Staff View; the builder's picks marked [PROVISIONAL] | Owner, 2026-10-05 (access.md amendment 60) |
 
 ---
 
@@ -581,7 +582,10 @@ From the design, with the decided rules applied:
   page (the design's "This screen is next in the build queue"), **to Super Admins only**. Their
   permissions do not exist yet, so they cannot be checked; everyone else sees only screens they
   can use. A module's entries become real, permission-checked items when its screens ship.
-- **Header:** the sidebar toggle, breadcrumbs, and "View store"; the store picker sits in the
+- **Header:** the sidebar toggle, breadcrumbs, and **View Store** at its end (2026-10-05, the staff
+  view — access.md §1.11): shadcn's outline Button, small, with a store icon, shown while the panel
+  works in a store; it opens that store's shop in the same tab, as the staff member, viewing and
+  never ordering **[PROVISIONAL: same tab]**. The store picker sits in the
   sidebar's own header (§1.11: `sidebar-07`'s team switcher), with Home as its first row. **[DECIDED
   2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a module gives them
   content: search with Catalog and Sales, the bell with Ops.
@@ -607,6 +611,12 @@ no storefront design and still holds for anything those files do not show:
   staying on the same page), and "Sign in", or the customer's name opening a menu with My Account
   and Sign Out (§1.11 #4). Search and the cart come with Catalog and Sales.
 - A small footer, holding the theme switch (§1.11, 2026-10-02).
+- **The staff view** (2026-10-05; access.md §1.11): while a staff member views the shop from the
+  panel, **a line under the header**, in the place and look of the shopper lines (amendment 50 —
+  nothing new is built): "Staff view: you see this store as a visitor does, and can't order." with
+  **Back to Admin Panel**. The person menu shows **their name**, opening **Admin Panel** and **Leave
+  Staff View** (a post, last); no Sign in, no My Account. The store switch lists the off stores they
+  cover, marked Off. **[PROVISIONAL: the words]**
 - **[DECIDED 2026-09-19] Platform's two Blade pages are rebuilt in React:** the country page at
   `brand.com/` and the placeholder store home (platform.md §3). Their tests move with them.
 

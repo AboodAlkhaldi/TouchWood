@@ -44,6 +44,8 @@ use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Application\Staff\PlatformStaffNames;
 use Modules\Access\Application\Staff\StaffLinks;
+use Modules\Access\Application\StaffView\StaffViewOffStores;
+use Modules\Access\Application\StaffView\StaffViews;
 use Modules\Access\Application\Storefront\InMemoryCustomerAccountPages;
 use Modules\Access\Application\Storefront\InMemoryShopperLines;
 use Modules\Access\Domain\Repository\AddressRepository;
@@ -73,6 +75,7 @@ use Modules\Access\Infrastructure\Http\CustomerSessionHandler;
 use Modules\Access\Infrastructure\Http\DatabaseStaffSessionDirectory;
 use Modules\Access\Infrastructure\Http\LaravelCustomerSessions;
 use Modules\Access\Infrastructure\Http\LaravelStaffSessions;
+use Modules\Access\Infrastructure\Http\LaravelStaffViews;
 use Modules\Access\Infrastructure\Http\RequestActor;
 use Modules\Access\Infrastructure\Http\RequestActorContext;
 use Modules\Access\Infrastructure\Http\StaffSessionHandler;
@@ -112,6 +115,7 @@ use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\OffStoreViewers;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\StaffNames;
@@ -129,7 +133,8 @@ final class AccessServiceProvider extends ServiceProvider
         // The shop's own theme endpoint sits at the top level, beside the country page, so the
         // path is reserved: a store whose code spelled it would swallow it (Platform's rule, and
         // reservations are made in register() because the {store} pattern is frozen after them).
-        $this->app->make(ReservedPaths::class)->reserve('access', 'preferences');
+        // Leaving the staff view sits there too (spec §1.11).
+        $this->app->make(ReservedPaths::class)->reserve('access', 'preferences', 'staff-view');
 
         // Bound here, not in $singletons: other modules declare their permissions in boot(), and
         // this provider declares its own and Platform's below.
@@ -214,6 +219,8 @@ final class AccessServiceProvider extends ServiceProvider
             ! $app->runningInConsole(),
         ));
         $this->app->scoped(StaffSessions::class, LaravelStaffSessions::class);
+        // The staff view's passes (spec §1.11). Scoped: a request's pass is read once, for it alone.
+        $this->app->scoped(StaffViews::class, LaravelStaffViews::class);
 
         // The real permission check (spec §2.5). Scoped: it depends on who is acting.
         $this->app->scoped(Authorizer::class, fn (Application $app): Authorizer => new RoleAuthorizer(
@@ -235,6 +242,9 @@ final class AccessServiceProvider extends ServiceProvider
 
         // Every web request starts as a guest, so no route ever runs as the system.
         $this->app->make(HttpKernel::class)->pushMiddleware(IdentifyRequestActor::class);
+
+        // A staff view sees the off stores its staff member covers (spec §1.11; platform.md §2.6).
+        $this->app->make(OffStoreViewers::class)->register('access', StaffViewOffStores::class);
 
         // The panel's own session driver: the same database driver, writing the staff member each
         // row belongs to, so a person can be shown their own sessions and sign them all out

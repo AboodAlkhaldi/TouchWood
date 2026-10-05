@@ -23,6 +23,10 @@ return [
     'own_account' => [
         'update' => 'تعديل حسابه الوظيفي',
     ],
+    'staff_view' => [
+        'open' => 'عرض المتجر بصفة موظف',
+        'leave' => 'إنهاء عرض الموظف',
+    ],
     'staff' => [
         'accept_invitation' => 'قبول دعوة الموظف',
         'invite' => 'دعوة الموظفين',

@@ -9,6 +9,7 @@ use Closure;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
 use Modules\Platform\Presentation\Http\StorefrontLanguage;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -36,6 +37,7 @@ final readonly class ShareStorefront
 
     public function __construct(
         private PlatformApi $platform,
+        private InMemoryOffStoreViewers $offStoreViewers,
         private StorefrontLanguage $languages,
         private Application $app,
     ) {}
@@ -77,11 +79,18 @@ final readonly class ShareStorefront
 
         $available = [];
 
-        foreach ($this->platform->stores() as $store) {
+        // The stores that are on, and an off one only for a viewer who may see it (§2.6) - marked,
+        // so the switch can say it is off. Anyone else is offered on stores only (§1.6).
+        foreach ($this->platform->allStores() as $store) {
+            if (! $store->isActive && ! $this->offStoreViewers->mayView($store->storeId())) {
+                continue;
+            }
+
             $available[] = [
                 'code' => $store->code,
                 'name' => $store->name->in($locale),
                 'current' => $store->code === $current->code,
+                'isActive' => $store->isActive,
             ];
         }
 

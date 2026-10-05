@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { ChevronRight } from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { ChevronRight, Store as StoreIcon } from 'lucide-react';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
@@ -12,6 +12,7 @@ import {
     BreadcrumbPage,
     BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { useTranslator } from '@/lib/t';
@@ -57,7 +58,7 @@ type Props = {
 
 export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: Props) {
     const page = usePage<SharedProps>();
-    const { menu, sidebarOpen } = page.props;
+    const { menu, sidebarOpen, store } = page.props;
     const here = page.url.split('?')[0] ?? page.url;
     const t = useTranslator();
 
@@ -111,6 +112,25 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
                                 </BreadcrumbList>
                             </Breadcrumb>
                         </div>
+
+                        {/* View Store (frontend.md §2.2; access.md §1.11): the shop of the store
+                            being worked in, as this staff member - a post, since it opens a pass;
+                            shown only while the panel works in a store. The address is written out,
+                            as the store switcher's is: the route helper would add its weight to
+                            every admin page (frontend.md §5's page budget). */}
+                        {store?.current ? (
+                            <div className="ms-auto px-4">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    data-test="view-store"
+                                    onClick={() => router.post('/admin/staff-view')}
+                                >
+                                    <StoreIcon aria-hidden="true" />
+                                    {t('admin.staff_view.open')}
+                                </Button>
+                            </div>
+                        ) : null}
                     </header>
 
                     {/* A div, not a main: SidebarInset is the main landmark already, and a page

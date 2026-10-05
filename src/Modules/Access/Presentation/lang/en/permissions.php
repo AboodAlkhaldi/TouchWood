@@ -23,6 +23,10 @@ return [
     'own_account' => [
         'update' => 'Edit Their Own Staff Account',
     ],
+    'staff_view' => [
+        'open' => 'View the Store as Staff',
+        'leave' => 'Leave the Staff View',
+    ],
     'staff' => [
         'accept_invitation' => 'Accept a Staff Invitation',
         'invite' => 'Invite Staff',

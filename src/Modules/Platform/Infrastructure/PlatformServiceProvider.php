@@ -32,6 +32,7 @@ use Modules\Platform\Application\PlatformApiImpl;
 use Modules\Platform\Application\Query\ListAudit\AuditReader;
 use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Application\Query\StoreDirectory;
+use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
@@ -65,6 +66,7 @@ use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
 use Modules\Platform\Presentation\Http\StorefrontLanguage;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\OffStoreViewers;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
@@ -121,6 +123,10 @@ final class PlatformServiceProvider extends ServiceProvider
         // A module may put one line at the top of its settings section (platform.md §1.3).
         $this->app->singleton(InMemorySettingsSectionLines::class);
         $this->app->alias(InMemorySettingsSectionLines::class, SettingsSectionLines::class);
+
+        // Who may see an off store in the shop: nobody, unless a module says so (platform.md §2.6).
+        $this->app->singleton(InMemoryOffStoreViewers::class);
+        $this->app->alias(InMemoryOffStoreViewers::class, OffStoreViewers::class);
 
         // Modules register their admin menu entries here, Platform included: the menu is built from
         // what each person may do, and grows module by module (stage 2b, P6).
