@@ -439,9 +439,10 @@ worked in. It is built as **a pass, not a session**:
   `LaravelCustomerSessions::signedIn()` answers nobody, so the request stays a guest - no customer
   page, no ordering - and a customer signed in to the shop in the same browser is untouched, back
   when the view ends. `ShareStorefrontPage` shares `staffView` with their name.
-- **Off stores**: Access registers `StaffViewOffStores` with Platform's `OffStoreViewers`: a pass's
-  staff member sees the off stores they cover (a Super Admin every one) - Platform opens them to
-  look only (GET, HEAD) and lists them marked Off; to anyone else, and to any form, they stay a 404.
+- **Off stores**: Access registers `StaffViewOffStores` with Platform's `OffStoreViewers`: a Super
+  Admin's pass sees every off store (the owner, 2026-10-06: only a Super Admin) - Platform opens them
+  to look only (GET, HEAD) and lists them marked Off; to any other staff member, a visitor, and any
+  form, they stay a 404.
 - **It ends** when its admin session ends - every shop page checks that session's row in
   `access.admin_sessions` is still there, and `LaravelStaffSessions::end()` deletes that session's
   passes at once - on sign out everywhere, at the next shop page once the staff member is disabled or their

@@ -615,8 +615,8 @@ no storefront design and still holds for anything those files do not show:
   panel, **a line under the header**, in the place and look of the shopper lines (amendment 50 —
   nothing new is built): "Staff view: you see this store as a visitor does, and can't order." with
   **Back to Admin Panel**. The person menu shows **their name**, opening **Admin Panel** and **Leave
-  Staff View** (a post, last); no Sign in, no My Account. The store switch lists the off stores they
-  cover, marked Off. **[PROVISIONAL: the words]**
+  Staff View** (a post, last); no Sign in, no My Account. For a Super Admin, the store switch lists
+  the off stores too, marked Off (access.md §1.11). **[PROVISIONAL: the words]**
 - **[DECIDED 2026-09-19] Platform's two Blade pages are rebuilt in React:** the country page at
   `brand.com/` and the placeholder store home (platform.md §3). Their tests move with them.
 

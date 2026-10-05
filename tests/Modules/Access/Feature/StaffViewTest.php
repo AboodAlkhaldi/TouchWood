@@ -175,7 +175,7 @@ describe('what the shop shows', function () {
         $browser->post('/staff-view/leave', ['store' => 'eg'])->assertRedirect('/');
     });
 
-    it('opens an off store only for a staff view that covers it, and lists it marked off', function () {
+    it('opens an off store only for a Super Admin\'s staff view, and lists it marked off', function () {
         // Read while it is on: an off store's code answers as an unknown one.
         $egypt = Fx::storeId('eg');
         $coveringId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa', 'eg']);
@@ -184,7 +184,7 @@ describe('what the shop shows', function () {
         // A visitor: as if it were never there.
         (new AdminBrowser)->get('/eg/en')->assertNotFound();
 
-        // Covering it - a Super Admin working in it, and staff whose stores include it.
+        // A Super Admin working in it (the owner, 2026-10-06: only a Super Admin views an off store).
         $superAdmin = staffViewSignIn(Fx::staff(superAdmin: true));
         $superAdmin->post('/admin/current-store', ['store' => $egypt]);
         $superAdmin->post('/admin/staff-view')->assertRedirect('/eg/en');
@@ -193,17 +193,15 @@ describe('what the shop shows', function () {
             ->where('shop.available', fn (Collection $stores): bool => $stores->contains(fn (array $store): bool => $store['code'] === 'eg' && $store['isActive'] === false))
         );
 
-        $covering = staffViewSignIn($coveringId);
-        $covering->post('/admin/staff-view')->assertRedirect('/sa/en');
-        $covering->get('/eg/en')->assertOk();
-
-        // Not covering it: a 404, and not in the list.
-        $other = staffViewSignIn(Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa']));
-        $other->post('/admin/staff-view');
-        $other->get('/eg/en')->assertNotFound();
-        $other->get('/sa/en')->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('shop.available', fn (Collection $stores): bool => ! $stores->contains(fn (array $store): bool => $store['code'] === 'eg'))
-        );
+        // Any other staff member - even one whose stores include it: a 404, and not in the list.
+        foreach ([$coveringId, Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa'])] as $staffId) {
+            $other = staffViewSignIn($staffId);
+            $other->post('/admin/staff-view')->assertRedirect('/sa/en');
+            $other->get('/eg/en')->assertNotFound();
+            $other->get('/sa/en')->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('shop.available', fn (Collection $stores): bool => ! $stores->contains(fn (array $store): bool => $store['code'] === 'eg'))
+            );
+        }
     });
 
     it('does nothing for a forged pass', function () {

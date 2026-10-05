@@ -250,7 +250,7 @@ Not an aggregate — a rule that holds for every request, job and command.
   - work already under way in it continues: its open orders stay with staff to finish, and jobs
     dispatched in it still run;
   - **[2026-10-05, the staff view — access.md §1.11]** a staff member viewing the shop from the
-    panel sees the off stores they cover: their pages open to look only (a form sent there is still
+    panel - a Super Admin only (owner, 2026-10-06) - sees the off stores: their pages open to look only (a form sent there is still
     a 404), and the shop's store switch lists them marked Off. Platform does not know who that is: it asks the **off-store viewers** other modules
     register (§2.6), and with none saying yes, the store is a 404 as above (§9.9).
 - **[DECIDED 2026-09-18] The language is the second segment:** `brand.com/sa/ar/...` and
@@ -1056,4 +1056,4 @@ amendment 60).
 
 | # | Sections | Decision |
 |---|---|---|
-| 1 | §1.6, §2.6 | **An off store opens in the shop for a staff view that covers it — to look only** (GET, HEAD), and the shop's store switch lists it marked Off; for everyone else it stays a 404 and unlisted. Platform asks the **off-store viewers** registered by other modules (`OffStoreViewers`), because only Access knows a staff view; `storeByCode()` and `stores()` are unchanged for every other caller. Which staff "cover" a store is Access's rule — the panel's own: a Super Admin every store, anyone else their assignment's **[PROVISIONAL]**. |
+| 1 | §1.6, §2.6 | **An off store opens in the shop for a Super Admin's staff view — to look only** (GET, HEAD), and the shop's store switch lists it marked Off; for everyone else it stays a 404 and unlisted. Platform asks the **off-store viewers** registered by other modules (`OffStoreViewers`), because only Access knows a staff view; `storeByCode()` and `stores()` are unchanged for every other caller. Whose staff view it is is Access's to know: a Super Admin's only (owner, 2026-10-06: "staff cant view an off store, only super admin can"). |
