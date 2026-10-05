@@ -59,6 +59,30 @@ interface Imports
     public function reopen(string $importId): void;
 
     /**
+     * The catalog's product holding each product's codes, asked again before bringing in: a product
+     * whose holder changed waits for a decision again, one whose holder went needs none.
+     *
+     * @param  array<string, string|null>  $holders  import product id => the catalog's product holding its codes now
+     */
+    public function recordConflicts(array $holders): void;
+
+    /** Bringing in has started: the import's names and codes are decided. */
+    public function start(string $importId): void;
+
+    /**
+     * What became of each product brought in, or held back.
+     *
+     * @param  array<string, array{product_id: string|null, state: string}>  $results  import product id => its result
+     */
+    public function recordResults(array $results): void;
+
+    /** The products are in; the zip is let go. */
+    public function finish(string $importId): void;
+
+    /** Bringing in failed, nothing kept: why, for the page. */
+    public function fail(string $importId, string $failure): void;
+
+    /**
      * The catalog's products holding these codes, now or once (amendment 3(e)).
      *
      * @param  list<string>  $codes

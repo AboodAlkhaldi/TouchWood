@@ -12,6 +12,7 @@ use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Application\CatalogApiImpl;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Import\ImportArchives;
+use Modules\Catalog\Application\Import\ImportQueue;
 use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Query\Shop\ShopReader;
@@ -44,6 +45,7 @@ use Modules\Catalog\Infrastructure\Import\DiskImportArchives;
 use Modules\Catalog\Infrastructure\Listener\RefreshCardPhotos;
 use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
 use Modules\Catalog\Infrastructure\Media\ProductPhotosUsage;
+use Modules\Catalog\Infrastructure\Queue\LaravelImportQueue;
 use Modules\Catalog\Infrastructure\Queue\PruneSearchLogJob;
 use Modules\Catalog\Presentation\Console\RebuildListingCommand;
 use Modules\Catalog\Public\Contracts\CatalogApi;
@@ -72,6 +74,7 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(ShopReader::class, DatabaseShopReader::class);
         $this->app->bind(SearchLog::class, DatabaseSearchLog::class);
         $this->app->bind(Imports::class, DatabaseImports::class);
+        $this->app->bind(ImportQueue::class, LaravelImportQueue::class);
         // A products file's zip waits on the disk config/catalog.php names (amendment 6).
         $this->app->bind(ImportArchives::class, static fn ($app): DiskImportArchives => new DiskImportArchives($app->make(Factory::class), (string) config('catalog.imports.disk'), sys_get_temp_dir()));
         // What the modules above Catalog may ask it (§2.1). ListingFacts is declared, and bound with

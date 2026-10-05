@@ -194,7 +194,45 @@ final readonly class DatabaseImports implements Imports
 
     public function reopen(string $importId): void
     {
-        $this->db->table(self::IMPORTS)->where('id', $importId)->update(['state' => ImportHeader::DECIDING, 'failure' => null, 'updated_at' => CarbonImmutable::now()]);
+        $this->setState($importId, ImportHeader::DECIDING, null);
+    }
+
+    private function setState(string $importId, string $state, ?string $failure): void
+    {
+        $this->db->table(self::IMPORTS)->where('id', $importId)->update(['state' => $state, 'failure' => $failure, 'updated_at' => CarbonImmutable::now()]);
+    }
+
+    public function recordConflicts(array $holders): void
+    {
+        foreach ($this->db->table(self::PRODUCTS)->whereIn('id', array_keys($holders))->get(['id', 'conflict_product_id']) as $row) {
+            $holder = $holders[(string) $row->id];
+
+            if ($holder !== self::text($row->conflict_product_id)) {
+                $this->db->table(self::PRODUCTS)->where('id', $row->id)->update(['conflict_product_id' => $holder, 'decision' => null, 'new_codes' => null]);
+            }
+        }
+    }
+
+    public function start(string $importId): void
+    {
+        $this->setState($importId, ImportHeader::BRINGING_IN, null);
+    }
+
+    public function recordResults(array $results): void
+    {
+        foreach ($results as $id => $result) {
+            $this->db->table(self::PRODUCTS)->where('id', $id)->update($result);
+        }
+    }
+
+    public function finish(string $importId): void
+    {
+        $this->db->table(self::IMPORTS)->where('id', $importId)->update(['state' => ImportHeader::IN, 'failure' => null, 'archive' => null, 'updated_at' => CarbonImmutable::now()]);
+    }
+
+    public function fail(string $importId, string $failure): void
+    {
+        $this->setState($importId, ImportHeader::FAILED, mb_substr($failure, 0, 2000));
     }
 
     public function codeHolders(array $codes): array

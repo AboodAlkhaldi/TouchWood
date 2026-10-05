@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Modules\Catalog\Support;
 
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\Command\UploadImport\UploadImport;
 use Modules\Catalog\Application\Command\UploadImport\UploadImportHandler;
@@ -116,6 +117,18 @@ final class CatalogImports
         $id = DB::table('catalog.import_products')->where('import_id', $importId)->where('number', $number)->value('id');
 
         return is_string($id) ? $id : throw new \LogicException("No product {$number} in the import.");
+    }
+
+    /**
+     * A real image's bytes — JPEG or PNG by the name's extension — each size its own, so the media
+     * library never takes two for the same image.
+     */
+    public static function image(string $name, int $size): string
+    {
+        // The fake's file lasts only while the object does: read it before letting the object go.
+        $image = UploadedFile::fake()->image($name, $size, $size);
+
+        return (string) file_get_contents($image->getPathname());
     }
 
     /** A directory, or a file, removed after the test. */
