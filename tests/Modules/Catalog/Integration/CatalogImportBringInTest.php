@@ -15,8 +15,6 @@ use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProdu
 use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProductsHandler;
 use Modules\Catalog\Application\Command\DecideImportCodes\DecideImportCodes;
 use Modules\Catalog\Application\Command\DecideImportCodes\DecideImportCodesHandler;
-use Modules\Catalog\Application\Command\DecideImportNames\DecideImportNames;
-use Modules\Catalog\Application\Command\DecideImportNames\DecideImportNamesHandler;
 use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\ImportUndecided;
 use Modules\Catalog\Infrastructure\Queue\BringInImportJob;
@@ -58,15 +56,7 @@ afterEach(function () {
  */
 function catalogBringDecide(string $importId, array $decisions = []): void
 {
-    $all = [];
-
-    foreach (DB::table('catalog.import_names')->where('import_id', $importId)->get(['id', 'written']) as $row) {
-        $all[] = ['name_id' => (string) $row->id, ...($decisions[(string) $row->written] ?? ['decision' => 'REFUSE'])];
-    }
-
-    if ($all !== []) {
-        app(DecideImportNamesHandler::class)->handle(new DecideImportNames($importId, $all));
-    }
+    Ix::decideNames($importId, $decisions);
 }
 
 /**
@@ -74,14 +64,13 @@ function catalogBringDecide(string $importId, array $decisions = []): void
  */
 function catalogBringCreate(string $ar, string $en): array
 {
-    return ['decision' => 'CREATE', 'name_ar' => $ar, 'name_en' => $en];
+    return Ix::create($ar, $en);
 }
 
 /** The confirm, then the queued work as the queue runs it. */
 function catalogBringIn(string $importId): void
 {
-    app(BringInImportHandler::class)->handle(new BringInImport($importId));
-    Fx::asSystem(fn () => app(BringInImportProductsHandler::class)->handle(new BringInImportProducts($importId)));
+    Ix::bringIn($importId);
 }
 
 /**

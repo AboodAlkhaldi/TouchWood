@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Application\Command\DeleteImportedProducts;
+
+/**
+ * Deleting drafts an import created and nobody wants (catalog.md §1.12, page part 4; amendment 6(e)).
+ */
+final readonly class DeleteImportedProducts
+{
+    /**
+     * @param  array<array-key, mixed>  $productIds  the import's products chosen on the page
+     */
+    public function __construct(
+        public string $importId,
+        public array $productIds,
+    ) {}
+}

@@ -85,6 +85,9 @@ return [
     'variant.code_corrected' => 'Variant code corrected',
 
     'import.added' => 'Products file uploaded',
+    'import.accepted' => 'Products of a file accepted',
+    'import.archived' => 'Products of a file archived',
+    'import.deleted' => 'Draft products of a file deleted',
     'import.bringing_in' => 'Bringing in the products of a file',
     'import.brought_in' => 'Products of a file brought in',
     'import.failed' => 'Bringing in the products of a file failed',

@@ -6,8 +6,15 @@ namespace Tests\Modules\Catalog\Support;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Modules\Catalog\Application\Command\BringInImport\BringInImport;
+use Modules\Catalog\Application\Command\BringInImport\BringInImportHandler;
+use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProducts;
+use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProductsHandler;
+use Modules\Catalog\Application\Command\DecideImportNames\DecideImportNames;
+use Modules\Catalog\Application\Command\DecideImportNames\DecideImportNamesHandler;
 use Modules\Catalog\Application\Command\UploadImport\UploadImport;
 use Modules\Catalog\Application\Command\UploadImport\UploadImportHandler;
+use Tests\Modules\Access\Support\AccessFixtures;
 use ZipArchive;
 
 /**
@@ -129,6 +136,47 @@ final class CatalogImports
         $image = UploadedFile::fake()->image($name, $size, $size);
 
         return (string) file_get_contents($image->getPathname());
+    }
+
+    /**
+     * Every name of the import decided: those given by what they are written as, the rest refused.
+     *
+     * @param  array<string, array<string, string>>  $decisions  written => decision
+     */
+    public static function decideNames(string $importId, array $decisions = []): void
+    {
+        $all = [];
+
+        foreach (DB::table('catalog.import_names')->where('import_id', $importId)->get(['id', 'written']) as $row) {
+            $all[] = ['name_id' => (string) $row->id, ...($decisions[(string) $row->written] ?? ['decision' => 'REFUSE'])];
+        }
+
+        if ($all !== []) {
+            app(DecideImportNamesHandler::class)->handle(new DecideImportNames($importId, $all));
+        }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function create(string $ar, string $en): array
+    {
+        return ['decision' => 'CREATE', 'name_ar' => $ar, 'name_en' => $en];
+    }
+
+    /** The confirm, then the queued work as the queue runs it. */
+    public static function bringIn(string $importId): void
+    {
+        app(BringInImportHandler::class)->handle(new BringInImport($importId));
+        AccessFixtures::asSystem(fn () => app(BringInImportProductsHandler::class)->handle(new BringInImportProducts($importId)));
+    }
+
+    /** The product a row of the import became. */
+    public static function broughtIn(string $importId, int $number): string
+    {
+        $id = DB::table('catalog.import_products')->where('import_id', $importId)->where('number', $number)->value('product_id');
+
+        return is_string($id) ? $id : throw new \LogicException("Product {$number} of the import was not brought in.");
     }
 
     /** A directory, or a file, removed after the test. */
