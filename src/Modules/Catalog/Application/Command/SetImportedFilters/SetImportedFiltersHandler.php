@@ -11,7 +11,9 @@ use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
+use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Public\Enums\AttributeKind;
 use Shared\Application\Unauthorized;
 
@@ -28,6 +30,7 @@ final readonly class SetImportedFiltersHandler
     public function __construct(
         private ImportedProductsChange $change,
         private AttributeRepository $attributes,
+        private ProductRepository $products,
     ) {}
 
     /**
@@ -41,14 +44,16 @@ final readonly class SetImportedFiltersHandler
         $mode = ImportedProductsChange::mode($command->mode, [ImportedProductsChange::ADD, ImportedProductsChange::REPLACE, ImportedProductsChange::FILL_EMPTY]);
         $ids = $this->values($command->valueIds);
 
-        return $this->change->run($command->importId, $command->productIds, 'filters', implode(', ', $ids), $mode, static function (FileProduct $product) use ($ids, $mode): FileProduct {
+        return $this->change->run($command->importId, $command->productIds, 'filters', implode(', ', $ids), $mode, function (FileProduct $product, ?Product $updates) use ($ids, $mode): FileProduct {
             $named = array_sum(array_map('count', $product->filters));
+            // What the product has: the file's, or — the file giving none — the catalog's it updates.
+            $catalog = $named === 0 && $product->filterValueIds === [] && $updates !== null ? $this->catalogFilters($updates->id()) : [];
 
-            if ($mode === ImportedProductsChange::FILL_EMPTY && ($named > 0 || $product->filterValueIds !== [])) {
+            if ($mode === ImportedProductsChange::FILL_EMPTY && ($named > 0 || $product->filterValueIds !== [] || $catalog !== [])) {
                 return $product;
             }
 
-            $kept = $mode === ImportedProductsChange::ADD ? array_values(array_unique([...$product->filterValueIds, ...$ids])) : $ids;
+            $kept = $mode === ImportedProductsChange::ADD ? array_values(array_unique([...$catalog, ...$product->filterValueIds, ...$ids])) : $ids;
             $filters = $mode === ImportedProductsChange::ADD ? $product->filters : [];
 
             if (count($kept) + ($mode === ImportedProductsChange::ADD ? $named : 0) > ProductParts::MAX_FILTER_VALUES) {
@@ -57,6 +62,25 @@ final readonly class SetImportedFiltersHandler
 
             return $product->with(['filters' => $filters, 'filter_value_ids' => $kept]);
         });
+    }
+
+    /**
+     * The catalog product's filter values of filter attributes — a variant's own values count as
+     * filters by themselves (amendment 3(a)), never kept here.
+     *
+     * @return list<string>
+     */
+    private function catalogFilters(string $productId): array
+    {
+        $ids = [];
+
+        foreach ($this->products->filterValues($productId) as $valueId => $attributeId) {
+            if ($this->attributes->find((string) $attributeId)?->kind() === AttributeKind::Filterable) {
+                $ids[] = (string) $valueId;
+            }
+        }
+
+        return $ids;
     }
 
     /**

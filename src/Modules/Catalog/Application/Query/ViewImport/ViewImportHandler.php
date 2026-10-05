@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Catalog\Application\Query\ViewImport;
 
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Import\ImportAddresses;
 use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\ImportName;
 use Modules\Catalog\Application\Import\ImportProduct;
@@ -34,6 +35,7 @@ final readonly class ViewImportHandler
         private ProductRepository $products,
         private Readiness $readiness,
         private PlatformApi $platform,
+        private ImportAddresses $addresses,
     ) {}
 
     /**
@@ -49,6 +51,8 @@ final readonly class ViewImportHandler
         }
 
         $stores = array_map(static fn (StoreDto $store): string => $store->code, $this->platform->allStores());
+        $rows = $this->imports->products($import->id);
+        $taken = $import->isDeciding() ? $this->addresses->taken($rows) : [];
 
         return new ImportView(
             $import->id,
@@ -58,16 +62,17 @@ final readonly class ViewImportHandler
             $import->archive !== null,
             $import->uploadedBy,
             (string) $import->uploadedAt,
-            array_map(static fn (ImportName $name): ImportNameView => new ImportNameView($name->id, $name->kind, $name->written, $name->attribute, $name->attributeKind?->value, $name->decision, $name->targetId, $name->nameAr, $name->nameEn, $name->products), $this->imports->names($import->id)),
-            array_map(fn (ImportProduct $row): ImportProductView => $this->product($row, $stores), $this->imports->products($import->id)),
+            array_map(static fn (ImportName $name): ImportNameView => new ImportNameView($name->id, $name->kind, $name->written, $name->attribute, $name->attributeKind?->value, $name->decision, $name->targetId, $name->nameAr, $name->nameEn, $name->products, $name->matches, $name->slugAr, $name->slugEn), $this->imports->names($import->id)),
+            array_map(fn (ImportProduct $row): ImportProductView => $this->product($row, $stores, $taken[$row->id] ?? []), $rows),
             false,
         );
     }
 
     /**
      * @param  list<string>  $stores  the panel's store codes
+     * @param  list<string>  $addressTaken
      */
-    private function product(ImportProduct $row, array $stores): ImportProductView
+    private function product(ImportProduct $row, array $stores, array $addressTaken): ImportProductView
     {
         $product = $row->effective();
         $draft = $row->productId === null ? null : $this->products->find($row->productId);
@@ -92,6 +97,7 @@ final readonly class ViewImportHandler
             $row->edited !== null,
             $missing,
             $storeViews,
+            $addressTaken,
         );
     }
 }

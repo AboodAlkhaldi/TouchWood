@@ -16,6 +16,7 @@ final readonly class ImportProductView
      * @param  array<string, string>|null  $newCodes
      * @param  list<string>  $missing  as `Readiness` names them
      * @param  list<ImportStoreView>  $stores
+     * @param  list<string>  $addressTaken  the languages whose web address would collide: one is given here (amendment 8(c))
      */
     public function __construct(
         public string $id,
@@ -31,5 +32,6 @@ final readonly class ImportProductView
         public bool $changed,
         public array $missing,
         public array $stores,
+        public array $addressTaken,
     ) {}
 }

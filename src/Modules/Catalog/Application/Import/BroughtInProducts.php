@@ -49,7 +49,7 @@ final readonly class BroughtInProducts
      * @param  array<array-key, mixed>|null  $productIds  the import's products chosen on the page, or null for all
      * @param  Closure(ImportProduct, bool): ?string  $fate  a product and whether all were chosen => its new state, or null to leave it
      * @param  Closure(string, int): ?AuditEntryDto  $audit  the import and how many products it changed => the step's entry
-     * @param  (Closure(list<ImportProduct>): void)|null  $after  once every chosen product met its fate, with those it changed
+     * @param  (Closure(list<ImportProduct>, list<ImportProduct>): void)|null  $after  once every chosen product met its fate, with those it changed and every product of the import as it was
      * @return int how many products it changed
      *
      * @throws ImportClosed|InvalidCatalogAttribute|ListItemNotFound
@@ -94,7 +94,7 @@ final readonly class BroughtInProducts
             }
 
             if ($after !== null) {
-                $after($changed);
+                $after($changed, array_values($rows));
             }
 
             $this->imports->recordResults($results);

@@ -518,7 +518,8 @@ final readonly class ProductsFile
         $key = [];
 
         foreach ($values as $attribute => $value) {
-            $key[ArabicText::normalize($attribute)] = ArabicText::normalize($value);
+            // An attribute named in digits is an integer key in PHP.
+            $key[ArabicText::normalize((string) $attribute)] = ArabicText::normalize($value);
         }
 
         ksort($key);

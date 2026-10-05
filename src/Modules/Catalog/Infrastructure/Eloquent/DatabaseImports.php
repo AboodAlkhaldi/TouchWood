@@ -186,6 +186,9 @@ final readonly class DatabaseImports implements Imports
             self::text($row->name_ar),
             self::text($row->name_en),
             (int) $row->products,
+            (int) $row->matches,
+            self::text($row->slug_ar),
+            self::text($row->slug_en),
         ))->all());
     }
 
@@ -196,6 +199,8 @@ final readonly class DatabaseImports implements Imports
             'target_id' => $name->targetId,
             'name_ar' => $name->nameAr,
             'name_en' => $name->nameEn,
+            'slug_ar' => $name->slugAr,
+            'slug_en' => $name->slugEn,
         ]);
     }
 
@@ -239,7 +244,7 @@ final readonly class DatabaseImports implements Imports
         }
     }
 
-    public function replaceNames(string $importId, array $names): void
+    public function replaceNames(string $importId, array $names): array
     {
         $kept = [];
 
@@ -255,7 +260,7 @@ final readonly class DatabaseImports implements Imports
             if ($id === null) {
                 $new[] = $name;
             } else {
-                $this->db->table(self::NAMES)->where('id', $id)->update(['products' => count($name->products)]);
+                $this->db->table(self::NAMES)->where('id', $id)->update(['products' => count($name->products), 'matches' => $name->matches]);
                 unset($kept[$name->kind.' '.$name->key]);
             }
         }
@@ -265,6 +270,8 @@ final readonly class DatabaseImports implements Imports
         }
 
         $this->insertNames($importId, $new);
+
+        return [count($new), count($kept)];
     }
 
     public function decideCode(ImportProduct $product): void
@@ -285,14 +292,35 @@ final readonly class DatabaseImports implements Imports
         $this->db->table(self::IMPORTS)->where('id', $importId)->update(['state' => $state, 'failure' => $failure, 'updated_at' => CarbonImmutable::now()]);
     }
 
-    public function recordConflicts(array $holders): void
+    public function recordConflicts(array $holders): int
     {
-        foreach ($this->db->table(self::PRODUCTS)->whereIn('id', array_keys($holders))->get(['id', 'conflict_product_id']) as $row) {
+        $reopened = 0;
+
+        foreach ($this->db->table(self::PRODUCTS)->whereIn('id', array_keys($holders))->get(['id', 'conflict_product_id', 'decision']) as $row) {
             $holder = $holders[(string) $row->id];
 
-            if ($holder !== self::text($row->conflict_product_id)) {
+            // Another holder, or none any more — the product deleted, its key emptied by the foreign
+            // key while the decision stayed: nothing decided about it still holds.
+            if ($holder !== self::text($row->conflict_product_id) || ($holder === null && $row->decision !== null)) {
                 $this->db->table(self::PRODUCTS)->where('id', $row->id)->update(['conflict_product_id' => $holder, 'decision' => null, 'new_codes' => null]);
+                $reopened++;
             }
+        }
+
+        return $reopened;
+    }
+
+    public function undecideNames(array $nameIds): void
+    {
+        if ($nameIds !== []) {
+            $this->db->table(self::NAMES)->whereIn('id', $nameIds)->update(['decision' => null, 'target_id' => null, 'name_ar' => null, 'name_en' => null, 'slug_ar' => null, 'slug_en' => null]);
+        }
+    }
+
+    public function undecideCodes(array $productIds): void
+    {
+        if ($productIds !== []) {
+            $this->db->table(self::PRODUCTS)->whereIn('id', $productIds)->update(['decision' => null, 'new_codes' => null]);
         }
     }
 
@@ -351,6 +379,7 @@ final readonly class DatabaseImports implements Imports
                 'attribute' => $name->attribute,
                 'attribute_kind' => $name->attributeKind?->value,
                 'products' => count($name->products),
+                'matches' => $name->matches,
             ], $chunk));
         }
     }

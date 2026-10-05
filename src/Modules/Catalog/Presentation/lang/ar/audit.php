@@ -85,6 +85,7 @@ return [
     'variant.code_corrected' => 'صُحّح رمز نوع منتج',
 
     'import.added' => 'رُفع ملف منتجات',
+    'import.checked_again' => 'أُعيد فحص أسماء ورموز ملف منتجات قبل الإدخال',
     'import.accepted' => 'قُبلت منتجات ملف',
     'import.archived' => 'أُرشفت منتجات ملف',
     'import.deleted' => 'حُذفت مسودات منتجات ملف',

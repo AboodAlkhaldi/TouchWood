@@ -54,7 +54,6 @@ final readonly class ViewStoreFillHandler
             $import->id,
             $store,
             $import->fileName,
-            $import->uploadedBy,
             (string) $import->uploadedAt,
             array_map(fn (StoreFillItem $item): StoreFillItemView => $this->item($item, $store), $this->imports->items($import->id)),
             false,
@@ -73,20 +72,27 @@ final readonly class ViewStoreFillHandler
             $product === null => [StoreFillItemView::UNKNOWN, []],
             $product->stage() === ProductStage::Archived => [StoreFillItemView::ARCHIVED, []],
             $product->stage() === ProductStage::Draft => [StoreFillItemView::NOT_READY, $this->readiness->missing($product)],
-            default => [$this->onAlready($product->id(), $item->code, $store) ? StoreFillItemView::ALREADY_ON : StoreFillItemView::READY, []],
+            default => [$this->standing($product->id(), $item->code, $store), []],
         };
 
         return new StoreFillItemView($item->id, $item->number, $item->code, $item->price, $item->stock, $item->state, $standing, $product?->id(), $missing);
     }
 
-    /** Whether every variant carrying the code, not archived, is on in the store already. */
-    private function onAlready(string $productId, string $code, string $store): bool
+    /**
+     * A ready product's item, as switching it on would find it: the variants carrying the code now —
+     * none, when the product held it once (`UNKNOWN`); all archived (`ARCHIVED`); all on there already
+     * (`ALREADY_ON`); or some to switch on (`READY`).
+     */
+    private function standing(string $productId, string $code, string $store): string
     {
-        $carrying = array_map(
-            static fn (Variant $variant): string => $variant->id(),
-            array_filter($this->variants->ofProduct($productId), static fn (Variant $variant): bool => ! $variant->isArchived() && $variant->code()->value === $code),
-        );
+        $carrying = array_values(array_filter($this->variants->ofProduct($productId), static fn (Variant $variant): bool => $variant->code()->value === $code));
+        $open = array_map(static fn (Variant $variant): string => $variant->id(), array_filter($carrying, static fn (Variant $variant): bool => ! $variant->isArchived()));
 
-        return $carrying !== [] && array_diff($carrying, $this->listings->of($store, $productId)->activeVariantIds()) === [];
+        return match (true) {
+            $carrying === [] => StoreFillItemView::UNKNOWN,
+            $open === [] => StoreFillItemView::ARCHIVED,
+            array_diff($open, $this->listings->of($store, $productId)->activeVariantIds()) === [] => StoreFillItemView::ALREADY_ON,
+            default => StoreFillItemView::READY,
+        };
     }
 }

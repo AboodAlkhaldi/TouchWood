@@ -20,10 +20,14 @@ use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariantHandler;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValues;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValuesHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Catalog\Application\Command\SetRelations\SetRelations;
+use Modules\Catalog\Application\Command\SetRelations\SetRelationsHandler;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWords;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWordsHandler;
 use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotos;
@@ -85,6 +89,8 @@ final readonly class ImportBringer
         private SetVariantPhotosHandler $setVariantPhotos,
         private SetSearchWordsHandler $setSearchWords,
         private SetFilterValuesHandler $setFilterValues,
+        private RestoreVariantHandler $restoreVariant,
+        private SetRelationsHandler $setRelations,
     ) {}
 
     /**
@@ -288,6 +294,12 @@ final readonly class ImportBringer
                 $variantId = $this->addVariant->handle(new AddVariant($productId, $file->code, $variant['values'], $variant['details'], $file->weightGrams, $file->lengthMm, $file->widthMm, $file->heightMm, $position));
             } else {
                 $variantId = $match->id();
+
+                // The file names it again: it comes back, as a restore in the panel brings it.
+                if ($match->isArchived()) {
+                    $this->restoreVariant->handle(new RestoreVariant($variantId));
+                }
+
                 $named[$variantId] = true;
                 $measures = $match->measures();
                 $this->updateVariant->handle(new UpdateVariant(
@@ -317,6 +329,13 @@ final readonly class ImportBringer
         }
 
         $this->parts($productId, $product, $resolved['filters'], $replace, $photos);
+
+        // Replaced whole: its related products go too — the file's are linked when it is accepted.
+        if ($replace) {
+            foreach (['RELATED', 'GOES_WITH'] as $kind) {
+                $this->setRelations->handle(new SetRelations($productId, $kind, []));
+            }
+        }
 
         return $productId;
     }
@@ -364,7 +383,7 @@ final readonly class ImportBringer
             $parent = $parentPath === [] ? null : $catalog->category($parentPath) ?? self::picked(ImportNameRow::CATEGORY, $parentPath, $names, $created);
 
             if ($parentPath === [] || $parent !== null) {
-                $created[$key] = $this->step("the category {$name->written}", fn (): string => $this->addCategory->handle(new AddCategory((string) $name->nameAr, (string) $name->nameEn, $parent)));
+                $created[$key] = $this->step("the category {$name->written}", fn (): string => $this->addCategory->handle(new AddCategory((string) $name->nameAr, (string) $name->nameEn, $parent, 0, $name->slugAr, $name->slugEn)));
             }
         }
 

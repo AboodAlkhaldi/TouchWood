@@ -23,17 +23,21 @@ use Modules\Catalog\Public\Enums\AttributeKind;
  * compares words. A category is found by its path from the top, each level by its own name among
  * its siblings. Read once for a whole file; deactivated ones are found too — the change that uses one
  * says it is off.
+ *
+ * **A name answers only when one item does** (amendment 8(d)): names need not be unique, and the
+ * comparison folds more than the database's own, so a name several items answer to finds none here —
+ * the import's page asks which, and `*Matches()` says how many.
  */
 final readonly class CatalogNames
 {
     /**
-     * @param  array<string, string>  $brands  key => id
+     * @param  array<string, list<string>>  $brands  key => ids
      * @param  array<string, list<Category>>  $children  parent id ('' for the top) => its categories
-     * @param  array<string, Attribute>  $attributes  key => attribute
-     * @param  array<string, array<string, string>>  $values  attribute id => key => value id
-     * @param  array<string, string>  $sets  key => id
+     * @param  array<string, list<Attribute>>  $attributes  key => attributes
+     * @param  array<string, array<string, list<string>>>  $values  attribute id => key => value ids
+     * @param  array<string, list<string>>  $sets  key => ids
      * @param  array<string, list<string>>  $members  set id => its attributes' ids, in order
-     * @param  array<string, string>  $warranties  key => id
+     * @param  array<string, list<string>>  $warranties  key => ids
      * @param  array<int, string>  $brandNumbers  a brand's fixed number => its id
      */
     private function __construct(
@@ -60,14 +64,10 @@ final readonly class CatalogNames
 
         foreach ($attributes->all() as $attribute) {
             foreach (self::keys($attribute->name()->ar, $attribute->name()->en) as $key) {
-                $byKey[$key] ??= $attribute;
+                $byKey[$key][] = $attribute;
             }
 
-            foreach ($attributes->valuesOf($attribute->id()) as $value) {
-                foreach (self::keys($value->name()->ar, $value->name()->en) as $key) {
-                    $values[$attribute->id()][$key] ??= $value->id();
-                }
-            }
+            $values[$attribute->id()] = self::index(array_map(static fn ($value): array => [$value->id(), $value->name()], $attributes->valuesOf($attribute->id())));
         }
 
         $sets = $attributes->sets();
@@ -97,10 +97,15 @@ final readonly class CatalogNames
 
     public function brand(string $name): ?string
     {
-        return $this->brands[self::key($name)] ?? null;
+        return self::one($this->brands[self::key($name)] ?? []);
     }
 
-    /** The brand with this fixed number (§1.6, amendment 7(b)). */
+    public function brandMatches(string $name): int
+    {
+        return count($this->brands[self::key($name)] ?? []);
+    }
+
+    /** The brand with this fixed number (§1.6, amendment 7(b)): never more than one. */
     public function brandNumbered(int $number): ?string
     {
         return $this->brandNumbers[$number] ?? null;
@@ -114,16 +119,7 @@ final readonly class CatalogNames
         $parent = '';
 
         foreach ($path as $name) {
-            $key = self::key($name);
-            $found = null;
-
-            foreach ($this->children[$parent] ?? [] as $category) {
-                if (in_array($key, self::keys($category->name()->ar, $category->name()->en), true)) {
-                    $found = $category->id();
-
-                    break;
-                }
-            }
+            $found = self::one(array_map(static fn (Category $category): string => $category->id(), $this->siblings($parent, $name)));
 
             if ($found === null) {
                 return null;
@@ -135,6 +131,19 @@ final readonly class CatalogNames
         return $parent === '' ? null : $parent;
     }
 
+    /**
+     * How many categories answer to the path's last level, under its parent when that one is found.
+     *
+     * @param  list<string>  $path  from the top
+     */
+    public function categoryMatches(array $path): int
+    {
+        $last = array_pop($path);
+        $parent = $path === [] ? '' : $this->category($path);
+
+        return $last === null || $parent === null ? 0 : count($this->siblings($parent, $last));
+    }
+
     /** Whether the category has categories under it — a product's must have none (§1.5). */
     public function hasChildren(string $categoryId): bool
     {
@@ -143,7 +152,14 @@ final readonly class CatalogNames
 
     public function attribute(string $name): ?Attribute
     {
-        return $this->attributes[self::key($name)] ?? null;
+        $found = $this->attributes[self::key($name)] ?? [];
+
+        return count($found) === 1 ? $found[0] : null;
+    }
+
+    public function attributeMatches(string $name): int
+    {
+        return count($this->attributes[self::key($name)] ?? []);
     }
 
     public function attributeKind(string $name): ?AttributeKind
@@ -153,12 +169,22 @@ final readonly class CatalogNames
 
     public function value(string $attributeId, string $name): ?string
     {
-        return $this->values[$attributeId][self::key($name)] ?? null;
+        return self::one($this->values[$attributeId][self::key($name)] ?? []);
+    }
+
+    public function valueMatches(string $attributeId, string $name): int
+    {
+        return count($this->values[$attributeId][self::key($name)] ?? []);
     }
 
     public function set(string $name): ?string
     {
-        return $this->sets[self::key($name)] ?? null;
+        return self::one($this->sets[self::key($name)] ?? []);
+    }
+
+    public function setMatches(string $name): int
+    {
+        return count($this->sets[self::key($name)] ?? []);
     }
 
     /**
@@ -171,12 +197,35 @@ final readonly class CatalogNames
 
     public function warranty(string $name): ?string
     {
-        return $this->warranties[self::key($name)] ?? null;
+        return self::one($this->warranties[self::key($name)] ?? []);
+    }
+
+    public function warrantyMatches(string $name): int
+    {
+        return count($this->warranties[self::key($name)] ?? []);
+    }
+
+    /**
+     * @return list<Category> the categories under the parent ('' for the top) answering to the name
+     */
+    private function siblings(string $parent, string $name): array
+    {
+        $key = self::key($name);
+
+        return array_values(array_filter($this->children[$parent] ?? [], static fn (Category $category): bool => in_array($key, self::keys($category->name()->ar, $category->name()->en), true)));
+    }
+
+    /**
+     * @param  list<string>  $ids
+     */
+    private static function one(array $ids): ?string
+    {
+        return count($ids) === 1 ? $ids[0] : null;
     }
 
     /**
      * @param  list<array{string, LocalizedName}>  $items  id and name
-     * @return array<string, string>
+     * @return array<string, list<string>> key => the ids answering to it, each once
      */
     private static function index(array $items): array
     {
@@ -184,11 +233,11 @@ final readonly class CatalogNames
 
         foreach ($items as [$id, $name]) {
             foreach (self::keys($name->ar, $name->en) as $key) {
-                $index[$key] ??= $id;
+                $index[$key][] = $id;
             }
         }
 
-        return $index;
+        return array_map(static fn (array $ids): array => array_values(array_unique($ids)), $index);
     }
 
     /**

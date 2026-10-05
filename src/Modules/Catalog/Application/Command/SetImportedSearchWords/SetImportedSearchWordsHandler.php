@@ -10,6 +10,8 @@ use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Domain\Exception\TooMany;
+use Modules\Catalog\Domain\Model\Product;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\ValueObject\SearchWords;
 use Shared\Application\Unauthorized;
 
@@ -25,6 +27,7 @@ final readonly class SetImportedSearchWordsHandler
 
     public function __construct(
         private ImportedProductsChange $change,
+        private ProductRepository $products,
     ) {}
 
     /**
@@ -38,13 +41,18 @@ final readonly class SetImportedSearchWordsHandler
         $mode = ImportedProductsChange::mode($command->mode, [ImportedProductsChange::ADD, ImportedProductsChange::REPLACE, ImportedProductsChange::FILL_EMPTY]);
         $words = self::words($command->words === [] ? throw new InvalidCatalogAttribute('words', 'at least one word') : $command->words);
 
-        return $this->change->run($command->importId, $command->productIds, 'search_words', implode(', ', $words), $mode, static function (FileProduct $product) use ($words, $mode): FileProduct {
-            if ($mode === ImportedProductsChange::FILL_EMPTY && $product->searchWords !== []) {
+        return $this->change->run($command->importId, $command->productIds, 'search_words', implode(', ', $words), $mode, function (FileProduct $product, ?Product $updates) use ($words, $mode): FileProduct {
+            // What the product has: the file's words, or — the file giving none — the catalog's it updates.
+            $has = $product->searchWords !== [] || $updates === null
+                ? $product->searchWords
+                : array_map(static fn (array $word): string => $word['word'], $this->products->searchWords($updates->id()));
+
+            if ($mode === ImportedProductsChange::FILL_EMPTY && $has !== []) {
                 return $product;
             }
 
             try {
-                $kept = self::words($mode === ImportedProductsChange::ADD ? [...$product->searchWords, ...$words] : $words);
+                $kept = self::words($mode === ImportedProductsChange::ADD ? [...$has, ...$words] : $words);
             } catch (TooMany) {
                 throw new InvalidCatalogAttribute("product {$product->number} › search_words", 'at most '.SearchWords::MAX);
             }

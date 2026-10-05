@@ -30,6 +30,7 @@ final readonly class ImportNameRow
      * @param  string|null  $attribute  a value's attribute, as written
      * @param  AttributeKind|null  $attributeKind  an attribute's job, as the file uses it
      * @param  list<int>  $products  the numbers of the products using it
+     * @param  int  $matches  how many catalog items answer to the name, when several do (amendment 8(d))
      */
     public function __construct(
         public string $kind,
@@ -38,6 +39,7 @@ final readonly class ImportNameRow
         public ?string $attribute,
         public ?AttributeKind $attributeKind,
         public array $products,
+        public int $matches = 0,
     ) {}
 
     /**

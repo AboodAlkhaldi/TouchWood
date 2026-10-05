@@ -10,6 +10,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProducts;
 use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProductsHandler;
+use Throwable;
 
 /**
  * Bringing an import's products in, queued by `BringInImport` (catalog.md §1.12, page part 3). It acts
@@ -37,5 +38,11 @@ final class BringInImportJob implements ShouldQueue
     public function handle(BringInImportProductsHandler $handler): void
     {
         $handler->handle(new BringInImportProducts($this->importId));
+    }
+
+    /** Killed, timed out, or let go: the import is failed, not left bringing in. */
+    public function failed(?Throwable $error): void
+    {
+        app(BringInImportProductsHandler::class)->stopped($this->importId);
     }
 }

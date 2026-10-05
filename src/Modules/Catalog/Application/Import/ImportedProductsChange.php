@@ -12,11 +12,14 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
+use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -30,7 +33,9 @@ use Shared\Application\Unauthorized;
  * 2. **The import's row locked**, so two changes to one import queue up; refused once bringing in
  *    starts (`ImportClosed`), and a failed bringing in is deciding again.
  * 3. **Each product changed as it now is** — as the page's changes left it, or as the file gave it —
- *    the file's own kept beside it ("all of this just draft": nothing reaches the catalog).
+ *    the file's own kept beside it ("all of this just draft": nothing reaches the catalog). A product
+ *    the file updates counts what the catalog's product has (amendment 8(b)): only filling the empty
+ *    passes it by where the catalog's has some, adding adds to the catalog's where the file gives none.
  * 4. **The names list follows the products**: a name no product uses any more goes, a name still used
  *    keeps its decision.
  * 5. **One audit entry** for the change: what, to what, how, and how many products it changed.
@@ -57,6 +62,7 @@ final readonly class ImportedProductsChange
         private CategoryRepository $categories,
         private AttributeRepository $attributes,
         private WarrantyRepository $warranties,
+        private ProductRepository $products,
         private ConnectionInterface $db,
     ) {}
 
@@ -80,7 +86,7 @@ final readonly class ImportedProductsChange
 
     /**
      * @param  array<array-key, mixed>|null  $productIds  the import's products chosen on the page, or null for all
-     * @param  Closure(FileProduct): FileProduct  $change  the product as it now is => as the change leaves it
+     * @param  Closure(FileProduct, ?Product): FileProduct  $change  the product as it now is, and the catalog's product it updates => as the change leaves it
      * @return int how many products it changed
      *
      * @throws ImportClosed|InvalidCatalogAttribute|ListItemNotFound
@@ -115,7 +121,9 @@ final readonly class ImportedProductsChange
             $changed = [];
 
             foreach ($chosen ?? array_keys($products) as $id) {
-                $now = $change($products[$id]->effective());
+                $row = $products[$id];
+                $updates = $row->decision === ImportProduct::UPDATE && $row->conflictProductId !== null ? $this->products->find($row->conflictProductId) : null;
+                $now = $change($row->effective(), $updates);
 
                 if ($now->toArray() !== $products[$id]->effective()->toArray()) {
                     $products[$id] = $changed[] = $products[$id]->changedTo($now);
@@ -143,6 +151,31 @@ final readonly class ImportedProductsChange
 
             return count($changed);
         }, 3);
+    }
+
+    /**
+     * Stores as the panel names them, on or off, each once.
+     *
+     * @param  array<array-key, mixed>  $codes
+     * @return list<string>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public static function storeCodes(array $codes, PlatformApi $platform): array
+    {
+        $known = array_map(static fn (StoreDto $store): string => $store->code, $platform->allStores());
+
+        if ($codes === []) {
+            throw new InvalidCatalogAttribute('store_codes', 'at least one store');
+        }
+
+        $read = [];
+
+        foreach ($codes as $code) {
+            $read[] = is_string($code) && in_array($code, $known, true) ? $code : throw new InvalidCatalogAttribute('store_codes', 'stores as the panel names them');
+        }
+
+        return array_values(array_unique($read));
     }
 
     /**

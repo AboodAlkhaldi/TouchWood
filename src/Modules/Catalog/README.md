@@ -191,7 +191,8 @@ the audit in that store (`catalog.listing.*`).
 Selling terms, labels and "Not available now" need a product the store has chosen
 (`NotChosenInStore`). **Archiving a product, or a variant, switches it off in every store**, each
 store's change audited there; restoring leaves it off. A label a store shows is not deleted. The
-admins' file that fills a store with codes, and its "needs completion" list, come in step 6.
+admins' file that fills a store with codes came in step 6 (below), with a page of its own instead of
+amendment 4's "needs completion" list (amendment 6(g)).
 
 **Deactivating a category or a brand** gives **every product it reaches, in any stage**, its fate
 (`ProductFates`): its own choice or the one for all — **hide** (`hidden_by_category`,
@@ -303,12 +304,18 @@ is a Super Admin's (`catalog.import.run`), from upload to acceptance:
    doing the file's job, or is refused; values, categories and sets may also be created — **brands,
    warranties and attributes never** (amendment 7(a)). A code the catalog has: update, replace, skip, or
    new codes free in the catalog and in the file.
-3. **Changes before bringing in** (`SetImported…`, amendment 7(c), (d)): brand (by its fixed number),
-   warranty, category (kept by id), stores with a price and stock, search words, filter values — for all
-   or the selected, replacing or only filling the empty (lists may also add). The file's own product
-   stays in `import_products.data`; the changed one in `edited`. The names list follows the products.
-4. **Bringing in** (`BringInImport`, the confirm): names and codes asked again against the catalog as it
-   is; while anything waits, `ImportUndecided`; else `BringInImportJob` is queued. Its work
+3. **Changes before bringing in** (`SetImported…`, amendments 7(c), (d), 8(a)–(c)): brand (by its
+   fixed number), warranty, category (kept by id), the stores (replaced: exactly those chosen), a price
+   and stock in one store, search words, filter values — for all or the selected, replacing or only
+   filling the empty (lists may also add); a product the file updates counts what the catalog's has.
+   `SetImportedSlugs` gives a product its own web address when its own would collide
+   (`ImportAddresses`). The file's own product stays in `import_products.data`; the changed one in
+   `edited`. The names list follows the products. **A name several catalog items answer to** is listed
+   with how many (`matches`): `CatalogNames` answers only when one item does (amendment 8(d)).
+4. **Bringing in** (`BringInImport`, the confirm): names, codes, new codes and new categories'
+   addresses asked again against the catalog as it is, what changed kept and audited; while anything
+   waits — a name, a code, or a product's address —, `ImportUndecided`; else `BringInImportJob` is
+   queued. A job the queue gives up on leaves the import failed, never bringing in (`failed()`). Its work
    (`BringInImportProducts` → `ImportBringer`) is **one transaction under the products' lock, then the
    lists'**: the names decided "create it" made through the lists' handlers, then each product **through
    the product handlers** — created as a draft with its photos (`ImportPhotos`, Platform's
@@ -319,6 +326,14 @@ is a Super Admin's (`catalog.import.run`), from upload to acceptance:
 5. **After** (`AcceptImportedProducts`, `ArchiveImportedProducts`, `DeleteImportedProducts`, through
    `BroughtInProducts`): accepting makes ready, switches on in the file's stores and relates to the
    ready products the file named; archive and delete only what the import created.
+
+**The zip** (`DiskImportArchives`) is trusted no further than it can be checked: two entries for one
+path are refused, `products.json` is read by its own entry and never past 20 MB, and each photo is
+copied no further than its declared size — one that does not come out exactly that size is refused.
+
+**For the screens:** `UploadImport::$path` and `UploadStoreFill::$path` must be the uploaded file's own
+temporary path, never a path a request names. The store file's pages answer no uploader: a Super Admin
+is named to a store's admins only as "System administrator" (access.md amendment 54).
 
 **The admins' store file** (catalog.md §1.3, amendment 6(g), (h)) is `catalog.listing.fill` in that
 store — declared `adminOnly`, so only an admin role holds it. It never creates or changes a product:
@@ -369,6 +384,7 @@ register their `ImportSection`s (declared in `Public/Contracts`).
 | `Integration/CatalogImportAcceptTest` | Accepting (ready, stores, relations), archiving and deleting only what the import created |
 | `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variants carrying each code of a ready product; mending and removing items |
 | `Integration/CatalogImportPagesTest` | The pages' reads: a products file's page and list, a store file's page with each item's standing, and its store's list |
+| `Integration/CatalogImportReviewTest` | After step 6's reviews (amendment 8): ambiguous names and colliding addresses decided on the page; the confirm asking again; holding back, replacing whole, updating and restoring; the page's picks brought in; a job given up on; the zip's sizes; linking back on accepting; the store file kept to its store |
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 

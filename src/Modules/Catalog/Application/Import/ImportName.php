@@ -30,17 +30,23 @@ final readonly class ImportName
         public ?string $nameAr,
         public ?string $nameEn,
         public int $products,
+        public int $matches = 0,
+        public ?string $slugAr = null,
+        public ?string $slugEn = null,
     ) {}
 
-    public function decided(string $decision, ?string $targetId, ?string $nameAr, ?string $nameEn): self
+    /**
+     * @param  string|null  $slugAr  a new category's own address, when the one made from its names is taken
+     */
+    public function decided(string $decision, ?string $targetId, ?string $nameAr, ?string $nameEn, ?string $slugAr = null, ?string $slugEn = null): self
     {
-        return new self($this->id, $this->kind, $this->written, $this->key, $this->attribute, $this->attributeKind, $decision, $targetId, $nameAr, $nameEn, $this->products);
+        return new self($this->id, $this->kind, $this->written, $this->key, $this->attribute, $this->attributeKind, $decision, $targetId, $nameAr, $nameEn, $this->products, $this->matches, $slugAr, $slugEn);
     }
 
     /** Waiting for a decision again. */
     public function undecided(): self
     {
-        return new self($this->id, $this->kind, $this->written, $this->key, $this->attribute, $this->attributeKind, null, null, null, null, $this->products);
+        return new self($this->id, $this->kind, $this->written, $this->key, $this->attribute, $this->attributeKind, null, null, null, null, $this->products, $this->matches);
     }
 
     /**
@@ -58,6 +64,8 @@ final readonly class ImportName
             'target_id' => $this->targetId,
             'name_ar' => $this->nameAr,
             'name_en' => $this->nameEn,
+            'slug_ar' => $this->slugAr,
+            'slug_en' => $this->slugEn,
         ];
     }
 }

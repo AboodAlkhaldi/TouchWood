@@ -10,10 +10,10 @@ namespace Modules\Catalog\Application\Command\DeleteImportedProducts;
 final readonly class DeleteImportedProducts
 {
     /**
-     * @param  array<array-key, mixed>  $productIds  the import's products chosen on the page
+     * @param  array<array-key, mixed>|null  $productIds  the import's products chosen on the page, or null for every one it created and nobody accepted
      */
     public function __construct(
         public string $importId,
-        public array $productIds,
+        public ?array $productIds,
     ) {}
 }

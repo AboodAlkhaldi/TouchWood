@@ -6,6 +6,7 @@ namespace Modules\Catalog\Application\Query\ListStoreFills;
 
 use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\Imports;
+use Modules\Catalog\Application\Import\ImportSummary;
 use Modules\Catalog\Application\Import\StoreFills;
 use Modules\Catalog\Application\Listing\StoreListingChange;
 use Modules\Catalog\Application\Query\ListImports\ImportList;
@@ -39,6 +40,10 @@ final readonly class ListStoreFillsHandler
         $page = min(max($query->page, 1), self::PAGE_MAX);
         $perPage = min(max($query->perPage, 1), self::PER_PAGE_MAX);
         [$imports, $total] = $this->imports->summaries(ImportHeader::STORE_FILL, $store, $page, $perPage);
+
+        // Who uploaded each is not answered here: a Super Admin is named to a store's admins only as
+        // "System administrator" (access.md amendment 54), which the screens show through Access.
+        $imports = array_map(static fn (ImportSummary $file): ImportSummary => new ImportSummary($file->id, $file->fileName, $file->state, $file->count, null, $file->uploadedAt), $imports);
 
         return new ImportList($imports, $total, $page, $perPage);
     }

@@ -118,9 +118,9 @@ describe('what refuses a product file', function () {
         'a brand neither a number nor a name' => [fn (array $p) => [...$p, 'brand' => 2.5], 'product 1 › brand', "the brand's number, from 1, or its name"],
         'no Arabic name' => [fn (array $p) => [...$p, 'name' => ['en' => 'Drawer']], 'product 1 › name', 'Arabic name'],
         'a name over 200 characters' => [fn (array $p) => [...$p, 'name' => ['ar' => str_repeat('د', 201)]], 'product 1 › name', '200'],
-        'a slug not in its shape' => [fn (array $p) => [...$p, 'slug' => ['en' => 'Not A Slug']], 'product 1 › slug › en', ''],
+        'a slug not in its shape' => [fn (array $p) => [...$p, 'slug' => ['en' => 'Not A Slug']], 'product 1 › slug › en', 'lower-case Latin letters and digits'],
         'a description not text' => [fn (array $p) => [...$p, 'description' => ['ar' => 5]], 'product 1 › description › ar', 'text'],
-        'a category path with an empty name' => [fn (array $p) => [...$p, 'category' => 'Kitchens /  / Runners'], 'product 1 › category', ''],
+        'a category path with an empty name' => [fn (array $p) => [...$p, 'category' => 'Kitchens /  / Runners'], 'product 1 › category', 'required'],
         'no variant' => [fn (array $p) => [...$p, 'variants' => []], 'product 1 › variants', 'at least one'],
         'a code not digits' => [fn (array $p) => [...$p, 'variants' => [['code' => '13a4', 'values' => ['Width' => '60 cm']]]], 'product 1 › variants 1 › code', 'digits'],
         'a code written as a number' => [fn (array $p) => [...$p, 'variants' => [['code' => 1304, 'values' => ['Width' => '60 cm']]]], 'product 1 › variants 1 › code', 'in quotes'],
@@ -130,7 +130,7 @@ describe('what refuses a product file', function () {
         'two variants with no set' => [fn (array $p) => [...array_diff_key($p, ['attribute_set' => true]), 'variants' => [['code' => '1'], ['code' => '2']]], 'product 1 › variants', 'one variant'],
         'variants made of other attributes' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm']], ['code' => '1', 'values' => ['Finish' => 'Zinc']]]], 'product 1 › variants 2 › values', 'same attributes'],
         'a measure not a whole number' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm'], 'weight_g' => 2.5]]], 'product 1 › variants 1 › weight_g', 'whole number'],
-        'a measure out of range' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm'], 'length_mm' => 0]]], 'product 1 › variants 1 › length_mm', ''],
+        'a measure out of range' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm'], 'length_mm' => 0]]], 'product 1 › variants 1 › length_mm', 'a whole number from 1 to'],
         'a detail neither text in both languages nor a number' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm'], 'details' => ['Material' => ['ar' => 'فولاذ']]]]], 'product 1 › variants 1 › details › Material', 'both languages'],
         'a photo not in the zip' => [fn (array $p) => [...$p, 'photos' => ['photos/missing.jpg']], 'product 1 › photos', 'not in the zip'],
         'a photo named twice' => [fn (array $p) => [...$p, 'photos' => ['photos/a.jpg', './photos/a.jpg']], 'product 1 › photos', 'named twice'],
@@ -144,6 +144,7 @@ describe('what refuses a product file', function () {
         'a price below 0' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['price' => -1]]], 'product 1 › stores › sa › price', 'at least 0'],
         'a stock not a whole number' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['stock' => 1.5]]], 'product 1 › stores › sa › stock', 'whole number'],
         'two products sharing a code' => [fn (array $p) => [$p, catalogImportProduct('1304')], 'products 1, 2', 'never share a code'],
+        'two variants alike, their attribute named in digits' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['2' => '60 cm']], ['code' => '1', 'values' => ['2' => '60 CM']]]], 'product 1 › variants 2 › values', 'never alike'],
     ]);
 
     it('refuses a file not in the format at all', function (string $json, string $at, string $problem) {

@@ -85,6 +85,7 @@ return [
     'variant.code_corrected' => 'Variant code corrected',
 
     'import.added' => 'Products file uploaded',
+    'import.checked_again' => 'Names and codes of a products file asked again before bringing in',
     'import.accepted' => 'Products of a file accepted',
     'import.archived' => 'Products of a file archived',
     'import.deleted' => 'Draft products of a file deleted',

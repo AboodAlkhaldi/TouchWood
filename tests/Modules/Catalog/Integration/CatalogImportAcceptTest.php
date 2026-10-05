@@ -112,6 +112,7 @@ describe('accepting', function () {
             ->and([catalogAcceptState($import, 1), catalogAcceptState($import, 2), catalogAcceptState($import, 3)])->toBe(['ACCEPTED', 'IN', 'ACCEPTED'])
             ->and(DB::table('catalog.products')->whereIn('id', [$first, $second, $third])->orderBy('id')->pluck('stage', 'id')->all())->toEqual([$first => 'READY', $second => 'DRAFT', $third => 'READY'])
             ->and(DB::table('catalog.store_products')->where('product_id', $first)->pluck('store_id')->all())->toBe([Fx::storeId('sa')])
+            ->and(DB::table('catalog.store_variants')->where('product_id', $first)->where('store_id', Fx::storeId('sa'))->pluck('is_active')->all())->toBe([true])
             ->and(DB::table('catalog.store_products')->where('product_id', $third)->exists())->toBeFalse()
             ->and(DB::table('catalog.product_relations')->where('product_id', $first)->pluck('related_id', 'kind')->all())->toBe(['RELATED' => $third])
             ->and(Fx::audits('catalog.import.accepted', $import))->toBe(1);

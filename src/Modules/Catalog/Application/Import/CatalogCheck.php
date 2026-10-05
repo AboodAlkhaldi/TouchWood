@@ -25,7 +25,7 @@ final class CatalogCheck
 {
     private const array PHOTO_TYPES = ['jpg', 'jpeg', 'png', 'webp'];
 
-    /** @var array<string, array{kind: string, written: string, key: string, attribute: string|null, attributeKind: AttributeKind|null, products: array<int, true>}> */
+    /** @var array<string, array{kind: string, written: string, key: string, attribute: string|null, attributeKind: AttributeKind|null, products: array<int, true>, matches: int}> */
     private array $rows = [];
 
     /** @var array<string, array{kind: AttributeKind, product: int}> an attribute's key => its first use in the file */
@@ -55,7 +55,7 @@ final class CatalogCheck
         }
 
         return array_values(array_map(
-            static fn (array $row): ImportNameRow => new ImportNameRow($row['kind'], $row['written'], $row['key'], $row['attribute'], $row['attributeKind'], array_keys($row['products'])),
+            static fn (array $row): ImportNameRow => new ImportNameRow($row['kind'], $row['written'], $row['key'], $row['attribute'], $row['attributeKind'], array_keys($row['products']), $row['matches']),
             $check->rows,
         ));
     }
@@ -112,14 +112,14 @@ final class CatalogCheck
 
         // A brand by its number is listed as "#2", apart from any brand named "2".
         if ($product->brandNumber !== null && $this->names->brandNumbered($product->brandNumber) === null) {
-            $this->need(ImportNameRow::BRAND, "#{$product->brandNumber}", ["#{$product->brandNumber}"], null, null, $product->number);
+            $this->need(ImportNameRow::BRAND, "#{$product->brandNumber}", ["#{$product->brandNumber}"], null, null, $product->number, 0);
         } elseif ($product->brand !== null && $this->names->brand($product->brand) === null) {
-            $this->need(ImportNameRow::BRAND, $product->brand, [$product->brand], null, null, $product->number);
+            $this->need(ImportNameRow::BRAND, $product->brand, [$product->brand], null, null, $product->number, $this->names->brandMatches($product->brand));
         }
 
         // What the import's page picked stands for the name (amendment 7(c)): it is checked when brought in.
         if ($product->warrantyId === null && $product->warranty !== null && $this->names->warranty($product->warranty) === null) {
-            $this->need(ImportNameRow::WARRANTY, $product->warranty, [$product->warranty], null, null, $product->number);
+            $this->need(ImportNameRow::WARRANTY, $product->warranty, [$product->warranty], null, null, $product->number, $this->names->warrantyMatches($product->warranty));
         }
 
         if ($product->categoryId === null && $product->category !== null) {
@@ -170,7 +170,7 @@ final class CatalogCheck
             $prefix = array_slice($path, 0, $length);
 
             if ($this->names->category($prefix) === null) {
-                $this->need(ImportNameRow::CATEGORY, implode(' / ', $prefix), $prefix, null, null, $number);
+                $this->need(ImportNameRow::CATEGORY, implode(' / ', $prefix), $prefix, null, null, $number, $this->names->categoryMatches($prefix));
             }
         }
     }
@@ -181,7 +181,7 @@ final class CatalogCheck
         $setId = $this->names->set($name);
 
         if ($setId === null) {
-            $this->need(ImportNameRow::SET, $name, [$name], null, null, $product->number);
+            $this->need(ImportNameRow::SET, $name, [$name], null, null, $product->number, $this->names->setMatches($name));
             $given = array_map(CatalogNames::key(...), $attributes);
             sort($given);
             $first = $this->newSets[CatalogNames::key($name)] ??= ['attributes' => $given, 'product' => $product->number];
@@ -213,7 +213,7 @@ final class CatalogCheck
         $attributeId = $this->attribute($attribute, $kind, $at, $number);
 
         if ($attributeId === null || $this->names->value($attributeId, $value) === null) {
-            $this->need(ImportNameRow::VALUE, $value, [$attribute, $value], $attribute, null, $number);
+            $this->need(ImportNameRow::VALUE, $value, [$attribute, $value], $attribute, null, $number, $attributeId === null ? 0 : $this->names->valueMatches($attributeId, $value));
         }
     }
 
@@ -234,7 +234,7 @@ final class CatalogCheck
         $existing = $this->names->attribute($name);
 
         if ($existing === null) {
-            $this->need(ImportNameRow::ATTRIBUTE, $name, [$name], null, $kind, $number);
+            $this->need(ImportNameRow::ATTRIBUTE, $name, [$name], null, $kind, $number, $this->names->attributeMatches($name));
 
             return null;
         }
@@ -251,10 +251,10 @@ final class CatalogCheck
     /**
      * @param  list<string>  $names  what keyOf() reads
      */
-    private function need(string $kind, string $written, array $names, ?string $attribute, ?AttributeKind $attributeKind, int $number): void
+    private function need(string $kind, string $written, array $names, ?string $attribute, ?AttributeKind $attributeKind, int $number, int $matches): void
     {
         $key = ImportNameRow::keyOf($names);
-        $this->rows[$kind.' '.$key] ??= ['kind' => $kind, 'written' => $written, 'key' => $key, 'attribute' => $attribute, 'attributeKind' => $attributeKind, 'products' => []];
+        $this->rows[$kind.' '.$key] ??= ['kind' => $kind, 'written' => $written, 'key' => $key, 'attribute' => $attribute, 'attributeKind' => $attributeKind, 'products' => [], 'matches' => $matches];
         $this->rows[$kind.' '.$key]['products'][$number] = true;
     }
 

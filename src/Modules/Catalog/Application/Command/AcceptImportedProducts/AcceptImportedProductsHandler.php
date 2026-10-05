@@ -72,9 +72,18 @@ final readonly class AcceptImportedProductsHandler
             fn (ImportProduct $row, bool $all): ?string => $this->accept($row, $all, $stores) ? 'ACCEPTED' : null,
             static fn (string $importId, int $count): ?AuditEntryDto => ListAudit::changed('import', 'accepted', $importId, ['products' => null], ['products' => $count]),
             // Once all are ready, so products accepted together may be related to each other.
-            function (array $accepted): void {
+            function (array $accepted, array $rows): void {
                 foreach ($accepted as $row) {
                     $this->relate($row);
+                }
+
+                // Products accepted before that named these ones gain them, now that they are ready.
+                $ready = array_values(array_filter(array_map(static fn (ImportProduct $row): ?string => $row->productId, $accepted)));
+
+                foreach ($rows as $row) {
+                    if ($row->state === 'ACCEPTED' && $row->productId !== null) {
+                        $this->linkBack($row, $ready);
+                    }
                 }
             },
         );
@@ -114,6 +123,27 @@ final readonly class AcceptImportedProductsHandler
         }
 
         return true;
+    }
+
+    /**
+     * An earlier accepted product's related and goes-with products, with those just made ready that
+     * its file named — added to what it has, never taking any away.
+     *
+     * @param  list<string>  $ready  the products just accepted
+     */
+    private function linkBack(ImportProduct $row, array $ready): void
+    {
+        $file = $row->effective();
+        $productId = (string) $row->productId;
+
+        foreach (['RELATED' => $file->related, 'GOES_WITH' => $file->goesWith] as $kind => $codes) {
+            $added = array_values(array_intersect($this->readyHolders($codes, $productId), $ready));
+            $has = $this->products->relations($productId, $kind);
+
+            if (array_diff($added, $has) !== []) {
+                $this->relations->handle(new SetRelations($productId, $kind, array_slice(array_values(array_unique([...$has, ...$added])), 0, ProductParts::MAX_RELATIONS)));
+            }
+        }
     }
 
     /** The related and goes-with products whose codes the file named, among those ready. */

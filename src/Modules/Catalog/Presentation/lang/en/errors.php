@@ -126,7 +126,7 @@ return [
     ],
     'import_undecided' => [
         'title' => 'Decisions still wait',
-        'detail' => 'Decide every new name and every code the catalog already has before the products are brought in.',
+        'detail' => 'Decide every new name, every code the catalog already has, and give an address to every product whose address is taken, before the products are brought in.',
     ],
     'import_closed' => [
         'title' => 'Decided already',

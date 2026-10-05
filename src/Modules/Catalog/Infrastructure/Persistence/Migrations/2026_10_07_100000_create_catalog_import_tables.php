@@ -57,6 +57,11 @@ return new class extends Migration
             $table->string('name_ar', 100)->nullable();
             $table->string('name_en', 100)->nullable();
             $table->integer('products');
+            // How many catalog items answer to the name when several do: the page asks which (amendment 8(d)).
+            $table->integer('matches')->default(0);
+            // A new category's own address, when the one made from its names is taken (amendment 8(c)).
+            $table->string('slug_ar', 200)->nullable();
+            $table->string('slug_en', 200)->nullable();
 
             $table->foreign('import_id', 'import_names_import')->references('id')->on('catalog.imports')->cascadeOnDelete();
             $table->unique(['import_id', 'kind', 'key'], 'import_names_one_per_key');
@@ -70,6 +75,8 @@ return new class extends Migration
         DB::statement("ALTER TABLE catalog.import_names ADD CONSTRAINT import_names_create_names CHECK (CASE WHEN decision = 'CREATE' THEN name_ar IS NOT NULL AND name_en IS NOT NULL ELSE name_ar IS NULL AND name_en IS NULL END)");
         DB::statement("ALTER TABLE catalog.import_names ADD CONSTRAINT import_names_refused_target CHECK (decision IS DISTINCT FROM 'REFUSE' OR target_id IS NULL)");
         DB::statement('ALTER TABLE catalog.import_names ADD CONSTRAINT import_names_products CHECK (products >= 1)');
+        DB::statement('ALTER TABLE catalog.import_names ADD CONSTRAINT import_names_matches CHECK (matches >= 0)');
+        DB::statement("ALTER TABLE catalog.import_names ADD CONSTRAINT import_names_slugs_for_created_categories CHECK ((slug_ar IS NULL AND slug_en IS NULL) OR (kind = 'CATEGORY' AND decision = 'CREATE'))");
 
         Schema::create('catalog.import_products', function (Blueprint $table) {
             $table->ulid('id')->primary();

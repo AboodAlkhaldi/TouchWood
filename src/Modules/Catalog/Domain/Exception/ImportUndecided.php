@@ -7,17 +7,18 @@ namespace Modules\Catalog\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * Bringing an import's products in while a name the catalog lacks, or a code it already has, still
- * waits for the Super Admin's decision (catalog.md §1.12, amendment 6): how many of each wait is in
- * the context.
+ * Bringing an import's products in while a name the catalog lacks, a code it already has, or a web
+ * address that would collide still waits for the Super Admin's decision (catalog.md §1.12, amendments
+ * 6, 8(c)): how many of each wait is in the context.
  */
 final class ImportUndecided extends CatalogError
 {
     public function __construct(
         public readonly int $names,
         public readonly int $codes,
+        public readonly int $addresses = 0,
     ) {
-        parent::__construct("The import still waits for decisions: {$names} name(s), {$codes} code(s).");
+        parent::__construct("The import still waits for decisions: {$names} name(s), {$codes} code(s), {$addresses} address(es).");
     }
 
     public function type(): string
@@ -32,6 +33,6 @@ final class ImportUndecided extends CatalogError
 
     public function context(): array
     {
-        return ['names' => $this->names, 'codes' => $this->codes];
+        return ['names' => $this->names, 'codes' => $this->codes, 'addresses' => $this->addresses];
     }
 }

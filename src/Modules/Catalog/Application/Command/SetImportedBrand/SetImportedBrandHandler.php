@@ -11,6 +11,7 @@ use Modules\Catalog\Domain\Exception\BrandNotFound;
 use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
+use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Shared\Application\Unauthorized;
 
@@ -49,7 +50,7 @@ final readonly class SetImportedBrandHandler
             throw new BrandNotFound($command->brandId);
         }
 
-        return $this->change->run($command->importId, $command->productIds, 'brand', "#{$number}", $mode, static fn (FileProduct $product): FileProduct => $mode === ImportedProductsChange::FILL_EMPTY && ($product->brand !== null || $product->brandNumber !== null)
+        return $this->change->run($command->importId, $command->productIds, 'brand', "#{$number}", $mode, static fn (FileProduct $product, ?Product $updates): FileProduct => $mode === ImportedProductsChange::FILL_EMPTY && ($product->brand !== null || $product->brandNumber !== null || $updates !== null)
             ? $product
             : $product->with(['brand' => null, 'brand_number' => $number]));
     }

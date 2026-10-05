@@ -9,6 +9,7 @@ use LogicException;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Import\CatalogNames;
+use Modules\Catalog\Application\Import\ImportAddresses;
 use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\ImportName;
 use Modules\Catalog\Application\Import\ImportNameRow;
@@ -68,6 +69,7 @@ final readonly class DecideImportNamesHandler
         private CategoryRepository $categories,
         private AttributeRepository $attributes,
         private WarrantyRepository $warranties,
+        private ImportAddresses $addresses,
         private ConnectionInterface $db,
     ) {}
 
@@ -137,7 +139,7 @@ final readonly class DecideImportNamesHandler
     }
 
     /**
-     * @param  array{name_id: string, decision: string, target_id: string|null, name_ar: string|null, name_en: string|null}  $decision
+     * @param  array{name_id: string, decision: string, target_id: string|null, name_ar: string|null, name_en: string|null, slug_ar: string|null, slug_en: string|null}  $decision
      * @param  array<string, ImportName>  $names
      */
     private function decide(ImportName $name, array $decision, array $names, CatalogNames $catalog, string $at): ImportName
@@ -200,7 +202,7 @@ final readonly class DecideImportNamesHandler
     /**
      * Its wording, as the lists hold it: both languages, each one line.
      *
-     * @param  array{name_id: string, decision: string, target_id: string|null, name_ar: string|null, name_en: string|null}  $decision
+     * @param  array{name_id: string, decision: string, target_id: string|null, name_ar: string|null, name_en: string|null, slug_ar: string|null, slug_en: string|null}  $decision
      * @param  array<string, ImportName>  $names
      */
     private function created(ImportName $name, array $decision, array $names, CatalogNames $catalog, string $at): ImportName
@@ -209,17 +211,49 @@ final readonly class DecideImportNamesHandler
         $nameEn = CatalogText::oneLine("{$at}.name_en", (string) $decision['name_en'], ProductsFile::NAME_MAX);
 
         // A value is made under an attribute the catalog has, each once (§1.7): one it has already is
-        // chosen, not made again.
+        // chosen, not made again — nor is one this file makes already.
         if ($name->kind === ImportNameRow::VALUE) {
             $attributeId = $this->attributeOf($name, $names, $catalog)
                 ?? throw new InvalidCatalogAttribute("{$at}.decision", "a value of {$name->attribute} is created once {$name->attribute} is one the catalog has");
 
-            if (($catalog->value($attributeId, $nameAr) ?? $catalog->value($attributeId, $nameEn)) !== null) {
+            if ($catalog->valueMatches($attributeId, $nameAr) + $catalog->valueMatches($attributeId, $nameEn) > 0 || self::madeHere($name, $nameAr, $nameEn, $names)) {
                 throw new NameTaken('name');
             }
         }
 
+        // A category's address is its own, now and ever (§1.5): taken, the page gives it one (amendment 8(c)).
+        if ($name->kind === ImportNameRow::CATEGORY) {
+            $others = array_values(array_filter($names, static fn (ImportName $other): bool => $other->id !== $name->id && $other->kind === ImportNameRow::CATEGORY && $other->decision === ImportName::CREATE));
+            [$slugAr, $slugEn] = $this->addresses->freeCategory($nameAr, $nameEn, $decision['slug_ar'], $decision['slug_en'], $others, $at);
+
+            return $name->decided(ImportName::CREATE, null, $nameAr, $nameEn, $decision['slug_ar'] === null ? null : $slugAr, $decision['slug_en'] === null ? null : $slugEn);
+        }
+
+        if ($decision['slug_ar'] !== null || $decision['slug_en'] !== null) {
+            throw new InvalidCatalogAttribute("{$at}.slug_ar", 'an address for a new category only');
+        }
+
         return $name->decided(ImportName::CREATE, null, $nameAr, $nameEn);
+    }
+
+    /**
+     * Whether another value of the same attribute name is made by this import with this wording.
+     *
+     * @param  array<string, ImportName>  $names
+     */
+    private static function madeHere(ImportName $value, string $nameAr, string $nameEn, array $names): bool
+    {
+        $wording = [CatalogNames::key($nameAr), CatalogNames::key($nameEn)];
+
+        foreach ($names as $other) {
+            if ($other->id !== $value->id && $other->kind === ImportNameRow::VALUE && $other->decision === ImportName::CREATE
+                && CatalogNames::key((string) $other->attribute) === CatalogNames::key((string) $value->attribute)
+                && array_intersect($wording, [CatalogNames::key((string) $other->nameAr), CatalogNames::key((string) $other->nameEn)]) !== []) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -261,7 +295,7 @@ final readonly class DecideImportNamesHandler
 
     /**
      * @param  array<array-key, mixed>  $decisions
-     * @return list<array{name_id: string, decision: string, target_id: string|null, name_ar: string|null, name_en: string|null}>
+     * @return list<array{name_id: string, decision: string, target_id: string|null, name_ar: string|null, name_en: string|null, slug_ar: string|null, slug_en: string|null}>
      *
      * @throws InvalidCatalogAttribute
      */
@@ -290,6 +324,8 @@ final readonly class DecideImportNamesHandler
                 'target_id' => self::text($decision, 'target_id', $index),
                 'name_ar' => self::text($decision, 'name_ar', $index),
                 'name_en' => self::text($decision, 'name_en', $index),
+                'slug_ar' => self::text($decision, 'slug_ar', $index),
+                'slug_en' => self::text($decision, 'slug_en', $index),
             ];
         }
 

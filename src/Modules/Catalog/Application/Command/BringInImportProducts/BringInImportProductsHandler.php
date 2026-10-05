@@ -54,9 +54,10 @@ final readonly class BringInImportProductsHandler
      */
     public function handle(BringInImportProducts $command): void
     {
-        $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-
         try {
+            // Inside: a refusal, this one included, leaves the import failed with why, never stuck.
+            $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+
             // One attempt: a second would fail the same way, and the page says why.
             $archive = $this->db->transaction(function () use ($command): ?string {
                 foreach (self::LOCKS as $list) {
@@ -90,6 +91,16 @@ final readonly class BringInImportProductsHandler
         if ($archive !== null) {
             $this->archives->forget($archive);
         }
+    }
+
+    /**
+     * The queue gave up on the job before it ended — killed, timed out, or let go by a worker —
+     * so the import is not left bringing in for good. It waits for the import's row: a job still
+     * running holds it, and the state it leaves is then kept.
+     */
+    public function stopped(string $importId): void
+    {
+        $this->recordFailure($importId, 'bringing in: the work stopped before it ended; the failed jobs screen has its details');
     }
 
     private function recordFailure(string $importId, string $reason): void

@@ -39,9 +39,10 @@ final readonly class DeleteImportedProductsHandler
     {
         $this->rows->authorize();
 
-        return $this->rows->run($command->importId, $command->productIds, function (ImportProduct $row): string {
+        return $this->rows->run($command->importId, $command->productIds, function (ImportProduct $row, bool $all): ?string {
+            // Every one: those the import did not create, or someone accepted, are passed by.
             if ($row->state !== 'IN' || $row->productId === null) {
-                throw new InvalidCatalogAttribute("product {$row->number}", 'a product this import created and nobody accepted yet');
+                return $all ? null : throw new InvalidCatalogAttribute("product {$row->number}", 'a product this import created and nobody accepted yet');
             }
 
             $this->delete->handle(new DeleteDraftProduct($row->productId));

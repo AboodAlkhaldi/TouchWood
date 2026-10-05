@@ -76,8 +76,23 @@ interface Imports
      * decision and takes its new count, one no longer used goes, a new one waits for a decision.
      *
      * @param  list<ImportNameRow>  $names
+     * @return array{int, int} how many names joined the list, and how many left it
      */
-    public function replaceNames(string $importId, array $names): void;
+    public function replaceNames(string $importId, array $names): array;
+
+    /**
+     * These names wait for a decision again.
+     *
+     * @param  list<string>  $nameIds
+     */
+    public function undecideNames(array $nameIds): void;
+
+    /**
+     * These products wait for a decision on their codes again.
+     *
+     * @param  list<string>  $productIds
+     */
+    public function undecideCodes(array $productIds): void;
 
     /** A failed bringing in, decided again: deciding once more, its failure kept only in the audit log. */
     public function reopen(string $importId): void;
@@ -87,8 +102,9 @@ interface Imports
      * whose holder changed waits for a decision again, one whose holder went needs none.
      *
      * @param  array<string, string|null>  $holders  import product id => the catalog's product holding its codes now
+     * @return int how many products wait for a decision again
      */
-    public function recordConflicts(array $holders): void;
+    public function recordConflicts(array $holders): int;
 
     /** Bringing in has started: the import's names and codes are decided. */
     public function start(string $importId): void;

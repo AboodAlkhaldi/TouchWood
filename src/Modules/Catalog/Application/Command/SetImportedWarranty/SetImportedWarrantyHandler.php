@@ -10,6 +10,7 @@ use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
+use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Shared\Application\Unauthorized;
 
@@ -44,7 +45,7 @@ final readonly class SetImportedWarrantyHandler
 
         $id = $warranty->id();
 
-        return $this->change->run($command->importId, $command->productIds, 'warranty', $id, $mode, static fn (FileProduct $product): FileProduct => $mode === ImportedProductsChange::FILL_EMPTY && ($product->warranty !== null || $product->warrantyId !== null)
+        return $this->change->run($command->importId, $command->productIds, 'warranty', $id, $mode, static fn (FileProduct $product, ?Product $updates): FileProduct => $mode === ImportedProductsChange::FILL_EMPTY && ($product->warranty !== null || $product->warrantyId !== null || $updates?->warrantyId() !== null)
             ? $product
             : $product->with(['warranty' => null, 'warranty_id' => $id]));
     }
