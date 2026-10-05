@@ -47,6 +47,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.10, §2.3, §3.4, §3.5 | The owner's answer for each piece neither system has (§1.11 table); the theme switch with System, once per area; SMS codes in shadcn's InputOTP | Owner, 2026-10-02, one by one with pictures |
 | §1.10, §1.11 | §1.10's provisional picks settled (type, surfaces, store time stand); the overnight review's Geist rules applied in the rebuild; every module's error messages rewritten in Geist's form | Owner, 2026-10-03 |
 | §1.11, §2.2 | **The owner's fix list after testing the rebuild**: the sidebar as `sidebar-07`'s main navigation (areas that fold, several open, a single screen as its link), thin themed scrollbars that keep the page's room, whole rows, the type lists' "#", the language switch laying the whole page out at once, sizes and counts in the page's digits; the builder's sidebar picks marked [PROVISIONAL] | Owner, 2026-10-04 |
+| §1.10 | **Arabic is formal (فصحى) everywhere**, never colloquial: the company page's two colloquial lines, from the design, rewritten | Owner, 2026-10-05 |
 
 ---
 
@@ -344,7 +345,9 @@ stylesheet, the same day.
   store clock (step 6) and are left as they are; **B2B's staff screens use `Time`, in the store
   being worked in** (b2b.md amendment 23(b), owner 2026-10-03).
 - **Writing rules** (Geist's, for every English word on a screen; Arabic follows the same
-  structure — a verb and its object on a button, the toast that answers it, no "please"):
+  structure — a verb and its object on a button, the toast that answers it, no "please" — and is
+  **formal Arabic (فصحى) everywhere, never colloquial**, the owner's answer of 2026-10-05, over the
+  design's own colloquial lines):
 
 | Where | Rule | Example |
 |---|---|---|
