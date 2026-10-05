@@ -47,6 +47,10 @@ return [
         // and one sentence; each row then opens its screen and shows its count.
         'waiting_label' => 'Waiting',
         'waiting_note' => 'Some things need you.',
+        // The cards' scope (frontend.md §2.2; the owner's fix list, point 6).
+        'scope' => 'Scope',
+        'scope_all' => 'All Stores',
+        'scope_store' => 'This Store',
     ],
 
     // The person block at the foot of the sidebar (frontend.md §3.1): their own account, and the

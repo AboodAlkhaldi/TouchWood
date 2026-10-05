@@ -34,6 +34,11 @@ final readonly class DatabaseMediaReader implements MediaReader
         private ConnectionInterface $db,
     ) {}
 
+    public function totalBytes(): int
+    {
+        return (int) $this->db->table('platform.media')->sum('bytes');
+    }
+
     /**
      * One page of the library, over the table rather than through the repository: a listing loads
      * rows, not domain models, and building twenty-four Media objects to read twelve columns off

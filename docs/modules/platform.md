@@ -398,6 +398,24 @@ cannot import Platform's interior. They count toward the ~20-class ceiling.
 Until Access exists, Platform's own code runs with a system actor from console commands, and
 tests bind fakes for `Authorizer` and `ActorContext`.
 
+### 2.6 `Modules\Platform\Public\Contracts\HomeCards` — the admin home's cards (§9.8)
+
+The admin home (frontend.md §2.2) is built the way the admin menu is: **every module registers its
+own cards** in its service provider, and Platform keeps the list because it sits below everything.
+A module built later adds its cards without the home changing.
+
+| Type | Purpose |
+|---|---|
+| `HomeCardDto` | `module`, `key` (its words at `{module}::home.{key}…`: `title`, each figure's label, the list's heading, and `open` — the words of the link to its whole screen), `permission` — per-store actions: one, or several any one of which is enough — `card` (the class of a `HomeCard`), `position`, and `storeFree` — store-free actions that show the card too, in either scope. A store-free action held at all is held "everywhere", so it never offers All Stores: listed with the per-store ones, it would offer it to an admin of one store (the review of P5). |
+| `HomeCard` (interface) | `data(HomeScope $scope): ?HomeCardData` — what the card shows for the scope, or nothing. Resolved only for a reader the card is offered to, and still asks the `Authorizer` itself, as a read across stores does (handoff §19): a card reading another module's data returns nothing for a scope wider than the reader's stores, and a figure that needs a permission of its own asks for it. A card whose links lead to a list links to it for the same stores, so the two agree. |
+| `HomeScope` | The stores the card speaks for: **one** — the store being worked in — or **all stores** (`stores(): ?list<StoreId>`, null for all). |
+| `HomeCardData` | `figures` (a label key, a number, a unit — `count` or `bytes` — and an optional link and tone), `rows` (a short list: a label already in words, an optional detail, moment and link), and an optional link to the card's whole screen. |
+| `HomeCards` (registry) | `register(HomeCardDto ...)`; `forCurrentActor(?string $storeWorkedIn, bool $allStores)`: the cards the reader may see, in order, each with its data — **This Store**: a permission held in the store being worked in; **All Stores**: held for every store; a Super Admin sees every card in either; a store-free action shows its card in either. `offersAllStores()`: whether the reader holds any card's per-store action for every store. |
+
+Platform never reaches into Access: who holds what is asked of the Shared `Authorizer`
+(`isUnlimited()`, `storesWith()`). What a card shows is not protection — every screen it links to
+still asserts its own permission.
+
 ---
 
 ## 3 · Use cases
@@ -1024,3 +1042,16 @@ and #5 is replaced (below).
 | 4 | §1.5, §6.1 | **[Confirmed by the owner, 2026-10-03]** **Audit**: `platform.store.activated` and `platform.store.deactivated`, each with `is_active` before and after; `platform.store.created` also records `is_active` (false). A switch to the state the store is already in writes, audits and announces nothing | Each switch is a change someone may ask about later; nothing happened when nothing changed |
 | 5 | §1.6 | **[Replaced by the owner, 2026-10-03]** The overnight pick, that an off store was a store to work in for nobody, a Super Admin included, is replaced. **A Super Admin may work inside an off store, to prepare it before it opens**: the panel's store switcher offers it to them, marked Off, and they may choose it as the store they work in and set its settings, address format and B2B lists. A staff member who covers it sees it in the switcher, marked Off and disabled with the reason, and cannot choose it. Anyone else never sees it. The shop, customers, guests and other modules still treat it as never there (§1.6) | The owner: a store is prepared before it opens, without showing it half ready (access.md amendment 58(a)) |
 | 6 | §1.6 | **[Replaced by the owner, 2026-10-03, after the review of the foundation: access.md amendment 58(f)]** The overnight pick read: the handlers that change one store's data by id — a setting, an address format, a B2B list — do not refuse an off store themselves; no screen offers it. Refused in code: choosing the panel's store, saving a customer's address, and the stores screen's own update (#3) | Kept small for the night; the screens are where an off store must not appear |
+
+### 9.8 The admin home — 2026-10-04/05 (the owner's fix list, point 6)
+
+(§9.7 is the currencies page, on its own branch.) The owner asked for a home with "a brief of
+everything", for one store or all stores. **Answers:** D11 (a) — the frame and the first cards now;
+D12 — the first cards are **Company Approvals** and **Stores, failed jobs, storage**, and the sales
+figures (products sold, money taken, each store's sales, products about to run out) come with the
+modules that hold them; the home opens on **All Stores** for a reader whose reach is every store.
+
+| # | Sections | Decision |
+|---|---|---|
+| 1 | §2.6 | **The home-card contract**: modules register cards as they register menu entries; each card has its permission and speaks for a scope — one store or all stores; the home shows only the cards the reader may see in that scope (frontend.md §2.2). |
+| 2 | §2.6 | **Platform's card, Stores and System**: stores on and off (`platform.store.view`; in All Stores only — a single store's state is in the store switcher; **stores off only to whoever may switch stores**, `platform.store.switch`, as the stores screen lists off stores only to them, §1.6), failed jobs (`platform.jobs.manage`, linking to them), and storage used by the media library (any media permission). Each figure is shown only with its own permission; the card, with any of them. Failed jobs and storage belong to no store, so they read the same in either scope, and are the card's `storeFree` actions. |
