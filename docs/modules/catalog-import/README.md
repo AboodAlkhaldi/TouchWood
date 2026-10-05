@@ -143,8 +143,8 @@ catalog already has (update that product, replace it whole, skip, or give anothe
 ```
 
 - `format` must be exactly `"touchwood-store-fill/1"`.
-- `items` holds **1 to 1,000** items. The store is the one whose page it is uploaded from — the file
-  does not name it.
+- `items` holds **1 to 1,000** items, **each code once**. The file is at most **2 MB**. The store is
+  the one whose page it is uploaded from — the file does not name it.
 - `code` — **required**, 1 to 10 digits **as text**.
 - `price` — **required**, a number of at least 0, in the store's currency.
 - `stock` — optional, a whole number of at least 0.
