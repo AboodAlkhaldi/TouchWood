@@ -95,6 +95,11 @@ return [
     'import_name.decided' => 'قُرّر في اسم جديد من ملف منتجات',
     'import_product.decided' => 'قُرّر في رمز من ملف منتجات',
 
+    'store_fill.added' => 'رُفع ملف متجر',
+    'store_fill_item.corrected' => 'صُحّح رمز في ملف متجر',
+    'store_fill.removed' => 'أُزيلت عناصر من ملف متجر',
+    'store_fill.switched_on' => 'فُعّلت عناصر ملف متجر في المتجر',
+
     'word_pair.added' => 'أُضيف مرادف بحث',
     'word_pair.deleted' => 'حُذف مرادف بحث',
 ];

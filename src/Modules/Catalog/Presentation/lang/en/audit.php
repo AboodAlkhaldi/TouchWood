@@ -95,6 +95,11 @@ return [
     'import_name.decided' => 'New name in a products file decided',
     'import_product.decided' => 'Code in a products file decided',
 
+    'store_fill.added' => 'Store file uploaded',
+    'store_fill_item.corrected' => 'Code in a store file corrected',
+    'store_fill.removed' => 'Items of a store file removed',
+    'store_fill.switched_on' => 'Items of a store file switched on in the store',
+
     'word_pair.added' => 'Search word pair added',
     'word_pair.deleted' => 'Search word pair deleted',
 ];

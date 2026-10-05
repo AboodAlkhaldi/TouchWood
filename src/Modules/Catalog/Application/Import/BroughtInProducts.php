@@ -7,13 +7,13 @@ namespace Modules\Catalog\Application\Import;
 use Closure;
 use Illuminate\Database\ConnectionInterface;
 use LogicException;
-use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -48,16 +48,17 @@ final readonly class BroughtInProducts
     /**
      * @param  array<array-key, mixed>|null  $productIds  the import's products chosen on the page, or null for all
      * @param  Closure(ImportProduct, bool): ?string  $fate  a product and whether all were chosen => its new state, or null to leave it
+     * @param  Closure(string, int): ?AuditEntryDto  $audit  the import and how many products it changed => the step's entry
      * @param  (Closure(list<ImportProduct>): void)|null  $after  once every chosen product met its fate, with those it changed
      * @return int how many products it changed
      *
      * @throws ImportClosed|InvalidCatalogAttribute|ListItemNotFound
      */
-    public function run(string $importId, ?array $productIds, string $what, Closure $fate, ?Closure $after = null): int
+    public function run(string $importId, ?array $productIds, Closure $fate, Closure $audit, ?Closure $after = null): int
     {
         $chosen = self::chosen($productIds);
 
-        return $this->db->transaction(function () use ($importId, $chosen, $what, $fate, $after): int {
+        return $this->db->transaction(function () use ($importId, $chosen, $fate, $audit, $after): int {
             $this->locks->lock(ListLocks::PRODUCTS);
             $import = $this->imports->lock($importId);
 
@@ -97,7 +98,7 @@ final readonly class BroughtInProducts
             }
 
             $this->imports->recordResults($results);
-            $this->platform->recordAudit(ListAudit::changed('import', $what, $import->id, ['products' => null], ['products' => count($results)]) ?? throw new LogicException('No change to record.'));
+            $this->platform->recordAudit($audit($import->id, count($results)) ?? throw new LogicException('No change to record.'));
 
             return count($results);
         }, 3);

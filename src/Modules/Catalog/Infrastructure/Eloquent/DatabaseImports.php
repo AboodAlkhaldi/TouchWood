@@ -7,12 +7,14 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
+use Modules\Catalog\Application\Import\FileItem;
 use Modules\Catalog\Application\Import\FileProduct;
 use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\ImportName;
 use Modules\Catalog\Application\Import\ImportNameRow;
 use Modules\Catalog\Application\Import\ImportProduct;
 use Modules\Catalog\Application\Import\Imports;
+use Modules\Catalog\Application\Import\StoreFillItem;
 use Modules\Catalog\Public\Enums\AttributeKind;
 use stdClass;
 
@@ -25,6 +27,8 @@ final readonly class DatabaseImports implements Imports
     private const string PRODUCTS = 'catalog.import_products';
 
     private const string CODES = 'catalog.product_codes';
+
+    private const string ITEMS = 'catalog.store_fill_items';
 
     /** Rows per insert, well inside PostgreSQL's 65,535 parameters. */
     private const int CHUNK = 500;
@@ -69,13 +73,69 @@ final readonly class DatabaseImports implements Imports
         }
     }
 
+    public function addStoreFill(string $id, string $storeId, string $fileName, ?string $uploadedBy, array $items): void
+    {
+        $now = CarbonImmutable::now();
+
+        $this->db->table(self::IMPORTS)->insert([
+            'id' => $id,
+            'kind' => ImportHeader::STORE_FILL,
+            'store_id' => $storeId,
+            'file_name' => $fileName,
+            'archive' => null,
+            'state' => ImportHeader::OPEN,
+            'uploaded_by' => $uploadedBy,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        foreach (array_chunk($items, self::CHUNK) as $chunk) {
+            $this->db->table(self::ITEMS)->insert(array_map(static fn (FileItem $item): array => [
+                'id' => strtolower((string) Str::ulid()),
+                'import_id' => $id,
+                'number' => $item->number,
+                'code' => $item->code,
+                'price' => $item->price,
+                'stock' => $item->stock,
+                'state' => StoreFillItem::OPEN,
+            ], $chunk));
+        }
+    }
+
+    public function items(string $importId): array
+    {
+        return array_values($this->db->table(self::ITEMS)->where('import_id', $importId)->orderBy('number')->get()->map(static fn (stdClass $row): StoreFillItem => new StoreFillItem(
+            (string) $row->id,
+            (int) $row->number,
+            (string) $row->code,
+            (string) $row->price,
+            $row->stock === null ? null : (int) $row->stock,
+            (string) $row->state,
+        ))->all());
+    }
+
+    public function saveItem(StoreFillItem $item): void
+    {
+        $this->db->table(self::ITEMS)->where('id', $item->id)->update(['code' => $item->code, 'state' => $item->state]);
+    }
+
+    public function header(string $importId): ?ImportHeader
+    {
+        return $this->read($importId, false);
+    }
+
     public function lock(string $importId): ?ImportHeader
+    {
+        return $this->read($importId, true);
+    }
+
+    private function read(string $importId, bool $lock): ?ImportHeader
     {
         if (! Ulids::valid($importId)) {
             return null;
         }
 
-        $row = $this->db->table(self::IMPORTS)->where('id', strtolower($importId))->lockForUpdate()->first();
+        $row = $this->db->table(self::IMPORTS)->where('id', strtolower($importId))->when($lock, fn ($query) => $query->lockForUpdate())->first();
 
         return $row === null ? null : new ImportHeader(
             (string) $row->id,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application\Command\DeleteImportedProducts;
 
+use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProduct;
 use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProductHandler;
 use Modules\Catalog\Application\Import\BroughtInProducts;
@@ -11,6 +12,7 @@ use Modules\Catalog\Application\Import\ImportProduct;
 use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
+use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\Unauthorized;
 
 /**
@@ -37,7 +39,7 @@ final readonly class DeleteImportedProductsHandler
     {
         $this->rows->authorize();
 
-        return $this->rows->run($command->importId, $command->productIds, 'deleted', function (ImportProduct $row): string {
+        return $this->rows->run($command->importId, $command->productIds, function (ImportProduct $row): string {
             if ($row->state !== 'IN' || $row->productId === null) {
                 throw new InvalidCatalogAttribute("product {$row->number}", 'a product this import created and nobody accepted yet');
             }
@@ -45,6 +47,6 @@ final readonly class DeleteImportedProductsHandler
             $this->delete->handle(new DeleteDraftProduct($row->productId));
 
             return 'DELETED';
-        });
+        }, static fn (string $importId, int $count): ?AuditEntryDto => ListAudit::changed('import', 'deleted', $importId, ['products' => null], ['products' => $count]));
     }
 }

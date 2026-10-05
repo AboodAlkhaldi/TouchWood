@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application\Command\AcceptImportedProducts;
 
+use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
@@ -20,6 +21,7 @@ use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Unauthorized;
 
@@ -67,8 +69,8 @@ final readonly class AcceptImportedProductsHandler
         return $this->rows->run(
             $command->importId,
             $command->productIds,
-            'accepted',
             fn (ImportProduct $row, bool $all): ?string => $this->accept($row, $all, $stores) ? 'ACCEPTED' : null,
+            static fn (string $importId, int $count): ?AuditEntryDto => ListAudit::changed('import', 'accepted', $importId, ['products' => null], ['products' => $count]),
             // Once all are ready, so products accepted together may be related to each other.
             function (array $accepted): void {
                 foreach ($accepted as $row) {

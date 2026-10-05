@@ -22,6 +22,23 @@ interface Imports
     public function addProductsImport(string $id, string $fileName, ?string $archive, ?string $uploadedBy, array $names, array $products, array $conflicts): void;
 
     /**
+     * An admins' store file that passed its checks, OPEN, its items as the file gave them.
+     *
+     * @param  list<FileItem>  $items
+     */
+    public function addStoreFill(string $id, string $storeId, string $fileName, ?string $uploadedBy, array $items): void;
+
+    /**
+     * @return list<StoreFillItem> in the file's order
+     */
+    public function items(string $importId): array;
+
+    public function saveItem(StoreFillItem $item): void;
+
+    /** The import's own row, read without a lock — to know its store before asking for the job there. */
+    public function header(string $importId): ?ImportHeader;
+
+    /**
      * The import's own row, locked to the end of the change, so two changes to one import queue up.
      */
     public function lock(string $importId): ?ImportHeader;
