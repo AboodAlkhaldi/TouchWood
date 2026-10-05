@@ -40,6 +40,21 @@ interface Imports
 
     public function decideCode(ImportProduct $product): void;
 
+    /**
+     * Keeps these products as the page's changes left them (amendment 7(c)).
+     *
+     * @param  list<ImportProduct>  $products
+     */
+    public function saveEdits(array $products): void;
+
+    /**
+     * The names the import's products now use that the catalog lacks: a name still used keeps its
+     * decision and takes its new count, one no longer used goes, a new one waits for a decision.
+     *
+     * @param  list<ImportNameRow>  $names
+     */
+    public function replaceNames(string $importId, array $names): void;
+
     /** A failed bringing in, decided again: deciding once more, its failure kept only in the audit log. */
     public function reopen(string $importId): void;
 

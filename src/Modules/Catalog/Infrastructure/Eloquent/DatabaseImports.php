@@ -54,18 +54,7 @@ final readonly class DatabaseImports implements Imports
             'updated_at' => $now,
         ]);
 
-        foreach (array_chunk($names, self::CHUNK) as $chunk) {
-            $this->db->table(self::NAMES)->insert(array_map(static fn (ImportNameRow $name): array => [
-                'id' => strtolower((string) Str::ulid()),
-                'import_id' => $id,
-                'kind' => $name->kind,
-                'written' => $name->written,
-                'key' => $name->key,
-                'attribute' => $name->attribute,
-                'attribute_kind' => $name->attributeKind?->value,
-                'products' => count($name->products),
-            ], $chunk));
-        }
+        $this->insertNames($id, $names);
 
         foreach (array_chunk($products, self::CHUNK) as $chunk) {
             $this->db->table(self::PRODUCTS)->insert(array_map(static fn (FileProduct $product): array => [
@@ -134,6 +123,8 @@ final readonly class DatabaseImports implements Imports
             $data = json_decode((string) $row->data, true, 512, JSON_THROW_ON_ERROR);
             /** @var array<string, string>|null $newCodes */
             $newCodes = $row->new_codes === null ? null : json_decode((string) $row->new_codes, true, 512, JSON_THROW_ON_ERROR);
+            /** @var array<string, mixed>|null $edited */
+            $edited = $row->edited === null ? null : json_decode((string) $row->edited, true, 512, JSON_THROW_ON_ERROR);
 
             return new ImportProduct(
                 (string) $row->id,
@@ -145,8 +136,52 @@ final readonly class DatabaseImports implements Imports
                 $newCodes,
                 self::text($row->product_id),
                 (string) $row->state,
+                $edited === null ? null : FileProduct::fromArray($edited),
             );
         })->all());
+    }
+
+    public function saveEdits(array $products): void
+    {
+        foreach (array_chunk($products, self::CHUNK) as $chunk) {
+            $values = implode(', ', array_fill(0, count($chunk), '(?, ?::jsonb)'));
+            $bindings = [];
+
+            foreach ($chunk as $product) {
+                $bindings[] = $product->id;
+                $bindings[] = json_encode($product->effective()->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+            }
+
+            $this->db->update('UPDATE '.self::PRODUCTS." AS p SET edited = v.edited FROM (VALUES {$values}) AS v(id, edited) WHERE p.id = v.id", $bindings);
+        }
+    }
+
+    public function replaceNames(string $importId, array $names): void
+    {
+        $kept = [];
+
+        foreach ($this->names($importId) as $name) {
+            $kept[$name->kind.' '.$name->key] = $name->id;
+        }
+
+        $new = [];
+
+        foreach ($names as $name) {
+            $id = $kept[$name->kind.' '.$name->key] ?? null;
+
+            if ($id === null) {
+                $new[] = $name;
+            } else {
+                $this->db->table(self::NAMES)->where('id', $id)->update(['products' => count($name->products)]);
+                unset($kept[$name->kind.' '.$name->key]);
+            }
+        }
+
+        if ($kept !== []) {
+            $this->db->table(self::NAMES)->whereIn('id', array_values($kept))->delete();
+        }
+
+        $this->insertNames($importId, $new);
     }
 
     public function decideCode(ImportProduct $product): void
@@ -178,6 +213,25 @@ final readonly class DatabaseImports implements Imports
         }
 
         return $holders;
+    }
+
+    /**
+     * @param  list<ImportNameRow>  $names
+     */
+    private function insertNames(string $importId, array $names): void
+    {
+        foreach (array_chunk($names, self::CHUNK) as $chunk) {
+            $this->db->table(self::NAMES)->insert(array_map(static fn (ImportNameRow $name): array => [
+                'id' => strtolower((string) Str::ulid()),
+                'import_id' => $importId,
+                'kind' => $name->kind,
+                'written' => $name->written,
+                'key' => $name->key,
+                'attribute' => $name->attribute,
+                'attribute_kind' => $name->attributeKind?->value,
+                'products' => count($name->products),
+            ], $chunk));
+        }
     }
 
     private static function text(mixed $value): ?string

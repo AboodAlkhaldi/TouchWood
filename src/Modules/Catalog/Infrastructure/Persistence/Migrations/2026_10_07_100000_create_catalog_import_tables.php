@@ -76,6 +76,9 @@ return new class extends Migration
             $table->ulid('import_id');
             $table->integer('number');
             $table->jsonb('data');
+            // The product as the page's changes left it before bringing in (amendment 7(c)); the file's
+            // own stays in data, as the record of what came.
+            $table->jsonb('edited')->nullable();
             // The product already holding one of its codes, when the file came in.
             $table->ulid('conflict_product_id')->nullable();
             $table->string('decision', 16)->nullable();
@@ -97,6 +100,7 @@ return new class extends Migration
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_state CHECK (state IN ('WAITING','IN','UPDATED','REPLACED','SKIPPED','HELD','ACCEPTED','ARCHIVED','DELETED'))");
         DB::statement('ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_number CHECK (number >= 1)');
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_data_object CHECK (jsonb_typeof(data) = 'object')");
+        DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_edited_object CHECK (edited IS NULL OR jsonb_typeof(edited) = 'object')");
 
         Schema::create('catalog.store_fill_items', function (Blueprint $table) {
             $table->ulid('id')->primary();

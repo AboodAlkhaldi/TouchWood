@@ -34,14 +34,26 @@ final readonly class ImportProduct
         public ?array $newCodes,
         public ?string $productId,
         public string $state,
+        public ?FileProduct $edited = null,
     ) {}
+
+    /** The product as it will come in: as the page's changes left it, or as the file gave it. */
+    public function effective(): FileProduct
+    {
+        return $this->edited ?? $this->product;
+    }
+
+    public function changedTo(FileProduct $edited): self
+    {
+        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $this->decision, $this->newCodes, $this->productId, $this->state, $edited);
+    }
 
     /**
      * @param  array<string, string>|null  $newCodes
      */
     public function decided(string $decision, ?array $newCodes): self
     {
-        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $decision, $newCodes, $this->productId, $this->state);
+        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $decision, $newCodes, $this->productId, $this->state, $this->edited);
     }
 
     /**

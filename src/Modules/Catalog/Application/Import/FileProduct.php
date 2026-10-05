@@ -24,6 +24,9 @@ final readonly class FileProduct
      * @param  list<string>  $goesWith  codes
      * @param  array<string, array{price: string|null, stock: int|null}>  $stores  store code => as the file gave it
      * @param  int|null  $brandNumber  the brand's fixed number, when the file gave a number instead of a name (amendment 7(b))
+     * @param  string|null  $warrantyId  picked on the import's page (amendment 7(c)): it stands for the warranty's name
+     * @param  string|null  $categoryId  picked on the import's page: it stands for the category's path
+     * @param  list<string>  $filterValueIds  picked on the import's page, beside the filters the file names
      */
     public function __construct(
         public int $number,
@@ -45,7 +48,20 @@ final readonly class FileProduct
         public array $goesWith,
         public array $stores,
         public ?int $brandNumber = null,
+        public ?string $warrantyId = null,
+        public ?string $categoryId = null,
+        public array $filterValueIds = [],
     ) {}
+
+    /**
+     * A copy with these fields changed, named as toArray() names them.
+     *
+     * @param  array<string, mixed>  $changes
+     */
+    public function with(array $changes): self
+    {
+        return self::fromArray([...$this->toArray(), ...$changes]);
+    }
 
     /**
      * Its codes, each once, in the order its variants give them.
@@ -98,6 +114,9 @@ final readonly class FileProduct
             'goes_with' => $this->goesWith,
             'stores' => $this->stores,
             'brand_number' => $this->brandNumber,
+            'warranty_id' => $this->warrantyId,
+            'category_id' => $this->categoryId,
+            'filter_value_ids' => $this->filterValueIds,
         ];
     }
 
@@ -126,6 +145,8 @@ final readonly class FileProduct
         $goesWith = $data['goes_with'] ?? [];
         /** @var array<string, array{price: string|null, stock: int|null}> $stores */
         $stores = $data['stores'] ?? [];
+        /** @var list<string> $filterValueIds */
+        $filterValueIds = $data['filter_value_ids'] ?? [];
 
         return new self(
             (int) $data['number'],
@@ -147,6 +168,9 @@ final readonly class FileProduct
             $goesWith,
             $stores,
             is_int($data['brand_number'] ?? null) ? $data['brand_number'] : null,
+            self::text($data['warranty_id'] ?? null),
+            self::text($data['category_id'] ?? null),
+            $filterValueIds,
         );
     }
 

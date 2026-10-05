@@ -69,7 +69,7 @@ final readonly class UploadImportHandler
         $file = ProductsFile::read($archive->json ?? $this->json($command->path), $archive === null ? null : array_keys($archive->files));
 
         $problems = new FileProblems;
-        $names = CatalogCheck::names($file, CatalogNames::load($this->brands, $this->categories, $this->attributes, $this->warranties), $problems);
+        $names = CatalogCheck::names($file->products, CatalogNames::load($this->brands, $this->categories, $this->attributes, $this->warranties), $problems);
 
         if ($archive instanceof ImportArchive) {
             CatalogCheck::photos($file, $archive->files, $this->platform->setting(self::MAX_PUBLIC_BYTES)->int(), $problems);

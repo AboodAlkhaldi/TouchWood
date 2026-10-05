@@ -85,6 +85,7 @@ return [
     'variant.code_corrected' => 'صُحّح رمز نوع منتج',
 
     'import.added' => 'رُفع ملف منتجات',
+    'import.edited' => 'عُدّلت منتجات ملف قبل إدخالها',
     'import_name.decided' => 'قُرّر في اسم جديد من ملف منتجات',
     'import_product.decided' => 'قُرّر في رمز من ملف منتجات',
 

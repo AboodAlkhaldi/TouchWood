@@ -43,13 +43,14 @@ final class CatalogCheck
     ) {}
 
     /**
-     * @return list<ImportNameRow> in the order the file first uses them
+     * @param  list<FileProduct>  $products  as the file gave them, or as the page's changes left them
+     * @return list<ImportNameRow> in the order the products first use them
      */
-    public static function names(ProductsFile $file, CatalogNames $names, FileProblems $problems): array
+    public static function names(array $products, CatalogNames $names, FileProblems $problems): array
     {
         $check = new self($names, $problems);
 
-        foreach ($file->products as $product) {
+        foreach ($products as $product) {
             $check->product($product);
         }
 
@@ -116,11 +117,12 @@ final class CatalogCheck
             $this->need(ImportNameRow::BRAND, $product->brand, [$product->brand], null, null, $product->number);
         }
 
-        if ($product->warranty !== null && $this->names->warranty($product->warranty) === null) {
+        // What the import's page picked stands for the name (amendment 7(c)): it is checked when brought in.
+        if ($product->warrantyId === null && $product->warranty !== null && $this->names->warranty($product->warranty) === null) {
             $this->need(ImportNameRow::WARRANTY, $product->warranty, [$product->warranty], null, null, $product->number);
         }
 
-        if ($product->category !== null) {
+        if ($product->categoryId === null && $product->category !== null) {
             $this->category($product->category, "{$at} › category", $product->number);
         }
 

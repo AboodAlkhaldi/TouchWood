@@ -85,6 +85,7 @@ return [
     'variant.code_corrected' => 'Variant code corrected',
 
     'import.added' => 'Products file uploaded',
+    'import.edited' => 'Products of a file changed before bringing them in',
     'import_name.decided' => 'New name in a products file decided',
     'import_product.decided' => 'Code in a products file decided',
 
