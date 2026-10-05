@@ -681,7 +681,7 @@ to the dashboard.
 |---|---|---|---|---|
 | A1 | Sign in | `/admin/sign-in` | `access.staff.sign-in` | Work email, password, "Forgot password?". No "keep me signed in" (§2.7). |
 | A2 | New phone | `/admin/sign-in/phone` | `access.staff.sign-in.phone` | Only after a correct password, for an account with no phone (a Super Admin whose phone was reset by console, access.md §1.6). A phone number with its country code. |
-| A3 | SMS code | `/admin/sign-in/code` | `access.staff.sign-in.code`; resend: `access.staff.sign-in.resend` | "Code sent to •••••••180": **[DECIDED 2026-09-19]** the last 3 digits of the number, passed masked by Access (§4). One box per digit (the length is a setting, 4–8, Access amendment 22); "Trust this browser for 30 days" (the number of days from the setting); "Resend code", disabled with a countdown until a resend is allowed. |
+| A3 | SMS code | `/admin/sign-in/code` | `access.staff.sign-in.code`; resend: `access.staff.sign-in.resend` | "Code sent to •••••••180": **[DECIDED 2026-09-19]** the last 3 digits of the number, passed masked by Access (§4). One box per digit (the length is a setting, 4–8, Access amendment 22); "Trust this browser for 12 hours" (the number of hours from the setting; Access amendment 61); "Resend code", disabled with a countdown until a resend is allowed. |
 | A4 | Forgot password | `/admin/password/forgot` | `access.staff.password.forgot` | Email. The answer is always the same, whether or not the account exists. |
 | A5 | New password | `/admin/password/reset/{token}` | `access.staff.password.reset` | New password and its confirmation, with the rule in words (at least 12 characters, from the setting). Afterwards: the sign-in page, where the SMS code is still asked. |
 | A6 | Accept invitation | `/admin/invitation/{token}` | `access.staff.invitation.accept` | The person's name and email (read only), a password and its confirmation, and the phone the admin entered, which they may correct (Access amendment 15). |
@@ -956,7 +956,7 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
 
 **In a browser**
 
-- Admin sign-in: password → code → dashboard; the trusted browser skips the code for 30 days; a new
+- Admin sign-in: password → code → dashboard; the trusted browser skips the code for 12 hours; a new
   browser asks again; a wrong code, an expired code and the hourly limit each show their message.
 - Accepting an invitation: set a password, correct a mistyped phone, confirm the code, land signed
   in. An expired link shows the "link no longer works" page.

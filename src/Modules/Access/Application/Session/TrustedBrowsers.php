@@ -12,8 +12,9 @@ use Modules\Access\Domain\Model\TrustedBrowser;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 
 /**
- * "Trust this browser" (spec §1.8): no SMS code is asked on it for 30 days. The browser keeps a
- * random token in a cookie; only its hash is stored, tied to one staff member.
+ * "Trust this browser" (spec §1.8): no SMS code is asked on it for 12 hours, a setting (owner,
+ * 2026-10-05; it was 30 days). The browser keeps a random token in a cookie; only its hash is
+ * stored, tied to one staff member.
  */
 final readonly class TrustedBrowsers
 {
@@ -23,16 +24,16 @@ final readonly class TrustedBrowsers
     ) {}
 
     /**
-     * @return array{token: string, days: int} the cookie's value, and how long it lives
+     * @return array{token: string, hours: int} the cookie's value, and how long it lives
      */
     public function trust(string $staffId): array
     {
-        $days = $this->settings->trustedBrowserDays();
+        $hours = $this->settings->trustedBrowserHours();
         $issued = SecretTokens::issue();
-        $browser = new TrustedBrowser(strtolower((string) Str::ulid()), $staffId, CarbonImmutable::now()->addDays($days));
+        $browser = new TrustedBrowser(strtolower((string) Str::ulid()), $staffId, CarbonImmutable::now()->addHours($hours));
         $this->tokens->addTrustedBrowser($browser, $issued['hash']);
 
-        return ['token' => $issued['token'], 'days' => $days];
+        return ['token' => $issued['token'], 'hours' => $hours];
     }
 
     /**

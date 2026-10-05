@@ -8,7 +8,7 @@ specification, [docs/modules/access.md](../../../docs/modules/access.md); this f
 code is organised and why.
 
 **The module is complete.** A staff member is invited with their whole profile, accepts, and signs
-in with a password and an SMS code, on a browser they may keep trusted for thirty days; one role
+in with a password and an SMS code, on a browser they may keep trusted for twelve hours; one role
 each, with the stores it reaches, and nobody grants more than they hold. A customer registers in a
 store and is signed in at once, verifies their email by link and their phone by code, keeps an
 address book in every country they order from, and may ask for the account to be deleted — which
@@ -370,7 +370,7 @@ comes with the screens, in the frontend foundation stage (amendment 12).
 
 ```
 password ─┬─ trusted browser ──────────────────────────────▶ signed in
-          ├─ SMS code (within 15 minutes) ── right code ───▶ signed in (+ trust this browser, 30 days)
+          ├─ SMS code (within 15 minutes) ── right code ───▶ signed in (+ trust this browser, 12 hours)
           └─ a Super Admin with no phone: new number ── its code verifies it ──▶ signed in
 ```
 
@@ -399,7 +399,7 @@ password ─┬─ trusted browser ───────────────
   code already sent. Only a Super Admin whose phone was reset chooses a number here; anyone else
   with no phone is refused until an admin gives them one.
 - **A trusted browser** holds a random token in `touchwood_admin_trust` (only its hash is stored),
-  for one staff member, 30 days. Signing out keeps it. It is forgotten when the account is disabled
+  for one staff member, 12 hours (a setting; it was 30 days until 2026-10-05). Signing out keeps it. It is forgotten when the account is disabled
   or revoked, the password is changed or reset, or the phone changes (by the person, an admin, or a
   Super Admin phone reset).
 - **Password reset** by an email link valid 30 minutes, at most 3 emails an hour per account; the

@@ -25,7 +25,7 @@ return [
     'staff.ip_minutes' => 'مدة انتظار ذلك العنوان (دقائق)',
     'staff.session_idle_minutes' => 'الخروج بعد سكون (دقائق)',
     'staff.session_max_hours' => 'أطول مدة للجلسة (ساعات)',
-    'staff.trusted_browser_days' => 'مدة تذكّر المتصفح الموثوق (أيام)',
+    'staff.trusted_browser_hours' => 'مدة تذكّر المتصفح الموثوق (ساعات)',
     'staff.password_reset_minutes' => 'مدة صلاحية رابط إعادة التعيين (دقائق)',
     'staff.password_reset_hourly_limit' => 'رسائل إعادة التعيين في الساعة',
 
