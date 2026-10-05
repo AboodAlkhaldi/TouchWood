@@ -526,7 +526,7 @@ none is admin-only. **The shared lists use one permission each.** Names below ar
 | `SetSellingTerms` — each variant's retail and wholesale switches; the product's minimum and maximum for each mode | `catalog.listing.selling` | That store |
 | `MarkNotAvailableNow` / `ClearNotAvailableNow` — product or variant | `catalog.listing.unavailable` (handoff §9.2: "own permission") | That store |
 | `AttachLabels` | `catalog.listing.labels` | That store |
-| The admins' store file (§1.3, amendment 6(g)) — `UploadStoreFill`, `CorrectStoreFillCode`, `RemoveStoreFillItem`, `SwitchOnStoreFillItems`; reading its page | `catalog.listing.fill`, **admin roles only, enforced** (amendment 6(h); access.md amendment 58) | That store |
+| The admins' store file (§1.3, amendment 6(g)) — `UploadStoreFill`, `CorrectStoreFillCode`, `RemoveStoreFillItems`, `SwitchOnStoreFillItems`; reading its page and the store's files (`ViewStoreFill`, `ListStoreFills`) | `catalog.listing.fill`, **admin roles only, enforced** (amendment 6(h); access.md amendment 58) | That store |
 | `RankCategories` | `catalog.category.rank` | That store |
 | Category tree: add, rename, move, deactivate (with each product's choice), activate, delete | `catalog.category.manage` | All stores |
 | Brands: add, edit, make default, deactivate (with each product's choice), activate, delete | `catalog.brand.manage` | All stores |
@@ -535,7 +535,7 @@ none is admin-only. **The shared lists use one permission each.** Names below ar
 | Warranties list | `catalog.warranty.manage` | All stores |
 | Shared word pairs; reading the zero-result list | `catalog.search_word.manage` | All stores |
 | `ListProducts` / `ViewProduct` (admin) — every store's row shown only for the stores the reader covers | `catalog.product.view` | The reader's stores |
-| The import (§1.12, amendments 6, 7) — `UploadImport`, `DecideImportNames`, `DecideImportCodes`, the changes before bringing in (`SetImportedBrand`, `SetImportedWarranty`, `SetImportedCategory`, `SetImportedStores`, `SetImportedSearchWords`, `SetImportedFilters`), `BringInImport`, `AcceptImportedProducts`, `ArchiveImportedProducts`, `DeleteImportedProducts`; reading its page | `catalog.import.run` (reserved: Super Admin only, handoff §9.1) | Global |
+| The import (§1.12, amendments 6, 7) — `UploadImport`, `DecideImportNames`, `DecideImportCodes`, the changes before bringing in (`SetImportedBrand`, `SetImportedWarranty`, `SetImportedCategory`, `SetImportedStores`, `SetImportedSearchWords`, `SetImportedFilters`), `BringInImport` (its queued work `BringInImportProducts`, the system's on the Super Admin's behalf), `AcceptImportedProducts`, `ArchiveImportedProducts`, `DeleteImportedProducts`; reading its page and the list of files (`ViewImport`, `ListImports`) | `catalog.import.run` (reserved: Super Admin only, handoff §9.1) | Global |
 | `RebuildListing` — a repair job; `PruneSearchLog` — nightly | System (reserved): `catalog.listing.rebuild`, `catalog.search_log.prune` — named in step 1, kept by the owner (2026-10-03, amendment 1(a)) | — |
 
 Every change is audited (Platform), **by value**: product data names no person.
@@ -710,6 +710,7 @@ exactly as one that does not exist, as B2B's and Access's do.
 | `InvalidCatalogAttribute` | INVALID | Any other value the domain refuses — a length, a format, a swatch |
 | `ImportRefused` | INVALID | A product or store file not in its format; it lists every error (§1.12, §1.3) |
 | `ImportUndecided` | CONFLICT | Bringing an import's products in while a name or a code still waits for a decision (§1.12) |
+| `ImportClosed` | CONFLICT | Deciding or changing an import's products once bringing them in has started, or accepting them before they are in (§1.12; built in step 6) |
 
 ---
 
@@ -797,6 +798,9 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 25. The store file never creates or edits a product: an unknown code waits to be corrected or removed;
     switching on chooses the variants carrying each code, only for ready products, under the job in
     that store.
+26. Brands, warranties and attributes are never created from a file; a brand is named by its fixed
+    number or its name; changes made on the page before bringing in reach the catalog only when the
+    products are brought in (amendment 7).
 
 ---
 
