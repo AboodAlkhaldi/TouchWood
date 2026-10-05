@@ -88,8 +88,8 @@ final readonly class CurrentStoreForStaff
 
     /**
      * Their stores, on and off, in the stores' own order, and which of them are off. A Super Admin
-     * covers every store without a role saying so; anyone else covers their assignment's, an
-     * exception's stores included.
+     * covers every store without a role saying so; anyone else covers their assignment's store row,
+     * which every exception lies inside (amendment 59).
      *
      * @return array{0: list<string>, 1: list<string>} their stores, and the ones that are off
      */

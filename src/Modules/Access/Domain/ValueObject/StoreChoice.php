@@ -123,6 +123,25 @@ final readonly class StoreChoice
         return self::selected(...$this->stores, ...$other->stores);
     }
 
+    /**
+     * The stores both reach, or null when they share none: all stores within all stores, a list
+     * within all stores, or the stores the two lists have in common.
+     */
+    public function intersect(self $other): ?self
+    {
+        if ($this->isAllStores()) {
+            return $other;
+        }
+
+        if ($other->isAllStores()) {
+            return $this;
+        }
+
+        $shared = array_values(array_filter($this->stores, fn (StoreId $store): bool => in_array($store->value, $other->storeIds(), true)));
+
+        return $shared === [] ? null : self::selected(...$shared);
+    }
+
     public function equals(self $other): bool
     {
         return $this->level === $other->level && $this->storeIds() === $other->storeIds();

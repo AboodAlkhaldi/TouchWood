@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link, router, useForm } from '@inertiajs/react';
+import { Link, useForm } from '@inertiajs/react';
 import { MoreHorizontal } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -10,7 +10,6 @@ import { DialogError, FormError, useFreshRefusal } from '@/components/FormError'
 import { Note } from '@/components/Note';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     DropdownMenu,
@@ -54,10 +53,9 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
     const list = useList();
     const more = useRef<HTMLButtonElement>(null);
     const [deleting, setDeleting] = useState(false);
-    // Only the delete's own refusal, never an older one from Refresh or Clone (useFreshRefusal).
+    // Only the delete's own refusal, never an older one from Clone (useFreshRefusal).
     const deleteRefusal = useFreshRefusal(deleting);
     const [cloning, setCloning] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
     const cloneFocus = useReturnFocus(cloning, more);
 
     const remove = useForm({ replacement: replacements[0]?.id ?? '' });
@@ -65,9 +63,6 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
 
     // Nobody to move the holders to: the delete cannot happen, so it is never offered as if it could.
     const cannotDelete = holderCount > 0 && replacements.length === 0;
-
-    const refresh = () =>
-        router.post(`/admin/roles/${id}/refresh`, {}, { onStart: () => setRefreshing(true), onFinish: () => setRefreshing(false) });
 
     return (
         <AdminLayout
@@ -83,31 +78,13 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
 
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                {/* A menu closes as its item is chosen, so Refresh Permissions says it is busy here,
-                                    on the ⋯ button, until the answer is back (the review of batch A). */}
-                                <Button
-                                    ref={more}
-                                    variant="outline"
-                                    size="icon"
-                                    aria-label={t('ui.more_actions')}
-                                    aria-busy={refreshing || undefined}
-                                    title={t('ui.more_actions')}
-                                    data-test="more-actions"
-                                >
-                                    {refreshing ? <Spinner aria-label={t('ui.loading')} /> : <MoreHorizontal aria-hidden="true" />}
+                                <Button ref={more} variant="outline" size="icon" aria-label={t('ui.more_actions')} title={t('ui.more_actions')} data-test="more-actions">
+                                    <MoreHorizontal aria-hidden="true" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-56">
                                 <DropdownMenuItem onSelect={() => setCloning(true)} data-test="action-clone">
                                     {`${t('access::roles.clone')}…`}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    // Busy, it stays in reach (aria-disabled), as a locked item does.
-                                    aria-disabled={refreshing || undefined}
-                                    onSelect={(event) => (refreshing ? event.preventDefault() : refresh())}
-                                    data-test="action-refresh"
-                                >
-                                    {t('access::roles.refresh')}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem

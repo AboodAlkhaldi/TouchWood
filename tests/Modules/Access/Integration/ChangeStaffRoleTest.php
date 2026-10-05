@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Command\ChangeStaffRole\ActionStores;
 use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRole;
 use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
 use Modules\Access\Application\Command\ChangeStaffRole\PersonalRole;
-use Modules\Access\Application\Command\RefreshRolePermissions\RefreshRolePermissions;
-use Modules\Access\Application\Command\RefreshRolePermissions\RefreshRolePermissionsHandler;
-use Modules\Access\Application\Command\RefreshStaffPermissions\RefreshStaffPermissions;
-use Modules\Access\Application\Command\RefreshStaffPermissions\RefreshStaffPermissionsHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Domain\Exception\ActionStoresBeyondReach;
 use Modules\Access\Domain\Exception\AdminOnlyPermission;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\PermissionEscalation;
@@ -138,17 +136,44 @@ describe('editing it into a personal role', function () {
 });
 
 describe('stores', function () {
-    it('keeps a store row and an action\'s own stores, which may reach beyond the row', function () {
+    it('keeps a store row and an action\'s own stores inside it', function () {
         Fx::actAsAdmin(['sa', 'ae'], ASSIGNING_ADMIN_ACTIONS);
         $staffId = Fx::staff();
 
-        changeRole($staffId, ['sa'], Fx::role([PlatformPermissions::STORE_UPDATE, PlatformPermissions::MEDIA_UPLOAD]), exceptions: [PlatformPermissions::STORE_UPDATE => ['sa', 'ae']]);
+        changeRole($staffId, ['sa', 'ae'], Fx::role([PlatformPermissions::STORE_UPDATE, PlatformPermissions::MEDIA_UPLOAD]), exceptions: [PlatformPermissions::STORE_UPDATE => ['sa']]);
         $grants = app(GrantsReader::class)->forStaff($staffId);
 
-        expect($grants?->storesFor(PlatformPermissions::STORE_UPDATE)?->storeIds())->toEqualCanonicalizing([Fx::storeId('sa'), Fx::storeId('ae')])
-            // Their stores: the row plus what the exception adds.
+        expect($grants?->storesFor(PlatformPermissions::STORE_UPDATE)?->storeIds())->toBe([Fx::storeId('sa')])
+            // Their stores: the row alone (amendment 59).
             ->and($grants?->stores?->storeIds())->toEqualCanonicalizing([Fx::storeId('sa'), Fx::storeId('ae')]);
     });
+
+    it('refuses an action\'s own stores beyond the row, and assigns nothing (amendment 59)', function (array $row, array $own) {
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $staffId = Fx::staff();
+
+        expect(fn () => changeRole($staffId, Fx::names($row), Fx::role([PlatformPermissions::STORE_UPDATE, PlatformPermissions::STORE_VIEW]), exceptions: [PlatformPermissions::STORE_UPDATE => Fx::names($own)]))
+            ->toThrow(ActionStoresBeyondReach::class)
+            ->and(DB::table('access.role_assignments')->where('staff_user_id', $staffId)->exists())->toBeFalse();
+    })->with([
+        'an Egypt-only staff member in KSA' => [['eg'], ['sa']],
+        'one store of two outside' => [['sa', 'ae'], ['ae', 'eg']],
+        'every store, over chosen stores' => [['sa', 'ae'], ['*']],
+    ]);
+
+    it('keeps no own stores equal to the row, so a one-store row keeps none (amendment 59)', function (array $row) {
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $staffId = Fx::staff();
+
+        changeRole($staffId, Fx::names($row), Fx::role([PlatformPermissions::STORE_UPDATE, PlatformPermissions::STORE_VIEW]), exceptions: [PlatformPermissions::STORE_UPDATE => Fx::names($row)]);
+
+        expect(DB::table('access.role_assignments')->where('staff_user_id', $staffId)->exists())->toBeTrue()
+            ->and(DB::table('access.role_assignment_exceptions')->where('staff_user_id', $staffId)->exists())->toBeFalse();
+    })->with([
+        'one store' => [['sa']],
+        'two stores' => [['sa', 'ae']],
+        'every store' => [['*']],
+    ]);
 
     it('refuses stores the author does not hold the action in', function () {
         Fx::actAsAdmin(['sa'], ASSIGNING_ADMIN_ACTIONS);
@@ -162,17 +187,16 @@ describe('stores', function () {
         expect(fn () => changeRole(Fx::staff(), Fx::names($row), Fx::role([PlatformPermissions::STORE_UPDATE]), exceptions: $exceptions))->toThrow(PermissionEscalation::class);
     })->with([
         'the store row' => [['sa', 'ae'], []],
-        'an exception' => [['sa'], [PlatformPermissions::STORE_UPDATE => ['sa', 'ae']]],
+        // Inside the row, but in a store where the author lacks the action.
+        'an exception' => [['sa', 'ae'], [PlatformPermissions::STORE_UPDATE => ['ae']]],
     ]);
 
-    it('needs All stores to give all stores, through the row or an exception', function (array $row, array $exceptions) {
+    it('needs All stores to give all stores', function () {
         Fx::actAsAdmin(['sa', 'eg', 'ae'], ASSIGNING_ADMIN_ACTIONS);
 
-        expect(fn () => changeRole(Fx::staff(), Fx::names($row), Fx::role([PlatformPermissions::STORE_UPDATE]), exceptions: $exceptions))->toThrow(Unauthorized::class);
-    })->with([
-        'the store row' => [['*'], []],
-        'an exception' => [['sa'], [PlatformPermissions::STORE_UPDATE => ['*']]],
-    ]);
+        // An exception of every store could only equal an every-store row now (amendment 59).
+        expect(fn () => changeRole(Fx::staff(), ['*'], Fx::role([PlatformPermissions::STORE_UPDATE])))->toThrow(Unauthorized::class);
+    });
 
     it('refuses exceptions for an action outside the role, for a store-free action, or twice', function (Closure $command, string $message) {
         Fx::actAsStaff(Fx::staff(superAdmin: true));
@@ -189,19 +213,19 @@ describe('stores', function () {
         }, 'twice'],
     ]);
 
-    it('refuses a store that does not exist, in the row or an exception', function (Closure $command) {
+    it('refuses a store that does not exist, in the row - and in an exception as a store outside the row (amendment 59)', function (Closure $command, string $error, string $message) {
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-        expect(fn () => app(ChangeStaffRoleHandler::class)->handle($command(Fx::role([PlatformPermissions::STORE_UPDATE]))))->toThrow(InvalidAccessAttribute::class, 'no store');
+        expect(fn () => app(ChangeStaffRoleHandler::class)->handle($command(Fx::role([PlatformPermissions::STORE_UPDATE, PlatformPermissions::STORE_VIEW]))))->toThrow($error, $message);
     })->with([
-        'the row' => [fn (string $roleId) => new ChangeStaffRole(Fx::staff(), AccessLevel::SelectedStores, ['01j8z3k4m5n6p7q8r9s0t1v2w3'], savedRoleId: $roleId)],
+        'the row' => [fn (string $roleId) => new ChangeStaffRole(Fx::staff(), AccessLevel::SelectedStores, ['01j8z3k4m5n6p7q8r9s0t1v2w3'], savedRoleId: $roleId), InvalidAccessAttribute::class, 'no store'],
         'an exception' => [function (string $roleId) {
-            $command = Fx::change(Fx::staff(), ['sa'], [PlatformPermissions::STORE_UPDATE => ['sa']], $roleId);
+            $command = Fx::change(Fx::staff(), ['sa', 'ae'], [PlatformPermissions::STORE_UPDATE => ['sa']], $roleId);
 
             return new ChangeStaffRole($command->staffId, $command->accessLevel, $command->storeIds, [
                 new ActionStores(PlatformPermissions::STORE_UPDATE, AccessLevel::SelectedStores, ['01j8z3k4m5n6p7q8r9s0t1v2w3']),
             ], $roleId);
-        }],
+        }, ActionStoresBeyondReach::class, PlatformPermissions::STORE_UPDATE],
     ]);
 });
 
@@ -210,18 +234,18 @@ describe('who may change whom', function () {
         $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
         $ksaOnly = Fx::staff();
         $ksaAndUae = Fx::staff();
-        $ksaWithUaeException = Fx::staff();
+        $ksaAndUaeKeptToKsa = Fx::staff();
         Fx::assign($ksaOnly, $roleId, ['sa']);
         Fx::assign($ksaAndUae, $roleId, ['sa', 'ae']);
-        Fx::assign($ksaWithUaeException, $roleId, ['sa'], [PlatformPermissions::STORE_UPDATE => ['ae']]);
+        Fx::assign($ksaAndUaeKeptToKsa, Fx::role([PlatformPermissions::STORE_UPDATE, PlatformPermissions::STORE_VIEW]), ['sa', 'ae'], [PlatformPermissions::STORE_UPDATE => ['sa']]);
         Fx::actAsAdmin(['sa'], ASSIGNING_ADMIN_ACTIONS);
 
         changeRole($ksaOnly, ['sa'], Fx::role([PlatformPermissions::STORE_UPDATE]));
 
-        // Not even the KSA part of a KSA+UAE staff member (owner, 2026-09-19), however the UAE part
-        // was given.
+        // Not even the KSA part of a KSA+UAE staff member (owner, 2026-09-19) - nor of one whose
+        // action is kept to KSA: their stores are the row (amendment 59).
         expect(fn () => changeRole($ksaAndUae, ['sa'], $roleId))->toThrow(Unauthorized::class)
-            ->and(fn () => changeRole($ksaWithUaeException, ['sa'], $roleId))->toThrow(Unauthorized::class);
+            ->and(fn () => changeRole($ksaAndUaeKeptToKsa, ['sa'], $roleId))->toThrow(Unauthorized::class);
     });
 
     it('never lets an admin change an admin or themselves', function (Closure $target, string $reason) {
@@ -290,68 +314,17 @@ describe('who may change whom', function () {
     });
 });
 
-describe('refreshing cached permissions by hand', function () {
-    it('rebuilds a staff member\'s cached permissions for whoever may change their role', function () {
+describe('a hand edit of the database (amendment 59, in place of the Refresh buttons)', function () {
+    it('is read once the cache is cleared, as every change through the application is at once', function () {
         $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
-        $before = app(GrantsReader::class)->forStaff($staffId);
-        // Written behind the cache's back: only a refresh shows it.
+        Fx::warmCache($staffId);
+        // Written behind the application's back, as a hand edit would be.
         DB::table('access.role_assignment_stores')->insert(['staff_user_id' => $staffId, 'store_id' => Fx::storeId('eg')]);
-        Fx::actAsAdmin(['*'], ASSIGNING_ADMIN_ACTIONS);
 
         expect(app(GrantsReader::class)->forStaff($staffId)?->stores?->storeIds())->toBe([Fx::storeId('sa')]);
 
-        app(RefreshStaffPermissionsHandler::class)->handle(new RefreshStaffPermissions($staffId));
+        Artisan::call('cache:clear');
 
-        expect($before?->stores?->storeIds())->toBe([Fx::storeId('sa')])
-            ->and(app(GrantsReader::class)->forStaff($staffId)?->stores?->storeIds())->toEqualCanonicalizing([Fx::storeId('sa'), Fx::storeId('eg')]);
+        expect(app(GrantsReader::class)->forStaff($staffId)?->stores?->storeIds())->toEqualCanonicalizing([Fx::storeId('sa'), Fx::storeId('eg')]);
     });
-
-    it('refuses to refresh staff outside the author\'s stores, an admin, a Super Admin, or yourself', function (Closure $target, string $error) {
-        $adminId = Fx::actAsAdmin(['sa'], ASSIGNING_ADMIN_ACTIONS);
-
-        expect(fn () => app(RefreshStaffPermissionsHandler::class)->handle(new RefreshStaffPermissions($target($adminId))))->toThrow($error);
-    })->with([
-        'outside their stores' => [fn () => Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['ae']), Unauthorized::class],
-        'an admin' => [fn () => Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa'], RoleLevel::Admin), StaffNotEditable::class],
-        // As for an id that never existed (amendment 57).
-        'a Super Admin' => [fn () => Fx::staff(superAdmin: true), StaffNotFound::class],
-        'themselves' => [fn (string $adminId) => $adminId, StaffNotEditable::class],
-    ]);
-
-    it('refuses the refresh to staff who assign no roles', function () {
-        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']);
-        Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa']));
-
-        expect(fn () => app(RefreshStaffPermissionsHandler::class)->handle(new RefreshStaffPermissions($staffId)))->toThrow(Unauthorized::class);
-    });
-
-    it('rebuilds a saved role\'s holders for whoever may edit the role', function () {
-        $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
-        $holderId = Fx::staff();
-        Fx::assign($holderId, $roleId, ['sa']);
-        Fx::warmCache($holderId);
-        DB::table('access.role_permissions')->insert(['role_id' => $roleId, 'permission' => PlatformPermissions::MEDIA_UPLOAD]);
-        Fx::actAsAdmin(['sa'], [AccessPermissions::ROLE_MANAGE, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE]);
-
-        expect(app(GrantsReader::class)->forStaff($holderId)?->storesFor(PlatformPermissions::MEDIA_UPLOAD))->toBeNull();
-
-        app(RefreshRolePermissionsHandler::class)->handle(new RefreshRolePermissions($roleId));
-
-        expect(app(GrantsReader::class)->forStaff($holderId)?->storesFor(PlatformPermissions::MEDIA_UPLOAD))->not->toBeNull();
-    });
-
-    it('refuses to refresh an admin role for an admin, a role held outside their stores, or a personal role', function (Closure $role, string $error) {
-        Fx::actAsAdmin(['sa'], [AccessPermissions::ROLE_MANAGE, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE]);
-
-        expect(fn () => app(RefreshRolePermissionsHandler::class)->handle(new RefreshRolePermissions($role())))->toThrow($error);
-    })->with([
-        'an admin role' => [fn () => Fx::role([PlatformPermissions::STORE_UPDATE], RoleLevel::Admin), SuperAdminOnly::class],
-        'held outside their stores' => [function () {
-            $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
-            Fx::assign(Fx::staff(), $roleId, ['ae']);
-
-            return $roleId;
-        }, Unauthorized::class],
-        'a personal role' => [fn () => Fx::personalRole(Fx::staff(), [PlatformPermissions::STORE_UPDATE]), RoleNotFound::class],
-    ]);
 });

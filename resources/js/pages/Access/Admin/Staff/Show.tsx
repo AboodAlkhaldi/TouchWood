@@ -80,7 +80,7 @@ export default function Show(person: Props) {
     const [changingEmail, setChangingEmail] = useState(false);
     const [disabling, setDisabling] = useState(false);
     const [cancelling, setCancelling] = useState(false);
-    // Only Disable's own refusal, never an older one from Refresh or Resend (useFreshRefusal).
+    // Only Disable's own refusal, never an older one from Enable or Resend (useFreshRefusal).
     const disableRefusal = useFreshRefusal(disabling);
     // The path of the action on its way to the server, so its own button says it is busy.
     const [busy, setBusy] = useState<string | null>(null);
@@ -127,7 +127,6 @@ export default function Show(person: Props) {
             ? { key: 'resend', label: t('access::staff.resend_invitation'), run: () => post('/invitation/resend'), busy: busy === '/invitation/resend' }
             : null,
         person.mayChangeEmail ? { key: 'email', label: `${t('access::staff.change_email')}…`, run: () => setChangingEmail(true) } : null,
-        person.mayRefresh ? { key: 'refresh', label: t('access::staff.refresh'), run: () => post('/refresh'), busy: busy === '/refresh' } : null,
     ];
     const everyday = everydayOffered.filter((action): action is Action => action !== null);
 

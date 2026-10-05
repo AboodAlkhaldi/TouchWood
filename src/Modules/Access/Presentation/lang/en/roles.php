@@ -23,7 +23,6 @@ return [
     'edit' => 'Edit Role',
     'clone' => 'Clone Role',
     'delete' => 'Delete Role',
-    'refresh' => 'Refresh Permissions',
     'save' => 'Save Role',
     'cancel' => 'Cancel',
 
@@ -73,7 +72,6 @@ return [
     'saved' => 'Role saved',
     'cloned' => 'Role cloned',
     'deleted' => 'Role deleted',
-    'refreshed' => 'Permissions refreshed for everyone holding it',
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.
