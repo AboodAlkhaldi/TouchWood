@@ -1,0 +1,199 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Catalog\Infrastructure\Eloquent;
+
+use Carbon\CarbonImmutable;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Str;
+use Modules\Catalog\Application\Import\FileProduct;
+use Modules\Catalog\Application\Import\ImportHeader;
+use Modules\Catalog\Application\Import\ImportName;
+use Modules\Catalog\Application\Import\ImportNameRow;
+use Modules\Catalog\Application\Import\ImportProduct;
+use Modules\Catalog\Application\Import\Imports;
+use Modules\Catalog\Public\Enums\AttributeKind;
+use stdClass;
+
+final readonly class DatabaseImports implements Imports
+{
+    private const string IMPORTS = 'catalog.imports';
+
+    private const string NAMES = 'catalog.import_names';
+
+    private const string PRODUCTS = 'catalog.import_products';
+
+    private const string CODES = 'catalog.product_codes';
+
+    /** Rows per insert, well inside PostgreSQL's 65,535 parameters. */
+    private const int CHUNK = 500;
+
+    public function __construct(
+        private ConnectionInterface $db,
+    ) {}
+
+    public function nextId(): string
+    {
+        return strtolower((string) Str::ulid());
+    }
+
+    public function addProductsImport(string $id, string $fileName, ?string $archive, ?string $uploadedBy, array $names, array $products, array $conflicts): void
+    {
+        $now = CarbonImmutable::now();
+
+        $this->db->table(self::IMPORTS)->insert([
+            'id' => $id,
+            'kind' => 'PRODUCTS',
+            'store_id' => null,
+            'file_name' => $fileName,
+            'archive' => $archive,
+            'state' => 'DECIDING',
+            'uploaded_by' => $uploadedBy,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        foreach (array_chunk($names, self::CHUNK) as $chunk) {
+            $this->db->table(self::NAMES)->insert(array_map(static fn (ImportNameRow $name): array => [
+                'id' => strtolower((string) Str::ulid()),
+                'import_id' => $id,
+                'kind' => $name->kind,
+                'written' => $name->written,
+                'key' => $name->key,
+                'attribute' => $name->attribute,
+                'attribute_kind' => $name->attributeKind?->value,
+                'products' => count($name->products),
+            ], $chunk));
+        }
+
+        foreach (array_chunk($products, self::CHUNK) as $chunk) {
+            $this->db->table(self::PRODUCTS)->insert(array_map(static fn (FileProduct $product): array => [
+                'id' => strtolower((string) Str::ulid()),
+                'import_id' => $id,
+                'number' => $product->number,
+                'data' => json_encode($product->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+                'codes' => '{'.implode(',', $product->codes()).'}',
+                'conflict_product_id' => $conflicts[$product->number] ?? null,
+                'state' => 'WAITING',
+            ], $chunk));
+        }
+    }
+
+    public function lock(string $importId): ?ImportHeader
+    {
+        if (! Ulids::valid($importId)) {
+            return null;
+        }
+
+        $row = $this->db->table(self::IMPORTS)->where('id', strtolower($importId))->lockForUpdate()->first();
+
+        return $row === null ? null : new ImportHeader(
+            (string) $row->id,
+            (string) $row->kind,
+            self::text($row->store_id),
+            (string) $row->file_name,
+            self::text($row->archive),
+            (string) $row->state,
+            self::text($row->failure),
+        );
+    }
+
+    public function names(string $importId): array
+    {
+        // Ids are ULIDs made one after another in one process, so their order is the file's.
+        return array_values($this->db->table(self::NAMES)->where('import_id', $importId)->orderBy('id')->get()->map(static fn (stdClass $row): ImportName => new ImportName(
+            (string) $row->id,
+            (string) $row->kind,
+            (string) $row->written,
+            (string) $row->key,
+            self::text($row->attribute),
+            $row->attribute_kind === null ? null : AttributeKind::from((string) $row->attribute_kind),
+            self::text($row->decision),
+            self::text($row->target_id),
+            self::text($row->name_ar),
+            self::text($row->name_en),
+            (int) $row->products,
+        ))->all());
+    }
+
+    public function decideName(ImportName $name): void
+    {
+        $this->db->table(self::NAMES)->where('id', $name->id)->update([
+            'decision' => $name->decision,
+            'target_id' => $name->targetId,
+            'name_ar' => $name->nameAr,
+            'name_en' => $name->nameEn,
+        ]);
+    }
+
+    public function products(string $importId): array
+    {
+        return array_values($this->db->table(self::PRODUCTS)->where('import_id', $importId)->orderBy('number')->get()->map(static function (stdClass $row): ImportProduct {
+            /** @var array<string, mixed> $data */
+            $data = json_decode((string) $row->data, true, 512, JSON_THROW_ON_ERROR);
+            /** @var array<string, string>|null $newCodes */
+            $newCodes = $row->new_codes === null ? null : json_decode((string) $row->new_codes, true, 512, JSON_THROW_ON_ERROR);
+
+            return new ImportProduct(
+                (string) $row->id,
+                (int) $row->number,
+                FileProduct::fromArray($data),
+                self::textArray((string) $row->codes),
+                self::text($row->conflict_product_id),
+                self::text($row->decision),
+                $newCodes,
+                self::text($row->product_id),
+                (string) $row->state,
+            );
+        })->all());
+    }
+
+    public function decideCode(ImportProduct $product): void
+    {
+        $this->db->table(self::PRODUCTS)->where('id', $product->id)->update([
+            'decision' => $product->decision,
+            'new_codes' => $product->newCodes === null ? null : json_encode((object) $product->newCodes, JSON_THROW_ON_ERROR),
+        ]);
+    }
+
+    public function reopen(string $importId): void
+    {
+        $this->db->table(self::IMPORTS)->where('id', $importId)->update(['state' => ImportHeader::DECIDING, 'failure' => null, 'updated_at' => CarbonImmutable::now()]);
+    }
+
+    public function codeHolders(array $codes): array
+    {
+        $holders = [];
+
+        // Codes are digits only (§1.2), so the array literal needs no quoting.
+        foreach (array_chunk(array_values(array_unique($codes)), 5000) as $chunk) {
+            $rows = $this->db->table(self::CODES)
+                ->whereRaw('code = ANY(?::text[])', ['{'.implode(',', $chunk).'}'])
+                ->get(['code', 'product_id']);
+
+            foreach ($rows as $row) {
+                $holders[(string) $row->code] = (string) $row->product_id;
+            }
+        }
+
+        return $holders;
+    }
+
+    private static function text(mixed $value): ?string
+    {
+        return $value === null ? null : (string) $value;
+    }
+
+    /**
+     * A text[] as PostgreSQL sends it: `{a,b}`. Codes are digits, so nothing in it is quoted.
+     *
+     * @return list<string>
+     */
+    private static function textArray(string $value): array
+    {
+        $inner = trim($value, '{}');
+
+        return $inner === '' ? [] : explode(',', $inner);
+    }
+}

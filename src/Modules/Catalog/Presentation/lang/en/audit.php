@@ -84,6 +84,10 @@ return [
     'variant.deleted' => 'Draft variant deleted',
     'variant.code_corrected' => 'Variant code corrected',
 
+    'import.added' => 'Products file uploaded',
+    'import_name.decided' => 'New name in a products file decided',
+    'import_product.decided' => 'Code in a products file decided',
+
     'word_pair.added' => 'Search word pair added',
     'word_pair.deleted' => 'Search word pair deleted',
 ];

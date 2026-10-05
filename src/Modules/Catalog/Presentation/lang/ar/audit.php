@@ -84,6 +84,10 @@ return [
     'variant.deleted' => 'حُذف نوع من مسودة منتج',
     'variant.code_corrected' => 'صُحّح رمز نوع منتج',
 
+    'import.added' => 'رُفع ملف منتجات',
+    'import_name.decided' => 'قُرّر في اسم جديد من ملف منتجات',
+    'import_product.decided' => 'قُرّر في رمز من ملف منتجات',
+
     'word_pair.added' => 'أُضيف مرادف بحث',
     'word_pair.deleted' => 'حُذف مرادف بحث',
 ];

@@ -128,6 +128,10 @@ return [
         'title' => 'Decisions still wait',
         'detail' => 'Decide every new name and every code the catalog already has before the products are brought in.',
     ],
+    'import_closed' => [
+        'title' => 'Decided already',
+        'detail' => 'The products of this file are being brought in, or are in. Its decisions can no longer change.',
+    ],
     'fields' => [
         'agency_type' => 'agency type',
         'attribute' => 'attribute',
