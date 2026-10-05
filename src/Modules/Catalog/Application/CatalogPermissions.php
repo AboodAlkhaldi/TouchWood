@@ -12,8 +12,9 @@ use Modules\Access\Public\Enums\PermissionKind;
 /**
  * The permissions Catalog's use cases check (catalog.md §3). Declared into Access's catalog at boot.
  *
- * **One permission per job**, and any role — staff or admin — may be given any of them; none is
- * admin-only (owner, 2026-10-02). Every job is per store: a store's own row is checked in that
+ * **One permission per job**, and any role — staff or admin — may be given any of them (owner,
+ * 2026-10-02), **except filling a store from a file, for admin roles only** (owner, 2026-10-05,
+ * amendment 6(h): "only admins, and super too"). Every job is per store: a store's own row is checked in that
  * store; a product's shared data in every store where it is Active; and a shared list — the tree,
  * the brands, the attributes, the labels, the warranties, the word pairs — reaches every store, so
  * its one permission is checked with All stores (`PermissionScope::allStores()`). The import and
@@ -77,6 +78,9 @@ final class CatalogPermissions
     /** Preview and run the JSON import — Super Admin only (handoff §9.1). */
     public const string IMPORT_RUN = 'catalog.import.run';
 
+    /** The admins' store file: switching existing products on in a store from a file (§1.3, amendment 6(g)). Admin roles only (6(h)). */
+    public const string LISTING_FILL = 'catalog.listing.fill';
+
     /** The repair job that rebuilds the listing read model — the system's. */
     public const string LISTING_REBUILD = 'catalog.listing.rebuild';
 
@@ -89,7 +93,7 @@ final class CatalogPermissions
     public static function definitions(): array
     {
         $jobs = array_map(
-            static fn (string $name): PermissionDefinitionDto => new PermissionDefinitionDto($name, PermissionAudience::Role, kind: PermissionKind::PerStore, group: PermissionGroup::Catalog),
+            static fn (string $name): PermissionDefinitionDto => new PermissionDefinitionDto($name, PermissionAudience::Role, kind: PermissionKind::PerStore, group: PermissionGroup::Catalog, adminOnly: in_array($name, self::adminOnly(), true)),
             self::jobs(),
         );
 
@@ -103,7 +107,7 @@ final class CatalogPermissions
     }
 
     /**
-     * @return list<string> the seventeen jobs a role may hold (§3)
+     * @return list<string> the eighteen jobs a role may hold (§3)
      */
     public static function jobs(): array
     {
@@ -125,7 +129,16 @@ final class CatalogPermissions
             self::LABEL_MANAGE,
             self::WARRANTY_MANAGE,
             self::SEARCH_WORD_MANAGE,
+            self::LISTING_FILL,
         ];
+    }
+
+    /**
+     * @return list<string> the jobs only an admin role may hold (amendment 6(h))
+     */
+    public static function adminOnly(): array
+    {
+        return [self::LISTING_FILL];
     }
 
     /**

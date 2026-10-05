@@ -6,7 +6,6 @@ namespace Modules\Access\Application\Query\RoleEditorPermissions;
 
 use Illuminate\Contracts\Translation\Translator;
 use Modules\Access\Application\Authorization\GrantRules;
-use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Domain\Exception\SuperAdminOnly;
 use Modules\Access\Domain\ValueObject\RoleLevel;
@@ -35,7 +34,7 @@ final readonly class RoleEditorPermissionsHandler
         $items = [];
 
         foreach ($this->catalog->assignable() as $permission) {
-            $adminOnly = in_array($permission->name, AccessPermissions::adminOnly(), true);
+            $adminOnly = $this->catalog->isAdminOnly($permission->name);
 
             if ($adminOnly && $query->level === RoleLevel::Staff) {
                 continue;

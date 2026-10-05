@@ -24,7 +24,7 @@ come after the Geist foundation. This file grows with each step. **Steps 1 to 5 
 
 | Folder | What is in it |
 |---|---|
-| `Application/CatalogPermissions.php` | The twenty permissions declared so far of catalog.md §3's twenty-one (`catalog.listing.fill` comes with the admins' store file, step 6), declared into Access's catalog at boot: seventeen jobs a role may hold, and three reserved to a Super Admin and the system |
+| `Application/CatalogPermissions.php` | The twenty-one permissions of catalog.md §3, declared into Access's catalog at boot: eighteen jobs a role may hold — `catalog.listing.fill`, the store file, only an admin role (amendment 6(h), declared `adminOnly`) — and three reserved to a Super Admin and the system |
 | `Application/Command` | One folder per change: a command and its handler, which names its `PERMISSION` and authorizes first. Step 2: the six shared lists and each store's order of the menu; step 3: products and variants; step 4: each store's choice (below) |
 | `Application/Lists` | What the lists' handlers share: `SharedListChange` (the permission with All stores, the transaction, the list's lock — after the products' for a change that changes products — the audit), `ProductFates` (each product's fate in a deactivation), the forms' parsing (`BrandInput`, `CategoryInput`, `AttributeInput`, `LabelInput`, `WarrantyInput`, `SetMembers`) and `CatalogImages` (a logo or photo must be a public image) |
 | `Application/Products` | What the product handlers share: `ProductAccess` (who may change a product's shared data), `ProductReferences` (the list rows a product points at, row-locked), `ProductInput`, `VariantInput` and `ProductParts` (the forms' parsing), `Readiness` and `ReadyPhotos` (what a product needs to be shown) |

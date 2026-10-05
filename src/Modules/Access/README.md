@@ -40,6 +40,7 @@ $catalog->declare('catalog',
     new PermissionDefinitionDto('catalog.product.update'),                                    // a staff role, per store
     new PermissionDefinitionDto('catalog.image.upload', kind: PermissionKind::Global),        // a staff role, store-free
     new PermissionDefinitionDto('catalog.brand.delete', reserved: true),                      // Super Admins only
+    new PermissionDefinitionDto('catalog.listing.fill', adminOnly: true),                     // admin roles only
     new PermissionDefinitionDto('catalog.review.write', PermissionAudience::EveryCustomer),   // every customer, own data
 );
 
@@ -155,7 +156,10 @@ A role is an **admin** or a **staff** role. The management actions (`staff.invit
 decide how staff sign in (owner, 2026-09-21) — go only into admin roles. So does Platform's
 `platform.media.private.view`, which lists private files in the media library (B2B step 3,
 amendment 5): Platform flags it `adminOnly` in `PlatformPermissions`, and `AccessPermissions::adminOnly()`
-adds every action so flagged to Access's own list. A store's own settings are
+adds every action so flagged to Access's own list. **A module above Access declares an admin-only
+action with `adminOnly: true`** on its `PermissionDefinitionDto` — Catalog's `catalog.listing.fill`,
+the store file (amendment 58). `InMemoryPermissionCatalog::isAdminOnly()` is the one question every
+check asks: the role editor, a role's rules, the authorizer and the permission sync. A store's own settings are
 `settings.update`, an ordinary action a staff role may hold. Only a Super Admin
 creates, edits or gives admin roles and manages admins; nobody changes their own role. An admin
 manages a staff member only when holding **assign roles** in **all** of their stores — a staff
