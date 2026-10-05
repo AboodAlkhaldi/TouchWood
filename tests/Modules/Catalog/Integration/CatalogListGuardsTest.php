@@ -312,7 +312,7 @@ function catalogGuardsChanges(): array
 {
     return [
         'add a brand' => ['brands', fn () => fn () => catalogGuardsBrand()],
-        'edit a brand' => ['brands', function () {
+        'edit a brand' => ['products,brands', function () {
             $id = catalogGuardsBrand();
 
             return fn () => app(EditBrandHandler::class)->handle(new EditBrand($id, 'ماركة معدلة', 'Edited brand', 'DISTRIBUTOR', true, 0));
@@ -339,12 +339,12 @@ function catalogGuardsChanges(): array
             return fn () => app(DeleteBrandHandler::class)->handle(new DeleteBrand($id));
         }],
         'add a category' => ['categories', fn () => fn () => catalogGuardsCategory()],
-        'edit a category' => ['categories', function () {
+        'edit a category' => ['products,categories', function () {
             $id = catalogGuardsCategory();
 
             return fn () => app(EditCategoryHandler::class)->handle(new EditCategory($id, 'قسم معدل', 'Edited category'));
         }],
-        'move a category' => ['categories', function () {
+        'move a category' => ['products,categories', function () {
             $parent = catalogGuardsCategory();
             $id = catalogGuardsCategory();
 

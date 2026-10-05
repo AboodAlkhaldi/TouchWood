@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Command\DeactivateBrand;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\ProductFates;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductReferences;
@@ -38,6 +39,7 @@ final readonly class DeactivateBrandHandler
         private ProductRepository $products,
         private ProductReferences $references,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -69,6 +71,8 @@ final readonly class DeactivateBrandHandler
                     $entries[] = $settled;
                 }
             }
+
+            $this->listingRows->refresh($reached);
 
             return [null, $entries];
         });

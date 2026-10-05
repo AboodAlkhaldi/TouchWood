@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Command\ChooseInStore;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Listing\StoreListingChange;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
@@ -36,6 +37,7 @@ final readonly class ChooseInStoreHandler
         private VariantRepository $variants,
         private StoreListingRepository $listings,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -84,6 +86,7 @@ final readonly class ChooseInStoreHandler
             }
 
             $this->listings->save($listing);
+            $this->listingRows->refresh([$product->id()]);
             $takenUp = array_values(array_diff($listing->activeVariantIds(), $wasActive));
 
             if ($takenUp !== []) {

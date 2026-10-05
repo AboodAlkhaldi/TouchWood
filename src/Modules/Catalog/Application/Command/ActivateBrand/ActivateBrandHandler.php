@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Command\ActivateBrand;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
 use Modules\Catalog\Domain\Repository\BrandRepository;
@@ -28,6 +29,7 @@ final readonly class ActivateBrandHandler
         private BrandRepository $brands,
         private ProductRepository $products,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -65,6 +67,8 @@ final readonly class ActivateBrandHandler
                     $entries[] = $shown;
                 }
             }
+
+            $this->listingRows->refresh($this->products->idsWithBrand($brand->id()));
 
             return [null, $entries];
         });

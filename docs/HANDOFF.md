@@ -908,7 +908,7 @@ which is how its stock and prices are matched (§12.2).
 
 **What a store chooses, and the code** (owner, 2026-10-02; `docs/modules/catalog.md` §1.2, §1.3). In
 the panel a store chooses **a whole product or single variants**; a variant added later is chosen in
-no store until each chooses it. The code is a variant's **only identifier** — the SKU customers see —
+no store until each chooses it. The code is a variant's **only identifier** — for staff and admins only, **never shown to customers** (owner, 2026-10-04) —
 unique across every variant ignoring letter case, **never given to another variant**, and correctable
 by staff under its own permission. Each store sets, per variant, whether it sells **retail,
 wholesale or both**, and, per product, a **minimum and maximum for each mode**.
@@ -1059,7 +1059,7 @@ system. It keeps **no person**, and an entry **12 months** (owner, 2026-10-02; `
 From the storefront design, on the category page: sale mode, brand, variant attributes
 (length, finish…), price range. (The design's "availability, in stock only" is not needed: only
 what can be ordered is listed, §9.2.) Sorting includes
-best-selling. Grid view and a technical list view with SKU and finish columns.
+best-selling. Grid view and a technical list view with finish columns — no SKU column: codes are never shown to customers (owner, 2026-10-04).
 
 ---
 

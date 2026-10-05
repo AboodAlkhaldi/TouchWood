@@ -8,6 +8,7 @@ use LogicException;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\VariantInput;
@@ -44,6 +45,7 @@ final readonly class UpdateVariantHandler
         private VariantRepository $variants,
         private VariantInput $input,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -91,6 +93,8 @@ final readonly class UpdateVariantHandler
             if (! $code->equals($oldCode) && ! $this->variants->codeInUse($product->id(), $oldCode->value)) {
                 $this->products->releaseCode($product->id(), $oldCode->value);
             }
+
+            $this->listingRows->refresh([$product->id()]);
 
             return [null, [$entry]];
         });

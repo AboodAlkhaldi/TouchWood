@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Command\ActivateCategory;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\CategoryInput;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Domain\Exception\CategoryInactive;
@@ -36,6 +37,7 @@ final readonly class ActivateCategoryHandler
         private CategoryInput $input,
         private ProductRepository $products,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -74,6 +76,9 @@ final readonly class ActivateCategoryHandler
                     $entries[] = $entry;
                 }
             }
+
+            // Those left in what comes back are in its pages again, and those hidden are shown.
+            $this->listingRows->refresh($this->products->idsInCategories($back));
 
             return [null, $entries];
         });

@@ -43,8 +43,9 @@ final readonly class SharedListChange
     }
 
     /**
-     * As run(), for a list change that changes products too — deactivating or activating a category
-     * or a brand: **the products' lock first, then the list's**. A product change holds the products'
+     * As run(), for a list change that changes products or their listing rows too — deactivating or
+     * activating a category or a brand, renaming or moving a category, a brand's place in default
+     * listings: **the products' lock first, then the list's**. A product change holds the products'
      * lock before it row-locks a category or brand, so the two never wait on each other in a circle.
      *
      * @template T

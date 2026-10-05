@@ -6,6 +6,7 @@ namespace Modules\Catalog\Application\Command\AttachLabels;
 
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Listing\StoreListingChange;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
@@ -36,6 +37,7 @@ final readonly class AttachLabelsHandler
         private ProductRepository $products,
         private StoreListingRepository $listings,
         private LabelRepository $labels,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -78,6 +80,7 @@ final readonly class AttachLabelsHandler
             }
 
             $this->listings->save($listing);
+            $this->listingRows->refresh([$product->id()]);
 
             return [null, [$entry]];
         });

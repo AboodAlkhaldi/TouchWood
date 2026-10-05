@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Command\SetProductGallery;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ProductParts;
@@ -37,6 +38,7 @@ final readonly class SetProductGalleryHandler
         private ProductParts $parts,
         private Readiness $readiness,
         private ProductEvents $events,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -60,6 +62,7 @@ final readonly class SetProductGalleryHandler
             $this->readiness->requireKept($product, gallery: $after);
             $this->products->replaceGallery($product->id(), $after);
             $this->events->changed($product);
+            $this->listingRows->refresh([$product->id()]);
 
             return [null, [ListAudit::replaced('product', 'gallery_changed', $product->id(), 'media_ids', implode(',', $before) ?: null, implode(',', $after) ?: null)]];
         });
