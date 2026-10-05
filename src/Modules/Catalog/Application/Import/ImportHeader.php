@@ -31,6 +31,8 @@ final readonly class ImportHeader
         public ?string $archive,
         public string $state,
         public ?string $failure,
+        public ?string $uploadedBy = null,
+        public ?string $uploadedAt = null,
     ) {}
 
     /** A products file whose names and codes may still be decided: before it is brought in, or after that failed. */

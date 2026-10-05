@@ -14,6 +14,7 @@ use Modules\Catalog\Application\Import\ImportName;
 use Modules\Catalog\Application\Import\ImportNameRow;
 use Modules\Catalog\Application\Import\ImportProduct;
 use Modules\Catalog\Application\Import\Imports;
+use Modules\Catalog\Application\Import\ImportSummary;
 use Modules\Catalog\Application\Import\StoreFillItem;
 use Modules\Catalog\Public\Enums\AttributeKind;
 use stdClass;
@@ -145,7 +146,29 @@ final readonly class DatabaseImports implements Imports
             self::text($row->archive),
             (string) $row->state,
             self::text($row->failure),
+            self::text($row->uploaded_by),
+            CarbonImmutable::parse((string) $row->created_at)->toIso8601String(),
         );
+    }
+
+    public function summaries(string $kind, ?string $storeId, int $page, int $perPage): array
+    {
+        $count = $kind === ImportHeader::PRODUCTS
+            ? '(SELECT count(*) FROM '.self::PRODUCTS.' AS p WHERE p.import_id = i.id)'
+            : '(SELECT count(*) FROM '.self::ITEMS.' AS t WHERE t.import_id = i.id)';
+        $query = $this->db->table(self::IMPORTS.' as i')->where('i.kind', $kind)->when($storeId !== null, fn ($query) => $query->where('i.store_id', $storeId));
+        $total = $query->count();
+        $rows = $query->orderByDesc('i.created_at')->orderByDesc('i.id')->forPage($page, $perPage)
+            ->get(['i.id', 'i.file_name', 'i.state', 'i.uploaded_by', 'i.created_at', $this->db->raw("{$count} AS count")]);
+
+        return [array_values($rows->map(static fn (stdClass $row): ImportSummary => new ImportSummary(
+            (string) $row->id,
+            (string) $row->file_name,
+            (string) $row->state,
+            (int) $row->count,
+            self::text($row->uploaded_by),
+            CarbonImmutable::parse((string) $row->created_at)->toIso8601String(),
+        ))->all()), $total];
     }
 
     public function names(string $importId): array

@@ -35,6 +35,13 @@ interface Imports
 
     public function saveItem(StoreFillItem $item): void;
 
+    /**
+     * Uploaded files of one kind, newest first — a store's own, for a store file.
+     *
+     * @return array{list<ImportSummary>, int} this page, and how many there are
+     */
+    public function summaries(string $kind, ?string $storeId, int $page, int $perPage): array;
+
     /** The import's own row, read without a lock — to know its store before asking for the job there. */
     public function header(string $importId): ?ImportHeader;
 
