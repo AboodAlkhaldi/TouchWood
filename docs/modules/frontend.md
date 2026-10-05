@@ -439,7 +439,7 @@ and examples. Only when neither has it, show the owner what was searched and ask
 | 7 | A row in the roles list | **The whole row opens the role**; Edit Role moves into the row's ⋯ menu (shadcn Item + DropdownMenu) |
 | 8 | The staff list, grouped | **A heading per group** (Admins, each store, Centralized), each group a shadcn Item group |
 | 9 | Editing a file's description in the media library | **shadcn's Dialog** with the form, Cancel and Save Description, in place of the extra table row |
-| 10 | The steps beside the company page | **Geist's Progress with stops** (b2b.md amendment 22(b)) |
+| 10 | The steps beside the company page | **The steps down the card** — shadcn's Card, a list and Lucide's circles; it was Geist's Progress with stops (22(b)) until the owner's pick of 2026-10-04 (b2b.md amendment 26(b)) |
 | 11 | How a company field shows its state | **The mix** (b2b.md amendment 22(a)): the save state inside the field's end, the reason under it, red the only edge colour |
 | 12 | Picking a saved address on the company form | **shadcn's field-choice-card**, each tile naming its store, no headings (b2b.md amendment 22(c)) |
 | — | The phone-number fields | No question: plain shadcn Inputs with a helper line; nothing is built |

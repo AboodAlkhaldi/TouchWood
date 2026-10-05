@@ -41,5 +41,7 @@ final readonly class MyCompanyView
          * account has no company and no draft here but has a company in another store.
          */
         public ?PrefillView $prefill = null,
+        /** Whether the account's phone number is confirmed: Send waits for it (amendment 26(a)). */
+        public bool $phoneConfirmed = false,
     ) {}
 }

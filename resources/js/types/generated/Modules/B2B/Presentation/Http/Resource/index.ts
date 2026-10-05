@@ -71,6 +71,7 @@ storeNameAr: string,
 storeNameEn: string,
 elsewhere: CompanyElsewhereData[],
 prefill: CompanyPrefillData | null,
+phoneConfirmed: boolean,
 };
 export type CompanyPrefillData = {
 name: string,
