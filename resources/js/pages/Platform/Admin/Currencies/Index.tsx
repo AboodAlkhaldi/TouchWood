@@ -36,9 +36,11 @@ import type { SharedProps } from '@/types/page';
 | ten riyals at two places and a thousand at none. So the field is shown as settled, with the
 | reason in its helper text, rather than offered and refused.
 |
-| A new currency is a Card whose one button is in its footer; an existing one is a Card whose form
-| opens in shadcn's Collapsible under its header and saves from a footer of the same shape. The
-| buttons that open a form say whether it is open (aria-expanded).
+| A new currency is a Card opened by the page's Add button; an existing one is a Card whose form
+| opens in shadcn's Collapsible under its header. Either form ends with **Cancel and its main button
+| side by side** in its footer, and the button that opened it steps out of the way while it is open;
+| Delete, for a currency no store uses, sits apart on the footer's start side (the owner,
+| 2026-10-06: the buttons' places).
 */
 
 type Props = CurrenciesPage;
@@ -53,20 +55,14 @@ export default function Index({ currencies, exponents }: Props) {
             title={t('platform::admin_currencies.title')}
             subtitle={t('platform::admin_currencies.subtitle')}
             action={
-                // The page's main action while it is closed; once open it only closes, so it steps
-                // back to a supporting button. It sits in the header, away from the form it opens,
-                // so it names that form itself (Geist's Collapse: aria-expanded, aria-controls).
-                <Button
-                    type="button"
-                    variant={adding ? 'outline' : 'default'}
-                    aria-expanded={adding}
-                    // Only while the form is there: an id that points at nothing helps nobody.
-                    aria-controls={adding ? 'add-currency-form' : undefined}
-                    data-test="add-currency"
-                    onClick={() => setAdding((open) => !open)}
-                >
-                    {t(adding ? 'platform::admin_currencies.cancel' : 'platform::admin_currencies.add')}
-                </Button>
+                // The page's main action, while its form is closed. Once open, the form ends with
+                // its own Cancel and Create side by side, where the eye already is (the owner,
+                // 2026-10-06: the buttons' places; a form's actions close it, Geist's Card footer).
+                adding ? undefined : (
+                    <Button type="button" data-test="add-currency" onClick={() => setAdding(true)}>
+                        {t('platform::admin_currencies.add')}
+                    </Button>
+                )
             }
         >
             <div className="grid gap-4">
@@ -178,26 +174,16 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                             {currency.stores.length === 0 ? t('platform::admin_currencies.in_use_none') : t('platform::admin_currencies.in_use', { stores: storeNames })}
                         </span>
                     </CardDescription>
-                    <CardAction className="flex gap-2">
-                        {/* Only a currency no store uses can go (platform.md §9.7); one in use says so on its line. */}
-                        {currency.deletable ? (
-                            <Button
-                                ref={deleteButton}
-                                type="button"
-                                variant="outline"
-                                className="text-bad"
-                                data-test={`delete-${currency.code}`}
-                                onClick={() => setDeleting(true)}
-                            >
-                                {`${t('platform::admin_currencies.delete')}…`}
-                            </Button>
-                        ) : null}
-                        <CollapsibleTrigger asChild>
-                            <Button type="button" variant="outline" data-test={`edit-${currency.code}`}>
-                                {t(open ? 'platform::admin_currencies.cancel' : 'platform::admin_currencies.edit')}
-                            </Button>
-                        </CollapsibleTrigger>
-                    </CardAction>
+                    {/* Edit while closed; once open, the form's own footer closes it. */}
+                    {open ? null : (
+                        <CardAction>
+                            <CollapsibleTrigger asChild>
+                                <Button type="button" variant="outline" data-test={`edit-${currency.code}`}>
+                                    {t('platform::admin_currencies.edit')}
+                                </Button>
+                            </CollapsibleTrigger>
+                        </CardAction>
+                    )}
                 </CardHeader>
 
                 <CollapsibleContent>
@@ -245,10 +231,31 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                             </div>
                         </CardContent>
 
-                        <CardFooter className="justify-end border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3">
-                            <ActionButton type="submit" loading={form.processing} data-test={`save-${currency.code}`}>
-                                {t('platform::admin_currencies.save')}
-                            </ActionButton>
+                        <CardFooter className="flex-wrap justify-between gap-2 border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3">
+                            {/* Destructive, so apart from Save, on the start side; only for a currency no
+                                store uses (platform.md §9.7) - one in use says so on its line. */}
+                            {currency.deletable ? (
+                                <Button
+                                    ref={deleteButton}
+                                    type="button"
+                                    variant="outline"
+                                    className="text-bad"
+                                    data-test={`delete-${currency.code}`}
+                                    onClick={() => setDeleting(true)}
+                                >
+                                    {`${t('platform::admin_currencies.delete')}…`}
+                                </Button>
+                            ) : (
+                                <span />
+                            )}
+                            <div className="flex gap-2">
+                                <Button type="button" variant="outline" disabled={form.processing} data-test={`cancel-${currency.code}`} onClick={() => onOpenChange(false)}>
+                                    {t('platform::admin_currencies.cancel')}
+                                </Button>
+                                <ActionButton type="submit" loading={form.processing} data-test={`save-${currency.code}`}>
+                                    {t('platform::admin_currencies.save')}
+                                </ActionButton>
+                            </div>
                         </CardFooter>
                     </form>
                 </CollapsibleContent>
@@ -351,7 +358,10 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                     </div>
                 </CardContent>
 
-                <CardFooter className="justify-end border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3">
+                <CardFooter className="justify-end gap-2 border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3">
+                    <Button type="button" variant="outline" disabled={form.processing} data-test="cancel-add-currency" onClick={onDone}>
+                        {t('platform::admin_currencies.cancel')}
+                    </Button>
                     <ActionButton type="submit" data-test="create-currency" loading={form.processing}>
                         {t('platform::admin_currencies.create')}
                     </ActionButton>

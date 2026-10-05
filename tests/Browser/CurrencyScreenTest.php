@@ -59,6 +59,9 @@ it('draws the currencies, shows a sign as a price will, and settles the decimal 
     // why rather than offering a change that would be refused.
     $page->click('[data-test="edit-SAR"]')
         ->assertSee('Used by Saudi Arabia, so it is settled')
+        // Delete lives in the open form's footer (the owner, 2026-10-06), and not for a used one.
+        ->assertMissing('[data-test="delete-SAR"]')
+        ->assertPresent('[data-test="cancel-SAR"]')
         // The sign as a price shows it, as Geist's Description: "Preview" and the sample price.
         ->assertSeeIn('[data-test="sign-preview"]', 'Preview')
         ->assertSeeIn('[data-test="sign-preview"]', '1,234.50')
@@ -111,6 +114,7 @@ it('adds a currency from the screen', function () {
     // No store charges in it: it can go, once its code is typed (Geist's Destructive Action Modal,
     // platform.md §9.7) - which also leaves the database as this test found it.
     $page->assertSeeIn("[data-test=\"stores-{$code}\"]", 'No store yet')
+        ->click("[data-test=\"edit-{$code}\"]")
         ->click("[data-test=\"delete-{$code}\"]")
         ->type('[data-test="destructive-verification"]', $code)
         ->click('[data-test="destructive-confirm"]');
