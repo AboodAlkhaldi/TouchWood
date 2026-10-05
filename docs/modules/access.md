@@ -470,7 +470,7 @@ and cannot order; and moves back.
     owner, 2026-10-06: "staff cant view an off store, only super admin can"); for any other staff
     member an off store stays a 404, even one in their stores. Its pages
     open **to look only** — a request that reads; a form sent there is a 404, so nothing is written
-    into a closed store (the review of P6) — and the shop's store switch lists them marked Off. A
+    into a closed store (the review of P6), and the email confirmation link, opened like a page but writing, is not found there either (owner, 2026-10-06) — and the shop's store switch lists them marked Off. A
     visitor still gets the 404. In a store that is on, a staff view may do what a visitor may;
     signing in or registering there ends the view;
   - the frame says so (frontend.md §2.3): a line under the header with **Back to Admin Panel**, and

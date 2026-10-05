@@ -204,6 +204,22 @@ describe('what the shop shows', function () {
         }
     });
 
+    it('opens no email confirmation link in an off store, even in a Super Admin\'s staff view', function () {
+        $customerId = Fx::customer('noura@example.test', 'eg');
+        $link = RecordingSecurityMessages::installed()->emailVerifications[0]['link'] ?? '';
+        $egypt = Fx::storeId('eg');
+        staffViewOff('eg');
+        $browser = staffViewSignIn(Fx::staff(superAdmin: true));
+        $browser->post('/admin/current-store', ['store' => $egypt]);
+        $browser->post('/admin/staff-view')->assertRedirect('/eg/en');
+        $browser->get('/eg/en')->assertOk();
+
+        // The link is opened like a page but writes: not found there, as for a visitor (owner, 2026-10-06).
+        $browser->get($link)->assertNotFound();
+
+        expect(DB::table('access.customers')->where('id', $customerId)->value('email_verified_at'))->toBeNull();
+    });
+
     it('does nothing for a forged pass', function () {
         staffViewOff('eg');
         $browser = new AdminBrowser;
