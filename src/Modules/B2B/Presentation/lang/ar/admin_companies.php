@@ -145,6 +145,11 @@ return [
         'flags_helper' => 'على الشركة أن تستبدل كل عنصر مُعلَّم قبل أن ترسل طلبها التالي.',
         'requests' => 'العناصر المطلوبة',
         'requests_helper' => 'على الشركة أن تجيب عن كل عنصر قبل أن ترسل طلبها التالي.',
+        // The company reads the reason and the requests word for word, in its own language (owner, 2026-10-06).
+        'write_in' => [
+            'ar' => 'لغة هذه الشركة العربية: اكتب السبب وكل طلب بالعربية.',
+            'en' => 'لغة هذه الشركة الإنجليزية: اكتب السبب وكل طلب بالإنجليزية.',
+        ],
         'add_request' => 'إضافة طلب',
         'remove_request' => 'إزالة الطلب :number',
         'request_kind' => 'نوع الإجابة',

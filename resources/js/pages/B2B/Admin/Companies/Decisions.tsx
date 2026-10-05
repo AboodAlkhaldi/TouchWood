@@ -121,6 +121,10 @@ function useFieldNames(): { field: string; label: string }[] {
  * A reason, and what the next application must fix or add (§1.2, amendment 4): any of the five
  * fields, any paper the waiting application sent, and requests for a text or a file under a label -
  * shadcn's field-checkbox and its form-array pattern, each group's helper and error tied to it.
+ *
+ * The company reads them word for word, so the reason and each request are written in its own
+ * language - the dialog names it, and its fields take that language and direction (the owner,
+ * 2026-10-06). What is written stays as written, whatever language the account picks later.
  */
 export function RejectModal({
     open,
@@ -129,7 +133,8 @@ export function RejectModal({
     papers,
     locale,
     typeNote,
-}: Base & { papers: StaffFileData[]; locale: Locale; typeNote: string | null }) {
+    writeIn,
+}: Base & { papers: StaffFileData[]; locale: Locale; typeNote: string | null; writeIn: Locale }) {
     const t = useTranslator();
     const fields = useFieldNames();
     const form = useForm<RejectForm>({ reason: '', flags: [], documents: [], requests: [] });
@@ -183,8 +188,13 @@ export function RejectModal({
             {/* The reviewer decides with the type's deactivation in front of them, rejecting as much
                 as approving (§3.2). */}
             <TypeNote note={typeNote} />
+            <Note variant="secondary" data-test="reject-write-in">
+                {writeIn === 'ar' ? t('b2b::admin_companies.reject.write_in.ar') : t('b2b::admin_companies.reject.write_in.en')}
+            </Note>
             <TextareaField
                 id="reject-reason"
+                lang={writeIn}
+                dir={writeIn === 'ar' ? 'rtl' : 'ltr'}
                 rows={3}
                 label={t('b2b::admin_companies.reason')}
                 helper={t('b2b::admin_companies.reject.reason_helper')}
@@ -253,6 +263,8 @@ export function RejectModal({
                             <InputGroup>
                                 <InputGroupInput
                                     id={`request-label-${index}`}
+                                    lang={writeIn}
+                                    dir={writeIn === 'ar' ? 'rtl' : 'ltr'}
                                     placeholder={t('b2b::admin_companies.reject.request_label_placeholder')}
                                     value={request.label}
                                     onChange={(event) => setRequest(index, { label: event.target.value })}

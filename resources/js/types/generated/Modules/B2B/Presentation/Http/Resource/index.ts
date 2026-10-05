@@ -206,6 +206,7 @@ phone: string | null,
 emailVerified: boolean,
 phoneVerified: boolean,
 anonymized: boolean,
+locale: string,
 };
 export type StaffStoreOptionData = {
 id: string,
