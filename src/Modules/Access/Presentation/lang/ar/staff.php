@@ -133,6 +133,9 @@ return [
     'step_role' => 'الدور',
     'step_stores' => 'المتاجر',
     'step_of' => 'الخطوة :step من :total',
+    // A step's state, read aloud beside its name (the steps' circles say nothing to a screen reader).
+    'step_done' => 'مكتملة',
+    'step_upcoming' => 'لم تحن بعد',
     'nothing_sent_yet' => 'لا يُرسل شيء قبل الخطوة الأخيرة.',
     'next' => 'الخطوة التالية',
     'back' => 'الخطوة السابقة',

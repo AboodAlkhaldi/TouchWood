@@ -133,6 +133,9 @@ return [
     'step_role' => 'Role',
     'step_stores' => 'Stores',
     'step_of' => 'Step :step of :total',
+    // A step's state, read aloud beside its name (the steps' circles say nothing to a screen reader).
+    'step_done' => 'done',
+    'step_upcoming' => 'not yet',
     'nothing_sent_yet' => 'Nothing is sent until the last step.',
     'next' => 'Next Step',
     'back' => 'Previous Step',

@@ -5,10 +5,10 @@ import { ActionButton } from '@/components/ActionButton';
 import { CountryCombobox } from '@/components/CountryCombobox';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
-import { ProgressStops } from '@/components/geist-only/ProgressStops';
 import { PermissionPicker } from '@/components/PermissionPicker';
 import { RoleChoice } from '@/components/RoleChoice';
 import { Note } from '@/components/Note';
+import { Steps } from '@/components/Steps';
 import {
     ActionStores,
     emptyCustom,
@@ -40,8 +40,9 @@ import type { InviteStaffPage } from '@/types/generated/Modules/Access/Presentat
 | message next to a field they cannot see.
 |
 | shadcn's parts with Geist's rules (frontend.md §1.11):
-| - the steps are Geist's Progress with stops ("multi-step setup"), the stage said next to the bar -
-|   "Step 2 of 3 · Role";
+| - the steps are drawn as the company page's tracking steps are - a circle each, done, current or
+|   still to come, with its name (the owner, 2026-10-06, in place of Geist's Progress bar); the list
+|   is named "Step 2 of 3 · Role" for a screen reader;
 | - each step's fields are a FieldSet named by its legend, so a screen reader hears "Profile";
 | - the country is a combobox, since the list is the whole world (Geist's Select is for short lists);
 | - "An Admin" is one on/off choice, so a Switch with its hint as the description (Geist's Toggle);
@@ -170,18 +171,14 @@ export default function Invite(page: Props) {
                 }}
                 className="grid max-w-3xl gap-6"
             >
-                <div className="grid gap-2">
-                    <p className="tw-figure text-label-13 text-ink-muted" aria-hidden="true">
-                        {stage}
-                    </p>
-                    <ProgressStops
-                        value={step}
-                        max={steps.length}
-                        label={t('access::staff.invite_title')}
-                        valueText={stage}
-                        // A stop where each step ends, named by the step it closes (Geist: a stop
-                        // with no label is noise).
-                        stops={steps.slice(0, -1).map((name, index) => ({ value: index + 1, tooltip: name }))}
+                {/* The company page's tracking steps, across the form (the owner, 2026-10-06). */}
+                <div className="material-base px-5 py-4">
+                    <Steps
+                        names={steps}
+                        current={step}
+                        label={stage}
+                        doneLabel={t('access::staff.step_done')}
+                        upcomingLabel={t('access::staff.step_upcoming')}
                     />
                 </div>
 

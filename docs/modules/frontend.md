@@ -48,6 +48,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.10, §1.11 | §1.10's provisional picks settled (type, surfaces, store time stand); the overnight review's Geist rules applied in the rebuild; every module's error messages rewritten in Geist's form | Owner, 2026-10-03 |
 | §1.11, §2.2 | **The owner's fix list after testing the rebuild**: the sidebar as `sidebar-07`'s main navigation (areas that fold, several open, a single screen as its link), thin themed scrollbars that keep the page's room, whole rows, the type lists' "#", the language switch laying the whole page out at once, sizes and counts in the page's digits; the builder's sidebar picks marked [PROVISIONAL] | Owner, 2026-10-04 |
 | §3.3 C3, C6, C9, §3.4 D2, D5 | **Where It Reaches bounds every action** (Access amendment 59): C6 and the invitation's step 3 laid out as the role, its actions, the reach, then each action's stores (All Selected Stores or Custom, only for two or more stores); the Refresh buttons removed | Owner, 2026-10-04 (fix list points 9 and 10) |
+| §3.3 C3, §3.4 D2, §3.3 C2 | **The invitation's steps** drawn as the company page's tracking steps — a circle each, done, current or still to come, with its name — in place of the progress bar; **a role's allowed actions** grouped under a header that reads as one (a sunken band, the area's name in the heading's weight, how many it holds), each action marked with a check | Owner, 2026-10-06 |
 
 ---
 

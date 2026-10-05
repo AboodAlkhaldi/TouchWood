@@ -213,7 +213,7 @@ it('invites a member whose one action is kept to some of the stores they reach (
         ->type('#job_title', 'Buyer')
         ->type('#date_of_birth', '1993-05-11')
         ->click('button[type="submit"]')
-        ->assertSee('Step 2 of 3')
+        ->assertPresent('[data-test="step-2"][data-state="current"]')
         ->click('[data-test="permission-'.PlatformPermissions::STORE_UPDATE.'"]')
         ->click('[data-test="permission-'.PlatformPermissions::STORE_VIEW.'"]')
         ->click('button[type="submit"]')
@@ -262,9 +262,9 @@ it('walks the invitation through its three steps, sending nothing before the las
         ->type('#date_of_birth', '1994-02-17')
         ->click('button[type="submit"]');
 
-    // Step two: still nobody in the table, because the form has not been sent. The step's number,
-    // not a word: "Role" is on every step (the stepper) and in the sidebar too.
-    $page->assertSee('Step 2 of 3')->assertNoJavaScriptErrors();
+    // Step two: still nobody in the table, because the form has not been sent. The step's state,
+    // not a word: "Role" is on every step (the steps) and in the sidebar too.
+    $page->assertPresent('[data-test="step-2"][data-state="current"]')->assertNoJavaScriptErrors();
     expect(DB::table('access.staff_users')->where('email', $email)->exists())->toBeFalse();
 
     // Step three, and still nobody: the whole form is one request, sent at the end.
