@@ -166,6 +166,40 @@ it('checks the right permission, against the right scope, in every handler', fun
     'sweep stuck variants' => [fn () => app(RequeueStuckMediaVariantsHandler::class)->handle(new RequeueStuckMediaVariants), 'platform.media.variants.generate', 'global'],
 ]);
 
+it('asks for creating a currency too when a store brings a new one, and makes neither without it (§9.7 #3)', function () {
+    $log = permissionLog();
+
+    app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', '', 1500, 'UTC', 9, new CreateCurrency('XTS', 2, 'عملة', 'Currency', 'ع', 'XTS', null)));
+
+    expect(array_column($log->checks, 0))->toContain('platform.store.create', 'platform.currency.create');
+
+    // The store's job without the currency's: refused before anything is written.
+    app()->instance(Authorizer::class, new class implements Authorizer
+    {
+        public function authorize(string $permission, PermissionScope $scope): void
+        {
+            if ($permission === 'platform.currency.create') {
+                throw new Unauthorized($permission);
+            }
+        }
+
+        public function storesWith(string $permission): ?array
+        {
+            return $permission === 'platform.currency.create' ? [] : null;
+        }
+
+        public function isUnlimited(): bool
+        {
+            return false;
+        }
+    });
+
+    expect(fn () => app(CreateStoreHandler::class)->handle(new CreateStore('xb', 'متجر', 'Store', 'XA', '', 1500, 'UTC', 10, new CreateCurrency('XTT', 2, 'عملة', 'Currency', 'ع', 'XTT', null))))
+        ->toThrow(Unauthorized::class)
+        ->and(DB::table('platform.stores')->where('code', 'xb')->exists())->toBeFalse()
+        ->and(DB::table('platform.currencies')->where('code', 'XTT')->exists())->toBeFalse();
+});
+
 it('changes nothing and audits nothing when the permission is denied', function (Closure $run) {
     permissionLog()->deny = true;
     $auditsBefore = DB::table('platform.audit_entries')->count();

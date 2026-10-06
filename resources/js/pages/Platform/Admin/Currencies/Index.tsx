@@ -14,6 +14,7 @@ import { NativeSelectOption } from '@/components/ui/native-select';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useList } from '@/lib/list';
 import { useTranslator } from '@/lib/t';
+import { useFocusBack } from '@/lib/use-focus-back';
 import type { CurrenciesPage, CurrencyRow } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 
@@ -49,6 +50,8 @@ export default function Index({ currencies, exponents }: Props) {
     const t = useTranslator();
     const [adding, setAdding] = useState(false);
     const [editing, setEditing] = useState<string | null>(null);
+    const addButton = useRef<HTMLButtonElement>(null);
+    useFocusBack(adding, addButton);
 
     return (
         <AdminLayout
@@ -59,7 +62,7 @@ export default function Index({ currencies, exponents }: Props) {
                 // its own Cancel and Create side by side, where the eye already is (the owner,
                 // 2026-10-06: the buttons' places; a form's actions close it, Geist's Card footer).
                 adding ? undefined : (
-                    <Button type="button" data-test="add-currency" onClick={() => setAdding(true)}>
+                    <Button ref={addButton} type="button" data-test="add-currency" onClick={() => setAdding(true)}>
                         {t('platform::admin_currencies.add')}
                     </Button>
                 )
@@ -129,6 +132,9 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
     const { locale } = usePage<SharedProps>().props;
     const [deleting, setDeleting] = useState(false);
     const deleteButton = useRef<HTMLButtonElement>(null);
+    const editButton = useRef<HTMLButtonElement>(null);
+    const editForm = useRef<HTMLFormElement>(null);
+    useFocusBack(open, editButton, editForm);
     // Only the delete's own refusal, never an older one from saving (useFreshRefusal).
     const deleteRefusal = useFreshRefusal(deleting);
     const remove = useForm({});
@@ -178,7 +184,7 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                     {open ? null : (
                         <CardAction>
                             <CollapsibleTrigger asChild>
-                                <Button type="button" variant="outline" data-test={`edit-${currency.code}`}>
+                                <Button ref={editButton} type="button" variant="outline" data-test={`edit-${currency.code}`}>
                                     {t('platform::admin_currencies.edit')}
                                 </Button>
                             </CollapsibleTrigger>
@@ -188,6 +194,7 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
 
                 <CollapsibleContent>
                     <form
+                        ref={editForm}
                         onSubmit={(event) => {
                             event.preventDefault();
                             save();
@@ -195,7 +202,7 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                         className="border-t border-line"
                     >
                         <CardContent className="grid gap-5 p-5 sm:grid-cols-2">
-                            <Names form={form} prefix={currency.code} />
+                            <Names form={form} prefix={currency.code} autoFocus />
 
                             <TextField
                                 id={`${currency.code}-sign`}
@@ -319,6 +326,8 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                         helper={t('platform::admin_currencies.code_hint')}
                         error={form.errors.code}
                         required
+                        // The form appears because Add Currency was pressed: its first field takes the focus.
+                        autoFocus
                         dir="ltr"
                         maxLength={3}
                         inputClassName="tw-figure"
@@ -384,7 +393,7 @@ type NamesForm = {
     setData: (field: never, value: never) => void;
 };
 
-function Names({ form, prefix }: { form: NamesForm; prefix: string }) {
+function Names({ form, prefix, autoFocus = false }: { form: NamesForm; prefix: string; /** The first name takes focus: the edit form opens on it. */ autoFocus?: boolean }) {
     const t = useTranslator();
     const field = (key: string, label: string, lang: 'ar' | 'en', hint?: string) => (
         <TextField
@@ -394,6 +403,7 @@ function Names({ form, prefix }: { form: NamesForm; prefix: string }) {
             helper={hint}
             error={form.errors[key]}
             required
+            autoFocus={autoFocus && key === 'name_ar'}
             lang={lang}
             dir={lang === 'en' ? 'ltr' : 'rtl'}
             value={form.data[key] ?? ''}

@@ -46,8 +46,9 @@ final readonly class StoreCountries
     }
 
     /**
-     * Each country's first IANA time zone, to fill the form's field when the country is chosen; a
-     * country with several (the United States, say) still lets the person pick another.
+     * The time zone of each country that has exactly one, to fill the form's field when the country
+     * is chosen. A country with several (the United States, say) is left out, and its zone is
+     * picked: PHP lists them alphabetically, so the first could be hours out (the review of P7).
      *
      * @return array<string, string>
      */
@@ -56,10 +57,10 @@ final readonly class StoreCountries
         $zones = [];
 
         foreach (self::codes() as $code) {
-            $first = DateTimeZone::listIdentifiers(DateTimeZone::PER_COUNTRY, $code)[0] ?? null;
+            $all = DateTimeZone::listIdentifiers(DateTimeZone::PER_COUNTRY, $code);
 
-            if ($first !== null) {
-                $zones[$code] = $first;
+            if (count($all) === 1) {
+                $zones[$code] = $all[0];
             }
         }
 

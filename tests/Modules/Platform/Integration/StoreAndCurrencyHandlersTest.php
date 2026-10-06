@@ -27,6 +27,14 @@ use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
 use Modules\Platform\Domain\Exception\StoreAttributeImmutable;
 use Modules\Platform\Domain\Exception\StoreCodeTaken;
 use Modules\Platform\Domain\Exception\StoreNotFound;
+use Modules\Platform\Domain\Model\Store;
+use Modules\Platform\Domain\Repository\StoreRepository;
+use Modules\Platform\Domain\ValueObject\CountryCode;
+use Modules\Platform\Domain\ValueObject\CurrencyCode;
+use Modules\Platform\Domain\ValueObject\StoreCode;
+use Modules\Platform\Domain\ValueObject\TaxRate;
+use Modules\Platform\Domain\ValueObject\Timezone;
+use Modules\Platform\Domain\ValueObject\TranslatedText;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Platform\Public\Events\CurrencyUpdated;
@@ -93,6 +101,16 @@ describe('creating', function () {
 
         expect(fn () => givenStore('xb'))->toThrow(CurrencyTaken::class)
             ->and(platform()->storeByCode('xb'))->toBeNull();
+    });
+
+    it('says the currency is taken, not the code, when two stores race for one free currency', function () {
+        givenCurrency();
+        givenStore('xa');
+        $raced = Store::create(app(StoreRepository::class)->nextId(), StoreCode::fromString('xb'), TranslatedText::of('متجر', 'Store', 'name'), CountryCode::fromString('XA'), CurrencyCode::fromString('XTS'), TaxRate::fromBasisPoints(1500), Timezone::fromString('Asia/Riyadh'), 2);
+
+        // Past the handler's own check, as the second of two at once would be: the index refuses it,
+        // and names the currency.
+        expect(fn () => app(StoreRepository::class)->add($raced))->toThrow(CurrencyTaken::class);
     });
 
     it('opens a store with a new currency made in the same step, and makes neither when the store is refused', function () {

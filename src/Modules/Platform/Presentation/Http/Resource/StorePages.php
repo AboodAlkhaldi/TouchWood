@@ -43,7 +43,8 @@ final readonly class StorePages
 
     /**
      * Add Store's choices (platform.md §9.7 #3, #4): the currencies no store - on or off - uses, every
-     * country with ours first, each country's first time zone, and the place after the last store.
+     * country with ours first, the time zone of each country with only one, and the place after the
+     * last store.
      */
     private function newStoreForm(): NewStoreForm
     {

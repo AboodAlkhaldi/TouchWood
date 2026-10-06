@@ -17,7 +17,7 @@ final class NewStoreForm extends Data
     /**
      * @param  list<FreeCurrencyRow>  $freeCurrencies  the currencies no store uses: one currency, one store
      * @param  list<StoreCountryOption>  $countries  every country, named in the panel's language
-     * @param  array<string, string>  $zones  each country's first time zone, to fill the field when a country is chosen
+     * @param  array<string, string>  $zones  the time zone of each country with only one, to fill the field when it is chosen
      * @param  list<int>  $exponents  the numbers of decimal places a new currency may have
      * @param  int  $nextPosition  ten after the last store, as a new type's position is
      */

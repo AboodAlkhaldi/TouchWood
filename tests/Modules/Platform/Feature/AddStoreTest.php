@@ -71,12 +71,17 @@ function addStoreFields(array $overrides = []): array
 
 it('offers a Super Admin Add Store with the currencies no store uses, and nobody else', function () {
     addStoreFreeCurrency();
+    // An off store still has its currency: EGP is not offered while Egypt is off.
+    DB::table('platform.stores')->where('code', 'eg')->update(['is_active' => false]);
+    Fx::asSystem(fn () => app(StoreDirectory::class)->invalidate());
 
     addStoreSignIn(Fx::staff(superAdmin: true))->get('/admin/stores')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->has('add.freeCurrencies', 1)
         ->where('add.freeCurrencies.0.code', 'KWD')
         ->where('add.nextPosition', 13)
+        // A country with one time zone fills it; one with several leaves it to be picked.
         ->where('add.zones.KW', 'Asia/Kuwait')
+        ->missing('add.zones.US')
     );
 
     addStoreSignIn(Fx::staffWith([PlatformPermissions::STORE_UPDATE, PlatformPermissions::STORE_VIEW], ['*']))

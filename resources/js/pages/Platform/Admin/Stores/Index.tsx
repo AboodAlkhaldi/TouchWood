@@ -27,6 +27,7 @@ import { NativeSelectOption } from '@/components/ui/native-select';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import { useFocusBack } from '@/lib/use-focus-back';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import type { NewStoreForm, StoreRow, StoresPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
@@ -61,6 +62,10 @@ export default function Index({ stores, timezones, maySwitch, add }: Props) {
     const t = useTranslator();
     const [editing, setEditing] = useState<string | null>(null);
     const [adding, setAdding] = useState(false);
+    // The form takes the button's place while it is open, and its first field takes focus; when it
+    // closes - Cancel, or the store added - focus comes back to the button (the review of P7).
+    const addButton = useRef<HTMLButtonElement>(null);
+    useFocusBack(adding, addButton);
 
     return (
         <AdminLayout
@@ -70,7 +75,7 @@ export default function Index({ stores, timezones, maySwitch, add }: Props) {
                 // Add Store, for whoever may open one (a Super Admin); the form ends with its own
                 // Cancel, so the button steps out while it is open (platform.md §9.7 #3).
                 add !== null && !adding ? (
-                    <Button type="button" data-test="add-store" onClick={() => setAdding(true)}>
+                    <Button ref={addButton} type="button" data-test="add-store" onClick={() => setAdding(true)}>
                         {t('platform::admin_stores.add')}
                     </Button>
                 ) : undefined
@@ -112,8 +117,9 @@ const NEW_CURRENCY = '__new';
 | Add Store (platform.md §9.7 #3, #4; owner, 2026-10-06): everything a store is, at once, so it is
 | never half-configured; it is added switched off. The currency is never typed: it is picked from the
 | currencies no store uses - one currency, one store - or made here, in the same form, when "New
-| Currency…" is picked or when none is free. The country is the shared country picker; choosing one
-| fills its first time zone, which stays changeable.
+| Currency…" is picked or when none is free. The country is the shared country picker; choosing a
+| country with one time zone fills it, and one with several leaves the zone to be picked (the review
+| of P7: the first of several, alphabetically, could be hours out).
 */
 function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones: string[]; onDone: () => void }) {
     const t = useTranslator();
@@ -139,12 +145,18 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
         currency_sign: '',
     });
 
+    // Read from the page as it is now: a refusal reloads the free currencies, and the one picked may
+    // have been taken meanwhile - or the last one, leaving only a new currency to make.
+    const newCurrency = noneFree || form.data.new_currency;
+    const currency = add.freeCurrencies.some((free) => free.code === form.data.currency) ? form.data.currency : (add.freeCurrencies[0]?.code ?? '');
+
     return (
         <Card className="material-base gap-0 border-0 py-0" data-test="add-store-form">
             <form
                 aria-labelledby="add-store-title"
                 onSubmit={(event) => {
                     event.preventDefault();
+                    form.transform((data) => ({ ...data, currency, new_currency: newCurrency }));
                     form.post('/admin/stores', { preserveScroll: true, onSuccess: onDone });
                 }}
             >
@@ -163,6 +175,8 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                         label={t('platform::admin_stores.code')}
                         helper={t('platform::admin_stores.code_hint')}
                         required
+                        // The form appears because Add Store was pressed: its first field takes the focus.
+                        autoFocus
                         dir="ltr"
                         maxLength={8}
                         inputClassName="tw-figure"
@@ -205,7 +219,12 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                         countries={add.countries}
                         value={form.data.country}
                         onChange={(country) => {
-                            form.setData((data) => ({ ...data, country, timezone: add.zones[country] ?? data.timezone }));
+                            // A zone the person picked stays; one filled for the last country goes.
+                            form.setData((data) => ({
+                                ...data,
+                                country,
+                                timezone: add.zones[country] ?? (data.timezone === add.zones[data.country] ? '' : data.timezone),
+                            }));
                         }}
                         words={{
                             search: t('platform::admin_stores.country_search'),
@@ -244,7 +263,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                             id="new-store-currency"
                             label={t('platform::admin_stores.currency')}
                             helper={t('platform::admin_stores.currency_hint')}
-                            value={form.data.new_currency ? NEW_CURRENCY : form.data.currency}
+                            value={newCurrency ? NEW_CURRENCY : currency}
                             onChange={(event) =>
                                 event.target.value === NEW_CURRENCY
                                     ? form.setData('new_currency', true)
@@ -262,7 +281,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                         </SelectField>
                     )}
 
-                    {form.data.new_currency ? (
+                    {newCurrency ? (
                         <FieldSet className="gap-4 rounded-md border border-line p-4 sm:col-span-2" data-test="new-store-new-currency">
                             <FieldLegend className="mb-0 text-label-14 text-ink">{t('platform::admin_stores.currency_new')}</FieldLegend>
                             <FieldDescription className="text-copy-13 text-ink-muted">

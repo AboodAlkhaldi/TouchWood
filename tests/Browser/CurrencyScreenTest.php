@@ -71,6 +71,10 @@ it('draws the currencies, shows a sign as a price will, and settles the decimal 
     $page->type('#SAR-sign', 'ر.س')->assertSeeIn('[data-test="sign-preview"]', 'ر.س');
 
     expect($page->script('document.querySelector("#SAR-exponent").disabled'))->toBeTrue();
+
+    // Edit steps out while its form is open, so Cancel hands focus back to it (the review of P7).
+    $page->click('[data-test="cancel-SAR"]');
+    expect(browserUntil($page, "document.activeElement?.dataset.test === 'edit-SAR'"))->toBeTrue();
 });
 
 it('adds a currency from the screen', function () {
@@ -99,8 +103,11 @@ it('adds a currency from the screen', function () {
     $page->navigate('/admin/currencies');
 
     // Named: the panel's own header carries buttons too, and "header button" finds one of those.
-    $page->click('[data-test="add-currency"]')
-        ->type('#new-code', $code)
+    // The form opens on its first field.
+    $page->click('[data-test="add-currency"]');
+    expect(browserUntil($page, "document.activeElement?.id === 'new-code'"))->toBeTrue();
+
+    $page->type('#new-code', $code)
         ->type('#new-name_ar', 'عملة')
         ->type('#new-name_en', $name)
         ->type('#new-abbreviation_ar', 'ع')
@@ -109,7 +116,9 @@ it('adds a currency from the screen', function () {
         ->assertSee($name)
         ->assertNoJavaScriptErrors();
 
-    expect(DB::table('platform.currencies')->where('code', $code)->exists())->toBeTrue();
+    expect(DB::table('platform.currencies')->where('code', $code)->exists())->toBeTrue()
+        // Created, the form closes and focus is back on Add Currency.
+        ->and(browserUntil($page, "document.activeElement?.dataset.test === 'add-currency'"))->toBeTrue();
 
     // No store charges in it: it can go, once its code is typed (Geist's Destructive Action Modal,
     // platform.md §9.7) - which also leaves the database as this test found it.

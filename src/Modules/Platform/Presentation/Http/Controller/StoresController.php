@@ -144,12 +144,21 @@ final readonly class StoresController
      *
      * Read digit by digit rather than multiplied, for the same reason the screen is given the
      * percentage as a string: a rate is money's neighbour, and turning "15.5" into a float first
-     * would hand the domain 1550.0000000000002 to round. A value of any other shape becomes a
-     * number the domain refuses, which is where that answer belongs.
+     * would hand the domain 1550.0000000000002 to round. A value of any other shape - "abc", "15,5",
+     * nothing - becomes -1, a number the domain refuses, which is where that answer belongs; read as
+     * it was, it became 0 or 15, a rate nobody wrote (the review of P7).
      */
     public static function basisPoints(string $percent): int
     {
-        [$whole, $fraction] = array_pad(explode('.', trim($percent), 2), 2, '');
+        // The Arabic decimal separator is the same point (frontend.md §1.8: a rate typed on an
+        // Arabic keyboard is the same rate; its digits are made Latin as they are typed).
+        $percent = str_replace("\u{066B}", '.', trim($percent));
+
+        if (preg_match('/\A\d+(\.\d*)?\z/', $percent) !== 1) {
+            return -1;
+        }
+
+        [$whole, $fraction] = array_pad(explode('.', $percent, 2), 2, '');
 
         return ((int) $whole) * 100 + (int) str_pad(substr($fraction, 0, 2), 2, '0');
     }

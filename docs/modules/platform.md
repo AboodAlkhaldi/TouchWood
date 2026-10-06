@@ -416,7 +416,7 @@ stay reserved: each reaches every store at once. Deleting a currency no store us
 
 | Use case | Who | Permission | Store-checked |
 |---|---|---|---|
-| `CreateStore` — all attributes at once; created **off** (§1.1, 2026-10-01) | Super Admin | `platform.store.create` (reserved) | Global |
+| `CreateStore` — all attributes at once; created **off** (§1.1, 2026-10-01); its currency one no store uses (`CurrencyTaken`), or a new one made in the same transaction, which needs `platform.currency.create` too (§9.7 #3, #4) | Super Admin | `platform.store.create` (reserved) | Global |
 | `ActivateStore` / `DeactivateStore` — the on/off switch; the base store cannot be turned off (`BaseStoreAlwaysActive`); audited (owner, 2026-10-01) | Super Admin | `platform.store.switch` (reserved) | Global |
 | `UpdateStore` — name, tax rate, timezone, position | Staff | `platform.store.update` | That store |
 | `ListStores` / `ViewStore` (admin) | Staff | `platform.store.view` | Only stores in the actor's scope; an **off** store only to a Super Admin (§1.6) |
@@ -534,7 +534,7 @@ strings. IDs are ULIDs (`char(26)`) except where noted.
 | `code` | `varchar(8)` NOT NULL | UNIQUE; `CHECK (code ~ '^[a-z]{2,8}$')` |
 | `name` | `jsonb` NOT NULL | ar and en |
 | `country_code` | `char(2)` NOT NULL | `CHECK (country_code ~ '^[A-Z]{2}$')` |
-| `currency_code` | `char(3)` NOT NULL | FK → `platform.currencies(code)` ON DELETE RESTRICT |
+| `currency_code` | `char(3)` NOT NULL | FK → `platform.currencies(code)` ON DELETE RESTRICT; unique (`stores_one_per_currency`, 2026-10-06): one currency, one store (§9.7 #4) |
 | `tax_rate_basis_points` | `integer` NOT NULL | `CHECK (tax_rate_basis_points BETWEEN 0 AND 10000)` |
 | `timezone` | `varchar(64)` NOT NULL | |
 | `position` | `smallint` NOT NULL DEFAULT 0 | |
@@ -542,7 +542,7 @@ strings. IDs are ULIDs (`char(26)`) except where noted.
 | `is_base` | `boolean` NOT NULL DEFAULT false | 2026-10-02. Unique where true (`stores_one_base`); `CHECK (NOT is_base OR is_active)` (`stores_base_always_active`). The migration marks KSA (`sa`) as the base store, and the seed does the same — infrastructure may name a store; `Domain/` and `Application/` never do (handoff §2 rule 2) |
 | `created_at`, `updated_at` | `timestamptz` | |
 
-Indexes: unique `(code)`.
+Indexes: unique `(code)`; unique `(currency_code)` (`stores_one_per_currency`).
 
 ### 5.3 `platform.settings`
 
@@ -780,6 +780,7 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── InvalidCurrencyAttribute              INVALID     code, exponent or sign format  ¹
 ├── CurrencyExponentLocked                CONFLICT
 ├── CurrencyInUse                         CONFLICT    deleting a currency a store uses (§9.7)
+├── CurrencyTaken                         CONFLICT    opening a store with a currency another store uses (§9.7 #4)
 ├── UnknownSetting                        INVALID
 ├── InvalidSettingValue                   INVALID
 ├── SettingScopeMismatch                  INVALID
@@ -1048,5 +1049,5 @@ stores" and the digits.
 |---|---|---|
 | 1 | §1.2, §3, §7 | **`DeleteCurrency`**: a Super Admin (`platform.currency.delete`, reserved like creating and changing one) deletes a currency **no store — on or off — uses**; any store using it refuses the delete (`CurrencyInUse`), with the foreign key's `RESTRICT` behind it. The currency row is locked before the stores are counted, so a store opened with it at the same moment cannot slip through. Audited (`platform.currency.deleted`, with what it was); the directory's cache is invalidated in the same transaction. |
 | 2 | frontend.md E3 | **The currencies screen names the stores** using each currency — "Used by Saudi Arabia, Egypt", an off store marked Off — instead of a count (which read "1 stores"), and "No store yet" otherwise; the exponent's lock names them too. A card no store uses offers **Delete Currency…**, confirmed in Geist's Destructive Action Modal by typing the code. Numbers in a sentence are in the page's digits (frontend.md §1.8). |
-| 3 | §3, frontend.md E1 | **Stores are created on the stores screen too** (owner, 2026-10-06), replacing [DECIDED 2026-09-19] "a console command only". A Super Admin's **Add Store** form takes everything at once — code, both names, the country (picked from a list), the currency, the tax rate, the time zone (filled from the country, changeable) and the position — so a store is still never half-configured; it is created **switched off**, to be prepared and turned on (§1.6). `CreateStore` is the one use case behind both the form and the command, which stays. |
+| 3 | §3, frontend.md E1 | **Stores are created on the stores screen too** (owner, 2026-10-06), replacing [DECIDED 2026-09-19] "a console command only". A Super Admin's **Add Store** form takes everything at once — code, both names, the country (picked from a list), the currency, the tax rate, the time zone (filled from a country that has only one, changeable) and the position — so a store is still never half-configured; it is created **switched off**, to be prepared and turned on (§1.6). `CreateStore` is the one use case behind both the form and the command, which stays. |
 | 4 | §1.2, §3, §5.2, §7 | **One currency, one store** (owner, 2026-10-06): a currency serves at most one store — refused in `CreateStore` (`CurrencyTaken`) and by a unique index on `platform.stores.currency_code`. The form's currency is **never typed**: it is picked from the currencies **no store uses**, or **created in the same form** — "New Currency" is always offered, and is the form itself when no currency is free; the new currency and the store are made in one transaction (`CreateStore` carries the new currency, asking `platform.currency.create` too). A store's currency still never changes; a currency's names and sign are changed on the currencies screen. |
