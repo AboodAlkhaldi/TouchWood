@@ -27,9 +27,10 @@ import { tone } from '@/lib/tones';
 | its name. The box's edge is ink-subtle, 3.12:1 on a card, where shadcn's input line is 1.59:1.
 |
 | **Select All** (the owner, 2026-10-06; §3.4 D3): one per area, in its header - a box that ticks
-| every action of the area the author may give, or clears them, with a dash while only some are
-| ticked (shadcn's Checkbox, edit 6 of §1.11). A locked action is left as it is, and the box reads
-| only the actions it can change. With nothing to give it is locked too, its reason in a tooltip.
+| every action of the area the author may give, or clears them. shadcn's two states only (the owner,
+| 2026-10-07): ticked once every one is ticked, empty otherwise, so with 2 of 6 ticked a press ticks
+| all 6. A locked action is left as it is, and the box reads only the actions it can change. With
+| nothing to give it is locked too, its reason in a tooltip.
 |
 | Stores are not here at all. What a role allows and where a person may do it are two different
 | questions, and the second is answered per staff member (§3.3 C6).
@@ -94,17 +95,17 @@ export function PermissionPicker({ permissions, groups, chosen, onChange, disabl
                 const chosenHere = inGroup.filter((permission) => held.has(permission.name)).length;
                 const givable = disabled ? [] : inGroup.filter((permission) => permission.grantable).map((permission) => permission.name);
                 const givenHere = givable.filter((name) => held.has(name)).length;
-                const allState = givable.length > 0 && givenHere === givable.length ? true : givenHere > 0 ? 'indeterminate' : false;
+                const allGiven = givable.length > 0 && givenHere === givable.length;
                 const allLocked = disabled ? t('access::roles.not_editable') : givable.length === 0 ? t('access::roles.none_yours') : undefined;
                 const allId = `select-all-${group.key}`;
                 const allBox = (
                     <Checkbox
                         id={allId}
-                        checked={allState}
+                        checked={allGiven}
                         aria-label={t('access::roles.select_all_in', { area: group.label })}
                         aria-disabled={allLocked === undefined ? undefined : true}
                         aria-describedby={allLocked === undefined ? undefined : `${allId}-locked`}
-                        // From "some" Radix answers true: a dash ticks the rest.
+                        // Empty - none or some ticked - it ticks them all; ticked, it clears them.
                         onCheckedChange={(next) => (allLocked === undefined ? setAll(givable, next === true) : undefined)}
                         className="border-ink-subtle aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                         data-test={allId}

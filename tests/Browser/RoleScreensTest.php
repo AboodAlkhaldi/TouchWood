@@ -245,7 +245,7 @@ function roleScreenArea(mixed $page, string $area): array
         JS);
 }
 
-it('ticks every action of an area with its Select All, shows a dash for some, and clears them again', function () {
+it('ticks every action of an area with its Select All, stays empty for some, and clears them again', function () {
     $page = visit('/admin/sign-in')
         ->type('#email', newSuperAdminEmail())
         ->type('#password', ROLE_SCREEN_PASSWORD)
@@ -264,13 +264,12 @@ it('ticks every action of an area with its Select All, shows a dash for some, an
     $page->assertAttribute($all, 'aria-label', 'Select All in Company Approvals')
         ->assertAttribute($all, 'data-state', 'unchecked');
 
-    // One action ticked: some, so a dash (frontend.md §1.11 edit 6) rather than a tick.
+    // One action ticked of many: the box stays empty - shadcn's two states only (the owner,
+    // 2026-10-07, frontend.md D3).
     $page->click('[data-test="permission-'.B2BPermissions::COMPANY_VIEW.'"]')
-        ->assertAttribute($all, 'data-state', 'indeterminate');
-    expect($page->script("getComputedStyle(document.querySelector('{$all} [data-slot=\"checkbox-indicator\"] svg:last-child')).display"))->toBe('block')
-        ->and($page->script("getComputedStyle(document.querySelector('{$all} [data-slot=\"checkbox-indicator\"] svg:first-child')).display"))->toBe('none');
+        ->assertAttribute($all, 'data-state', 'unchecked');
 
-    // From some, it ticks the rest.
+    // Pressed with some ticked, it ticks the rest.
     $page->click($all)->assertAttribute($all, 'data-state', 'checked');
     $ticked = roleScreenArea($page, 'companies');
 

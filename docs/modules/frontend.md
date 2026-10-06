@@ -398,7 +398,7 @@ and examples. Only when neither has it, show the owner what was searched and ask
   writing rules of §1.10. **Where the two disagree, Geist's rule wins**: a loading button stays
   focusable; a field stays editable while it saves; an action that cannot be done is shown
   disabled, with the reason.
-- **The only edits to shadcn's code** (six), each written down where it is made:
+- **The only edits to shadcn's code** (five), each written down where it is made:
   1. **`accent`** — TouchWood's copper keeps the name `accent`; shadcn uses `accent` as its neutral
      background - hover, focus, open, selected, pressed, and Skeleton's fill - which would paint
      copper behind dark text (2.3:1). After every install, every background shadcn paints with
@@ -417,11 +417,9 @@ and examples. Only when neither has it, show the owner what was searched and ask
      prop cannot reach them. Words a prop can give - the sidebar trigger's, the rail's, the
      breadcrumb's, a Spinner's name, the pager's Previous and Next (our own links) - are given from
      outside, with no edit; a dialog's own Close button is never drawn (`showCloseButton={false}`).
-  6. **[PROVISIONAL, 2026-10-06: for the owner to confirm] The checkbox's dash** — shadcn's
-     Checkbox (4.21.3's registry, checked 2026-10-06) draws only a tick, also when Radix says "some"
-     (`indeterminate`); Geist's Checkbox draws a dash there, and an area's Select All (§3.4 D3)
-     needs it. Ours draws a dash in that state, the box filled as for a tick. Put back after every
-     reinstall; a test checks it.
+
+  **[DECIDED by the owner, 2026-10-07] No dash:** a sixth edit giving shadcn's Checkbox Geist's dash
+  for "some" was proposed and refused — shadcn's two states (empty, ticked) are kept as they are.
 - **The CLI's CSS**: installing a component may add shadcn's default colours to `app.css` (the
   sidebar's, for one). They are not kept: our tokens already feed those names (Look, above).
 - **Geist's pieces that shadcn lacks**, built exactly from Geist's own page, with no invention:
@@ -625,7 +623,7 @@ From the design, with the decided rules applied:
   - A filter lists the person's stores where they may do that screen's job, by store position; a
     **Super Admin also sees the stores that are off, marked Off**, to prepare them before they open
     (platform.md §1.6). One store: no filter, the screen shows it. A store outside the list is
-    refused (403); the screen opens on the first store that is on when none is asked - nobody lands in an off store without choosing it (kept from the review of the foundation, 2026-10-03).
+    refused (403); the screen opens on the first store that is on when none is asked - nobody lands in an off store without choosing it (kept from the review of the foundation, 2026-10-03; confirmed by the owner, 2026-10-07).
   - Store-free screens (media, roles, staff, customers, the audit log) have none.
   - The staff account's remembered store (`current_store_id`) and its fall-back toasts are removed
     (access.md amendment 64).
@@ -827,7 +825,9 @@ see admin roles in the list but cannot open them for editing (amendment 9 and th
   failed jobs (E7) — with its own section in the menu.
   **[DECIDED by the owner, 2026-10-06] Select All per area:** where actions are ticked (D3, C6, the
   invitation's step 2), each area's header carries a checkbox that ticks every action of the area
-  the author may give, or clears them; it shows a dash when only some are ticked. An action that is
+  the author may give, or clears them. **[DECIDED by the owner, 2026-10-07]** It has shadcn's two
+  states only: ticked when every one of them is ticked, empty otherwise - so with 2 of 6 ticked it
+  is empty, and pressing it ticks all 6; pressed when ticked, it clears them. An action that is
   locked (not grantable, or above the role's level) is left as it is. There is no Select All across
   every area.
 - **[DECIDED 2026-09-19] The design's "Permissions by role" table is kept**, on D1: groups down the
@@ -1019,7 +1019,7 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
   in. An expired link shows the "link no longer works" page.
 - A staff member is invited in three steps, appears in the list under their store, and a person with
   two stores appears under "Centralized".
-- The role editor: ticking actions, a section's Select All (all, none, some), filling every action's
+- The role editor: ticking actions, a section's Select All (empty until all are ticked; from some, it ticks the rest), filling every action's
   stores in one row, giving one action its own stores, and saving an edit from a person's page as a
   personal role.
 - The store filters: each store screen opens on the first store that is on, changes with its filter, refuses a

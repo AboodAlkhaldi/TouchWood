@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /*
-| shadcn's code is used as its CLI writes it, with six edits and no others (frontend.md §1.11,
+| shadcn's code is used as its CLI writes it, with five edits and no others (frontend.md §1.11,
 | owner 2026-10-02 and 2026-10-03). A reinstall writes upstream's file over ours and silently takes
 | an edit back out, so each edit is checked here rather than remembered:
 |
@@ -12,7 +12,6 @@ declare(strict_types=1);
 |   3. DirectionProvider (and shadcn's TooltipProvider) wrap the app, in both entries.
 |   4. The sidebar's rail is placed with -end-4 / start-0, so it follows the sidebar in Arabic.
 |   5. shadcn's own screen-reader words read ours (the ui.php word files), not English only.
-|   6. The checkbox draws Geist's dash for "some" (indeterminate), filled as a tick is (PROVISIONAL).
 */
 
 const SHADCN_UI = 'resources/js/components/ui';
@@ -135,13 +134,4 @@ it('lets the phone\'s sidebar say its name in the page\'s language (edit 5)', fu
 
         expect($words)->toHaveKeys(['sidebar', 'sidebar_description']);
     }
-});
-
-it('draws a dash, not a tick, for a box that is only partly ticked (edit 6)', function () {
-    $checkbox = shadcnSource(SHADCN_UI.'/checkbox.tsx');
-
-    expect($checkbox)->toContain('<MinusIcon className="hidden size-3.5 group-data-[state=indeterminate]/indicator:block" />')
-        ->and($checkbox)->toContain('<CheckIcon className="size-3.5 group-data-[state=indeterminate]/indicator:hidden" />')
-        ->and($checkbox)->toContain('className="group/indicator ')
-        ->and($checkbox)->toContain('data-[state=indeterminate]:bg-primary');
 });
