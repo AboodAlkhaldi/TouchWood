@@ -84,15 +84,20 @@ The owner's **latest word overrides the specs**; when that happens, the spec is 
 | 1, 2, 2b | Platform, Access, the frontend foundation | Done, on `main` |
 | — | The Geist/shadcn rebuild (#80) and the owner's fix list P3–P7 (#83–#87) | Done, on `main` |
 | 3 | B2B | Done, on `main` |
-| **4** | **Catalog backend** | Steps 1–7 merged into the `catalog` branch (#77–#79, #81, #82, #88 and step 7's PR). **`catalog` reaches `main` through one PR the owner merges** — start from `main` after that merge. |
+| **4** | **Catalog backend** | Done, on `main`: steps 1–7 (#77–#79, #81, #82, #88, #89) reached `main` in #91 (2026-10-06), then every digit typed saved as 0-9 (catalog.md amendment 12). Start from `main`. |
 | **4** | **Catalog screens** | **Yours. Nothing is built** (§5.2). |
 | 5–9 | Pricing, Inventory, Sync; Sales, Promotions, Loyalty, Feedback; Payments, Shipping; Content, Ops | Not started. The owner decides when stage 5 starts. |
 
-**Queued jobs that are not yours** but touch what you build (memory, §9): **Latin digits
-everywhere** (owner, 2026-10-06: "no any arabic numbers across the whole system") and **the panel's
-store choice** (the sidebar's store menu goes; every store screen gets its own store filter,
-`?store=`, as Companies has). Ask the owner how the Catalog screens should meet them before you
-build a number or a store screen (§5.4).
+**Latin digits everywhere is built** (#90; owner, 2026-10-06: "no any arabic numbers across the
+whole system"; frontend.md §1.8): every number a screen shows is 0-9, Arabic pages too — format
+numbers and dates through `intlLocale` (`resources/js/lib/digits.ts`), never a language tag of your
+own; a typed number goes through `toLatinDigits` there; Catalog saves typed Arabic digits as 0-9
+(catalog.md amendment 12). `tests/Architecture/LatinDigitsTest` checks the screens.
+
+**A job that is not yours** but touches what you build (memory, §9): **the panel's store choice**
+(the sidebar's store menu goes; every store screen gets its own store filter, `?store=`, as
+Companies has), being built by another session. Ask the owner how the Catalog screens should meet
+it before you build a store screen (§5.4).
 
 ## 5 · The job: Catalog's screens
 
@@ -177,7 +182,8 @@ From the specs and the owner — each one cited where it is written:
   tokens; where they conflict, **Geist's rule wins**; where neither has what you need, show the
   owner what you searched and ask before building (frontend.md §1.10–§1.11; memory
   `touchwood-ui-use-geist-shadcn.md`).
-- **Numbers and store screens**: see the two queued jobs in §4 — ask before building either.
+- **Numbers**: 0-9 everywhere, as §4 says. **Store screens**: see the store-choice job in §4 — ask
+  before building one.
 
 ### 5.5 The checks the screens need
 
@@ -190,7 +196,7 @@ module meets (`tests/Architecture`).
 
 | Thing | Rule |
 |---|---|
-| Worktree, branch, databases, port | Your own worktree off **`main`** (after `catalog` is merged), a stage-like branch with a branch per step, and **your own dev and test databases** — never the shared `touchwood` / `touchwood_test`. Ask the owner for the names and the port; the Catalog backend's are `TouchWood-catalog`, `catalog`, `touchwood_catalog` / `touchwood_test_catalog`, 8003. In your worktree only, point `phpunit.xml` at your test database and `git update-index --skip-worktree phpunit.xml`. |
+| Worktree, branch, databases, port | Your own worktree off **`main`**, a stage-like branch with a branch per step, and **your own dev and test databases** — never the shared `touchwood` / `touchwood_test`. Ask the owner for the names and the port; the Catalog backend used `TouchWood-catalog`, `touchwood_catalog` / `touchwood_test_catalog` and 8003 (its `catalog` branch is merged and deleted). In your worktree only, point `phpunit.xml` at your test database and `git update-index --skip-worktree phpunit.xml`. |
 | Branches | A branch is for a stage or a real new thing; a small fix is a commit on `main` after `composer check`. Delete a branch as soon as it merges, local and remote. |
 | Shared files | Expect conflicts in `docs/HANDOFF.md`, `deptrac.yaml`, `composer.json`/`.lock`, `package.json`/`-lock`, the generated TypeScript types and their manifest, the permission lists, `resources/css/themes.css`, and amendment numbers in a module's spec (two branches can each add "the next" one — check `main` before numbering). |
 | Who asks the owner | You ask about the screens. A change to another module is that module's amendment: say so and ask. |
@@ -272,7 +278,7 @@ files yourself:
 | `touchwood-catalog-build.md`, `touchwood-catalog-plan.md` | How the Catalog backend was built, and the owner's answers along the way. |
 | `touchwood-import-format.md` | The agreed import format and its rule. |
 | `touchwood-roles-nest.md` | Super Admin ⊃ admin ⊃ staff, in the owner's words. |
-| `touchwood-latin-digits.md`, `touchwood-panel-store-choice.md` | The two queued jobs (§4). |
+| `touchwood-latin-digits.md`, `touchwood-panel-store-choice.md` | Latin digits (built) and the store-choice job (§4). |
 | `touchwood-owner-fixes-2026-10-04.md` | The owner's fix list after testing the rebuild — what they look for on a screen. |
 | `touchwood-branch-workflow.md`, `touchwood-dev-env.md`, `touchwood-no-ai-attribution.md` | Branches, the Windows environment, the attribution rule. |
 

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Modules\Catalog\Domain\ValueObject;
 
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * How Catalog accepts typed text, so every value object says it the same way: **one line** — a
- * name, a word, a slug's source — trimmed, real UTF-8, no control character or line separator.
+ * name, a word, a slug's source — trimmed, real UTF-8, no control character or line separator, and
+ * **every digit 0-9**: Arabic digits typed are saved as Latin ones (catalog.md amendment 12).
  *
  * **Trimmed as a page trims** (the rule B2B's company page settled, b2b.md amendment 17(a)): exactly
  * what JavaScript's `trim()` removes at either end — tab, line breaks, vertical tab, form feed, every
@@ -39,7 +41,7 @@ final class CatalogText
      */
     public static function oneLine(string $attribute, string $value, int $max): string
     {
-        $text = self::trimmed($value);
+        $text = LatinDigits::of(self::trimmed($value));
 
         return match (true) {
             $text === '' => throw new InvalidCatalogAttribute($attribute, 'required'),

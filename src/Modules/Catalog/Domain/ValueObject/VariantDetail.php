@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Modules\Catalog\Domain\ValueObject;
 
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * A variant's value for an attribute shown in the details only (catalog.md §1.7, §9.3 #13): **text
  * in both languages, or a number** read with the attribute's unit ("Material: oak", "Load: 25 kg").
  * The number is kept as the decimal it was given — at most nine digits before the point and three
- * after, as its column holds it — never as a float.
+ * after, as its column holds it — never as a float. Arabic digits typed are read as 0-9 (amendment 12).
  */
 final readonly class VariantDetail
 {
@@ -35,7 +36,7 @@ final readonly class VariantDetail
      */
     public static function number(string $number): self
     {
-        $number = CatalogText::trimmed($number);
+        $number = LatinDigits::of(CatalogText::trimmed($number));
 
         if (preg_match('/\A-?[0-9]{1,9}(\.[0-9]{1,3})?\z/', $number) !== 1) {
             throw new InvalidCatalogAttribute('number', 'a number with at most nine digits before the point and three after');
