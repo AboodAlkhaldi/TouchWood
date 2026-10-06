@@ -1,0 +1,107 @@
+<?php
+
+declare(strict_types=1);
+
+// ما يُسمّى به كل إجراء مسجَّل في وحدة الكتالوج، لسجلّ التدقيق (frontend.md 3.5، E6). الإجراء الذي لا
+// سطر له هنا يُعرض كما سُجّل تمامًا.
+return [
+    'brand.added' => 'أُضيفت ماركة',
+    'brand.edited' => 'عُدّلت ماركة',
+    'brand.made_default' => 'جُعلت الماركة الافتراضية',
+    'brand.default_moved' => 'لم تعد الماركة الافتراضية',
+    'brand.deactivated' => 'أُوقفت ماركة',
+    'brand.activated' => 'أُعيد تفعيل ماركة',
+    'brand.deleted' => 'حُذفت ماركة',
+    'brand.logo_detached' => 'أُزيل شعار الماركة مع ملفه',
+
+    'category.added' => 'أُضيف قسم',
+    'category.edited' => 'عُدّل قسم',
+    'category.moved' => 'نُقل قسم',
+    'category.deactivated' => 'أُوقف قسم',
+    'category.activated' => 'أُعيد تفعيل قسم',
+    'category.deleted' => 'حُذف قسم',
+    'category.ranked' => 'رُتّب قسم في قائمة المتجر',
+    'category.image_detached' => 'أُزيلت صورة القسم مع ملفها',
+
+    'attribute.added' => 'أُضيفت خاصية',
+    'attribute.edited' => 'عُدّلت خاصية',
+    'attribute.deactivated' => 'أُوقفت خاصية',
+    'attribute.activated' => 'أُعيد تفعيل خاصية',
+    'attribute.deleted' => 'حُذفت خاصية',
+
+    'attribute_value.added' => 'أُضيفت قيمة خاصية',
+    'attribute_value.edited' => 'عُدّلت قيمة خاصية',
+    'attribute_value.deactivated' => 'أُوقفت قيمة خاصية',
+    'attribute_value.activated' => 'أُعيد تفعيل قيمة خاصية',
+    'attribute_value.deleted' => 'حُذفت قيمة خاصية',
+
+    'attribute_set.added' => 'أُضيفت مجموعة خصائص',
+    'attribute_set.edited' => 'عُدّلت مجموعة خصائص',
+    'attribute_set.deactivated' => 'أُوقفت مجموعة خصائص',
+    'attribute_set.activated' => 'أُعيد تفعيل مجموعة خصائص',
+    'attribute_set.deleted' => 'حُذفت مجموعة خصائص',
+
+    'label.added' => 'أُضيفت شارة',
+    'label.edited' => 'عُدّلت شارة',
+    'label.deactivated' => 'أُوقفت شارة',
+    'label.activated' => 'أُعيد تفعيل شارة',
+    'label.deleted' => 'حُذفت شارة',
+
+    'warranty.added' => 'أُضيف ضمان',
+    'warranty.edited' => 'عُدّل ضمان',
+    'warranty.deactivated' => 'أُوقف ضمان',
+    'warranty.activated' => 'أُعيد تفعيل ضمان',
+    'warranty.deleted' => 'حُذف ضمان',
+
+    'product.added' => 'أُنشئ منتج',
+    'product.edited' => 'عُدّل منتج',
+    'product.deleted' => 'حُذفت مسودة منتج',
+
+    'product.made_ready' => 'جُعل المنتج جاهزًا',
+    'product.archived' => 'أُرشف منتج',
+    'product.restored' => 'أُعيد منتج من الأرشيف',
+    'variant.archived' => 'أُرشف نوع منتج',
+    'variant.restored' => 'أُعيد نوع منتج من الأرشيف',
+    'product.gallery_changed' => 'تغيّرت صور منتج',
+    'product.photo_detached' => 'أُزيلت صورة منتج مع ملفها',
+    'product.search_words_changed' => 'تغيّرت كلمات بحث منتج',
+    'product.filter_values_changed' => 'تغيّرت قيم تصفية منتج',
+    'product.relations_changed' => 'تغيّرت المنتجات المرتبطة',
+    'variant.photos_changed' => 'تغيّرت صور نوع منتج',
+    'listing.chosen' => 'تغيّر اختيار المتجر',
+    'listing.terms_set' => 'تغيّرت شروط البيع',
+    'listing.unavailable_marked' => 'وُضع «غير متوفر الآن»',
+    'listing.unavailable_cleared' => 'أُزيل «غير متوفر الآن»',
+    'listing.labels_attached' => 'تغيّرت شارات المتجر',
+    'product.hidden' => 'أُخفي منتج مع قسمه أو ماركته',
+    'product.moved' => 'نُقل منتج عند إيقاف قسمه أو ماركته',
+    'product.shown' => 'ظهر منتج من جديد مع قسمه أو ماركته',
+    'product.left' => 'تُرك منتج في قسمه الموقوف',
+    'variant.photo_detached' => 'أُزيلت صورة نوع منتج مع ملفها',
+
+    'variant.added' => 'أُضيف نوع منتج',
+    'variant.edited' => 'عُدّل نوع منتج',
+    'variant.deleted' => 'حُذف نوع من مسودة منتج',
+    'variant.code_corrected' => 'صُحّح رمز نوع منتج',
+
+    'import.added' => 'رُفع ملف منتجات',
+    'import.checked_again' => 'أُعيد فحص أسماء ورموز ملف منتجات قبل الإدخال',
+    'import.accepted' => 'قُبلت منتجات ملف',
+    'import.archived' => 'أُرشفت منتجات ملف',
+    'import.deleted' => 'حُذفت مسودات منتجات ملف',
+    'import.bringing_in' => 'بدأ إدخال منتجات ملف',
+    'import.brought_in' => 'أُدخلت منتجات ملف',
+    'import.failed' => 'تعذّر إدخال منتجات ملف',
+    'import.edited' => 'عُدّلت منتجات ملف قبل إدخالها',
+    'import.discarded' => 'أُلغي ملف منتجات قبل إدخال منتجاته',
+    'import_name.decided' => 'قُرّر في اسم جديد من ملف منتجات',
+    'import_product.decided' => 'قُرّر في رمز من ملف منتجات',
+
+    'store_fill.added' => 'رُفع ملف متجر',
+    'store_fill_item.corrected' => 'صُحّح رمز في ملف متجر',
+    'store_fill.removed' => 'أُزيلت عناصر من ملف متجر',
+    'store_fill.switched_on' => 'فُعّلت عناصر ملف متجر في المتجر',
+
+    'word_pair.added' => 'أُضيف مرادف بحث',
+    'word_pair.deleted' => 'حُذف مرادف بحث',
+];

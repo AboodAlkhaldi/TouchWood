@@ -62,8 +62,8 @@ src/Modules/
 ├── Payments/     Gateway adapters, transactions, manual refunds,
 │                 bank transfer verification
 ├── Feedback/     Reviews, ratings, product questions & answers
-├── Sync/         External inventory provider adapters, mapping, outbox,
-│                 conflict log, reconciliation
+├── Sync/         External provider adapters (one way, per store), code
+│                 mapping, pull schedule, sync report
 │
 │  TIER 1 — commerce core
 ├── Catalog/      Products, variants, categories, brands, attributes,
@@ -211,7 +211,7 @@ Platform  →  (nothing)
 Access    →  Platform
 B2B       →  Platform, Access
 
-Catalog   →  Platform
+Catalog   →  Platform, Access                ← Access only to declare its permissions
 Pricing   →  Platform, Catalog, B2B          ← B2B for company approval status
 Inventory →  Platform, Catalog
 
@@ -327,7 +327,7 @@ STAGE 2b  Frontend      Inertia + React + shadcn with SSR; auth pages, admin sig
           foundation    Platform's admin screens
 STAGE 3   B2B           company lifecycle
 ──────────── everything above depends on nothing external ────────────
-STAGE 4   Catalog       BLOCKED on the external provider schema
+STAGE 4   Catalog       products from our own JSON import — no longer blocked (handoff §17)
 STAGE 5   Pricing · Inventory · Sync
 STAGE 6   Sales · Promotions · Loyalty · Feedback
 STAGE 7   Payments · Shipping        (blocked on vendor data)

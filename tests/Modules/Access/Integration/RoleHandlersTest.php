@@ -75,7 +75,7 @@ describe('creating a role', function () {
 
         expect(fn () => newRole(RoleLevel::Staff, Fx::names($permissions)))->toThrow($error);
     })->with([
-        'an undeclared action' => [['catalog.product.update'], UnknownPermission::class],
+        'an undeclared action' => [['warehouse.bin.move'], UnknownPermission::class],
         'an automatic action' => [[AccessPermissions::ACCOUNT_REGISTER], UnknownPermission::class],
         'a Super Admin action' => [[PlatformPermissions::STORE_CREATE], ReservedPermission::class],
         'a management action in a staff role' => [[AccessPermissions::STAFF_INVITE], AdminOnlyPermission::class],
@@ -217,7 +217,7 @@ describe('editing a saved role', function () {
         expect(fn () => app(UpdateRoleHandler::class)->handle(new UpdateRole($roleId, permissions: Fx::names($permissions))))->toThrow($error)
             ->and(Fx::rolePermissions($roleId))->toBe([PlatformPermissions::STORE_UPDATE]);
     })->with([
-        'an undeclared action' => [['catalog.product.update'], UnknownPermission::class],
+        'an undeclared action' => [['warehouse.bin.move'], UnknownPermission::class],
         'a Super Admin action' => [[PlatformPermissions::STORE_CREATE], ReservedPermission::class],
         'a management action in a staff role' => [[AccessPermissions::STAFF_ASSIGN_ROLE], AdminOnlyPermission::class],
         'an action the author does not hold' => [[PlatformPermissions::SETTINGS_UPDATE], PermissionEscalation::class],
@@ -300,19 +300,19 @@ describe('editing a saved role', function () {
 
     it('leaves a name no module declares alone: an edit still works, and a clone leaves it behind', function () {
         $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
-        DB::table('access.role_permissions')->insert(['role_id' => $roleId, 'permission' => 'catalog.product.update']);
+        DB::table('access.role_permissions')->insert(['role_id' => $roleId, 'permission' => 'warehouse.bin.move']);
         Fx::actAsAdmin(['*'], ROLE_ADMIN_ACTIONS);
 
         app(UpdateRoleHandler::class)->handle(new UpdateRole($roleId, nameEn: 'Renamed'));
         $cloneId = app(CloneRoleHandler::class)->handle(new CloneRole($roleId, 'نسخة', 'Copy'));
 
-        expect(Fx::rolePermissions($roleId))->toBe(['catalog.product.update', PlatformPermissions::STORE_UPDATE])
+        expect(Fx::rolePermissions($roleId))->toBe([PlatformPermissions::STORE_UPDATE, 'warehouse.bin.move'])
             ->and(Fx::rolePermissions($cloneId))->toBe([PlatformPermissions::STORE_UPDATE]);
     });
 
     it('never lets a limited admin hand out a name no module declares', function () {
         $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
-        DB::table('access.role_permissions')->insert(['role_id' => $roleId, 'permission' => 'catalog.product.update']);
+        DB::table('access.role_permissions')->insert(['role_id' => $roleId, 'permission' => 'warehouse.bin.move']);
         $staffId = Fx::staff();
         Fx::actAsAdmin(['*'], ROLE_ADMIN_ACTIONS);
 
@@ -364,7 +364,7 @@ describe('deleting a saved role', function () {
     it('moves holders to a replacement that still holds a name no module declares', function () {
         $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
         $replacementId = Fx::role([PlatformPermissions::STORE_UPDATE]);
-        DB::table('access.role_permissions')->insert(['role_id' => $replacementId, 'permission' => 'catalog.product.update']);
+        DB::table('access.role_permissions')->insert(['role_id' => $replacementId, 'permission' => 'warehouse.bin.move']);
         $holderId = Fx::staff();
         Fx::assign($holderId, $roleId, ['sa']);
         // A Super Admin: a limited author is refused such a replacement by requireCovers, because
@@ -381,7 +381,7 @@ describe('deleting a saved role', function () {
     it('refuses a limited author that same replacement: the dormant name is not theirs to hand out', function () {
         $roleId = Fx::role([PlatformPermissions::STORE_UPDATE]);
         $replacementId = Fx::role([PlatformPermissions::STORE_UPDATE]);
-        DB::table('access.role_permissions')->insert(['role_id' => $replacementId, 'permission' => 'catalog.product.update']);
+        DB::table('access.role_permissions')->insert(['role_id' => $replacementId, 'permission' => 'warehouse.bin.move']);
         $holderId = Fx::staff();
         Fx::assign($holderId, $roleId, ['sa']);
         Fx::actAsAdmin(['sa'], ROLE_ADMIN_ACTIONS);

@@ -11,5 +11,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(PlatformSeeder::class);
+        // The default brand (catalog.md amendment 1(c)).
+        $this->call(CatalogSeeder::class);
     }
 }

@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
+use Modules\Access\Application\Permission\InvalidPermissionDefinition;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionAudience;
 use Modules\Access\Public\Enums\PermissionGroup;
@@ -83,6 +84,10 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'access.account.anonymize',
         'access.role.manage',
         'access.super_admin.manage',
+        // Reserved: the import reaches every store at once, and a job belongs to none (catalog.md §3).
+        'catalog.import.run',
+        'catalog.listing.rebuild',
+        'catalog.search_log.prune',
         'platform.currency.create',
         // Reserved, as creating one is (platform.md §9.7, owner 2026-10-04).
         'platform.currency.delete',
@@ -122,6 +127,23 @@ it('keeps the management actions out of staff roles, and viewing staff in them',
     ]);
     expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::SETTINGS_UPDATE);
     expect(AccessPermissions::adminOnly())->not->toContain(AccessPermissions::STAFF_VIEW);
+});
+
+it('lets a module mark a permission a role can hold admin-only, held to the management actions\' rule (Catalog amendment 6(h))', function () {
+    $catalog = new InMemoryPermissionCatalog;
+    $catalog->declare('demo', new PermissionDefinitionDto('demo.report.fill', group: PermissionGroup::Catalog, adminOnly: true));
+    $catalog->declare('demo', new PermissionDefinitionDto('demo.report.view', group: PermissionGroup::Catalog));
+
+    expect($catalog->isAdminOnly('demo.report.fill'))->toBeTrue()
+        ->and($catalog->isAdminOnly('demo.report.view'))->toBeFalse()
+        ->and($catalog->isAdminOnly('demo.report.unknown'))->toBeFalse()
+        // Access's own and Platform's stay admin-only through the same question.
+        ->and($catalog->isAdminOnly(AccessPermissions::STAFF_INVITE))->toBeTrue()
+        ->and($catalog->isAdminOnly(PlatformPermissions::JOBS_MANAGE))->toBeTrue()
+        ->and(fn () => $catalog->declare('demo', new PermissionDefinitionDto('demo.report.run', reserved: true, kind: PermissionKind::Global, adminOnly: true)))
+        ->toThrow(InvalidPermissionDefinition::class, 'cannot be admin-only')
+        ->and(fn () => $catalog->declare('demo', new PermissionDefinitionDto('demo.report.own', PermissionAudience::EveryStaff, adminOnly: true)))
+        ->toThrow(InvalidPermissionDefinition::class, 'cannot be admin-only');
 });
 
 it('passes its own check of the renames and removals every module declared', function () {
@@ -210,9 +232,10 @@ it('gives every action a role can hold a business area, and names every area in 
     }
 
     // The areas the modules actually use today (owner, 2026-09-19 and 2026-09-22); B2B's staff jobs
-    // fill Companies (b2b.md amendment 10), the failed jobs System (owner, 2026-09-29).
+    // fill Companies (b2b.md amendment 10), the failed jobs System (owner, 2026-09-29), Catalog's
+    // jobs Catalog (catalog.md §3).
     ksort($used);
-    expect(array_keys($used))->toBe(['audit', 'companies', 'customers', 'media', 'staff_and_permissions', 'store_settings', 'system']);
+    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'media', 'staff_and_permissions', 'store_settings', 'system']);
 });
 
 it('names every permission in Arabic and English', function () {
