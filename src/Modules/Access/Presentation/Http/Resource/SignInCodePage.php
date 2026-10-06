@@ -10,7 +10,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 /**
  * A3 and A7 - the code screen (frontend.md 3.1).
  *
- * How many boxes, how long until another code may be asked for and how many days a browser is
+ * How many boxes, how long until another code may be asked for and how many hours a browser is
  * trusted all come from settings, never from the screen: an admin changes them without anybody
  * touching this file.
  */
@@ -21,7 +21,7 @@ final class SignInCodePage extends Data
         /** Masked by Access before it reaches the page: the last three digits only (stage 2b, P4). */
         public ?string $maskedPhone,
         public int $length,
-        public int $trustDays,
+        public int $trustHours,
         /** Seconds until another code may be asked for; 0 means now. */
         public int $resendIn,
         /** Where the code is sent: the sign-in flow, or an invitation being confirmed. */

@@ -53,6 +53,15 @@ return [
         'scope_store' => 'This Store',
     ],
 
+    // The staff view (access.md §1.11): the panel's way to the shop, and the shop's way back. The
+    // shop reads these too, as it ships this file (StorefrontArea::WORDS).
+    'staff_view' => [
+        'open' => 'View Store',
+        'line' => 'Staff view: you see this store as a visitor does, and can\'t order.',
+        'back' => 'Back to Admin Panel',
+        'leave' => 'Leave Staff View',
+    ],
+
     // The person block at the foot of the sidebar (frontend.md §3.1): their own account, and the
     // way out. It belongs to the frame rather than to any one module's screens.
     'account_settings' => 'Account & Settings',

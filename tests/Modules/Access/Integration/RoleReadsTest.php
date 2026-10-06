@@ -163,6 +163,7 @@ describe('what may I do', function () {
             PlatformPermissions::STORE_UPDATE => [Fx::storeId('sa')],
             PlatformPermissions::MEDIA_UPLOAD => null,
             AccessPermissions::OWN_ACCOUNT_UPDATE => null,
+            AccessPermissions::STAFF_VIEW_OPEN => null,
         ]);
     });
 

@@ -39,7 +39,7 @@ return [
     // The code field's one label: shadcn's InputOTP is one input, not a box per digit.
     'code_label' => 'رمز الرسالة',
     'code_incomplete' => 'أدخل أرقام الرمز كلها (:count).',
-    'trust_browser' => 'الوثوق بهذا المتصفح لمدة :days يومًا',
+    'trust_browser' => 'الوثوق بهذا المتصفح لمدة :hours ساعة',
     'confirm' => 'التحقق من الرمز',
     'resend' => 'إرسال رمز آخر',
     'resend_in' => 'رمز آخر بعد :seconds ثانية',

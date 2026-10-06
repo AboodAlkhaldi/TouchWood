@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ChevronDown, LogOut, UserRound } from 'lucide-react';
+import { ChevronDown, LayoutDashboard, LogOut, UserRound } from 'lucide-react';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
 import { ThemeToggle } from '@/components/Preferences';
@@ -43,7 +43,7 @@ type Props = {
 
 export function StorefrontLayout({ title, children }: Props) {
     const page = usePage<SharedProps>();
-    const { shop, shopper, shopperLines, locale } = page.props;
+    const { shop, shopper, shopperLines, staffView, locale } = page.props;
 
     return (
         <>
@@ -72,13 +72,16 @@ export function StorefrontLayout({ title, children }: Props) {
 
                             {/* Only under a store: the country page has none, and every address in
                                 the shop is written inside one. */}
-                            {shop === null || shop === undefined ? null : (
+                            {shop === null || shop === undefined ? null : staffView ? (
+                                <StaffViewMenu staffView={staffView} shopCode={shop.code} />
+                            ) : (
                                 <Shopper shopper={shopper ?? null} />
                             )}
                         </div>
                     </div>
                 </header>
 
+                {staffView ? <StaffViewLine /> : null}
                 <ShopperLines lines={shopperLines ?? []} />
 
                 <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
@@ -158,6 +161,65 @@ function Shopper({ shopper }: { shopper: SharedProps['shopper'] }) {
 }
 
 /**
+ * A staff member looking at the shop from the panel (access.md §1.11): their name, which opens the
+ * way back to the panel and the way out of the view. Leaving is a post, last; it is not destructive -
+ * the shop simply shows whoever its own session holds again.
+ *
+ * The panel is a plain link, not an Inertia visit: it is the other area, with its own session and
+ * its own frame. Leaving posts to the top level - an off store's pages only read during a staff
+ * view - naming the store, which it goes back to if that store is on.
+ */
+function StaffViewMenu({ staffView, shopCode }: { staffView: NonNullable<SharedProps['staffView']>; shopCode: string }) {
+    const t = useTranslator();
+    const link = useLink();
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" data-test="staff-view-menu">
+                    {staffView.name}
+                    <ChevronDown aria-hidden="true" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48 rounded-lg">
+                <DropdownMenuLabel className="truncate font-normal text-muted-foreground">{staffView.name}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                    <a href="/admin" data-test="staff-view-panel">
+                        <LayoutDashboard />
+                        {t('admin.panel')}
+                    </a>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem data-test="staff-view-leave" onSelect={() => router.post(link('storefront.staff-view.leave'), { store: shopCode })}>
+                    <LogOut />
+                    {t('admin.staff_view.leave')}
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+/**
+ * The line under the header while a staff view holds (frontend.md §2.3): what this is, and the way
+ * back - in the shopper lines' place and look, so nothing new is drawn.
+ */
+function StaffViewLine() {
+    const t = useTranslator();
+
+    return (
+        <div className="border-b border-line bg-brand-soft text-ink" data-test="staff-view-line">
+            <p className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-copy-14">
+                <span>{t('admin.staff_view.line')}</span>
+                <a href="/admin" className="font-medium underline underline-offset-4" data-test="staff-view-back">
+                    {t('admin.staff_view.back')}
+                </a>
+            </p>
+        </div>
+    );
+}
+
+/**
  * What other modules have to tell the customer signed in, on every page of the shop (access.md
  * amendment 50): B2B saying why a company account cannot order yet. Each line is a link to where it
  * can be dealt with. The words are the module's, already in the page's language.
@@ -211,9 +273,10 @@ function CountrySwitch({ shop, locale }: { shop: NonNullable<SharedProps['shop']
             onChange={(event) => router.visit(`/${event.target.value}/${locale}`)}
             className="w-40"
         >
+            {/* An off store is listed only during a staff view that covers it, and says so. */}
             {shop.available.map((store) => (
                 <NativeSelectOption key={store.code} value={store.code}>
-                    {store.name}
+                    {store.isActive ? store.name : `${store.name} (${t('admin.store.off')})`}
                 </NativeSelectOption>
             ))}
         </NativeSelect>

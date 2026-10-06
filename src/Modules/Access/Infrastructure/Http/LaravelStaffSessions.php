@@ -12,6 +12,7 @@ use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Session\PendingSignIn;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
+use Modules\Access\Application\StaffView\StaffViews;
 use Shared\Application\Actor;
 
 /**
@@ -35,6 +36,7 @@ final readonly class LaravelStaffSessions implements StaffSessions
         private RequestActor $actor,
         private GrantsReader $grants,
         private StaffSecuritySettings $settings,
+        private StaffViews $views,
     ) {}
 
     public function signedIn(): ?string
@@ -154,6 +156,9 @@ final readonly class LaravelStaffSessions implements StaffSessions
 
     public function end(): void
     {
+        // A staff view never outlives the admin session it came from (spec §1.11): signed out, or
+        // found idle, expired or out of date here, its passes end with it.
+        $this->views->endForThisAdminSession();
         $this->session()?->invalidate();
         $this->actor->set($this->actor->guest());
     }

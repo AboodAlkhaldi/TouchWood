@@ -53,6 +53,15 @@ return [
         'scope_store' => 'هذا المتجر',
     ],
 
+    // The staff view (access.md §1.11): the panel's way to the shop, and the shop's way back. The
+    // shop reads these too, as it ships this file (StorefrontArea::WORDS).
+    'staff_view' => [
+        'open' => 'عرض المتجر',
+        'line' => 'عرض الموظف: ترى هذا المتجر كما يراه الزائر، ولا يمكنك الطلب.',
+        'back' => 'العودة إلى لوحة الإدارة',
+        'leave' => 'إنهاء عرض الموظف',
+    ],
+
     // كتلة الشخص أسفل القائمة الجانبية: حسابه الخاص، وطريق الخروج. وهي من الإطار لا من شاشات
     // وحدة بعينها.
     'account_settings' => 'الحساب والإعدادات',

@@ -53,6 +53,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §3.5 E3 | **The currencies screen names the stores using each currency** and deletes one no store uses (platform.md §9.7); its numbers in the page's digits | Owner, 2026-10-04 (fix list point 11, D15) |
 | §3.5 E3 | **The currencies' buttons**: each form ends with Cancel and its main button side by side; the button that opened it steps out while it is open; Delete Currency, for one no store uses, sits apart on the edit form footer's start side | Owner, 2026-10-06 |
 | §3.5 E1 | **Add Store** on the stores screen, for a Super Admin (platform.md §9.7 #3, #4): everything a store is, at once — code, both names, the country from the shared country picker (filling its time zone when it has only one), tax, time zone, position — and its currency **picked, never typed**, from the currencies no store uses, or **made in the same form** ("New Currency…", and the only way when none is free); the store is added switched off. Replaces "no store is made here" | Owner, 2026-10-06 |
+| §2.2, §2.3 | **The staff view** (the fix list, point 13; D13 (b), D14): View Store in the panel's header; in the shop, the staff-view line with Back to Admin Panel, and a person menu with Admin Panel and Leave Staff View; the builder's picks marked [PROVISIONAL] | Owner, 2026-10-05 (access.md amendment 60) |
 
 ---
 
@@ -589,7 +590,10 @@ From the design, with the decided rules applied:
   page (the design's "This screen is next in the build queue"), **to Super Admins only**. Their
   permissions do not exist yet, so they cannot be checked; everyone else sees only screens they
   can use. A module's entries become real, permission-checked items when its screens ship.
-- **Header:** the sidebar toggle, breadcrumbs, and "View store"; the store picker sits in the
+- **Header:** the sidebar toggle, breadcrumbs, and **View Store** at its end (2026-10-05, the staff
+  view — access.md §1.11): shadcn's outline Button, small, with a store icon, shown while the panel
+  works in a store; it opens that store's shop in the same tab, as the staff member, viewing and
+  never ordering **[PROVISIONAL: same tab]**. The store picker sits in the
   sidebar's own header (§1.11: `sidebar-07`'s team switcher), with Home as its first row; with one
   store the logo opens Home, and with two or more it opens the store menu whose first row is Home —
   the block's logo and store are one button. Home is also the menu's first item (the home, below).
@@ -633,6 +637,12 @@ no storefront design and still holds for anything those files do not show:
   staying on the same page), and "Sign in", or the customer's name opening a menu with My Account
   and Sign Out (§1.11 #4). Search and the cart come with Catalog and Sales.
 - A small footer, holding the theme switch (§1.11, 2026-10-02).
+- **The staff view** (2026-10-05; access.md §1.11): while a staff member views the shop from the
+  panel, **a line under the header**, in the place and look of the shopper lines (amendment 50 —
+  nothing new is built): "Staff view: you see this store as a visitor does, and can't order." with
+  **Back to Admin Panel**. The person menu shows **their name**, opening **Admin Panel** and **Leave
+  Staff View** (a post, last); no Sign in, no My Account. For a Super Admin, the store switch lists
+  the off stores too, marked Off (access.md §1.11). **[PROVISIONAL: the words]**
 - **[DECIDED 2026-09-19] Platform's two Blade pages are rebuilt in React:** the country page at
   `brand.com/` and the placeholder store home (platform.md §3). Their tests move with them.
 
@@ -697,7 +707,7 @@ to the dashboard.
 |---|---|---|---|---|
 | A1 | Sign in | `/admin/sign-in` | `access.staff.sign-in` | Work email, password, "Forgot password?". No "keep me signed in" (§2.7). |
 | A2 | New phone | `/admin/sign-in/phone` | `access.staff.sign-in.phone` | Only after a correct password, for an account with no phone (a Super Admin whose phone was reset by console, access.md §1.6). A phone number with its country code. |
-| A3 | SMS code | `/admin/sign-in/code` | `access.staff.sign-in.code`; resend: `access.staff.sign-in.resend` | "Code sent to •••••••180": **[DECIDED 2026-09-19]** the last 3 digits of the number, passed masked by Access (§4). One box per digit (the length is a setting, 4–8, Access amendment 22); "Trust this browser for 30 days" (the number of days from the setting); "Resend code", disabled with a countdown until a resend is allowed. |
+| A3 | SMS code | `/admin/sign-in/code` | `access.staff.sign-in.code`; resend: `access.staff.sign-in.resend` | "Code sent to •••••••180": **[DECIDED 2026-09-19]** the last 3 digits of the number, passed masked by Access (§4). One box per digit (the length is a setting, 4–8, Access amendment 22); "Trust this browser for 12 hours" (the number of hours from the setting; Access amendment 61); "Resend code", disabled with a countdown until a resend is allowed. |
 | A4 | Forgot password | `/admin/password/forgot` | `access.staff.password.forgot` | Email. The answer is always the same, whether or not the account exists. |
 | A5 | New password | `/admin/password/reset/{token}` | `access.staff.password.reset` | New password and its confirmation, with the rule in words (at least 12 characters, from the setting). Afterwards: the sign-in page, where the SMS code is still asked. |
 | A6 | Accept invitation | `/admin/invitation/{token}` | `access.staff.invitation.accept` | The person's name and email (read only), a password and its confirmation, and the phone the admin entered, which they may correct (Access amendment 15). |
@@ -974,7 +984,7 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
 
 **In a browser**
 
-- Admin sign-in: password → code → dashboard; the trusted browser skips the code for 30 days; a new
+- Admin sign-in: password → code → dashboard; the trusted browser skips the code for 12 hours; a new
   browser asks again; a wrong code, an expired code and the hourly limit each show their message.
 - Accepting an invitation: set a password, correct a mistyped phone, confirm the code, land signed
   in. An expired link shows the "link no longer works" page.
