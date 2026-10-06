@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Mail\Transport\ArrayTransport;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Process;
@@ -14,6 +15,8 @@ use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\CustomerStatus;
 use Modules\Access\Public\Enums\StaffStatus;
+use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Part\DataPart;
 
 function staffDto(string $locale): StaffDto
 {
@@ -48,6 +51,24 @@ it('emails an invitation to the staff member, in their language, with the link',
     'Arabic' => ['ar', 'دعوتك إلى لوحة الإدارة', 'rtl'],
     'English' => ['en', 'Your invitation to the admin panel', 'ltr'],
 ]);
+
+it('carries the logo inside the email itself, on its cream tile (frontend.md §1.11)', function () {
+    // A real send through the test mailer (phpunit.xml's "array"): only a sent email has the mail
+    // that the logo is embedded in.
+    app(SecurityMessages::class)->staffInvitation(staffDto('en'), 'https://example.test/admin/invitation/abc');
+
+    $transport = app('mailer')->getSymfonyTransport();
+    $sent = $transport instanceof ArrayTransport ? $transport->messages()->last()?->getOriginalMessage() : null;
+
+    expect($sent)->toBeInstanceOf(Email::class);
+
+    /** @var Email $sent */
+    $images = array_filter($sent->getAttachments(), static fn (DataPart $part): bool => $part->getMediaType().'/'.$part->getMediaSubtype() === 'image/png');
+
+    expect($images)->toHaveCount(1)
+        ->and((string) $sent->getHtmlBody())->toContain('src="cid:')
+        ->and((string) $sent->getHtmlBody())->toContain('alt="TouchWood"');
+});
 
 it('sends the email-change link to the new address, not the current one', function () {
     Mail::fake();

@@ -28,10 +28,14 @@
 
     <title inertia>{{ config('app.name') }}</title>
 
-    {{-- The tab's icon: the logo on its navy tile, readable on a light or a dark tab bar (owner's
-         logo answers, 2026-10-04). The PNG sizes for older browsers and phones' home screens join
-         it when the owner's exported files arrive. --}}
+    {{-- The icons are the owner's files of 2026-10-07 (frontend.md §1.11): the tab's, a simpler mark
+         on the navy tile that still reads at 32 px - the SVG, and the same drawn at 32 px for a
+         browser without SVG icons; a phone's home screen gets the navy square, edge to edge, which
+         the phone rounds itself (iPhones from apple-touch-icon, Android from the manifest). --}}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
 
     {{-- The design's fonts, downloaded at build time and served from this domain (decision of
          2026-09-19): no page asks a font service for anything. --}}
