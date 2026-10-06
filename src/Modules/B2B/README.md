@@ -220,8 +220,9 @@ staff names.
 
 **Typed text is accepted two ways** (`CompanyText`): one line for names and numbers; lines, with
 the break kept as `\n`, for the address and for reasons and notes. Each column has a CHECK behind
-it, and a test that the database takes everything the code takes — Arabic names, and numbers in
-Arabic-Indic digits.
+it, and a test that the database takes everything the code takes — Arabic names, and numbers typed
+in Arabic-Indic digits, which `RegistrationNumber` and `CompanyAddress` save as 0–9 (amendment 29;
+the owner's Latin digits rule, 2026-10-06).
 
 ## The staff side (step 4)
 

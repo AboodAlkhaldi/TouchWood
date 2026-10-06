@@ -16,7 +16,7 @@ final class HomeFigureBlock extends Data
     public function __construct(
         public string $label,
         public int $value,
-        /** `count` or `bytes`: the page writes a size as a size, in its own digits. */
+        /** `count` or `bytes`: the page writes a size as a size, in Latin digits. */
         public string $unit,
         public ?string $href,
         public ?string $tone,

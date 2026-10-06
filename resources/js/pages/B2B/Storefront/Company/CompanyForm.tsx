@@ -21,7 +21,7 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { InputGroup, InputGroupInput, InputGroupTextarea } from '@/components/ui/input-group';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
-import { intlLocale } from '@/lib/digits';
+import { intlLocale, toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { useReturnFocus } from '@/lib/use-return-focus';
@@ -170,7 +170,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
     const done = required.filter((type) => held(type.id) !== undefined).length;
     // A held paper under a type no longer on the list: it must be removed before sending.
     const orphans = draft.documents.filter((document) => !page.documentTypes.some((type) => type.id === document.documentTypeId));
-    // Numbers in a sentence in the page's digits: Arabic-Indic on an Arabic page (frontend.md §1.8).
+    // Numbers in a sentence, in Latin digits on every page (frontend.md §1.8).
     const figure = (value: number) => new Intl.NumberFormat(intlLocale(locale)).format(value);
     const missing = [...missingItems(page, draft, lastSent, t, figure), ...(Object.keys(standings).length > 0 ? [t('b2b::company.missing_marked')] : [])];
     // Why Send cannot be pressed now, if it cannot: a save still out, or something still missing.
@@ -649,7 +649,14 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
                 {multiline ? (
                     <InputGroupTextarea {...common} rows={3} onChange={(event) => setValue(event.target.value)} />
                 ) : (
-                    <InputGroupInput {...common} className={figures ? 'tw-figure' : undefined} onChange={(event) => setValue(event.target.value)} />
+                    <InputGroupInput
+                        {...common}
+                        className={figures ? 'tw-figure' : undefined}
+                        // A number's digits in Latin as they are typed, as the server saves them (b2b.md
+                        // amendment 29): what is on screen and what is saved stay one string, so the
+                        // save's answer is recognised as this field's own.
+                        onChange={(event) => setValue(figures ? toLatinDigits(event.target.value) : event.target.value)}
+                    />
                 )}
                 <SaveMark look={look} align={multiline ? 'block-end' : 'inline-end'} />
             </InputGroup>

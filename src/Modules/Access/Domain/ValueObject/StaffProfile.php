@@ -6,6 +6,7 @@ namespace Modules\Access\Domain\ValueObject;
 
 use DateTimeImmutable;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * A staff member's profile (handoff §7.6). Everything but the address is required at invitation
@@ -93,9 +94,10 @@ final readonly class StaffProfile
         return $date;
     }
 
+    /** Digits in Latin, however they were typed (amendment 63). */
     private static function address(?string $value): ?string
     {
-        $value = $value === null ? null : trim($value);
+        $value = $value === null ? null : LatinDigits::of(trim($value));
 
         if ($value === '' || $value === null) {
             return null;

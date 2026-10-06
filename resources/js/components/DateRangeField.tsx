@@ -21,8 +21,8 @@ const DateRangeCalendar = lazy(() => import('@/components/DateRangeCalendar'));
 |
 | The days are plain dates, YYYY-MM-DD, as the filter has always sent them, and they are **UTC
 | days**, as the server compares them (the audit log's reader): "today" is today in UTC, so the
-| presets ask for what they say. The field says so under it. An Arabic page shows Arabic-Indic
-| digits, on the button and in the calendar, as every date in the panel does (§1.8). A date the
+| presets ask for what they say. The field says so under it. An Arabic page shows Latin digits,
+| on the button and in the calendar, as every date in the system does (§1.8, 2026-10-06). A date the
 | address holds that is not a plain day is treated as none, never as a broken page.
 */
 

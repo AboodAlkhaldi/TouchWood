@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\B2B\Domain\ValueObject;
 
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * A Commercial Registration number or a tax number (b2b.md §1.1, handoff §8.1).
@@ -27,7 +28,8 @@ final readonly class RegistrationNumber
      */
     public static function of(string $attribute, string $value): self
     {
-        $number = CompanyText::oneLine($attribute, $value, self::MAX);
+        // Digits in Latin, however they were typed, so a number is matched as one string (amendment 29).
+        $number = CompanyText::oneLine($attribute, LatinDigits::of($value), self::MAX);
 
         if (preg_match('/\A[\p{L}\p{N} \-]+\z/u', $number) !== 1) {
             throw new InvalidCompanyAttribute($attribute, 'letters, digits, spaces and dashes only');

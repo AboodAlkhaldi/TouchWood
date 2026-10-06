@@ -155,6 +155,9 @@ describe('the company list (§3.2, amendment 10(g), (j))', function () {
             ->and(staffCompanyViewIds(staffCompanyViewList(search: '3001111')))->toBe([$noor])
             ->and(staffCompanyViewIds(staffCompanyViewList(search: '100%')))->toBe([$delta])
             ->and(staffCompanyViewIds(staffCompanyViewList(search: '%')))->toBe([$delta])
+            // Typed on an Arabic or Persian keyboard: the same number, saved in Latin (amendment 29).
+            ->and(staffCompanyViewIds(staffCompanyViewList(search: '٢٠٢٠٢٢٢')))->toBe([$delta])
+            ->and(staffCompanyViewIds(staffCompanyViewList(search: '۳۰۰۱۱۱۱')))->toBe([$noor])
             ->and(staffCompanyViewIds(staffCompanyViewList(status: 'pending')))->toEqualCanonicalizing([$noor, $delta])
             ->and(staffCompanyViewList(status: 'APPROVED')->total)->toBe(1);
     });

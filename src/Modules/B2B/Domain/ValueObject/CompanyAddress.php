@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\B2B\Domain\ValueObject;
 
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * The registered address (b2b.md §1.1, §5.1): **picked from the account's saved addresses** and
@@ -38,7 +39,9 @@ final readonly class CompanyAddress
      */
     public static function saved(string $addressId, string $formatted): self
     {
-        return new self(CompanyText::lines('address', $formatted, self::MAX), strtolower($addressId));
+        // Digits in Latin (amendment 29): Access saves them so since 2026-10-06, and an older saved
+        // address is turned here as it is copied.
+        return new self(CompanyText::lines('address', LatinDigits::of($formatted), self::MAX), strtolower($addressId));
     }
 
     /**
@@ -48,7 +51,7 @@ final readonly class CompanyAddress
      */
     public static function of(string $value): self
     {
-        return new self(CompanyText::lines('address', $value, self::MAX), null);
+        return new self(CompanyText::lines('address', LatinDigits::of($value), self::MAX), null);
     }
 
     public static function reconstitute(string $value, ?string $addressId = null): self

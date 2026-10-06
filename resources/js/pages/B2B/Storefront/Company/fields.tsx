@@ -88,7 +88,7 @@ export function check(value: string, rule: CompanyFieldRuleData | undefined, req
     return null;
 }
 
-/** Numbers in a sentence in the page's digits: Arabic-Indic on an Arabic page (frontend.md §1.8). */
+/** Numbers in a sentence, in Latin digits on every page (frontend.md §1.8). */
 function figures(locale: 'ar' | 'en'): (value: number) => string {
     const format = new Intl.NumberFormat(intlLocale(locale));
 

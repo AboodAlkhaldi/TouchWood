@@ -17,6 +17,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegen
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { AddressFormatField, AddressFormatPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
@@ -411,19 +412,23 @@ function FieldItem({
                         value={item.key}
                         onChange={(event) => onEdit({ key: event.target.value })}
                     />
+                    {/* Text with a numeric keyboard, as every number input (frontend.md §1.8): a number
+                        box drops a digit typed on an Arabic keyboard before it can be turned into 0-9. */}
                     <TextField
                         id={`length-${index}`}
-                        type="number"
+                        inputMode="numeric"
                         label={t('access::address_formats.max_length')}
                         helper={t('access::address_formats.max_length_hint', { count: maxLength })}
                         error={fieldError(errors, index, 'max_length')}
-                        min={1}
-                        max={maxLength}
                         dir="ltr"
                         inputClassName="tw-figure"
                         required
-                        value={item.max_length}
-                        onChange={(event) => onEdit({ max_length: Number(event.target.value) })}
+                        value={item.max_length === 0 ? '' : String(item.max_length)}
+                        onChange={(event) => {
+                            const digits = toLatinDigits(event.target.value).replace(/\D/g, '');
+
+                            onEdit({ max_length: digits === '' ? 0 : Number(digits) });
+                        }}
                     />
                     <TextField
                         id={`label-ar-${index}`}

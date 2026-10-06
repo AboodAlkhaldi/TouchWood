@@ -18,7 +18,7 @@ use Modules\Platform\Public\Enums\MediaVisibility;
  *
  * It decides nothing: who may open the library, and what may be done to a file, are the handler's
  * answers. What happens here is a thumbnail for the images that have one. A file's size goes as its
- * bytes: the screen writes it in its own language and digits (the owner's fix list, 2026-10-04).
+ * bytes: the screen writes it in its own language, in Latin digits (the owner's fix list, 2026-10-04).
  *
  * A private file's row carries its name, its upload date and where it is used (B2B step 3,
  * amendment 6(b)), and what describing or deleting it needs — its two descriptions, and whether a
