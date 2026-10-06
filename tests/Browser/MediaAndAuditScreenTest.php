@@ -84,7 +84,7 @@ it('draws the media library and switches between the table and the grid', functi
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]')
         ->assertPathIs('/admin')
-        ->navigate('/admin/media');
+        ->navigate('/admin/media', BROWSER_PAGE_LOAD);
 
     $page->assertSee('Media Library')
         ->assertSee($filename)

@@ -54,3 +54,14 @@ function signedInToPanel(mixed $page): bool
 {
     return browserUntil($page, "window.location.pathname === '/admin'");
 }
+
+/*
+| Opening a page by its address. The plugin gives navigate() one second to load the page, and when
+| the page is slower - a busy machine, a full suite - it asks for the same page again; the first
+| answer then lands in the middle of the second and the test fails with "Navigation to … is
+| interrupted by another navigation to …" (found 2026-10-06: the app itself asks for nothing). Given
+| as navigate()'s options, this lets the load take up to five seconds, as the first page of every
+| test already may, before the plugin asks again. Used where that failure was seen (owner,
+| 2026-10-06).
+*/
+const BROWSER_PAGE_LOAD = ['timeout' => 5_000];
