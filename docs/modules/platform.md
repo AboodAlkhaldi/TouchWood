@@ -1094,7 +1094,7 @@ stores" and the digits.
 
 ### 9.8 The admin home — 2026-10-04/05 (the owner's fix list, point 6)
 
-(§9.7 is the currencies page, on its own branch.) The owner asked for a home with "a brief of
+The owner asked for a home with "a brief of
 everything", for one store or all stores. **Answers:** D11 (a) — the frame and the first cards now;
 D12 — the first cards are **Company Approvals** and **Stores, failed jobs, storage**, and the sales
 figures (products sold, money taken, each store's sales, products about to run out) come with the
@@ -1107,7 +1107,7 @@ modules that hold them; the home opens on **All Stores** for a reader whose reac
 
 ### 9.9 The staff view's off stores — 2026-10-05 (the owner's fix list, point 13)
 
-(§9.7 and §9.8 are the currencies page and the admin home, on their own branches.) D14: the staff
+D14: the staff
 view shows the shop as a visitor sees it, **plus the stores that are switched off** (access.md §1.11,
 amendment 60).
 
