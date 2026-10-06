@@ -266,7 +266,7 @@ describe('a category page', function () {
             ->and($page)->toBeInstanceOf(CategoryPage::class)
             ->and($page instanceof CategoryPage ? $page->products->cards : null)->toBe([])
             ->and(fn () => app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', catalogShopSlug('category', $category), array_fill(0, ShopCatalog::BRANDS_MAX + 1, $brand)))
-            ->toThrow(InvalidCatalogAttribute::class);
+            ->toThrow(InvalidCatalogAttribute::class, 'at most '.ShopCatalog::BRANDS_MAX.' brands');
     });
 
     it('shows a card\'s labels in the list\'s order as it is now', function () {
@@ -310,7 +310,7 @@ describe('a category page', function () {
         catalogShopProduct($category);
 
         expect(fn () => app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', catalogShopSlug('category', $category), [], $after))
-            ->toThrow(InvalidCatalogAttribute::class);
+            ->toThrow(InvalidCatalogAttribute::class, 'Invalid after: a page cursor');
     })->with(['no dot' => ['01k6abcdefghjkmnpqrstvwxyz'], 'not an id' => ['-.drawer'], 'a negative rank' => ['-1.01k6abcdefghjkmnpqrstvwxyz'], 'too big a rank' => ['99999999999.01k6abcdefghjkmnpqrstvwxyz']]);
 });
 
@@ -443,7 +443,7 @@ describe('a product page', function () {
     });
 
     it('refuses a language the shop does not have', function () {
-        expect(fn () => app(ShopCatalog::class)->product(catalogShopStore('sa'), 'fr', 'drawer'))->toThrow(InvalidCatalogAttribute::class);
+        expect(fn () => app(ShopCatalog::class)->product(catalogShopStore('sa'), 'fr', 'drawer'))->toThrow(InvalidCatalogAttribute::class, 'Invalid locale: ar or en');
     });
 });
 

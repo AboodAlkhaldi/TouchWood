@@ -143,9 +143,10 @@ use function Pest\Laravel\seed;
 
 /*
 | What every change to a shared list shares, checked for each change rather than for one of a kind
-| (review of step 2): its list's lock is the first thing it does inside its own transaction; an id
-| that is not in its list is answered as not found; a change that changes nothing writes nothing and
-| records nothing; and what the audit log keeps reads from what was to what is.
+| (review of step 2): its list's lock is the first thing it does inside its own transaction, nothing
+| of the catalog read before it (review of step 7); an id that is not in its list is answered as not
+| found; a change that can be asked to change nothing then writes and records nothing; and what the
+| audit log keeps reads from what was to what is.
 */
 
 uses(RefreshDatabase::class);
@@ -639,7 +640,11 @@ describe('the lock', function () {
             array_filter($inside, static fn (array $query): bool => str_contains($query['sql'], 'pg_advisory_xact_lock')),
         )));
 
-        expect($inside)->not->toBeEmpty()
+        // Nothing of the catalog is read before the lock: outside the transaction only authorizing runs.
+        $before = array_values(array_filter((array) $queries, static fn (array $query): bool => $query['level'] < 2 && str_contains($query['sql'], '"catalog".')));
+
+        expect($before)->toBe([])
+            ->and($inside)->not->toBeEmpty()
             ->and($inside[0]['sql'])->toContain('pg_advisory_xact_lock')
             ->and($inside[0]['bindings'])->toBe([$keys[0]])
             ->and(array_map(static fn (array $query): mixed => $query['bindings'][0] ?? null, array_slice($inside, 0, count($keys))))->toBe($keys)

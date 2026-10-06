@@ -76,7 +76,7 @@ return new class extends Migration
         DB::statement("ALTER TABLE catalog.import_names ADD CONSTRAINT import_names_refused_target CHECK (decision IS DISTINCT FROM 'REFUSE' OR target_id IS NULL)");
         DB::statement('ALTER TABLE catalog.import_names ADD CONSTRAINT import_names_products CHECK (products >= 1)');
         DB::statement('ALTER TABLE catalog.import_names ADD CONSTRAINT import_names_matches CHECK (matches >= 0)');
-        DB::statement("ALTER TABLE catalog.import_names ADD CONSTRAINT import_names_slugs_for_created_categories CHECK ((slug_ar IS NULL AND slug_en IS NULL) OR (kind = 'CATEGORY' AND decision = 'CREATE'))");
+        DB::statement("ALTER TABLE catalog.import_names ADD CONSTRAINT import_names_slugs_for_created_categories CHECK ((slug_ar IS NULL AND slug_en IS NULL) OR (kind = 'CATEGORY' AND decision IS NOT DISTINCT FROM 'CREATE'))");
 
         Schema::create('catalog.import_products', function (Blueprint $table) {
             $table->ulid('id')->primary();
@@ -107,8 +107,8 @@ return new class extends Migration
 
         DB::statement('ALTER TABLE catalog.import_products ADD COLUMN codes text[] NOT NULL');
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_decision CHECK (decision IS NULL OR decision IN ('UPDATE','REPLACE','SKIP','RECODE'))");
-        DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_recode CHECK (CASE WHEN decision = 'RECODE' THEN jsonb_typeof(new_codes) = 'object' ELSE new_codes IS NULL END)");
-        DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_sale CHECK (sale IS NULL OR (sale IN ('KEEP','TAKE_OFF') AND decision IN ('UPDATE','REPLACE')))");
+        DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_recode CHECK (CASE WHEN decision = 'RECODE' THEN new_codes IS NOT NULL AND jsonb_typeof(new_codes) = 'object' ELSE new_codes IS NULL END)");
+        DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_sale CHECK (sale IS NULL OR (sale IN ('KEEP','TAKE_OFF') AND decision IS NOT NULL AND decision IN ('UPDATE','REPLACE')))");
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_state CHECK (state IN ('WAITING','REFUSED','IN','UPDATED','REPLACED','SKIPPED','HELD','ACCEPTED','ARCHIVED','DELETED'))");
         // A product left out takes no part: its reason, and no catalog product, decision or change.
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_refused CHECK (CASE WHEN state = 'REFUSED' THEN refusal IS NOT NULL AND conflict_product_id IS NULL AND decision IS NULL AND edited IS NULL ELSE refusal IS NULL END)");

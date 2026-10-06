@@ -368,6 +368,27 @@ describe('the rows a variant points at', function () {
         expect(array_values(array_unique(array_intersect($adding, ['attributes', 'attribute_values']))))->toBe(['attributes', 'attribute_values'])
             ->and($editing)->toBe(['attributes', 'attribute_values']);
     });
+
+    it('locks each attribute before its value, for each of two attributes', function () {
+        $width = Px::attribute('Width');
+        $finish = Px::attribute('Finish');
+        [$sixty, $oak] = [Px::value($width, '60 cm'), Px::value($finish, 'Oak')];
+        $drawer = Px::product();
+        catalogVariantsSetOn($drawer, Px::set([$width, $finish]));
+        $queries = Cx::recordQueries();
+
+        catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sixty, $finish => $oak]]);
+        $rows = Cx::lockedRows($queries);
+        $at = static function (string $table, string $id) use ($rows): int {
+            $found = array_search([$table, $id], $rows, true);
+
+            return $found === false ? -1 : $found;
+        };
+
+        // Each row locked (-1: never), each attribute's before its value's.
+        expect($at('attributes', $width))->toBeGreaterThan(-1)->toBeLessThan($at('attribute_values', $sixty))
+            ->and($at('attributes', $finish))->toBeGreaterThan(-1)->toBeLessThan($at('attribute_values', $oak));
+    });
 });
 
 describe('the details\' limit', function () {

@@ -376,16 +376,25 @@ describe('relations and filter values, further', function () {
         expect(fn () => app(SetFilterValuesHandler::class)->handle(new SetFilterValues(Px::product(), [$oak])))->toThrow(ListItemInactive::class);
     });
 
-    it('locks each value\'s attribute before the value', function () {
+    it('locks each value\'s attribute before the value, for each of two attributes', function () {
         $finish = Px::attribute('Finish', 'FILTERABLE');
+        $use = Px::attribute('Use', 'FILTERABLE');
         $oak = Px::value($finish, 'Oak');
+        $kitchen = Px::value($use, 'Kitchen');
         $product = Px::product();
         $queries = Cx::recordQueries();
 
-        app(SetFilterValuesHandler::class)->handle(new SetFilterValues($product, [$oak]));
-        $locked = Cx::lockedTables($queries);
+        app(SetFilterValuesHandler::class)->handle(new SetFilterValues($product, [$oak, $kitchen]));
+        $rows = Cx::lockedRows($queries);
+        $at = static function (string $table, string $id) use ($rows): int {
+            $found = array_search([$table, $id], $rows, true);
 
-        expect(array_values(array_unique(array_intersect($locked, ['attributes', 'attribute_values']))))->toBe(['attributes', 'attribute_values']);
+            return $found === false ? -1 : $found;
+        };
+
+        // Each row locked (-1: never), each attribute's before its value's.
+        expect($at('attributes', $finish))->toBeGreaterThan(-1)->toBeLessThan($at('attribute_values', $oak))
+            ->and($at('attributes', $use))->toBeGreaterThan(-1)->toBeLessThan($at('attribute_values', $kitchen));
     });
 });
 
