@@ -6,6 +6,7 @@ namespace Modules\Access\Infrastructure\Eloquent;
 
 use Illuminate\Database\ConnectionInterface;
 use Modules\Access\Application\Query\StaffReader;
+use Shared\Domain\Text\LatinDigits;
 use stdClass;
 
 /**
@@ -64,7 +65,9 @@ final readonly class DatabaseStaffReader implements StaffReader
             // phone match only where the reader would be shown them.
             $where[] = "(lower(s.first_name) LIKE ? OR lower(s.last_name) LIKE ?
                 OR ((lower(s.email) LIKE ? OR s.phone LIKE ?) AND NOT {$hidden}))";
-            $bindings = [...$bindings, $like, $like, $like, $like];
+            // A phone is saved in Latin digits, so it is searched in Latin however it was typed
+            // (amendment 63); names and emails as typed.
+            $bindings = [...$bindings, $like, $like, $like, self::like(LatinDigits::of($search))];
         }
 
         $conditions = implode(' AND ', $where);
@@ -111,7 +114,7 @@ final readonly class DatabaseStaffReader implements StaffReader
         if ($search !== null && trim($search) !== '') {
             $like = self::like($search);
             $where[] = '(lower(s.first_name) LIKE ? OR lower(s.last_name) LIKE ? OR lower(s.email) LIKE ? OR s.phone LIKE ?)';
-            $bindings = [...$bindings, $like, $like, $like, $like];
+            $bindings = [...$bindings, $like, $like, $like, self::like(LatinDigits::of($search))];
         }
 
         $rows = $this->db->select(

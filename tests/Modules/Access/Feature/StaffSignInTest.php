@@ -224,6 +224,17 @@ describe('signing in (spec §1.8, §4.4)', function () {
             ->and($entry?->ip_address)->toBe('10.1.2.3');
     });
 
+    it('takes a code typed in Arabic digits as the same code, however it arrives (amendment 63)', function () {
+        $staffId = Fx::staff();
+        $browser = new AdminBrowser('10.1.2.4');
+        signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        $arabic = strtr(RecordingSecurityMessages::installed()->lastCode(), ['0' => '٠', '1' => '١', '2' => '٢', '3' => '٣', '4' => '٤', '5' => '٥', '6' => '٦', '7' => '٧', '8' => '٨', '9' => '٩']);
+
+        $browser->post('/admin/sign-in/code', ['code' => $arabic])->assertRedirect('/admin');
+
+        expect(signInWho($browser))->toBe($staffId);
+    });
+
     it('keeps the admin session in its own cookie, sent only to /admin, and gives the rest of the site its own back', function () {
         Route::middleware('web')->get('/_storefront_probe', fn () => 'ok');
         $browser = new AdminBrowser;

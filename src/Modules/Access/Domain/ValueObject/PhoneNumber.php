@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Modules\Access\Domain\ValueObject;
 
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * A phone number in E.164 (+9665…), any country (owner's decision, 2026-09-18). Spaces, dashes,
- * dots and brackets are dropped, and a leading 00 becomes +.
+ * dots and brackets are dropped, a leading 00 becomes +, and digits typed on an Arabic keyboard are
+ * the same digits (amendment 63) - the screens turn them already, and so does this, for every other
+ * way a number arrives.
  */
 final readonly class PhoneNumber
 {
@@ -20,7 +23,7 @@ final readonly class PhoneNumber
 
     public static function of(string $value): self
     {
-        $digits = (string) preg_replace('/[\s\-.()]/', '', trim($value));
+        $digits = (string) preg_replace('/[\s\-.()]/', '', LatinDigits::of(trim($value)));
 
         if (str_starts_with($digits, '00')) {
             $digits = '+'.substr($digits, 2);

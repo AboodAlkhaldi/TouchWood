@@ -7,6 +7,7 @@ namespace Modules\Access\Infrastructure\Eloquent;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Modules\Access\Application\Query\CustomerReader;
+use Shared\Domain\Text\LatinDigits;
 use stdClass;
 
 final readonly class DatabaseCustomerReader implements CustomerReader
@@ -64,12 +65,15 @@ final readonly class DatabaseCustomerReader implements CustomerReader
 
         if ($search !== null && trim($search) !== '') {
             $like = self::like($search);
+            // A phone is saved in Latin digits, so it is searched in Latin however it was typed
+            // (amendment 63); names and emails as typed.
+            $phone = self::like(LatinDigits::of($search));
 
-            $query->where(function (Builder $where) use ($like): void {
+            $query->where(function (Builder $where) use ($like, $phone): void {
                 $where->whereRaw('lower(email) like ?', [$like])
                     ->orWhereRaw('lower(first_name) like ?', [$like])
                     ->orWhereRaw('lower(last_name) like ?', [$like])
-                    ->orWhere('phone', 'like', $like);
+                    ->orWhere('phone', 'like', $phone);
             });
         }
 

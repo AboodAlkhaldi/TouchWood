@@ -1,14 +1,13 @@
 import { intlLocale } from '@/lib/digits';
 
 /*
-| A file's size as a person reads it, in the page's language and digits (frontend.md §1.8): "2.3 MB"
-| on an English page, "٢٫٣ م.ب" on an Arabic one.
+| A file's size as a person reads it, in the page's language and in Latin digits (frontend.md §1.8,
+| the owner 2026-10-06): "2.3 MB" on an English page, the unit in Arabic on an Arabic one.
 |
 | Kilobytes of 1024, because that is what an operating system shows next to the same file, and a
 | library that disagrees with the desktop it was dragged from is just confusing; one decimal place
 | below ten, none above ("9.4 MB", "24 MB"). Written here, as every date and count is, rather than by
-| the server: its "2.3 MB" read "MB 2.3", in Latin digits, on an Arabic page (the owner's fix list,
-| 2026-10-04).
+| the server: its "2.3 MB" read "MB 2.3" on an Arabic page (the owner's fix list, 2026-10-04).
 */
 
 const UNITS = ['kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const;

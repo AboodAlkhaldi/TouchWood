@@ -18,7 +18,7 @@ import type { SharedProps } from '@/types/page';
 | "2m ago", "5h ago", "Yesterday" - and anything past seven days as a date; hovering or focusing
 | opens the card with the full moment in the store's zone and in UTC (§1.11: "the hover shows the
 | store's zone and UTC"). On a detail page (`absolute`) the full moment is the text itself. Arabic
-| pages get Arabic-Indic digits, as Intl writes them for 'ar' (§1.8).
+| pages get Arabic words with Latin digits, as every page does (§1.8, 2026-10-06).
 |
 | A hover card is for the eyes: Radix does not announce it. The same two lines are tied to the
 | moment as its description, so a screen reader hears them on focus too.
@@ -41,7 +41,7 @@ export function useStoreZone(): string {
 
 /**
  * The same writing for a moment inside a sentence ("Trusted until :date"), where a component
- * cannot go: the full moment, or its date alone, in the store's zone and the page's digits.
+ * cannot go: the full moment, or its date alone, in the store's zone and Latin digits.
  */
 export function useMoments(): { full: (iso: string) => string; date: (iso: string) => string } {
     const { locale } = usePage<SharedProps>().props;
@@ -50,7 +50,7 @@ export function useMoments(): { full: (iso: string) => string; date: (iso: strin
     return { full: (iso) => formatMoment(iso, zone, locale), date: (iso) => formatDate(iso, zone, locale) };
 }
 
-/** Intl's tag for the page's language: Arabic-Indic digits on an Arabic page (lib/digits.ts). */
+/** Intl's tag for the page's language, always with Latin digits (lib/digits.ts). */
 function language(locale: string): string {
     return intlLocale(locale);
 }

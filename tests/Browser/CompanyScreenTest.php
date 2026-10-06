@@ -169,13 +169,17 @@ it('takes a company from the line under the header through its application to "u
         ->type('#company-cr_number', '1010123456')
         ->keys('#company-cr_number', 'Tab')
         ->select('#company-type', B2BFixtures::companyTypes()[1]->id())
-        ->type('#company-tax_number', '300123456700003')
+        // Typed on an Arabic keyboard: shown and saved as 0-9, so the save's answer is the field's
+        // own and Send is not held back (b2b.md amendment 29; the owner, 2026-10-06).
+        ->type('#company-tax_number', '٣٠٠١٢٣٤٥٦٧٠٠٠٠٣')
+        ->assertValue('#company-tax_number', '300123456700003')
         ->keys('#company-tax_number', 'Tab')
         ->click('[data-test="pick-address-'.$addressId.'"]')
         ->assertDontSee('Company name needs at least 2 characters.');
 
     expect(browserUntil($page, companyScreenLook('#company-name').' === "saved"'))->toBeTrue()
         ->and(browserUntil($page, companyScreenLook('#company-tax_number').' === "saved"'))->toBeTrue()
+        ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->value('tax_number'))->toBe('300123456700003')
         ->and(browserUntil($page, "document.querySelector('[data-test=address-picker] [data-test=field-state]').dataset.look === 'saved'"))->toBeTrue()
         ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->value('address_id'))->toBe($addressId);
 
