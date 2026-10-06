@@ -188,13 +188,15 @@ export function RejectModal({
             {/* The reviewer decides with the type's deactivation in front of them, rejecting as much
                 as approving (§3.2). */}
             <TypeNote note={typeNote} />
-            <Note variant="secondary" data-test="reject-write-in">
+            {/* Tied to the reason and each request, so a field read on its own still says it. */}
+            <Note id="reject-write-in" variant="secondary" data-test="reject-write-in">
                 {writeIn === 'ar' ? t('b2b::admin_companies.reject.write_in.ar') : t('b2b::admin_companies.reject.write_in.en')}
             </Note>
             <TextareaField
                 id="reject-reason"
                 lang={writeIn}
                 dir={writeIn === 'ar' ? 'rtl' : 'ltr'}
+                alsoDescribedBy="reject-write-in"
                 rows={3}
                 label={t('b2b::admin_companies.reason')}
                 helper={t('b2b::admin_companies.reject.reason_helper')}
@@ -265,6 +267,7 @@ export function RejectModal({
                                     id={`request-label-${index}`}
                                     lang={writeIn}
                                     dir={writeIn === 'ar' ? 'rtl' : 'ltr'}
+                                    aria-describedby="reject-write-in"
                                     placeholder={t('b2b::admin_companies.reject.request_label_placeholder')}
                                     value={request.label}
                                     onChange={(event) => setRequest(index, { label: event.target.value })}
