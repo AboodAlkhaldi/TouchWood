@@ -61,8 +61,35 @@ it('never asks a formatter for Arabic numerals in the screens', function () {
     foreach ($files as $path) {
         $text = (string) file_get_contents($path);
 
-        if (preg_match('/nu-arab|numerals=\{?[\'"]arab|numberingSystem:\s*[\'"]arab/', $text) === 1) {
+        // Any way of asking: a tag, a numerals prop - plain or behind a condition - or an option.
+        if (preg_match('/nu-arab|numerals=(\{[^}]*)?[\'"]arab|numberingSystem:\s*[\'"]arab/', $text) === 1) {
             $offending[] = $path;
+        }
+    }
+
+    expect($offending)->toBe([]);
+});
+
+it('formats every number and date through intlLocale, never a language tag of its own', function () {
+    $offending = [];
+
+    foreach (latinDigitsFiles(['resources/js'], ['*.ts', '*.tsx']) as $path) {
+        $relative = str_replace('\\', '/', substr($path, strlen(latinDigitsRoot()) + 1));
+        $text = (string) file_get_contents($path);
+
+        // An Intl formatter's first argument is intlLocale(...), or Time's own wrapper of it.
+        preg_match_all('/new Intl\.(?:NumberFormat|DateTimeFormat|RelativeTimeFormat)\(\s*([^,)]*)/', $text, $calls);
+
+        foreach ($calls[1] as $tag) {
+            if (! str_starts_with(trim($tag), 'intlLocale(') && ! str_starts_with(trim($tag), 'language(')) {
+                $offending[] = "{$relative}: {$tag}";
+            }
+        }
+
+        // toLocale*() follows the browser's own language: only shadcn's calendar uses it, for a month's
+        // name and a data attribute, never a digit on screen.
+        if ($relative !== 'resources/js/components/ui/calendar.tsx' && preg_match('/\.toLocale(?:String|DateString|TimeString)\(/', $text) === 1) {
+            $offending[] = "{$relative}: toLocale*";
         }
     }
 

@@ -33,12 +33,43 @@ afterEach(function () {
     File::deleteDirectory(B2BFixtures::uploads());
 });
 
-/** Whether the page's text holds no Arabic-Indic or Extended Arabic-Indic digit, and some Latin one. */
-const LATIN_DIGITS_ONLY = '!/[\\u0660-\\u0669\\u06F0-\\u06F9]/.test(document.body.innerText) && /[0-9]/.test(document.body.innerText)';
+/**
+ * What the formatters wrote into the elements `$selector` finds: one text per element. Read once the
+ * elements are there - a check that waited for "no Arabic digit" would pass on a page caught early.
+ *
+ * @return list<string>
+ */
+function latinDigitsTexts(mixed $page, string $selector): array
+{
+    expect(browserUntil($page, 'document.querySelectorAll('.json_encode($selector).').length > 0'))->toBeTrue();
+
+    /** @var list<string> */
+    return $page->script('() => [...document.querySelectorAll('.json_encode($selector).')].map((element) => element.textContent ?? "")');
+}
+
+/**
+ * Every digit is 0-9; and, unless a text may be words alone ("now"), every text has one.
+ *
+ * @param  list<string>  $texts
+ */
+function expectLatinDigits(array $texts, bool $eachHasDigit = true): void
+{
+    expect($texts)->not->toBeEmpty();
+
+    foreach ($texts as $text) {
+        expect($text)->not->toMatch('/[\x{0660}-\x{0669}\x{06F0}-\x{06F9}]/u');
+
+        if ($eachHasDigit) {
+            expect($text)->toMatch('/[0-9]/');
+        }
+    }
+}
 
 it('writes an Arabic admin page\'s figures, sizes and times in Latin digits', function () {
-    // A waiting company, so the home has a row with a relative time as well as its counts.
-    B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
+    // A company waiting three days, so the home has a row whose time has a number in it ("3 days
+    // ago"), as well as its counts.
+    [, $application] = B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
+    DB::table('b2b.applications')->where('id', $application->id())->update(['submitted_at' => now()->subDays(3)]);
     $staffId = Fx::staff(superAdmin: true);
     DB::table('access.staff_users')->where('id', $staffId)->update(['locale' => 'ar']);
     $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
@@ -53,14 +84,17 @@ it('writes an Arabic admin page\'s figures, sizes and times in Latin digits', fu
 
     expect(signedInToPanel($page))->toBeTrue();
 
-    // The home: the cards' counts and storage size, and how long the company has waited.
+    // The home: each card's figures - counts, the storage size - and how long the company has waited.
     $page->assertPresent('[data-test="card-platform.system"]')->assertNoJavaScriptErrors();
-    expect($page->script('document.documentElement.lang'))->toBe('ar')
-        ->and(browserUntil($page, LATIN_DIGITS_ONLY))->toBeTrue();
+    expect($page->script('document.documentElement.lang'))->toBe('ar');
+    expectLatinDigits(latinDigitsTexts($page, '[data-test^="card-"] dd'));
+    // A moment may be words alone ("now"); the three days' wait has its number.
+    $times = latinDigitsTexts($page, 'time');
+    expectLatinDigits($times, eachHasDigit: false);
+    expect(implode(' ', $times))->toMatch('/[0-9]/');
 
     // The audit log: every entry's date and time.
     $page->navigate('/admin/audit');
-    expect(browserUntil($page, "document.querySelectorAll('[data-test^=\"entry-\"]').length > 0"))->toBeTrue()
-        ->and(browserUntil($page, LATIN_DIGITS_ONLY))->toBeTrue();
+    expectLatinDigits(latinDigitsTexts($page, '[data-test^="entry-"] time'), eachHasDigit: false);
     $page->assertNoJavaScriptErrors();
 });

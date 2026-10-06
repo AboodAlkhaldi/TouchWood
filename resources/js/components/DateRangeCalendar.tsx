@@ -7,7 +7,7 @@ import { Calendar } from '@/components/ui/calendar';
 | calendar and its day-picker are most of a page's JavaScript otherwise (frontend.md §5, the page
 | budget; found when the audit log reached it, 2026-10-04). Two months, the second the latest, and
 | nothing after today; an Arabic page in Arabic, with Latin digits as every page (§1.8, the owner
-| 2026-10-06) - said to day-picker outright, since its Arabic locale would write Arabic-Indic ones.
+| 2026-10-06) - said to day-picker outright, so the rule does not rest on its locale's default.
 */
 
 type Props = {

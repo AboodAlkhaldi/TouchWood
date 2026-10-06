@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\DB;
 | Arabic-Indic digit are touched; nothing else in them changes, so running it again changes nothing.
 |
 | An address's fields are JSON whose keys are the format's ASCII keys, so turning the whole text
-| turns only the values. The audit log keeps what was written then.
+| turns only the values. The audit log records only that these fields changed, never their values,
+| so it holds nothing to turn.
 |
 | Nothing to undo: the digits typed are not kept.
 */

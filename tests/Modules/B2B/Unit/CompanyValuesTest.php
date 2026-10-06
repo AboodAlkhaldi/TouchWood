@@ -48,7 +48,7 @@ describe('one-line values', function () {
         expect(RegistrationNumber::of('tax_number', '٣٠٠١٢٣٤٥٦٧٠٠٠٠٣')->value)->toBe('300123456700003')
             ->and(RegistrationNumber::of('cr_number', 'س ت-۱۰۱۰۱۲۳۴۵۶')->value)->toBe('س ت-1010123456')
             ->and(CompanyAddress::of("طريق الملك فهد ٧\nالرياض ١٢٣٤٥")->value)->toBe("طريق الملك فهد 7\nالرياض 12345")
-            ->and(CompanyAddress::saved('01J8Z3K4M5N6P7Q8R9S0T1V2W3', 'الرياض ١٢٣٤٥')->value)->toBe('الرياض 12345')
+            ->and(CompanyAddress::saved('01J8Z3K4M5N6P7Q8R9S0T1V2W3', 'الرياض ۱۲۳۴۵')->value)->toBe('الرياض 12345')
             // A name is kept as typed: the owner's rule covers identifiers and addresses.
             ->and(CompanyName::of('مؤسسة ٢١')->value)->toBe('مؤسسة ٢١');
     });

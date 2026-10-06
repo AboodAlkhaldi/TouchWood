@@ -447,7 +447,7 @@ it('turns the Arabic-Indic digits saved before the rule into Latin, and nothing 
     insertAddressRow(['customer_id' => $customer, 'fields' => json_encode(['building' => '٧٢', 'postcode' => '۱۲۳۴۵', 'city' => 'الرياض'])]);
     insertAddressRow(['customer_id' => $customer, 'label' => 'Work', 'fields' => json_encode(['building' => '9', 'city' => 'Riyadh'])]);
     $staff = Fx::staff();
-    DB::table('access.staff_users')->where('id', $staff)->update(['address' => "حي النخيل ٤\nالرياض ١٢٣٤٥"]);
+    DB::table('access.staff_users')->where('id', $staff)->update(['address' => "حي النخيل ٤\nالرياض ۱۲۳۴۵"]);
     $fields = static fn (string $label): array => json_decode((string) DB::table('access.addresses')->where('customer_id', $customer)->where('label', $label)->value('fields'), true, flags: JSON_THROW_ON_ERROR);
 
     $migration = require base_path('src/Modules/Access/Infrastructure/Persistence/Migrations/2026_10_06_200000_latin_digits_in_access.php');

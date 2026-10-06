@@ -21,7 +21,7 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { InputGroup, InputGroupInput, InputGroupTextarea } from '@/components/ui/input-group';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
-import { intlLocale } from '@/lib/digits';
+import { intlLocale, toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { useReturnFocus } from '@/lib/use-return-focus';
@@ -649,7 +649,14 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
                 {multiline ? (
                     <InputGroupTextarea {...common} rows={3} onChange={(event) => setValue(event.target.value)} />
                 ) : (
-                    <InputGroupInput {...common} className={figures ? 'tw-figure' : undefined} onChange={(event) => setValue(event.target.value)} />
+                    <InputGroupInput
+                        {...common}
+                        className={figures ? 'tw-figure' : undefined}
+                        // A number's digits in Latin as they are typed, as the server saves them (b2b.md
+                        // amendment 29): what is on screen and what is saved stay one string, so the
+                        // save's answer is recognised as this field's own.
+                        onChange={(event) => setValue(figures ? toLatinDigits(event.target.value) : event.target.value)}
+                    />
                 )}
                 <SaveMark look={look} align={multiline ? 'block-end' : 'inline-end'} />
             </InputGroup>

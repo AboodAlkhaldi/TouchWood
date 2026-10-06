@@ -178,7 +178,7 @@ function Unknown() {
     return <span className="text-ink-subtle">—</span>;
 }
 
-/** A file's size in the page's language and digits (frontend.md §1.8); none known, an em dash. */
+/** A file's size in the page's language, in Latin digits (frontend.md §1.8); none known, an em dash. */
 function Size({ bytes }: { bytes: number | null }) {
     const { locale } = usePage<SharedProps>().props;
 

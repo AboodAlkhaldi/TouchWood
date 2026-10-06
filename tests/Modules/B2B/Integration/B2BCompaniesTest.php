@@ -155,7 +155,7 @@ describe('the repositories', function () {
 });
 
 describe('what the database takes: everything the code takes', function () {
-    it('stores numbers in any script, and addresses and reasons on several lines', function () {
+    it('stores letters in any script, digits in Latin, and addresses and reasons on several lines', function () {
         $customerId = B2BFixtures::companyAccount();
         $applications = app(ApplicationRepository::class);
         $draft = Application::draft($applications->nextId(), $customerId, null, Fx::storeId('sa'));
@@ -186,7 +186,13 @@ describe('what the database takes: everything the code takes', function () {
         DB::table('b2b.companies')->where('id', $company->id())->update($before);
         DB::table('b2b.applications')->where('id', $application->id())->update($before);
 
+        // And one already in Latin, which nothing changes.
+        [$latin] = B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
+        $latinBefore = DB::table('b2b.companies')->where('id', $latin->id())->first(['cr_number', 'tax_number', 'address']);
+
         $migration = require base_path('src/Modules/B2B/Infrastructure/Persistence/Migrations/2026_10_06_200001_latin_digits_in_b2b.php');
+        $migration->up();
+        // Again: nothing left to turn.
         $migration->up();
 
         foreach ([DB::table('b2b.companies')->where('id', $company->id())->first(), DB::table('b2b.applications')->where('id', $application->id())->first()] as $row) {
@@ -196,6 +202,8 @@ describe('what the database takes: everything the code takes', function () {
                 // A name is kept as typed.
                 ->and($row?->name)->toBe('مؤسسة ٢١');
         }
+
+        expect(DB::table('b2b.companies')->where('id', $latin->id())->first(['cr_number', 'tax_number', 'address']))->toEqual($latinBefore);
     });
 });
 

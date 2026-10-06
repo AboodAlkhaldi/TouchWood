@@ -10,6 +10,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
 use Modules\B2B\Application\Query\ListCompanies\CompanySummary;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * The staff company list (b2b.md §3.2, amendment 10(g)). Every filter is in the WHERE clause and the
@@ -95,14 +96,17 @@ final readonly class DatabaseCompanyReader implements CompanyReader
 
         if ($search !== null && trim($search) !== '') {
             $like = self::like($search);
+            // Numbers are saved in Latin digits (amendment 29), so they are searched in Latin, however
+            // they were typed; a name is kept as typed, and searched as typed.
+            $number = self::like(LatinDigits::of($search));
             // A reference is quoted whole — read out over the phone, say — so it is matched whole,
             // ignoring case, on its own unique index (amendment 14(g)).
-            $reference = mb_strtoupper(trim($search));
+            $reference = mb_strtoupper(trim(LatinDigits::of($search)));
 
-            $query->where(static function (Builder $where) use ($like, $reference): void {
+            $query->where(static function (Builder $where) use ($like, $number, $reference): void {
                 $where->whereRaw('lower(c.name) like ?', [$like])
-                    ->orWhereRaw('lower(c.cr_number) like ?', [$like])
-                    ->orWhereRaw('lower(c.tax_number) like ?', [$like])
+                    ->orWhereRaw('lower(c.cr_number) like ?', [$number])
+                    ->orWhereRaw('lower(c.tax_number) like ?', [$number])
                     ->orWhereExists(static function (Builder $sent) use ($reference): void {
                         $sent->selectRaw('1')
                             ->from('b2b.applications as r')

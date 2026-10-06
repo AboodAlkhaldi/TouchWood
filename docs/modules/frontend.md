@@ -54,7 +54,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §3.5 E3 | **The currencies' buttons**: each form ends with Cancel and its main button side by side; the button that opened it steps out while it is open; Delete Currency, for one no store uses, sits apart on the edit form footer's start side | Owner, 2026-10-06 |
 | §3.5 E1 | **Add Store** on the stores screen, for a Super Admin (platform.md §9.7 #3, #4): everything a store is, at once — code, both names, the country from the shared country picker (filling its time zone when it has only one), tax, time zone, position — and its currency **picked, never typed**, from the currencies no store uses, or **made in the same form** ("New Currency…", and the only way when none is free); the store is added switched off. Replaces "no store is made here" | Owner, 2026-10-06 |
 | §2.2, §2.3 | **The staff view** (the fix list, point 13; D13 (b), D14): View Store in the panel's header; in the shop, the staff-view line with Back to Admin Panel, and a person menu with Admin Panel and Leave Staff View; the builder's picks marked [PROVISIONAL] | Owner, 2026-10-05 (access.md amendment 60) |
-| §1.8, §6 | **Latin digits everywhere**: every figure, count, date and code on Arabic pages too; typed Arabic-Indic digits accepted and saved as 0–9 in number inputs, address fields, phones and a company's CR and tax numbers; figures in IBM Plex Mono in both languages. Replaces 2026-09-19's Arabic-Indic digits | Owner, 2026-10-06 |
+| §1.8, §6 | **Latin digits everywhere**: every figure, count, date and code on Arabic pages too; typed Arabic-Indic digits accepted and saved as 0–9 in number inputs, address fields, phones and a company's CR and tax numbers, and searched in Latin however typed. Replaces 2026-09-19's Arabic-Indic digits | Owner, 2026-10-06 |
 
 ---
 
@@ -277,9 +277,10 @@ wins (§2.7). Screens the design does not show are derived from its look (§2.1)
   company's CR and tax numbers — and they are **saved as 0–9** (access.md amendment 63, b2b.md
   amendment 29). Replaces [DECIDED 2026-09-19] "Arabic pages show Arabic-Indic digits, except in
   codes and phone numbers".
-- **Figures use IBM Plex Mono in both languages.** It covers Latin only (checked in the design's font
-  files, 2026-09-19), which is now all a figure needs; the Arabic pages' switch to IBM Plex Sans
-  Arabic for figures, made because Mono has no Arabic-Indic digits, is gone with them.
+- **Checked in the design's own font files, 2026-09-19:** IBM Plex Mono covers Latin only. On
+  Arabic pages figures therefore use IBM Plex Sans Arabic: a figure there carries Arabic words with
+  its digits (a month, "قبل 5 ساعات", a unit, a currency's sign), which Mono cannot draw. Its digits
+  are Latin as everywhere (2026-10-06).
 
 - **[DECIDED 2026-09-22] A theme is data, not code.** Every colour, radius, font, spacing value and
   shadow is a CSS custom property on `:root`, overridden by `[data-theme="..."]`. Light and dark are
@@ -539,8 +540,8 @@ and examples. Only when neither has it, show the owner what was searched and ask
     Radix lays out stayed left to right on an Arabic page until the next click, since choosing a
     language answers with the same address and Inertia counts that as no navigation — the
     direction now follows every page the server sends;
-  - **a file's size is written in the page's language and digits** ("٢٫٣ م.ب" on an Arabic page;
-    the server's "2.3 MB" read "MB 2.3" there): the media library is sent the bytes, and counts in
+  - **a file's size is written in the page's language**, its digits Latin (§1.8, 2026-10-06) — the
+    server's "2.3 MB" read "MB 2.3" on an Arabic page: the media library is sent the bytes, and counts in
     the sidebar and on the home page are written in Latin digits too (§1.8, 2026-10-06).
   - **the logo** is the owner's files of 2026-10-04 — a frame and a fingerprint, drawn rather than
     fetched: **a navy tile on dark surfaces** (the sidebar, navy in both themes, and dark mode;
@@ -630,8 +631,8 @@ From the design, with the decided rules applied:
   **Stores and System** (platform.md §9.8: stores on and off, failed jobs, storage used — each
   figure only with its own permission). The sales figures the owner asked for — products sold, money
   taken, each store's sales, products about to run out — come as cards of Sales, Catalog and
-  Inventory when those modules exist; the home does not change for them. Numbers are in the page's
-  digits (§1.8).
+  Inventory when those modules exist; the home does not change for them. Numbers are in Latin
+  digits, as everywhere (§1.8).
 
 ### 2.3 Storefront
 

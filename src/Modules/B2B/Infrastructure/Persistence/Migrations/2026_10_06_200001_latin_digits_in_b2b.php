@@ -10,7 +10,8 @@ use Illuminate\Support\Facades\DB;
 | and address saved before the rule are turned once, in companies and in the applications that sent
 | them, as RegistrationNumber and CompanyAddress now turn what is typed. Only rows holding an
 | Arabic-Indic or Extended Arabic-Indic digit are touched; running it again changes nothing. A
-| company's name is kept as typed, and the audit log keeps what was written then.
+| company's name is kept as typed. The audit log records only that these fields changed, never their
+| values, so it holds nothing to turn.
 |
 | Nothing to undo: the digits typed are not kept.
 */
