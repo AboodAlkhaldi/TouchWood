@@ -75,7 +75,6 @@ describe('the guide\'s examples', function () {
             ->and($runner->searchWords)->toBe(['سحاب درج', 'مجرى', 'slide', 'rail'])
             ->and($runner->filters)->toBe(['Use' => ['Kitchen', 'Wardrobe'], 'Closing' => ['Soft-close']])
             ->and([$runner->related, $runner->goesWith])->toBe([['1306'], ['2001']])
-            ->and($runner->stores)->toBe(['sa' => ['price' => '120.5', 'stock' => 40], 'eg' => ['price' => '3900', 'stock' => null]])
             ->and([$hinge->brand, $hinge->brandNumber, $hinge->category, $hinge->attributeSet, $hinge->codes()])->toBe([null, 2, ['Tallsen', 'Hinges'], null, ['2001']])
             ->and([$handle->nameAr, $handle->nameEn, $handle->descriptionAr, $handle->codes()])->toBe(['مقبض ألمنيوم 128 مم', null, null, ['1306']]);
 
@@ -140,9 +139,7 @@ describe('what refuses a product file', function () {
         'filters not lists of values' => [fn (array $p) => [...$p, 'filters' => ['Use' => 'Kitchen']], 'product 1 › filters › Use', 'list of value names'],
         'more than 20 related products' => [fn (array $p) => [...$p, 'related' => array_map(static fn (int $n): string => (string) (2000 + $n), range(1, 21))], 'product 1 › related', 'at most 20'],
         'a related code not digits' => [fn (array $p) => [...$p, 'goes_with' => ['20x1']], 'product 1 › goes_with', 'digits'],
-        'a store code not in its shape' => [fn (array $p) => [...$p, 'stores' => ['SA' => ['price' => 1]]], 'product 1 › stores › SA', 'small letters'],
-        'a price below 0' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['price' => -1]]], 'product 1 › stores › sa › price', 'at least 0'],
-        'a stock not a whole number' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['stock' => 1.5]]], 'product 1 › stores › sa › stock', 'whole number'],
+        'a store named in a products file' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['price' => 1]]], 'product 1 › stores', "not in a products file: each store's own file brings its prices and stock"],
         'two products sharing a code' => [fn (array $p) => [$p, catalogImportProduct('1304')], 'products 1, 2', 'never share a code'],
         'two variants alike, their attribute named in digits' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['2' => '60 cm']], ['code' => '1', 'values' => ['2' => '60 CM']]]], 'product 1 › variants 2 › values', 'never alike'],
     ]);
@@ -164,10 +161,10 @@ describe('what refuses a product file', function () {
         $problems = catalogImportProblems([
             [...catalogImportProduct('1'), 'name' => ['en' => 'No Arabic']],
             [...catalogImportProduct('2'), 'photos' => ['photos/missing.jpg']],
-            [...catalogImportProduct('3'), 'stores' => ['sa' => ['price' => -5]]],
+            [...catalogImportProduct('3'), 'goes_with' => ['20x1']],
         ]);
 
-        expect(array_column($problems, 'at'))->toBe(['product 1 › name', 'product 2 › photos', 'product 3 › stores › sa › price']);
+        expect(array_column($problems, 'at'))->toBe(['product 1 › name', 'product 2 › photos', 'product 3 › goes_with']);
     });
 
     it('takes a file that keeps every rule', function () {

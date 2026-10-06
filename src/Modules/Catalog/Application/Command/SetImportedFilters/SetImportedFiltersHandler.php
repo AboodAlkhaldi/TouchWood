@@ -43,24 +43,44 @@ final readonly class SetImportedFiltersHandler
         $this->change->authorize();
         $mode = ImportedProductsChange::mode($command->mode, [ImportedProductsChange::ADD, ImportedProductsChange::REPLACE, ImportedProductsChange::FILL_EMPTY]);
         $ids = $this->values($command->valueIds);
+        // Asked once, not for every product.
+        $filterable = [];
 
-        return $this->change->run($command->importId, $command->productIds, 'filters', implode(', ', $ids), $mode, function (FileProduct $product, ?Product $updates) use ($ids, $mode): FileProduct {
+        foreach ($this->attributes->all() as $attribute) {
+            if ($attribute->kind() === AttributeKind::Filterable) {
+                $filterable[$attribute->id()] = true;
+            }
+        }
+
+        return $this->change->run($command->importId, $command->productIds, 'filters', implode(', ', $ids), $mode, function (FileProduct $product, ?Product $updates) use ($ids, $mode, $filterable): FileProduct {
             $named = array_sum(array_map('count', $product->filters));
-            // What the product has: the file's, or — the file giving none — the catalog's it updates.
-            $catalog = $named === 0 && $product->filterValueIds === [] && $updates !== null ? $this->catalogFilters($updates->id()) : [];
+            $fileHas = $named > 0 || $product->filterValueIds !== [];
+            // A product the file updates without filter values of its own counts the catalog's; what is
+            // added to it is kept apart, and joins the catalog's as they are when it is brought in.
+            $catalog = ! $fileHas && $updates !== null ? $this->catalogFilters($updates->id(), $filterable) : null;
 
-            if ($mode === ImportedProductsChange::FILL_EMPTY && ($named > 0 || $product->filterValueIds !== [] || $catalog !== [])) {
+            if ($mode === ImportedProductsChange::FILL_EMPTY && ($fileHas || ($catalog ?? []) !== [] || $product->addedFilterValueIds !== [])) {
                 return $product;
             }
 
-            $kept = $mode === ImportedProductsChange::ADD ? array_values(array_unique([...$catalog, ...$product->filterValueIds, ...$ids])) : $ids;
+            if ($catalog !== null && $mode === ImportedProductsChange::ADD) {
+                $added = array_values(array_unique([...$product->addedFilterValueIds, ...$ids]));
+
+                if (count(array_unique([...$catalog, ...$added])) > ProductParts::MAX_FILTER_VALUES) {
+                    throw new InvalidCatalogAttribute("product {$product->number} › filters", 'at most '.ProductParts::MAX_FILTER_VALUES.' values');
+                }
+
+                return $product->with(['added_filter_value_ids' => $added]);
+            }
+
+            $kept = $mode === ImportedProductsChange::ADD ? array_values(array_unique([...$product->filterValueIds, ...$product->addedFilterValueIds, ...$ids])) : $ids;
             $filters = $mode === ImportedProductsChange::ADD ? $product->filters : [];
 
             if (count($kept) + ($mode === ImportedProductsChange::ADD ? $named : 0) > ProductParts::MAX_FILTER_VALUES) {
                 throw new InvalidCatalogAttribute("product {$product->number} › filters", 'at most '.ProductParts::MAX_FILTER_VALUES.' values');
             }
 
-            return $product->with(['filters' => $filters, 'filter_value_ids' => $kept]);
+            return $product->with(['filters' => $filters, 'filter_value_ids' => $kept, 'added_filter_value_ids' => []]);
         });
     }
 
@@ -68,14 +88,15 @@ final readonly class SetImportedFiltersHandler
      * The catalog product's filter values of filter attributes — a variant's own values count as
      * filters by themselves (amendment 3(a)), never kept here.
      *
+     * @param  array<string, true>  $filterable  the filter attributes' ids
      * @return list<string>
      */
-    private function catalogFilters(string $productId): array
+    private function catalogFilters(string $productId, array $filterable): array
     {
         $ids = [];
 
         foreach ($this->products->filterValues($productId) as $valueId => $attributeId) {
-            if ($this->attributes->find((string) $attributeId)?->kind() === AttributeKind::Filterable) {
+            if (isset($filterable[(string) $attributeId])) {
                 $ids[] = (string) $valueId;
             }
         }

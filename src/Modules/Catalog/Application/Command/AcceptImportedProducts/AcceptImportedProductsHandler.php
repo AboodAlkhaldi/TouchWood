@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Modules\Catalog\Application\Command\AcceptImportedProducts;
 
 use Modules\Catalog\Application\Audit\ListAudit;
-use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
-use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
 use Modules\Catalog\Application\Command\SetRelations\SetRelations;
@@ -20,18 +18,17 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Public\Enums\ProductStage;
-use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditEntryDto;
-use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Unauthorized;
 
 /**
- * **Accepting an import's products** (catalog.md §1.12, page part 4; amendment 6(f)):
+ * **Accepting an import's products** (catalog.md §1.12, page part 4; amendments 6(f), 9(b)):
  * `catalog.import.run`. Each brought in — created, updated or replaced, not accepted yet — is **made
- * ready** ("ready to publish, not published") if it is a draft, **switched on in the stores the file
- * named for it** — every store of the panel's, on or off, so one being prepared is filled too —, and
- * given the related and goes-with products whose codes it named, among those ready once all are
- * accepted (amendment 3(d)). Through the product handlers, which check and audit as for a person.
+ * ready** ("ready to publish") if it is a draft, **switched on in no store** — a store's admins
+ * publish it with their store file, or one by one —, and given the related and goes-with products
+ * whose codes it named, among those ready once all are accepted (amendment 3(d)); a product accepted
+ * before that named one of these gains it now. Through the product handlers, which check and audit as
+ * for a person.
  *
  * Chosen by name, one that cannot be accepted is named and nothing changes; "every one ready" leaves
  * the rest as they are.
@@ -46,9 +43,7 @@ final readonly class AcceptImportedProductsHandler
         private BroughtInProducts $rows,
         private ProductRepository $products,
         private Readiness $readiness,
-        private PlatformApi $platform,
         private MarkProductReadyHandler $markReady,
-        private ChooseInStoreHandler $choose,
         private SetRelationsHandler $relations,
     ) {}
 
@@ -60,16 +55,11 @@ final readonly class AcceptImportedProductsHandler
     public function handle(AcceptImportedProducts $command): int
     {
         $this->rows->authorize();
-        $stores = [];
-
-        foreach ($this->platform->allStores() as $store) {
-            $stores[$store->code] = $store;
-        }
 
         return $this->rows->run(
             $command->importId,
             $command->productIds,
-            fn (ImportProduct $row, bool $all): ?string => $this->accept($row, $all, $stores) ? 'ACCEPTED' : null,
+            fn (ImportProduct $row, bool $all): ?string => $this->accept($row, $all) ? 'ACCEPTED' : null,
             static fn (string $importId, int $count): ?AuditEntryDto => ListAudit::changed('import', 'accepted', $importId, ['products' => null], ['products' => $count]),
             // Once all are ready, so products accepted together may be related to each other.
             function (array $accepted, array $rows): void {
@@ -77,11 +67,22 @@ final readonly class AcceptImportedProductsHandler
                     $this->relate($row);
                 }
 
-                // Products accepted before that named these ones gain them, now that they are ready.
+                // Products accepted before that named one of these gain it, now that it is ready —
+                // only those whose file names a code of these, so a long file stays quick.
+                $codes = [];
+
+                foreach ($accepted as $row) {
+                    foreach ($row->codesComingIn() as $code) {
+                        $codes[$code] = true;
+                    }
+                }
+
                 $ready = array_values(array_filter(array_map(static fn (ImportProduct $row): ?string => $row->productId, $accepted)));
 
                 foreach ($rows as $row) {
-                    if ($row->state === 'ACCEPTED' && $row->productId !== null) {
+                    $named = [...$row->effective()->related, ...$row->effective()->goesWith];
+
+                    if ($row->state === 'ACCEPTED' && $row->productId !== null && array_filter($named, static fn (string $code): bool => isset($codes[$code])) !== []) {
                         $this->linkBack($row, $ready);
                     }
                 }
@@ -89,10 +90,7 @@ final readonly class AcceptImportedProductsHandler
         );
     }
 
-    /**
-     * @param  array<string, StoreDto>  $stores  code => store
-     */
-    private function accept(ImportProduct $row, bool $all, array $stores): bool
+    private function accept(ImportProduct $row, bool $all): bool
     {
         $at = "product {$row->number}";
 
@@ -116,12 +114,6 @@ final readonly class AcceptImportedProductsHandler
             $this->markReady->handle(new MarkProductReady($product->id()));
         }
 
-        foreach (array_keys($row->effective()->stores) as $code) {
-            if (isset($stores[$code])) {
-                $this->choose->handle(new ChooseInStore($stores[$code]->id, $product->id(), true));
-            }
-        }
-
         return true;
     }
 
@@ -138,6 +130,11 @@ final readonly class AcceptImportedProductsHandler
 
         foreach (['RELATED' => $file->related, 'GOES_WITH' => $file->goesWith] as $kind => $codes) {
             $added = array_values(array_intersect($this->readyHolders($codes, $productId), $ready));
+
+            if ($added === []) {
+                continue;
+            }
+
             $has = $this->products->relations($productId, $kind);
 
             if (array_diff($added, $has) !== []) {

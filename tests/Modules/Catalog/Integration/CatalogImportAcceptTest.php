@@ -99,10 +99,10 @@ describe('accepting', function () {
         expect(fn () => app(AcceptImportedProductsHandler::class)->handle(new AcceptImportedProducts($import, null)))->toThrow(Unauthorized::class);
     });
 
-    it('makes every ready one ready, switches it on in the file\'s stores, and relates it to the ready products it names', function () {
+    it('makes every ready one ready, on sale nowhere, and relates it to the ready products it names', function () {
         $category = (string) DB::table('catalog.categories')->where('id', Px::category('Hinges'))->value('name_en');
         $import = catalogAcceptBroughtIn([
-            catalogAcceptProduct('6100', $category, ['stores' => ['sa' => ['price' => 10], 'zz' => ['price' => 1]], 'related' => ['6300'], 'goes_with' => ['6200']]),
+            catalogAcceptProduct('6100', $category, ['related' => ['6300'], 'goes_with' => ['6200']]),
             catalogAcceptProduct('6200', $category, ['description' => ['ar' => 'وصف']]),
             catalogAcceptProduct('6300', $category),
         ]);
@@ -111,9 +111,7 @@ describe('accepting', function () {
         expect(app(AcceptImportedProductsHandler::class)->handle(new AcceptImportedProducts($import, null)))->toBe(2)
             ->and([catalogAcceptState($import, 1), catalogAcceptState($import, 2), catalogAcceptState($import, 3)])->toBe(['ACCEPTED', 'IN', 'ACCEPTED'])
             ->and(DB::table('catalog.products')->whereIn('id', [$first, $second, $third])->orderBy('id')->pluck('stage', 'id')->all())->toEqual([$first => 'READY', $second => 'DRAFT', $third => 'READY'])
-            ->and(DB::table('catalog.store_products')->where('product_id', $first)->pluck('store_id')->all())->toBe([Fx::storeId('sa')])
-            ->and(DB::table('catalog.store_variants')->where('product_id', $first)->where('store_id', Fx::storeId('sa'))->pluck('is_active')->all())->toBe([true])
-            ->and(DB::table('catalog.store_products')->where('product_id', $third)->exists())->toBeFalse()
+            ->and(DB::table('catalog.store_variants')->whereIn('product_id', [$first, $third])->where('is_active', true)->exists())->toBeFalse()
             ->and(DB::table('catalog.product_relations')->where('product_id', $first)->pluck('related_id', 'kind')->all())->toBe(['RELATED' => $third])
             ->and(Fx::audits('catalog.import.accepted', $import))->toBe(1);
     });
@@ -131,7 +129,7 @@ describe('accepting', function () {
             ->and(DB::table('catalog.products')->where('id', Ix::broughtIn($import, 1))->value('stage'))->toBe('DRAFT');
     });
 
-    it('accepts a product it updated, already ready, switching it on in the file\'s stores', function () {
+    it('accepts a product it updated, already ready, switching it on nowhere new', function () {
         $ready = Px::ready(['60 cm']);
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
         $width = (string) DB::table('catalog.attributes')->where('id', $ready['width'])->value('name_en');
@@ -140,14 +138,13 @@ describe('accepting', function () {
             'name' => ['ar' => 'محدث'],
             'attribute_set' => $set,
             'variants' => [['code' => $code, 'values' => [$width => '60 cm']]],
-            'stores' => ['eg' => ['price' => 100]],
         ])]);
         app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE']]));
         Ix::bringIn($import);
 
         expect(catalogAcceptState($import, 1))->toBe('UPDATED');
         expect(app(AcceptImportedProductsHandler::class)->handle(new AcceptImportedProducts($import, [Ix::productId($import, 1)])))->toBe(1)
-            ->and(DB::table('catalog.store_products')->where('product_id', $ready['product'])->pluck('store_id')->all())->toBe([Fx::storeId('eg')]);
+            ->and(DB::table('catalog.store_products')->where('product_id', $ready['product'])->exists())->toBeFalse();
     });
 });
 

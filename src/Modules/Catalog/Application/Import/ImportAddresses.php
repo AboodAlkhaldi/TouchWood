@@ -6,7 +6,6 @@ namespace Modules\Catalog\Application\Import;
 
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
-use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Domain\ValueObject\ProductName;
 use Modules\Catalog\Domain\ValueObject\ProductSlugs;
@@ -22,7 +21,7 @@ use Modules\Catalog\Domain\ValueObject\Slugs;
 final readonly class ImportAddresses
 {
     public function __construct(
-        private ProductRepository $products,
+        private Imports $imports,
         private CategoryRepository $categories,
     ) {}
 
@@ -38,6 +37,7 @@ final readonly class ImportAddresses
     {
         $addresses = [];
         $taken = [];
+        $excepts = [];
 
         foreach ($rows as $row) {
             $product = $row->effective();
@@ -56,25 +56,26 @@ final readonly class ImportAddresses
                 continue;
             }
 
-            $except = in_array($row->decision, [ImportProduct::UPDATE, ImportProduct::REPLACE], true) ? $row->conflictProductId : null;
+            $excepts[$row->id] = in_array($row->decision, [ImportProduct::UPDATE, ImportProduct::REPLACE], true) ? $row->conflictProductId : null;
 
             foreach (['ar' => $slugs->ar->value, 'en' => $slugs->en?->value] as $locale => $slug) {
-                if ($slug === null) {
-                    continue;
-                }
-
-                $addresses[$locale][$slug][] = $row->id;
-
-                if ($this->products->slugTaken($locale, $slug, $except)) {
-                    $taken[$row->id][] = $locale;
+                if ($slug !== null) {
+                    $addresses[$locale][$slug][] = $row->id;
                 }
             }
         }
 
+        // One question per language for the whole file: which catalog products hold these addresses.
         foreach ($addresses as $locale => $bySlug) {
-            foreach ($bySlug as $ids) {
-                foreach (count($ids) > 1 ? $ids : [] as $id) {
-                    $taken[$id][] = $locale;
+            $holders = $this->imports->slugHolders($locale, array_map('strval', array_keys($bySlug)));
+
+            foreach ($bySlug as $slug => $ids) {
+                foreach ($ids as $id) {
+                    $others = array_diff($holders[$slug] ?? [], [$excepts[$id] ?? null]);
+
+                    if (count($ids) > 1 || $others !== []) {
+                        $taken[$id][] = $locale;
+                    }
                 }
             }
         }

@@ -106,6 +106,9 @@ final readonly class BringInImportProductsHandler
     private function recordFailure(string $importId, string $reason): void
     {
         $this->db->transaction(function () use ($importId, $reason): void {
+            // The products' lock first, as the work takes it: while the work runs, this waits for it,
+            // then finds the state it left.
+            $this->locks->lock(ListLocks::PRODUCTS);
             $import = $this->imports->lock($importId);
 
             if ($import !== null && $import->state === ImportHeader::BRINGING_IN) {

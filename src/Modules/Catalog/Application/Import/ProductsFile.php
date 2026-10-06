@@ -156,6 +156,12 @@ final readonly class ProductsFile
         }
 
         self::onlyFields($raw, self::PRODUCT_FIELDS, $at, $problems);
+
+        // A products file names no store (amendment 9(a)): a store's own file brings prices and stock.
+        if (array_key_exists('stores', $raw)) {
+            $problems->add("{$at} › stores", "not in a products file: each store's own file brings its prices and stock");
+        }
+
         [$nameAr, $nameEn] = self::name($raw['name'] ?? null, "{$at} › name", $problems);
         [$slugAr, $slugEn] = self::slugs($raw['slug'] ?? null, "{$at} › slug", $problems);
         [$descriptionAr, $descriptionEn] = self::descriptions($raw['description'] ?? null, "{$at} › description", $problems);
@@ -181,7 +187,6 @@ final readonly class ProductsFile
             self::filters($raw['filters'] ?? null, "{$at} › filters", $problems),
             self::codes($raw['related'] ?? null, "{$at} › related", $problems),
             self::codes($raw['goes_with'] ?? null, "{$at} › goes_with", $problems),
-            self::stores($raw['stores'] ?? null, "{$at} › stores", $problems),
             $brandNumber,
         );
     }
@@ -731,48 +736,6 @@ final readonly class ProductsFile
         }
 
         return array_values(array_unique($codes));
-    }
-
-    /**
-     * @return array<string, array{price: string|null, stock: int|null}>
-     */
-    private static function stores(mixed $raw, string $at, FileProblems $problems): array
-    {
-        if ($raw === null) {
-            return [];
-        }
-
-        if (! is_array($raw) || array_is_list($raw) && $raw !== []) {
-            $problems->add($at, 'an object: store code → its price and stock');
-
-            return [];
-        }
-
-        $stores = [];
-
-        foreach ($raw as $code => $terms) {
-            $where = "{$at} › {$code}";
-
-            if (preg_match('/\A[a-z]{2,8}\z/', (string) $code) !== 1) {
-                $problems->add($where, 'a store code as in the panel: 2 to 8 small letters');
-
-                continue;
-            }
-
-            if (! is_array($terms) || array_is_list($terms) && $terms !== []) {
-                $problems->add($where, 'an object with "price" and "stock", each optional');
-
-                continue;
-            }
-
-            self::onlyFields($terms, ['price', 'stock'], $where, $problems);
-            $stores[(string) $code] = [
-                'price' => self::price($terms['price'] ?? null, "{$where} › price", false, $problems),
-                'stock' => self::stock($terms['stock'] ?? null, "{$where} › stock", $problems),
-            ];
-        }
-
-        return $stores;
     }
 
     /**

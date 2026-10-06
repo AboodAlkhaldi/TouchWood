@@ -42,22 +42,32 @@ final readonly class SetImportedSearchWordsHandler
         $words = self::words($command->words === [] ? throw new InvalidCatalogAttribute('words', 'at least one word') : $command->words);
 
         return $this->change->run($command->importId, $command->productIds, 'search_words', implode(', ', $words), $mode, function (FileProduct $product, ?Product $updates) use ($words, $mode): FileProduct {
-            // What the product has: the file's words, or — the file giving none — the catalog's it updates.
-            $has = $product->searchWords !== [] || $updates === null
-                ? $product->searchWords
-                : array_map(static fn (array $word): string => $word['word'], $this->products->searchWords($updates->id()));
+            // A product the file updates without words of its own counts the catalog's; what is added
+            // to it is kept apart, and joins the catalog's as they are when it is brought in.
+            $catalog = $product->searchWords === [] && $updates !== null
+                ? array_map(static fn (array $word): string => $word['word'], $this->products->searchWords($updates->id()))
+                : null;
+            $has = [...($catalog ?? $product->searchWords), ...$product->addedSearchWords];
 
             if ($mode === ImportedProductsChange::FILL_EMPTY && $has !== []) {
                 return $product;
             }
 
             try {
+                if ($catalog !== null && $mode === ImportedProductsChange::ADD) {
+                    $added = self::words([...$product->addedSearchWords, ...$words]);
+                    // Within the limit together with the catalog's.
+                    self::words([...$catalog, ...$added]);
+
+                    return $product->with(['added_search_words' => $added]);
+                }
+
                 $kept = self::words($mode === ImportedProductsChange::ADD ? [...$has, ...$words] : $words);
             } catch (TooMany) {
                 throw new InvalidCatalogAttribute("product {$product->number} › search_words", 'at most '.SearchWords::MAX);
             }
 
-            return $product->with(['search_words' => $kept]);
+            return $product->with(['search_words' => $kept, 'added_search_words' => []]);
         });
     }
 

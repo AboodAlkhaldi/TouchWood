@@ -67,19 +67,19 @@ function catalogPagesFill(array $items, string $store = 'sa'): string
 }
 
 describe('a products file\'s page', function () {
-    it('shows the names to decide and the products as they will come in, with their stores and decisions', function () {
+    it('shows the names to decide and the products as they will come in, with their decisions', function () {
         $import = Ix::uploadProducts([
-            Ix::product('1', ['brand' => 'Blumm', 'stores' => ['sa' => ['price' => 120.5, 'stock' => 4], 'zz' => ['price' => 1]]]),
+            Ix::product('1', ['brand' => 'Blumm']),
             Ix::product('2'),
         ]);
         app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, [Ix::productId($import, 2)], ['درج'], 'ADD'));
 
         $view = app(ViewImportHandler::class)->handle(new ViewImport($import));
 
-        expect([$view->state, $view->failure, $view->withPhotos, $view->pricesKept])->toBe(['DECIDING', null, false, false])
+        expect([$view->state, $view->failure, $view->withPhotos])->toBe(['DECIDING', null, false])
             ->and(array_map(static fn ($name): array => [$name->kind, $name->written, $name->products, $name->decision], $view->names))->toBe([['BRAND', 'Blumm', 1, null]])
             ->and(array_map(static fn (ImportProductView $product): array => [$product->number, $product->codes, $product->state, $product->changed], $view->products))->toBe([[1, ['1'], 'WAITING', false], [2, ['2'], 'WAITING', true]])
-            ->and(array_map(static fn ($store): array => [$store->code, $store->known, $store->price, $store->stock], $view->products[0]->stores))->toBe([['sa', true, '120.5', 4], ['zz', false, '1', null]]);
+            ->and([$view->products[0]->onSale, $view->products[0]->sale])->toBe([false, null]);
     });
 
     it('shows what a draft brought in still lacks, and why bringing in failed', function () {

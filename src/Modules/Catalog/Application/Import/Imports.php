@@ -81,13 +81,6 @@ interface Imports
     public function replaceNames(string $importId, array $names): array;
 
     /**
-     * These names wait for a decision again.
-     *
-     * @param  list<string>  $nameIds
-     */
-    public function undecideNames(array $nameIds): void;
-
-    /**
      * These products wait for a decision on their codes again.
      *
      * @param  list<string>  $productIds
@@ -121,6 +114,15 @@ interface Imports
 
     /** Bringing in failed, nothing kept: why, for the page. */
     public function fail(string $importId, string $failure): void;
+
+    /**
+     * The catalog's products holding these web addresses, now or once (§1.1): an address is one
+     * product's, ever.
+     *
+     * @param  list<string>  $slugs
+     * @return array<string, list<string>> slug => the products holding it
+     */
+    public function slugHolders(string $locale, array $slugs): array;
 
     /**
      * The catalog's products holding these codes, now or once (amendment 3(e)).

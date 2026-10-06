@@ -17,8 +17,9 @@ final class ImportUndecided extends CatalogError
         public readonly int $names,
         public readonly int $codes,
         public readonly int $addresses = 0,
+        public readonly int $sales = 0,
     ) {
-        parent::__construct("The import still waits for decisions: {$names} name(s), {$codes} code(s), {$addresses} address(es).");
+        parent::__construct("The import still waits for decisions: {$names} name(s), {$codes} code(s), {$addresses} address(es), {$sales} sale(s).");
     }
 
     public function type(): string
@@ -33,6 +34,6 @@ final class ImportUndecided extends CatalogError
 
     public function context(): array
     {
-        return ['names' => $this->names, 'codes' => $this->codes, 'addresses' => $this->addresses];
+        return ['names' => $this->names, 'codes' => $this->codes, 'addresses' => $this->addresses, 'sales' => $this->sales];
     }
 }

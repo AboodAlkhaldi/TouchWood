@@ -19,7 +19,6 @@ use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Platform\Public\Contracts\PlatformApi;
-use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -119,10 +118,12 @@ final readonly class ImportedProductsChange
             }
 
             $changed = [];
+            $counts = in_array($mode, [self::FILL_EMPTY, self::ADD], true);
 
             foreach ($chosen ?? array_keys($products) as $id) {
                 $row = $products[$id];
-                $updates = $row->decision === ImportProduct::UPDATE && $row->conflictProductId !== null ? $this->products->find($row->conflictProductId) : null;
+                // Read only for a change that counts what the product has: filling the empty, or adding.
+                $updates = $counts && $row->decision === ImportProduct::UPDATE && $row->conflictProductId !== null ? $this->products->find($row->conflictProductId) : null;
                 $now = $change($row->effective(), $updates);
 
                 if ($now->toArray() !== $products[$id]->effective()->toArray()) {
@@ -151,31 +152,6 @@ final readonly class ImportedProductsChange
 
             return count($changed);
         }, 3);
-    }
-
-    /**
-     * Stores as the panel names them, on or off, each once.
-     *
-     * @param  array<array-key, mixed>  $codes
-     * @return list<string>
-     *
-     * @throws InvalidCatalogAttribute
-     */
-    public static function storeCodes(array $codes, PlatformApi $platform): array
-    {
-        $known = array_map(static fn (StoreDto $store): string => $store->code, $platform->allStores());
-
-        if ($codes === []) {
-            throw new InvalidCatalogAttribute('store_codes', 'at least one store');
-        }
-
-        $read = [];
-
-        foreach ($codes as $code) {
-            $read[] = is_string($code) && in_array($code, $known, true) ? $code : throw new InvalidCatalogAttribute('store_codes', 'stores as the panel names them');
-        }
-
-        return array_values(array_unique($read));
     }
 
     /**

@@ -19,6 +19,12 @@ final readonly class ImportProduct
 
     public const string RECODE = 'RECODE';
 
+    /** A product updated or replaced that is on sale stays on sale (amendment 9(c)). */
+    public const string KEEP_ON_SALE = 'KEEP';
+
+    /** … or is switched off in every store when brought in. */
+    public const string TAKE_OFF_SALE = 'TAKE_OFF';
+
     /**
      * @param  list<string>  $codes
      * @param  array<string, string>|null  $newCodes  for RECODE: each code it gives up => its new one (a
@@ -35,6 +41,7 @@ final readonly class ImportProduct
         public ?string $productId,
         public string $state,
         public ?FileProduct $edited = null,
+        public ?string $sale = null,
     ) {}
 
     /** The product as it will come in: as the page's changes left it, or as the file gave it. */
@@ -45,15 +52,15 @@ final readonly class ImportProduct
 
     public function changedTo(FileProduct $edited): self
     {
-        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $this->decision, $this->newCodes, $this->productId, $this->state, $edited);
+        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $this->decision, $this->newCodes, $this->productId, $this->state, $edited, $this->sale);
     }
 
     /**
      * @param  array<string, string>|null  $newCodes
      */
-    public function decided(string $decision, ?array $newCodes): self
+    public function decided(string $decision, ?array $newCodes, ?string $sale = null): self
     {
-        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $decision, $newCodes, $this->productId, $this->state, $this->edited);
+        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $decision, $newCodes, $this->productId, $this->state, $this->edited, $sale);
     }
 
     /**
@@ -76,6 +83,7 @@ final readonly class ImportProduct
             'codes' => implode(', ', $this->codes),
             'conflict_product_id' => $this->conflictProductId,
             'decision' => $this->decision,
+            'sale' => $this->sale,
             'new_codes' => $this->newCodes === null ? null : implode(', ', array_map(static fn (int|string $from, string $to): string => "{$from} → {$to}", array_keys($this->newCodes), $this->newCodes)),
         ];
     }

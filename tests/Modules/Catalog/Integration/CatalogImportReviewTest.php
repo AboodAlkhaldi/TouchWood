@@ -317,7 +317,9 @@ describe('bringing in', function () {
             ->and(app(SetImportedCategoryHandler::class)->handle(new SetImportedCategory($import, null, Px::category('Other'), 'FILL_EMPTY')))->toBe(0);
 
         app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, null, ['slide'], 'ADD'));
-        expect(json_decode((string) DB::table('catalog.import_products')->where('import_id', $import)->value('edited'), true)['search_words'])->toBe(['runner', 'slide']);
+        // Kept apart from the catalog's, which join when it is brought in (CatalogImportSaleTest).
+        $edited = json_decode((string) DB::table('catalog.import_products')->where('import_id', $import)->value('edited'), true);
+        expect([$edited['search_words'], $edited['added_search_words']])->toBe([[], ['slide']]);
     });
 
     it('leaves the import failed, never bringing in, when the queue gives up on the work', function () {

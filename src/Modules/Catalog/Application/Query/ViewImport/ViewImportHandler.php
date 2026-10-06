@@ -8,13 +8,14 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Import\ImportAddresses;
 use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\ImportName;
+use Modules\Catalog\Application\Import\ImportNameRow;
 use Modules\Catalog\Application\Import\ImportProduct;
 use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Products\Readiness;
+use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Domain\Repository\ProductRepository;
-use Modules\Platform\Public\Contracts\PlatformApi;
-use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -34,8 +35,8 @@ final readonly class ViewImportHandler
         private Imports $imports,
         private ProductRepository $products,
         private Readiness $readiness,
-        private PlatformApi $platform,
         private ImportAddresses $addresses,
+        private StoreListingRepository $listings,
     ) {}
 
     /**
@@ -50,9 +51,10 @@ final readonly class ViewImportHandler
             throw new ListItemNotFound($query->importId);
         }
 
-        $stores = array_map(static fn (StoreDto $store): string => $store->code, $this->platform->allStores());
         $rows = $this->imports->products($import->id);
+        $names = $this->imports->names($import->id);
         $taken = $import->isDeciding() ? $this->addresses->taken($rows) : [];
+        $created = array_values(array_filter($names, static fn (ImportName $name): bool => $name->kind === ImportNameRow::CATEGORY && $name->decision === ImportName::CREATE));
 
         return new ImportView(
             $import->id,
@@ -62,26 +64,35 @@ final readonly class ViewImportHandler
             $import->archive !== null,
             $import->uploadedBy,
             (string) $import->uploadedAt,
-            array_map(static fn (ImportName $name): ImportNameView => new ImportNameView($name->id, $name->kind, $name->written, $name->attribute, $name->attributeKind?->value, $name->decision, $name->targetId, $name->nameAr, $name->nameEn, $name->products, $name->matches, $name->slugAr, $name->slugEn), $this->imports->names($import->id)),
-            array_map(fn (ImportProduct $row): ImportProductView => $this->product($row, $stores, $taken[$row->id] ?? []), $rows),
-            false,
+            array_map(fn (ImportName $name): ImportNameView => new ImportNameView($name->id, $name->kind, $name->written, $name->attribute, $name->attributeKind?->value, $name->decision, $name->targetId, $name->nameAr, $name->nameEn, $name->products, $name->matches, $name->slugAr, $name->slugEn, $import->isDeciding() && in_array($name, $created, true) && $this->categoryTaken($name, $created)), $names),
+            array_map(fn (ImportProduct $row): ImportProductView => $this->product($row, $taken[$row->id] ?? []), $rows),
         );
     }
 
     /**
-     * @param  list<string>  $stores  the panel's store codes
+     * @param  list<ImportName>  $created  the import's new categories
+     */
+    private function categoryTaken(ImportName $name, array $created): bool
+    {
+        try {
+            $this->addresses->freeCategory((string) $name->nameAr, (string) $name->nameEn, $name->slugAr, $name->slugEn, array_values(array_filter($created, static fn (ImportName $other): bool => $other->id !== $name->id)), 'name');
+
+            return false;
+        } catch (InvalidCatalogAttribute) {
+            return true;
+        }
+    }
+
+    /**
      * @param  list<string>  $addressTaken
      */
-    private function product(ImportProduct $row, array $stores, array $addressTaken): ImportProductView
+    private function product(ImportProduct $row, array $addressTaken): ImportProductView
     {
         $product = $row->effective();
         $draft = $row->productId === null ? null : $this->products->find($row->productId);
         $missing = $draft !== null && $draft->isDraft() ? $this->readiness->missing($draft) : [];
-        $storeViews = [];
-
-        foreach ($product->stores as $code => $terms) {
-            $storeViews[] = new ImportStoreView((string) $code, in_array((string) $code, $stores, true), $terms['price'], $terms['stock']);
-        }
+        // Whether the catalog's product it changes is on sale: it then needs keep or take off (amendment 9(c)).
+        $onSale = $row->conflictProductId !== null && $row->state === 'WAITING' && $this->listings->activeStoresOf($row->conflictProductId) !== [];
 
         return new ImportProductView(
             $row->id,
@@ -96,8 +107,9 @@ final readonly class ViewImportHandler
             $row->productId,
             $row->edited !== null,
             $missing,
-            $storeViews,
             $addressTaken,
+            $onSale,
+            $row->sale,
         );
     }
 }

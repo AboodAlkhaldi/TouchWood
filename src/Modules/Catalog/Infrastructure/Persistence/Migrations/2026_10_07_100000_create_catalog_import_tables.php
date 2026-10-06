@@ -90,6 +90,8 @@ return new class extends Migration
             $table->ulid('conflict_product_id')->nullable();
             $table->string('decision', 16)->nullable();
             $table->jsonb('new_codes')->nullable();
+            // A product updated or replaced that is on sale: kept on sale, or taken off (amendment 9(c)).
+            $table->string('sale', 16)->nullable();
             $table->ulid('product_id')->nullable();
             $table->string('state', 16);
 
@@ -104,6 +106,7 @@ return new class extends Migration
         DB::statement('ALTER TABLE catalog.import_products ADD COLUMN codes text[] NOT NULL');
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_decision CHECK (decision IS NULL OR decision IN ('UPDATE','REPLACE','SKIP','RECODE'))");
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_recode CHECK (CASE WHEN decision = 'RECODE' THEN jsonb_typeof(new_codes) = 'object' ELSE new_codes IS NULL END)");
+        DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_sale CHECK (sale IS NULL OR (sale IN ('KEEP','TAKE_OFF') AND decision IN ('UPDATE','REPLACE')))");
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_state CHECK (state IN ('WAITING','IN','UPDATED','REPLACED','SKIPPED','HELD','ACCEPTED','ARCHIVED','DELETED'))");
         DB::statement('ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_number CHECK (number >= 1)');
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_data_object CHECK (jsonb_typeof(data) = 'object')");

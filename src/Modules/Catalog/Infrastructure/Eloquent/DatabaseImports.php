@@ -225,6 +225,7 @@ final readonly class DatabaseImports implements Imports
                 self::text($row->product_id),
                 (string) $row->state,
                 $edited === null ? null : FileProduct::fromArray($edited),
+                self::text($row->sale),
             );
         })->all());
     }
@@ -279,6 +280,7 @@ final readonly class DatabaseImports implements Imports
         $this->db->table(self::PRODUCTS)->where('id', $product->id)->update([
             'decision' => $product->decision,
             'new_codes' => $product->newCodes === null ? null : json_encode((object) $product->newCodes, JSON_THROW_ON_ERROR),
+            'sale' => $product->sale,
         ]);
     }
 
@@ -302,7 +304,7 @@ final readonly class DatabaseImports implements Imports
             // Another holder, or none any more — the product deleted, its key emptied by the foreign
             // key while the decision stayed: nothing decided about it still holds.
             if ($holder !== self::text($row->conflict_product_id) || ($holder === null && $row->decision !== null)) {
-                $this->db->table(self::PRODUCTS)->where('id', $row->id)->update(['conflict_product_id' => $holder, 'decision' => null, 'new_codes' => null]);
+                $this->db->table(self::PRODUCTS)->where('id', $row->id)->update(['conflict_product_id' => $holder, 'decision' => null, 'new_codes' => null, 'sale' => null]);
                 $reopened++;
             }
         }
@@ -310,17 +312,10 @@ final readonly class DatabaseImports implements Imports
         return $reopened;
     }
 
-    public function undecideNames(array $nameIds): void
-    {
-        if ($nameIds !== []) {
-            $this->db->table(self::NAMES)->whereIn('id', $nameIds)->update(['decision' => null, 'target_id' => null, 'name_ar' => null, 'name_en' => null, 'slug_ar' => null, 'slug_en' => null]);
-        }
-    }
-
     public function undecideCodes(array $productIds): void
     {
         if ($productIds !== []) {
-            $this->db->table(self::PRODUCTS)->whereIn('id', $productIds)->update(['decision' => null, 'new_codes' => null]);
+            $this->db->table(self::PRODUCTS)->whereIn('id', $productIds)->update(['decision' => null, 'new_codes' => null, 'sale' => null]);
         }
     }
 
@@ -344,6 +339,19 @@ final readonly class DatabaseImports implements Imports
     public function fail(string $importId, string $failure): void
     {
         $this->setState($importId, ImportHeader::FAILED, mb_substr($failure, 0, 2000));
+    }
+
+    public function slugHolders(string $locale, array $slugs): array
+    {
+        $holders = [];
+
+        foreach (array_chunk(array_values(array_unique($slugs)), 1000) as $chunk) {
+            foreach ($this->db->table('catalog.product_slugs')->where('locale', $locale)->whereIn('slug', $chunk)->get(['slug', 'product_id']) as $row) {
+                $holders[(string) $row->slug][] = (string) $row->product_id;
+            }
+        }
+
+        return $holders;
     }
 
     public function codeHolders(array $codes): array

@@ -6,9 +6,8 @@ namespace Modules\Catalog\Application\Query\ViewImport;
 
 /**
  * A products file's page (catalog.md §1.12): where it stands — and why it failed —, the names the
- * catalog lacks, and its products with their codes, decisions, states and what each still lacks.
- * Prices and stock are shown as the file gave them; until Pricing and Inventory exist (stage 5)
- * they are not kept, which the page says once (`$pricesKept`).
+ * catalog lacks, and its products with their codes, decisions, states and what each still lacks. A
+ * products file names no store, price or stock (amendment 9(a)): a store's own file does.
  */
 final readonly class ImportView
 {
@@ -26,6 +25,5 @@ final readonly class ImportView
         public string $uploadedAt,
         public array $names,
         public array $products,
-        public bool $pricesKept,
     ) {}
 }

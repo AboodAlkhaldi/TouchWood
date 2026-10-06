@@ -18,12 +18,8 @@ use Modules\Catalog\Application\Command\SetImportedCategory\SetImportedCategory;
 use Modules\Catalog\Application\Command\SetImportedCategory\SetImportedCategoryHandler;
 use Modules\Catalog\Application\Command\SetImportedFilters\SetImportedFilters;
 use Modules\Catalog\Application\Command\SetImportedFilters\SetImportedFiltersHandler;
-use Modules\Catalog\Application\Command\SetImportedPrices\SetImportedPrices;
-use Modules\Catalog\Application\Command\SetImportedPrices\SetImportedPricesHandler;
 use Modules\Catalog\Application\Command\SetImportedSearchWords\SetImportedSearchWords;
 use Modules\Catalog\Application\Command\SetImportedSearchWords\SetImportedSearchWordsHandler;
-use Modules\Catalog\Application\Command\SetImportedStores\SetImportedStores;
-use Modules\Catalog\Application\Command\SetImportedStores\SetImportedStoresHandler;
 use Modules\Catalog\Application\Command\SetImportedWarranty\SetImportedWarranty;
 use Modules\Catalog\Application\Command\SetImportedWarranty\SetImportedWarrantyHandler;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
@@ -192,54 +188,6 @@ describe('the warranty and the category', function () {
 
         Fx::asSystem(fn () => app(DeactivateWarrantyHandler::class)->handle(new DeactivateWarranty($warranty)));
         expect(fn () => app(SetImportedWarrantyHandler::class)->handle(new SetImportedWarranty($import, null, $warranty, 'REPLACE')))->toThrow(ListItemInactive::class);
-    });
-});
-
-// jsonb keeps an object's keys in its own order: the stores are compared by content.
-describe('the stores, and a price and stock in one (8(b))', function () {
-    it('replaced, become exactly the stores chosen; filled, go only to the products with none', function () {
-        $import = Ix::uploadProducts([
-            Ix::product('1', ['stores' => ['sa' => ['price' => 100], 'eg' => ['price' => 3900]]]),
-            Ix::product('2'),
-        ]);
-        $stores = fn (array $codes, string $mode) => app(SetImportedStoresHandler::class)->handle(new SetImportedStores($import, null, $codes, $mode));
-
-        expect($stores(['ae'], 'FILL_EMPTY'))->toBe(1)
-            ->and(catalogChanged($import, 1)['stores'])->toEqual(['sa' => ['price' => '100', 'stock' => null], 'eg' => ['price' => '3900', 'stock' => null]])
-            ->and(catalogChanged($import, 2)['stores'])->toEqual(['ae' => ['price' => null, 'stock' => null]]);
-
-        $stores(['sa', 'ae'], 'REPLACE');
-        expect(catalogChanged($import, 1)['stores'])->toEqual(['sa' => ['price' => '100', 'stock' => null], 'ae' => ['price' => null, 'stock' => null]]);
-    });
-
-    it('sets a price and stock in one store, for the products switched on there, replacing or filling', function () {
-        $import = Ix::uploadProducts([
-            Ix::product('1', ['stores' => ['sa' => ['price' => 100]]]),
-            Ix::product('2', ['stores' => ['eg' => ['price' => 3900, 'stock' => 5]]]),
-        ]);
-        $prices = fn (mixed $price, mixed $stock, string $mode) => app(SetImportedPricesHandler::class)->handle(new SetImportedPrices($import, null, 'sa', $price, $stock, $mode));
-
-        expect($prices(null, '20', 'FILL_EMPTY'))->toBe(1)
-            ->and(catalogChanged($import, 1)['stores'])->toEqual(['sa' => ['price' => '100', 'stock' => 20]])
-            ->and(catalogChanged($import, 2)['stores'])->toEqual(['eg' => ['price' => '3900', 'stock' => 5]]);
-
-        $prices('120.5', null, 'REPLACE');
-        expect(catalogChanged($import, 1)['stores'])->toEqual(['sa' => ['price' => '120.5', 'stock' => 20]]);
-
-        $prices('99', '7', 'FILL_EMPTY');
-        expect(catalogChanged($import, 1)['stores'])->toEqual(['sa' => ['price' => '120.5', 'stock' => 20]]);
-    });
-
-    it('takes the panel\'s stores, a price of at least 0 and a whole stock', function () {
-        $import = Ix::uploadProducts([Ix::product('1')]);
-        $stores = fn (array $codes) => app(SetImportedStoresHandler::class)->handle(new SetImportedStores($import, null, $codes, 'REPLACE'));
-        $prices = fn (mixed $price, mixed $stock) => app(SetImportedPricesHandler::class)->handle(new SetImportedPrices($import, null, 'sa', $price, $stock, 'REPLACE'));
-
-        expect(fn () => $stores(['zz']))->toThrow(InvalidCatalogAttribute::class, 'store_codes')
-            ->and(fn () => $stores([]))->toThrow(InvalidCatalogAttribute::class, 'store_codes')
-            ->and(fn () => $prices('-1', null))->toThrow(InvalidCatalogAttribute::class, 'Invalid price')
-            ->and(fn () => $prices(null, 2.5))->toThrow(InvalidCatalogAttribute::class, 'Invalid stock')
-            ->and(fn () => $prices(null, null))->toThrow(InvalidCatalogAttribute::class, 'a price, a stock, or both');
     });
 });
 

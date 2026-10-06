@@ -6,6 +6,7 @@ namespace Modules\Catalog\Application\Import;
 
 use Closure;
 use LogicException;
+use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSet;
 use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSetHandler;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValue;
@@ -34,15 +35,18 @@ use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotos;
 use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotosHandler;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\ValueObject\VariantDetail;
+use Modules\Catalog\Public\Enums\AttributeKind;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Throwable;
@@ -91,6 +95,8 @@ final readonly class ImportBringer
         private SetFilterValuesHandler $setFilterValues,
         private RestoreVariantHandler $restoreVariant,
         private SetRelationsHandler $setRelations,
+        private StoreListingRepository $listings,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -149,11 +155,37 @@ final readonly class ImportBringer
             return [null, 'HELD'];
         }
 
-        return match ($row->decision) {
+        $result = match ($row->decision) {
             ImportProduct::UPDATE => [$this->update((string) $row->conflictProductId, $product, $resolved, false, $photos), 'UPDATED'],
             ImportProduct::REPLACE => [$this->update((string) $row->conflictProductId, $product, $resolved, true, $photos), 'REPLACED'],
             default => [$this->create($product, $row->newCodes ?? [], $resolved, $store, $photos), 'IN'],
         };
+
+        // Taken off sale as the Super Admin chose (amendment 9(c)): off in every store, still ready.
+        if ($row->sale === ImportProduct::TAKE_OFF_SALE) {
+            $this->takeOffSale((string) $result[0]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Switched off in every store, each store's change audited there, as archiving does (§1.3) — the
+     * product itself kept as it is, ready.
+     */
+    private function takeOffSale(string $productId): void
+    {
+        foreach ($this->listings->inEveryStore($productId) as $listing) {
+            $listing->switchOff();
+            $entry = ListAudit::changed('listing', 'chosen', $productId, $listing->pullChanges(), $listing->snapshot(), $listing->storeId());
+
+            if ($entry !== null) {
+                $this->listings->save($listing);
+                $this->platform->recordAudit($entry);
+            }
+        }
+
+        $this->listingRows->refresh([$productId]);
     }
 
     /**
@@ -250,7 +282,7 @@ final readonly class ImportBringer
             }
         }
 
-        $this->parts($id, $product, $resolved['filters'], false, $photos);
+        $this->parts($id, $product, $resolved['filters'], false, false, $photos);
 
         return $id;
     }
@@ -328,7 +360,7 @@ final readonly class ImportBringer
             }
         }
 
-        $this->parts($productId, $product, $resolved['filters'], $replace, $photos);
+        $this->parts($productId, $product, $resolved['filters'], $replace, ! $replace, $photos);
 
         // Replaced whole: its related products go too — the file's are linked when it is accepted.
         if ($replace) {
@@ -341,23 +373,56 @@ final readonly class ImportBringer
     }
 
     /**
-     * The gallery, search words and filter values: set when the file gives them, or always when replacing.
+     * The gallery, search words and filter values: set when the file gives them, or always when
+     * replacing. Words and values the page added (amendment 8(a)) join the file's — or, for a product
+     * the file updates without giving any, the catalog's as they are now.
      *
      * @param  list<string>  $filters
      */
-    private function parts(string $productId, FileProduct $product, array $filters, bool $replace, ImportPhotos $photos): void
+    private function parts(string $productId, FileProduct $product, array $filters, bool $replace, bool $updating, ImportPhotos $photos): void
     {
         if ($replace || $product->photos !== []) {
             $this->setGallery->handle(new SetProductGallery($productId, $photos->ids($product->photos)));
         }
 
-        if ($replace || $product->searchWords !== []) {
-            $this->setSearchWords->handle(new SetSearchWords($productId, $product->searchWords));
+        $words = $product->searchWords;
+
+        if ($product->addedSearchWords !== []) {
+            $base = $updating && $words === [] ? array_map(static fn (array $word): string => $word['word'], $this->products->searchWords($productId)) : $words;
+            $words = array_values(array_unique([...$base, ...$product->addedSearchWords]));
+        }
+
+        if ($replace || $words !== []) {
+            $this->setSearchWords->handle(new SetSearchWords($productId, $words));
+        }
+
+        if ($product->addedFilterValueIds !== []) {
+            $base = $updating && $filters === [] ? $this->catalogFilters($productId) : $filters;
+            $filters = array_values(array_unique([...$base, ...$product->addedFilterValueIds]));
         }
 
         if ($replace || $filters !== []) {
             $this->setFilterValues->handle(new SetFilterValues($productId, $filters));
         }
+    }
+
+    /**
+     * A catalog product's filter values of filter attributes — a variant's own values count as filters
+     * by themselves (amendment 3(a)).
+     *
+     * @return list<string>
+     */
+    private function catalogFilters(string $productId): array
+    {
+        $ids = [];
+
+        foreach ($this->products->filterValues($productId) as $valueId => $attributeId) {
+            if ($this->attributes->find((string) $attributeId)?->kind() === AttributeKind::Filterable) {
+                $ids[] = (string) $valueId;
+            }
+        }
+
+        return $ids;
     }
 
     /**

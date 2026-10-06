@@ -24,7 +24,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Deciding the products whose codes the catalog already has** (catalog.md §1.12, page part 2;
- * amendment 6(d)): `catalog.import.run`. Each **updates** that product, **replaces** it whole, is
+ * amendments 6(d), 9(c)): `catalog.import.run`. A product updated or replaced may also be given
+ * **keep on sale** or **take off sale** — needed, by the confirm, for one on sale in any store. Each **updates** that product, **replaces** it whole, is
  * **skipped**, or — a typo — takes **new codes** for the codes the catalog has: each 1 to 10 digits,
  * no product's in the catalog, now or once, and no other product's of the file. Decided while the
  * import is deciding, or again after bringing it in failed. Each decision that changes something is
@@ -82,10 +83,21 @@ final readonly class DecideImportCodesHandler
                     throw new InvalidCatalogAttribute("{$at}.product_id", 'a product whose code the catalog has');
                 }
 
+                $changes = in_array($decision['decision'], [ImportProduct::UPDATE, ImportProduct::REPLACE], true);
+
+                // Codes two catalog products hold — the second since the file came — change neither.
+                if ($changes && count(array_unique($this->imports->codeHolders($product->codes))) > 1) {
+                    throw new InvalidCatalogAttribute("{$at}.decision", 'SKIP or RECODE: its codes belong to two catalog products');
+                }
+
+                if ($decision['sale'] !== null && ! $changes) {
+                    throw new InvalidCatalogAttribute("{$at}.sale", 'only with UPDATE or REPLACE');
+                }
+
                 $newCodes = $decision['decision'] === ImportProduct::RECODE
                     ? $this->newCodes($product, $decision['new_codes'], $products, "{$at}.new_codes")
                     : ($decision['new_codes'] === null ? null : throw new InvalidCatalogAttribute("{$at}.new_codes", 'only with RECODE'));
-                $products[$product->id] = $product->decided($decision['decision'], $newCodes);
+                $products[$product->id] = $product->decided($decision['decision'], $newCodes, $decision['sale']);
             }
 
             $entries = [];
@@ -177,7 +189,7 @@ final readonly class DecideImportCodesHandler
 
     /**
      * @param  array<array-key, mixed>  $decisions
-     * @return list<array{product_id: string, decision: string, new_codes: array<string, string>|null}>
+     * @return list<array{product_id: string, decision: string, new_codes: array<string, string>|null, sale: string|null}>
      *
      * @throws InvalidCatalogAttribute
      */
@@ -200,7 +212,13 @@ final readonly class DecideImportCodesHandler
             }
 
             $seen[strtolower($decision['product_id'])] = true;
-            $read[] = ['product_id' => $decision['product_id'], 'decision' => (string) $decision['decision'], 'new_codes' => self::codes($decision['new_codes'] ?? null, $index)];
+            $sale = $decision['sale'] ?? null;
+
+            if ($sale !== null && ! in_array($sale, [ImportProduct::KEEP_ON_SALE, ImportProduct::TAKE_OFF_SALE], true)) {
+                throw new InvalidCatalogAttribute("decisions.{$index}.sale", 'KEEP or TAKE_OFF');
+            }
+
+            $read[] = ['product_id' => $decision['product_id'], 'decision' => (string) $decision['decision'], 'new_codes' => self::codes($decision['new_codes'] ?? null, $index), 'sale' => $sale];
         }
 
         return $read;
