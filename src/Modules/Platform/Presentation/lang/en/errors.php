@@ -43,6 +43,10 @@ return [
         'title' => 'Decimal Places Locked',
         'detail' => 'Couldn\'t change the decimal places of ":code": a store already uses it. Leave them as they are.',
     ],
+    'currency_taken' => [
+        'title' => 'Currency Taken',
+        'detail' => 'Couldn\'t open the store with ":code": another store uses it, and each currency serves one store. Choose another or add a new one.',
+    ],
     'currency_in_use' => [
         'title' => 'Currency in Use',
         'detail' => 'Couldn\'t delete ":code": a store uses it, and a store\'s currency never changes. Keep it.',

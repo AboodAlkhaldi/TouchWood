@@ -49,6 +49,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.11, §2.2 | **The owner's fix list after testing the rebuild**: the sidebar as `sidebar-07`'s main navigation (areas that fold, several open, a single screen as its link), thin themed scrollbars that keep the page's room, whole rows, the type lists' "#", the language switch laying the whole page out at once, sizes and counts in the page's digits; the builder's sidebar picks marked [PROVISIONAL] | Owner, 2026-10-04 |
 | §3.5 E3 | **The currencies screen names the stores using each currency** and deletes one no store uses (platform.md §9.7); its numbers in the page's digits | Owner, 2026-10-04 (fix list point 11, D15) |
 | §3.5 E3 | **The currencies' buttons**: each form ends with Cancel and its main button side by side; the button that opened it steps out while it is open; Delete Currency, for one no store uses, sits apart on the edit form footer's start side | Owner, 2026-10-06 |
+| §3.5 E1 | **Add Store** on the stores screen, for a Super Admin (platform.md §9.7 #3, #4): everything a store is, at once — code, both names, the country from the shared country picker (filling its first time zone), tax, time zone, position — and its currency **picked, never typed**, from the currencies no store uses, or **made in the same form** ("New Currency…", and the only way when none is free); the store is added switched off. Replaces "no store is made here" | Owner, 2026-10-06 |
 
 ---
 

@@ -26,8 +26,23 @@ return [
 
     // Said on the screen, so nobody hunts for a button that was never there.
     'immutable' => 'The code, the country and the currency are fixed when the store is opened.',
-    'no_new_store' => 'A store is opened by console command, so it is created complete.',
     'no_stores' => 'Stores you are given access to appear here.',
+
+    // Add Store (platform.md §9.7 #3, #4; owner, 2026-10-06): a Super Admin, everything at once.
+    'add' => 'Add Store',
+    'create' => 'Add Store',
+    'created' => ':name added. It is switched off: prepare it, then turn it on.',
+    'starts_off' => 'The store is added switched off: prepare it, then turn it on.',
+    'code_hint' => '2 to 8 lowercase letters, in the shop\'s address (/sa/en). It never changes.',
+    'country_search' => 'Search countries',
+    'country_none' => 'No countries match “:query”',
+    'countries_ours' => 'Our Countries',
+    'countries_all' => 'All Countries',
+    'currency_hint' => 'Only currencies no store uses: each currency serves one store. It never changes.',
+    'currency_new_option' => 'New Currency…',
+    'currency_new' => 'New Currency',
+    'currency_new_hint' => 'Its names and sign can be changed later on the Currencies page.',
+    'currency_none_free' => 'Every currency already serves a store, so add this store\'s own.',
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.

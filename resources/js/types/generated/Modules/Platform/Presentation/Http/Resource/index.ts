@@ -75,6 +75,10 @@ jobs: FailedJobRowData[],
 nextFailedAt: string | null,
 nextId: string | null,
 };
+export type FreeCurrencyRow = {
+code: string,
+name: string,
+};
 export type MediaFileRow = {
 id: string,
 filename: string,
@@ -100,6 +104,13 @@ mayUpload: boolean,
 mayUpdate: boolean,
 mayDelete: boolean,
 mayUploadPrivate: boolean,
+};
+export type NewStoreForm = {
+freeCurrencies: FreeCurrencyRow[],
+countries: StoreCountryOption[],
+zones: Record<string, string>,
+exponents: number[],
+nextPosition: number,
 };
 export type SettingGroup = {
 module: string,
@@ -131,6 +142,11 @@ currency: string,
 symbol: string,
 href: string,
 };
+export type StoreCountryOption = {
+code: string,
+name: string,
+ours: boolean,
+};
 export type StoreHomePage = {
 name: string,
 currency: string,
@@ -158,4 +174,5 @@ export type StoresPage = {
 stores: StoreRow[],
 timezones: string[],
 maySwitch: boolean,
+add: NewStoreForm | null,
 };

@@ -54,8 +54,8 @@ it('draws the stores and saves one from its own card', function () {
     $page->assertSee('Stores')
         // The card's own line: code, currency, rate, timezone.
         ->assertSee('Asia/Riyadh')
-        // Said on the screen, so nobody hunts for a button that was never there.
-        ->assertSee('A store is opened by console command')
+        // Add Store is a Super Admin's alone (platform.md §9.7 #3).
+        ->assertMissing('[data-test="add-store"]')
         ->assertNoJavaScriptErrors();
 
     // Named, because this page carries the panel's own buttons too and "button" would find one

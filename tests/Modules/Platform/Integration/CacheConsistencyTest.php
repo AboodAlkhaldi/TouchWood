@@ -95,12 +95,14 @@ it('drops cached stores when migrations run, so a rebuilt schema is not served f
     seed(PlatformSeeder::class);
     expect(app(PlatformApi::class)->storeByCode('xb'))->toBeNull();
 
+    // A currency of its own: one currency, one store (platform.md §9.7 #4).
+    DB::table('platform.currencies')->insert(['code' => 'XTS', 'exponent' => 2, 'name' => json_encode(['ar' => 'عملة', 'en' => 'Currency']), 'abbreviation' => json_encode(['ar' => 'ع', 'en' => 'XTS']), 'created_at' => now(), 'updated_at' => now()]);
     DB::table('platform.stores')->insert([
         'id' => strtolower((string) Str::ulid()),
         'code' => 'xb',
         'name' => json_encode(['ar' => 'متجر', 'en' => 'Store']),
         'country_code' => 'XB',
-        'currency_code' => 'SAR',
+        'currency_code' => 'XTS',
         'tax_rate_basis_points' => 1500,
         'timezone' => 'UTC',
         // On: an off store's code answers as an unknown one (platform.md §1.6).

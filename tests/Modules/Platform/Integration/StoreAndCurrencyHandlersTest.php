@@ -22,6 +22,7 @@ use Modules\Platform\Domain\Exception\CurrencyAlreadyExists;
 use Modules\Platform\Domain\Exception\CurrencyExponentLocked;
 use Modules\Platform\Domain\Exception\CurrencyInUse;
 use Modules\Platform\Domain\Exception\CurrencyNotFound;
+use Modules\Platform\Domain\Exception\CurrencyTaken;
 use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
 use Modules\Platform\Domain\Exception\StoreAttributeImmutable;
 use Modules\Platform\Domain\Exception\StoreCodeTaken;
@@ -75,12 +76,37 @@ describe('creating', function () {
     });
 
     it('lists stores by position', function () {
-        givenCurrency();
-        givenStore('xc', position: 3);
-        givenStore('xa', position: 1);
-        givenStore('xb', position: 2);
+        // One currency, one store (§9.7 #4): each its own.
+        givenCurrency('XTA');
+        givenCurrency('XTB');
+        givenCurrency('XTC');
+        givenStore('xc', 'XTC', position: 3);
+        givenStore('xa', 'XTA', position: 1);
+        givenStore('xb', 'XTB', position: 2);
 
         expect(array_map(fn (StoreDto $store): string => $store->code, platform()->stores()))->toBe(['xa', 'xb', 'xc']);
+    });
+
+    it('opens a store only with a currency no store uses: one currency, one store (§9.7 #4)', function () {
+        givenCurrency();
+        givenStore('xa');
+
+        expect(fn () => givenStore('xb'))->toThrow(CurrencyTaken::class)
+            ->and(platform()->storeByCode('xb'))->toBeNull();
+    });
+
+    it('opens a store with a new currency made in the same step, and makes neither when the store is refused', function () {
+        $new = new CreateCurrency('XTN', 3, 'عملة جديدة', 'New Currency', 'ع.ج', 'XTN', null);
+
+        app(CreateStoreHandler::class)->handle(new CreateStore('xn', 'متجر', 'Store', 'XA', '', 1500, 'Asia/Riyadh', 5, $new));
+
+        expect(DB::table('platform.stores')->where('code', 'xn')->value('currency_code'))->toBe('XTN')
+            ->and((int) DB::table('platform.currencies')->where('code', 'XTN')->value('exponent'))->toBe(3);
+
+        // The store's code taken: the new currency is not left behind either.
+        expect(fn () => app(CreateStoreHandler::class)->handle(new CreateStore('xn', 'متجر', 'Store', 'XA', '', 1500, 'Asia/Riyadh', 6, new CreateCurrency('XTO', 2, 'عملة', 'Other', 'ع', 'XTO', null))))
+            ->toThrow(StoreCodeTaken::class)
+            ->and(DB::table('platform.currencies')->where('code', 'XTO')->exists())->toBeFalse();
     });
 
     it('announces a new store', function () {

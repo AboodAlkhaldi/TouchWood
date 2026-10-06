@@ -137,7 +137,11 @@ it('checks the right permission, against the right scope, in every handler', fun
         DB::table('platform.currencies')->insert(['code' => 'XTS', 'exponent' => 2, 'name' => json_encode(['ar' => 'عملة', 'en' => 'Currency']), 'abbreviation' => json_encode(['ar' => 'ع', 'en' => 'XTS']), 'created_at' => now(), 'updated_at' => now()]);
         app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XTS'));
     }, 'platform.currency.delete', 'global'],
-    'create a store' => [fn () => app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', 'SAR', 1500, 'UTC', 9)), 'platform.store.create', 'global'],
+    'create a store' => [function () {
+        // A currency no store uses (one currency, one store), written straight in so only the store's check is logged.
+        DB::table('platform.currencies')->insert(['code' => 'XTS', 'exponent' => 2, 'name' => json_encode(['ar' => 'عملة', 'en' => 'Currency']), 'abbreviation' => json_encode(['ar' => 'ع', 'en' => 'XTS']), 'created_at' => now(), 'updated_at' => now()]);
+        app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', 'XTS', 1500, 'UTC', 9));
+    }, 'platform.store.create', 'global'],
     // Per-store: an admin of one store must not be able to edit another.
     'update a store' => [fn () => app(UpdateStoreHandler::class)->handle(new UpdateStore('eg', taxRateBasisPoints: 1500)), 'platform.store.update', 'eg'],
     // The switch: reserved and store-free (owner, 2026-10-01).

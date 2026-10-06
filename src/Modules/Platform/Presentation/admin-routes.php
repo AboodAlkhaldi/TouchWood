@@ -24,6 +24,8 @@ Route::prefix(AdminArea::PREFIX)
     ->middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
     ->group(function (): void {
         Route::get('stores', [StoresController::class, 'index'])->name('platform.admin.stores');
+        // Add Store: a Super Admin, everything at once, switched off (platform.md §9.7 #3).
+        Route::post('stores', [StoresController::class, 'store'])->name('platform.admin.stores.store');
         Route::post('stores/{store}', [StoresController::class, 'update'])->name('platform.admin.stores.update');
         // The on/off switch: a Super Admin only, and never the base store off (owner, 2026-10-01).
         Route::post('stores/{store}/activate', [StoresController::class, 'activate'])->name('platform.admin.stores.activate');
