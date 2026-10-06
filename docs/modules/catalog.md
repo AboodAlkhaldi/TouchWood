@@ -727,6 +727,8 @@ exactly as one that does not exist, as B2B's and Access's do.
 | `CategoryInactive`, `BrandInactive`, `ListItemInactive` | CONFLICT | Choosing something deactivated |
 | `BrandInUse`, `ListItemInUse` | CONFLICT | Deleting what a product still uses |
 | `DefaultBrandRequired` | CONFLICT | Deactivating or deleting the default brand (§1.6) |
+| `AttributeKindLocked` | CONFLICT | Changing an attribute's job once it has values (amendment 1(i)) |
+| `NameTaken` | CONFLICT | A value of one attribute, or a word pair, the list already has — matched trimmed, ignoring letter case (§1.7, §1.11); a new value a file would make twice (§1.12) |
 | `AttributeSetLocked` | CONFLICT | Changing a product's attribute set once it has variants (§1.7) |
 | `AttributeSetInUse` | CONFLICT | Changing a set's attributes while variants are built on it (amendment 3(k)) |
 | `TooMany` | CONFLICT | Over a limit: photos, search words, filter values, related products |
