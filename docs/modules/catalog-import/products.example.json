@@ -40,11 +40,7 @@
       "search_words": ["سحاب درج", "مجرى", "slide", "rail"],
       "filters": { "Use": ["Kitchen", "Wardrobe"], "Closing": ["Soft-close"] },
       "related": ["1306"],
-      "goes_with": ["2001"],
-      "stores": {
-        "sa": { "price": 120.5, "stock": 40 },
-        "eg": { "price": 3900 }
-      }
+      "goes_with": ["2001"]
     },
     {
       "name": { "ar": "مفصلة باب خزانة", "en": "Cabinet door hinge" },
@@ -57,8 +53,7 @@
       "variants": [
         { "code": "2001", "weight_g": 90 }
       ],
-      "photos": ["photos/2001.png"],
-      "stores": { "sa": { "price": 18 } }
+      "photos": ["photos/2001.png"]
     },
     {
       "name": { "ar": "مقبض ألمنيوم 128 مم" },

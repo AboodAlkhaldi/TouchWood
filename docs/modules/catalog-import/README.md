@@ -11,8 +11,8 @@ on 2026-10-05). This guide is written so a person, or another AI agent, can fill
 
 | File | Who uploads it | What it does |
 |---|---|---|
-| **Products file** — [`products.example.json`](products.example.json) | A Super Admin | Brings new products in, or updates existing ones. Uploaded **alone** (no photos) or **inside a zip with its photos** |
-| **Store file** — [`store-fill.example.json`](store-fill.example.json) | An admin of one store | Switches existing products on in that store, with their prices |
+| **Products file** — [`products.example.json`](products.example.json) | A Super Admin | Brings new products into the catalog, or updates existing ones — **never on sale by itself**: it names no store, price or stock. Uploaded **alone** (no photos) or **inside a zip with its photos** |
+| **Store file** — [`store-fill.example.json`](store-fill.example.json) | An admin of one store | Switches existing, ready products on in that store (publishes them), with their prices and stock |
 
 Both files are **UTF-8 JSON**. Write Arabic as Arabic letters, not escapes. Every text is one line
 unless this guide says otherwise.
@@ -49,7 +49,6 @@ unless this guide says otherwise.
 | `filters` | No | `{attribute: [values]}` | Filter attributes and their values (`"Use": ["Kitchen", "Wardrobe"]`). At most 100 values. |
 | `related` | No | list of codes | "You may also like": codes of other products, in this file or already in the catalog. At most 20. |
 | `goes_with` | No | list of codes | "Goes with" (accessories), the same way. At most 20. |
-| `stores` | No | `{store code: {"price": number, "stock": number}}` | The stores it is switched on in **when you accept it**. Store codes as in the panel (`sa`, `eg`, `ae`). `price` in that store's currency (e.g. `120.5`); `stock` a whole number. Both optional. **Until Pricing and Inventory exist (stage 5) prices and stock are shown but not kept.** |
 
 ### 1.2 A variant
 
@@ -139,6 +138,9 @@ products share a code; two variants of one product have the same values; a photo
 not in the zip (or photos are named in a JSON uploaded alone); a number is out of range; a list is too
 long; the file is over its limits. Nothing is kept from a refused file.
 
+A product that still has a `stores` field is refused too: prices and stock come with each store's own
+file (§2).
+
 Once the file is in its format, it is read against the catalog, and also refused — every problem of
 this second reading listed — if:
 
@@ -155,10 +157,12 @@ import's page asks about it (§1.3).
 
 A file that passes changes **nothing** until the Super Admin decides on its page: new names, codes the
 catalog already has (update that product, replace it whole, skip, or give another code). There, all
-the products or the selected ones can also be changed at once — brand, warranty, category, the stores
-to switch on in with a price and stock, search words, filter values — replacing what they have or only
-filling the ones that have none. Then **bring the products in** (the confirm: until then all of it is a
-draft), then accept, archive or delete them.
+the products or the selected ones can also be changed at once — brand, warranty, category, search
+words, filter values — replacing what they have or only filling the ones that have none. A product the
+file updates or replaces that is on sale needs **keep on sale** or **take off sale**, chosen each time.
+Then **bring the products in** (the confirm: until then all of it is a draft), then accept (made
+ready, on sale nowhere — each store's admins publish them with their store file), archive or delete
+them.
 
 ---
 
