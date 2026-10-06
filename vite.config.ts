@@ -15,7 +15,9 @@ export default defineConfig({
             // serves them from our own domain, which is the decision of 2026-09-19 - no page ever
             // asks a font service for anything.
             fonts: [
-                bunny('IBM Plex Sans Arabic', { weights: [400, 500, 600, 700] }),
+                // Its Arabic letters too: the plugin loads only the Latin subset unless told, and
+                // every Arabic letter was drawn by the system's fallback face (found 2026-10-06).
+                bunny('IBM Plex Sans Arabic', { weights: [400, 500, 600, 700], subsets: ['arabic', 'latin'] }),
                 bunny('IBM Plex Mono', { weights: [400, 500, 600] }),
             ],
         }),

@@ -108,7 +108,7 @@ it('says in the Companies section whether bank transfer is on, and names no valu
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]')
         ->assertPathIs('/admin')
-        ->navigate('/admin/settings');
+        ->navigate('/admin/settings', BROWSER_PAGE_LOAD);
 
     $page->assertSee('Companies')
         ->assertSee('Bank transfer: temporarily off — fill in all three to turn it on.')
