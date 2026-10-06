@@ -7,6 +7,7 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
+use LogicException;
 use Modules\Catalog\Domain\Model\Brand;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
@@ -57,7 +58,7 @@ final readonly class DatabaseBrandRepository implements BrandRepository
     public function add(Brand $brand): void
     {
         $now = CarbonImmutable::now();
-        $this->db->table(self::TABLE)->insert(['id' => $brand->id(), ...self::toRow($brand), 'created_at' => $now, 'updated_at' => $now]);
+        $this->db->table(self::TABLE)->insert(['id' => $brand->id(), ...self::toRow($brand), 'number' => $this->freeNumber(), 'created_at' => $now, 'updated_at' => $now]);
         $this->slugs->record($brand->id(), $brand->slugs());
     }
 
@@ -75,6 +76,29 @@ final readonly class DatabaseBrandRepository implements BrandRepository
     public function all(): array
     {
         return $this->toBrands($this->db->table(self::TABLE)->orderBy('position')->orderBy('name_en')->orderBy('id')->get()->all());
+    }
+
+    /**
+     * The lowest number no brand holds (catalog.md §1.6, amendment 10(a)): a deleted brand's is free
+     * again, and a failed add leaves no gap. Among 1 … count + 1 one is always free. The caller holds
+     * the brands' lock, so two adds never take the same; the unique index backs it.
+     */
+    private function freeNumber(): int
+    {
+        $free = $this->db->scalar('SELECT min(n) FROM generate_series(1, (SELECT count(*) + 1 FROM catalog.brands)::int) AS n WHERE NOT EXISTS (SELECT 1 FROM catalog.brands AS b WHERE b.number = n)');
+
+        return is_numeric($free) ? (int) $free : throw new LogicException('No free brand number: the range always holds one.');
+    }
+
+    public function numbers(): array
+    {
+        $numbers = [];
+
+        foreach ($this->db->table(self::TABLE)->orderBy('number')->get(['number', 'id']) as $row) {
+            $numbers[(int) $row->number] = (string) $row->id;
+        }
+
+        return $numbers;
     }
 
     public function withLogo(string $mediaId): array

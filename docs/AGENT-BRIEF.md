@@ -139,10 +139,14 @@ amendment 18; `frontend.md` §1.8.
 - **Super Admin JSON import**, for the first migration and big batches (staff still add products in
   the panel): new products with their details, images and codes, the stores each is active in, and
   each store's price and stock — or one store's selection of existing products with its prices and
-  stock. A preview first, then all-or-nothing; an existing code is updated, not refused. In a wired
-  store, prices and stock in the file are ignored with a warning (Odoo is the source there).
-- **The file's format: ask the owner when the time comes** — the owner said they will be asked for it
-  then, not before.
+  stock. In a wired store, prices and stock in the file are ignored with a warning (Odoo is the
+  source there).
+- **The file's format was agreed with the owner on 2026-10-05** (Catalog amendment 6). **The exact
+  format, a guide to filling it and a complete example of each file live in
+  [`docs/modules/catalog-import/`](modules/catalog-import/README.md)** — the owner fills files from
+  them with another AI agent. Each uploaded file gets its own page (names and codes decided there,
+  products brought in as drafts and accepted one by one); the store file only switches existing
+  products on. Change the format only with the owner, and keep the examples in step with the code.
 - **Store on/off switch, Super Admin only.** An off store disappears — its route, the store chooser,
   its addresses, staff screens — except in history and logs; its paths answer 404 like an unknown
   code. **The base store can never be off**: a mark on the store row (`is_base`), seeded on KSA,

@@ -84,6 +84,24 @@ return [
     'variant.deleted' => 'حُذف نوع من مسودة منتج',
     'variant.code_corrected' => 'صُحّح رمز نوع منتج',
 
+    'import.added' => 'رُفع ملف منتجات',
+    'import.checked_again' => 'أُعيد فحص أسماء ورموز ملف منتجات قبل الإدخال',
+    'import.accepted' => 'قُبلت منتجات ملف',
+    'import.archived' => 'أُرشفت منتجات ملف',
+    'import.deleted' => 'حُذفت مسودات منتجات ملف',
+    'import.bringing_in' => 'بدأ إدخال منتجات ملف',
+    'import.brought_in' => 'أُدخلت منتجات ملف',
+    'import.failed' => 'تعذّر إدخال منتجات ملف',
+    'import.edited' => 'عُدّلت منتجات ملف قبل إدخالها',
+    'import.discarded' => 'أُلغي ملف منتجات قبل إدخال منتجاته',
+    'import_name.decided' => 'قُرّر في اسم جديد من ملف منتجات',
+    'import_product.decided' => 'قُرّر في رمز من ملف منتجات',
+
+    'store_fill.added' => 'رُفع ملف متجر',
+    'store_fill_item.corrected' => 'صُحّح رمز في ملف متجر',
+    'store_fill.removed' => 'أُزيلت عناصر من ملف متجر',
+    'store_fill.switched_on' => 'فُعّلت عناصر ملف متجر في المتجر',
+
     'word_pair.added' => 'أُضيف مرادف بحث',
     'word_pair.deleted' => 'حُذف مرادف بحث',
 ];

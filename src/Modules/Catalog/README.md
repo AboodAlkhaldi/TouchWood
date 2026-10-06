@@ -8,12 +8,15 @@ Catalog owns **what is sold, and where**: products and their variants, the codes
 category tree, brands, attributes, labels, warranties, each store's choice of what it sells, search,
 and the JSON import. It owns nothing about how many (Inventory) or for how much (Pricing). The rules
 are in the specification, [docs/modules/catalog.md](../../../docs/modules/catalog.md); this file says
-how the code is organised and why.
+how the code is organised and why. **The import's file format** — a guide and a complete example of
+each file, which the owner fills real files from — is in
+[docs/modules/catalog-import/](../../../docs/modules/catalog-import/README.md): the import reads exactly
+that, so a change to it changes the guide and both examples too.
 
 **Being built** (from 2026-10-02), backend first, in seven steps: 1 foundation · 2 the shared lists
 · 3 products and variants · 4 each store's choice · 5 listing, search and the public contract ·
 6 the JSON import · 7 the module's own pass. The admin and storefront screens, with their endpoints,
-come after the Geist foundation. This file grows with each step. **Steps 1 to 5 are built.**
+come after the Geist foundation. This file grows with each step. **Steps 1 to 6 are built.**
 
 ---
 
@@ -21,11 +24,13 @@ come after the Geist foundation. This file grows with each step. **Steps 1 to 5 
 
 | Folder | What is in it |
 |---|---|
-| `Application/CatalogPermissions.php` | The twenty permissions declared so far of catalog.md §3's twenty-one (`catalog.listing.fill` comes with the admins' store file, step 6), declared into Access's catalog at boot: seventeen jobs a role may hold, and three reserved to a Super Admin and the system |
+| `Application/CatalogPermissions.php` | The twenty-one permissions of catalog.md §3, declared into Access's catalog at boot: eighteen jobs a role may hold — `catalog.listing.fill`, the store file, only an admin role (amendment 6(h), declared `adminOnly`) — and three reserved to a Super Admin and the system |
 | `Application/Command` | One folder per change: a command and its handler, which names its `PERMISSION` and authorizes first. Step 2: the six shared lists and each store's order of the menu; step 3: products and variants; step 4: each store's choice (below) |
 | `Application/Lists` | What the lists' handlers share: `SharedListChange` (the permission with All stores, the transaction, the list's lock — after the products' for a change that changes products — the audit), `ProductFates` (each product's fate in a deactivation), the forms' parsing (`BrandInput`, `CategoryInput`, `AttributeInput`, `LabelInput`, `WarrantyInput`, `SetMembers`) and `CatalogImages` (a logo or photo must be a public image) |
 | `Application/Products` | What the product handlers share: `ProductAccess` (who may change a product's shared data), `ProductReferences` (the list rows a product points at, row-locked), `ProductInput`, `VariantInput` and `ProductParts` (the forms' parsing), `Readiness` and `ReadyPhotos` (what a product needs to be shown) |
 | `Application/Listing` | `StoreListingChange` — what a store's changes share: the job in that store, the transaction, the products' lock first, the audit in that store; `ListingRows` — the listing's writer, called inside every change that alters a row (step 5, below); `CardPhotoReady` — a photo's sizes ready, its products' rows written again |
+| `Application/Import` | The import and the store file (step 6, below): reading the files (`ProductsFile`, `StoreFillFile`, `DescriptionText`, `FileProblems`), checking one against the catalog (`CatalogNames`, `CatalogCheck`), the zip (`ImportArchives`), the import's rows (`Imports`), the changes before bringing in (`ImportedProductsChange`), bringing in (`ImportReferences`, `ImportBringer`, `ImportPhotos`), the steps after it (`BroughtInProducts`) and the store file's (`StoreFills`) |
+| `Application/Query/ViewImport`, `ListImports`, `ViewStoreFill`, `ListStoreFills` | The import's and the store file's pages and lists (step 6) |
 | `Application/Query/Shop` | What a shopper reads (step 5): `ShopCatalog` (the menu, a category's, a brand's and a product's page, suggestions), `ShopSearch`, `ShopReader` (the reads, as an interface), `Cursor` (a page's keyset), and the cards and pages they answer — never a code |
 | `Application/Search` | `SearchTerms` (what was typed, as search reads it, widened by word pairs) and `SearchLog` |
 | `Application/CatalogApiImpl.php` | `Public/Contracts/CatalogApi`, as plain reads |
@@ -34,15 +39,16 @@ come after the Geist foundation. This file grows with each step. **Steps 1 to 5 
 | `Domain/Model` | Brand, Category, Attribute, AttributeValue, AttributeSet, Label, Warranty, WordPair, Product, Variant, StoreListing (one store's choice of one product) — each keeps what one row can know; all but WordPair (added and deleted, never edited) keep a `ChangeLog` of what an edit changed |
 | `Domain/ValueObject` | Names in both languages, slugs, the structured text of descriptions and terms, list positions, a label's look (`LabelTone`, the Badge's ten), a warranty's period; a product's name (Arabic required, English optional) and slugs, a code (`ProductCode`), a variant's combination, details and measures, search words; a product's quantity limits in a store (`SellingLimits`) |
 | `Domain/Service/ArabicText.php` | Arabic as search compares it (handoff §5.2): marks off, alef and yeh forms folded, digits Latin, lower case |
-| `Domain/Exception` | `CatalogError`, the fourteen refusals of step 2, the thirteen of step 3 and step 4's two (`NotChosenInStore`, `InvalidSellingTerms`), named in both languages in `lang/{ar,en}/errors.php` |
+| `Domain/Exception` | `CatalogError`, the fourteen refusals of step 2, the thirteen of step 3, step 4's two (`NotChosenInStore`, `InvalidSellingTerms`) and step 6's three (`ImportRefused`, `ImportUndecided`, `ImportClosed`), named in both languages in `lang/{ar,en}/errors.php` |
 | `Domain/Repository` | The lists', the products', the variants' and the stores' rows' repositories, and `ListLocks` |
 | `Infrastructure/Eloquent` | The repositories on the query builder; `SlugHistory`; `DatabaseListLocks`; Catalog's own `Ulids` (amendment 1(h)); step 5's `DatabaseListingRows`, `DatabaseShopReader` and `DatabaseSearchLog` |
-| `Infrastructure/Listener`, `Infrastructure/Queue` | `RefreshCardPhotos` (Platform's `MediaVariantsReady`); `PruneSearchLogJob`, queued nightly |
+| `Infrastructure/Listener`, `Infrastructure/Queue` | `RefreshCardPhotos` (Platform's `MediaVariantsReady`); `PruneSearchLogJob`, queued nightly; `BringInImportJob` and `LaravelImportQueue` (step 6) |
+| `Infrastructure/Import` | `DiskImportArchives`: a products file's zip kept on the disk `config/catalog.php` names, read from a local copy, its photos unpacked only into temporary files of its own naming |
 | `Infrastructure/Media` | `CatalogImagesUsage`: brand logos and category photos as Platform media; `ProductPhotosUsage`: product and variant photos (below) |
 | `Infrastructure/Persistence` | `CatalogSchema` (step 1) and the migrations: step 2's lists, step 3's products, variants and their parts, step 4's store rows, step 5's listing and search log — every rule one row can hold backed by a named CHECK, index or key |
 | `Presentation/Console` | `catalog:listing:rebuild` — the listing's repair, run by hand |
 | `Presentation/lang/{ar,en}` | The permissions' names, the errors, the audit log's name for every action, and the queued work's names (`jobs.php`) |
-| `Public/Contracts`, `Public/Dto` | `CatalogApi` and its DTOs (`VariantDto`, `VariantValueDto`, `ProductDto`, `StoreVariantDto`); `ListingFacts`, declared for stage 5 |
+| `Public/Contracts`, `Public/Dto` | `CatalogApi` and its DTOs (`VariantDto`, `VariantValueDto`, `ProductDto`, `StoreVariantDto`); `ListingFacts`, and `ImportSections` with `ImportSection`, declared for stage 5 |
 | `Public/Enums` | `AttributeKind`, `AgencyType`, `ProductStage`, `ProductFate`, `SaleMode` — and so their TypeScript types |
 | `Public/Events` | `ProductMadeReady`, `ProductArchived`, `ProductRestored`, `ProductChanged`, `VariantAdded`, `VariantArchived`, `VariantRestored`, `VariantCodeCorrected`, `StoreListingChanged`: ids only |
 
@@ -56,7 +62,7 @@ read other rows or another table — a category's loops, a swatch only on a colo
 a set's members, a job locked by values, "at least one default" — are the code's alone, under the
 list's lock.
 
-**One permission per job, none admin-only** (catalog.md §3). A store's own row — its choice, selling
+**One permission per job; one of them, the store file's `catalog.listing.fill`, admin roles only** (catalog.md §3, amendment 6(h)). A store's own row — its choice, selling
 terms, "Not available now", labels, ranks — is checked in that store. A product's shared data is
 checked in **every store where the product is Active**. A shared list — the tree, the brands, the
 attributes, the labels, the warranties, the word pairs — reaches every store, so its job is checked
@@ -185,7 +191,8 @@ the audit in that store (`catalog.listing.*`).
 Selling terms, labels and "Not available now" need a product the store has chosen
 (`NotChosenInStore`). **Archiving a product, or a variant, switches it off in every store**, each
 store's change audited there; restoring leaves it off. A label a store shows is not deleted. The
-admins' file that fills a store with codes, and its "needs completion" list, come in step 6.
+admins' file that fills a store with codes came in step 6 (below), with a page of its own instead of
+amendment 4's "needs completion" list (amendment 6(g)).
 
 **Deactivating a category or a brand** gives **every product it reaches, in any stage**, its fate
 (`ProductFates`): its own choice or the one for all — **hide** (`hidden_by_category`,
@@ -278,13 +285,92 @@ is required (`composer.json`): slugs fold accented Latin letters with it.
 its three enums — and `tests/Architecture/CatalogAccessUseTest.php` holds it to that. Catalog's own
 public surface never references Access.
 
+### The import and the store file (step 6)
+
+**A products file** (catalog.md §1.12, amendments 6 and 7; the format in `docs/modules/catalog-import/`)
+is a Super Admin's (`catalog.import.run`), from upload to acceptance:
+
+1. **Upload** (`UploadImport`): the JSON alone, or a zip with `products.json` at its top — told apart by
+   the file's own first bytes. `ProductsFile` checks every rule of the guide and collects every problem
+   (at most 500 listed); then `CatalogCheck` checks it against the catalog — an attribute used for two
+   jobs, or for a job the catalog's attribute of that name does not have; a category with
+   sub-categories; a set whose attributes the variants do not match; a photo not JPEG, PNG or WebP or
+   over the media library's limit; codes two catalog products hold. Any problem refuses the file whole
+   (`ImportRefused`). Otherwise it becomes an import: **each name the catalog lacks listed once** with
+   its products (each missing level of a category path its own row; a brand by number as `#N`), **each
+   product with the catalog's product already holding its codes**, and the zip kept. Nothing in the
+   catalog changes.
+2. **Decisions** (`DecideImportNames`, `DecideImportCodes`): a name means an active one of that list
+   doing the file's job, or is refused; values, categories and sets may also be created — **brands,
+   warranties and attributes never** (amendment 7(a)). A code the catalog has: update, replace, skip, or
+   new codes free in the catalog and in the file.
+3. **Changes before bringing in** (`SetImported…`, amendments 7(c), (d), 8(a), 8(c), 9(a)): brand (by
+   its fixed number), warranty, category (kept by id), search words, filter values — for all or the
+   selected, replacing or only filling the empty (lists may also add). A product the file updates
+   counts what the catalog's has **when it is brought in**: where the file gives none, what is filled
+   (`fill_…`) or added (`added_…`) is kept apart, whatever the decision on its codes is then, and given
+   to what the product has at that moment (`FileProduct::asBroughtIn`, `ImportBringer::parts`).
+   `SetImportedSlugs` gives a product its own web address when its own would collide
+   (`ImportAddresses`). The file's own product stays in `import_products.data`; the changed one in
+   `edited`. The names list follows the products. **A name several catalog items answer to** is listed
+   with how many (`matches`): `CatalogNames` answers only when one item does (amendment 8(d)).
+4. **Bringing in** (`BringInImport`, the confirm): names, codes, new codes and new categories'
+   addresses asked again against the catalog as it is, what changed kept and audited; while anything
+   waits — a name, a code, or a product's address —, `ImportUndecided`; else `BringInImportJob` is
+   queued. A job the queue gives up on leaves the import failed, never bringing in (`failed()`). Its work
+   (`BringInImportProducts` → `ImportBringer`) is **one transaction under the products' lock, then the
+   lists'**: the names decided "create it" made through the lists' handlers, then each product **through
+   the product handlers** — created as a draft with its photos (`ImportPhotos`, Platform's
+   `uploadMediaFor` under `import.run`), updated, replaced, skipped, held back when its set or a
+   variant's value was refused, or made with its new codes. Any refusal rolls everything back, and the
+   import is `FAILED` with where and why (`ImportStepFailed`); a fault also stays on the failed jobs
+   screen.
+5. **After** (`AcceptImportedProducts`, `ArchiveImportedProducts`, `DeleteImportedProducts`, through
+   `BroughtInProducts`): accepting makes ready — **on sale nowhere**: the products file only brings
+   products in, and a store's admins publish them with their store file (amendment 9(b)) — and relates
+   to the ready products the file named; archive and delete only what the import created.
+
+**A file not brought in may be discarded** (`DiscardImport`, amendment 10(b)): one deciding, or whose
+bringing in failed, goes whole — its rows by their foreign keys' CASCADE, its zip after the commit;
+one bringing its products in, or brought in, stays (`ImportClosed`). **No uploaded file is kept
+beyond its work**: a JSON file and a store file are let go once read, a zip once its products are
+brought in or its import discarded.
+
+**Brands' numbers** (amendments 7(b), 10(a)): a new brand takes the lowest number no brand holds
+(`DatabaseBrandRepository::add`, under the brands' lock), so a deleted brand's is free again and a
+failed add leaves no gap; a trigger refuses changing a brand's number while it exists.
+
+**A product the file updates or replaces that is on sale** needs **keep on sale** or **take off
+sale** (`DecideImportCodes`' `sale`), every time — the confirm counts those still waiting
+(`ImportUndecided` sales); taken off sale, bringing in switches it off in every store, as archiving
+does, still ready (amendment 9(c)).
+
+**The zip** (`DiskImportArchives`) is trusted no further than it can be checked: two entries for one
+path are refused, `products.json` is read by its own entry and never past 20 MB, and each photo is
+copied no further than its declared size — one that does not come out exactly that size is refused.
+
+**For the screens:** the store file's pages answer no uploader: a Super Admin is named to a store's
+admins only as "System administrator" (access.md amendment 54).
+
+**The admins' store file** (catalog.md §1.3, amendment 6(g), (h)) is `catalog.listing.fill` in that
+store — declared `adminOnly`, so only an admin role holds it. It never creates or changes a product:
+`UploadStoreFill` keeps its items open; `CorrectStoreFillCode` and `RemoveStoreFillItems` mend the file;
+`SwitchOnStoreFillItems` chooses, in that store, the variants carrying each code of a ready product —
+through `StoreListingChange` and the store's listing, as the store's own choice does, but under the
+file's job. Each open item's standing (ready, not ready, archived, already on, unknown) is read on its
+page, never stored.
+
+**Prices and stock come only with a store's file** — a products file that names a store is refused
+(amendment 9(a)) — and are shown and not kept until stage 5, when Pricing and Inventory register their
+`ImportSection`s (declared in `Public/Contracts`).
+
 ## Tests
 
 | File | What it covers |
 |---|---|
 | `Unit/CatalogValuesTest` | Text on one line, names, slugs (Arabic and accented Latin), structured text, Arabic normalisation, a label's words and looks, word pairs, warranty periods |
 | `Unit/CatalogErrorsTest` | Every error has a unique `catalog.*` type, a category, and a title and detail in both languages |
-| `Integration/CatalogBrandsTest` | The seed; who may; slugs and their history; the one default; deactivating and deleting; the database's CHECKs |
+| `Integration/CatalogBrandsTest` | The seed; who may; slugs and their history; the one default; deactivating and deleting; the database's CHECKs; each brand's number, the lowest free (amendment 10(a)) |
 | `Integration/CatalogCategoriesTest` | Who may change the tree and who a store's order; places chosen by the adder in every store, an off store included; moving and loops; deactivating and activating exactly what went; deleting; a store opened later starting with no order; the database's CHECKs |
 | `Integration/CatalogAttributesTest` | Jobs locked by values and by sets; values alike ignoring case; swatches; sets' members; the database's CHECKs |
 | `Integration/CatalogSmallListsTest` | Labels, warranties and word pairs, including a pair the database's language order would sort the other way |
@@ -308,11 +394,23 @@ public surface never references Access.
 | `Unit/CatalogListingRowsTest` | The listing is never written outside a transaction |
 | `Unit/CatalogSearchTermsTest` | What was typed, as search reads it; word pairs, a run of words before one |
 | `Unit/CatalogProductTest` | A product archived remembers the stage it left — archived twice or not — and restoring goes back there |
+| `Unit/CatalogImportFilesTest` | Step 6's two files read and checked: the guide's own examples, every rule refused with where, every problem collected, descriptions' markers |
+| `Integration/CatalogImportUploadTest` | Uploading: who may; names listed once with their counts, matched as search compares words, a brand by number; what refuses a file; a zip kept, its products.json at the top, photos unpacked into the archives' own files |
+| `Integration/CatalogImportDecisionsTest` | Deciding names and codes: targets in their list, active, of the right job; what may be created; values under their attribute; new codes free; all or none; closed while bringing in |
+| `Integration/CatalogImportChangesTest` | The changes before bringing in: each field, replace and fill-empty (and add), the selected or all, the file's own kept, the names list following |
+| `Integration/CatalogImportBringInTest` | The confirm asking again; bringing in: lists made, products created with photos, skipped, held, recoded, updated, replaced; all or nothing with the reason; the locks' order |
+| `Integration/CatalogImportAcceptTest` | Accepting (ready, on sale nowhere new, relations), archiving and deleting only what the import created |
+| `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variants carrying each code of a ready product; mending and removing items |
+| `Integration/CatalogImportPagesTest` | The pages' reads: a products file's page and list, a store file's page with each item's standing, and its store's list |
+| `Integration/CatalogImportSaleTest` | Amendment 9: no store in a products file; keep on sale or take off sale, every time, in every store, cleared with its decision, asked again when put on sale after the confirm; codes two catalog products hold; words added to an updated product kept apart; a new category's taken address counted; a job given up on taking the products' lock first |
+| `Integration/CatalogImportDiscardTest` | Amendment 10(b): a file not brought in discarded whole with its zip, deciding or failed; one bringing in or brought in stays; a store's file is not one; a Super Admin's |
+| `Integration/CatalogImportReviewTest` | After step 6's reviews (amendment 8): ambiguous names and colliding addresses decided on the page; the confirm asking again; holding back, replacing whole, updating and restoring; the page's picks brought in, filling and adding counted against an updated product as it is when brought in; a job given up on; the zip's sizes; linking back on accepting, by any code held; the store file kept to its store |
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 
 `CatalogListGuardsTest` records every query to check each change takes its lock first, inside its
 own transaction (level 2 under `RefreshDatabase`); `CatalogFixtures::lockedTables` reads from the
 same record which rows a change locked, in order. `Support/CatalogProducts` makes the products,
-variants and the lists they use, as the system. Run everything with `composer check`.
+variants and the lists they use, as the system; `Support/CatalogImports` writes, uploads, decides and
+brings in files for step 6's tests. Run everything with `composer check`.
 The test database is `touchwood_test`.

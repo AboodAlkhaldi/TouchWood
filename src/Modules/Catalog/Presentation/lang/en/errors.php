@@ -120,6 +120,18 @@ return [
         'title' => 'Check the selling terms',
         'detail' => 'Each variant needs a selling mode, each limit is from 1 to 100,000, a maximum is never below its minimum, and wholesale needs its minimum.',
     ],
+    'import_refused' => [
+        'title' => 'The file could not be read',
+        'detail' => 'It is not in the agreed format. Every problem is listed with where it is; fix them and upload it again. Nothing from it was kept.',
+    ],
+    'import_undecided' => [
+        'title' => 'Decisions still wait',
+        'detail' => 'Before the products are brought in: decide every new name and every code the catalog already has, give an address to every product whose address is taken, and choose keep on sale or take off sale for every product on sale that the file changes.',
+    ],
+    'import_closed' => [
+        'title' => 'Decided already',
+        'detail' => 'The products of this file are being brought in, or are in. Its decisions can no longer change.',
+    ],
     'fields' => [
         'agency_type' => 'agency type',
         'attribute' => 'attribute',

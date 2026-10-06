@@ -21,6 +21,7 @@ return [
         'selling' => 'Set selling modes and quantity limits',
         'unavailable' => 'Mark products and variants "Not available now", and clear it',
         'labels' => 'Attach labels to products',
+        'fill' => 'Switch products on in the store from a file',
         'rebuild' => 'Rebuild the product listing',
     ],
     'category' => [

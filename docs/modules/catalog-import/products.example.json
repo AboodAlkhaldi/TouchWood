@@ -1,0 +1,66 @@
+{
+  "format": "touchwood-products/1",
+  "products": [
+    {
+      "name": { "ar": "مجرى درج تلسكوبي ناعم الإغلاق", "en": "Soft-close telescopic drawer runner" },
+      "slug": { "ar": "مجرى-درج-تلسكوبي", "en": "soft-close-drawer-runner" },
+      "description": {
+        "ar": "# مجرى درج ناعم الإغلاق\nيغلق الدرج بهدوء ومن دون ارتطام.\n\n- تحمل حتى **35 كغ**\n- فتح كامل\n- تركيب سريع",
+        "en": "# Soft-close drawer runner\nCloses the drawer quietly, without a bang.\n\n- Holds up to **35 kg**\n- Full extension\n- Quick fitting"
+      },
+      "brand": "TouchWood",
+      "category": "Kitchens / Drawers / Runners",
+      "warranty": "Two years",
+      "attribute_set": "Runner sizes",
+      "variants": [
+        {
+          "code": "1304",
+          "values": { "Length": "45 cm", "Finish": "Zinc" },
+          "details": { "Load": 35, "Material": { "ar": "فولاذ", "en": "Steel" } },
+          "weight_g": 1450,
+          "length_mm": 450,
+          "width_mm": 45,
+          "height_mm": 12,
+          "photos": ["photos/1304-45-zinc.jpg"]
+        },
+        {
+          "code": "1304",
+          "values": { "Length": "50 cm", "Finish": "Zinc" },
+          "details": { "Load": 35, "Material": { "ar": "فولاذ", "en": "Steel" } },
+          "weight_g": 1600,
+          "length_mm": 500
+        },
+        {
+          "code": "1305",
+          "values": { "Length": "45 cm", "Finish": "Black" },
+          "details": { "Load": 35, "Material": { "ar": "فولاذ", "en": "Steel" } }
+        }
+      ],
+      "photos": ["photos/1304-front.jpg", "photos/1304-open.webp"],
+      "search_words": ["سحاب درج", "مجرى", "slide", "rail"],
+      "filters": { "Use": ["Kitchen", "Wardrobe"], "Closing": ["Soft-close"] },
+      "related": ["1306"],
+      "goes_with": ["2001"]
+    },
+    {
+      "name": { "ar": "مفصلة باب خزانة", "en": "Cabinet door hinge" },
+      "description": {
+        "ar": "مفصلة بزاوية فتح 110 درجة.",
+        "en": "A hinge that opens to 110 degrees."
+      },
+      "brand": 2,
+      "category": "Tallsen / Hinges",
+      "variants": [
+        { "code": "2001", "weight_g": 90 }
+      ],
+      "photos": ["photos/2001.png"]
+    },
+    {
+      "name": { "ar": "مقبض ألمنيوم 128 مم" },
+      "category": "Handles",
+      "variants": [
+        { "code": "1306" }
+      ]
+    }
+  ]
+}

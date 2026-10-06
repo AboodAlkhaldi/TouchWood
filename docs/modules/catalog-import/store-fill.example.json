@@ -1,0 +1,8 @@
+{
+  "format": "touchwood-store-fill/1",
+  "items": [
+    { "code": "1304", "price": 120.5, "stock": 40 },
+    { "code": "1305", "price": 125 },
+    { "code": "2001", "price": 18, "stock": 300 }
+  ]
+}

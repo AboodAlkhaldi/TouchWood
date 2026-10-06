@@ -117,6 +117,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-02 | §4.4 | **Catalog → Platform, Access**: Catalog uses Access's public surface only to declare its permissions; any other use goes to the owner first | Catalog spec, owner decision |
 | 2026-10-02 | §4.1 | **Slugs are global**: one Arabic and one English slug per product, category and brand, used in every store (§9.1 already said so; §4.1 had listed slugs as store-scoped) | Catalog spec, owner decision |
 | 2026-10-02 | §9.1, §9.2 | **A product-wide stage** (`DRAFT`, `READY`, `ARCHIVED`) **and each store's Active row**: a store chooses whole products or single variants; "Not available now" on a product or a variant, per store; the JSON import lives in Catalog, its prices and stock waiting for Pricing and Inventory | Catalog spec, owner decision |
+| 2026-10-05 | §9.1 | **The JSON import's format and flow agreed** (Catalog amendment 6): a page per uploaded file, decided and accepted product by product, instead of "a preview, then all-or-nothing"; the store file switches existing products on only. The format, a guide and complete examples: `docs/modules/catalog-import/` | Owner, Catalog amendment 6 |
 | 2026-10-02 | §9.3, §9.4, §9.5, §15.2 | **One category per product**, at the end of the tree; empty categories hidden per store; categories and brands deactivated (each product's fate chosen) or deleted when unused; a movable default brand; shared search word pairs and a 12-month search log with no person; custom labels and warranty built with Catalog; a product video left open | Catalog spec, owner decision |
 
 ---
@@ -920,15 +921,21 @@ products one at a time in the panel:
   those stores' price and stock — in one file, so a product and its stores arrive together;
 - **a store's choice** of products that already exist, with its prices and stock.
 
-A preview first, then all-or-nothing. A code that already exists is updated, not refused. In a store
-wired to a provider, the file's prices and stock are ignored with a warning: the provider is their
-source there (§12.2). **The file's format is agreed with the owner when Catalog is built**, not
-before.
+**The format and the flow were agreed with the owner on 2026-10-05** (`docs/modules/catalog.md`
+§1.12, §1.3, amendment 6). **The exact format — a guide to filling it and a complete example of each
+file — is in [`docs/modules/catalog-import/`](modules/catalog-import/README.md)**; the owner fills
+files from it, with another AI agent's help. In short: the products file goes in alone or in a zip
+with its photos, and **gets its own page** where the Super Admin decides each name the catalog lacks
+(a typo for an existing one, create it, or refuse it) and each code it already has (update, replace
+whole, skip, or another code), then brings the products in as drafts and accepts, archives or deletes
+them — replacing "a preview, then all-or-nothing". The admins' **store file** (codes and prices,
+stock optional) never creates or edits a product: its page switches existing products on in that
+store, an unknown code corrected or removed. In a store wired to a provider, the file's prices and
+stock are ignored with a warning: the provider is their source there (§12.2).
 
 **The import lives in Catalog** (owner, 2026-10-02). Until Pricing and Inventory exist (stage 5), the
-file's prices and stock are not imported; those modules then add their parts of the file to the same
-preview and the same all-or-nothing step. The format waits for the owner's sample file
-(`docs/modules/catalog.md` §1.12).
+file's prices and stock are shown and not kept; those modules then add their parts of the file to the
+same page (`docs/modules/catalog.md` §2.3).
 
 Attributes are one of three kinds: informational, filterable, or variant-generating.
 **One shared library** (owner, 2026-10-02): an attribute and its values are defined once, "Black" and
@@ -1617,6 +1624,15 @@ Decide these when the owning module is reached; do not design them now.
   TLS-terminating proxy that is not trusted, every request looks like `http`, so every customer
   email-verification link would fail its signature and answer 403 (review of Access step 7).
 - **CDN purge** of a deleted public image's sizes.
+- **The product import's queue** (Catalog step 6): the import's job may run up to 60 minutes, while
+  the queue's `retry_after` is 90 s — a second worker would take a long import as failed while it
+  still works (the data stays safe: the failure waits for the running job's lock). Give the job a
+  queue connection of its own whose `retry_after` is longer than its timeout.
+- **The import's zip disk** (`CATALOG_IMPORTS_DISK` in `config/catalog.php`, `local` by default): a
+  zip waits there from its upload until its products are brought in or its import discarded. With
+  more than one server it must be storage they share.
+- **PHP's zip extension** (`ext-zip`, in `composer.json`) on the server: the products import reads zips
+  with it.
 
 ---
 

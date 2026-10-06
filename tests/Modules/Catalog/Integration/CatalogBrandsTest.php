@@ -338,3 +338,25 @@ describe('what the database refuses behind the code', function () {
             ->toThrow(QueryException::class, 'brand_slugs_pkey');
     });
 });
+
+describe('the brand\'s fixed number (amendments 7(b), 10(a))', function () {
+    it('gives each brand the lowest number free — a deleted brand\'s again, no gaps — and never changes one', function () {
+        Cx::actAsStaffWith([CatalogPermissions::BRAND_MANAGE]);
+        $seeded = app(BrandRepository::class)->numbers();
+        $blum = catalogBrandsAdd('Blum');
+        $hettich = catalogBrandsAdd('Hettich');
+        $tallsen = catalogBrandsAdd('Tallsen');
+        app(DeleteBrandHandler::class)->handle(new DeleteBrand($hettich));
+        $grass = catalogBrandsAdd('Grass');
+        $salice = catalogBrandsAdd('Salice');
+        $next = count($seeded) + 1;
+
+        // Any brands already here hold 1 … n; Hettich's number went to Grass, the next new one follows Tallsen.
+        expect(array_keys($seeded))->toBe($seeded === [] ? [] : range(1, count($seeded)))
+            ->and(app(BrandRepository::class)->numbers())->toBe($seeded + [$next => $blum, $next + 1 => $grass, $next + 2 => $tallsen, $next + 3 => $salice]);
+        expect(fn () => DB::transaction(fn () => DB::table('catalog.brands')->where('id', $blum)->update(['number' => 99])))
+            ->toThrow(QueryException::class, 'a brand keeps its number');
+        expect(fn () => DB::transaction(fn () => DB::table('catalog.brands')->where('id', $blum)->update(['number' => $next + 2])))
+            ->toThrow(QueryException::class);
+    });
+});

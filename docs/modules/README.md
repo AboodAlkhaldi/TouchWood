@@ -34,7 +34,7 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Frontend foundation (stage 2b, not a module) | [approved](frontend.md) — revised 2026-09-22 against the merged Access; builds in the five steps of its §0.2 | — |
 | B2B | [accepted](b2b.md) 2026-09-26, amendments 1–13 — **being built** (from 2026-09-27) in seven steps. See [its README](../../src/Modules/B2B/README.md) | — |
 | Feedback | not started | Catalog, Sales — built with Sales (stage 6) |
-| Catalog | [approved](catalog.md) 2026-10-02 — **being built** (from 2026-10-02) in seven steps, backend first; the JSON import's file format follows the product tables, and the import is built last. See [its README](../../src/Modules/Catalog/README.md) | — |
+| Catalog | [approved](catalog.md) 2026-10-02 — **being built** (from 2026-10-02) in seven steps, backend first; the JSON import's file format was agreed on 2026-10-05 — the format, a guide and examples in [`catalog-import/`](catalog-import/README.md) — and the import is built last. See [its README](../../src/Modules/Catalog/README.md) | — |
 | Pricing | not started | Catalog |
 | Inventory | not started | Catalog |
 | Sync | not started | provider credentials + webhook capability |

@@ -119,7 +119,7 @@ final readonly class GrantRules
                 throw new ReservedPermission($permission);
             }
 
-            if ($level === RoleLevel::Staff && in_array($permission, AccessPermissions::adminOnly(), true)) {
+            if ($level === RoleLevel::Staff && $this->catalog->isAdminOnly($permission)) {
                 throw new AdminOnlyPermission($permission);
             }
 

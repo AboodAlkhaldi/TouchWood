@@ -3,11 +3,11 @@
 > **Written with the owner on 2026-10-02.** The owner's answers are recorded as **[DECIDED
 > 2026-10-02]** and listed in §9.1. **[ACCEPTED 2026-10-02, §9.3 #n]** and **[ACCEPTED 2026-10-02,
 > §9.5 #n]** mark proposals of mine the owner accepted (§9.3 #10 replaced by the owner's own answer).
-> **One section is not written yet:** the JSON import's file format, which follows the product
-> tables once they are built; the import is built last (§1.12, §9.2).
+> The JSON import's file format, which waited for the product tables, is written in §1.12 from the
+> finished tables (amendment 6, 2026-10-05).
 
-**Status:** **APPROVED** by the owner, 2026-10-02 (§9.1 #43), complete but for the import's file
-format; **being built** from 2026-10-02 (`src/Modules/Catalog/README.md`). Changes from here on are
+**Status:** **APPROVED** by the owner, 2026-10-02 (§9.1 #43); the import's file format written with
+the owner on 2026-10-05 (amendment 6); **being built** from 2026-10-02 (`src/Modules/Catalog/README.md`). Changes from here on are
 amendments and need the owner's agreement.
 **Tier:** 1 (commerce core). **Build stage:** 4 (handoff §17).
 **Depends on:** Platform, and Access's public surface for declaring permissions only (§2.4,
@@ -132,19 +132,22 @@ show each store's status … from there we can activate, deactivate or deal with
 can't edit a product at the Egypt store". **Each store's row is changed only by someone holding the
 permission in that store.**
 
-**How a store is filled** (owner, 2026-10-04, amendment 4): **one by one**, under `catalog.listing.choose`
-in that store — staff's everyday work; or, for admins, **a JSON file of codes** (prices and stock as
-optional fields) under its own job, `catalog.listing.fill`, given to admin roles (the product import
-stays Super Admin only, §1.12). The file is all or nothing: **an unknown code refuses the whole file**,
-each one listed; **a ready product's code chooses the variants carrying it** in that store; **a product
-not ready yet** (a photo, a description, an English name missing — never stock, which differs per store)
-**joins that store's "needs completion" list**, where an admin completes it and publishes it there, or
-drops it from that store. The answer says how many were chosen and how many need completion. At most
-1,000 codes a file. **Built in step 6, with the import.** **Nothing goes on sale in a store until it has
-a price there**, by an API or in the file (Pricing, stage 5). A store that is switched off can be
-filled, its terms and labels set, so a new store is prepared before it opens. Selling terms, labels
-and "Not available now" are refused for a product the store has never chosen (`NotChosenInStore`); a
-store that switched all of a product's variants off still edits them.
+**How a store is filled** (owner, 2026-10-04, amendment 4; 2026-10-05, amendment 6(g)): **one by one**,
+under `catalog.listing.choose` in that store — staff's everyday work; or, for admins, **a JSON file of
+codes for one store**, under its own job, `catalog.listing.fill`, **held only through an admin role** (amendment 6(h)) (the
+product import stays Super Admin only, §1.12). **The file holds codes and prices, stock optional**
+(`touchwood-store-fill/1`: `{"format": …, "items": [{"code": "1304", "price": 120, "stock": 15}]}`) —
+**[ACCEPTED 2026-10-05]** at most 1,000 items. A file not in this format is refused whole, every error
+listed. **Every product must already exist**: the file **never creates or edits a product**. **Its
+page** lists each item with its state: **ready** — its product is ready, and switching it on chooses
+the variants carrying the code in that store; **not ready** — what the product lacks, completed in the
+product page and then switched on here; **archived**; **already on**; **unknown code** — a typo or a
+miss: **corrected** (checked again) or **removed**. The admin **switches on** the items selected, or
+every ready one. Prices and stock are shown and, until stage 5, not kept. **Nothing goes on sale in a
+store until it has a price there**, by an API or in the file (Pricing, stage 5). A store that is
+switched off can be filled, its terms and labels set, so a new store is prepared before it opens.
+Selling terms, labels and "Not available now" are refused for a product the store has never chosen
+(`NotChosenInStore`); a store that switched all of a product's variants off still edits them.
 
 **Archiving a product** makes it Inactive in every store; **restoring it** brings it back to the
 stage it left — `READY` if it was ready — Inactive everywhere **[DECIDED 2026-10-02]**, amendment 3(m).
@@ -221,6 +224,11 @@ Global, one row per brand (handoff §9.4): `slug` (one per language **[DECIDED 2
 (Arabic and English), `logo` (a public photo), `description` (Arabic and English), `origin_country`,
 `agency_type` (`HOUSE`, `EXCLUSIVE_AGENT`, `DISTRIBUTOR`), `is_default`, `show_in_default_listings`,
 `position`, `is_active`. **Do not create a table per brand** (handoff §9.4, §16).
+
+- **Every brand has a fixed number** (owner, 2026-10-05, amendment 7(b)) — 1, 2, 3 … given when it is
+  added, shown in the panel, never changed while the brand exists — so a products file names a brand by
+  its number, without a typo (§1.12). **A deleted brand's number is free again: a new brand takes the
+  lowest number no brand holds — no gaps** (owner, 2026-10-06, amendment 10(a)).
 
 - **Exactly one default brand at any time** **[DECIDED 2026-10-02]**, pre-selected on the product
   form; an admin may make another brand the default, which un-marks the old one. A mark on the row,
@@ -328,22 +336,137 @@ on query (handoff §5.2).
 
 ### 1.12 The JSON import
 
-**Lives in Catalog** **[DECIDED 2026-10-02]**. Super Admin only (handoff §9.1). A **preview first, then
-all or nothing**; a code that exists is **updated, not refused** (handoff §9.1). **The admins' file that
-fills one store with codes** (§1.3, amendment 4) is built beside it in the same step, sharing its file
-handling and its sections for prices and stock.
+**Lives in Catalog** **[DECIDED 2026-10-02]**. Super Admin only (handoff §9.1). **The file's format
+follows the product tables we built** **[DECIDED 2026-10-02]**, written here from the finished tables
+and agreed with the owner before step 6 (2026-10-05, amendment 6). **Each uploaded file gets its own
+page**, where the Super Admin decides what the file could not say and accepts its products one by
+one or together (owner, 2026-10-05, amendment 6(a)) — replacing "a preview, then all or nothing".
 
-- **The file's format follows the product tables we build** **[DECIDED 2026-10-02]** (the owner, after
-  first choosing a sample file: "it's gonna be according to the products table that we're gonna
-  build … let this job to the end and not block us"). **The import is built last** (plan step 6), its
-  format written into this section from the finished tables and shown to the owner before it is built.
-- **Prices and stock in the file are ignored for now** **[DECIDED 2026-10-02]** ("any future things it
-  must ignore for now"): Catalog offers a registry where **Pricing and Inventory add their sections in
-  stage 5**, joining the same preview and the same all-or-nothing transaction ("mostly with 1").
-  **[ACCEPTED 2026-10-02, §9.3 #15]** until then the preview says, once, that the file's prices and stock were not
-  imported.
-- In a store wired to a provider, the file's prices and stock are ignored with a warning (handoff
-  §9.1) — Pricing's and Inventory's sections, from stage 5.
+**What is uploaded** (amendment 6(b)): **the JSON alone** — its products arrive without photos and
+stay drafts until each is given one in the panel — **or one zip holding the JSON and its photos**,
+the JSON naming each photo by its path inside the zip. **[ACCEPTED 2026-10-05]** at most 2,000
+products a file; the JSON at most 20 MB, a zip at most 500 MB; photos as the media library takes them.
+
+**The format** (`touchwood-products/1`) **[ACCEPTED 2026-10-05]** — with a guide to filling it and
+both files as complete examples in [`catalog-import/`](catalog-import/README.md), for a person or another
+AI agent to fill (owner, 2026-10-05):
+
+```json
+{
+  "format": "touchwood-products/1",
+  "products": [
+    {
+      "name": { "ar": "درج معدني", "en": "Metal drawer" },
+      "slug": { "en": "metal-drawer" },
+      "description": { "ar": "…", "en": "…" },
+      "brand": "TouchWood",
+      "category": "Kitchens / Drawers",
+      "warranty": "Two years",
+      "attribute_set": "Sizes",
+      "variants": [
+        { "code": "1304", "values": { "Width": "60 cm" }, "weight_g": 2500,
+          "details": { "Material": { "ar": "فولاذ", "en": "Steel" } }, "photos": ["1304/60.jpg"] },
+        { "code": "1304", "values": { "Width": "80 cm" } }
+      ],
+      "photos": ["1304/front.jpg", "1304/side.jpg"],
+      "search_words": ["سحاب", "slide"],
+      "filters": { "Use": ["Kitchen", "Wardrobe"] },
+      "related": ["1305"],
+      "goes_with": ["2001"]
+    }
+  ]
+}
+```
+
+| Field | Required | What it holds |
+|---|---|---|
+| `name` | `ar` | The names (§1.1): the Arabic one always, the English one needed to be ready |
+| `slug` | No | Either language; made from the name when left out (§1.1) |
+| `description` | No | Plain text in each language: a blank line starts a paragraph, a line starting `- ` a list item, `# ` a heading, `**…**` bold — kept as the structured text of §1.1 |
+| `brand` | No | The brand's **fixed number** (§1.6) or its name in either language; the default brand when left out (amendment 7(b)) |
+| `category` | No | The path of names from the top, ` / ` between them, ending at a lowest category (§1.5) |
+| `warranty`, `attribute_set` | No | A name in either language; the set is needed when the variants carry values |
+| `variants` | At least one | Each: `code` (digits, §1.2); `values` — attribute name → value name, one for each attribute of the set; `details` — attribute name → text in both languages or a number (§1.7); `weight_g`, `length_mm`, `width_mm`, `height_mm`; its own `photos` (at most 10). **Sizes may share a code**, as the provider holds them (amendment 3(e)) |
+| `photos` | No | The gallery, in order: paths inside the zip, at most 20 |
+| `search_words` | No | At most 30 (§1.1) |
+| `filters` | No | Filter attribute name → its value names (amendment 3(a)) |
+| `related`, `goes_with` | No | Codes of other products — in the file or already in the catalog (§1.10) |
+
+**Names** — of brands, categories, attributes, values, sets and warranties — are matched as search
+compares words (letter case, Arabic marks and letter forms ignored), in either language. **Brands,
+warranties and attributes must be in the catalog before the file is uploaded** (owner, 2026-10-05,
+amendment 7(a)): a name of one the catalog lacks is picked as one it has, or refused. **Values,
+categories and sets may be created on the import's page.** **A name several catalog items answer to**
+— two warranties both "Two years" — is listed there too, with how many it matches, for the Super
+Admin to pick which (owner, 2026-10-06, amendment 8(d)).
+
+**Checking the file.** A file that is not this format — not JSON, a field of the wrong kind, a
+product with no Arabic name or no variant, a code not digits, **two products sharing a code**, two
+variants of one product with the same values, a photo not in the zip, a number out of range, over the
+limits — and, read against the catalog (amendment 8(e)), an attribute used for two jobs or for a job
+the catalog's attribute of that name does not have, a category path ending at a category with
+sub-categories, variants whose values do not match the catalog's set or a new set given different
+attributes by two products, a photo that is not JPEG, PNG or WebP or is over the media library's limit,
+a product whose codes two of the catalog's products hold — **is refused whole**, every error listed
+(`ImportRefused`). A file that passes becomes **an import** with its page, and nothing in the catalog
+has changed yet.
+
+**The import's page** (amendment 6(a), (c)–(f)):
+
+1. **Names the catalog does not have** — a category path, a brand, an attribute, a value, a set, a
+   warranty — each listed once with the products using it. For each, the Super Admin decides: **it
+   means one we have** (a typo: pick it), **create it** — a value, a category or a set only (amendment
+   7(a)): its wording corrected first if need be, and its name in the other language given, the lists
+   holding both; a value under an attribute the catalog has or the one picked for it; a category given
+   its own web address when the one made from its names is taken (amendment 8(c)) —, or **refuse
+   it** — a product then comes in without it where it is optional (a refused brand: the default brand),
+   and is held back where it is required (a variant's value, or its attribute). One name at a time, or
+   several together.
+2. **Codes the catalog already has** — each product whose code another product holds: **update** that
+   product with what the file gives (the rest stays as it is), **replace it whole** (what the file
+   leaves out is cleared; its variants the file does not name are archived), **skip** the product, or
+   **it was a typo** — give it another code, checked again. **A product updated or replaced that is on
+   sale** in any store also needs, every time, **keep on sale** — a small change, shown at once — or
+   **take off sale** — switched off in every store when brought in, still ready, its page "Not
+   available now", orders keeping their own copy, back on sale when a store's admins switch it on
+   again (owner, 2026-10-06, amendment 9(c)). One product at a time, or several together.
+   **Changes to all of them, or the selected** (owner, 2026-10-05, amendment 7(c), (d); 2026-10-06,
+   amendments 8(a), 9(a)) — while they wait, before they are brought in: the **brand**, **warranty** or
+   **category**; **search words** and **filter values**. Each asks whether to **replace** what the
+   products have or **only fill the ones that have none**; search words and filter values may also be
+   **added** to what each has. A product the file **updates** counts what the catalog's product has,
+   as it is when the products are brought in.
+   "All of this is just a draft": nothing reaches the catalog until the products are brought in. The
+   file as uploaded is kept beside the products as changed.
+
+   **Web addresses that would collide** — two products of the file, or one and a product of the
+   catalog, made the same address from the same name — are listed, and **each is given its own address
+   on the page** before bringing in (owner, 2026-10-06, amendment 8(c)).
+3. **Bringing the products in**, once every name and code is decided and every address free: one step, all or nothing,
+   **creates them as drafts** — with their photos added to the media library — and updates or replaces
+   the existing ones as decided — an update or a replacement that would leave a ready product without
+   what it needs (§1.1) fails the step, naming it. From the queue, since a zip of photos takes
+   minutes; the page says when it is done, or why it failed and that nothing was kept.
+4. **The import's products**, each with its state: **ready to accept**, **missing** what it lacks (a
+   photo, the English name, a description, a category …), updated or replaced, skipped, or held back.
+   Each opens in the product page to be completed like any other. The Super Admin **accepts** one,
+   several or every ready one — **made ready** ("ready to publish"), **switched on in no store**:
+   the products file only brings products into the catalog, and **a store's admins publish them
+   with their store file** (§1.3) or one by one (owner, 2026-10-06, amendment 9(b)) — **archives**
+   it, or **deletes** it (a draft, never shown: gone whole, its codes and addresses free again, §4.1)
+   (amendment 6(e)).
+
+Every change the import makes is audited as its own action. **The import's page stays** as the
+record of what came from which file. **An import not brought in may be discarded** by the Super Admin
+— its page, its names and products waiting, and its zip, gone; one bringing its products in, or
+brought in, is not (owner, 2026-10-06, amendment 10(b)).
+
+- **Prices and stock come only with a store's file** (§1.3; owner, 2026-10-06, amendment 9(a)): the
+  products file names no store. A store file's are shown and, **until Pricing and Inventory exist
+  (stage 5), not kept** **[DECIDED 2026-10-02]**: its page says so once (§9.3 #15). Catalog offers a
+  registry where Pricing and Inventory add their sections in stage 5 (§2.3); in a store wired to a
+  provider they are then ignored with a warning (handoff §9.1).
+- **The admins' file that fills one store** (§1.3) is a separate, smaller page, under its own job.
 
 ---
 
@@ -385,8 +508,10 @@ own table — never only in the listing's columns, which the next change would w
 ### 2.3 The import's sections — added by the modules above **[DECIDED 2026-10-02]**
 
 `ImportSections` (a registry, like Platform's `MediaUsages`): a module registers a class that reads its
-part of the file, adds its lines to the preview and writes its part inside the import's transaction.
-Pricing and Inventory register theirs in stage 5.
+part of a store's file, adds its lines to the file's page and writes its part when an item is switched
+on in that store (amendments 6, 9(a): only a store's own file brings prices and stock). Pricing and
+Inventory register theirs in stage 5; until then the registry is empty and a store file's page says,
+once, that prices and stock were not kept.
 
 ### 2.4 What Catalog needs from other modules
 
@@ -422,7 +547,7 @@ none is admin-only. **The shared lists use one permission each.** Names below ar
 | `SetSellingTerms` — each variant's retail and wholesale switches; the product's minimum and maximum for each mode | `catalog.listing.selling` | That store |
 | `MarkNotAvailableNow` / `ClearNotAvailableNow` — product or variant | `catalog.listing.unavailable` (handoff §9.2: "own permission") | That store |
 | `AttachLabels` | `catalog.listing.labels` | That store |
-| `FillStoreFromFile` — the admins' JSON of codes; the store's "needs completion" list (step 6, amendment 4) | `catalog.listing.fill`, given to admin roles | That store |
+| The admins' store file (§1.3, amendment 6(g)) — `UploadStoreFill`, `CorrectStoreFillCode`, `RemoveStoreFillItems`, `SwitchOnStoreFillItems`; reading its page and the store's files (`ViewStoreFill`, `ListStoreFills`) | `catalog.listing.fill`, **admin roles only, enforced** (amendment 6(h); access.md amendment 58) | That store |
 | `RankCategories` | `catalog.category.rank` | That store |
 | Category tree: add, rename, move, deactivate (with each product's choice), activate, delete | `catalog.category.manage` | All stores |
 | Brands: add, edit, make default, deactivate (with each product's choice), activate, delete | `catalog.brand.manage` | All stores |
@@ -431,7 +556,7 @@ none is admin-only. **The shared lists use one permission each.** Names below ar
 | Warranties list | `catalog.warranty.manage` | All stores |
 | Shared word pairs; reading the zero-result list | `catalog.search_word.manage` | All stores |
 | `ListProducts` / `ViewProduct` (admin) — every store's row shown only for the stores the reader covers | `catalog.product.view` | The reader's stores |
-| `PreviewImport` / `RunImport` | `catalog.import.run` (reserved: Super Admin only, handoff §9.1) | Global |
+| The import (§1.12, amendments 6, 7, 10) — `UploadImport`, `DecideImportNames`, `DecideImportCodes`, the changes before bringing in (`SetImportedBrand`, `SetImportedWarranty`, `SetImportedCategory`, `SetImportedSearchWords`, `SetImportedFilters`, `SetImportedSlugs`), `BringInImport` (its queued work `BringInImportProducts`, the system's on the Super Admin's behalf), `AcceptImportedProducts`, `ArchiveImportedProducts`, `DeleteImportedProducts`, `DiscardImport` (amendment 10(b)); reading its page and the list of files (`ViewImport`, `ListImports`) | `catalog.import.run` (reserved: Super Admin only, handoff §9.1) | Global |
 | `RebuildListing` — a repair job; `PruneSearchLog` — nightly | System (reserved): `catalog.listing.rebuild`, `catalog.search_log.prune` — named in step 1, kept by the owner (2026-10-03, amendment 1(a)) | — |
 
 Every change is audited (Platform), **by value**: product data names no person.
@@ -516,7 +641,7 @@ relations, variants and theirs) are removed with it — which happens only when 
 |---|---|
 | `catalog.categories` | `id` PK · `parent_id` FK → `categories` RESTRICT NULL · `name_ar`, `name_en` `varchar(100)` · `is_active` · `deactivated_with_parent` — so reactivating a parent brings back only what was active before · `image_media_id` FK → `platform.media` RESTRICT NULL · timestamps. A category is never its own ancestor (code rule: it crosses rows) |
 | `catalog.category_slugs` | As `product_slugs`, for categories |
-| `catalog.brands` | `id` PK · `name_ar`, `name_en` `varchar(100)` · `description_ar`, `description_en` `jsonb` NULL · `logo_media_id` FK → `platform.media` RESTRICT NULL · `origin_country` `char(2)` NULL · `agency_type` CHECK (`HOUSE`, `EXCLUSIVE_AGENT`, `DISTRIBUTOR`) · `is_default` — partial unique where true (`brands_one_default`), CHECK a default brand is active · `show_in_default_listings` · `position` · `is_active` · timestamps |
+| `catalog.brands` | `id` PK · `number` `integer` unique, CHECK > 0 — the brand's fixed number: a new brand takes the lowest one no brand holds, under the brands' lock, so a deleted brand's is free again and a failed add leaves no gap (amendments 7(b), 10(a)) · `name_ar`, `name_en` `varchar(100)` · `description_ar`, `description_en` `jsonb` NULL · `logo_media_id` FK → `platform.media` RESTRICT NULL · `origin_country` `char(2)` NULL · `agency_type` CHECK (`HOUSE`, `EXCLUSIVE_AGENT`, `DISTRIBUTOR`) · `is_default` — partial unique where true (`brands_one_default`), CHECK a default brand is active · `show_in_default_listings` · `position` · `is_active` · timestamps |
 | `catalog.brand_slugs` | As `product_slugs`, for brands |
 | `catalog.attributes` | `id` PK · `name_ar`, `name_en` `varchar(100)` · `kind` CHECK (`INFORMATIONAL`, `FILTERABLE`, `VARIANT`) · `unit_ar`, `unit_en` `varchar(20)` NULL · `is_colour` (only a filterable or variant-making attribute) · `is_active` · `position` |
 | `catalog.attribute_values` | `id` PK · `attribute_id` FK RESTRICT · `name_ar`, `name_en` `varchar(100)` — unique per attribute on `lower(name)` in each language, names stored trimmed · `swatch` `char(7)` NULL — `#rrggbb`, only on a colour attribute's values · `is_active` · `position` |
@@ -532,6 +657,22 @@ relations, variants and theirs) are removed with it — which happens only when 
 |---|---|
 | `catalog.search_log` | `id` `bigint` identity PK · `store_id` FK RESTRICT · `locale` `char(2)` · `query` `varchar(200)` — normalised · `results` `integer` · `searched_at` `timestamptz` DEFAULT `now()` — **no person** (§1.11). Indexes `(searched_at)` for the nightly removal, `(store_id, results, searched_at)` for the zero-result list |
 | `catalog.listing` | **The listing and search read model** (handoff §5.4): one row per store, language and product that is **listed or reachable by search** there (§1.4). `store_id`, `locale`, `product_id` PK · `name`, `slug` · `brand_id`, `brand_visible_by_default` (copied from the brand, handoff §9.4) · `category_id` and `category_path` (the ids above it, for a parent's page) · `in_category_pages` (false while "left" in an inactive category) · `value_ids`, `label_ids` (for filters and cards) · `card_media_id` FK → `platform.media` RESTRICT and `card_photo` (its addresses, §2.4) · `orderable` · `price_minor` `bigint` NULL and `sales_rank` `integer` NULL (pushed, §2.2) · `search_document` `tsvector`, `search_text` (normalised, for trigrams: the page's name, then the other language's, a line apart — amendment 5(f)). Indexes: `(store_id, locale, brand_visible_by_default, sales_rank)` and `(store_id, locale, brand_id)` (handoff §9.4); GIN on `search_document`, `category_path`, `value_ids`; trigram GIN on `search_text` |
+
+**5.5 The import and the store file** **[ACCEPTED 2026-10-05; as built, accepted 2026-10-06]**
+(amendments 6, 8(f)) — the owner accepted the tables as built in step 6, listed column by column.
+
+| Table | Columns |
+|---|---|
+| `catalog.imports` | `id` PK · `kind` CHECK (`PRODUCTS`, `STORE_FILL`) · `store_id` FK → `platform.stores` RESTRICT NULL — the store a store file fills, set exactly for one (CHECK) · `file_name` · `archive` NULL — where a products file's zip waits until its products are brought in, on the disk `config/catalog.php` names (a products file only, CHECK) · `state` CHECK — a products file `DECIDING`, `BRINGING_IN`, `IN`, `FAILED`; a store file `OPEN` · `failure` NULL — set exactly when `FAILED` (CHECK) · `uploaded_by` — the staff member, for the page (an admin record, not product data) · timestamps |
+| `catalog.import_names` | `id` PK · `import_id` FK CASCADE · `kind` CHECK (`CATEGORY`, `BRAND`, `ATTRIBUTE`, `VALUE`, `SET`, `WARRANTY`) · `written` `text` — as the file first wrote it, a category as its whole path (each level the catalog lacks is its own row) · `key` `char(64)` — a SHA-256 of it as names are compared (a value's with its attribute's): a path has no length limit · `attribute` — a value's attribute as written, set exactly for a value (CHECK) · `attribute_kind` — an attribute's job as the file uses it, set exactly for an attribute (CHECK) · `decision` NULL CHECK (`EXISTING`, `CREATE`, `REFUSE`) · `target_id` NULL — the one it means, or the one created; set for `EXISTING`, never for `REFUSE` (CHECK) · `name_ar`, `name_en` — the wording to create, set exactly for `CREATE` (CHECK) · `products` — how many of the file's products use it · `matches` — how many catalog items answer to the name, when several do (amendment 8(d)) · `slug_ar`, `slug_en` NULL — a new category's own address, when the one made from its names is taken (amendment 8(c)) · unique (`import_id`, `kind`, `key`) |
+| `catalog.import_products` | `id` PK · `import_id` FK CASCADE · `number` — its place in the file, from 1 · `data` `jsonb` — the product as the file gave it, checked · `edited` `jsonb` NULL — the product as the page's changes left it, before bringing in (amendment 7(c)); where the file gives none, what was asked to fill the empty or to add is kept apart in it and given when the product is brought in, to what it then has (§1.12) · `codes` `text[]` · `conflict_product_id` FK → `products` SET NULL NULL — the product already holding a code · `decision` NULL CHECK (`UPDATE`, `REPLACE`, `SKIP`, `RECODE`) · `new_codes` `jsonb` — each code it gives up → its new one, set exactly for `RECODE` (CHECK) · `sale` NULL CHECK (`KEEP`, `TAKE_OFF`) — for a product updated or replaced that is on sale, set only with `UPDATE` or `REPLACE` (amendment 9(c)) · `product_id` FK → `products` SET NULL NULL — the product it became · `state` CHECK (`WAITING`, `IN`, `UPDATED`, `REPLACED`, `SKIPPED`, `HELD`, `ACCEPTED`, `ARCHIVED`, `DELETED`) · unique (`import_id`, `number`) |
+| `catalog.store_fill_items` | `id` PK · `import_id` FK CASCADE · `number` · `code` CHECK digits · `price` — as the file wrote it, `stock` NULL — shown, not kept until stage 5 · `state` CHECK (`OPEN`, `ON`, `REMOVED`) — what the admin did with it; whether an open item is ready, not ready, archived, already on or an unknown code is read when the page is, since it changes with the product · unique (`import_id`, `number`) |
+
+**The photos of a zip** are not rows: the zip itself is kept (`imports.archive`), its photos unpacked
+into temporary files of the server's own naming when the products are brought in — never by a name
+inside the zip — added to the media library, and the zip let go. **No uploaded file is kept beyond
+its work** (owner, 2026-10-06, amendment 10(b)): a JSON file and a store file are let go once read,
+their data in these tables; a zip only until its products are brought in, or its import discarded.
 
 **Rows of the listing are written inside the transaction of the change that alters them**
 **[ACCEPTED 2026-10-02, §9.3 #20]** — never stale, as the owner chose for the pushed facts — and a
@@ -590,7 +731,9 @@ exactly as one that does not exist, as B2B's and Access's do.
 | `AttributeSetInUse` | CONFLICT | Changing a set's attributes while variants are built on it (amendment 3(k)) |
 | `TooMany` | CONFLICT | Over a limit: photos, search words, filter values, related products |
 | `InvalidCatalogAttribute` | INVALID | Any other value the domain refuses — a length, a format, a swatch |
-| `ImportRefused` | INVALID | An import whose preview found errors; it lists them all |
+| `ImportRefused` | INVALID | A product or store file not in its format; it lists every error (§1.12, §1.3) |
+| `ImportUndecided` | CONFLICT | Bringing an import's products in while a name or a code still waits for a decision, a web address collides, or a product on sale waits for keep on sale or take off sale (§1.12; amendments 8(c), 9(c)) |
+| `ImportClosed` | CONFLICT | Deciding or changing an import's products once bringing them in has started, or accepting them before they are in (§1.12; built in step 6) |
 
 ---
 
@@ -657,13 +800,31 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 
 19. `CatalogApi` answers with DTOs only; the listing facts and the import's sections are accepted
     from the modules above — the listing facts tested with stage 5, which implements them (amendment
-    5(i)), the import's sections with step 6; a store's rows are read and written only with that store
-    named (amendment 4(h)).
+    5(i)), the import's sections likewise with stage 5 (declared in step 6); a store's rows are read
+    and written only with that store named (amendment 4(h)).
 20. Catalog imports only Platform's and Access's public surfaces; every handler asserts a
     permission; every CHECK, unique index and foreign key has a code rule that refuses first; no
     country, currency or store name in `Domain/` or `Application/`.
 21. A storefront listing page stays within its query budget (frontend.md §5), measured warm, once
     its endpoint exists.
+
+**The import and the store file** (amendment 6)
+
+22. A file not in its format is refused whole, every error listed, and nothing is kept; a file that
+    passes changes nothing in the catalog until its products are brought in.
+23. Every name the catalog lacks waits for a decision — an existing one, created, or refused — and
+    every code it already has, for one of update, replace, skip or another code; nothing is brought in
+    before all are decided; bringing in is all or nothing, photos included.
+24. Brought-in products are drafts until accepted; accepting makes the ready ones ready, switched on
+    nowhere; an updated or replaced product on sale is kept on sale or taken off sale, as chosen for
+    it; archive and delete do as for any product; prices and stock come only with a store's file, not
+    kept until stage 5.
+25. The store file never creates or edits a product: an unknown code waits to be corrected or removed;
+    switching on chooses the variants carrying each code, only for ready products, under the job in
+    that store.
+26. Brands, warranties and attributes are never created from a file; a brand is named by its fixed
+    number or its name; changes made on the page before bringing in reach the catalog only when the
+    products are brought in (amendment 7).
 
 ---
 
@@ -721,7 +882,7 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 
 | # | What | Waits for |
 |---|---|---|
-| 1 | The import's file format (§1.12) | The product tables (steps 1–5); written into §1.12 and shown to the owner before step 6 |
+| 1 | **Written 2026-10-05 (amendment 6, §1.12)**: the import's file format, from the finished tables | — |
 | 2 | A product video (§1.1) | The owner: "leave it for now" — a link to a hosted video, or a Platform amendment for uploaded video |
 | 3 | Product add-ons ("Product apps"), bundles | A later stage (handoff §15.2) |
 | 4 | **Decided 2026-10-04 (amendment 4, §1.3): one by one, or the admins' file of codes, built in step 6.** Asked first as **filling a new store in bulk** (owner, 2026-10-03, amendment 2(b)): when a store is created, its admins may bring in the existing products (and their categories) instead of choosing them one by one; a Super Admin may upload a JSON of the product codes to add; admins may pick products by code in bulk. Prices and stock then come from Odoo where the store is wired, or are entered by hand — "just an option" beside choosing each product | Step 4 (each store's choice) and step 6 (the import): its rules asked then |
@@ -756,7 +917,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 14. Attributes, values, sets, labels and warranties: deactivated (reversible) and deleted only when
     unused, like brands and categories. **Word pairs are only added and deleted** — no switch; a
     product turned off or on never touches them (owner, 2026-10-03, amendment 2(d)).
-15. Until stage 5 the import's preview says, once, that the file's prices and stock were not imported.
+15. Until stage 5 a store file's page says, once, that its prices and stock were not kept (amendment 6(a)
+    replaced the preview with the page; amendment 9(a): only a store's own file brings them).
 16. The public contract (§2.1) and the listing facts interface (§2.2) as listed.
 17. **Catalog keeps the card photo's addresses in its own listing rows**, asked of Platform when a row
     is written and refreshed on `MediaVariantsReady`, so a product grid reads no media at all and
@@ -804,5 +966,10 @@ sections named.
 | 1 | §1.5, §1.6, §1.8, §2.4, §3, §5.3 | **Before step 2** (owner, 2026-10-03). (a) The two system permissions keep their step-1 names, `catalog.listing.rebuild` and `catalog.search_log.prune`. (b) Labels are **«الشارات»** in Arabic. (c) **The seed creates TouchWood alone**, «تاتش وود» / "TouchWood", the default brand; every other brand and every category comes from staff or the import. (d) **A new category's place among its siblings is chosen by whoever adds it**, starting the same in every store; each store's admins change it afterwards. (e) **A label's colour follows Geist's meanings** — green always healthy, red error, amber warning, blue information, gray neutral — strong or subtle: Geist Badge's ten variants, named on screen by meaning. (f) **A label name is one or two words** in each language (Geist), at most 30 characters. (g) **Every attached label shows on the card**, for now. (h) **Catalog keeps its own copy of `Ulids`**: Access and B2B are not touched ("the access is well working so we don't have to mess with it"). (i) **An attribute's job** — information only, filter, or making variants — **can change only while it has no values**; after that it stays. (j) **A brand's origin country is optional** ("brand must not require an origin country"); when given, a two-letter country code, checked for its shape only. Also corrected: §2.4's store-switch row, now built (#76). | Owner, 2026-10-03 |
 | 2 | §1.5, §1.6, §6.2, §9.2, §9.3 | **The review of step 2** (owner, 2026-10-03). (a) **Deleting a brand or a category frees its slugs**: another may take them later. (b) **A store opened later starts with no menu order**; its admins set it (§6.2 stands: a new store chooses nothing). The owner's **bulk filling of a new store** — existing products brought in, a JSON of codes, picking by code; prices and stock from Odoo or by hand — is written as open item §9.2 #4, for steps 4 and 6. (c) **Moving a category**: the mover chooses its place among the new siblings, written into every store as when adding. (d) **Word pairs are added and deleted only**; §9.3 #14 corrected. (e) **An empty slug on an edit is made from the name.** (f) **My choices in the build, accepted**: the first brand becomes the default when none is; a brand description at most 5,000 characters, in both languages or neither; an attribute set holds 1–10 attributes, and one deactivated later may stay but is never added again; a colour attribute's values need a `#rrggbb` swatch, and being a colour is locked with the job; an attribute a set holds stays variant-making; a category is added or moved under an active parent only; a store's order changes only while the store is on, at most 500 categories at once; deleting an attribute deletes and audits its values first, refused while a set holds it; a value may be added to a deactivated attribute; a word pair already listed is refused as "already in the list"; names of attributes, labels, warranties and sets need not be unique (an attribute's values must); deleting a logo's or photo's file needs that list's job with All stores; a typed Arabic slug takes the digits 0–9; two errors not in §7: `NameTaken` ("already in the list") and `AttributeKindLocked`. (g) Conforming fixes found by the review: a category moved away from the parent it went with stays off; `attribute_values.attribute_id` is RESTRICT as §5.3 says; Arabic slugs take Arabic letters and digits only, as §5.3 says. | Owner, 2026-10-03 |
 | 3 | §1.1, §1.2, §2.1, §5.1, §7, §8, §9.2, §9.3, §9.5 | **Before step 3: products and variants** (owner, 2026-10-03). (a) **Filter values sit on the product**, several per attribute allowed; each variant's variant-making values count as filters too (new table `product_filter_values`). (b) **The last ready photo of a `READY` product cannot be deleted** from the media library; any other product or variant photo is detached when its file is deleted. (c) **In a draft**, variant codes are edited and variants deleted under `catalog.product.update`, a code given up free again; once ready, only `catalog.variant.correct_code` and archiving. (d) **Relations pick `READY` products only**, at most 20 per list. (e) **The code** — read from the owner's sheet, "the sheet is what Odoo contains": **digits only; it belongs to one product, whose variants may share it or have their own; two products never share one; every code a product ever held stays with it until the product (a draft) is deleted**; a correction changes it on every variant holding it (`variant_codes` becomes `product_codes`; `variantByCode` becomes `variantsByCode`; §9.2 #6 opened for Sync). (f) **Search words**: a duplicate, as typed or as search reads it, is kept once, quietly. (g) **A draft may have its Arabic name only; the English name is required to be made ready** ("all products must have English names"). (h) **Only a draft is ever deleted** (§4.1 stands). (i) **Accepted**: a product's attribute set is chosen among active sets and fixed once it has a variant; each variant takes one active value of every attribute of the set; its details (text in both languages or a number with the unit) use active "details only" attributes; a `READY` product refuses an edit that would break a readiness rule, naming it — its last variant archived, its last ready photo removed, its category cleared; photos are public images, each once, a variant's needing no ready sizes; a product or variant photo's file deleted is detached and audited under `catalog.product.update`; product changes are split into several commands under that one permission (details, gallery, search words, filter values, relations, variants); until step 4 creates store rows, "every store where the product is Active" is "any store where the person holds the job"; and step 2's deferred refusals arrive — a category holding products takes no sub-category and is not deleted, a brand, warranty, attribute, value or set a product uses is not deleted. (j) **On the plan** (owner, 2026-10-03): step 3 is **one PR**; **a variant's values stay editable**, a ready product's too, its combination still unique; **a product is created from a store that is on**; **a code is 1 to 10 digits**. (k) **While building** (owner, 2026-10-03, asked with the drawer 1304 as the example): **an attribute set's attributes stay while any variant is built on it** — its name may still change; for other attributes, a new set (`AttributeSetInUse`); and **an attribute's job is fixed once variants carry details of it**, as once it has values (amendment 1(i)). (l) **Found while building**: §5.1's `products_category_unless_draft` would refuse archiving a draft abandoned without a category, which §9.3 #19 allows — the category and the English name are now required **while ready** (`products_category_when_ready`, `products_english_when_ready`); an archived product changes only by being restored, ready again with both. (m) **On PR #79** (owner, 2026-10-04, asked with the drawer 1304): **restoring brings a product back to the stage it left** — an archived draft comes back a draft, so making it ready stays `catalog.product.publish`'s (`products.archived_from`); **an archived product may be edited**, shown nowhere, and restored once whole — while archived it is not made ready, not deleted, and its variants are not deleted (this replaces (l)'s "changes only by being restored"); **a ready product keeps a category deactivated since it was placed there** — making ready, restoring or moving still needs an active lowest one; step 4's "leave" keeps a product in the closed category, and a product hidden with its category is still edited; **events only for a product that has been ready** — a draft is Catalog's alone; **the limits** ("a lot but it works"): at most 100 details per variant, 100 filter values per product, 300 search words sent at once (30 kept), positions 0–10,000; **accepted**: archiving an archived product or restoring a ready one changes nothing, restoring a draft is refused; correcting a code in a draft frees the old one; a code changed through the variant form, or a variant deleted, once ready answers `InvalidStageChange`; a product change locks the list rows it points at and a list change never takes the products' lock (instead of the plan's list-then-products order) — except, since step 4, the four list changes that change products, which take it first (amendment 4(k)); two rare races are left as they are — a photo added to a gallery the instant its file is deleted fails with a server error, the data intact; a store switched off the instant a product is created from it does not stop the create. After the review (owner, 2026-10-04): **a product never ready — a draft, archived or not — lets go of a code it gives up by a correction**, as a draft does. | Owner, 2026-10-03; (m) 2026-10-04 |
-| 4 | §1.3, §1.5, §1.12, §2.4, §3, §5.2, §7, §8, §9.2 | **Before step 4: each store's choice** (owner, 2026-10-04, asked with the drawer 1304 and a UAE store being prepared). (a) **A store is filled one by one** (`catalog.listing.choose`, staff's work) **or by the admins' JSON file of codes** — prices and stock optional fields — under `catalog.listing.fill`, given to admin roles (roles nest: what staff may do, admins and super admins may; "only admins" includes super admins); not "every ready product" nor "copy another store". (b) **The file is all or nothing**: an unknown code refuses it, each listed; a ready product's code chooses the variants carrying it; a product not ready joins the store's **"needs completion"** list, completed and published there or dropped from that store; the answer counts both. **Built in step 6** with the import. (c) **Nothing goes on sale in a store until it has a price there** (stage 5). (d) **Deactivating a category gives every product in it or under it, in any stage, the hide / leave / move choice.** (e) **Accepted**: a switched-off store is filled and set up before it opens; a variant first chosen sells retail only; selling terms, labels and "Not available now" need a product the store has chosen; at most 10 labels per product per store, a deactivated one staying where attached; at most 1,000 codes a file; activating a category brings back what hid with it, except under a sub-category still off; a product moved in a deactivation goes to an active lowest category outside it, or to an active brand. (f) **A store's menu order is set while the store is off too** — the whole store is prepared before it opens; step 2's "a store that is on" for `RankCategories` is lifted. **After the review of step 4** (owner, 2026-10-04): (g) **a category deactivated asks again about the products under a sub-category switched off before** — their earlier choice may change; (h) **each store's rows stay read and written by one repository that names the store in every call**, as the menu order's, not through the Eloquent store guard; (i) a store that is off counts among those that sell a product — the owner had no preference, the recommendation kept; (j) **a wholesale maximum needs its wholesale minimum**. (k) **Found while building**: deactivating or activating a category or a brand changes products, so it takes the products' lock first, then its list's; deleting a photo's file takes them in the same order — still no two changes wait on each other in a circle. (l) **On PR #81** the owner accepted the choices made while building ("accept all"): switching on a draft or archived product is refused as an invalid `product`; `StoreListingChanged` fires only when a store takes variants up; a variant switched off still counts as selling wholesale for the wholesale minimum; create, deleting a draft or its variant, making ready and restoring check "some store" only (they reach products Active nowhere); a brand's deactivation reaches every product of it, in any stage; labels show on a card in the list's order; each store's rows through one repository naming the store. | Owner, 2026-10-04 |
-| 5 | §1.2, §1.3, §1.4, §1.5, §1.6, §1.10, §1.11, §2.1, §2.2, §5.4, §8, §9.2, §9.4 | **Before step 5: the listing, search and the contract** (owner, 2026-10-04, asked with the drawer 1304 and a UAE store opened later). (a) **A category shows in a store's menu by itself** once the store sells something in it or under it, **in the store's own order — and, until the store's admins place it, at the base store's place** (the owner first chose "hidden until placed", reading "placed" as "chosen to show"; asked again with the meaning made plain: "we can place them implicitly like a default placing"); a category deactivated by hand is in no menu, its products following their fate. (b) **Until Pricing (stage 5), a product a store chose counts as on sale without a price**; from stage 5, no price means not on sale. (c) **A search looks in the name, the search words, the word pairs and the category's name** — not the brand, the code or the description. (d) **Codes are never shown to customers** — "it's only for us, the staff and admins": no code in anything a shopper reads or searches. (e) **The search log keeps submitted searches only**, not the suggestions shown while typing. **Asked again on 2026-10-05, before the search was built**, all four as recommended: (f) **both languages' names are searched on every page**, results in the page's language; (g) **the category's name searched is its category's and every category's above it**; (h) ~~a brand hidden from default listings is hidden from the default grids only — found by search, its brand page, and a category page once its brand is picked in the filter; a category holding only such products is not in the main menu~~ — **replaced by (k)**; (i) **`ListingFacts` is declared in step 5 and kept with stage 5**, which decides, for one, which price a card shows. **Asked during step 5's review, 2026-10-05:** (j) **a product hidden with its category or brand is inactive**: "hidden means we're gonna deactivate the product itself … can't be ordered or shown in storefront at all" — not orderable, not listed, searched or suggested; an old link shows "Not available now" (the owner chose this over a 404); the deactivation screen tells staff, rather than a new product state ("which I don't recommend"); (k) **secondary brands**: "the store is for TouchWood … any other brand is only reachable by its category … not in storefront, not in search" — staff put a secondary brand's products under its own category (Kitchens, Wardrobes, …, Tallsen); the menu and the category pages show it as any other; the search, the home page and the shop-wide grids show only the brands shown in default listings; (l) a secondary brand's products are suggested on its own products' pages only — my reading of (k), to confirm. | Owner, 2026-10-04, 2026-10-05 |
+| 4 | §1.3, §1.5, §1.12, §2.4, §3, §5.2, §7, §8, §9.2 | **Before step 4: each store's choice** (owner, 2026-10-04, asked with the drawer 1304 and a UAE store being prepared). (a) **A store is filled one by one** (`catalog.listing.choose`, staff's work) **or by the admins' JSON file of codes** — prices and stock optional fields — under `catalog.listing.fill`, given to admin roles (roles nest: what staff may do, admins and super admins may; "only admins" includes super admins); not "every ready product" nor "copy another store". (b) ~~**The file is all or nothing**: an unknown code refuses it, each listed; a ready product's code chooses the variants carrying it; a product not ready joins the store's **"needs completion"** list, completed and published there or dropped from that store; the answer counts both.~~ **Replaced by amendment 6(g)**: a store file's page, an unknown code corrected or removed there. (c) **Nothing goes on sale in a store until it has a price there** (stage 5). (d) **Deactivating a category gives every product in it or under it, in any stage, the hide / leave / move choice.** (e) **Accepted**: a switched-off store is filled and set up before it opens; a variant first chosen sells retail only; selling terms, labels and "Not available now" need a product the store has chosen; at most 10 labels per product per store, a deactivated one staying where attached; at most 1,000 codes a file; activating a category brings back what hid with it, except under a sub-category still off; a product moved in a deactivation goes to an active lowest category outside it, or to an active brand. (f) **A store's menu order is set while the store is off too** — the whole store is prepared before it opens; step 2's "a store that is on" for `RankCategories` is lifted. **After the review of step 4** (owner, 2026-10-04): (g) **a category deactivated asks again about the products under a sub-category switched off before** — their earlier choice may change; (h) **each store's rows stay read and written by one repository that names the store in every call**, as the menu order's, not through the Eloquent store guard; (i) a store that is off counts among those that sell a product — the owner had no preference, the recommendation kept; (j) **a wholesale maximum needs its wholesale minimum**. (k) **Found while building**: deactivating or activating a category or a brand changes products, so it takes the products' lock first, then its list's; deleting a photo's file takes them in the same order — still no two changes wait on each other in a circle. (l) **On PR #81** the owner accepted the choices made while building ("accept all"): switching on a draft or archived product is refused as an invalid `product`; `StoreListingChanged` fires only when a store takes variants up; a variant switched off still counts as selling wholesale for the wholesale minimum; create, deleting a draft or its variant, making ready and restoring check "some store" only (they reach products Active nowhere); a brand's deactivation reaches every product of it, in any stage; labels show on a card in the list's order; each store's rows through one repository naming the store. | Owner, 2026-10-04 |
+| 5 | §1.2, §1.3, §1.4, §1.5, §1.6, §1.10, §1.11, §2.1, §2.2, §5.4, §8, §9.2, §9.4 | **Before step 5: the listing, search and the contract** (owner, 2026-10-04, asked with the drawer 1304 and a UAE store opened later). (a) **A category shows in a store's menu by itself** once the store sells something in it or under it, **in the store's own order — and, until the store's admins place it, at the base store's place** (the owner first chose "hidden until placed", reading "placed" as "chosen to show"; asked again with the meaning made plain: "we can place them implicitly like a default placing"); a category deactivated by hand is in no menu, its products following their fate. (b) **Until Pricing (stage 5), a product a store chose counts as on sale without a price**; from stage 5, no price means not on sale. (c) **A search looks in the name, the search words, the word pairs and the category's name** — not the brand, the code or the description. (d) **Codes are never shown to customers** — "it's only for us, the staff and admins": no code in anything a shopper reads or searches. (e) **The search log keeps submitted searches only**, not the suggestions shown while typing. **Asked again on 2026-10-05, before the search was built**, all four as recommended: (f) **both languages' names are searched on every page**, results in the page's language; (g) **the category's name searched is its category's and every category's above it**; (h) ~~a brand hidden from default listings is hidden from the default grids only — found by search, its brand page, and a category page once its brand is picked in the filter; a category holding only such products is not in the main menu~~ — **replaced by (k)**; (i) **`ListingFacts` is declared in step 5 and kept with stage 5**, which decides, for one, which price a card shows. **Asked during step 5's review, 2026-10-05:** (j) **a product hidden with its category or brand is inactive**: "hidden means we're gonna deactivate the product itself … can't be ordered or shown in storefront at all" — not orderable, not listed, searched or suggested; an old link shows "Not available now" (the owner chose this over a 404); the deactivation screen tells staff, rather than a new product state ("which I don't recommend"); (k) **secondary brands**: "the store is for TouchWood … any other brand is only reachable by its category … not in storefront, not in search" — staff put a secondary brand's products under its own category (Kitchens, Wardrobes, …, Tallsen); the menu and the category pages show it as any other; the search, the home page and the shop-wide grids show only the brands shown in default listings; (l) a secondary brand's products are suggested on its own products' pages only — my reading of (k), **confirmed with (m)**. **(m) On PR #82 the owner accepted the eleven choices made while building ("accept all"):** a product never made ready has no page (not found); a category listing nothing in a store has no page there, an active brand always has one; a card holds the name, address, card photo and labels; the default order is best-selling then newest, other sorts, filters beyond brand, their counts and search paging coming with the screens; up to 48 results a search (100 at most) and 8 suggestions, "nearest" at PostgreSQL's default 0.6; picked "Related" products a store does not sell are not replaced by filling in; (l); the repair runs by hand and product changes wait for it; a product page asks Platform for each gallery photo's addresses until the screens' query budget settles it; punctuation dropped from what is searched and logged; at most 50 brands in a filter. Hidden products still come back by themselves when their category or brand is switched on again — explained to the owner with the alternative, and kept. | Owner, 2026-10-04, 2026-10-05 |
+| 6 | §1.3, §1.12, §2.3, §3, §5.5, §7, §8, §9.2 | **Before step 6: the import's file and the store file** (owner, 2026-10-05). (a) **Each uploaded product file gets its own page** — "it lists all the uploaded products, then he (Super Admin) can manage and see if there's a not-ready product to fill its photos or prices … the same functionalities of the products page" — **replacing "a preview, then all or nothing"**; its parts may sit on one page or several ("if you divided them to be more easy, no problem"). (b) **Two uploads**: the JSON alone (products without photos, drafts until given one) or one zip with the JSON and its photos. (c) **A name the catalog lacks** — "if this was a typo, he can choose from existing categories … or it's a new category, so it's created", or its creation refused; one at a time, or several together. (d) **A code the catalog already has**: update the existing product, replace it whole, skip the row, or give it another code (a typo) — all four. (e) **Products not wanted**: archive or delete, both offered. (f) **Accepting** makes the ready ones ready ("ready to publish but not published") ~~and switches them on in the stores the file names~~ (**changed by amendment 9(b)**: on sale nowhere — a store's admins publish them); incomplete ones are completed in the product page first. (g) **The admins' store file** — "just codes and prices, and stock is optional … the product must actually exist … any code that's not existing, flag it … corrected or removed … not editing the main products, it's just select this product to be active in this store": a page of its own per store, **replacing amendment 4's "an unknown code refuses the whole file" and "completes and publishes it there"**. Prices and stock, ~~in either file~~ (**only a store's own file, amendment 9(a)**), are shown and not kept until stage 5 (§9.3 #15). **[PROPOSED 2026-10-05], for the owner's go:** the file's format and field names (§1.12, §1.3), its limits (2,000 products, 20 MB JSON, 500 MB zip; 1,000 store items), names matched as search compares words, the description's plain-text markers, bringing in from the queue, and the tables of §5.5 — **accepted by the owner ("all good"), who asked for the exact format as an example file to fill with another AI agent: written as `catalog-import/` (a guide and two complete examples)**. (h) **The store file's job is admin roles only, enforced** — asked because it needs a small change in Access, which the owner keeps closed ("enforce it — small Access change"): an optional `adminOnly` on a declared permission (access.md amendment 58). | Owner, 2026-10-05 |
+| 7 | §1.6, §1.12, §3, §5.3, §5.5 | **While building step 6: what a file may create, brands by number, and changes before bringing in** (owner, 2026-10-05, asked because a brand needs its agency type and its place in default listings, and a warranty its terms and period, which a file's names do not give). (a) **Brands, warranties and attributes are never created from a file** — "the brand must be earlier created then we can upload products"; on the import's page a name of one the catalog lacks is picked as one it has, or refused. **Values, categories and sets are still created there** ("attributes first, values from file"). (b) **Every brand has a fixed number**, and the file's `brand` is that number or the brand's name: "in case brand was not there it must be treated as Touchwood, and if it was written Touchwood it must also be assigned, unless I typed 2 for an existing brand or its name then it's gonna be assigned" — for brands only, for now; the number is fixed, never the place in a list. (c) **Changes to all the products of an import, or the selected, before they are brought in** — stock and price in a store, the stores to switch on in, the brand, warranty or category, search words and filter values: "there must be at the end a confirm button to save all of that at system … all of this just draft, once confirmed the system starts acting"; the confirm is bringing the products in. (d) **Each change asks** whether to replace what the products have or only fill the ones that have none ("choose each time"). Search words and filter values may also be added to what each has — proposed, **accepted by amendment 8(a)**. | Owner, 2026-10-05 |
+| 8 | §1.12, §3, §5.5, §8, §9.3 | **After step 6's reviews** (owner, 2026-10-06). (a) **Adding to what each product has**, for search words and filter values, **kept** — beside replacing and only filling the empty. (b) ~~**The stores, replaced, become exactly those chosen** (the others taken away); filling gives them only to the products with none; **a price and stock is a change of its own, in one store, for the products switched on there**.~~ **Withdrawn by amendment 9(a)**: the products file names no store. (c) **Web addresses that would collide are decided on the page** ("decide on the page"): two products of the file, or one and the catalog's, made the same address from the same name — each given its own address before bringing in; a new category given its own when the one made from its names is taken. (d) **A name several catalog items answer to is asked on the page** — "matches 2 warranties: pick which" — instead of taking the first found (brand names are not unique either: only a brand's number never is ambiguous). (e) **The guide's list of what refuses a file names the checks against the catalog** too, and says that a brand number in quotes is read as a name and that a category name holds no "/". (f) **The import's tables accepted as built** — after the owner had them listed column by column ("list them to me"). | Owner, 2026-10-06 |
+| 9 | §1.12, §2.3, §3, §5.5, §8, §9.3 | **The products file only brings products in** (owner, 2026-10-06, asked whether "replace" should switch off a product's other stores): "the super admin bulk upload [is] only to upload products themselves, not in exact store, not published … its only for filling products; if I wanna let these products active, I must enter the store upload page then upload there the prices and stocks". (a) **The `stores` field, with its price and stock, leaves the products file** — a file that still has it is refused, saying prices and stock come with each store's file — **and the import page's "stores" and "price and stock" changes go** (amendment 8(b) withdrawn): stores, prices and stock come only through a store's file (§1.3) or the panel. (b) **Accepting makes complete products ready, switched on nowhere** — "ready" is complete, not published; a store's admins publish them, store by store. (c) **A product the file updates or replaces that is on sale** in any store needs **keep on sale** ("maybe it's a small update") or **take off sale** ("maybe it's a big one"), chosen per product or several at once, **every time — no default** ("must choose each time"); taken off sale, it is switched off in every store when brought in, still ready, its page "Not available now", orders keeping their own copy, back on sale when a store's admins switch it on again. | Owner, 2026-10-06 |
+| 10 | §1.6, §1.12, §3, §5.5 | **The owner's word on step 6's choices** (owner, 2026-10-06, after reading the 19 choices: "all good", but for these). (a) **A deleted brand's number is free again**: "a deleted brand number is reusable, once brand is deleted its number gets free, no gaps" — a new brand takes the lowest number no brand holds; a brand's own number still never changes while it exists. (b) **Uploaded files are not kept**: "once we read the data and finish the operation we're done with it and file is no longer at our db or sys" — a JSON file and a store file are let go once read; a zip only until its products are brought in; **an import not brought in may be discarded** by the Super Admin, its zip with it (the one case the owner was asked about: "a discard action"). (c) The hosting items found while building step 6 — the import job's queue, the zip's disk, PHP's zip support — go to handoff §15.4 for the agent who sets up the hosting. | Owner, 2026-10-06 |
