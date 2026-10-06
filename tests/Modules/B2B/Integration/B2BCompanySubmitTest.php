@@ -28,6 +28,7 @@ use Modules\B2B\Domain\Exception\DocumentNoLongerAccepted;
 use Modules\B2B\Domain\Exception\EmailNotVerified;
 use Modules\B2B\Domain\Exception\FlaggedItemNotReplaced;
 use Modules\B2B\Domain\Exception\MissingRequiredDocument;
+use Modules\B2B\Domain\Exception\PhoneNotConfirmed;
 use Modules\B2B\Domain\Exception\RequestNotAnswered;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Model\Company;
@@ -219,15 +220,21 @@ describe('sending an application (§1.2, §3.1, §4.1)', function () {
             ->and(companySubmitOpen($customerId)?->state()->value)->toBe('DRAFT');
     });
 
-    it('asks nothing else of the account: it sends without a phone (§1.2)', function () {
-        $customerId = B2BFixtures::verifiedCompanyAccount();
+    it('refuses before the phone number is confirmed, creates nothing, and keeps the draft (amendment 26(a))', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccountWithoutPhone();
         Fx::actAsCustomer($customerId);
+        // The form is filled and saved as ever: only Send waits for the phone.
         companySubmitFilledDraft();
 
+        expect(fn () => companySubmitSend())->toThrow(PhoneNotConfirmed::class)
+            ->and(companySubmitCompany($customerId))->toBeNull()
+            ->and(companySubmitOpen($customerId)?->state()->value)->toBe('DRAFT');
+
+        // Once the account's phone is confirmed - any country's - the same draft goes.
+        DB::table('access.customers')->where('id', $customerId)->update(['phone' => '+201'.random_int(100_000_000, 999_999_999), 'phone_verified_at' => now()]);
         companySubmitSend();
 
-        expect(DB::table('access.customers')->where('id', $customerId)->value('phone'))->toBeNull()
-            ->and(companySubmitCompany($customerId)?->status()->value)->toBe('PENDING');
+        expect(companySubmitCompany($customerId)?->status()->value)->toBe('PENDING');
     });
 
     it('refuses without a required paper, and creates nothing (scenario 4)', function () {

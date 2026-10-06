@@ -20,8 +20,8 @@ it('names the field in words, not in the key the domain uses', function (string 
     expect(FormErrors::message(new InvalidAccessAttribute('current_password', 'not the current password')))
         ->toBe($expected);
 })->with([
-    ['en', 'The current password is not valid.'],
-    ['ar', 'قيمة كلمة المرور الحالية غير صالحة.'],
+    ['en', "Couldn't save: the current password isn't valid. Check it and try again."],
+    ['ar', 'تعذّر الحفظ: قيمة كلمة المرور الحالية غير صالحة. تحقّق منها وحاول مجددًا.'],
 ]);
 
 it('takes the field name from whichever module refused, not always from Access', function () {
@@ -29,7 +29,7 @@ it('takes the field name from whichever module refused, not always from Access',
 
     // Platform names its own fields, in its own file, because it is the one that refused.
     expect(FormErrors::message(new InvalidStoreAttribute('sign', 'not one character')))
-        ->toBe('The store symbol is not valid.');
+        ->toBe("Couldn't save the store: the symbol isn't valid. Check it and try again.");
 });
 
 it('falls back to the key without its underscores when nobody has written the field down', function () {
@@ -38,5 +38,5 @@ it('falls back to the key without its underscores when nobody has written the fi
     // Poor, and still better than "no_such_field_here" - a missing line in a language file must
     // never be the reason somebody cannot read why they were refused.
     expect(FormErrors::message(new InvalidAccessAttribute('no_such_field_here', 'invented for this test')))
-        ->toBe('The no such field here is not valid.');
+        ->toBe("Couldn't save: the no such field here isn't valid. Check it and try again.");
 });

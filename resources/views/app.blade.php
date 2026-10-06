@@ -4,8 +4,9 @@
 |
 | The language, the direction and the theme are decided on the server and written here, so the very
 | first paint is already right: no flash of the wrong theme, and no moment of left-to-right before
-| an Arabic page turns around. The SSR renderer produces the same markup a browser would, because
-| none of this is decided in the browser.
+| an Arabic page turns around - but for the "System" theme, which only the device knows: a one-line
+| script in the head sets the dark mode from it before the first paint. Everything else the SSR
+| renderer produces is the markup a browser would.
 --}}
 {{-- The campaign and the mode are separate: a campaign has its own light and its own dark. --}}
 <html lang="{{ $page['props']['locale'] ?? app()->getLocale() }}"
@@ -16,7 +17,21 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    {{-- System (frontend.md §1.11; owner, 2026-10-02): the device decides, and the server cannot
+         see the device, so it rendered light. These lines run before anything is painted and turn
+         the page dark first when the device is - the way Geist's own setup does it, so nothing
+         flashes. A Content-Security-Policy added at hosting needs this script's hash or a nonce. --}}
+    @if (($page['props']['theme']['choice'] ?? 'system') === 'system')
+        <script>if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.mode = 'dark';</script>
+    @endif
+
     <title inertia>{{ config('app.name') }}</title>
+
+    {{-- The tab's icon: the logo on its navy tile, readable on a light or a dark tab bar (owner's
+         logo answers, 2026-10-04). The PNG sizes for older browsers and phones' home screens join
+         it when the owner's exported files arrive. --}}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
     {{-- The design's fonts, downloaded at build time and served from this domain (decision of
          2026-09-19): no page asks a font service for anything. --}}
@@ -29,7 +44,10 @@
         <style id="tw-campaign">{!! $page['props']['theme']['style'] !!}</style>
     @endif
 
-    @vite(['resources/css/app.css', 'resources/js/app.tsx'])
+    {{-- Each page is its own file (frontend.md §5). Naming this page's here - Laravel's own Inertia
+         setup - has the browser fetch it with the app rather than after it, so the page draws at
+         once instead of one round trip later. --}}
+    @vite(['resources/css/app.css', 'resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
     @inertiaHead
 </head>
 <body class="font-sans bg-page text-ink antialiased">

@@ -17,8 +17,8 @@ use Modules\Platform\Public\Enums\MediaVisibility;
  * Platform's media reads, in the shape the screen wants (frontend.md 3.5, E5).
  *
  * It decides nothing: who may open the library, and what may be done to a file, are the handler's
- * answers. What happens here is a size written the way a person reads it, and a thumbnail for the
- * images that have one.
+ * answers. What happens here is a thumbnail for the images that have one. A file's size goes as its
+ * bytes: the screen writes it in its own language and digits (the owner's fix list, 2026-10-04).
  *
  * A private file's row carries its name, its upload date and where it is used (B2B step 3,
  * amendment 6(b)), and what describing or deleting it needs — its two descriptions, and whether a
@@ -57,7 +57,6 @@ final readonly class MediaPages
                 null,
                 null,
                 null,
-                null,
                 $media->visibility->value,
                 null,
                 null,
@@ -75,7 +74,6 @@ final readonly class MediaPages
             $media->originalFilename,
             $media->mime,
             $media->bytes,
-            self::size($media->bytes),
             $media->width,
             $media->height,
             $media->visibility->value,
@@ -118,30 +116,5 @@ final readonly class MediaPages
         }
 
         return null;
-    }
-
-    /**
-     * Bytes as a person reads them.
-     *
-     * Kilobytes of 1024, because that is what an operating system shows next to the same file, and
-     * a library that disagrees with the desktop it was dragged from is just confusing.
-     */
-    public static function size(int $bytes): string
-    {
-        if ($bytes < 1024) {
-            return $bytes.' B';
-        }
-
-        $units = ['KB', 'MB', 'GB', 'TB'];
-        $value = $bytes / 1024;
-        $unit = 0;
-
-        while ($value >= 1024 && $unit < count($units) - 1) {
-            $value /= 1024;
-            $unit++;
-        }
-
-        // One decimal place below ten, none above: "9.4 MB", "24 MB".
-        return ($value < 10 ? number_format($value, 1) : number_format($value)).' '.$units[$unit];
     }
 }

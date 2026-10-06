@@ -155,6 +155,10 @@ the home store, active or not, and the last application the company sent:
 A last application of another company, or one not yet decided, is the caller's bug, and a
 `LogicException` before any of its flags is read.
 
+Before any of these, `SubmitApplicationHandler` refuses an account whose email is not confirmed
+(`EmailNotVerified`), then one whose phone is not, any country's (`PhoneNotConfirmed`, amendment
+26(a)). Filling and saving the draft need neither.
+
 **Five rules are code-only**, with nothing in the database behind them (amendments 5(g) and 6(c)):
 each crosses two tables, which a CHECK cannot see.
 
@@ -373,9 +377,11 @@ reviewer rejects it by hand.
 
 **One page, the design's** (b2b.md §4.5, amendment 14), at `/{store}/{locale}/account/company`:
 a status box and, under it, the form or what was sent, and a side column holding the application's
-lifecycle alone — three steps, the pointer on the one the latest application has reached, hidden
-while the company is suspended (amendment 16(e)); an approved company's bank account is a card in
-the main column. Before the first send there is no company, only a draft, and the page shows the
+lifecycle alone — the card "Your Application", its three steps down the card (shadcn's Card, a list
+and Lucide's circles), Form, Under Review and Decision, at the step the latest application has
+reached, Not Started before anything is, hidden while the company is suspended (amendments 16(e),
+26(b)); an approved company's bank account is a card in the main
+column, its IBAN in a read-only field with a Copy button. Before the first send there is no company, only a draft, and the page shows the
 draft alone. The design is look and behaviour: its own fields, company types and structured address
 lose to the spec.
 
@@ -397,9 +403,12 @@ before when another starts, so every save, upload and removal waits its turn in 
 page — none is ever lost — and each field keeps its own refusal until it is saved again, whatever
 the next field's answer says (the review of step 6).
 
-**Each field says where it stands** (amendment 16(a)): yellow while what it holds is not valid —
-and then it is never sent —, "Saving…", green "Saved" once the server holds it, red with the
-server's reason if it refuses all the same. The page checks with the server's own numbers:
+**Each field says where it stands** (amendments 16(a), 22(a)): "Saving…" with a spinner and then
+"✓ Saved" at the field's end, inside it; under it, its rule in grey ("2 to 200 characters."), which
+turns red with the reason when the field must be fixed — not valid once it is left (and then never
+sent), refused by the server, or marked by the last decision; the edge is plain, or red. An error
+names the field ("Company name needs at least 2 characters.", amendment 24(e)). The page checks with
+the server's own numbers:
 `CompanyPage::formRules`, from `FormRules::forPage()` — each field's minimum, maximum, whether it is
 one line, and the characters a CR or tax number takes. **Both trim the same characters** at either
 end (amendment 17(a)): `CompanyText::trimmed` removes exactly what JavaScript's `trim()` does — so
@@ -457,8 +466,9 @@ history; staff see them on their screens (step 7) and find a company by one, who
 case. The database backs it: a unique index, and CHECKs that a sent application has a number, a
 draft none, all of one shape. Anonymizing keeps the number: it names nobody.
 
-**Times are the home store's.** `CompanyPages` writes every time in the home store's time zone
-(HANDOFF §4): UTC underneath, the store's clock on the screen, and the page never converts again.
+**Times are the home store's.** `CompanyPages` writes every time as a moment with its offset, in
+the home store's zone (HANDOFF §4); the page shows it through `Time` in that same zone — the shop's —
+relative, with the full moment on hover.
 
 **Uploads cannot be tested in a real browser here**: the browser plugin's test server drops the
 files of a multipart body. They are tested over HTTP (`MyCompanyPageTest`); the browser test puts
@@ -466,15 +476,16 @@ the papers in through the use case and checks the page around them.
 
 ## The staff screens (step 7)
 
-**Three entries in the menu's Companies group** (b2b.md §4.6, amendment 21 — every pick in it
-provisional until the owner confirms it): **Companies**, offered for `b2b.company.view`; **Company
-Types** and **Document Types**, one types page with a tab each, offered for each list's update job.
-The menu gives an entry one permission, so a holder of only another job on a list — adding,
-deactivating, moving companies — opens the page by its address but is not offered the entry; offering
-it would need a Platform addition (an entry for any of several permissions), the owner's call. Built
-in Geist (`resources/js/components/geist`, frontend.md §1.10): a Table with the pager and an Empty
-State for the list; Description, Note, Entity and Collapse on the company page; Modal for every
-decision; a Menu for the page's and each row's other actions.
+**Three entries in the menu's Companies group** (b2b.md §4.6, amendments 21 and 23):
+**Companies**, offered for `b2b.company.view`; **Company Types** and **Document Types**, one types
+page with a tab each, each offered to anyone holding any job on that list in the store being worked
+in (23(a)). Built on shadcn's code with Geist's rules (frontend.md §1.11, the rebuild of
+2026-10-04): a Table whose whole row opens the company, with the pager and an Empty state for the
+list; Geist's Description, Notes, Items and shadcn's Collapsible on the company page; one dialog
+frame for every decision (`StaffDialog`: shadcn's Dialog, or its AlertDialog when destructive); a ⋯
+menu for the page's and each row's other actions. The status badges share one map with the shop
+(`resources/js/pages/B2B/status.ts`, amendment 24(a)): Approved green, Pending and Under Review
+amber, Rejected and Suspended red.
 
 **Offering is never allowing.** A screen never asks the authorizer (`AccessDecisionsTest`): it is
 told what it may offer by `StaffCompanyActionsForReader` and `ViewTypeLists`, which ask for each job
@@ -487,8 +498,10 @@ like one that does not exist, is not found.
 
 **Approve is shown disabled, with its reason**, while the company is still "Other" or its account was
 erased (`StaffCompanyActions::approveRefusal`); the handler refuses either way (13(b), 13(e)).
-**Reject and Suspend** use the destructive Modal — focus on Cancel, the button disabled until a
-reason is written — not the typed confirmation, since both can be undone. **Correct Company Type**
+**Reject** uses the destructive dialog — focus on Cancel, the button out of reach until a reason
+is written — since a company may apply again. **Suspend** asks for the company's name to be typed
+as well (Geist's Destructive Action Modal, amendment 23(c)): it stops all ordering and emails the
+customer. **Correct Company Type**
 offers deactivated types only to someone who may also activate them, and says the type becomes
 active again before it is assigned (8(b)); "Other" is not offered once the company is approved.
 
@@ -498,8 +511,8 @@ the panel's — the one in the header (`App\Http\PanelStore`) — never one from
 type and "Reviewed" name it, and every other change reads the store from the type itself. A company
 type's holders are counted in one grouped query, from the type's own store.
 
-**Times** on these screens are each company's home store's, written once by the page builder and never
-converted again in the browser. **A paper's file name and its id** go only to someone who may open
+**Times** on these screens are written by the page builder as moments with their offset, and shown
+through `Time` in the store being worked in, the panel's, its zone beside them (amendment 23(b)). **A paper's file name and its id** go only to someone who may open
 it — the id, because a reader without the private-files permission is never told which file exists
 (amendment 8(c)); to anyone else the paper shows its type and date, and its Open button is disabled
 with the reason. Each opening is a plain GET, audited by `DownloadCompanyDocument` before the link is

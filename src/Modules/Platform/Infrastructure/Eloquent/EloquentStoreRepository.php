@@ -6,6 +6,7 @@ namespace Modules\Platform\Infrastructure\Eloquent;
 
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
+use Modules\Platform\Domain\Exception\CurrencyTaken;
 use Modules\Platform\Domain\Exception\StoreCodeTaken;
 use Modules\Platform\Domain\Model\Store;
 use Modules\Platform\Domain\Repository\StoreRepository;
@@ -60,8 +61,14 @@ final class EloquentStoreRepository implements StoreRepository
                 'is_base' => $store->isBase(),
                 ...$this->mutableAttributes($store),
             ]);
-        } catch (UniqueConstraintViolationException) {
-            throw new StoreCodeTaken($store->code()->value);
+        } catch (UniqueConstraintViolationException $e) {
+            // Named by the index refused, so a race for a free currency is not told its code is taken
+            // (one currency, one store: §9.7 #4).
+            throw match (true) {
+                str_contains($e->getMessage(), 'stores_one_per_currency') => new CurrencyTaken($store->currency()->value),
+                str_contains($e->getMessage(), 'platform_stores_code_unique') => new StoreCodeTaken($store->code()->value),
+                default => $e,
+            };
         }
     }
 

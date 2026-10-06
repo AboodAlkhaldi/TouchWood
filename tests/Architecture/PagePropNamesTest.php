@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 const SHARED_PAGE_PROPS = [
     'errors', 'locale', 'direction', 'theme', 'translations', 'flash', 'csrfToken',
-    'viewer', 'menu', 'sidebarOpen', 'store', 'routes',
+    'viewer', 'menu', 'sidebarOpen', 'sidebarSections', 'store', 'routes',
     'shop', 'shopper', 'accountMenu', 'shopperLines',
 ];
 

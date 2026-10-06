@@ -92,7 +92,9 @@ it('draws the media library and switches between the table and the grid', functi
         ->assertSee('Being Processed')
         ->assertNoJavaScriptErrors();
 
-    $page->click('[data-test="view-switch"]')
+    // Geist's Switch for the two views: the grid is pressed, and the table is no longer.
+    $page->click('[data-test="view-grid"]')
+        ->assertAttribute('[data-test="view-grid"]', 'data-state', 'on')
         ->assertSee($filename)
         ->assertNoJavaScriptErrors();
 });
@@ -113,8 +115,10 @@ it('asks before deleting a file, in the page, and then deletes it', function () 
 
     // Asked in the page, so a test can answer it. The browser's own confirm box could not be
     // driven at all, which is why this went uncovered and then went wrong (owner, 2026-09-24).
-    $page->click("[data-test=\"delete-{$id}\"]")
-        ->assertSee('Nothing uses this file.')
+    // The row's actions are in its ⋯ menu (Geist's Entity), Delete File… last.
+    $page->click("[data-test=\"file-menu-{$id}\"]")
+        ->click("[data-test=\"delete-{$id}\"]")
+        ->assertSee('Nothing uses this file. This cannot be undone.')
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('platform.media')->where('id', $id)->exists())->toBeTrue();
@@ -181,13 +185,19 @@ it('shows a private file in the table as its name, date and use, with no picture
 
     // A Super Admin holds every permission, so they may describe and delete it, as the public file
     // beside it (amendment 8(a)).
+    // Each row's ⋯ menu holds Edit Description… and Delete File… for both files.
     $page->assertSee($paper)
+        ->click("[data-test=\"file-menu-{$paperId}\"]")
         ->assertPresent("[data-test=\"describe-{$paperId}\"]")
         ->assertPresent("[data-test=\"delete-{$paperId}\"]")
+        ->assertNotPresent("[data-test=\"retry-{$paperId}\"]")
+        ->keys("[data-test=\"describe-{$paperId}\"]", 'Escape')
+        ->click("[data-test=\"file-menu-{$photoId}\"]")
         ->assertPresent("[data-test=\"describe-{$photoId}\"]")
         ->assertPresent("[data-test=\"delete-{$photoId}\"]")
+        ->keys("[data-test=\"describe-{$photoId}\"]", 'Escape')
         // Its own row: the name, the date and where it is used - no picture, no type, no size, and
-        // exactly the two buttons.
+        // exactly one control, its ⋯ menu.
         ->assertScript(<<<JS
             (() => {
                 const row = [...document.querySelectorAll('tbody tr')].find((tr) => tr.textContent.includes('{$paper}'));
@@ -198,7 +208,15 @@ it('shows a private file in the table as its name, date and use, with no picture
                     && ! row.textContent.includes('2.3 MB')
                     && ! row.textContent.includes('Ready')
                     && row.querySelector('img') === null
-                    && row.querySelectorAll('button').length === 2;
+                    && row.querySelectorAll('button').length === 1;
+            })()
+            JS)
+        // The public file beside it shows its size, written by the screen in the page's language
+        // (the owner's fix list, 2026-10-04: the server's "2.3 MB" read "MB 2.3" on an Arabic page).
+        ->assertScript(<<<JS
+            (() => {
+                const row = document.querySelector('[data-test="file-menu-{$photoId}"]')?.closest('tr');
+                return row !== null && row !== undefined && row.textContent.includes('2.3 MB');
             })()
             JS)
         ->assertNoJavaScriptErrors();
@@ -223,6 +241,7 @@ it('lets an admin given "see" and "describe" describe a private file through the
 
     // An id begins with a digit, which a "#id" selector cannot: hence the attribute form.
     $page->assertSee($paper)
+        ->click("[data-test=\"file-menu-{$paperId}\"]")
         ->assertNotPresent("[data-test=\"delete-{$paperId}\"]")
         ->click("[data-test=\"describe-{$paperId}\"]")
         ->type("[id=\"{$paperId}-alt_en\"]", 'The company paper')
@@ -254,7 +273,9 @@ it('shows a private file in the grid as its name, date and use, without a pictur
         ->assertPathIs('/admin')
         ->navigate('/admin/media');
 
-    $page->click('[data-test="view-switch"]')
+    // Geist's Switch for the two views: the grid is pressed, and the table is no longer.
+    $page->click('[data-test="view-grid"]')
+        ->assertAttribute('[data-test="view-grid"]', 'data-state', 'on')
         ->assertSee($paper)
         ->assertScript(<<<JS
             (() => {
@@ -368,4 +389,42 @@ it('draws the audit log with its filters', function () {
     $page->click('[data-test="apply"]')
         ->assertPathIs('/admin/audit')
         ->assertNoJavaScriptErrors();
+});
+
+it('counts the days of the date filter in UTC, and takes a date in the address that is not a plain day as none', function () {
+    $page = visit('/admin/sign-in')
+        ->type('#email', libraryScreenEmail())
+        ->type('#password', LIBRARY_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        // Hand-edited: the server passes it on, and the page must not die on it (the review of batch D).
+        ->navigate('/admin/audit?from=today');
+
+    $page->assertSee('Audit Log')
+        ->assertSeeIn('[data-test="dates"]', 'Any Date')
+        ->assertSee('Days are counted in UTC.')
+        ->assertNoJavaScriptErrors();
+
+    // The calendar loads when the picker first opens, not with the page (the page budget).
+    $page->click('[data-test="dates"]')
+        ->assertVisible('[data-slot="calendar"]');
+
+    // "Today" is today in UTC, as the server compares the days.
+    $page->click('[data-test="dates-today"]')
+        ->click('[data-test="apply"]')
+        ->assertPathIs('/admin/audit');
+
+    $today = gmdate('Y-m-d');
+
+    // The path was this one before Apply as well, so its visit is waited for by the address itself
+    // (read before it landed, CI 2026-10-04: the hand-edited "today" was still there).
+    expect(browserUntil($page, "new URLSearchParams(window.location.search).get('from') === '{$today}'"))->toBeTrue();
+
+    expect($page->script('() => new URLSearchParams(window.location.search).get("from")'))->toBe($today)
+        ->and($page->script('() => new URLSearchParams(window.location.search).get("until")'))->toBe($today);
+
+    $page->assertNoJavaScriptErrors();
 });

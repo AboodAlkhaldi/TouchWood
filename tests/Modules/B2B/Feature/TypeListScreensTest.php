@@ -103,6 +103,39 @@ function typeListScreensHolder(): string
     return $company->id();
 }
 
+/**
+ * The menu entry keys the panel offers on a page, as "group/key".
+ *
+ * @param  TestResponse<Response>  $response
+ * @return list<string>
+ */
+function typeListScreensMenu(TestResponse $response): array
+{
+    $offered = [];
+
+    $response->assertInertia(function (AssertableInertia $page) use (&$offered): void {
+        foreach ($page->toArray()['props']['menu'] as $group) {
+            foreach ($group['entries'] as $entry) {
+                $offered[] = $group['key'].'/'.$entry['key'];
+            }
+        }
+    });
+
+    return $offered;
+}
+
+describe('the menu', function () {
+    it('offers a type list in the panel itself for a job held in the store being worked in', function () {
+        // Through the panel, not the registry alone: the panel must hand the menu the store it is
+        // working in, or the entry would never be offered (amendment 23(a); the review's re-check).
+        $browser = typeListScreens([B2BPermissions::COMPANY_TYPE_CREATE]);
+        $menu = typeListScreensMenu($browser->get('/admin'));
+
+        expect($menu)->toContain('companies/company_types')
+            ->and($menu)->not->toContain('companies/document_types');
+    });
+});
+
 describe('the types page', function () {
     it('shows the company types of the store in the header, with the notice and what the reader may do', function () {
         typeListScreensHolder();

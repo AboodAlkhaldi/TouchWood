@@ -43,6 +43,16 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.8, §3.6 F1 | **Geist is the design system**: its components, behaviour and all its rules (writing rules included), in TouchWood's look — today's colours a bit sharper, IBM Plex fonts, 10 px corners. Built before any new screen; every built screen moves to it. The store chooser and switchers list **on** stores only (platform.md §1.6) | Owner, 2026-10-01/02 (the new direction) |
 | §1.10 (new) | **The Geist foundation**: colours set B (owner's pick); Geist's type scale, materials, sizes, components and writing rules; Light and Dark only — the provisional picks marked there | Owner's overnight run, 2026-10-02 |
 | §1.10 | **Store time**: every moment in the zone of the store being worked in (owner's answer, 2026-10-02); Geist's `Time` (provisional) | Owner, 2026-10-02 (the "store time on panel screens" job) |
+| §1.10, §1.11 (new) | **shadcn's real code, Geist's look and rules on top.** Components come from shadcn's CLI and stay unchanged, apart from the edits §1.11 lists; the hand-built `components/geist/` goes; where Geist's rule and shadcn's code disagree, Geist's rule wins; nothing is built that either system has, and anything neither has is put to the owner first | Owner, 2026-10-02, after seeing the Geist screens: "dont ever create something if they had it" |
+| §1.10, §2.3, §3.4, §3.5 | The owner's answer for each piece neither system has (§1.11 table); the theme switch with System, once per area; SMS codes in shadcn's InputOTP | Owner, 2026-10-02, one by one with pictures |
+| §1.10, §1.11 | §1.10's provisional picks settled (type, surfaces, store time stand); the overnight review's Geist rules applied in the rebuild; every module's error messages rewritten in Geist's form | Owner, 2026-10-03 |
+| §1.11, §2.2 | **The owner's fix list after testing the rebuild**: the sidebar as `sidebar-07`'s main navigation (areas that fold, several open, a single screen as its link), thin themed scrollbars that keep the page's room, whole rows, the type lists' "#", the language switch laying the whole page out at once, sizes and counts in the page's digits; the builder's sidebar picks marked [PROVISIONAL] | Owner, 2026-10-04 |
+| §1.10 | **Arabic is formal (فصحى) everywhere**, never colloquial: the company page's two colloquial lines, from the design, rewritten | Owner, 2026-10-05 |
+| §3.3 C3, C6, C9, §3.4 D2, D5 | **Where It Reaches bounds every action** (Access amendment 59): C6 and the invitation's step 3 laid out as the role, its actions, the reach, then each action's stores (All Selected Stores or Custom, only for two or more stores); the Refresh buttons removed | Owner, 2026-10-04 (fix list points 9 and 10) |
+| §3.3 C3, §3.4 D2, §3.3 C2 | **The invitation's steps** drawn as the company page's tracking steps — a circle each, done, current or still to come, with its name — in place of the progress bar; **a role's allowed actions** grouped under a header that reads as one (a sunken band, the area's name in the heading's weight, how many it holds), each action marked with a check | Owner, 2026-10-06 |
+| §3.5 E3 | **The currencies screen names the stores using each currency** and deletes one no store uses (platform.md §9.7); its numbers in the page's digits | Owner, 2026-10-04 (fix list point 11, D15) |
+| §3.5 E3 | **The currencies' buttons**: each form ends with Cancel and its main button side by side; the button that opened it steps out while it is open; Delete Currency, for one no store uses, sits apart on the edit form footer's start side | Owner, 2026-10-06 |
+| §3.5 E1 | **Add Store** on the stores screen, for a Super Admin (platform.md §9.7 #3, #4): everything a store is, at once — code, both names, the country from the shared country picker (filling its time zone when it has only one), tax, time zone, position — and its currency **picked, never typed**, from the currencies no store uses, or **made in the same form** ("New Currency…", and the only way when none is free); the store is added switched off. Replaces "no store is made here" | Owner, 2026-10-06 |
 
 ---
 
@@ -110,7 +120,13 @@ them here.
 | `react` | 19.3.0 | UI |
 | `typescript` | 7.0.2 | **[DECIDED 2026-09-19]** TypeScript, not JavaScript |
 | `tailwindcss`, `@tailwindcss/vite` | ^4 (already in `package.json`) | Styling |
-| `shadcn` (CLI) | 4.21.0 | Components, copied into the repository |
+| `shadcn` (CLI) | 4.21.0; **4.21.1** for the rebuild (2026-10-03, §1.11) | Components, copied into the repository |
+| `radix-ui`, `cn` | 1.6.7, 0.4.0 (installed 2026-10-03) | Under shadcn's components: Radix's primitives, and shadcn's class-merging helper |
+| `cmdk` | 1.1.1 (2026-10-03) | Under shadcn's Command (the combobox's list) |
+| `input-otp` | 1.5.0 (2026-10-03) | Under shadcn's InputOTP, the SMS code boxes (owner, 2026-10-02) |
+| `@dnd-kit/core`, `/sortable`, `/modifiers`, `/utilities` | 6.3.1, 10.0.0, 9.0.0, 3.2.2 (2026-10-03) | Under shadcn's `dashboard-01` drag handles, for the address form's field order - by mouse, touch or keyboard (owner, 2026-10-03) |
+| `sonner` | 2.0.8 (2026-10-03) | Under shadcn's toasts; `next-themes`, which shadcn adds with it, is removed (§1.11 edit 2) |
+| `react-day-picker`, `date-fns` | 10.0.2, 4.4.0 (2026-10-04) | Under shadcn's calendar, the audit log's date range (loaded when the picker first opens) |
 | `tightenco/ziggy` | v2.6.4 | **[DECIDED 2026-09-19]** Links to named routes, with TypeScript types |
 | `spatie/laravel-typescript-transformer` | 3.3.0 (supports Laravel 13) | **[DECIDED 2026-09-19]** TypeScript types generated from page data |
 | `spatie/laravel-data` | 4.23 (already installed) | Page data classes (presentation layer only, handoff §3) |
@@ -293,8 +309,10 @@ Playwright's browsers.
 ### 1.10 The Geist foundation (built 2026-10-02)
 
 What §1.8's decision becomes in code. Written and built in the owner's overnight run: the owner
-chose the colours (set B) before leaving; every other pick below is marked **[PROVISIONAL
-2026-10-02 — owner to confirm]**, the owner's instruction for that night. Geist's rules were read
+chose the colours (set B) before leaving; every other pick below was the builder's, provisional,
+as the owner instructed for that night — **settled by the owner on 2026-10-02/03**: the type,
+surfaces, sizes and store time stand; the components, the pieces Geist lacks and the theme switch
+are replaced by §1.11. Geist's rules were read
 from its own pages (vercel.com/geist, every component's "Best Practices") and its sizes from its own
 stylesheet, the same day.
 
@@ -302,42 +320,39 @@ stylesheet, the same day.
   hue; text and lines are a step stronger and brand and status colours a step more saturated,
   measured in OKLCH. Light-mode muted text on a card goes from 4.90:1 to 6.31:1. The values are in
   `resources/css/themes.css`, light and dark.
-- **Type** [PROVISIONAL]: Geist's type scale under Geist's own class names — `text-heading-{14…48}`,
+- **Type**: Geist's type scale under Geist's own class names — `text-heading-{14…48}`,
   `text-label-{12…20}` (and `-mono`), `text-copy-{13…24}` (and `-mono`), `text-button-{12,14,16}` —
   with the sizes, line heights and weights of Geist's stylesheet, set in our fonts. Geist's negative
   letter-spacing on headings applies to English only: Arabic letters are joined and are never spaced.
-- **Surfaces** [PROVISIONAL]: Geist's materials under Geist's names — `material-base`, `-small`,
+- **Surfaces**: Geist's materials under Geist's names — `material-base`, `-small`,
   `-medium`, `-large` on the page; `material-tooltip`, `-menu`, `-modal`, `-fullscreen` above it —
   with Geist's shadow recipes, each a theme token so a campaign can change it. Corners are ours, not
   Geist's 6 and 12 px: **10 px** everywhere, 6 px on a tooltip, 16 px fullscreen.
 - **Sizes** (Geist's stylesheet): controls are 32, 36 and 40 px high (small, medium, large; medium
   is the default); the focus ring is Geist's — a 2 px gap in the page colour, then 2 px of brand.
-- **Components** [PROVISIONAL]: in `resources/js/components/geist/`, imported from its index, under
-  Geist's names and with Geist's props, Radix underneath where a component needs focus trapping or
-  keyboard handling. Their few words of their own (Cancel, Close, Previous, Next, the typed
-  confirmation's prompt) are `lang/*/ui.php`, which every page carries (`App\Http\Page`). `Button`'s `type` is its look (`default` primary, `secondary`, `tertiary`, `error`,
-  `warning`) and `typeName` its HTML type, as in Geist; `loading` instead of a spinner; `prefix` and
-  `suffix`; an icon-only button needs `svgOnly` and an `aria-label`; a disabled button carries
-  `disabledReason`, shown as its tooltip (our prop name — Geist pairs the two by hand). Geist's
-  components that no screen needs yet are built when one does. The shadcn copies go once nothing
-  uses them.
-- **Where Geist has no component** — the admin sidebar, the store picker, the address picker — it
-  is built from Geist's materials, type and rules (§1.8).
-- **The theme switch** [PROVISIONAL]: Geist's Theme Switcher offers Light, System and Dark. Ours
-  offers **Light and Dark only**: the theme is decided on the server (§2.1) so the first paint is
-  right, and the server cannot see the device's own setting. "System" would need every dark value
-  written a second time under a media query, campaigns included — the owner's call.
+- **Components** — *replaced by §1.11 (owner, 2026-10-02)*. The overnight build hand-made them in
+  `resources/js/components/geist/`; they give way to shadcn's own code, from its CLI, with Geist's
+  look and rules on top, and that folder is deleted once nothing imports it. The components' few
+  words of their own (Cancel, Close, Previous, Next, the typed confirmation's prompt, a sidebar's
+  screen-reader words) stay in `lang/*/ui.php`, which every page carries (`App\Http\Page`).
+- **Where Geist has no component** — *replaced by §1.11*: shadcn has all three — the sidebar block
+  that collapses to icons (`sidebar-07`), its team switcher for the store picker, and
+  `field-choice-card` for the address picker.
+- **The theme switch** — *replaced by §1.11*: System, Light and Dark.
 - **Store time** (owner, 2026-10-02: "each store will have its own — a viewer from Egypt sees
   Egypt's time, from KSA KSA's"; for someone in several stores, **the store they are working in**).
   The server and the database keep UTC; every moment on a screen is written in the zone of the
   panel's current store, or of the shop's store, with the zone's short name beside it — the store
-  screens' own times included (failed jobs, audit log, media, sessions). Geist's `Time`
-  [PROVISIONAL]: in a list a recent moment reads short and relative ("2h ago"), past seven days as
-  a date, the full moment on hover and focus; on a detail page the full moment is the text. B2B's
-  company times were already written by the server in the company's store clock (step 6) and are
-  left as they are.
+  screens' own times included (failed jobs, audit log, media, sessions). Geist's `Time`: in a list
+  a recent moment reads short and relative ("2h ago"), past seven days as a date, the full moment
+  on hover and focus — the store's zone and UTC; on a detail page the full moment is the text.
+  B2B's company times on the customer's page were already written by the server in the company's
+  store clock (step 6) and are left as they are; **B2B's staff screens use `Time`, in the store
+  being worked in** (b2b.md amendment 23(b), owner 2026-10-03).
 - **Writing rules** (Geist's, for every English word on a screen; Arabic follows the same
-  structure — a verb and its object on a button, the toast that answers it, no "please"):
+  structure — a verb and its object on a button, the toast that answers it, no "please" — and is
+  **formal Arabic (فصحى) everywhere, never colloquial**, the owner's answer of 2026-10-05, over the
+  design's own colloquial lines):
 
 | Where | Rule | Example |
 |---|---|---|
@@ -355,6 +370,178 @@ stylesheet, the same day.
 | Dismissal | "Cancel"; "Done" after a one-time display | |
 | Never | "please", "successfully", "Unable to", "Something went wrong", "Oops" | |
 
+### 1.11 shadcn's code under Geist's rules (owner, 2026-10-02 and 2026-10-03)
+
+**The rule** (owner, 2026-10-02): never design or build a UI piece that Geist or shadcn already has
+— use theirs, 100 %. Search both first: Geist's component pages, and shadcn's components, blocks
+and examples. Only when neither has it, show the owner what was searched and ask before building.
+
+- **Code**: every component comes from shadcn's CLI into `resources/js/components/ui/`; every block
+  or example from shadcn's registry, as written (`sidebar-07`, `login-02`, `field`, `input-group`,
+  `item`, `empty`, `field-choice-card`, `combobox-demo` and the like). Nothing in them is changed
+  except the edits below. `resources/js/components/geist/` is deleted once no page imports it.
+- **Look**: our tokens (§1.8, §1.10) feed shadcn's token names, as `resources/css/app.css` already
+  does — colours, Geist's type scale and materials, 32/36/40 px controls, Geist's focus ring, 10 px
+  corners. A theme is still data.
+- **Rules**: Geist's rules sit on top of shadcn's code — each component's "Best Practices", and the
+  writing rules of §1.10. **Where the two disagree, Geist's rule wins**: a loading button stays
+  focusable; a field stays editable while it saves; an action that cannot be done is shown
+  disabled, with the reason.
+- **The only edits to shadcn's code** (five), each written down where it is made:
+  1. **`accent`** — TouchWood's copper keeps the name `accent`; shadcn uses `accent` as its neutral
+     background - hover, focus, open, selected, pressed, and Skeleton's fill - which would paint
+     copper behind dark text (2.3:1). After every install, every background shadcn paints with
+     `accent` is changed to the neutral `muted`; `accent-foreground`, which is our ink, stays.
+  2. **Toasts** — shadcn's Sonner reads the theme from our server's page data, not from
+     `next-themes` (a one-line change).
+  3. **Right to left** — shadcn's `DirectionProvider` wraps the app (`rtl: true` in
+     `components.json`).
+  4. **The sidebar's rail in Arabic** (owner, 2026-10-03) — shadcn's `SidebarRail` places itself with
+     `-right-4` / `left-0`, which in Arabic puts it on the far side of the screen; ours writes
+     `-end-4` / `start-0`, so it stays on the sidebar's edge. Put back after every reinstall; a test
+     checks it.
+  5. **shadcn's own screen-reader words** (owner, 2026-10-03, after the review of the foundation) —
+     a few words shadcn writes in English inside its code (the phone sidebar's title and
+     description) read our words from the design system's file (`lang/{ar,en}/ui.php`), where a
+     prop cannot reach them. Words a prop can give - the sidebar trigger's, the rail's, the
+     breadcrumb's, a Spinner's name, the pager's Previous and Next (our own links) - are given from
+     outside, with no edit; a dialog's own Close button is never drawn (`showCloseButton={false}`).
+- **The CLI's CSS**: installing a component may add shadcn's default colours to `app.css` (the
+  sidebar's, for one). They are not kept: our tokens already feed those names (Look, above).
+- **Geist's pieces that shadcn lacks**, built exactly from Geist's own page, with no invention:
+  Loading Dots, Middle Truncate, Copy Button, Description, Theme Switcher, and Progress "with
+  stops" (shadcn's Progress has no stops; the bar itself stays shadcn's).
+- **Earlier choices that give way to Geist** (owner: "Geist, keep store time"): a setting's switch
+  saves the moment it flips (Settings are no longer read-only until "Edit"); a Delete that cannot
+  be done is shown disabled, with the reason written under it (media: inside its ⋯ menu, where a
+  tooltip would sit over the next item; batch D, 2026-10-04); B2B's staff screens show their
+  moments through `Time`; store time (§1.10) stays — the hover shows the store's zone and UTC.
+- **SMS codes**: shadcn's InputOTP, one box per digit (the package `input-otp`), on staff sign-in,
+  accepting an invitation, the staff Change Phone Number dialog and the customer's Change Phone
+  Number. The server sends each page the code's length; Latin and Arabic-Indic digits are both
+  accepted.
+- **The theme switch**: Geist's Theme Switcher as it is — **System, Light, Dark** — once per area
+  (Geist: "once per app, in the footer or settings"), instead of today's three places:
+  - **panel**: the sidebar's footer, small, inside the person menu — one click from any page, the
+    sidebar collapsed included;
+  - **shop**: the footer, small;
+  - the **panel's** sign-in pages lose it. The shop's pages, its sign-in pages included, keep it in the shop's footer, which every shop page has.
+  Light and Dark are still rendered by the server. For System, a few lines of script in the page's
+  head choose the theme from the device before the first paint (as Geist's own setup does), so
+  nothing flashes; campaign themes are unaffected. Access's preferences endpoint accepts `system`
+  besides `light` and `dark`. **A first visit, before any choice, is System** (owner, 2026-10-02),
+  replacing "Light until the person chooses" of 2026-09-19. The app sends no Content-Security-Policy
+  today (checked 2026-10-02); if hosting adds one, that script needs its nonce or hash.
+- **Toasts**: shadcn's Sonner (edit 2).
+- **The pieces neither system has — the owner's answers** (2026-10-02, one by one, each with a
+  picture):
+
+| # | Piece | Answer |
+|---|---|---|
+| 1 | Panel page title: big title, one-line subtitle, the page's main action | **Keep it**, built from shadcn's parts with Geist's type |
+| 2 | A dot on a collapsed sidebar icon while something waits (failed jobs) | **Keep it**; a screen reader hears the count |
+| 3 | The language switch | **Keep the button** showing the other language's name; one press switches |
+| 4 | The signed-in shopper in the shop header | **shadcn's user menu**: the name opens a menu with My Account and Sign Out (`sidebar-07`'s nav-user pattern) |
+| 5 | The permissions table on the roles screen | **A plain table**: the area is its own column, nothing sticks — replacing the sticky area rows |
+| 6 | The yes/no mark in each cell | **Keep as now**: a tick in a green square, a minus for no |
+| 7 | A row in the roles list | **The whole row opens the role**; Edit Role moves into the row's ⋯ menu (shadcn Item + DropdownMenu) |
+| 8 | The staff list, grouped | **A heading per group** (Admins, each store, Centralized), each group a shadcn Item group |
+| 9 | Editing a file's description in the media library | **shadcn's Dialog** with the form, Cancel and Save Description, in place of the extra table row |
+| 10 | The steps beside the company page | **The steps down the card** — shadcn's Card, a list and Lucide's circles; it was Geist's Progress with stops (22(b)) until the owner's pick of 2026-10-04 (b2b.md amendment 26(b)) |
+| 11 | How a company field shows its state | **The mix** (b2b.md amendment 22(a)): the save state inside the field's end, the reason under it, red the only edge colour |
+| 12 | Picking a saved address on the company form | **shadcn's field-choice-card**, each tile naming its store, no headings (b2b.md amendment 22(c)) |
+| — | The phone-number fields | No question: plain shadcn Inputs with a helper line; nothing is built |
+| — | The two-step phone change (number, then code) | No question: two forms of Input and Button, InputOTP for the code |
+| — | The TouchWood mark | Our own logo, an SVG — the owner's files of 2026-10-04, drawn on a navy or a cream tile (§1.11, the owner's fix list) |
+
+- **Applied in the rebuild, each a Geist rule** (owner, 2026-10-03, from the overnight review):
+  - a page header keeps **one main button** and puts the rest in a ⋯ menu, destructive last (Geist
+    Button: "Switch to a Menu or Split Button when more than one related action shares a row") —
+    the staff member page first;
+  - **a confirm dialog** before ending another browser's session, Forget Browser, Forget All
+    Browsers, and removing a file from a company draft (Geist Modal: "Confirm destructive actions in
+    a Modal");
+  - **words on every badge**, never colour alone (Geist Badge) — the customer list's Email and
+    Phone badges first;
+  - the media library's Table/Grid switch is a toggle;
+  - the account tabs live in the address, so a refresh keeps the tab; the "Close Account" tab is
+    named with a noun;
+  - a dialog's main button repeats its title's verb;
+  - the sidebar's screen-reader words are in Arabic too.
+- **Error messages in Geist's form** (owner, 2026-10-03: inside the rebuild): every module's error
+  messages — Access's, Platform's and B2B's `Presentation/lang/{ar,en}/errors.php` — are rewritten:
+  "Couldn't …" for the person's own state, "Failed to …" for the system's, then the fix; titles
+  are Title Case statements. The tests that read them change with them, never weakened.
+  Built in batch F (2026-10-04), with the shared `lang/{ar,en}/errors.php` too, as two sentences —
+  “Couldn't save the role: another role is already called "Sales". Choose another name.” — the
+  Arabic "تعذّر …" / "فشل …". Kept as written: the owner's own words for a code asked for too soon
+  (2026-09-22) and for marked items not replaced (b2b.md amendment 6(e)), which already name the way
+  forward. A message staff meet as well as customers gets a fix that holds for both ("Reload the
+  page.").
+- **The owner's answers for batches C to F** (2026-10-04, each from a picture):
+  - registration: the kind of account starts with **nothing chosen** (Geist's Radio: no default when
+    the choice has real consequences); sending without one says "Choose a kind of account." on the
+    form;
+  - closing a shop account: **the password stays the gate**, and the confirm button is out of reach,
+    with its reason, until something is typed; the tab is named **"Account Closure"**
+    ("إغلاق الحساب"), its button still "Close Account…";
+  - Confirm Your Email: Resend Link is the page's **main button**;
+  - "Keep Me Signed In" and "Deliver Here by Default" stay **checkboxes** (Geist's Toggle is for a
+    setting that takes effect at once); the staff phone dialog's first step keeps **"Send Code"**;
+  - a number or text setting is **always open, its Save Setting always there and out of reach until
+    the value changes**, Cancel then beside it (Geist's Fieldset); a switch saves the moment it flips;
+  - **Show More appends** the next page under the rows already shown;
+  - B2B status badges, one map on both sides: **Approved green, Under Review amber, Rejected red,
+    Suspended red**; the staff Companies list's **whole row opens the company**; a saved-address
+    picker shows **up to six tiles, then a searchable list**; an approved company's change warning
+    is **one Note at the top of the form**;
+  - **every word that breaks Geist's writing rules is rewritten**, Arabic and English saying the
+    same, each before/after listed in the PR;
+  - and, taken as recommended: switches at Geist's 24 by 44, the dialog backdrop in Geist's colour
+    (both from our stylesheet), "Base Store" in a store's line rather than a second badge, the
+    currency sign shown as a "Preview" line, the failed job's error in a ScrollArea with Geist's
+    Copy Button, file names cut in the middle (Geist's Middle Truncate), and the JavaScript budget
+    counting only real pages.
+  The SMS code on the customer's Change Phone Number is InputOTP, its length sent by the server
+  (`CustomerAccountPage.codeLength`), as on the staff side.
+- **The owner's fix list after testing the rebuild** (2026-10-04, afternoon; its screen fixes go
+  into the rebuild's PR):
+  - **the sidebar is shadcn's `sidebar-07` main navigation**, from the owner's screenshot of it:
+    each business area is one row with its icon and a chevron, its screens indented under it
+    without icons; **several areas may be open at once**; the screen being read is highlighted and
+    its area opens by itself; which areas the person opened is remembered per browser, in a cookie
+    the server reads back like `sidebar_state`, so the first paint is already right. **An area with
+    a single screen — for this person, as the menu holds only what they may use — is that screen's
+    link**, named for where it goes and with no chevron; it folds once a second screen joins it
+    (owner, 2026-10-04);
+  - **[PROVISIONAL] the builder's picks for the sidebar, shown to the owner**: no label above the
+    areas; an area folded while something waits in it carries the count, and one folded around the
+    screen being read is lit; on the rail of icons an area's icon opens its screens as a menu
+    (`sidebar-06`'s "submenus as dropdowns", here with the area's name above and each screen's
+    icon), since a folded rail has no room for them;
+  - **scrollbars are thin, in the theme's colours, and dark in dark mode** (`color-scheme`); the
+    page keeps its scrollbar's room (`scrollbar-gutter: stable`), so a long page — the audit log —
+    no longer shifts everything sideways when its bar appears, nor when a menu or a dialog locks the
+    page's scroll; the sidebar's bar shows only under the pointer or keyboard focus. Vercel's
+    interface guidelines: "Only render useful scrollbars";
+  - **the customers list's whole row opens the customer**, as the companies and roles lists do;
+  - **B2B's two type lists**: the position is a narrow "#" column of its own, and the two names
+    follow the page's language, its own first (b2b.md amendment 25);
+  - **switching the language lays the whole page out in it at once**: the tabs, toggles and menus
+    Radix lays out stayed left to right on an Arabic page until the next click, since choosing a
+    language answers with the same address and Inertia counts that as no navigation — the
+    direction now follows every page the server sends;
+  - **a file's size is written in the page's language and digits** ("٢٫٣ م.ب" on an Arabic page;
+    the server's "2.3 MB" read "MB 2.3" there): the media library is sent the bytes, and counts in
+    the sidebar and on the home page are written in the page's digits too (§1.8).
+  - **the logo** is the owner's files of 2026-10-04 — a frame and a fingerprint, drawn rather than
+    fetched: **a navy tile on dark surfaces** (the sidebar, navy in both themes, and dark mode;
+    the phone's home-screen icon, once the PNGs arrive) and **a cream tile on light ones** (the
+    shop's header and the sign-in pages in light mode), the frame in our copper, the colours theme
+    tokens (`--tw-logo-*`); the tab's icon is the navy tile as an SVG. The PNG sizes — for older browsers,
+    phones' home screens and emails — are the owner's own exports, added when they arrive. The
+    outlined file is for print and engraving; the glass tile of the pictures is not used.
+
 ---
 
 ## 2 · Layouts
@@ -370,7 +557,8 @@ layout of the area they occur in.
 - **Direction:** Arabic pages mirror the whole layout, sidebar included, as the design does.
 - **[DECIDED 2026-09-19] Light and dark themes, admin and storefront**, chosen with a toggle and
   remembered **per browser** in a cookie, so the server renders the right theme with no flash.
-  **Light until the person chooses.** The design's dark palette (`html[data-theme="dark"]`) is used
+  **System until the person chooses** — the device's own setting (§1.11, 2026-10-03; it replaced
+  "Light until the person chooses"). The design's dark palette (`html[data-theme="dark"]`) is used
   as it is. Every screen is checked in both themes.
 - **[DECIDED 2026-09-19] Fonts are served from our own domain**, not a font service.
 - **[DECIDED 2026-09-19] Phones are supported, admin and storefront.** The design has no phone
@@ -387,7 +575,8 @@ layout of the area they occur in.
 
 From the design, with the decided rules applied:
 
-- **Sidebar:** the logo with "Admin panel"; groups that open one at a time; count badges; at the
+- **Sidebar:** the logo with "Admin panel"; business areas that fold, several open at once
+  (§1.11, the owner's fix list, 2026-10-04); count badges; at the
   bottom, the person's avatar, name and role, and the language toggle (ع / EN). The language is not
   in the URL **[DECIDED 2026-09-19]**. The toggle changes **only what is displayed**, at once; the
   staff member's saved `locale` is their communication language (emails, SMS codes) and changes
@@ -400,7 +589,12 @@ From the design, with the decided rules applied:
   page (the design's "This screen is next in the build queue"), **to Super Admins only**. Their
   permissions do not exist yet, so they cannot be checked; everyone else sees only screens they
   can use. A module's entries become real, permission-checked items when its screens ship.
-- **Header:** the sidebar toggle, breadcrumbs, the store picker, and "View store". **[DECIDED
+- **Header:** the sidebar toggle, breadcrumbs, and "View store"; the store picker sits in the
+  sidebar's own header (§1.11: `sidebar-07`'s team switcher), with Home as its first row; with one
+  store the logo opens Home, and with two or more it opens the store menu whose first row is Home —
+  the block's logo and store are one button. Home is also the menu's first item (the home, below).
+  **[DECIDED by the owner, 2026-10-06: "make both logo and name same button" — as built; the plan's
+  "the logo always goes Home" is replaced, and `sidebar-07`'s block stays as it is.]** **[DECIDED
   2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a module gives them
   content: search with Catalog and Sales, the bell with Ops.
 - **[DECIDED 2026-09-19] The store picker** is **remembered on the staff account**. URLs carry no
@@ -413,6 +607,20 @@ From the design, with the decided rules applied:
     access to Egypt — showing KSA." If the store is given back later, it returns to the picker.
   - This needs a new field on the staff account: an Access amendment, listed in §4.
 - **Page frame:** a title and a one-line subtitle, with the main action at the top right.
+- **The home** (`/admin`; the owner's fix list, point 6 — D11 (a), D12, 2026-10-04/05). **Home is
+  the menu's first item**, and the store menu's first row (above). Under the page frame: what waits for this
+  person (the waiting Note and its rows, as before), then the **cards** — one per thing a module
+  reports (platform.md §2.6), each shown only to someone holding its permission in the scope. A
+  **scope switch, All Stores · This Store**, is offered to a reader whose reach covers every store
+  for at least one card's per-store action — a Super Admin always; a store-free action such as the
+  media library's never offers it — and opens on **All Stores** (owner, 2026-10-05);
+  anyone else sees the store being worked in, with no switch. The first cards: **Company
+  Approvals** (b2b.md amendment 27: how many wait and who, oldest first; companies by status) and
+  **Stores and System** (platform.md §9.8: stores on and off, failed jobs, storage used — each
+  figure only with its own permission). The sales figures the owner asked for — products sold, money
+  taken, each store's sales, products about to run out — come as cards of Sales, Catalog and
+  Inventory when those modules exist; the home does not change for them. Numbers are in the page's
+  digits (§1.8).
 
 ### 2.3 Storefront
 
@@ -422,9 +630,9 @@ screen by screen as the admin's were (owner, 2026-09-22). What follows was writt
 no storefront design and still holds for anything those files do not show:
 
 - A header with the logo, the country (store) switch and the language switch (`/sa/ar` ↔ `/sa/en`,
-  staying on the same page), the theme toggle, and "Sign in" or the customer's name. Search and
-  the cart come with Catalog and Sales.
-- A small footer.
+  staying on the same page), and "Sign in", or the customer's name opening a menu with My Account
+  and Sign Out (§1.11 #4). Search and the cart come with Catalog and Sales.
+- A small footer, holding the theme switch (§1.11, 2026-10-02).
 - **[DECIDED 2026-09-19] Platform's two Blade pages are rebuilt in React:** the country page at
   `brand.com/` and the placeholder store home (platform.md §3). Their tests move with them.
 
@@ -519,7 +727,7 @@ edits is what Access already allows (`UpdateOwnStaffProfile`, `ChangeOwnStaffPho
 
 | # | Tab | Shows and edits |
 |---|---|---|
-| B1 | Account | Picture; first and last name, job title, date of birth, country, address; the **communication language** (emails and SMS codes, Access amendment 16), labelled so it is not confused with the display toggle. The email is read only, with "Ask an admin to change it"; a Super Admin instead has "Change email", which sends a link to the new address (Access amendment 17) and shows the change as pending until it is used. |
+| B1 | Account | Picture; first and last name, job title, date of birth, country, address; the **communication language** (emails and SMS codes, Access amendment 16), labelled so it is not confused with the display toggle. The email is read only, its locked Change Email saying "Ask an admin to change it"; a Super Admin instead has "Change email", which sends a link to the new address (Access amendment 17) and shows the change as pending until it is used. |
 | B2 | Account → phone | The phone, with "Change": a dialog asks for the **current password** (R2) and the new number, sends a code to it, and takes the code. The old number stays in use until the new one is confirmed (access.md §1.4). A wrong password is counted like a wrong one at sign-in, so the dialog shows the lockout message too. |
 | B3 | Security | Change password: current, new, confirmation, with the rule in words. Afterwards: "Every other session was signed out." (Access's message). No two-factor switch (§2.7). |
 | B4 | Notifications | For each topic — new orders, company applications, low stock, campaign expiry — an email switch and an in-panel switch (access.md §1.4). **[DECIDED 2026-09-19]** Each switch saves as it is flipped, with a small "Saved" toast. |
@@ -545,14 +753,14 @@ manages another admin or themselves.
 | # | Screen | Page | Shows |
 |---|---|---|---|
 | C1 | Staff | `/admin/staff` | The design's list — picture, name, email, role — **grouped by store, with a "Centralized" section** for people working in two or more stores (access.md §1.5). **[DECIDED 2026-09-19]** In place of the design's "last seen": the status (Active, Invited, Disabled) and the date they were invited or joined; nothing new is written on ordinary page loads. Filters by status, and a search by name or email. "Invite member" appears with `access.staff.invite` (which also needs `access.staff.assign_role` in the new person's stores, Access amendment 23). **Admins are a separate short section** above the rest, showing a **name and a role only** — no picture, email, status or date — for anyone but a Super Admin (R1). The list is ordered **by name** for such a reader, because ordering by the joining date would give an admin's away. |
-| C2 | One staff member | `/admin/staff/{id}` | Profile, status, communication language; their role, what it allows, their stores and each action's exceptions; the actions they may be given, each as a button. |
+| C2 | One staff member | `/admin/staff/{id}` | Profile, status, communication language; their role, what it allows, their stores and each action's custom stores; the actions they may be given, each as a button. |
 | C3 | Invite | `/admin/staff/invite` | **[DECIDED 2026-09-19] Three steps** with a progress line — profile, then role, then stores — sent at the end. The profile is what Access requires (email, first and last name, job title, date of birth, country, phone, communication language; address and picture optional — amendment 15). Leaving before the last step sends nothing. |
 | C4 | Edit profile | On C2 | The same fields, except the email and the role. Changing the phone also needs every action of the person's role (Access amendment 26). |
 | C5 | Change email | On C2 | The new address; the change happens when the link sent there is used (Access amendment 17). Someone who never accepted their invitation gets a new invitation at the new address instead (amendment 25). |
-| C6 | Role and stores | On C2 | Access's screen (§1.5): every action ticked or not, one row of store boxes that fills every action, and store boxes per action for exceptions. Store-free actions show their boxes ticked and disabled (amendment 4). Actions the admin does not hold cannot be ticked. Saving an edited saved role here makes it that person's **personal role**. |
+| C6 | Role and stores | On C2 | Access's screen (§1.5, amendment 59), top to bottom: the role (a saved role's card, or one edited into theirs), its actions by business area, **Where It Reaches** (every store, or the ones ticked), then each per-store action's stores — **All Selected Stores** or **Custom**, ticked among the reach's stores only — **shown only for a reach of two or more stores or every store**. A smaller reach cuts every custom choice to it and says so on the action before saving; a custom choice left empty stops the save, naming the action. Store-free actions take no store choice (amendment 4). Actions the admin does not hold cannot be ticked. Saving an edited saved role here makes it that person's **personal role**. The invitation (C3) uses the same parts in the same order across its steps 2 and 3. |
 | C7 | Disable / Enable | On C2 | Disabling ends their sessions and trusted browsers at once (Access). Enabling someone with no role asks for the role in the same step (amendment 27) — a case a revoke no longer creates, since revoking a Super Admin closes the account outright (R3). |
 | C8 | Invitation | On C2, while `INVITED` | Resend (a new link; the old one dies) or cancel. Resending also needs every action of their role (amendment 26). |
-| C9 | Refresh permissions | On C2 | Rebuilds this person's cached permissions (`RefreshStaffPermissions`, amendment 10), for an admin who wants the change to take effect at once. |
+| C9 | ~~Refresh permissions~~ | — | Removed (Access amendment 59): every change already rebuilds the cached permissions in its own transaction; after a hand edit of the database, `php artisan cache:clear` (which empties the whole cache, rate limits included). |
 
 - **Refusals are Access's**: `PermissionEscalation`, `AdminOnlyPermission`, `SuperAdminOnly`,
   `StaffEmailInUse`, `InvalidStaffStatus` (amendment 21), each shown as §2.1 says.
@@ -562,7 +770,7 @@ manages another admin or themselves.
 ### 3.4 Roles
 
 access.md §1.5, §3.2 (`ListRoles`, `ViewRole`, `RoleEditorPermissions`, `CreateRole`, `CloneRole`,
-`UpdateRole`, `DeleteRole`, `RefreshRolePermissions`). The design's "Employee permissions". Seen by
+`UpdateRole`, `DeleteRole`). The design's "Employee permissions". Seen by
 someone with `access.role.manage` or `access.staff.assign_role`; `access.role.manage` is store-free
 (amendment 4). **Only a Super Admin** creates, clones, edits or deletes an **admin** role; admins
 see admin roles in the list but cannot open them for editing (amendment 9 and the step 2 round).
@@ -570,10 +778,10 @@ see admin roles in the list but cannot open them for editing (amendment 9 and th
 | # | Screen | Page | Shows |
 |---|---|---|---|
 | D1 | Roles | `/admin/roles` | Saved roles with their name in the display language, their level (admin or staff), and how many hold each. "New role" and, on a row, "Clone". Personal roles never appear here (access.md §1.5). |
-| D2 | One role | `/admin/roles/{id}` | Its actions, and its holders — only those the viewer manages, plus the total count (amendment 8). Buttons: edit, clone, delete, refresh. |
+| D2 | One role | `/admin/roles/{id}` | Its actions, and its holders — only those the viewer manages, plus the total count (amendment 8). Buttons: edit, clone, delete. |
 | D3 | New / edit role | `/admin/roles/new`, `/admin/roles/{id}/edit` | The name in Arabic and English (each unique among saved roles, ignoring case — amendment 7), the level, and the actions: everything the author holds, with the rest not offered. At least one action (amendment 7). Store-free actions are marked as such; stores are not part of a role, they are chosen per staff member (§3.3 C6). |
 | D4 | Delete a role | On D2 | If anyone holds it, a saved role of the same level must be picked as the replacement, and every holder moves to it (amendment 7). Without one the delete is refused, listing the holders. |
-| D5 | Refresh | On D2 | Rebuilds the cached permissions of the role's holders (`RefreshRolePermissions`, amendment 10). |
+| D5 | ~~Refresh~~ | — | Removed with C9 (Access amendment 59). |
 
 - **[DECIDED 2026-09-19] Actions are grouped by business area** on every screen that lists them
   (D3 and §3.3 C6): "Catalog and variants", "Pricing and campaigns", "Orders and fulfilment",
@@ -584,7 +792,8 @@ see admin roles in the list but cannot open them for editing (amendment 9 and th
   **[DECIDED 2026-09-29]** A **System** area joins them, for the running of the system — first the
   failed jobs (E7) — with its own section in the menu.
 - **[DECIDED 2026-09-19] The design's "Permissions by role" table is kept**, on D1: groups down the
-  side, saved roles across the top, scrolling sideways as roles are added.
+  side, saved roles across the top, scrolling sideways as roles are added — **[2026-10-02, owner]
+  as a plain table: the area its own column, nothing sticky** (§1.11 #5).
 - A role's Arabic and English names are both asked for on one screen, whichever language the panel
   is being read in.
 - Editing a saved role changes it for everyone holding it; the screen says so before saving, with
@@ -597,16 +806,18 @@ existed (platform.md §3, §9.2 #19). Each screen shows only the stores in the p
 
 | # | Screen | Page | Shows |
 |---|---|---|---|
-| E1 | Stores | `/admin/stores` | The design's card per store: name, currency, tax rate, timezone. `platform.store.view`. |
+| E1 | Stores | `/admin/stores` | The design's card per store: name, currency, tax rate, timezone. `platform.store.view`. **Add Store**, for a Super Admin (`platform.store.create`; platform.md §9.7 #3, #4, owner 2026-10-06): one form for everything a store is — code, both names, the country (choosing one with a single time zone fills it), tax, time zone, position — and its currency, picked from the currencies no store uses or made in the same form ("New Currency…", the only way when none is free; `platform.currency.create` too). The store is added switched off. |
 | E2 | Edit a store | On E1 | Name in both languages, tax rate as a percentage (kept as basis points, platform.md §1.1), timezone, position. The code, country and currency are shown but cannot be changed — they are immutable. `platform.store.update`, that store. |
-| E3 | Currencies | `/admin/currencies` | **[DECIDED 2026-09-19]** Currencies are created and edited **in the panel**, by a Super Admin only (reserved permissions, platform.md §3): name and abbreviation in both languages, the sign, and the exponent — which is locked once any store uses the currency (platform.md §1.2). The sign field shows the sign as the site's font draws it, so a sign the font cannot draw is seen before it is saved (platform.md §5.1). |
+| E3 | Currencies | `/admin/currencies` | **[DECIDED 2026-09-19]** Currencies are created and edited **in the panel**, by a Super Admin only (reserved permissions, platform.md §3): name and abbreviation in both languages, the sign, and the exponent — which is locked once any store uses the currency (platform.md §1.2). The sign field shows the sign as the site's font draws it, so a sign the font cannot draw is seen before it is saved (platform.md §5.1). **Each card names the stores using it** — "Used by Saudi Arabia, Egypt", an off store marked Off — or says "No store yet"; numbers in its sentences are in the page's digits. A currency no store uses can be deleted: **Delete Currency…**, confirmed in Geist's Destructive Action Modal by typing the code (platform.md §9.7, owner 2026-10-04). |
 | E4 | Settings | `/admin/settings` | Every declared setting the person may change, grouped by the module that declares it, each with the input its type asks for and its default shown. Store settings apply to the store in the header; global keys need All stores (Access amendment 5). A setting marked sensitive never shows its value (platform.md §1.3). Each setting's permission comes from its own definition, and a row a person may not change is not shown to them. Access's settings sit in **one Access section** (owner, 2026-09-22) although they carry two permissions: a store's own settings are ordinary, the staff sign-in and security numbers are admin-only (R4). A module may put **one line at the top of its section** (platform.md §1.3): the Companies section says whether bank transfer is on or temporarily off (b2b.md amendment 13(c)). A setting whose default is empty — "not set yet" — shows no default under its box: there is no value in force to name (owner, 2026-09-29). |
-| E5 | Media library | `/admin/media` | **[DECIDED 2026-09-19]** The design's table, with a switch to a grid of thumbnails. The table: file, type, size, used in, uploaded. Plus the state of an image's variants (pending, ready, failed), upload (`platform.media.upload`), alt text (`platform.media.update`), retry (a failed image, or one pending for 15 minutes), and delete (`platform.media.delete`), which first shows where the file is used and refuses when a use blocks it (platform.md §1.4). Paged by keyset, newest first. |
+| E5 | Media library | `/admin/media` | **[DECIDED 2026-09-19]** The design's table, with a switch to a grid of thumbnails. The table: file, type, size, used in, uploaded. Plus the state of an image's variants (pending, ready, failed), upload (`platform.media.upload`), alt text (`platform.media.update`) — **in a dialog** with Cancel and Save Description (§1.11 #9, 2026-10-02), retry (a failed image, or one pending for 15 minutes), and delete (`platform.media.delete`), which first shows where the file is used and refuses when a use blocks it (platform.md §1.4). Paged by keyset, newest first. |
 | E6 | Audit log | `/admin/audit` | **[DECIDED 2026-09-19]** Built in this stage. Who changed what and when: time, actor, action, subject, source, and the staff member's IP where there is one. Entries for the stores in scope; entries belonging to no store need All stores. Personal fields show only as "changed", never their values (platform.md §1.5). Filters: date range, actor, action, source. `platform.audit.view`. |
 | E7 | Failed jobs | `/admin/failed-jobs` | **[DECIDED 2026-09-29]** The queue's failed work, oldest first: what the job was in its module's words (its technical name when none), when it failed, the tries it was allowed (Laravel keeps those, not the tries made — owner, 2026-09-29), the error's first line. Opening one shows the whole error and its queue. Fifty at a time, with "Show more". **Retry** puts it back on its queue and off the list — offered only for a job that failed on the database queue; **Delete** removes it unrun, after a confirmation. One at a time, no bulk. Kept until handled. In the **System** section of the menu, with the number waiting beside it, and a dot on its icon while the sidebar is collapsed; the admin home says so while any waits. `platform.jobs.manage`, admin-only (platform.md §3). |
 
-- **[DECIDED 2026-09-19] No store is created here:** opening a country stays a console command, so a
-  store is created complete, in one command, and can never exist half-configured (platform.md §1.1).
+- **[REPLACED by the owner, 2026-10-06]** ~~No store is created here: opening a country stays a
+  console command~~ — a Super Admin adds a store on E1 (Add Store, above). It is still created
+  complete, in one step, and can never exist half-configured (platform.md §1.1, §9.7 #3); the console
+  command stays as well.
 
 ### 3.6 Storefront and the customer's account
 
@@ -678,9 +889,9 @@ page's data as a `spatie/laravel-data` class, §1.6). This stage adds no module 
 |---|---|---|
 | §3.1 admin sign-in | 8 pages for A1–A8 | Already built in Access step 3b |
 | §3.2 my account | `/admin/account` | Own profile, phone (request code, confirm), password, each notification switch, own email for a Super Admin |
-| §3.3 staff | list, one person, invite | Invite, update profile, change email, change role and stores, disable, enable, resend and cancel invitation, refresh permissions |
-| §3.4 roles | list, one role, new, edit | Create, clone, update, delete with a replacement, refresh |
-| §3.5 Platform | stores, currencies, settings, media, audit | Update store, create and update currency, update setting, upload media, update alt text, delete media, retry variants |
+| §3.3 staff | list, one person, invite | Invite, update profile, change email, change role and stores, disable, enable, resend and cancel invitation |
+| §3.4 roles | list, one role, new, edit | Create, clone, update, delete with a replacement |
+| §3.5 Platform | stores, currencies, settings, media, audit | Create and update store, create, update and delete currency, update setting, upload media, update alt text, delete media, retry variants |
 | §3.6 storefront | country page, home, register, verify, sign in, password, account, addresses | Register, resend verification, sign in, sign out, password reset, request and confirm a phone code, update profile, save, delete and default an address, ask for deletion |
 
 Each one calls the use case of the same name in access.md §3 or platform.md §3. Where a use case is
@@ -717,6 +928,17 @@ is "the single highest-value guard in the project". The owner left these numbers
 
 - **A breach fails the build**, as handoff §5.4 asks. A warning that stays green is ignored, which is
   how the slow system happened.
+- **[2026-10-03, owner: fixed in the rebuild's foundation]** The JavaScript budgets had gone
+  unenforced, and every page rode in one shared file: 236.5 KB gzipped by 2026-10-02. Now each page
+  is its own file, fetched with the app because the shell names the current page to Vite. The
+  shared part was 138.4 KB when this was written. `tests/Architecture/JavaScriptBudgetTest` measures
+  the build: the shared part, and what each page adds, gzipped. A file that every page loads counts
+  as shared, as the row above defines it, even when the bundler splits it from the app's own file
+  (batch A of the rebuild, 2026-10-03: shadcn's common Radix code, about 15 KB). Confirmed by the
+  owner, 2026-10-03. A page is a file Inertia opens - one with a default export; the helper files
+  beside the pages (an account tab, a form's parts) count inside the pages that import them, not
+  as pages of their own (batch B; confirmed by the owner, 2026-10-04: 39 pages among the 59 files
+  under resources/js/pages on that day).
 - Listings use keyset paging and read models, never Eloquent hydration (handoff §5.4,
   `docs/STRUCTURE.md`).
 - SSR renders every page (§1.3); when the SSR process is down the page still works, rendered in the

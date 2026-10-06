@@ -29,9 +29,9 @@ use Modules\Platform\Public\Dto\StoreDto;
  *
  * It decides nothing. **Who appears and what may be done is B2B's answer** — ListCompanies,
  * ViewCompany and StaffCompanyActionsForReader, each asking for its own job in the right store. What
- * happens here is shaping: a store's id into its name, every time into the company's home store's
- * clock (HANDOFF §4) — UTC underneath, written once here and never converted again on the page —,
- * and each application's answers beside the requests they answer.
+ * happens here is shaping: a store's id into its name, every time as a moment with its offset in the
+ * company's home store's zone (HANDOFF §4) — the page shows it, through Time, in the store being
+ * worked in (amendment 23(b)) —, and each application's answers beside the requests they answer.
  */
 final readonly class StaffCompanyPages
 {
@@ -113,6 +113,7 @@ final readonly class StaffCompanyPages
                 $holder->emailVerified,
                 $holder->phoneVerified,
                 $holder->anonymized,
+                $holder->locale,
             ),
             applications: $applications,
             actions: new StaffCompanyActionsData(

@@ -81,8 +81,10 @@ describe('the admin sign-in screens', function () {
                 ->component('Access/Admin/SignIn')
                 ->where('locale', 'ar')
                 ->where('direction', 'rtl')
-                // Arabic until this browser says otherwise, and light until chosen. The campaign
-                // is the base one - a campaign like any other, with its own light and dark.
+                // Arabic until this browser says otherwise, and System until chosen - rendered light,
+                // since the server cannot see the device (owner, 2026-10-02). The campaign is the
+                // base one - a campaign like any other, with its own light and dark.
+                ->where('theme.choice', 'system')
                 ->where('theme.mode', 'light')
                 ->where('theme.campaign', 'base')
             );
@@ -107,6 +109,19 @@ describe('the admin sign-in screens', function () {
             ->assertSee('dir="rtl"', false)
             ->assertSee('data-mode="light"', false)
             ->assertSee('data-campaign="base"', false);
+    });
+
+    it('names the logo on its navy tile as the tab\'s icon', function () {
+        // The owner's logo answers of 2026-10-04 (frontend.md §1.11): the shell links it, in place
+        // of the old, empty favicon.ico.
+        (new AdminBrowser('10.2.0.8'))->get('/admin/sign-in')
+            ->assertOk()
+            ->assertSee('<link rel="icon" type="image/svg+xml" href="/favicon.svg">', false);
+
+        // The owner's frame, on the navy tile.
+        expect(file_get_contents(public_path('favicon.svg')))
+            ->toContain('fill="#02365e"')
+            ->toContain('d="M2210 9617 l0 -1559');
     });
 
     it('sends only the admin routes to an admin page, never the storefront\'s', function () {
@@ -201,6 +216,24 @@ describe('the admin panel itself', function () {
             });
     });
 
+    it('reads back which areas of the sidebar this browser left open, keeping only what can be an area', function () {
+        $browser = signedInBrowser();
+
+        $browser->get('/admin')->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->where('sidebarSections', fn (Collection $keys): bool => $keys->isEmpty())
+        );
+
+        // Written by the sidebar in the browser, unencrypted, the keys joined by dots (frontend.md
+        // §1.11, the owner's fix list, 2026-10-04). What it carries is typed by whoever holds the
+        // browser: anything that cannot be an area's key goes - a key with a newline after it too -
+        // and so does a repeat.
+        $browser->setPlainCookie(HandleInertiaRequests::SIDEBAR_SECTIONS_COOKIE, "companies.staff_and_permissions.<b>.companies.system\n");
+
+        $browser->get('/admin')->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->where('sidebarSections', fn (Collection $keys): bool => $keys->all() === ['companies', 'staff_and_permissions'])
+        );
+    });
+
     it('tells the panel who is looking at it, and which store they are in', function () {
         $browser = signedInBrowser([PlatformPermissions::STORE_VIEW]);
 
@@ -249,6 +282,44 @@ describe('the admin panel itself', function () {
 
         $browser->get('/admin/sign-in')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('theme.mode', 'light'));
     });
+
+    /*
+    | System follows the device (frontend.md §1.11; owner, 2026-10-02). The server cannot see the
+    | device, so it renders light and the page's head turns it dark before the first paint when the
+    | device is; a choice of light or dark carries no such script, since there is nothing to ask.
+    */
+    it('lets a browser choose System, and writes the line that asks the device before anything is painted', function () {
+        $browser = new AdminBrowser('10.2.0.7');
+        $browser->get('/admin/sign-in');
+        $browser->post('/admin/preferences', ['preference' => 'theme', 'value' => 'dark']);
+        $browser->post('/admin/preferences', ['preference' => 'theme', 'value' => 'system']);
+
+        $browser->get('/admin/sign-in')
+            ->assertInertia(fn (AssertableInertia $inertia) => $inertia
+                ->where('theme.choice', 'system')
+                ->where('theme.mode', 'light')
+            )
+            ->assertSee("matchMedia('(prefers-color-scheme: dark)')", false);
+    });
+
+    it('asks the device on a first visit, and never once light or dark is chosen', function (?string $chosen, bool $asks) {
+        $browser = new AdminBrowser('10.2.0.8');
+        $browser->get('/admin/sign-in');
+
+        if ($chosen !== null) {
+            $browser->post('/admin/preferences', ['preference' => 'theme', 'value' => $chosen]);
+        }
+
+        $page = $browser->get('/admin/sign-in');
+
+        $asks
+            ? $page->assertSee("matchMedia('(prefers-color-scheme: dark)')", false)
+            : $page->assertDontSee('prefers-color-scheme', false);
+    })->with([
+        'a first visit' => [null, true],
+        'light chosen' => ['light', false],
+        'dark chosen' => ['dark', false],
+    ]);
 
     it('still serves the page when the server renderer is down, and writes it down', function () {
         // Decided 2026-09-19: nobody sees an error because of SSR. With the renderer unreachable,

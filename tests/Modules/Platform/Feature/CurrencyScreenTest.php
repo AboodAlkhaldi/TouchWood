@@ -61,9 +61,34 @@ describe('the currencies screen', function () {
                 ->has('currencies', 3)
                 ->where('currencies.0.code', 'AED')
                 ->where('currencies.0.exponentLocked', true)
+                // The store named, in the reader's language, not counted (platform.md §9.7).
+                ->where('currencies.0.stores', [['name' => 'United Arab Emirates', 'isActive' => true]])
+                ->where('currencies.0.deletable', false)
                 // From the domain's own limit, so the screen cannot offer one it would refuse.
                 ->where('exponents', [0, 1, 2, 3, 4, 5, 6])
             );
+    });
+
+    it('deletes a currency no store uses, and says why it keeps one a store uses (platform.md §9.7)', function () {
+        $browser = currencyScreenSignIn(Fx::staff(superAdmin: true));
+        $browser->post('/admin/currencies', [
+            'code' => 'KWD', 'exponent' => '3', 'name_ar' => 'دينار كويتي', 'name_en' => 'Kuwaiti dinar',
+            'abbreviation_ar' => 'د.ك', 'abbreviation_en' => 'KWD', 'sign' => '',
+        ])->assertRedirect();
+
+        $browser->get('/admin/currencies')->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            // By code: AED, EGP, KWD, SAR.
+            ->where('currencies.2.code', 'KWD')
+            ->where('currencies.2.stores', [])
+            ->where('currencies.2.deletable', true)
+        );
+
+        $browser->post('/admin/currencies/KWD/delete')->assertRedirect();
+        $refused = $browser->post('/admin/currencies/SAR/delete');
+
+        expect(DB::table('platform.currencies')->where('code', 'KWD')->exists())->toBeFalse()
+            ->and(DB::table('platform.currencies')->where('code', 'SAR')->exists())->toBeTrue()
+            ->and(AdminBrowser::formError($refused))->toBe('Couldn\'t delete "SAR": a store uses it, and a store\'s currency never changes. Keep it.');
     });
 
     it('refuses the screen to an admin, because the permission is reserved', function () {

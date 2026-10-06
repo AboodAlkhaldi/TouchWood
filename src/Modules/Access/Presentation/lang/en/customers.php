@@ -15,7 +15,11 @@ return [
     'any' => 'Any',
     'apply' => 'Apply Filters',
     'clear' => 'Clear Filters',
-    'none' => 'No customer matches that.',
+    // Geist's Empty State: a filtered list that finds nobody suggests widening or clearing the
+    // filters; a list with no customers at all says when they appear (shadcn rebuild).
+    'none' => 'Widen or clear the filters to see more customers.',
+    'empty_title' => 'No Customers Yet',
+    'empty' => 'Customers appear here once they register in one of your stores.',
     'total' => ':count in all',
     'previous' => 'Previous',
     'next' => 'Next',
@@ -25,10 +29,11 @@ return [
     'phone' => 'Phone',
     'home_store' => 'Store',
     'registered' => 'Registered',
-    'verified' => 'Confirmed',
     'email_verified' => 'Email Confirmed',
     'phone_verified' => 'Phone Confirmed',
-    'not_verified' => 'Not confirmed yet',
+    // One badge per column, its word the state (Geist's Badge: never colour alone).
+    'confirmed' => 'Confirmed',
+    'not_confirmed' => 'Not Confirmed',
     'no_phone' => 'No number',
 
     'account_type' => [
@@ -39,16 +44,19 @@ return [
         'ACTIVE' => 'Active',
         'BLOCKED' => 'Blocked',
     ],
-    'deletion_pending' => 'Closing on :date',
+    // A badge is a word, two at most (Geist); the date is said beside it.
+    'closing' => 'Closing',
+    'closing_on' => 'Closing On',
     'anonymized' => 'Anonymized',
 
     // G2.
     'addresses' => 'Addresses',
-    'no_addresses' => 'No address saved.',
+    'no_addresses' => 'Addresses this customer saves appear here.',
     'communication_language' => 'Communication Language',
-    'profile_is_theirs' => 'A customer\'s details are their own. Nothing here changes them.',
+    'profile_is_theirs' => 'A customer\'s details are their own, and nothing here changes them.',
     'actions' => 'Actions',
-    'reason' => 'Why',
+    'reason' => 'Reason',
+    'reason_missing' => 'Write the reason first.',
     'reason_hint' => 'Kept with the change, for whoever asks about it later.',
     'block' => 'Block Account',
     'block_body' => 'They cannot sign in. Only the right password is told that the account is blocked, so a stranger guessing learns nothing.',
@@ -68,6 +76,6 @@ return [
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.
-    'none_title' => 'No Customers Match',
+    'none_title' => 'No Customers Match Your Filters',
     'no_addresses_title' => 'No Addresses',
 ];

@@ -31,6 +31,9 @@ final class PlatformPermissions
 
     public const string CURRENCY_UPDATE = 'platform.currency.update';
 
+    /** Deleting a currency no store uses (platform.md §9.7): reserved, as creating one is. */
+    public const string CURRENCY_DELETE = 'platform.currency.delete';
+
     public const string SETTINGS_VIEW = 'platform.settings.view';
 
     public const string SETTINGS_UPDATE = 'platform.settings.update';
@@ -88,6 +91,7 @@ final class PlatformPermissions
             self::STORE_SWITCH => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::CURRENCY_CREATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::CURRENCY_UPDATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
+            self::CURRENCY_DELETE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::SETTINGS_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],
             // A global setting is checked with PermissionScope::allStores().
             self::SETTINGS_UPDATE => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],

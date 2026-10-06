@@ -52,9 +52,12 @@ final readonly class ChooseCurrentStoreHandler
         }
 
         // A store that does not exist is refused like one that is not theirs: the panel never
-        // confirms which ids are real. An off store is not a store to work in, for anyone — a
-        // Super Admin included (platform.md §1.6; owner, 2026-10-01).
-        if ($this->platform->store($store)?->isActive !== true || ! $this->covers($staffId, $store)) {
+        // confirms which ids are real. An off store is a store to work in for a Super Admin alone,
+        // who prepares it before it opens; staff who cover it see it marked Off and are refused it
+        // in the same words (platform.md §1.6, access.md amendment 58(a); owner, 2026-10-03).
+        $found = $this->platform->store($store);
+
+        if ($found === null || ! $this->covers($staffId, $store) || (! $found->isActive && ! $this->rules->author()->isUnlimited())) {
             throw new InvalidAccessAttribute('store', 'not one of your stores');
         }
 
@@ -63,7 +66,8 @@ final readonly class ChooseCurrentStoreHandler
 
     /**
      * A Super Admin covers every store without a role saying so; anyone else covers the stores of
-     * their assignment — the store row chosen for them plus any an exception adds (access.md §1.5).
+     * their assignment — the store row chosen for them, which bounds every action (access.md §1.5,
+     * amendment 59).
      */
     private function covers(string $staffId, StoreId $store): bool
     {

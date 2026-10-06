@@ -1,51 +1,64 @@
 import { useMemo, useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
+import { Note } from '@/components/Note';
 import { PermissionPicker } from '@/components/PermissionPicker';
-import { ALL_STORES, ExceptionList, SELECTED_STORES, StoreChoice } from '@/components/RoleStores';
+import { RoleChoice } from '@/components/RoleChoice';
+import {
+    ActionStores,
+    emptyCustom,
+    reachAllowsCustom,
+    reachStores,
+    reachToSend,
+    SELECTED_STORES,
+    setActionStores,
+    WhereItReaches,
+    withinReach,
+} from '@/components/RoleStores';
 import type { ExceptionRow } from '@/components/RoleStores';
-import { Badge, Button, RadioGroup } from '@/components/geist';
+import { useList } from '@/lib/list';
 import { useTranslator } from '@/lib/t';
 import type { StaffRolePage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
-| C6 - one person's role and stores (frontend.md §3.3).
+| C6 - one person's role and stores (frontend.md §3.3, access.md amendment 59).
 |
-| Two questions, in this order. **What** may they do: a saved role, taken as it is, or one edited
-| into a role of their own - editing here never changes the saved role for the other people holding
-| it (access.md §1.5). **Where**: every store, or the ones ticked; and an action may be given stores
-| of its own when it should reach further, or less far, than the rest of the role.
+| Top to bottom, each in its own box: the **role** - a saved role, taken as it is, or one edited into
+| a role of their own; editing here never changes the saved role for the other people holding it
+| (access.md §1.5) -, its **actions** by business area, **Where It Reaches**, and then **each
+| action's stores**, only when the reach has two or more stores or every store.
+|
+| Where It Reaches bounds every action (the owner's rule, 2026-10-04): a smaller reach cuts every
+| custom choice to it and says so on the action before saving, and Save stops, naming the action,
+| when a custom choice is left with nothing (D9) - never widening it behind anyone's back. The cut
+| is worked out from the choices as made, so ticking a store back gives it back.
 |
 | Only the stores this admin manages themselves are offered, because nobody hands out reach they do
 | not have. Actions they do not hold are shown but cannot be ticked, which is the picker's doing.
-|
-| In Geist's choices (frontend.md 1.10): the role is a RadioGroup - one saved role, or a role of
-| their own - as on the invitation's second step.
 */
 
 type Props = StaffRolePage;
 
-/** The radio value for "a role of their own", which is no saved role at all. */
-const OWN_ROLE = 'own';
-
 export default function Role(page: Props) {
     const t = useTranslator();
+    const list = useList();
 
     // Their personal role is not one of the saved ones, so nothing is picked from the list for it.
     const [roleId, setRoleId] = useState<string | null>(page.personal ? null : page.roleId);
     const [chosen, setChosen] = useState<string[]>(page.chosen);
+    // The actions the last Save stopped on.
+    const [stoppedOn, setStoppedOn] = useState<string[]>([]);
 
     const form = useForm({
         access_level: page.accessLevel,
         store_ids: page.storeIds,
-        exceptions: Object.entries(page.exceptions).map(
-            ([permission, storeIds]): ExceptionRow => ({
-                permission,
-                access_level: storeIds.length === 0 ? ALL_STORES : SELECTED_STORES,
-                store_ids: storeIds,
-            }),
-        ),
+        // An action's own stores are always some of the reach's (amendment 59); one stored as "every
+        // store" could only equal an every-store reach, so it says nothing and is left out.
+        exceptions: Object.entries(page.exceptions)
+            .filter(([, storeIds]) => storeIds.length > 0)
+            .map(([permission, storeIds]): ExceptionRow => ({ permission, access_level: SELECTED_STORES, store_ids: storeIds })),
     });
 
     // A saved role picked and left alone is given as it is; touch one action and it becomes a role
@@ -61,19 +74,33 @@ export default function Role(page: Props) {
         return saved.length !== chosen.length || saved.some((name) => !chosen.includes(name));
     }, [roleId, chosen, page.savedPermissions]);
 
+    const allowsCustom = reachAllowsCustom(form.data.access_level, form.data.store_ids);
+    const within = withinReach(form.data.exceptions, form.data.access_level, form.data.store_ids);
+    const empty = emptyCustom(within.rows, chosen);
+    const stillStopped = empty.filter((permission) => stoppedOn.includes(permission));
+    const labelOf = (name: string): string => page.permissions.find((permission) => permission.name === name)?.label ?? name;
+
     function pick(id: string | null) {
         setRoleId(id);
         setChosen(id === null ? [] : (page.savedPermissions[id] ?? []));
     }
 
     function submit() {
+        if (empty.length > 0) {
+            setStoppedOn(empty);
+
+            return;
+        }
+
         // transform() only records how to shape the data; the post right after it is what sends.
         form.transform((data) => ({
             ...data,
             saved_role_id: edited ? '' : roleId,
             permissions: edited ? chosen : [],
-            // An action that is no longer in the role cannot keep stores of its own.
-            exceptions: data.exceptions.filter((row) => chosen.includes(row.permission)),
+            store_ids: reachToSend(data.access_level, data.store_ids),
+            // An action that is no longer in the role cannot keep stores of its own, and with one
+            // store in the reach there is nothing to choose.
+            exceptions: allowsCustom ? within.rows.filter((row) => chosen.includes(row.permission)) : [],
         }));
 
         form.post(`/admin/staff/${page.staffId}/role`);
@@ -97,91 +124,44 @@ export default function Role(page: Props) {
                 className="grid gap-6"
             >
                 <FormError />
+                {stillStopped.length > 0 ? (
+                    <Note variant="error" alert data-test="exceptions-empty-refusal">
+                        {t('access::staff.exceptions_empty', { actions: list(stillStopped.map(labelOf)) })}
+                    </Note>
+                ) : null}
 
-                <section className="material-base p-5">
-                    <RadioGroup
-                        name="role"
-                        legend={
-                            <span className="grid gap-1">
-                                <span className="text-heading-16 text-ink">{t('access::staff.pick_role')}</span>
-                                <span className="text-copy-13 font-normal text-ink-muted">{t('access::staff.pick_role_hint')}</span>
-                            </span>
-                        }
-                        value={roleId ?? OWN_ROLE}
-                        onChange={(value) => pick(value === OWN_ROLE ? null : value)}
-                        options={[
-                            ...page.savedRoles.map((role) => ({
-                                value: role.id,
-                                label: (
-                                    <span className="grid gap-0.5">
-                                        <span className="flex flex-wrap items-center gap-2">
-                                            {role.name}
-                                            {roleId === role.id && edited ? (
-                                                <Badge variant="amber-subtle" size="small">
-                                                    {t('access::staff.edited')}
-                                                </Badge>
-                                            ) : null}
-                                        </span>
-                                        <span className="tw-figure text-copy-13 text-ink-muted">
-                                            {t('access::staff.actions_count', { count: role.permissionCount })}
-                                        </span>
-                                    </span>
-                                ),
-                            })),
-                            {
-                                value: OWN_ROLE,
-                                label: (
-                                    <span className="grid gap-0.5">
-                                        <span>{t('access::staff.own_role')}</span>
-                                        <span className="text-copy-13 text-ink-muted">{t('access::staff.own_role_hint')}</span>
-                                    </span>
-                                ),
-                            },
-                        ]}
-                    />
-                </section>
+                <RoleChoice roles={page.savedRoles} value={roleId} edited={edited} onPick={pick} />
 
-                <PermissionPicker
-                    permissions={page.permissions}
-                    groups={page.groups}
-                    chosen={chosen}
-                    onChange={setChosen}
+                <PermissionPicker permissions={page.permissions} groups={page.groups} chosen={chosen} onChange={setChosen} />
+
+                <WhereItReaches
+                    stores={page.stores}
+                    level={form.data.access_level}
+                    chosen={form.data.store_ids}
+                    onLevel={(level) => form.setData('access_level', level)}
+                    onChosen={(ids) => form.setData('store_ids', ids)}
                 />
 
-                <section className="grid gap-3">
-                    <div className="grid gap-1">
-                        <h2 className="text-heading-16 text-ink">{t('access::staff.where')}</h2>
-                        <p className="text-copy-13 text-ink-muted">{t('access::staff.where_hint')}</p>
-                    </div>
-
-                    <StoreChoice
-                        stores={page.stores}
-                        level={form.data.access_level}
-                        chosen={form.data.store_ids}
-                        onLevel={(level) => form.setData('access_level', level)}
-                        onChosen={(ids) => form.setData('store_ids', ids)}
-                    />
-                </section>
-
-                <section className="grid gap-3">
-                    <div className="grid gap-1">
-                        <h2 className="text-heading-16 text-ink">{t('access::staff.exceptions_title')}</h2>
-                        <p className="text-copy-13 text-ink-muted">{t('access::staff.exceptions_hint')}</p>
-                    </div>
-
-                    <ExceptionList
+                {/* Also shown with one store while a choice there is left with nothing, so it can be put right. */}
+                {allowsCustom || empty.length > 0 ? (
+                    <ActionStores
                         permissions={page.permissions}
+                        groups={page.groups}
                         chosen={chosen}
-                        stores={page.stores}
-                        rows={form.data.exceptions}
-                        onChange={(rows) => form.setData('exceptions', rows)}
+                        stores={reachStores(page.stores, form.data.access_level, form.data.store_ids)}
+                        offered={page.stores}
+                        rows={within.rows}
+                        onSet={(permission, storeIds) => form.setData('exceptions', setActionStores(form.data.exceptions, permission, storeIds))}
+                        lost={within.lost}
+                        empty={stoppedOn}
+                        only={allowsCustom ? undefined : empty}
                     />
-                </section>
+                ) : null}
 
                 <div>
-                    <Button typeName="submit" loading={form.processing}>
+                    <ActionButton type="submit" loading={form.processing}>
                         {t('access::staff.save_role')}
-                    </Button>
+                    </ActionButton>
                 </div>
             </form>
         </AdminLayout>

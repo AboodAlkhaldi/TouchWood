@@ -6,91 +6,95 @@ declare(strict_types=1);
 return [
     'invalid_access_attribute' => [
         'title' => 'Invalid Details',
-        'detail' => 'The :attribute is not valid.',
+        'detail' => 'Couldn\'t save: the :attribute isn\'t valid. Check it and try again.',
     ],
     'invalid_address' => [
         'title' => 'Check the Address',
-        'detail' => 'The :field is not valid for this country.',
+        'detail' => 'Couldn\'t save the address: the :field isn\'t valid for this country. Check it and try again.',
     ],
     'address_not_found' => [
         'title' => 'Address Not Found',
-        'detail' => 'This address is no longer in your address book.',
+        'detail' => 'Couldn\'t find this address in your address book. Reload the page.',
     ],
     'address_format_missing' => [
         'title' => 'Addresses Are Not Ready',
-        'detail' => 'This store has no address form yet. Try again later.',
+        'detail' => 'Failed to find an address form for this store. Try again later.',
     ],
     'invalid_customer_status' => [
         'title' => 'Nothing to Change',
-        'detail' => 'This account is not in a state that allows that change.',
+        'detail' => 'Couldn\'t make that change: this account\'s state doesn\'t allow it. Reload the page.',
     ],
     'too_many_addresses' => [
         'title' => 'Address Book Full',
-        'detail' => 'You can keep :limit addresses in this store. Delete one to add another.',
+        'detail' => 'Couldn\'t add the address: you can keep :limit in this store. Delete one to add another.',
     ],
     'role_not_found' => [
         'title' => 'Role Not Found',
-        'detail' => 'There is no such role.',
+        'detail' => 'Couldn\'t find this role. Go back to the roles list.',
     ],
     'staff_not_found' => [
         'title' => 'Staff Member Not Found',
-        'detail' => 'There is no such staff member.',
+        'detail' => 'Couldn\'t find this staff member. Go back to the staff list.',
     ],
     'unknown_permission' => [
         'title' => 'Unknown Action',
-        'detail' => '":permission" is not an action a role can hold.',
+        'detail' => 'Couldn\'t save the role: ":permission" isn\'t an action a role can hold. Remove it and try again.',
     ],
     'reserved_permission' => [
         'title' => 'Super Admins Only',
-        'detail' => '":permission" belongs to Super Admins only and cannot be put in a role.',
+        'detail' => 'Couldn\'t save the role: ":permission" belongs to Super Admins only. Remove it and try again.',
     ],
     'admin_only_permission' => [
         'title' => 'Admin Roles Only',
-        'detail' => '":permission" is a management action and can be put only in an admin role.',
+        'detail' => 'Couldn\'t save the role: ":permission" is a management action, for admin roles only. Remove it, or make this an admin role.',
+    ],
+    'action_stores_beyond_reach' => [
+        'title' => 'Outside Where It Reaches',
+        'detail' => 'Couldn\'t save the role: ":permission" is given stores outside Where It Reaches. Choose its stores among those, or add the store to Where It Reaches.',
     ],
     'permission_escalation' => [
         'title' => 'More Than You Hold',
-        'detail' => 'You cannot give ":permission" there: you do not hold it in every store it would reach.',
+        'detail' => 'Couldn\'t give ":permission" there: you don\'t hold it in every store it would reach. Ask someone who does.',
     ],
     'role_name_taken' => [
         'title' => 'Name Already Used',
-        'detail' => 'Another saved role is already called ":name".',
+        'detail' => 'Couldn\'t save the role: another role is already called ":name". Choose another name.',
     ],
     'role_in_use' => [
         'title' => 'Role in Use',
-        'detail' => 'This role is held by :count staff member(s): :holders. Pick a replacement role for them first.',
+        'detail' => 'Couldn\'t delete the role: :count staff member(s) hold it (:holders). Pick a replacement role for them first.',
     ],
     'staff_not_editable' => [
-        'title' => 'This Staff Member Cannot Be Changed Here',
-        'detail' => 'Super Admins are managed only on the server, admins only by a Super Admin, and nobody changes their own access.',
+        'title' => 'Can\'t Be Changed Here',
+        'detail' => 'Couldn\'t change this staff member: Super Admins are managed on the server, admins by a Super Admin, and nobody changes their own access. Ask a Super Admin.',
     ],
     'super_admin_only' => [
         'title' => 'Super Admins Only',
-        'detail' => 'Only a Super Admin can create, change or assign an admin role.',
+        'detail' => 'Couldn\'t do that: only a Super Admin creates, changes or assigns an admin role. Ask a Super Admin.',
     ],
     'staff_email_in_use' => [
         'title' => 'Email Already Used',
-        'detail' => 'Another account already uses this email.',
+        'detail' => 'Couldn\'t use this email: another account already has it. Enter a different email.',
     ],
     'phone_already_in_use' => [
         'title' => 'Phone Number Already Used',
-        'detail' => 'Another account already uses this phone number.',
+        'detail' => 'Couldn\'t use this phone number: another account already has it. Enter a different number.',
     ],
     'customer_blocked' => [
         'title' => 'Account Blocked',
-        'detail' => 'Your account is blocked. Contact us.',
+        'detail' => 'Couldn\'t continue: your account is blocked. Contact us.',
     ],
     'email_already_registered' => [
         'title' => 'You Already Have an Account',
-        'detail' => 'You already have an account. Sign in instead.',
+        'detail' => 'Couldn\'t create the account: this email already has one. Sign in instead.',
     ],
     'customer_not_found' => [
         'title' => 'Account Not Found',
-        'detail' => 'Couldn\'t find this account.',
+        'detail' => 'Couldn\'t find this account. Check the details and try again.',
     ],
     'invalid_or_expired_link' => [
         'title' => 'Link Not Valid',
-        'detail' => 'This link is not valid or has expired. Ask for a new one.',
+        'detail' => 'Couldn\'t use this link: it isn\'t valid or has expired. Ask for a new one.',
     ],
     'invalid_code' => [
         'title' => 'Wrong Code',
@@ -108,15 +112,15 @@ return [
     ],
     'password_too_weak' => [
         'title' => 'Choose Another Password',
-        'detail' => 'Use at least :min characters, and a password that has not appeared in a data breach.',
+        'detail' => 'Couldn\'t use this password: it needs at least :min characters and must not have appeared in a data breach. Choose another.',
     ],
     'last_super_admin' => [
         'title' => 'The Last Super Admin',
-        'detail' => 'At least one active Super Admin must remain.',
+        'detail' => 'Couldn\'t do that: it would leave no active Super Admin. Keep at least one.',
     ],
     'invalid_staff_status' => [
         'title' => 'Not Possible Now',
-        'detail' => 'This cannot be done while the staff member is in this state.',
+        'detail' => 'Couldn\'t do that while the staff member is in this state. Reload the page.',
     ],
     'invalid_credentials' => [
         'title' => 'Couldn\'t Sign In',
@@ -124,15 +128,15 @@ return [
     ],
     'account_locked' => [
         'title' => 'Too Many Attempts',
-        'detail' => 'Too many wrong passwords. Try again in :minutes minutes.',
+        'detail' => 'Couldn\'t sign in: too many wrong passwords. Try again in :minutes minutes.',
     ],
     'too_many_requests' => [
         'title' => 'Too Many Attempts',
-        'detail' => 'Too many requests from this connection. Try again in :minutes minutes.',
+        'detail' => 'Couldn\'t continue: too many requests from this connection. Try again in :minutes minutes.',
     ],
     'sign_in_refused' => [
         'title' => 'Couldn\'t Sign In',
-        'detail' => 'This account cannot sign in. Contact an administrator.',
+        'detail' => 'Couldn\'t sign in: this account can\'t sign in. Contact an administrator.',
     ],
     /*
     | Field names, for the refusals that name one (":attribute", ":field").

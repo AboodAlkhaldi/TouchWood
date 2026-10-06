@@ -19,17 +19,17 @@ return [
 
     'unauthorized' => [
         'title' => 'Not Allowed',
-        'detail' => 'You do not have permission to do this.',
+        'detail' => 'Couldn\'t do that: it isn\'t one of your jobs. Ask an administrator for it.',
     ],
 
     'invalid_money' => [
         'title' => 'Invalid Amount',
-        'detail' => 'The amount is not valid.',
+        'detail' => 'Couldn\'t use this amount: it isn\'t valid. Check it and try again.',
     ],
 
     'validation_failed' => [
         'title' => 'Invalid Data',
-        'detail' => 'Some of the information you entered is not valid.',
+        'detail' => 'Couldn\'t save: some of what you entered isn\'t valid. Check the marked fields.',
     ],
 
     'http' => [

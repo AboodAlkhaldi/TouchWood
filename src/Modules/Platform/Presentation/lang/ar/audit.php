@@ -11,6 +11,7 @@ return [
     'store.deactivated' => 'أُوقف متجر',
     'currency.created' => 'أُضيفت عملة',
     'currency.updated' => 'عُدّلت عملة',
+    'currency.deleted' => 'حُذفت عملة',
     'setting.updated' => 'عُدّل إعداد',
     'media.uploaded' => 'رُفع ملف',
     'media.deleted' => 'حُذف ملف',

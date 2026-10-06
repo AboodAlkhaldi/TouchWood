@@ -44,6 +44,7 @@ it('registers somebody through the form and says who they are afterwards', funct
     $page = visit('/sa/en/register');
 
     $page->assertSee('Create Account')
+        ->click('[data-test="account-type-individual"]')
         ->type('#first_name', 'Noura')
         ->type('#last_name', 'Saleh')
         ->type('#email', $email)
@@ -64,7 +65,8 @@ it('shows an unconfirmed customer where their link went, and offers another', fu
     $email = shopAddress();
 
     $page = visit('/sa/en/register');
-    $page->type('#first_name', 'Noura')
+    $page->click('[data-test="account-type-individual"]')
+        ->type('#first_name', 'Noura')
         ->type('#last_name', 'Saleh')
         ->type('#email', $email)
         ->type('#password', 'a long enough password')
@@ -85,7 +87,8 @@ it('signs somebody out from the header, leaving the way back in', function () {
     $email = shopAddress();
 
     $page = visit('/sa/en/register');
-    $page->type('#first_name', 'Noura')
+    $page->click('[data-test="account-type-individual"]')
+        ->type('#first_name', 'Noura')
         ->type('#last_name', 'Saleh')
         ->type('#email', $email)
         ->type('#password', 'a long enough password')
@@ -94,7 +97,9 @@ it('signs somebody out from the header, leaving the way back in', function () {
         ->assertPathIs('/sa/en')
         ->assertSee('Noura Saleh');
 
-    $page->click('[data-test="sign-out"]')
+    // The name opens the shopper's menu, where Sign Out is last (owner's #4, 2026-10-02).
+    $page->click('[data-test="shopper-menu"]')
+        ->click('[data-test="sign-out"]')
         ->assertDontSee('Noura Saleh')
         ->assertSee('Sign In')
         ->assertNoJavaScriptErrors();
@@ -106,7 +111,8 @@ it('refuses a registration in the shop\'s own words, on the form', function () {
     $email = shopAddress();
 
     $first = visit('/sa/en/register');
-    $first->type('#first_name', 'Noura')
+    $first->click('[data-test="account-type-individual"]')
+        ->type('#first_name', 'Noura')
         ->type('#last_name', 'Saleh')
         ->type('#email', $email)
         ->type('#password', 'a long enough password')
@@ -117,6 +123,7 @@ it('refuses a registration in the shop\'s own words, on the form', function () {
     // The same address again, from a browser that is not signed in.
     $second = visit('/sa/en/sign-in');
     $second->navigate('/sa/en/register')
+        ->click('[data-test="account-type-individual"]')
         ->type('#first_name', 'Someone')
         ->type('#last_name', 'Else')
         ->type('#email', $email)
@@ -124,7 +131,28 @@ it('refuses a registration in the shop\'s own words, on the form', function () {
         ->click('[data-test="terms"]')
         ->click('button[type="submit"]')
         ->assertPathIs('/sa/en/register')
-        ->assertSee((string) __('access::errors.email_already_registered.detail', [], 'en'))
+        ->assertSee("Couldn't create the account: this email already has one. Sign in instead.")
+        ->assertNoJavaScriptErrors();
+});
+
+it('asks for the kind of account on purpose, and says so when none was picked', function () {
+    // Nothing is chosen when the page opens: the choice can never be changed, so it is made on
+    // purpose (Geist's Radio rule; owner, 2026-10-04). Sending without it stays on the form and says
+    // what is missing, in the page's own words.
+    $page = visit('/sa/en/register');
+
+    $page->assertNotChecked('[data-test="account-type-individual"]')
+        ->assertNotChecked('[data-test="account-type-company"]')
+        ->type('#first_name', 'Noura')
+        ->type('#last_name', 'Saleh')
+        ->type('#email', shopAddress())
+        ->type('#password', 'a long enough password')
+        ->click('[data-test="terms"]')
+        ->click('button[type="submit"]')
+        ->assertPathIs('/sa/en/register')
+        ->assertSee((string) __('access::auth.account_type_required', [], 'en'))
+        ->click('[data-test="account-type-company"]')
+        ->assertDontSee((string) __('access::auth.account_type_required', [], 'en'))
         ->assertNoJavaScriptErrors();
 });
 
@@ -143,6 +171,11 @@ it('will not send a new password while the two boxes differ', function () {
 
     $page->type('#password', 'a long enough password')
         ->type('#password_repeat', 'a long enough passwerd')
+        // Out of reach at once, and said once the box is left (Geist: validate on blur, not on
+        // every keystroke - the shadcn rebuild).
+        ->assertDisabled('[data-test="save-password"]')
+        ->assertDontSee((string) __('access::auth.passwords_differ', [], 'en'))
+        ->click('#password')
         ->assertSee((string) __('access::auth.passwords_differ', [], 'en'))
         ->assertDisabled('[data-test="save-password"]');
 
@@ -164,7 +197,8 @@ function shopSignedIn(): array
     $email = shopAddress();
 
     $page = visit('/sa/en/register');
-    $page->type('#first_name', 'Noura')
+    $page->click('[data-test="account-type-individual"]')
+        ->type('#first_name', 'Noura')
         ->type('#last_name', 'Saleh')
         ->type('#email', $email)
         ->type('#password', 'a long enough password')
@@ -178,14 +212,16 @@ function shopSignedIn(): array
 it('opens the account from the header and shows what is still missing', function () {
     [$email, $page] = shopSignedIn();
 
-    $page->click('[data-test="my-account"]')
+    $page->click('[data-test="shopper-menu"]')
+        ->click('[data-test="my-account"]')
         ->assertPathIs('/sa/en/account')
         ->assertSee('My Account')
         // Their own address, which they cannot change, said where it is rather than refused later.
         ->assertSee($email)
         ->assertSee('Your email address cannot be changed.')
         // Nothing verified yet, so this is the page that says what ordering waits for.
-        ->assertSeeIn('[data-test="before-ordering"]', 'Before You Can Order')
+        ->assertSeeIn('[data-test="before-ordering"]', 'Ordering')
+        ->assertSeeIn('[data-test="before-ordering"]', 'Confirm your email address and phone number to place orders.')
         ->assertNoJavaScriptErrors();
 });
 
@@ -231,7 +267,7 @@ it('adds an address in the country it belongs to, and marks it as the usual one'
 
     $page->navigate('/sa/en/account?tab=addresses')
         ->assertSee('Saudi Arabia')
-        ->assertSee('No address here yet.')
+        ->assertSee('Add one to have orders delivered in this country.')
         ->click('[data-test="add-address-sa"]')
         ->type('#label-sa', 'Home')
         ->type('#recipient-sa', 'Noura Saleh')
@@ -254,9 +290,14 @@ it('closes the account, and the shop forgets them at once', function () {
     [, $page] = shopSignedIn();
 
     $page->navigate('/sa/en/account?tab=close')
+        // The tab is named with a noun; its button says what it does (owner, 2026-10-04).
+        ->assertSeeIn('[data-test="tab-close"]', 'Account Closure')
         ->assertSee('Close Account')
         ->click('[data-test="close-account"]')
+        // Out of reach until the password is typed: it is the dialog's typed gate (owner, 2026-10-04).
+        ->assertDisabled('[data-test="confirm-close-account"]')
         ->type('#close_password', 'a long enough password')
+        ->assertEnabled('[data-test="confirm-close-account"]')
         ->click('[data-test="confirm-close-account"]')
         // Back in the shop as a visitor: confirming ends every session of theirs at once, which
         // is why there is no cancel button anywhere in the account.
@@ -264,4 +305,71 @@ it('closes the account, and the shop forgets them at once', function () {
         ->assertDontSee('Noura Saleh')
         ->assertSee('Sign In')
         ->assertNoJavaScriptErrors();
+});
+
+it('keeps the open tab in the address, and moves between the tabs with the arrow keys', function () {
+    [, $page] = shopSignedIn();
+
+    // The open tab is written into the address, so a refresh opens it again (Geist's Tabs).
+    $page->navigate('/sa/en/account')
+        ->click('[data-test="tab-phone"]')
+        ->assertSee('Add Phone Number');
+
+    expect($page->script('new URLSearchParams(window.location.search).get("tab")'))->toBe('phone');
+
+    $page->navigate('/sa/en/account?tab=phone')
+        ->assertSee('Add Phone Number')
+        ->assertAttribute('[data-test="tab-phone"]', 'aria-selected', 'true');
+
+    // Radix's tabs: the arrow keys move along them, upright, and open the one they reach.
+    $page->keys('[data-test="tab-phone"]', 'ArrowDown')
+        ->assertAttribute('[data-test="tab-addresses"]', 'aria-selected', 'true')
+        ->assertSee('We deliver to the Usual Address in each country unless you pick another.')
+        ->assertNoJavaScriptErrors();
+});
+
+it('sets another usual address and asks before deleting one, from the address\'s ⋯ menu', function () {
+    [, $page] = shopSignedIn();
+
+    $page->navigate('/sa/en/account?tab=addresses');
+
+    foreach (['Home', 'Work'] as $label) {
+        $page->click('[data-test="add-address-sa"]')
+            ->type('#label-sa', $label)
+            ->type('#recipient-sa', 'Noura Saleh')
+            ->type('#phone-sa', '+966512345678')
+            ->type('#sa-administrative_area', 'Riyadh Region')
+            ->type('#sa-city', 'Riyadh')
+            ->type('#sa-district', 'Al Olaya')
+            ->type('#sa-street', "{$label} Street")
+            ->type('#sa-building', '7')
+            ->click('[data-test="save-address-sa"]')
+            ->assertSee("{$label} Street");
+    }
+
+    // The second address is not the usual one: its menu offers to make it so, and the row says so
+    // once it is done.
+    $work = (string) $page->script('[...document.querySelectorAll(\'[data-test^="address-menu-"]\')].find((b) => b.getAttribute("aria-label").endsWith("Work")).dataset.test');
+    $id = substr($work, strlen('address-menu-'));
+
+    $page->click("[data-test=\"{$work}\"]")
+        ->click("[data-test=\"make-default-{$id}\"]")
+        ->assertSee('Usual address set')
+        ->assertSeeIn("[data-test=\"address-{$id}\"]", 'Usual Address');
+
+    // Delete Address… is last in the menu and asks first; Cancel hands focus back to the ⋯ button.
+    $page->click("[data-test=\"{$work}\"]")
+        ->click("[data-test=\"delete-address-{$id}\"]")
+        ->assertSee('Orders already placed keep the address they were sent to. This cannot be undone.')
+        ->click('[data-test="modal-cancel"]')
+        ->assertMissing('[role="alertdialog"]');
+
+    // Handed back once the dialog has finished closing, its animation and all.
+    for ($tries = 0; $tries < 20 && $page->script('document.activeElement?.dataset.test') !== $work; $tries++) {
+        $page->wait(0.1);
+    }
+
+    expect($page->script('document.activeElement?.dataset.test'))->toBe($work);
+
+    $page->assertNoJavaScriptErrors();
 });

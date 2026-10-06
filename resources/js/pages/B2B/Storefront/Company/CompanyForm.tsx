@@ -1,11 +1,30 @@
-import { type ChangeEvent, createContext, type RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { router } from '@inertiajs/react';
-import { ChevronDown } from 'lucide-react';
+import { type ChangeEvent, createContext, type ReactNode, type RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, router } from '@inertiajs/react';
+import { ExternalLink, MoreHorizontal } from 'lucide-react';
+import { ActionButton } from '@/components/ActionButton';
 import { DialogError } from '@/components/FormError';
-import { Button, Label, Modal, ModalCancel, Note } from '@/components/geist';
-import { isolate } from '@/lib/bidi';
+import { Note } from '@/components/Note';
+import { MiddleTruncate } from '@/components/geist-only/MiddleTruncate';
+import { Time } from '@/components/Time';
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { InputGroup, InputGroupInput, InputGroupTextarea } from '@/components/ui/input-group';
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { intlLocale } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
+import { useReturnFocus } from '@/lib/use-return-focus';
 import type {
     CompanyAnswerData,
     CompanyApplicationData,
@@ -16,37 +35,39 @@ import type {
     CompanyRequestData,
     CompanyTypeOptionData,
 } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
-import { AddressPicker, check, control, FieldState, type Look, normal } from './fields';
-import { Card, nameOf, useLocale, when } from './parts';
+import { AddressPicker, check, FieldState, type Look, mustFix, normal, ruleOf, SaveBeside, SaveMark, subjectOf } from './fields';
+import { Card, MARK, nameOf, Phrase, useLocale } from './parts';
 
 /*
-| The company form (b2b.md §4.5, amendments 14(a), 15(a) and 16): company details, documents, what
-| the last rejection asked for, and a note — then Send.
+| The company form (b2b.md §4.5, amendments 14(a), 15(a), 16 and 22): company details, documents,
+| what the last rejection asked for, and a note - then Send.
 |
 | **It saves itself.** A field is saved when the person leaves it, a file the moment it is chosen,
 | an address the moment it is picked, so nothing is lost by walking away. Each save sends that one
 | field; the rest of the draft keeps what it holds.
 |
-| **Each field says where it stands** (amendment 16(a)): yellow while it is not valid — and then it
-| is never sent —, "Saving…", green "Saved" once the server holds it, red with the server's reason
-| if it refuses. The rules are the server's own (CompanyPage::formRules).
+| **Each field says where it stands** (amendment 22(a)): "Saving…" and then "✓ Saved" at its end,
+| its rule in grey under it, which turns red with the reason when it must be fixed - not valid once
+| left (and then never sent), refused by the server, or marked by the last decision. The rules are
+| the server's own (CompanyPage::formRules).
 |
 | **One change at a time, in the order made.** Every save, upload and removal waits in one queue:
 | a page request started while another runs would cancel it, and a save, a refusal or a paper would
 | be lost without a word (the review of step 6). A save never stops the person filling the others.
 |
 | **Send is inactive until everything is complete** (amendment 16(d)), with what is missing listed
-| beside it — and not while anything is saving, nor while a field is not saved or not valid
+| beside it - and not while anything is saving, nor while a field is not saved or not valid
 | (amendment 15(a)), nor twice. What is sent is what the page shows; the server checks it again.
 |
-| After a rejection, what it marked is marked here until it is replaced — a field once it differs
+| After a rejection, what it marked is marked here until it is replaced - a field once it differs
 | from what was sent, a paper once a new file is under its type (§1.2). A mark on a document type no
 | longer offered stops counting (§3.1), so it is not shown.
 |
-| On Geist's parts (frontend.md 1.10): each field is Geist's box ringed in the colour of where it
-| stands (fields.tsx); a button that sends is `loading` while it does, and one that cannot be pressed
-| yet says why in its tooltip rather than greying out in silence; discarding the draft is confirmed
-| in Geist's destructive Modal; the warning to an approved company is Geist's warning Note.
+| On shadcn's parts with Geist's rules (frontend.md §1.11): each field is shadcn's Field around an
+| input group; each paper an Item, with at most two buttons and the rest in its ⋯ menu (Geist's
+| Entity); a button that sends is `loading` while it does, and one that cannot be pressed yet says
+| why; discarding the draft and removing a file are confirmed in shadcn's AlertDialog; the warning
+| to an approved company is one warning Note at the top of the form (owner, 2026-10-04).
 */
 
 type Props = {
@@ -54,7 +75,7 @@ type Props = {
     draft: CompanyDraftData;
     /** The application the rejection decided, whose flags and requests this draft answers. */
     lastSent: CompanyApplicationData | null;
-    /** An approved company changing its details: said at the top and above Send (§1.1). */
+    /** An approved company changing its details: said at the top of the form (§1.1). */
     changing: boolean;
 };
 
@@ -145,40 +166,63 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
 
     const stillFlagged = (field: string): boolean => fieldStillFlagged(field, draft, lastSent);
     const required = page.documentTypes.filter((type) => type.required && !type.greyed);
-    const held = (typeId: string): CompanyFileData | undefined =>
-        draft.documents.find((document) => document.documentTypeId === typeId);
+    const held = (typeId: string): CompanyFileData | undefined => draft.documents.find((document) => document.documentTypeId === typeId);
     const done = required.filter((type) => held(type.id) !== undefined).length;
     // A held paper under a type no longer on the list: it must be removed before sending.
     const orphans = draft.documents.filter((document) => !page.documentTypes.some((type) => type.id === document.documentTypeId));
-    const missing = [
-        ...missingItems(page, draft, lastSent, t),
-        ...(Object.keys(standings).length > 0 ? [t('b2b::company.missing_marked')] : []),
-    ];
+    // Numbers in a sentence in the page's digits: Arabic-Indic on an Arabic page (frontend.md §1.8).
+    const figure = (value: number) => new Intl.NumberFormat(intlLocale(locale)).format(value);
+    const missing = [...missingItems(page, draft, lastSent, t, figure), ...(Object.keys(standings).length > 0 ? [t('b2b::company.missing_marked')] : [])];
     // Why Send cannot be pressed now, if it cannot: a save still out, or something still missing.
     // While it sends it is `loading` instead, which also stops a second press.
     const blocked = waiting > 0 ? t('b2b::company.saving_wait') : missing.length > 0 ? t('b2b::company.send_incomplete') : undefined;
+    const phoneUrl = link('storefront.account', { tab: 'phone' });
 
     return (
         <ChangesContext.Provider value={changes}>
             <div className="grid gap-6" data-test="company-form">
-                {changing ? <Warning /> : null}
+                {/* What sending a change does to an approved company: one Note, at the top of the
+                    form, before anything is changed (owner, 2026-10-04; §1.1, amendment 14(e)). */}
+                {changing ? (
+                    <Note variant="warning" data-test="change-warning">
+                        {t('b2b::company.change_warning')}
+                    </Note>
+                ) : null}
+
+                {/* Send waits for a confirmed phone, and says so before anything is filled in, with
+                    the way to confirm it (amendment 26(a), owner 2026-10-04). A plain click leaves
+                    after the saves still waiting, as Add Address does: leaving at once would cancel
+                    them (17(i)); a click to open it elsewhere is left to the browser. */}
+                {page.phoneConfirmed ? null : (
+                    <Note variant="warning" data-test="phone-note">
+                        {t('b2b::company.phone_note')}{' '}
+                        <Link
+                            href={phoneUrl}
+                            className="font-medium underline underline-offset-4"
+                            data-test="phone-link"
+                            onClick={(event) => {
+                                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                                    return;
+                                }
+
+                                event.preventDefault();
+                                changes.queue(() => router.visit(phoneUrl));
+                            }}
+                        >
+                            {t('b2b::company.phone_link')}
+                        </Link>
+                    </Note>
+                )}
 
                 <Card title={t('b2b::company.section.details')} hint={t('b2b::company.section.details_hint')} test="details">
-                    <div className="grid gap-4">
-                        <SavedText
-                            field="name"
-                            label={t('b2b::company.field.name')}
-                            saved={draft.values.name}
-                            rule={page.formRules.name}
-                            required
-                            flagged={stillFlagged('name')}
-                        />
+                    <div className="grid gap-5">
+                        <SavedText field="name" label={t('b2b::company.field.name')} saved={draft.values.name} rule={page.formRules.name} required flagged={stillFlagged('name')} />
                         <TypeChoice options={page.companyTypes} draft={draft} rule={page.formRules.company_type_other} flagged={stillFlagged('company_type')} locale={locale} />
                         {NUMBERS.map((field) => (
                             <SavedText
                                 key={field}
                                 field={field}
-                                label={t(`b2b::company.field.${field}`)}
+                                label={field === 'cr_number' ? t('b2b::company.field.cr_number') : t('b2b::company.field.tax_number')}
                                 saved={fieldValues(draft.values)[field] ?? null}
                                 rule={page.formRules[field]}
                                 required
@@ -190,13 +234,9 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                     </div>
                 </Card>
 
-                <Card
-                    title={t('b2b::company.section.documents')}
-                    hint={t('b2b::company.documents_hint', { size: Math.round(page.maxFileBytes / MEGABYTE) })}
-                    test="documents"
-                >
+                <Card title={t('b2b::company.section.documents')} hint={t('b2b::company.documents_hint', { size: figure(Math.round(page.maxFileBytes / MEGABYTE)) })} test="documents">
                     <p className="text-copy-13 text-ink-muted" data-test="documents-done">
-                        {t('b2b::company.documents_done', { done, total: required.length })}
+                        {t('b2b::company.documents_done', { done: figure(done), total: figure(required.length) })}
                     </p>
                     <ul className="grid gap-3">
                         {page.documentTypes.map((type) => (
@@ -228,7 +268,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
 
                 {draft.requests.length > 0 ? (
                     <Card title={t('b2b::company.section.requests')} hint={t('b2b::company.requests_hint')} test="requests">
-                        <ul className="grid gap-4">
+                        <ul className="grid gap-5">
                             {draft.requests.map((request) => (
                                 <RequestRow
                                     key={request.id}
@@ -247,8 +287,6 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                 </Card>
 
                 <div className="grid gap-3">
-                    {changing ? <Warning /> : null}
-
                     {missing.length > 0 ? (
                         <p className="text-copy-14 text-ink-muted" data-test="send-missing">
                             {t('b2b::company.missing', { items: missing.join(t('b2b::company.separator')) })}
@@ -256,7 +294,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                     ) : null}
 
                     <div className="flex flex-wrap items-center gap-3">
-                        <Button
+                        <ActionButton
                             data-test="send"
                             loading={sending}
                             disabledReason={blocked}
@@ -266,16 +304,16 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                             }}
                         >
                             {t('b2b::company.send')}
-                        </Button>
-                        <Button
-                            type="secondary"
+                        </ActionButton>
+                        <ActionButton
+                            variant="outline"
                             data-test="discard"
                             // Not while a save is out: its page request would cancel the saves (17(i)).
                             disabledReason={waiting > 0 ? t('b2b::company.saving_wait') : undefined}
                             onClick={() => setConfirmingDiscard(true)}
                         >
-                            {t('b2b::company.discard')}
-                        </Button>
+                            {t('b2b::company.discard_open')}
+                        </ActionButton>
                     </div>
 
                     <DiscardModal open={confirmingDiscard} onOpenChange={setConfirmingDiscard} busy={waiting > 0} />
@@ -305,19 +343,17 @@ function fieldStillFlagged(field: string, draft: CompanyDraftData, lastSent: Com
 }
 
 /**
- * What the draft still needs before it can be sent (amendment 16(d)) — the same list the server
+ * What the draft still needs before it can be sent (amendment 16(d)) - the same list the server
  * refuses on (§1.2): every value, a type still accepted, every required paper, nothing no longer
  * accepted, every marked item replaced, every request answered.
  */
-export function missingItems(page: CompanyPage, draft: CompanyDraftData, lastSent: CompanyApplicationData | null, t: Translate): string[] {
+function missingItems(page: CompanyPage, draft: CompanyDraftData, lastSent: CompanyApplicationData | null, t: Translate, figure: (value: number) => string): string[] {
     const values = fieldValues(draft.values);
     const items = (['name', 'company_type', 'cr_number', 'tax_number', 'address'] as const)
         .filter((field) => values[field] === null || (field === 'company_type' && draft.typeNoLongerAccepted))
         .map((field) => t(`b2b::company.field.${field}`));
 
-    const documents = page.documentTypes.filter(
-        (type) => type.required && !type.greyed && !draft.documents.some((document) => document.documentTypeId === type.id),
-    ).length;
+    const documents = page.documentTypes.filter((type) => type.required && !type.greyed && !draft.documents.some((document) => document.documentTypeId === type.id)).length;
     const notAccepted = draft.documents.filter((document) => document.noLongerAccepted).length;
     const flagged = draft.flags.filter((flag) => {
         if (flag.documentTypeId === null) {
@@ -335,10 +371,11 @@ export function missingItems(page: CompanyPage, draft: CompanyDraftData, lastSen
 
     return [
         ...items,
-        ...(documents > 0 ? [t('b2b::company.missing_documents', { count: documents })] : []),
-        ...(notAccepted > 0 ? [t('b2b::company.missing_not_accepted', { count: notAccepted })] : []),
-        ...(flagged > 0 ? [t('b2b::company.missing_flagged', { count: flagged })] : []),
-        ...(answers > 0 ? [t('b2b::company.missing_answers', { count: answers })] : []),
+        ...(documents > 0 ? [t('b2b::company.missing_documents', { count: figure(documents) })] : []),
+        ...(notAccepted > 0 ? [t('b2b::company.missing_not_accepted', { count: figure(notAccepted) })] : []),
+        ...(flagged > 0 ? [t('b2b::company.missing_flagged', { count: figure(flagged) })] : []),
+        ...(answers > 0 ? [t('b2b::company.missing_answers', { count: figure(answers) })] : []),
+        ...(page.phoneConfirmed ? [] : [t('b2b::company.missing_phone')]),
     ];
 }
 
@@ -363,29 +400,32 @@ function lookOf({ saving, refused, invalid, unsaved, saved }: { saving: boolean;
     return saved ? 'saved' : 'idle';
 }
 
+/** A saved value shown as not valid before the field is left: cleared, or itself under the rules now. */
+function standsOut(value: string, saved: string): boolean {
+    return saved !== '' && (normal(value) === '' || normal(value) === normal(saved));
+}
+
 /** What keeps Send waiting, from how a field looks. */
 function standingOf(look: Look): Standing | null {
     return look === 'saving' || look === 'refused' || look === 'invalid' || look === 'unsaved' ? look : null;
 }
 
 /**
- * What sending a change does to an approved company, before it is sent (§1.1, amendment 14(e)): a
- * consequence to take in, so Geist's warning Note.
+ * What a field must have fixed, in words, or null: its value not valid or refused (the page's own
+ * reason when the refusal's answer lets it name one, 17(g)), else the last decision's mark (17(f)).
  */
-function Warning() {
-    const t = useTranslator();
+function problemOf(look: Look, problem: string | null, refusal: string | null, marked: string | null): string | null {
+    if (look === 'refused') {
+        return problem ?? refusal ?? marked;
+    }
 
-    return (
-        <Note variant="warning" data-test="change-warning">
-            {t('b2b::company.change_warning')}
-        </Note>
-    );
+    return look === 'invalid' ? (problem ?? marked) : marked;
 }
 
 /**
- * Discarding the draft, asked in the page, never with the browser's own box (owner, 2026-09-24) —
- * in Geist's Modal, which confirms what destroys: the draft goes, and any file only it holds. Being
- * destructive, it opens on Cancel, so Enter never discards by accident. A plain Modal, not a typed
+ * Discarding the draft, asked in the page, never with the browser's own box (owner, 2026-09-24) -
+ * in shadcn's AlertDialog, which confirms what destroys: the draft goes, and any file only it holds.
+ * Being destructive, it opens on Cancel, so Enter never discards by accident. Not a typed
  * confirmation: Geist keeps that friction for what is hard to undo, and a draft is started again
  * with one press.
  */
@@ -393,20 +433,32 @@ export function DiscardModal({ open, onOpenChange, busy = false }: { open: boole
     const t = useTranslator();
     const link = useLink();
     const [discarding, setDiscarding] = useState(false);
+    const returnFocus = useReturnFocus(open);
 
     return (
-        <Modal
+        <AlertDialog
             open={open}
             // Not closed under a discard still out: its answer decides what the page shows next.
             onOpenChange={(next) => (discarding ? undefined : onOpenChange(next))}
-            title={t('b2b::company.discard_title')}
-            description={<span data-test="discard-confirmation">{t('b2b::company.discard_confirm')}</span>}
-            destructive
-            actions={
-                <>
-                    <ModalCancel onClick={() => onOpenChange(false)} disabled={discarding} />
-                    <Button
-                        type="error"
+        >
+            <AlertDialogContent onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start data-[size=default]:sm:max-w-md">
+                <div className="grid gap-4 p-6">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-heading-20 text-ink">{t('b2b::company.discard_title')}</AlertDialogTitle>
+                        <AlertDialogDescription className="text-copy-14 text-ink-muted" data-test="discard-confirmation">
+                            {t('b2b::company.discard_confirm')}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {/* A refusal keeps the dialog open; it is said inside it, not only in a toast
+                        hidden under the backdrop (the review of the move). */}
+                    <DialogError open={open} />
+                </div>
+                <AlertDialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
+                    <AlertDialogCancel disabled={discarding} data-test="modal-cancel">
+                        {t('ui.cancel')}
+                    </AlertDialogCancel>
+                    <ActionButton
+                        variant="destructive"
                         data-test="discard-confirm"
                         loading={discarding}
                         // Not while a save is out: its page request would cancel the saves (17(i)).
@@ -417,14 +469,10 @@ export function DiscardModal({ open, onOpenChange, busy = false }: { open: boole
                         }}
                     >
                         {t('b2b::company.discard_yes')}
-                    </Button>
-                </>
-            }
-        >
-            {/* A refusal keeps the dialog open; it is said inside it, not only in a toast hidden
-                under the backdrop (the review of the move). */}
-            <DialogError open={open} />
-        </Modal>
+                    </ActionButton>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     );
 }
 
@@ -455,7 +503,7 @@ function useSend(): (url: string, data: Record<string, string | File | null>, do
 }
 
 /**
- * A field's value, following what the server holds — but never over what the person has typed
+ * A field's value, following what the server holds - but never over what the person has typed
  * since the save the server is answering (amendment 17(c)). `sending` says what was sent; a refusal
  * lets it go, since the server then holds nothing new.
  */
@@ -481,7 +529,7 @@ function useFollowed(saved: string): { value: string; setValue: (value: string) 
 
             awaited.current = null;
 
-            // The answer to what was sent last — taken only if nothing was typed since.
+            // The answer to what was sent last - taken only if nothing was typed since.
             if (normal(screen.current) === normal(waited)) {
                 setValue(saved);
             }
@@ -519,7 +567,7 @@ type SavedTextProps = {
 };
 
 /**
- * A text field that saves itself when the person leaves it — only when it changed, and never while
+ * A text field that saves itself when the person leaves it - only when it changed, and never while
  * it is not valid. An empty field nobody has left yet is not marked: it is listed beside Send.
  */
 function SavedText({ field, label, saved, rule, required, flagged = false, multiline = false, figures = false }: SavedTextProps) {
@@ -527,7 +575,7 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
     const link = useLink();
     const send = useSend();
     const { report } = useChanges();
-    // The draft as the server holds it — never over what the person typed since (17(c)).
+    // The draft as the server holds it - never over what the person typed since (17(c)).
     const followed = useFollowed(saved ?? '');
     const { value, setValue } = followed;
     const [left, setLeft] = useState(false);
@@ -535,16 +583,20 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
     // How many of its saves are out: one answering does not mean the next has.
     const [out, setOut] = useState(0);
 
+    const locale = useLocale();
     const unsaved = normal(value) !== normal(saved ?? '');
-    const problem = check(value, rule, required, t);
+    const problem = check(value, rule, required, t, subjectOf(label, locale), locale);
     const look = lookOf({
         saving: out > 0,
         refused: refusal !== null && refusal.value === value,
-        invalid: problem !== null && (left || value.trim() !== '' || (saved ?? '') !== ''),
+        // Red once left, never while a value is still being typed (Geist: validate on blur) - but at
+        // once for a saved value that is cleared (17(k)) or no longer passes a raised minimum (16(b)).
+        invalid: problem !== null && (left || standsOut(value, saved ?? '')),
         unsaved,
         // A field the last decision marked, not yet changed, is not "Saved" (17(f)).
         saved: (saved ?? '') !== '' && !flagged,
     });
+    const shownProblem = problemOf(look, problem, refusal?.message ?? null, flagged ? t('b2b::company.flagged') : null);
 
     useEffect(() => report(field, standingOf(look)), [report, field, look]);
 
@@ -554,7 +606,7 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
     const leave = () => {
         setLeft(true);
 
-        // Never sent while it is not valid (amendment 16(a)): it stays yellow until it is.
+        // Never sent while it is not valid (amendment 16(a)): it stays red until it is.
         if (!unsaved || problem !== null) {
             return;
         }
@@ -582,7 +634,7 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
         id,
         name: field,
         value,
-        'aria-invalid': look === 'invalid' || look === 'refused' ? true : undefined,
+        'aria-invalid': shownProblem !== null || mustFix(look) ? true : undefined,
         'aria-describedby': `${id}-state`,
         'data-test': `field-${field}`,
         'data-look': look,
@@ -591,29 +643,26 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
     };
 
     return (
-        <div className="grid gap-1.5">
-            <Label htmlFor={id}>{label}</Label>
-            {multiline ? (
-                <textarea {...common} rows={3} onChange={(event) => setValue(event.target.value)} className={control(look, 'lines')} />
-            ) : (
-                <input {...common} onChange={(event) => setValue(event.target.value)} className={control(look, 'line')} />
-            )}
-            {flagged ? (
-                <p className="text-copy-13 text-bad" data-test="flagged">
-                    {t('b2b::company.flagged')}
-                </p>
-            ) : null}
-            {/* A refusal says why: the page's own reason when the answer lets it name one (17(g)). */}
-            <FieldState id={`${id}-state`} look={look} message={look === 'refused' ? (problem ?? refusal?.message ?? null) : problem} />
-        </div>
+        <Field data-invalid={common['aria-invalid']}>
+            <FieldLabel htmlFor={id}>{label}</FieldLabel>
+            <InputGroup>
+                {multiline ? (
+                    <InputGroupTextarea {...common} rows={3} onChange={(event) => setValue(event.target.value)} />
+                ) : (
+                    <InputGroupInput {...common} className={figures ? 'tw-figure' : undefined} onChange={(event) => setValue(event.target.value)} />
+                )}
+                <SaveMark look={look} align={multiline ? 'block-end' : 'inline-end'} />
+            </InputGroup>
+            <FieldState id={`${id}-state`} look={look} rule={ruleOf(rule, t, locale)} problem={shownProblem} />
+        </Field>
     );
 }
 
 /**
  * The company type: one of the home store's, or "Other" and the company's own words (§1.3). A
  * greyed type is shown and cannot be chosen. Choosing "Other" saves nothing until the words are
- * valid and left — the type chosen before stays until then, and Send waits. Going back to
- * "Choose…" is not a choice, and is not sent.
+ * valid and left - the type chosen before stays until then, and Send waits. Going back to
+ * "Select a company type" is not a choice, and is not sent.
  */
 function TypeChoice({
     options,
@@ -638,7 +687,7 @@ function TypeChoice({
     const followedWords = useFollowed(savedWords);
     const { value: choice, setValue: setChoice } = followedChoice;
     const { value: words, setValue: setWords } = followedWords;
-    // Each its own: choosing "Other" does not mark its empty words yellow (17, L4).
+    // Each its own: choosing "Other" does not mark its empty words red (17, L4).
     const [choiceLeft, setChoiceLeft] = useState(false);
     const [wordsLeft, setWordsLeft] = useState(false);
     const [refusal, setRefusal] = useState<Refusal | null>(null);
@@ -650,19 +699,21 @@ function TypeChoice({
     const shown = other ? `${OTHER}:${words}` : choice;
     const refused = refusal !== null && refusal.value === shown;
     const unsaved = choice !== savedChoice || (other && normal(words) !== normal(savedWords));
-    const choiceProblem = choice === '' ? t('b2b::company.check.required') : null;
-    const wordsProblem = other ? check(words, rule, true, t) : null;
+    const choiceProblem = choice === '' ? t('b2b::company.check.required', { field: subjectOf(t('b2b::company.field.company_type'), locale) }) : null;
+    const wordsProblem = other ? check(words, rule, true, t, subjectOf(t('b2b::company.field.other_words'), locale), locale) : null;
+    // The type is marked while the one chosen is no longer offered, or the last decision marked it.
+    const marked = draft.typeNoLongerAccepted ? t('b2b::company.type_no_longer') : flagged ? t('b2b::company.flagged') : null;
 
-    const selectLook = other
-        ? 'idle'
-        : lookOf({ saving, refused, invalid: choiceProblem !== null && (choiceLeft || savedChoice !== ''), unsaved, saved: savedChoice !== '' && !flagged });
+    const selectLook = other ? 'idle' : lookOf({ saving, refused, invalid: choiceProblem !== null && (choiceLeft || savedChoice !== ''), unsaved, saved: savedChoice !== '' && !flagged });
     const wordsLook = lookOf({
         saving,
         refused,
-        invalid: wordsProblem !== null && (wordsLeft || words.trim() !== '' || savedWords !== ''),
+        invalid: wordsProblem !== null && (wordsLeft || standsOut(words, savedWords)),
         unsaved,
         saved: savedChoice === OTHER && !flagged,
     });
+    const selectProblem = problemOf(selectLook, choiceProblem, refusal?.message ?? null, other ? null : marked);
+    const wordsShownProblem = problemOf(wordsLook, wordsProblem, refusal?.message ?? null, other ? marked : null);
 
     useEffect(() => report('company_type', standingOf(other ? wordsLook : selectLook)), [report, other, wordsLook, selectLook]);
 
@@ -694,79 +745,70 @@ function TypeChoice({
     };
 
     return (
-        <div className="grid gap-3">
-            <div className="grid gap-1.5">
-                <Label htmlFor="company-type">{t('b2b::company.field.company_type')}</Label>
-                {/* Geist's Select, built by hand for its ring: "Choose…" stays a real option here. */}
-                <div className="relative">
-                    <select
-                        id="company-type"
-                        data-test="field-company_type"
-                        data-look={selectLook}
-                        value={choice}
-                        aria-invalid={selectLook === 'invalid' || selectLook === 'refused' ? true : undefined}
-                        aria-describedby="company-type-state"
-                        onChange={(event) => {
-                            const chosen = event.target.value;
-                            setChoice(chosen);
-                            setChoiceLeft(true);
+        <div className="grid gap-5">
+            <Field data-invalid={selectProblem !== null || undefined}>
+                <FieldLabel htmlFor="company-type">{t('b2b::company.field.company_type')}</FieldLabel>
+                {/* A select is no input group: its save state sits beside it, at its end. */}
+                <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1 [&>[data-slot=native-select-wrapper]]:w-full">
+                        <NativeSelect
+                            id="company-type"
+                            data-test="field-company_type"
+                            data-look={selectLook}
+                            value={choice}
+                            aria-invalid={selectProblem !== null || undefined}
+                            aria-describedby="company-type-state"
+                            onChange={(event) => {
+                                const chosen = event.target.value;
+                                setChoice(chosen);
+                                setChoiceLeft(true);
 
-                            if (chosen !== OTHER && chosen !== '') {
-                                save({ company_type_id: chosen, company_type_other: null }, chosen);
-                            }
-                        }}
-                        className={control(selectLook, 'choice')}
-                    >
-                        <option value="">{t('b2b::company.field.choose')}</option>
-                        {options.map((option) => (
-                            <option key={option.id} value={option.id} disabled={option.greyed}>
-                                {option.greyed ? `${nameOf(option, locale)} — ${t('b2b::company.greyed')}` : nameOf(option, locale)}
-                            </option>
-                        ))}
-                        {/* Always last, whatever staff set up: it is not a type (§1.3). */}
-                        <option value={OTHER}>{t('b2b::company.field.other')}</option>
-                    </select>
-                    <ChevronDown aria-hidden="true" className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+                                if (chosen !== OTHER && chosen !== '') {
+                                    save({ company_type_id: chosen, company_type_other: null }, chosen);
+                                }
+                            }}
+                        >
+                            {/* Stays a real option: going back to it is not sent, and says why. */}
+                            <NativeSelectOption value="">{t('b2b::company.field.choose')}</NativeSelectOption>
+                            {options.map((option) => (
+                                <NativeSelectOption key={option.id} value={option.id} disabled={option.greyed}>
+                                    {option.greyed ? `${nameOf(option, locale)} — ${t('b2b::company.greyed')}` : nameOf(option, locale)}
+                                </NativeSelectOption>
+                            ))}
+                            {/* Always last, whatever staff set up: it is not a type (§1.3). */}
+                            <NativeSelectOption value={OTHER}>{t('b2b::company.field.other')}</NativeSelectOption>
+                        </NativeSelect>
+                    </div>
+                    {/* Never "Saved" beside a red line. */}
+                    <SaveBeside look={selectProblem === null ? selectLook : 'idle'} />
                 </div>
-                {draft.typeNoLongerAccepted ? (
-                    <p className="text-copy-13 text-bad" data-test="type-no-longer">
-                        {t('b2b::company.type_no_longer')}
-                    </p>
-                ) : null}
-                {flagged ? (
-                    <p className="text-copy-13 text-bad" data-test="flagged">
-                        {t('b2b::company.flagged')}
-                    </p>
-                ) : null}
-                <FieldState id="company-type-state" look={selectLook} message={selectLook === 'refused' ? (choiceProblem ?? refusal?.message ?? null) : choiceProblem} />
-            </div>
+                <FieldState id="company-type-state" look={selectLook} rule={null} problem={selectProblem} />
+            </Field>
 
             {other ? (
-                <div className="grid gap-1.5">
-                    <Label htmlFor="company-type-other">{t('b2b::company.field.other_words')}</Label>
-                    <input
-                        id="company-type-other"
-                        data-test="field-company_type_other"
-                        data-look={wordsLook}
-                        value={words}
-                        className={control(wordsLook, 'line')}
-                        aria-invalid={wordsLook === 'invalid' || wordsLook === 'refused' ? true : undefined}
-                        aria-describedby="company-type-other-state"
-                        onChange={(event) => setWords(event.target.value)}
-                        onBlur={() => {
-                            setWordsLeft(true);
+                <Field data-invalid={wordsShownProblem !== null || undefined}>
+                    <FieldLabel htmlFor="company-type-other">{t('b2b::company.field.other_words')}</FieldLabel>
+                    <InputGroup>
+                        <InputGroupInput
+                            id="company-type-other"
+                            data-test="field-company_type_other"
+                            data-look={wordsLook}
+                            value={words}
+                            aria-invalid={wordsShownProblem !== null || undefined}
+                            aria-describedby="company-type-other-state"
+                            onChange={(event) => setWords(event.target.value)}
+                            onBlur={() => {
+                                setWordsLeft(true);
 
-                            if (unsaved && wordsProblem === null) {
-                                save({ company_type_id: null, company_type_other: words }, `${OTHER}:${words}`);
-                            }
-                        }}
-                    />
-                    <FieldState
-                        id="company-type-other-state"
-                        look={wordsLook}
-                        message={wordsLook === 'refused' ? (wordsProblem ?? refusal?.message ?? null) : wordsProblem}
-                    />
-                </div>
+                                if (unsaved && wordsProblem === null) {
+                                    save({ company_type_id: null, company_type_other: words }, `${OTHER}:${words}`);
+                                }
+                            }}
+                        />
+                        <SaveMark look={wordsLook} />
+                    </InputGroup>
+                    <FieldState id="company-type-other-state" look={wordsLook} rule={ruleOf(rule, t, locale)} problem={wordsShownProblem} />
+                </Field>
             ) : null}
         </div>
     );
@@ -791,37 +833,31 @@ function DraftAddress({ page, draft, flagged, locale }: { page: CompanyPage; dra
     useEffect(() => () => report('address', null), [report]);
 
     return (
-        <div className="grid gap-1.5">
-            <AddressPicker
-                addresses={page.savedAddresses}
-                pickedId={draft.values.addressId}
-                pending={picking}
-                kept={draft.values.address}
-                look={look}
-                message={refusal}
-                locale={locale}
-                // After the saves still waiting: leaving now would cancel them (17(i)).
-                onAdd={() => queue(() => router.visit(link('storefront.account', { tab: 'addresses', return: 'b2b.company' })))}
-                onPick={(addressId) => {
-                    setPicking(addressId);
-                    setRefusal(null);
-                    send(
-                        link('storefront.company.save'),
-                        { address_id: addressId },
-                        (refused) => {
-                            setRefusal(refused);
-                            setPicking(null);
-                        },
-                        'address',
-                    );
-                }}
-            />
-            {flagged ? (
-                <p className="text-copy-13 text-bad" data-test="flagged">
-                    {t('b2b::company.flagged')}
-                </p>
-            ) : null}
-        </div>
+        <AddressPicker
+            addresses={page.savedAddresses}
+            pickedId={draft.values.addressId}
+            pending={picking}
+            kept={draft.values.address}
+            look={look}
+            message={refusal}
+            marked={flagged ? t('b2b::company.flagged') : null}
+            locale={locale}
+            // After the saves still waiting: leaving now would cancel them (17(i)).
+            onAdd={() => queue(() => router.visit(link('storefront.account', { tab: 'addresses', return: 'b2b.company' })))}
+            onPick={(addressId) => {
+                setPicking(addressId);
+                setRefusal(null);
+                send(
+                    link('storefront.company.save'),
+                    { address_id: addressId },
+                    (refused) => {
+                        setRefusal(refused);
+                        setPicking(null);
+                    },
+                    'address',
+                );
+            }}
+        />
     );
 }
 
@@ -890,6 +926,134 @@ function useFilePicker(
     };
 }
 
+/**
+ * One paper's row (Geist's Entity, shadcn's Item): its name and where it stands, then at most two
+ * buttons - Choose File or Replace File, and Open File - with Remove File in its ⋯ menu, confirmed
+ * first. What is wrong with it is said under it in red: the page's own warning before an upload, the
+ * server's refusal, a file no longer accepted, the last decision's mark.
+ */
+function FileItem({
+    titleId,
+    title,
+    status,
+    picker,
+    mediaId,
+    greyed = false,
+    problems,
+    remove,
+    test,
+    fileTest,
+}: {
+    titleId: string;
+    title: string;
+    status: ReactNode;
+    picker: ReturnType<typeof useFilePicker>;
+    mediaId: string | null;
+    greyed?: boolean;
+    problems: { text: string; test?: string }[];
+    remove: () => void;
+    test?: string;
+    fileTest?: string;
+}) {
+    const t = useTranslator();
+    const link = useLink();
+    const [confirming, setConfirming] = useState(false);
+    const more = useRef<HTMLButtonElement>(null);
+    const choose = useRef<HTMLButtonElement>(null);
+    // Removed, the file's ⋯ and Open File go once the answer comes: focus goes to Choose File, which
+    // stays. Cancelled, it goes back to the ⋯ button that opened the dialog.
+    const removed = useRef(false);
+    const back = useMemo<RefObject<HTMLElement | null>>(() => ({ get current() { return removed.current ? choose.current : more.current; } }), []);
+    const returnFocus = useReturnFocus(confirming, back);
+
+    return (
+        <li className="grid gap-2" data-test={test}>
+            <Item variant="outline" size="sm" className="rounded-[var(--tw-radius)] border-line">
+                <ItemContent className="min-w-0">
+                    <ItemTitle id={titleId} className="text-label-14 text-ink">
+                        {title}
+                    </ItemTitle>
+                    <ItemDescription className="line-clamp-none text-copy-13 text-ink-muted">{status}</ItemDescription>
+                </ItemContent>
+                <ItemActions className="flex-wrap">
+                    {greyed ? null : (
+                        <>
+                            <input ref={picker.input} type="file" accept={ACCEPT} className="hidden" onChange={picker.onChange} data-test={fileTest} />
+                            {/* The buttons keep their own words and are described by the paper's
+                                name, so three "Replace File" buttons still say which each is for. */}
+                            <ActionButton ref={choose} variant="outline" size="sm" loading={picker.sending} aria-describedby={titleId} onClick={picker.pick}>
+                                {mediaId === null ? t('b2b::company.choose_file') : t('b2b::company.replace')}
+                            </ActionButton>
+                        </>
+                    )}
+                    {mediaId !== null ? (
+                        <>
+                            {/* A new tab, so the form and the saves it is waiting on stay where they are. */}
+                            <Button asChild variant="ghost" size="sm">
+                                <a href={link('storefront.company.file', { file: mediaId })} target="_blank" rel="noopener noreferrer" aria-describedby={titleId}>
+                                    <ExternalLink aria-hidden="true" />
+                                    {t('b2b::company.open')}
+                                </a>
+                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button ref={more} type="button" variant="ghost" size="icon-sm" aria-label={`${t('ui.more_actions')}: ${title}`} title={t('ui.more_actions')} data-test={test === undefined ? undefined : `${test}-menu`}>
+                                        <MoreHorizontal aria-hidden="true" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                        variant="destructive"
+                                        onSelect={() => {
+                                            removed.current = false;
+                                            setConfirming(true);
+                                        }}
+                                        data-test={test === undefined ? undefined : `${test}-remove`}
+                                    >
+                                        {t('b2b::company.remove_open')}
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </>
+                    ) : null}
+                </ItemActions>
+            </Item>
+
+            {problems.map((problem) => (
+                <FieldError key={problem.text} data-test={problem.test} className="text-copy-13">
+                    {problem.text}
+                </FieldError>
+            ))}
+
+            <AlertDialog open={confirming} onOpenChange={setConfirming}>
+                <AlertDialogContent onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 text-start data-[size=default]:sm:max-w-md">
+                    <div className="grid gap-4 p-6">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="text-heading-20 text-ink">{t('b2b::company.remove_title')}</AlertDialogTitle>
+                            <AlertDialogDescription className="text-copy-14 text-ink-muted">{t('b2b::company.remove_confirm', { name: title })}</AlertDialogDescription>
+                        </AlertDialogHeader>
+                    </div>
+                    <AlertDialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
+                        <AlertDialogCancel data-test="modal-cancel">{t('ui.cancel')}</AlertDialogCancel>
+                        <ActionButton
+                            variant="destructive"
+                            data-test={test === undefined ? undefined : `${test}-remove-confirm`}
+                            onClick={() => {
+                                // Queued with the other changes; its answer, a refusal included, is said under the row.
+                                removed.current = true;
+                                remove();
+                                setConfirming(false);
+                            }}
+                        >
+                            {t('b2b::company.remove')}
+                        </ActionButton>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </li>
+    );
+}
+
 function DocumentRow({
     type,
     file,
@@ -917,102 +1081,54 @@ function DocumentRow({
     const picker = useFilePicker(link('storefront.company.attach', { type: type.id }), maxBytes, errorKey, (chosen) => {
         const same = others.find((other) => other.fileName === chosen.name);
 
-        return same === undefined
-            ? null
-            : t('b2b::company.duplicate_file', { section: nameOf({ nameAr: same.documentTypeNameAr ?? '', nameEn: same.documentTypeNameEn ?? '' }, locale) });
+        return same === undefined ? null : t('b2b::company.duplicate_file', { section: nameOf({ nameAr: same.documentTypeNameAr ?? '', nameEn: same.documentTypeNameEn ?? '' }, locale) });
     });
     const [removal, setRemoval] = useState<string | null>(null);
-    const name = nameOf(type, locale);
     // Replaced once the file under the type is not the one the rejection saw; a type no longer
     // offered stops counting (§3.1).
     const stillFlagged = flagged && !type.greyed && (file === undefined || file.mediaId === sentMediaId);
     const refusal = picker.refusal ?? removal;
-    // The buttons keep their own words and are described by the paper's name, so three "Replace"
-    // buttons still say which paper each is for (Geist: no aria-label over visible text).
-    const nameId = `document-${type.id}-name`;
+
+    const status =
+        file !== undefined ? (
+            // The file's name cut in the middle, as every file name is (Geist's Middle Truncate), and
+            // when it was uploaded under it: a long name never pushes the moment out of the row.
+            <span className="grid min-w-0 gap-0.5">
+                <MiddleTruncate value={file.fileName} />
+                <span>
+                    <Phrase text={t('b2b::company.uploaded', { date: MARK })} moment={<Time value={file.uploadedAt} inSentence />} />
+                </span>
+            </span>
+        ) : type.greyed ? (
+            t('b2b::company.greyed')
+        ) : type.required ? (
+            t('b2b::company.required')
+        ) : (
+            t('b2b::company.optional')
+        );
 
     return (
-        <li className="grid gap-2 rounded-[var(--tw-radius)] border border-line p-3" data-test={`document-${type.id}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <span id={nameId} className="text-label-14 font-medium text-ink">
-                    {name}
-                </span>
-                <span className="text-copy-13 text-ink-muted">
-                    {file !== undefined
-                        ? t('b2b::company.uploaded', { date: isolate(when(file.uploadedAt)) })
-                        : type.greyed
-                          ? t('b2b::company.greyed')
-                          : type.required
-                            ? t('b2b::company.required')
-                            : t('b2b::company.optional')}
-                </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-                {type.greyed ? null : (
-                    <>
-                        <input ref={picker.input} type="file" accept={ACCEPT} className="hidden" onChange={picker.onChange} data-test={`file-${type.id}`} />
-                        <Button type="secondary" size="small" loading={picker.sending} aria-describedby={nameId} onClick={picker.pick}>
-                            {file === undefined ? t('b2b::company.choose_file') : t('b2b::company.replace')}
-                        </Button>
-                    </>
-                )}
-                {file !== undefined ? (
-                    <>
-                        {/* A new tab, so the form and the saves it is waiting on stay where they are. */}
-                        <a
-                            href={link('storefront.company.file', { file: file.mediaId })}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-describedby={nameId}
-                            className="inline-flex h-8 items-center px-2 text-label-14 text-brand hover:underline"
-                        >
-                            {t('b2b::company.open')}
-                        </a>
-                        <Button
-                            type="tertiary"
-                            size="small"
-                            data-test={`remove-${type.id}`}
-                            aria-describedby={nameId}
-                            onClick={() => send(link('storefront.company.detach', { type: type.id }), {}, setRemoval, errorKey)}
-                        >
-                            {t('b2b::company.remove')}
-                        </Button>
-                    </>
-                ) : null}
-            </div>
-
-            {file?.noLongerAccepted ? <p className="text-copy-13 text-bad">{t('b2b::company.no_longer_accepted')}</p> : null}
-            {stillFlagged ? (
-                <p className="text-copy-13 text-bad" data-test="flagged">
-                    {t('b2b::company.flagged_document')}
-                </p>
-            ) : null}
-            {picker.warning !== null ? (
-                <p role="alert" className="text-copy-13 text-warn" data-test="file-warning">
-                    {picker.warning}
-                </p>
-            ) : null}
-            {refusal !== null ? (
-                <p role="alert" className="text-copy-13 text-bad">
-                    {refusal}
-                </p>
-            ) : null}
-        </li>
+        <FileItem
+            titleId={`document-${type.id}-name`}
+            title={nameOf(type, locale)}
+            status={status}
+            picker={picker}
+            mediaId={file?.mediaId ?? null}
+            greyed={type.greyed}
+            problems={[
+                ...(file?.noLongerAccepted ? [{ text: t('b2b::company.no_longer_accepted') }] : []),
+                ...(stillFlagged ? [{ text: t('b2b::company.flagged_document'), test: 'flagged' }] : []),
+                ...(picker.warning !== null ? [{ text: picker.warning, test: 'file-warning' }] : []),
+                ...(refusal !== null ? [{ text: refusal }] : []),
+            ]}
+            remove={() => send(link('storefront.company.detach', { type: type.id }), {}, setRemoval, errorKey)}
+            test={`document-${type.id}`}
+            fileTest={`file-${type.id}`}
+        />
     );
 }
 
-function RequestRow({
-    request,
-    answer,
-    rule,
-    maxBytes,
-}: {
-    request: CompanyRequestData;
-    answer: CompanyAnswerData | null;
-    rule: CompanyFieldRuleData | undefined;
-    maxBytes: number;
-}) {
+function RequestRow({ request, answer, rule, maxBytes }: { request: CompanyRequestData; answer: CompanyAnswerData | null; rule: CompanyFieldRuleData | undefined; maxBytes: number }) {
     const t = useTranslator();
     const link = useLink();
     const send = useSend();
@@ -1020,6 +1136,7 @@ function RequestRow({
     const url = link('storefront.company.answer', { answered: request.id });
     const errorKey = `answers.${request.id}`;
     const picker = useFilePicker(url, maxBytes, errorKey);
+    const locale = useLocale();
     const savedText = answer?.text ?? '';
     const followed = useFollowed(savedText);
     const { value: text, setValue: setText } = followed;
@@ -1027,38 +1144,52 @@ function RequestRow({
     const [refusal, setRefusal] = useState<Refusal | null>(null);
     const [removal, setRemoval] = useState<string | null>(null);
     const [out, setOut] = useState(0);
-    const labelId = `request-${request.id}-label`;
-    const stateId = `request-${request.id}-state`;
+    const id = `request-${request.id}`;
+    const stateId = `${id}-state`;
     const written = request.kind === 'TEXT';
 
-    const problem = written ? check(text, rule, true, t) : null;
+    const problem = written ? check(text, rule, true, t, subjectOf(t('b2b::company.answer'), locale), locale) : null;
     const look = written
         ? lookOf({
               saving: out > 0,
               refused: refusal !== null && refusal.value === text,
-              invalid: problem !== null && (left || text.trim() !== '' || savedText !== ''),
+              invalid: problem !== null && (left || standsOut(text, savedText)),
               unsaved: normal(text) !== normal(savedText),
               saved: savedText !== '',
           })
         : 'idle';
+    const shownProblem = problemOf(look, problem, refusal?.message ?? null, null);
 
     useEffect(() => report(`answers.${request.id}`, standingOf(look)), [report, request.id, look]);
 
     useEffect(() => () => report(`answers.${request.id}`, null), [report, request.id]);
 
-    const shown = picker.refusal ?? removal;
+    if (!written) {
+        const shown = picker.refusal ?? removal;
+
+        return (
+            <FileItem
+                titleId={`${id}-label`}
+                title={request.label}
+                status={answer?.mediaId ? t('b2b::company.answered_file') : t('b2b::company.required')}
+                picker={picker}
+                mediaId={answer?.mediaId ?? null}
+                problems={[...(picker.warning !== null ? [{ text: picker.warning }] : []), ...(shown !== null ? [{ text: shown }] : [])]}
+                remove={() => send(link('storefront.company.unanswer', { answered: request.id }), {}, setRemoval, errorKey)}
+                test={id}
+            />
+        );
+    }
 
     return (
-        <li className="grid gap-2" data-test={`request-${request.id}`}>
-            <p id={labelId} className="text-label-14 font-medium text-ink">
-                {request.label}
-            </p>
-
-            {written ? (
-                <>
-                    <textarea
-                        aria-labelledby={labelId}
-                        aria-invalid={look === 'invalid' || look === 'refused' ? true : undefined}
+        // What was asked is the field's own label (Geist's Label), not a paragraph pointed at.
+        <li data-test={id}>
+            <Field data-invalid={shownProblem !== null || undefined}>
+                <FieldLabel htmlFor={`${id}-text`}>{request.label}</FieldLabel>
+                <InputGroup>
+                    <InputGroupTextarea
+                        id={`${id}-text`}
+                        aria-invalid={shownProblem !== null || undefined}
                         aria-describedby={stateId}
                         data-look={look}
                         rows={3}
@@ -1067,7 +1198,7 @@ function RequestRow({
                         onBlur={() => {
                             setLeft(true);
 
-                            // An empty answer is no answer, and is not sent: it stays yellow (16(a)).
+                            // An empty answer is no answer, and is not sent: it stays red (22(a)).
                             if (normal(text) === normal(savedText) || problem !== null) {
                                 return;
                             }
@@ -1089,51 +1220,11 @@ function RequestRow({
                                 errorKey,
                             );
                         }}
-                        className={control(look, 'lines')}
                     />
-                    <FieldState id={stateId} look={look} message={look === 'refused' ? (problem ?? refusal?.message ?? null) : problem} />
-                </>
-            ) : (
-                // The buttons keep their own words and are described by what was asked (as DocumentRow).
-                <div className="flex flex-wrap items-center gap-2">
-                    <input ref={picker.input} type="file" accept={ACCEPT} className="hidden" onChange={picker.onChange} />
-                    <Button type="secondary" size="small" loading={picker.sending} aria-describedby={labelId} onClick={picker.pick}>
-                        {answer?.mediaId ? t('b2b::company.replace') : t('b2b::company.choose_file')}
-                    </Button>
-                    {answer?.mediaId ? (
-                        <>
-                            <a
-                                href={link('storefront.company.file', { file: answer.mediaId })}
-                                target="_blank"
-                                rel="noreferrer"
-                                aria-describedby={labelId}
-                                className="inline-flex h-8 items-center px-2 text-label-14 text-brand hover:underline"
-                            >
-                                {t('b2b::company.open')}
-                            </a>
-                            <Button
-                                type="tertiary"
-                                size="small"
-                                aria-describedby={labelId}
-                                onClick={() => send(link('storefront.company.unanswer', { answered: request.id }), {}, setRemoval, errorKey)}
-                            >
-                                {t('b2b::company.remove')}
-                            </Button>
-                        </>
-                    ) : null}
-                </div>
-            )}
-
-            {picker.warning !== null ? (
-                <p role="alert" className="text-copy-13 text-warn">
-                    {picker.warning}
-                </p>
-            ) : null}
-            {shown !== null ? (
-                <p role="alert" className="text-copy-13 text-bad">
-                    {shown}
-                </p>
-            ) : null}
+                    <SaveMark look={look} align="block-end" />
+                </InputGroup>
+                <FieldState id={stateId} look={look} rule={ruleOf(rule, t, locale)} problem={shownProblem} />
+            </Field>
         </li>
     );
 }

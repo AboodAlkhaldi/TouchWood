@@ -25,9 +25,19 @@ return [
     'status_disabled' => 'Disabled',
     // Final: an invitation that was cancelled is not sent again (access.md amendment 29).
     'status_cancelled' => 'Cancelled',
-    'since' => 'Since :date',
+    // Before Geist's Relative Time Card, which writes "5h ago" or a date: "Joined 5h ago",
+    // "Joined Mar 14, 2026" (shadcn rebuild; "Since" read wrongly before a relative time).
+    'since' => 'Joined :date',
     'invited_on' => 'Invited :date',
-    'no_staff' => 'Nobody here yet.',
+    // Geist's Empty State: the blank slate names the next action; a filtered list that finds
+    // nobody says so, quoting a typed search, and offers to clear the filters (shadcn rebuild).
+    'no_staff' => 'Invite a member to give them a way into the panel.',
+    'no_match_title' => 'No Staff Members Match Your Filters',
+    'no_match_query' => 'No staff members match “:query”. Clear the filters to see everyone.',
+    'no_match' => 'Widen or clear the filters to see everyone.',
+    'clear_filters' => 'Clear Filters',
+    // Geist's Search Input: a scoped placeholder.
+    'search_placeholder' => 'Search staff',
     'invite' => 'Invite Member',
     'total' => ':count people',
 
@@ -40,6 +50,10 @@ return [
     'country' => 'Country',
     'countries_ours' => 'Where We Have Stores',
     'countries_all' => 'Every Country',
+    // The country picker's search (Geist's Combobox): a scoped placeholder, and the typed text quoted
+    // when nothing matches.
+    'country_search' => 'Search countries',
+    'country_none' => 'No countries match “:query”.',
     'address' => 'Address',
     'communication_language' => 'Communication Language',
     'communication_language_hint' => 'The language their emails and codes are written in.',
@@ -49,8 +63,8 @@ return [
     'every_store' => 'Every store',
     'allows' => 'What It Allows',
     'store_free' => 'Every store, by its nature',
-    'exception' => 'Own Stores',
-    'exception_hint' => 'This action was given stores of its own, apart from the rest of the role.',
+    'exception' => 'Custom Stores',
+    'exception_hint' => 'This action works in only some of the stores the role reaches.',
     'super_admin' => 'Super Admin',
     'super_admin_hint' => 'Super Admins are made and removed by console command only.',
     'yourself' => 'This is your own account. Change it in Account & settings.',
@@ -67,36 +81,48 @@ return [
     'resend_invitation' => 'Resend Invitation',
     'resend_invitation_hint' => 'The earlier link stops working.',
     'cancel_invitation' => 'Cancel Invitation',
-    'refresh' => 'Refresh Permissions',
     'save' => 'Save Changes',
     'cancel' => 'Cancel',
 
     // After the fact.
     'profile_saved' => 'Profile saved',
     'email_link_sent' => 'Link sent to the new address',
-    'disabled' => 'Member disabled. Every session of theirs ended.',
+    'disabled' => 'Member disabled and signed out everywhere',
     'enabled' => 'Member enabled',
     'invitation_resent' => 'Invitation resent',
     'invitation_cancelled' => 'Invitation cancelled',
-    'refreshed' => 'Permissions refreshed',
     // C6 - one person's role and stores.
     'role_saved' => 'Role and stores saved',
     'personal_role_name' => ":name's role",
     'pick_role' => 'Role',
     'pick_role_hint' => 'Pick a saved role, or edit one into a role of their own.',
+    // Past six saved roles the cards give way to a searchable picker (Geist's Choicebox; owner,
+    // 2026-10-03).
+    'saved_role' => 'Saved Role',
+    'choose_saved_role' => 'Choose a saved role',
+    'role_search' => 'Search roles',
+    'role_none' => 'No roles match “:query”.',
     'own_role' => 'A Role of Their Own',
     'own_role_hint' => 'Editing a saved role here does not change it for anybody else holding it: it becomes theirs alone.',
     'edited' => 'Edited',
     'actions_count' => ':count actions',
     'where' => 'Where It Reaches',
-    'where_hint' => 'The role says what they may do. The stores say where.',
+    'where_hint' => 'The role says what they may do, and these stores say where: no action reaches beyond them.',
     'stores_all' => 'Every Store',
-    'stores_selected' => 'Chosen Stores',
+    'stores_selected' => 'Selected Stores',
     'no_stores_to_give' => 'You can only hand out stores you manage yourself.',
-    'exceptions_title' => 'Actions with Stores of Their Own',
-    'exceptions_hint' => 'An action can reach further, or less far, than the rest of the role.',
-    'give_own_stores' => 'Give It Its Own Stores',
-    'follow_the_role' => 'Follow the Role Again',
+    // Each action's stores, for a reach of two or more stores or every store (access.md amendment 59).
+    'exceptions_title' => 'Each Action\'s Stores',
+    'exceptions_hint' => 'Every action works in all the stores above, unless you choose some of them for it.',
+    'exceptions_all' => 'All Selected Stores',
+    'exceptions_custom' => 'Custom',
+    'exceptions_custom_stores' => 'Stores for :action',
+    'exceptions_cut' => 'Taken out, no longer in Where It Reaches: :stores.',
+    'exceptions_emptied' => 'Choose at least one store, or All Selected Stores.',
+    'exceptions_empty' => 'Couldn\'t save the stores: none is chosen for :actions. Choose at least one for each, or All Selected Stores.',
+    // In place of an empty list, when no chosen action works store by store (Geist's Empty State).
+    'exceptions_none_title' => 'No Actions Work Store by Store',
+    'exceptions_none' => 'Every action chosen reaches every store by its nature.',
     'back_to' => 'Back to :name',
     'save_role' => 'Save Role',
 
@@ -107,6 +133,9 @@ return [
     'step_role' => 'Role',
     'step_stores' => 'Stores',
     'step_of' => 'Step :step of :total',
+    // A step's state, read aloud beside its name (the steps' circles say nothing to a screen reader).
+    'step_done' => 'done',
+    'step_upcoming' => 'not yet',
     'nothing_sent_yet' => 'Nothing is sent until the last step.',
     'next' => 'Next Step',
     'back' => 'Previous Step',
@@ -115,7 +144,7 @@ return [
     'first_name' => 'First Name',
     'last_name' => 'Last Name',
     'as_admin' => 'An Admin',
-    'as_admin_hint' => 'Admins are not tied to a store. Only a Super Admin may bring one in.',
+    'as_admin_hint' => 'Admins are not tied to a store, and only a Super Admin may bring one in.',
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.

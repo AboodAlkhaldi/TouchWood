@@ -5,6 +5,14 @@
 @source '../../storage/framework/views/*.php';
 
 /*
+| Tailwind's `dark:` variant answers to our attribute, not to the device. shadcn's components write
+| dark:bg-input/30 and the like; left alone, Tailwind would apply those whenever the *device* is dark,
+| even on a page the person set to Light. The mode is data-mode on <html> - chosen by the server, or
+| by the head script when the person chose System (frontend.md §1.11).
+*/
+@custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
+
+/*
 | Tailwind's own names are pointed at the theme tokens, so a utility class and a custom property can
 | never drift apart: bg-surface is --tw-surface, whatever theme is on. Nothing here holds a colour.
 */
@@ -105,9 +113,85 @@
 }
 
 @layer base {
+    /*
+    | The few shadcn names its components read as raw custom properties rather than through a
+    | Tailwind class - Sonner's toasts set --normal-bg: var(--popover) and so on. Defined on <html>,
+    | where data-mode and data-campaign live, so they follow the theme like everything else.
+    */
+    :root {
+        --popover: var(--tw-surface);
+        --popover-foreground: var(--tw-ink);
+        --border: var(--tw-line);
+        --radius: var(--tw-radius);
+        /* The sidebar's outline buttons draw their edge from these two. */
+        --sidebar-border: var(--tw-sidebar-line);
+        --sidebar-accent: var(--tw-sidebar-active);
+    }
+
+    /*
+    | The edge every shadcn part draws with a bare `border` - a table's rows, a menu, a popover, a
+    | dialog: our line, as shadcn's own stylesheet sets it (`* { @apply border-border }`). Without it
+    | Tailwind's default is the text colour, and every such edge was drawn in ink (found in batch A's
+    | screenshots, 2026-10-03). A part that names its own edge colour still wins: utilities come after
+    | this layer.
+    */
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-border);
+    }
+
     html {
         background: var(--tw-page);
         color: var(--tw-ink);
+    }
+
+    /*
+    | Scrollbars (the owner's fix list, 2026-10-04; frontend.md §1.11): thin, in the theme's colours,
+    | and the browser's dark ones in dark mode - nothing told it the page was dark, so it drew its
+    | light grey bar on dark pages and on the navy sidebar. The page keeps its bar's room, so a long
+    | page - the audit log - no longer shifts everything sideways when its bar appears. Thin, never
+    | hidden: a hidden bar gives no sign there is more to scroll (MDN, scrollbar-width), and Vercel's
+    | guidelines ask only that a bar be useful. shadcn's ScrollArea already draws its thumb in our line.
+    | The colour is inherited; the width is not, so it is set on every element.
+    */
+    :root {
+        color-scheme: light;
+        scrollbar-color: var(--tw-line-strong) transparent;
+        scrollbar-gutter: stable;
+    }
+
+    *,
+    ::before,
+    ::after {
+        scrollbar-width: thin;
+    }
+
+    [data-mode='dark'] {
+        color-scheme: dark;
+    }
+
+    /*
+    | A menu, a dialog or a sheet locks the page's scroll (Radix's scroll lock), and makes up for the
+    | scrollbar it hides with a margin of the bar's width on <body>. The page already keeps that room
+    | (the gutter above), so the margin would move everything sideways twice over each time a ⋯ menu
+    | opens: none is needed (the reviews of the owner's fix list, 2026-10-04).
+    */
+    html body[data-scroll-locked] {
+        margin-right: 0 !important;
+        --removed-body-scroll-bar-size: 0px;
+    }
+
+    /* The sidebar's own bar shows only under the pointer or keyboard focus: on the navy it is noise. */
+    [data-slot='sidebar-content'] {
+        scrollbar-color: transparent transparent;
+    }
+
+    [data-slot='sidebar-content']:hover,
+    [data-slot='sidebar-content']:focus-within {
+        scrollbar-color: color-mix(in srgb, var(--tw-sidebar-ink-muted) 45%, transparent) transparent;
     }
 
     body {
@@ -196,4 +280,32 @@
     [class*='text-heading-']:lang(ar) {
         letter-spacing: 0;
     }
+}
+
+/*
+| Two of Geist's looks laid over shadcn's parts from outside them, so shadcn's own files stay as the
+| CLI wrote them (frontend.md §1.11: five edits and no more). Outside any layer on purpose: a rule
+| outside the layers wins over every Tailwind utility, which is what replacing a shadcn class takes.
+|
+| - The backdrop behind a dialog, an alert dialog and a sheet: shadcn paints black at half
+|   strength; Geist's is its gray-100 at 80% (its page background in dark), here our sunken
+|   surface at 80%, which is that colour in both themes (the batch B review; owner, 2026-10-04).
+| - A switch is Geist's Toggle size, 24 by 44, not shadcn's 18 by 32 (frontend.md §6: a touch
+|   target is at least 24 by 24). The thumb is 22 px, so shadcn's own travel, calc(100% - 2px),
+|   still ends flush at the far edge.
+*/
+[data-slot='dialog-overlay'],
+[data-slot='alert-dialog-overlay'],
+[data-slot='sheet-overlay'] {
+    background-color: color-mix(in oklab, var(--tw-surface-sunken) 80%, transparent);
+}
+
+[data-slot='switch'][data-size='default'] {
+    height: 1.5rem;
+    width: 2.75rem;
+}
+
+[data-slot='switch'][data-size='default'] > [data-slot='switch-thumb'] {
+    width: 22px;
+    height: 22px;
 }

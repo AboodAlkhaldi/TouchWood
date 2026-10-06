@@ -14,6 +14,7 @@ use Modules\Access\Application\Command\UpdateStoreAddressFormat\UpdateStoreAddre
 use Modules\Access\Application\Command\UpdateStoreAddressFormat\UpdateStoreAddressFormatHandler;
 use Modules\Access\Application\Query\AddressFormats\AddressFormatDto;
 use Modules\Access\Application\Query\AddressFormats\AddressFormatsForStaff;
+use Modules\Access\Application\Query\CurrentStore\CurrentStoreForStaff;
 use Modules\Access\Application\Query\MyAccount\AddressFieldDto;
 use Modules\Access\Domain\Model\StoreAddressFormat;
 use Modules\Access\Domain\ValueObject\AddressField;
@@ -22,6 +23,7 @@ use Modules\Access\Presentation\Http\Resource\AddressFormatField;
 use Modules\Access\Presentation\Http\Resource\AddressFormatPage;
 use Modules\Access\Presentation\Http\Resource\AddressFormatStore;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -49,6 +51,7 @@ final readonly class AddressFormatController
         private AddressFormatsForStaff $formats,
         private PlatformApi $platform,
         private Application $app,
+        private CurrentStoreForStaff $current,
     ) {}
 
     public function index(Request $request): Response
@@ -116,7 +119,9 @@ final readonly class AddressFormatController
         $locale = $this->app->getLocale();
         $mine = [];
 
-        foreach ($this->platform->stores() as $store) {
+        // A Super Admin prepares an off store before it opens, its address form included; anyone
+        // else is offered the stores that are on (access.md amendment 58(a); owner, 2026-10-03).
+        foreach ($this->mayWorkInOffStores() ? $this->platform->allStores() : $this->platform->stores() as $store) {
             $id = $store->storeId()->value;
 
             if ($allowed === null || in_array($id, $allowed, true)) {
@@ -132,6 +137,7 @@ final readonly class AddressFormatController
                 $mine[$id]->code,
                 $mine[$id]->name->in($locale),
                 $exists[$id] ?? false,
+                $mine[$id]->isActive,
             ),
             array_keys($mine),
         );
@@ -153,11 +159,32 @@ final readonly class AddressFormatController
         $asked = $request->query('store');
 
         if (is_string($asked) && $asked !== '') {
-            $store = $this->platform->storeByCode($asked) ?? abort(404);
+            // An off store's code answers as no store at all - except to a Super Admin, who works
+            // in one to prepare it (platform.md §1.6, access.md amendment 58(a)).
+            $store = $this->platform->storeByCode($asked)
+                ?? ($this->mayWorkInOffStores() ? $this->anyStoreByCode($asked) : null)
+                ?? abort(404);
 
             return $store->storeId()->value;
         }
 
         return $stores === [] ? null : $stores[0]->id;
+    }
+
+    /** Whether this person works in off stores too: a Super Admin, preparing one before it opens. */
+    private function mayWorkInOffStores(): bool
+    {
+        return $this->current->forCurrentStaff()?->mayChooseOff === true;
+    }
+
+    private function anyStoreByCode(string $code): ?StoreDto
+    {
+        foreach ($this->platform->allStores() as $store) {
+            if ($store->code === $code) {
+                return $store;
+            }
+        }
+
+        return null;
     }
 }

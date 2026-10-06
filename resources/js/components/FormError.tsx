@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
-import { Note } from '@/components/geist';
+import { Note } from '@/components/Note';
 import type { SharedProps } from '@/types/page';
 
 /**
@@ -43,7 +43,7 @@ export function DialogError({ open }: { open: boolean }) {
 
 /*
 | The business error of a form, said where the person is looking (frontend.md §1.7, §2.1), as
-| Geist's error Note (1.10).
+| Geist's error Note (1.10), on shadcn's Alert.
 |
 | A refusal that belongs to no single field - a wrong password, a spent code, a number already in
 | use - arrives as `errors.form`. It shows **twice**: as a toast, which fades, and here, at the top

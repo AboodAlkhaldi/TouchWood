@@ -18,6 +18,8 @@ use Modules\Platform\Application\Command\CreateStore\CreateStore;
 use Modules\Platform\Application\Command\CreateStore\CreateStoreHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Application\Command\DeleteCurrency\DeleteCurrency;
+use Modules\Platform\Application\Command\DeleteCurrency\DeleteCurrencyHandler;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
 use Modules\Platform\Application\Command\GenerateMediaVariants\GenerateMediaVariants;
@@ -130,7 +132,16 @@ it('checks the right permission, against the right scope, in every handler', fun
 })->with([
     'create a currency' => [fn () => app(CreateCurrencyHandler::class)->handle(new CreateCurrency('XTS', 2, 'عملة', 'Currency', 'ع', 'XTS', null)), 'platform.currency.create', 'global'],
     'update a currency' => [fn () => app(UpdateCurrencyHandler::class)->handle(new UpdateCurrency('SAR', nameEn: 'Riyal')), 'platform.currency.update', 'global'],
-    'create a store' => [fn () => app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', 'SAR', 1500, 'UTC', 9)), 'platform.store.create', 'global'],
+    'delete a currency' => [function () {
+        // One no store uses, written straight in so that only the delete's own check is logged.
+        DB::table('platform.currencies')->insert(['code' => 'XTS', 'exponent' => 2, 'name' => json_encode(['ar' => 'عملة', 'en' => 'Currency']), 'abbreviation' => json_encode(['ar' => 'ع', 'en' => 'XTS']), 'created_at' => now(), 'updated_at' => now()]);
+        app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XTS'));
+    }, 'platform.currency.delete', 'global'],
+    'create a store' => [function () {
+        // A currency no store uses (one currency, one store), written straight in so only the store's check is logged.
+        DB::table('platform.currencies')->insert(['code' => 'XTS', 'exponent' => 2, 'name' => json_encode(['ar' => 'عملة', 'en' => 'Currency']), 'abbreviation' => json_encode(['ar' => 'ع', 'en' => 'XTS']), 'created_at' => now(), 'updated_at' => now()]);
+        app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', 'XTS', 1500, 'UTC', 9));
+    }, 'platform.store.create', 'global'],
     // Per-store: an admin of one store must not be able to edit another.
     'update a store' => [fn () => app(UpdateStoreHandler::class)->handle(new UpdateStore('eg', taxRateBasisPoints: 1500)), 'platform.store.update', 'eg'],
     // The switch: reserved and store-free (owner, 2026-10-01).
@@ -154,6 +165,40 @@ it('checks the right permission, against the right scope, in every handler', fun
     'mark variants failed' => [fn () => app(GenerateMediaVariantsHandler::class)->fail(new GenerateMediaVariants(mediaRowWithoutPermission('READY'))), 'platform.media.variants.generate', 'global'],
     'sweep stuck variants' => [fn () => app(RequeueStuckMediaVariantsHandler::class)->handle(new RequeueStuckMediaVariants), 'platform.media.variants.generate', 'global'],
 ]);
+
+it('asks for creating a currency too when a store brings a new one, and makes neither without it (§9.7 #3)', function () {
+    $log = permissionLog();
+
+    app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', '', 1500, 'UTC', 9, new CreateCurrency('XTS', 2, 'عملة', 'Currency', 'ع', 'XTS', null)));
+
+    expect(array_column($log->checks, 0))->toContain('platform.store.create', 'platform.currency.create');
+
+    // The store's job without the currency's: refused before anything is written.
+    app()->instance(Authorizer::class, new class implements Authorizer
+    {
+        public function authorize(string $permission, PermissionScope $scope): void
+        {
+            if ($permission === 'platform.currency.create') {
+                throw new Unauthorized($permission);
+            }
+        }
+
+        public function storesWith(string $permission): ?array
+        {
+            return $permission === 'platform.currency.create' ? [] : null;
+        }
+
+        public function isUnlimited(): bool
+        {
+            return false;
+        }
+    });
+
+    expect(fn () => app(CreateStoreHandler::class)->handle(new CreateStore('xb', 'متجر', 'Store', 'XA', '', 1500, 'UTC', 10, new CreateCurrency('XTT', 2, 'عملة', 'Currency', 'ع', 'XTT', null))))
+        ->toThrow(Unauthorized::class)
+        ->and(DB::table('platform.stores')->where('code', 'xb')->exists())->toBeFalse()
+        ->and(DB::table('platform.currencies')->where('code', 'XTT')->exists())->toBeFalse();
+});
 
 it('changes nothing and audits nothing when the permission is denied', function (Closure $run) {
     permissionLog()->deny = true;

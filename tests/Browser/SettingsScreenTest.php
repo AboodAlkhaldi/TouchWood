@@ -43,6 +43,10 @@ it('saves one setting on its own, leaving the rest of the screen alone', functio
     $staffId = Fx::staffWith([AccessPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
     $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
     $key = CustomerSecuritySettings::LOCKOUT_MINUTES;
+    // The browser suite keeps its data, so the setting starts from its default, with no stored row:
+    // a 27 left by an earlier run would make typing 27 no change at all, and Cancel would never show.
+    DB::table('platform.settings')->where('store_id', Fx::storeId('sa'))->where('key', $key)->delete();
+    app(SettingValues::class)->invalidate();
 
     $page = visit('/admin/sign-in')
         ->type('#email', $email)
@@ -67,10 +71,12 @@ it('saves one setting on its own, leaving the rest of the screen alone', functio
     //
     // Addressed by attribute rather than by "#id": a setting's key has dots in it, and
     // "#access.customer.lockout_minutes" is a CSS selector for an id with two classes on it.
-    // Read until somebody says otherwise (owner, 2026-09-24): Edit opens the one box, saving
-    // closes it again.
-    $page->click("[data-test=\"edit-{$key}\"]")
+    // Geist's Fieldset (owner, 2026-10-04): the box is open, and its Save Setting is out of reach
+    // until the value changes; then Cancel appears beside it.
+    $page->assertAttribute("[data-test=\"save-{$key}\"]", 'aria-disabled', 'true')
+        ->assertMissing("[data-test=\"cancel-{$key}\"]")
         ->type("[id=\"{$key}\"]", '27')
+        ->assertVisible("[data-test=\"cancel-{$key}\"]")
         ->click("[data-test=\"save-{$key}\"]")
         ->assertNoJavaScriptErrors();
 

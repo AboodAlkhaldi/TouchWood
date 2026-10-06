@@ -24,8 +24,8 @@ use Shared\Domain\ValueObject\StoreId;
  * The company page's data (b2b.md §4.5), from what ViewMyCompany answers.
  *
  * **Every time is written in the home store's time zone** (HANDOFF §4; owner, 2026-09-29: "each
- * store will have its own time"): UTC underneath, the store's clock on the screen. The page shows
- * the time as it is given and never converts it again.
+ * store will have its own time"), as a moment with its offset: UTC underneath, the store's clock on
+ * the screen. The page shows it through Time, in the shop's zone - the same store's.
  */
 final readonly class CompanyPages
 {
@@ -105,6 +105,7 @@ final readonly class CompanyPages
                 $view->prefill->companyTypeOther,
                 ...$storeName($view->prefill->fromStoreId),
             ),
+            $view->phoneConfirmed,
         );
     }
 

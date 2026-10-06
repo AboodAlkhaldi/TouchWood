@@ -68,14 +68,17 @@ function accountScreenSignedIn(): PendingAwaitablePage
         // text finds the heading and does nothing at all (step 1, found by running it).
         ->click('button[type="submit"]');
 
-    // The whole code goes into the first box, the one marked one-time-code: the screen spreads it
-    // across the rest, exactly as it does when a browser fills it in from the message.
+    // The whole code goes into the code field, the one input marked one-time-code under the boxes
+    // (shadcn's InputOTP), exactly as a browser fills it in from the message.
     // The click above only dispatches the submit; the code is not recorded until the server has
     // answered it. Waiting for the code screen first is what makes reading it reliable (this
     // raced, and lost, 2026-09-24).
     $page->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]');
+
+    // Every caller opens its screen next, so the sign-in must have landed first.
+    expect(signedInToPanel($page))->toBeTrue();
 
     return $page;
 }
@@ -130,7 +133,7 @@ it('says why a password change was refused, where the person is looking', functi
         // Access's own wording, never one this screen invented (§3.2). It used to name the field
         // as `current_password`, the key the code uses; the key is now looked up in the module's
         // own words before it goes into the sentence (owner, 2026-09-24).
-        ->assertSee('قيمة كلمة المرور الحالية غير صالحة.');
+        ->assertSee('تعذّر الحفظ: قيمة كلمة المرور الحالية غير صالحة. تحقّق منها وحاول مجددًا.');
 });
 
 it('asks for the code once the password behind a phone change is right', function () {
@@ -155,7 +158,7 @@ it('refuses a phone change behind a wrong password, inside the dialog', function
         ->type('#phone_current_password', 'not the right password at all')
         ->click('[data-test="send-phone-code"]')
         // Said inside the dialog the person is looking at, not only behind it.
-        ->assertSee('قيمة كلمة المرور الحالية غير صالحة.')
+        ->assertSee('تعذّر الحفظ: قيمة كلمة المرور الحالية غير صالحة. تحقّق منها وحاول مجددًا.')
         // And it has not moved on to asking for a code that was never sent.
         ->assertDontSee('الرمز الذي أرسلناه');
 });
@@ -204,7 +207,10 @@ it('forgets a trusted browser, in a suite with no transaction around it', functi
     $page->assertSee('متصفحات تتخطى رمزك');
 
     if ($page->script('document.querySelector(\'[data-test="forget-all-browsers"]\') !== null') === true) {
-        $page->click('[data-test="forget-all-browsers"]')->assertSee('لا شيء. كل متصفّح يطلب رمزًا.');
+        // Asked first now, like every action on this tab (frontend.md §1.11, the shadcn rebuild).
+        $page->click('[data-test="forget-all-browsers"]')
+            ->click('[data-test="confirm-forget-all-browsers"]')
+            ->assertSee('كل متصفّح يطلب رمزًا.');
     }
 
     $page->assertNoJavaScriptErrors();

@@ -67,6 +67,7 @@ final readonly class StaffPages
     public function list(ListStaffHandler $handler, ?string $search, ?string $status): StaffListPage
     {
         $page = $handler->handle(new ListStaff($search, $status, perPage: 200));
+        // A section for an off store is still shown, its heading marked (access.md amendment 58(b)).
         $stores = $this->storeNames();
 
         /** @var array<string, list<StaffRow>> $sections */
@@ -144,7 +145,6 @@ final readonly class StaffPages
             mayEnable: $may->mayEnable,
             mayResendInvitation: $may->mayResendInvitation,
             mayCancelInvitation: $may->mayCancelInvitation,
-            mayRefresh: $may->mayRefresh,
         );
     }
 
@@ -310,21 +310,27 @@ final readonly class StaffPages
             return [];
         }
 
-        $stores = $this->storeNames();
-        $ids = $reach->isAllStores() ? array_keys($stores) : $reach->storeIds();
+        /** @var array<string, StoreOption> $every */
+        $every = [];
 
-        return array_values(array_map(
-            static fn (string $id): StoreOption => new StoreOption($id, $stores[$id]),
-            array_filter($ids, static fn (string $id): bool => isset($stores[$id])),
-        ));
+        // One read of the stores. An off store among them is offered too, marked Off by the screen:
+        // an admin who covers it may keep it on somebody, take it away or give it while it is off
+        // (access.md amendment 58(b)).
+        foreach ($this->platform->allStores() as $store) {
+            $every[$store->id] = new StoreOption($store->id, $store->name->in($this->locale()), $store->isActive);
+        }
+
+        $ids = $reach->isAllStores() ? array_keys($every) : $reach->storeIds();
+
+        return array_values(array_filter(array_map(static fn (string $id): ?StoreOption => $every[$id] ?? null, $ids)));
     }
 
     /**
      * What their role allows, and where each action reaches.
      *
-     * An action normally reaches the stores of the assignment. An **exception** is one action given
-     * stores of its own (access.md §1.5), and it is marked as one — otherwise an admin cannot tell
-     * why somebody can do a single thing in a store the rest of their role never touches.
+     * An action normally reaches the stores of the assignment. An **exception** is one action kept
+     * to some of them (access.md §1.5, amendment 59), and it is marked as one — otherwise an admin
+     * cannot tell why somebody cannot do a single thing in a store the rest of their role reaches.
      *
      * @param  array<string, string>  $stores
      * @return list<StaffActionRow>
@@ -468,21 +474,28 @@ final readonly class StaffPages
     }
 
     /**
+     * Every store's name, off ones included, from one read of the stores: a staff member keeps an
+     * off store they hold, and the page names it, marked: "Egypt · Off" (access.md amendment 58(b)).
+     * Read once per page, not once per action: each read is two cache queries (the review of batch
+     * A).
+     *
      * @return array<string, string>
      */
     private function storeNames(): array
     {
+        $mark = (string) __('admin.store.off', [], $this->locale());
         $stores = [];
 
-        foreach ($this->platform->stores() as $store) {
-            $stores[$store->id] = $store->name->in($this->locale());
+        foreach ($this->platform->allStores() as $store) {
+            $name = $store->name->in($this->locale());
+            $stores[$store->id] = $store->isActive ? $name : "{$name} · {$mark}";
         }
 
         return $stores;
     }
 
     /**
-     * Store ids as their names, in the language being read.
+     * Store ids as the names storeNames() gave them; an id no store has is left out.
      *
      * @param  list<string>  $ids
      * @param  array<string, string>  $stores
@@ -490,10 +503,7 @@ final readonly class StaffPages
      */
     private function named(array $ids, array $stores): array
     {
-        return array_values(array_filter(array_map(
-            static fn (string $id): ?string => $stores[$id] ?? null,
-            $ids,
-        )));
+        return array_values(array_filter(array_map(static fn (string $id): ?string => $stores[$id] ?? null, $ids)));
     }
 
     /**
