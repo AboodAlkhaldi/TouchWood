@@ -171,10 +171,31 @@ describe('what the database takes: everything the code takes', function () {
 
         $read = $applications->find($draft->id());
 
-        expect($read?->crNumber()?->value)->toBe('س ت-١٠١٠١٢٣٤٥٦')
-            ->and($read?->taxNumber()?->value)->toBe('٣٠٠١٢٣٤٥٦٧٠٠٠٠٣')
+        // The letters as typed; the digits in Latin, however they were typed (amendment 29).
+        expect($read?->crNumber()?->value)->toBe('س ت-1010123456')
+            ->and($read?->taxNumber()?->value)->toBe('300123456700003')
+            ->and($read?->address()?->value)->toBe("طريق الملك فهد\nالرياض 12345")
             ->and($read?->type()?->other)->toBe('جمعية تعاونية')
             ->and($read?->note()?->value)->toBe("أرفقنا الشهادة الجديدة.\nشكرًا.");
+    });
+
+    it('turns the Arabic-Indic digits saved before the rule into Latin, in companies and applications, and nothing else (amendment 29)', function () {
+        [$company, $application] = B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
+        // Written straight in, as rows saved before 2026-10-06 were: the value objects turn digits now.
+        $before = ['name' => 'مؤسسة ٢١', 'cr_number' => 'س ت-١٠١٠١٢٣٤٥٦', 'tax_number' => '۳۰۰۱۲۳۴۵۶۷۰۰۰۰۳', 'address' => "طريق الملك فهد ٧\nالرياض ١٢٣٤٥"];
+        DB::table('b2b.companies')->where('id', $company->id())->update($before);
+        DB::table('b2b.applications')->where('id', $application->id())->update($before);
+
+        $migration = require base_path('src/Modules/B2B/Infrastructure/Persistence/Migrations/2026_10_06_200001_latin_digits_in_b2b.php');
+        $migration->up();
+
+        foreach ([DB::table('b2b.companies')->where('id', $company->id())->first(), DB::table('b2b.applications')->where('id', $application->id())->first()] as $row) {
+            expect($row?->cr_number)->toBe('س ت-1010123456')
+                ->and($row?->tax_number)->toBe('300123456700003')
+                ->and($row?->address)->toBe("طريق الملك فهد 7\nالرياض 12345")
+                // A name is kept as typed.
+                ->and($row?->name)->toBe('مؤسسة ٢١');
+        }
     });
 });
 

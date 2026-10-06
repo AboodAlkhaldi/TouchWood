@@ -91,6 +91,12 @@ describe('profiles', function () {
         expect(StaffProfile::of('Sara', 'Ali', 'Manager', '1990-05-01', 'SA', '  ')->address)->toBeNull();
     });
 
+    it('keeps an address\'s digits, and a phone\'s, in Latin however they were typed (amendment 63)', function () {
+        expect(StaffProfile::of('Sara', 'Ali', 'Manager', '1990-05-01', 'SA', "حي النخيل ٤\nالرياض ۱۲۳۴۵")->address)->toBe("حي النخيل 4\nالرياض 12345")
+            ->and(PhoneNumber::of('+٩٦٦ ٥٠ ١٢٣ ٤٥٦٧')->value)->toBe('+966501234567')
+            ->and(PhoneNumber::of('۰۰۹۶۶۵۰۱۲۳۴۵۶۷')->value)->toBe('+966501234567');
+    });
+
     it('takes ar or en as the communication language', function () {
         expect(Language::of('EN'))->toBe(Language::English);
         expect(fn () => Language::of('fr'))->toThrow(InvalidAccessAttribute::class);

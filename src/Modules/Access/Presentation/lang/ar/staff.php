@@ -25,7 +25,7 @@ return [
     'status_disabled' => 'معطّل',
     // Final: an invitation that was cancelled is not sent again (access.md amendment 29).
     'status_cancelled' => 'ملغى',
-    // Before Geist's Relative Time Card, which writes "قبل ٥ ساعات" or a date (shadcn rebuild;
+    // Before Geist's Relative Time Card, which writes "قبل 5 ساعات" or a date (shadcn rebuild;
     // "منذ" and "في" read wrongly before a relative time).
     'since' => 'انضم :date',
     'invited_on' => 'دُعي :date',

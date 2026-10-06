@@ -6,7 +6,8 @@ import { Calendar } from '@/components/ui/calendar';
 | The range calendar of DateRangeField, on its own so it loads only when the picker opens: shadcn's
 | calendar and its day-picker are most of a page's JavaScript otherwise (frontend.md §5, the page
 | budget; found when the audit log reached it, 2026-10-04). Two months, the second the latest, and
-| nothing after today; an Arabic page in Arabic, with Arabic-Indic digits (§1.8).
+| nothing after today; an Arabic page in Arabic, with Latin digits as every page (§1.8, the owner
+| 2026-10-06) - said to day-picker outright, since its Arabic locale would write Arabic-Indic ones.
 */
 
 type Props = {
@@ -32,7 +33,7 @@ export default function DateRangeCalendar({ selected, defaultMonth, today, onSel
             numberOfMonths={2}
             locale={arabic ? dayPickerArabic : undefined}
             dir={arabic ? 'rtl' : 'ltr'}
-            numerals={arabic ? 'arab' : 'latn'}
+            numerals="latn"
         />
     );
 }

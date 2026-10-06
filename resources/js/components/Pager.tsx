@@ -10,7 +10,7 @@ import type { SharedProps } from '@/types/page';
  * Geist's pager: "1–20 of 142" between Previous and Next, on shadcn's Pagination; a missing end is
  * left out rather than greyed. Its links are Inertia's, in shadcn's link look, so a page turn does
  * not reload the page; their words are ours (ui.php), given from outside. The figures are the
- * page's own: Arabic-Indic on an Arabic page (frontend.md §1.8).
+ * Latin on every page (frontend.md §1.8, the owner 2026-10-06).
  */
 export function Pager({ from, to, total, previousHref, nextHref }: { from: number; to: number; total: number; previousHref: string | null; nextHref: string | null }) {
     const t = useTranslator();

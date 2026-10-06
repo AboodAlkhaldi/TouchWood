@@ -440,3 +440,24 @@ it('cuts every trusted browser to 12 hours from when it was trusted, and lengthe
         ->and($hours($hourOld))->toBe(12.0)
         ->and($hours($shorter))->toBe(2.0);
 });
+
+it('turns the Arabic-Indic digits saved before the rule into Latin, and nothing else (amendment 63)', function () {
+    // Written straight in, as the rows saved before 2026-10-06 were: the value objects turn digits now.
+    $customer = Fx::customer();
+    insertAddressRow(['customer_id' => $customer, 'fields' => json_encode(['building' => '٧٢', 'postcode' => '۱۲۳۴۵', 'city' => 'الرياض'])]);
+    insertAddressRow(['customer_id' => $customer, 'label' => 'Work', 'fields' => json_encode(['building' => '9', 'city' => 'Riyadh'])]);
+    $staff = Fx::staff();
+    DB::table('access.staff_users')->where('id', $staff)->update(['address' => "حي النخيل ٤\nالرياض ١٢٣٤٥"]);
+    $fields = static fn (string $label): array => json_decode((string) DB::table('access.addresses')->where('customer_id', $customer)->where('label', $label)->value('fields'), true, flags: JSON_THROW_ON_ERROR);
+
+    $migration = require base_path('src/Modules/Access/Infrastructure/Persistence/Migrations/2026_10_06_200000_latin_digits_in_access.php');
+    $migration->up();
+
+    expect($fields('Home'))->toBe(['city' => 'الرياض', 'building' => '72', 'postcode' => '12345'])
+        ->and($fields('Work'))->toBe(['city' => 'Riyadh', 'building' => '9'])
+        ->and(DB::table('access.staff_users')->where('id', $staff)->value('address'))->toBe("حي النخيل 4\nالرياض 12345");
+
+    // Again: nothing left to turn.
+    $migration->up();
+    expect($fields('Home'))->toBe(['city' => 'الرياض', 'building' => '72', 'postcode' => '12345']);
+});

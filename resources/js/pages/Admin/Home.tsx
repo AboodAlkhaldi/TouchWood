@@ -27,7 +27,7 @@ import type { MenuEntry, SharedProps } from '@/types/page';
 | (owner, 2026-10-03), which stays until nothing waits.
 |
 | Then the **cards** the modules register (platform.md §2.6; the owner's fix list, point 6): each a
-| shadcn Card with its figures - a label and a number in the page's digits, a size as a size - an
+| shadcn Card with its figures - a label and a number in Latin digits, a size as a size - an
 | optional short list, and a link to its whole screen. Only the cards this reader may see in the
 | scope arrive; a module built later adds its own without this page changing.
 |
@@ -199,7 +199,7 @@ function RowContent({ label, detail, at, linked }: { label: string; detail: stri
     );
 }
 
-/** A label and its number (Geist's Stat look): in the page's digits, a size written as a size. */
+/** A label and its number (Geist's Stat look): in Latin digits, a size written as a size. */
 function Figure({ figureBlock }: { figureBlock: HomeFigureBlock }) {
     const { locale } = usePage<SharedProps>().props;
     const value = figureBlock.unit === 'bytes' ? fileSize(figureBlock.value, locale) : figure(locale, figureBlock.value);

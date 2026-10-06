@@ -18,5 +18,5 @@ export function nameIn(locale: Locale, ar: string | null, en: string | null): st
     return (locale === 'ar' ? ar : en) ?? '';
 }
 
-/** A whole number in the page's digits (frontend.md §1.8), shared with the panel's frame. */
+/** A whole number in Latin digits (frontend.md §1.8), shared with the panel's frame. */
 export { figure } from '@/lib/digits';

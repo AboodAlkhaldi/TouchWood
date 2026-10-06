@@ -18,7 +18,9 @@
 */
 @theme inline {
     --font-sans: 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
-    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+    /* Mono has Latin only: an Arabic letter inside a figure - a currency's sign, a unit - is drawn
+    | by our Arabic face, not the system's (frontend.md 1.8, 2026-10-06). */
+    --font-mono: 'IBM Plex Mono', 'IBM Plex Sans Arabic', ui-monospace, monospace;
 
     --color-page: var(--tw-page);
     /* The shop's background: a colour, a gradient, a photograph, or several layered together. */
@@ -210,13 +212,9 @@
         outline-offset: 2px;
     }
 
-    /* Figures - amounts, counts, codes - are set in the mono face (frontend.md 1.8). On Arabic
-    | pages the mono face has no Arabic-Indic digits at all (checked in its own unicode ranges,
-    | 2026-09-22), so Arabic pages set figures in the Arabic face, which has them. */
-    [lang='ar'] .tw-figure {
-        font-family: var(--font-sans);
-    }
-
+    /* Figures - amounts, counts, codes - are set in the mono face, in both languages (frontend.md
+    | 1.8): every digit is Latin (the owner, 2026-10-06), and Latin is all the mono face has. Arabic
+    | pages used to switch to the Arabic face here for its Arabic-Indic digits. */
     .tw-figure {
         font-family: var(--font-mono);
         font-variant-numeric: tabular-nums;

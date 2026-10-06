@@ -170,7 +170,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
     const done = required.filter((type) => held(type.id) !== undefined).length;
     // A held paper under a type no longer on the list: it must be removed before sending.
     const orphans = draft.documents.filter((document) => !page.documentTypes.some((type) => type.id === document.documentTypeId));
-    // Numbers in a sentence in the page's digits: Arabic-Indic on an Arabic page (frontend.md §1.8).
+    // Numbers in a sentence, in Latin digits on every page (frontend.md §1.8).
     const figure = (value: number) => new Intl.NumberFormat(intlLocale(locale)).format(value);
     const missing = [...missingItems(page, draft, lastSent, t, figure), ...(Object.keys(standings).length > 0 ? [t('b2b::company.missing_marked')] : [])];
     // Why Send cannot be pressed now, if it cannot: a save still out, or something still missing.
