@@ -55,6 +55,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §3.5 E1 | **Add Store** on the stores screen, for a Super Admin (platform.md §9.7 #3, #4): everything a store is, at once — code, both names, the country from the shared country picker (filling its time zone when it has only one), tax, time zone, position — and its currency **picked, never typed**, from the currencies no store uses, or **made in the same form** ("New Currency…", and the only way when none is free); the store is added switched off. Replaces "no store is made here" | Owner, 2026-10-06 |
 | §2.2, §2.3 | **The staff view** (the fix list, point 13; D13 (b), D14): View Store in the panel's header; in the shop, the staff-view line with Back to Admin Panel, and a person menu with Admin Panel and Leave Staff View; the builder's picks marked [PROVISIONAL] | Owner, 2026-10-05 (access.md amendment 60) |
 | §1.8, §6 | **Latin digits everywhere**: every figure, count, date and code on Arabic pages too; typed Arabic-Indic digits accepted and saved as 0–9 in number inputs, address fields, phones and a company's CR and tax numbers, and searched in Latin however typed. Replaces 2026-09-19's Arabic-Indic digits | Owner, 2026-10-06 |
+| §1.8 | **IBM Plex Sans Arabic draws Arabic letters**: its Arabic subset is loaded too — only the Latin one was, so every Arabic letter had come from the system's fallback face | Owner, 2026-10-06 |
 
 ---
 
@@ -267,7 +268,10 @@ are **not** followed (owner, 2026-09-22). It shows look and behaviour only. Wher
 wins (§2.7). Screens the design does not show are derived from its look (§2.1).
 
 - **Fonts:** IBM Plex Sans Arabic for text in both languages, IBM Plex Mono for figures (amounts,
-  counts, codes), as in the design.
+  counts, codes), as in the design. Both are served from our own domain, built in by Vite; IBM Plex
+  Sans Arabic with **its Arabic subset as well as its Latin one** — until 2026-10-06 only the Latin
+  subset was loaded (the font plugin's default), so every Arabic letter was drawn by the system's
+  fallback face (found in the review of the Latin-digits change).
 - **Colours:** the design's palette, light and dark (§2.1), becomes the shadcn colour tokens.
 - **[DECIDED by the owner, 2026-10-06] Digits: Latin (0–9) everywhere, Arabic pages included** —
   "no any arabic numbers across the whole system, so we dont struggle at matching anything in
