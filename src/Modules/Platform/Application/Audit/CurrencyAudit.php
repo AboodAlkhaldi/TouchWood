@@ -55,4 +55,16 @@ final class CurrencyAudit
 
         return new AuditEntryDto('platform.currency.updated', self::SUBJECT, $currency->code()->value, null, $changes);
     }
+
+    /** What the deleted currency was, every attribute from its value to nothing (platform.md §9.7). */
+    public static function deleted(Currency $currency): AuditEntryDto
+    {
+        $changes = AuditChanges::none();
+
+        foreach (self::attributes($currency) as $attribute => $value) {
+            $changes->changed($attribute, $value, null);
+        }
+
+        return new AuditEntryDto('platform.currency.deleted', self::SUBJECT, $currency->code()->value, null, $changes);
+    }
 }

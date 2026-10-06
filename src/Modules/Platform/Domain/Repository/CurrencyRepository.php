@@ -22,4 +22,10 @@ interface CurrencyRepository
     public function add(Currency $currency): void;
 
     public function update(Currency $currency): void;
+
+    /**
+     * Removes a currency no store uses: the caller has locked it (byCode) and counted its stores.
+     * A store's foreign key refuses it too (RESTRICT), as the last word.
+     */
+    public function delete(CurrencyCode $code): void;
 }

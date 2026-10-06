@@ -54,8 +54,8 @@ it('draws the stores and saves one from its own card', function () {
     $page->assertSee('Stores')
         // The card's own line: code, currency, rate, timezone.
         ->assertSee('Asia/Riyadh')
-        // Said on the screen, so nobody hunts for a button that was never there.
-        ->assertSee('A store is opened by console command')
+        // Add Store is a Super Admin's alone (platform.md §9.7 #3).
+        ->assertMissing('[data-test="add-store"]')
         ->assertNoJavaScriptErrors();
 
     // Named, because this page carries the panel's own buttons too and "button" would find one
@@ -87,6 +87,49 @@ it('offers no edit form on a store somebody may only read', function () {
         // The switch and the stores' state are a Super Admin's alone (platform.md §1.6).
         ->assertDontSee('Turn Store Off')
         ->assertNoJavaScriptErrors();
+});
+
+describe('Add Store (platform.md §9.7 #3, #4)', function () {
+    // Filled, never sent: a store once added can never go again - its audit entries hold it - and the
+    // suite keeps its data. Adding is proved by the feature test (AddStoreTest); this proves the form.
+    it('opens on its first field, fills a one-zone country\'s time zone, offers a new currency, and hands focus back', function () {
+        $superAdminId = Fx::staff(superAdmin: true);
+        $email = (string) DB::table('access.staff_users')->where('id', $superAdminId)->value('email');
+
+        $page = visit('/admin/sign-in')
+            ->type('#email', $email)
+            ->type('#password', STORE_SCREEN_PASSWORD)
+            ->click('button[type="submit"]')
+            ->assertPathIs('/admin/sign-in/code')
+            ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+            ->click('button[type="submit"]');
+
+        expect(signedInToPanel($page))->toBeTrue();
+        $page->navigate('/admin/stores');
+
+        $page->click('[data-test="add-store"]');
+        expect(browserUntil($page, "document.activeElement?.id === 'new-store-code'"))->toBeTrue();
+
+        // Kuwait has one time zone, which the field takes; Brazil has several, so the one filled for
+        // Kuwait goes and the zone is left to be picked.
+        $page->click('#new-store-country')->type('[cmdk-input]', 'Kuwait')->keys('[cmdk-input]', 'Enter');
+        expect(browserUntil($page, "document.querySelector('#new-store-timezone-value')?.textContent === 'Asia/Kuwait'"))->toBeTrue();
+        $page->click('#new-store-country')->type('[cmdk-input]', 'Brazil')->keys('[cmdk-input]', 'Enter');
+        expect(browserUntil($page, "document.querySelector('#new-store-country-value')?.textContent === 'Brazil' && document.querySelector('#new-store-timezone-value')?.textContent === ''"))->toBeTrue();
+
+        // The currency is picked, never typed: "New Currency…" opens its fields - or, with none
+        // free, they are the only way and already open.
+        if ($page->script("() => document.querySelector('#new-store-currency') !== null") === true) {
+            $page->select('#new-store-currency', '__new');
+        }
+        $page->assertPresent('[data-test="new-store-new-currency"]')
+            ->assertPresent('#new-currency-code')
+            ->assertNoJavaScriptErrors();
+
+        // Cancel closes it, and focus is back on the button that opened it.
+        $page->click('[data-test="cancel-add-store"]')->assertMissing('[data-test="add-store-form"]');
+        expect(browserUntil($page, "document.activeElement?.dataset.test === 'add-store'"))->toBeTrue();
+    });
 });
 
 describe('the on/off switch (platform.md §1.1, §9.5)', function () {

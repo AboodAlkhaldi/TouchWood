@@ -24,6 +24,8 @@ Route::prefix(AdminArea::PREFIX)
     ->middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
     ->group(function (): void {
         Route::get('stores', [StoresController::class, 'index'])->name('platform.admin.stores');
+        // Add Store: a Super Admin, everything at once, switched off (platform.md §9.7 #3).
+        Route::post('stores', [StoresController::class, 'store'])->name('platform.admin.stores.store');
         Route::post('stores/{store}', [StoresController::class, 'update'])->name('platform.admin.stores.update');
         // The on/off switch: a Super Admin only, and never the base store off (owner, 2026-10-01).
         Route::post('stores/{store}/activate', [StoresController::class, 'activate'])->name('platform.admin.stores.activate');
@@ -34,6 +36,8 @@ Route::prefix(AdminArea::PREFIX)
         Route::get('currencies', [CurrenciesController::class, 'index'])->name('platform.admin.currencies');
         Route::post('currencies', [CurrenciesController::class, 'store'])->name('platform.admin.currencies.store');
         Route::post('currencies/{currency}', [CurrenciesController::class, 'update'])->name('platform.admin.currencies.update');
+        // Only a currency no store uses (platform.md §9.7).
+        Route::post('currencies/{currency}/delete', [CurrenciesController::class, 'destroy'])->name('platform.admin.currencies.delete');
 
         // Every declared setting this person may change, whichever module declared it. A store
         // setting applies to the store in the header, which is where the store comes from.

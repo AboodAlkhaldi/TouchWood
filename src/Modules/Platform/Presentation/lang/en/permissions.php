@@ -13,6 +13,7 @@ return [
     'currency' => [
         'create' => 'Create Currencies',
         'update' => 'Edit Currencies',
+        'delete' => 'Delete Currencies',
     ],
     'settings' => [
         'view' => 'View Settings',

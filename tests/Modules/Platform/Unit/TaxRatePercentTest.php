@@ -33,6 +33,17 @@ it('reads the percentage a person wrote as basis points', function (string $perc
     'trailing space' => [' 15 ', 1500],
     'nothing at all' => ['0', 0],
     'more decimals than a rate has' => ['15.559', 1555],
+    'the Arabic decimal separator' => ["15\u{066B}5", 1550],
+]);
+
+it('reads any other shape as a rate the domain refuses, never as one nobody wrote', function (string $percent) {
+    expect(StoresController::basisPoints($percent))->toBe(-1);
+})->with([
+    'letters' => ['abc'],
+    'a comma for the point' => ['15,5'],
+    'nothing' => [''],
+    'a sign' => ['-5'],
+    'a percent sign' => ['15%'],
 ]);
 
 it('survives the round trip, which is what a person editing a store actually does', function (int $basisPoints) {
