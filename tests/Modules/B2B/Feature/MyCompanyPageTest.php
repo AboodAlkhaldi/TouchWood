@@ -137,6 +137,7 @@ it('offers a company account its page from the account, and tells it on every sh
         ->and($props['company'])->toBeNull()
         ->and($props['draft'])->toBeNull()
         ->and($props['maxFileBytes'])->toBe(10 * 1024 * 1024)
+        ->and($props['phoneConfirmed'])->toBeTrue()
         ->and(array_column($props['companyTypes'], 'nameEn'))->toContain('Limited Liability Company')
         ->and($props['accountMenu']['pages'])->toBe([['key' => 'b2b.company', 'label' => 'Company Account', 'routeName' => 'storefront.company']])
         ->and($props['shopperLines'])->toBe([['text' => 'Continue Company Application', 'routeName' => 'storefront.company', 'tone' => 'info']]);
@@ -291,6 +292,33 @@ it('sends a complete draft: the company is under review, the application has its
         ->and($props['history'])->toHaveCount(1)
         ->and($props['history'][0]['reference'])->toMatch('/^TW-CO-\d{2}-0001$/')
         ->and($props['shopperLines'][0]['tone'])->toBe('warn');
+});
+
+it('fills and saves a draft without a confirmed phone, refuses its send at the top of the form, and says why (amendment 26(a))', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccountWithoutPhone();
+    $browser = myCompanySignedIn($customerId);
+
+    expect(myCompanyProps($browser)['phoneConfirmed'])->toBeFalse();
+
+    $browser->post('/sa/en/account/company/draft/start');
+    $browser->post('/sa/en/account/company/draft', [
+        'name' => 'Al Noor Trading',
+        'company_type_id' => B2BFixtures::companyTypes()[0]->id(),
+        'cr_number' => '1010123456',
+        'tax_number' => '300123456700003',
+        'address_id' => B2BFixtures::savedAddress($customerId),
+    ]);
+
+    foreach (B2BFixtures::documentTypes() as $type) {
+        $browser->post("/sa/en/account/company/draft/documents/{$type->id()}", ['file' => myCompanyPdf()]);
+    }
+
+    $refused = $browser->post('/sa/en/account/company/draft/send');
+    $props = myCompanyProps($browser);
+
+    expect(AdminBrowser::formError($refused))->toBe('Couldn\'t send the application: your phone number isn\'t confirmed. Confirm it on your account\'s Phone page, then send.')
+        ->and($props['company'])->toBeNull()
+        ->and($props['draft']['values']['name'])->toBe('Al Noor Trading');
 });
 
 it('refuses an incomplete send at the top of the form, and sends nothing', function () {

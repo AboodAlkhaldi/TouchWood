@@ -47,6 +47,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.10, §2.3, §3.4, §3.5 | The owner's answer for each piece neither system has (§1.11 table); the theme switch with System, once per area; SMS codes in shadcn's InputOTP | Owner, 2026-10-02, one by one with pictures |
 | §1.10, §1.11 | §1.10's provisional picks settled (type, surfaces, store time stand); the overnight review's Geist rules applied in the rebuild; every module's error messages rewritten in Geist's form | Owner, 2026-10-03 |
 | §1.11, §2.2 | **The owner's fix list after testing the rebuild**: the sidebar as `sidebar-07`'s main navigation (areas that fold, several open, a single screen as its link), thin themed scrollbars that keep the page's room, whole rows, the type lists' "#", the language switch laying the whole page out at once, sizes and counts in the page's digits; the builder's sidebar picks marked [PROVISIONAL] | Owner, 2026-10-04 |
+| §1.10 | **Arabic is formal (فصحى) everywhere**, never colloquial: the company page's two colloquial lines, from the design, rewritten | Owner, 2026-10-05 |
 | §3.3 C3, C6, C9, §3.4 D2, D5 | **Where It Reaches bounds every action** (Access amendment 59): C6 and the invitation's step 3 laid out as the role, its actions, the reach, then each action's stores (All Selected Stores or Custom, only for two or more stores); the Refresh buttons removed | Owner, 2026-10-04 (fix list points 9 and 10) |
 | §3.3 C3, §3.4 D2, §3.3 C2 | **The invitation's steps** drawn as the company page's tracking steps — a circle each, done, current or still to come, with its name — in place of the progress bar; **a role's allowed actions** grouped under a header that reads as one (a sunken band, the area's name in the heading's weight, how many it holds), each action marked with a check | Owner, 2026-10-06 |
 
@@ -346,7 +347,9 @@ stylesheet, the same day.
   store clock (step 6) and are left as they are; **B2B's staff screens use `Time`, in the store
   being worked in** (b2b.md amendment 23(b), owner 2026-10-03).
 - **Writing rules** (Geist's, for every English word on a screen; Arabic follows the same
-  structure — a verb and its object on a button, the toast that answers it, no "please"):
+  structure — a verb and its object on a button, the toast that answers it, no "please" — and is
+  **formal Arabic (فصحى) everywhere, never colloquial**, the owner's answer of 2026-10-05, over the
+  design's own colloquial lines):
 
 | Where | Rule | Example |
 |---|---|---|
@@ -441,7 +444,7 @@ and examples. Only when neither has it, show the owner what was searched and ask
 | 7 | A row in the roles list | **The whole row opens the role**; Edit Role moves into the row's ⋯ menu (shadcn Item + DropdownMenu) |
 | 8 | The staff list, grouped | **A heading per group** (Admins, each store, Centralized), each group a shadcn Item group |
 | 9 | Editing a file's description in the media library | **shadcn's Dialog** with the form, Cancel and Save Description, in place of the extra table row |
-| 10 | The steps beside the company page | **Geist's Progress with stops** (b2b.md amendment 22(b)) |
+| 10 | The steps beside the company page | **The steps down the card** — shadcn's Card, a list and Lucide's circles; it was Geist's Progress with stops (22(b)) until the owner's pick of 2026-10-04 (b2b.md amendment 26(b)) |
 | 11 | How a company field shows its state | **The mix** (b2b.md amendment 22(a)): the save state inside the field's end, the reason under it, red the only edge colour |
 | 12 | Picking a saved address on the company form | **shadcn's field-choice-card**, each tile naming its store, no headings (b2b.md amendment 22(c)) |
 | — | The phone-number fields | No question: plain shadcn Inputs with a helper line; nothing is built |

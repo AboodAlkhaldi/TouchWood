@@ -18,5 +18,7 @@ final readonly class HolderView
         public bool $phoneVerified,
         /** The account was emptied: the name and email are placeholders (§1.1). */
         public bool $anonymized,
+        /** Their communication language: a rejection's reason and requests are written in it (owner, 2026-10-06). */
+        public string $locale,
     ) {}
 }
