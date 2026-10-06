@@ -56,6 +56,23 @@ final readonly class DatabaseCompanyReader implements CompanyReader
         return [$companies, $total];
     }
 
+    public function statusCounts(?array $homeStoreIds): array
+    {
+        $query = $this->db->table('b2b.companies as c');
+
+        if ($homeStoreIds !== null) {
+            $query->whereIn('c.home_store_id', array_map(strtolower(...), $homeStoreIds));
+        }
+
+        $counts = [];
+
+        foreach ($query->selectRaw('c.status, count(*) as total')->groupBy('c.status')->get() as $row) {
+            $counts[(string) $row->status] = (int) $row->total;
+        }
+
+        return $counts;
+    }
+
     /**
      * @param  list<string>|null  $homeStoreIds
      */

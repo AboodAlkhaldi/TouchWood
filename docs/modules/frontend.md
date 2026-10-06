@@ -590,7 +590,11 @@ From the design, with the decided rules applied:
   permissions do not exist yet, so they cannot be checked; everyone else sees only screens they
   can use. A module's entries become real, permission-checked items when its screens ship.
 - **Header:** the sidebar toggle, breadcrumbs, and "View store"; the store picker sits in the
-  sidebar's own header (§1.11: `sidebar-07`'s team switcher), with Home as its first row. **[DECIDED
+  sidebar's own header (§1.11: `sidebar-07`'s team switcher), with Home as its first row; with one
+  store the logo opens Home, and with two or more it opens the store menu whose first row is Home —
+  the block's logo and store are one button. Home is also the menu's first item (the home, below).
+  **[DECIDED by the owner, 2026-10-06: "make both logo and name same button" — as built; the plan's
+  "the logo always goes Home" is replaced, and `sidebar-07`'s block stays as it is.]** **[DECIDED
   2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a module gives them
   content: search with Catalog and Sales, the bell with Ops.
 - **[DECIDED 2026-09-19] The store picker** is **remembered on the staff account**. URLs carry no
@@ -603,6 +607,20 @@ From the design, with the decided rules applied:
     access to Egypt — showing KSA." If the store is given back later, it returns to the picker.
   - This needs a new field on the staff account: an Access amendment, listed in §4.
 - **Page frame:** a title and a one-line subtitle, with the main action at the top right.
+- **The home** (`/admin`; the owner's fix list, point 6 — D11 (a), D12, 2026-10-04/05). **Home is
+  the menu's first item**, and the store menu's first row (above). Under the page frame: what waits for this
+  person (the waiting Note and its rows, as before), then the **cards** — one per thing a module
+  reports (platform.md §2.6), each shown only to someone holding its permission in the scope. A
+  **scope switch, All Stores · This Store**, is offered to a reader whose reach covers every store
+  for at least one card's per-store action — a Super Admin always; a store-free action such as the
+  media library's never offers it — and opens on **All Stores** (owner, 2026-10-05);
+  anyone else sees the store being worked in, with no switch. The first cards: **Company
+  Approvals** (b2b.md amendment 27: how many wait and who, oldest first; companies by status) and
+  **Stores and System** (platform.md §9.8: stores on and off, failed jobs, storage used — each
+  figure only with its own permission). The sales figures the owner asked for — products sold, money
+  taken, each store's sales, products about to run out — come as cards of Sales, Catalog and
+  Inventory when those modules exist; the home does not change for them. Numbers are in the page's
+  digits (§1.8).
 
 ### 2.3 Storefront
 

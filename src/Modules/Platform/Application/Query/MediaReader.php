@@ -29,4 +29,7 @@ interface MediaReader
      * @return list<array<string, mixed>>
      */
     public function page(ListMedia $query, bool $includePrivate): array;
+
+    /** The bytes every file in the library takes, public and private, as uploaded (the admin home, §9.8). */
+    public function totalBytes(): int;
 }

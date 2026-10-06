@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Home } from 'lucide-react';
 import { useState } from 'react';
 import { MenuIcon } from '@/components/MenuIcon';
 import { NavUser } from '@/components/NavUser';
@@ -116,6 +116,15 @@ export function AppSidebar() {
             <SidebarContent>
                 <SidebarGroup>
                     <SidebarMenu>
+                        {/* Home first, a plain link like a one-screen area (the owner's fix list, point 6). */}
+                        <SidebarMenuItem>
+                            <SidebarMenuButton asChild isActive={here === '/admin'} tooltip={t('admin.home.title')} data-test="menu-home">
+                                <Link href="/admin">
+                                    <Home aria-hidden="true" />
+                                    <span>{t('admin.home.title')}</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
                         {menu.map((group) => (
                             <MenuArea
                                 key={group.key}

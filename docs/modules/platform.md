@@ -404,6 +404,24 @@ cannot import Platform's interior. They count toward the ~20-class ceiling.
 Until Access exists, Platform's own code runs with a system actor from console commands, and
 tests bind fakes for `Authorizer` and `ActorContext`.
 
+### 2.6 `Modules\Platform\Public\Contracts\HomeCards` — the admin home's cards (§9.8)
+
+The admin home (frontend.md §2.2) is built the way the admin menu is: **every module registers its
+own cards** in its service provider, and Platform keeps the list because it sits below everything.
+A module built later adds its cards without the home changing.
+
+| Type | Purpose |
+|---|---|
+| `HomeCardDto` | `module`, `key` (its words at `{module}::home.{key}…`: `title`, each figure's label, the list's heading, and `open` — the words of the link to its whole screen), `permission` — per-store actions: one, or several any one of which is enough — `card` (the class of a `HomeCard`), `position`, and `storeFree` — store-free actions that show the card too, in either scope. A store-free action held at all is held "everywhere", so it never offers All Stores: listed with the per-store ones, it would offer it to an admin of one store (the review of P5). |
+| `HomeCard` (interface) | `data(HomeScope $scope): ?HomeCardData` — what the card shows for the scope, or nothing. Resolved only for a reader the card is offered to, and still asks the `Authorizer` itself, as a read across stores does (handoff §19): a card reading another module's data returns nothing for a scope wider than the reader's stores, and a figure that needs a permission of its own asks for it. A card whose links lead to a list links to it for the same stores, so the two agree. |
+| `HomeScope` | The stores the card speaks for: **one** — the store being worked in — or **all stores** (`stores(): ?list<StoreId>`, null for all). |
+| `HomeCardData` | `figures` (a label key, a number, a unit — `count` or `bytes` — and an optional link and tone), `rows` (a short list: a label already in words, an optional detail, moment and link), and an optional link to the card's whole screen. |
+| `HomeCards` (registry) | `register(HomeCardDto ...)`; `forCurrentActor(?string $storeWorkedIn, bool $allStores)`: the cards the reader may see, in order, each with its data — **This Store**: a permission held in the store being worked in; **All Stores**: held for every store; a Super Admin sees every card in either; a store-free action shows its card in either. `offersAllStores()`: whether the reader holds any card's per-store action for every store. |
+
+Platform never reaches into Access: who holds what is asked of the Shared `Authorizer`
+(`isUnlimited()`, `storesWith()`). What a card shows is not protection — every screen it links to
+still asserts its own permission.
+
 ---
 
 ## 3 · Use cases
@@ -1051,3 +1069,16 @@ stores" and the digits.
 | 2 | frontend.md E3 | **The currencies screen names the stores** using each currency — "Used by Saudi Arabia, Egypt", an off store marked Off — instead of a count (which read "1 stores"), and "No store yet" otherwise; the exponent's lock names them too. A card no store uses offers **Delete Currency…**, confirmed in Geist's Destructive Action Modal by typing the code. Numbers in a sentence are in the page's digits (frontend.md §1.8). |
 | 3 | §3, frontend.md E1 | **Stores are created on the stores screen too** (owner, 2026-10-06), replacing [DECIDED 2026-09-19] "a console command only". A Super Admin's **Add Store** form takes everything at once — code, both names, the country (picked from a list), the currency, the tax rate, the time zone (filled from a country that has only one, changeable) and the position — so a store is still never half-configured; it is created **switched off**, to be prepared and turned on (§1.6). `CreateStore` is the one use case behind both the form and the command, which stays. |
 | 4 | §1.2, §3, §5.2, §7 | **One currency, one store** (owner, 2026-10-06): a currency serves at most one store — refused in `CreateStore` (`CurrencyTaken`) and by a unique index on `platform.stores.currency_code`. The form's currency is **never typed**: it is picked from the currencies **no store uses**, or **created in the same form** — "New Currency" is always offered, and is the form itself when no currency is free; the new currency and the store are made in one transaction (`CreateStore` carries the new currency, asking `platform.currency.create` too). A store's currency still never changes; a currency's names and sign are changed on the currencies screen. |
+
+### 9.8 The admin home — 2026-10-04/05 (the owner's fix list, point 6)
+
+(§9.7 is the currencies page, on its own branch.) The owner asked for a home with "a brief of
+everything", for one store or all stores. **Answers:** D11 (a) — the frame and the first cards now;
+D12 — the first cards are **Company Approvals** and **Stores, failed jobs, storage**, and the sales
+figures (products sold, money taken, each store's sales, products about to run out) come with the
+modules that hold them; the home opens on **All Stores** for a reader whose reach is every store.
+
+| # | Sections | Decision |
+|---|---|---|
+| 1 | §2.6 | **The home-card contract**: modules register cards as they register menu entries; each card has its permission and speaks for a scope — one store or all stores; the home shows only the cards the reader may see in that scope (frontend.md §2.2). |
+| 2 | §2.6 | **Platform's card, Stores and System**: stores on and off (`platform.store.view`; in All Stores only — a single store's state is in the store switcher; **stores off only to whoever may switch stores**, `platform.store.switch`, as the stores screen lists off stores only to them, §1.6), failed jobs (`platform.jobs.manage`, linking to them), and storage used by the media library (any media permission). Each figure is shown only with its own permission; the card, with any of them. Failed jobs and storage belong to no store, so they read the same in either scope, and are the card's `storeFree` actions. |
