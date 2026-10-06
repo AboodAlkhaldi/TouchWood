@@ -336,6 +336,12 @@ final readonly class DatabaseImports implements Imports
         $this->db->table(self::IMPORTS)->where('id', $importId)->update(['state' => ImportHeader::IN, 'failure' => null, 'archive' => null, 'updated_at' => CarbonImmutable::now()]);
     }
 
+    public function discard(string $importId): void
+    {
+        // Its names and products go by their foreign keys' CASCADE.
+        $this->db->table(self::IMPORTS)->where('id', $importId)->delete();
+    }
+
     public function fail(string $importId, string $failure): void
     {
         $this->setState($importId, ImportHeader::FAILED, mb_substr($failure, 0, 2000));

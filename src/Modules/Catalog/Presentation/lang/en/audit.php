@@ -93,6 +93,7 @@ return [
     'import.brought_in' => 'Products of a file brought in',
     'import.failed' => 'Bringing in the products of a file failed',
     'import.edited' => 'Products of a file changed before bringing them in',
+    'import.discarded' => 'Products file discarded before its products were brought in',
     'import_name.decided' => 'New name in a products file decided',
     'import_product.decided' => 'Code in a products file decided',
 

@@ -310,13 +310,10 @@ describe('a zip', function () {
         expect($archive)->toBe("catalog-imports/{$id}.zip");
         Storage::disk('local')->assertExists($archive);
 
-        // The hinge names brand number 2. Only TouchWood is here, and the sequence numbering brands is
-        // not wound back between tests, so TouchWood may be number 2 itself.
-        $two = DB::table('catalog.brands')->where('number', 2)->exists() ? [] : ['BRAND' => ['#2']];
-
+        // The hinge names brand number 2: only TouchWood, number 1, is here.
         expect(Ix::names($id))->toBe([
             'ATTRIBUTE' => ['Closing', 'Finish', 'Length', 'Load', 'Material', 'Use'],
-            ...$two,
+            'BRAND' => ['#2'],
             'CATEGORY' => ['Handles', 'Kitchens', 'Kitchens / Drawers', 'Kitchens / Drawers / Runners', 'Tallsen', 'Tallsen / Hinges'],
             'SET' => ['Runner sizes'],
             'VALUE' => ['45 cm', '50 cm', 'Black', 'Kitchen', 'Soft-close', 'Wardrobe', 'Zinc'],

@@ -330,6 +330,16 @@ is a Super Admin's (`catalog.import.run`), from upload to acceptance:
    products in, and a store's admins publish them with their store file (amendment 9(b)) — and relates
    to the ready products the file named; archive and delete only what the import created.
 
+**A file not brought in may be discarded** (`DiscardImport`, amendment 10(b)): one deciding, or whose
+bringing in failed, goes whole — its rows by their foreign keys' CASCADE, its zip after the commit;
+one bringing its products in, or brought in, stays (`ImportClosed`). **No uploaded file is kept
+beyond its work**: a JSON file and a store file are let go once read, a zip once its products are
+brought in or its import discarded.
+
+**Brands' numbers** (amendments 7(b), 10(a)): a new brand takes the lowest number no brand holds
+(`DatabaseBrandRepository::add`, under the brands' lock), so a deleted brand's is free again and a
+failed add leaves no gap; a trigger refuses changing a brand's number while it exists.
+
 **A product the file updates or replaces that is on sale** needs **keep on sale** or **take off
 sale** (`DecideImportCodes`' `sale`), every time — the confirm counts those still waiting
 (`ImportUndecided` sales); taken off sale, bringing in switches it off in every store, as archiving
@@ -339,9 +349,8 @@ does, still ready (amendment 9(c)).
 path are refused, `products.json` is read by its own entry and never past 20 MB, and each photo is
 copied no further than its declared size — one that does not come out exactly that size is refused.
 
-**For the screens:** `UploadImport::$path` and `UploadStoreFill::$path` must be the uploaded file's own
-temporary path, never a path a request names. The store file's pages answer no uploader: a Super Admin
-is named to a store's admins only as "System administrator" (access.md amendment 54).
+**For the screens:** the store file's pages answer no uploader: a Super Admin is named to a store's
+admins only as "System administrator" (access.md amendment 54).
 
 **The admins' store file** (catalog.md §1.3, amendment 6(g), (h)) is `catalog.listing.fill` in that
 store — declared `adminOnly`, so only an admin role holds it. It never creates or changes a product:
@@ -361,7 +370,7 @@ page, never stored.
 |---|---|
 | `Unit/CatalogValuesTest` | Text on one line, names, slugs (Arabic and accented Latin), structured text, Arabic normalisation, a label's words and looks, word pairs, warranty periods |
 | `Unit/CatalogErrorsTest` | Every error has a unique `catalog.*` type, a category, and a title and detail in both languages |
-| `Integration/CatalogBrandsTest` | The seed; who may; slugs and their history; the one default; deactivating and deleting; the database's CHECKs |
+| `Integration/CatalogBrandsTest` | The seed; who may; slugs and their history; the one default; deactivating and deleting; the database's CHECKs; each brand's number, the lowest free (amendment 10(a)) |
 | `Integration/CatalogCategoriesTest` | Who may change the tree and who a store's order; places chosen by the adder in every store, an off store included; moving and loops; deactivating and activating exactly what went; deleting; a store opened later starting with no order; the database's CHECKs |
 | `Integration/CatalogAttributesTest` | Jobs locked by values and by sets; values alike ignoring case; swatches; sets' members; the database's CHECKs |
 | `Integration/CatalogSmallListsTest` | Labels, warranties and word pairs, including a pair the database's language order would sort the other way |
@@ -394,6 +403,7 @@ page, never stored.
 | `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variants carrying each code of a ready product; mending and removing items |
 | `Integration/CatalogImportPagesTest` | The pages' reads: a products file's page and list, a store file's page with each item's standing, and its store's list |
 | `Integration/CatalogImportSaleTest` | Amendment 9: no store in a products file; keep on sale or take off sale, every time, in every store, cleared with its decision, asked again when put on sale after the confirm; codes two catalog products hold; words added to an updated product kept apart; a new category's taken address counted; a job given up on taking the products' lock first |
+| `Integration/CatalogImportDiscardTest` | Amendment 10(b): a file not brought in discarded whole with its zip, deciding or failed; one bringing in or brought in stays; a store's file is not one; a Super Admin's |
 | `Integration/CatalogImportReviewTest` | After step 6's reviews (amendment 8): ambiguous names and colliding addresses decided on the page; the confirm asking again; holding back, replacing whole, updating and restoring; the page's picks brought in, filling and adding counted against an updated product as it is when brought in; a job given up on; the zip's sizes; linking back on accepting, by any code held; the store file kept to its store |
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |

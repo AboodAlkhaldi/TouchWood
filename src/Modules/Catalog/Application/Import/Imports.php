@@ -112,6 +112,9 @@ interface Imports
     /** The products are in; the zip is let go. */
     public function finish(string $importId): void;
 
+    /** A products file not brought in, gone whole: its names and products with it (amendment 10(b)). */
+    public function discard(string $importId): void;
+
     /** Bringing in failed, nothing kept: why, for the page. */
     public function fail(string $importId, string $failure): void;
 

@@ -93,6 +93,7 @@ return [
     'import.brought_in' => 'أُدخلت منتجات ملف',
     'import.failed' => 'تعذّر إدخال منتجات ملف',
     'import.edited' => 'عُدّلت منتجات ملف قبل إدخالها',
+    'import.discarded' => 'أُلغي ملف منتجات قبل إدخال منتجاته',
     'import_name.decided' => 'قُرّر في اسم جديد من ملف منتجات',
     'import_product.decided' => 'قُرّر في رمز من ملف منتجات',
 
