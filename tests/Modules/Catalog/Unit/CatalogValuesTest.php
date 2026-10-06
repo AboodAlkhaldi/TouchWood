@@ -9,9 +9,13 @@ use Modules\Catalog\Domain\Service\ArabicText;
 use Modules\Catalog\Domain\ValueObject\CatalogText;
 use Modules\Catalog\Domain\ValueObject\LabelTone;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
+use Modules\Catalog\Domain\ValueObject\ProductCode;
+use Modules\Catalog\Domain\ValueObject\ProductName;
+use Modules\Catalog\Domain\ValueObject\SearchWords;
 use Modules\Catalog\Domain\ValueObject\Slug;
 use Modules\Catalog\Domain\ValueObject\Slugs;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
+use Modules\Catalog\Domain\ValueObject\VariantDetail;
 use Modules\Catalog\Domain\ValueObject\WarrantyPeriod;
 
 /*
@@ -74,7 +78,6 @@ describe('slugs', function () {
         'en, a hyphen at the end' => ['en', 'soft-', false],
         'ar, Arabic and digits' => ['ar', 'مفصلة-110', true],
         'ar, a Latin word (§5.3)' => ['ar', 'مفصلة-blum', false],
-        'ar, an Arabic-Indic digit typed' => ['ar', 'مفصلة-١١٠', false],
         'ar, a space' => ['ar', 'مفصلة هادئة', false],
         'ar, a slash' => ['ar', 'مفصلة/هادئة', false],
     ]);
@@ -219,4 +222,48 @@ describe('a warranty period', function () {
         'none' => [0, false],
         'too long' => [601, false],
     ]);
+});
+
+describe('every number in Latin digits (amendment 12)', function () {
+    it('saves Arabic and Persian digits typed on one line as 0-9', function () {
+        expect(CatalogText::oneLine('name_ar', ' درج ٦٠ سم ۲ ', 100))->toBe('درج 60 سم 2')
+            ->and(LocalizedName::of('مفصلة ١١٠', 'Hinge ١١٠', 100)->en)->toBe('Hinge 110')
+            ->and(ProductName::of('درج ٦٠', null)->ar)->toBe('درج 60')
+            // The word as typed is kept for the panel, so it too is 0-9, not only its search form.
+            ->and(SearchWords::of(['درج ٦٠'])->words)->toBe([['word' => 'درج 60', 'normalized' => 'درج 60']]);
+    });
+
+    it('counts the characters after the digits are made Latin, which are as many', function () {
+        expect(CatalogText::oneLine('name_ar', '١٢٣٤٥', 5))->toBe('12345');
+    });
+
+    it('takes a typed Arabic slug with Arabic digits as its 0-9 slug, no longer refusing it', function () {
+        expect(Slug::of('ar', 'مفصلة-١١٠')->value)->toBe('مفصلة-110')
+            ->and(Slug::of('en', 'hinge-۱۱۰')->value)->toBe('hinge-110');
+    });
+
+    it('reads a code typed in Arabic or Persian digits as its 0-9 code, held to 1 to 10 digits after', function () {
+        expect(ProductCode::of(' ١٣٠٤ ')->value)->toBe('1304')
+            ->and(ProductCode::of('۰۰۴۲')->value)->toBe('0042')
+            ->and(ProductCode::of('١٢٣٤٥٦٧٨٩٠')->value)->toBe('1234567890')
+            ->and(fn () => ProductCode::of('١٢٣٤٥٦٧٨٩٠١'))->toThrow(InvalidCatalogAttribute::class, 'digits only');
+    });
+
+    it('reads a detail\'s number typed in Arabic digits as the number', function () {
+        expect(VariantDetail::number('٢٥')->number)->toBe('25')
+            ->and(VariantDetail::number('٠٢٥.٥٠')->number)->toBe('25.5')
+            ->and(VariantDetail::text('حمل ٢٥ كغ', 'Load ٢٥ kg')->textAr)->toBe('حمل 25 كغ');
+    });
+
+    it('saves every run of a description with 0-9, and searches its words the same way', function () {
+        $text = StructuredText::of('description_ar', ['blocks' => [
+            ['type' => 'paragraph', 'runs' => [['text' => 'يحمل '], ['text' => '٢٥ كغ', 'bold' => true]]],
+            ['type' => 'list', 'items' => [[['text' => 'عرض ۶۰ سم']]]],
+        ]], 1000);
+
+        expect($text->toArray())->toBe(['blocks' => [
+            ['type' => 'paragraph', 'runs' => [['text' => 'يحمل '], ['text' => '25 كغ', 'bold' => true]]],
+            ['type' => 'list', 'items' => [[['text' => 'عرض 60 سم']]]],
+        ]])->and($text->plain())->toBe("يحمل 25 كغ\nعرض 60 سم");
+    });
 });

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Domain\Service;
 
+use Shared\Domain\Text\LatinDigits;
+
 /**
  * Arabic normalised on write and on query, both sides, or search silently fails (handoff §5.2):
  * tashkeel and tatweel stripped, the alef forms made one, "ى" read as "ي" and "ة" as "ه", and
@@ -27,7 +29,7 @@ final class ArabicText
     {
         $text = (string) preg_replace('/'.self::MARKS.'|'.self::TATWEEL.'/u', '', $text);
 
-        return self::latinDigits($text);
+        return LatinDigits::of($text);
     }
 
     /**
@@ -44,15 +46,5 @@ final class ArabicText
         $text = mb_strtolower($text, 'UTF-8');
 
         return trim((string) preg_replace('/\s+/u', ' ', $text));
-    }
-
-    private static function latinDigits(string $text): string
-    {
-        return strtr($text, [
-            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
-            '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
-            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
-            '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
-        ]);
     }
 }

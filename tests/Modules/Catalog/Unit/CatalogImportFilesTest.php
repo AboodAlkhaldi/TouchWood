@@ -221,3 +221,42 @@ describe('a description in plain text', function () {
         ]]);
     });
 });
+
+describe('every number in Latin digits (amendment 12)', function () {
+    it('reads a product file\'s Arabic digits as 0-9, wherever they were typed', function () {
+        $file = ProductsFile::read((string) json_encode(['format' => 'touchwood-products/1', 'products' => [[
+            ...catalogImportProduct('١٣٠٤'),
+            'name' => ['ar' => 'درج ٦٠', 'en' => 'Drawer ۶۰'],
+            'slug' => ['ar' => 'درج-٦٠'],
+            'description' => ['ar' => 'يحمل **٢٥ كغ**'],
+            'variants' => [
+                ['code' => '١٣٠٤', 'values' => ['Width' => '٦٠ cm'], 'details' => ['Load' => '٢٥', 'Material' => ['ar' => 'فولاذ ٣٠٤', 'en' => 'Steel 304']]],
+                ['code' => '1304', 'values' => ['Width' => '80 cm']],
+            ],
+            'search_words' => ['درج ٦٠'],
+            'related' => ['١٣٠٦'],
+        ]]], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), ['photos/a.jpg']);
+        [$drawer] = $file->products;
+
+        expect([$drawer->nameAr, $drawer->nameEn, $drawer->slugAr])->toBe(['درج 60', 'Drawer 60', 'درج-60'])
+            ->and($drawer->descriptionAr)->toBe(['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'يحمل '], ['text' => '25 كغ', 'bold' => true]]]]])
+            // Typed as ١٣٠٤ and as 1304: one code, the product's.
+            ->and($drawer->codes())->toBe(['1304'])
+            ->and($drawer->variants[0]->values)->toBe(['Width' => '60 cm'])
+            ->and($drawer->variants[0]->details)->toBe(['Load' => '25', 'Material' => ['ar' => 'فولاذ 304', 'en' => 'Steel 304']])
+            ->and([$drawer->searchWords, $drawer->related])->toBe([['درج 60'], ['1306']]);
+    });
+
+    it('reads a store file\'s code typed in Arabic digits as the 0-9 code, the same code as 1304', function () {
+        expect(StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "١٣٠٤", "price": 1}]}')->items[0]->code)->toBe('1304');
+
+        try {
+            StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1}, {"code": "١٣٠٤", "price": 2}]}');
+            $problems = [];
+        } catch (ImportRefused $refused) {
+            $problems = $refused->problems;
+        }
+
+        expect($problems)->toBe([['at' => 'item 2 › code', 'problem' => '1304 again: item 1 names it already']]);
+    });
+});

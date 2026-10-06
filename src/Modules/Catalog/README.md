@@ -37,7 +37,7 @@ come after the Geist foundation. This file grows with each step. **Steps 1 to 6 
 | `Application/Events/ProductEvents.php` | The nine events of catalog.md §6.1, sent from inside a change and delivered after it commits — for a product that has been ready |
 | `Application/Audit/ListAudit.php` | Every list and product change's audit entry, by value: `catalog.{subject}.{what}` |
 | `Domain/Model` | Brand, Category, Attribute, AttributeValue, AttributeSet, Label, Warranty, WordPair, Product, Variant, StoreListing (one store's choice of one product) — each keeps what one row can know; all but WordPair (added and deleted, never edited) keep a `ChangeLog` of what an edit changed |
-| `Domain/ValueObject` | Names in both languages, slugs, the structured text of descriptions and terms, list positions, a label's look (`LabelTone`, the Badge's ten), a warranty's period; a product's name (Arabic required, English optional) and slugs, a code (`ProductCode`), a variant's combination, details and measures, search words; a product's quantity limits in a store (`SellingLimits`) |
+| `Domain/ValueObject` | Names in both languages, slugs, the structured text of descriptions and terms, list positions, a label's look (`LabelTone`, the Badge's ten), a warranty's period; a product's name (Arabic required, English optional) and slugs, a code (`ProductCode`), a variant's combination, details and measures, search words; a product's quantity limits in a store (`SellingLimits`). **Every digit typed is saved 0-9** (amendment 12): one-line text (`CatalogText`), codes, a detail's number and each run of structured text turn Arabic and Persian digits with Shared's `LatinDigits` |
 | `Domain/Service/ArabicText.php` | Arabic as search compares it (handoff §5.2): marks off, alef and yeh forms folded, digits Latin, lower case |
 | `Domain/Exception` | `CatalogError`, the fourteen refusals of step 2, the thirteen of step 3, step 4's two (`NotChosenInStore`, `InvalidSellingTerms`) and step 6's three (`ImportRefused`, `ImportUndecided`, `ImportClosed`), named in both languages in `lang/{ar,en}/errors.php` |
 | `Domain/Repository` | The lists', the products', the variants' and the stores' rows' repositories, and `ListLocks` |
@@ -376,7 +376,7 @@ page, never stored.
 
 | File | What it covers |
 |---|---|
-| `Unit/CatalogValuesTest` | Text on one line, names, slugs (Arabic and accented Latin), structured text, Arabic normalisation, a label's words and looks, word pairs, warranty periods |
+| `Unit/CatalogValuesTest` | Text on one line, names, slugs (Arabic and accented Latin), structured text, Arabic normalisation, a label's words and looks, word pairs, warranty periods; Arabic digits saved 0-9 in each (amendment 12) |
 | `Unit/CatalogErrorsTest` | Every error has a unique `catalog.*` type, a category, and a title and detail in both languages |
 | `Integration/CatalogBrandsTest` | The seed; who may; slugs and their history; the one default; deactivating and deleting; the database's CHECKs; each brand's number, the lowest free (amendment 10(a)) |
 | `Integration/CatalogCategoriesTest` | Who may change the tree and who a store's order; places chosen by the adder in every store, an off store included; moving and loops; deactivating and activating exactly what went; deleting; a store opened later starting with no order; the database's CHECKs |
@@ -385,7 +385,7 @@ page, never stored.
 | `Integration/CatalogImagesUsageTest` | Deleting a logo or photo's file: detached and audited, or refused with nothing changed |
 | `Integration/CatalogAuditNamesTest` | Every action the code records is named in both languages, and nothing else is |
 | `Integration/CatalogProductsTest` | Creating and editing a product: who may, the working store on, names and slugs, what it points at, the set fixed once it has a variant, deleting a draft, the database's CHECKs |
-| `Integration/CatalogVariantsTest` | Combinations, details and measures; codes held, shared by sizes, taken, freed by a draft and corrected on every variant carrying them |
+| `Integration/CatalogVariantsTest` | Combinations, details and measures; codes held, shared by sizes, taken, freed by a draft and corrected on every variant carrying them; a name, slug, code and detail typed in Arabic digits saved 0-9 |
 | `Integration/CatalogListsInUseTest` | A list item a product or variant uses: not deleted, a category's sub-categories, a set's members, an attribute's job |
 | `Integration/CatalogProductPartsTest` | Gallery and variant photos, search words, filter values, relations; a photo's file deleted from the media library |
 | `Integration/CatalogProductStagesTest` | Making ready, archiving and restoring a product and a variant; a ready product keeping every rule; each change's own job; the events; what the audit log keeps |
@@ -402,7 +402,7 @@ page, never stored.
 | `Unit/CatalogListingRowsTest` | The listing is never written outside a transaction |
 | `Unit/CatalogSearchTermsTest` | What was typed, as search reads it; word pairs, a run of words before one |
 | `Unit/CatalogProductTest` | A product archived remembers the stage it left — archived twice or not — and restoring goes back there |
-| `Unit/CatalogImportFilesTest` | Step 6's two files read and checked: the guide's own examples, every rule refused with where, every problem collected, descriptions' markers |
+| `Unit/CatalogImportFilesTest` | Step 6's two files read and checked: the guide's own examples, every rule refused with where, every problem collected, descriptions' markers; Arabic digits in either file read as 0-9 |
 | `Integration/CatalogImportUploadTest` | Uploading: who may; names listed once with their counts, matched as search compares words, a brand by number; what refuses a file; a zip kept, its products.json at the top, photos unpacked into the archives' own files |
 | `Integration/CatalogImportDecisionsTest` | Deciding names and codes: targets in their list, active, of the right job; what may be created; values under their attribute; new codes free; all or none; closed while bringing in |
 | `Integration/CatalogImportChangesTest` | The changes before bringing in: each field, replace and fill-empty (and add), the selected or all, the file's own kept, the names list following |

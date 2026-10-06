@@ -57,7 +57,7 @@ with no `values`.
 
 | Field | Required | Type | Rules |
 |---|---|---|---|
-| `code` | **Yes** | text of digits | **1 to 10 digits, written as text**: `"1304"`, never `1304` (a number would lose leading zeros). |
+| `code` | **Yes** | text of digits | **1 to 10 digits, written as text**: `"1304"`, never `1304` (a number would lose leading zeros). Arabic digits (`"١٣٠٤"`) are read as `1304`, as every number in the system is saved in 0-9. |
 | `values` | When the product has an `attribute_set` | `{attribute: value}` | **One value for each attribute of the set**, by name: `{"Length": "45 cm", "Finish": "Zinc"}`. Two variants of one product never have the same values. |
 | `details` | No | `{attribute: …}` | Information-only attributes. Each is **either** text in both languages `{"ar": "فولاذ", "en": "Steel"}` (each at most 200 characters) **or** a number (`35`, at most 9 digits and 3 decimals, read with the attribute's unit). At most 100. |
 | `weight_g` | No | whole number | Grams, 1 to 1,000,000. |
@@ -192,7 +192,7 @@ them.
 - `format` must be exactly `"touchwood-store-fill/1"`.
 - `items` holds **1 to 1,000** items, **each code once**. The file is at most **2 MB**. The store is
   the one whose page it is uploaded from — the file does not name it.
-- `code` — **required**, 1 to 10 digits **as text**.
+- `code` — **required**, 1 to 10 digits **as text**; Arabic digits are read as 0-9.
 - `price` — **required**, a number of at least 0 with at most 6 decimal places, in the store's
   currency.
 - `stock` — optional, a whole number from 0 to 2,147,483,647.

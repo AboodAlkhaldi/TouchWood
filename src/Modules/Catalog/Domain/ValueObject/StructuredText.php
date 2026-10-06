@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Catalog\Domain\ValueObject;
 
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * Text with simple formatting — paragraphs, headings, bullet lists and bold — kept as safe
@@ -20,6 +21,7 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
  *     ]}
  *
  * Every run is one line of real text; the limit counts the characters of every run together.
+ * Arabic digits typed are saved as 0-9 (catalog.md amendment 12).
  */
 final readonly class StructuredText
 {
@@ -181,7 +183,7 @@ final readonly class StructuredText
                 throw new InvalidCatalogAttribute($attribute, 'formatted text: a run is its text, and whether it is bold');
             }
 
-            $text = $run['text'];
+            $text = LatinDigits::of($run['text']);
 
             // A run keeps its own spaces — "Fits " then "every" — so it is not trimmed; it must
             // still be real text, on one line, and not empty.

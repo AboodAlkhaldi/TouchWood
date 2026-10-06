@@ -19,6 +19,7 @@ use Modules\Catalog\Domain\ValueObject\Slug;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Domain\ValueObject\VariantDetail;
 use Modules\Catalog\Domain\ValueObject\VariantMeasures;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * **A product file, read and checked** (catalog.md §1.12; the guide in docs/modules/catalog-import/):
@@ -328,8 +329,9 @@ final readonly class ProductsFile
 
             try {
                 $document = is_string($value) ? DescriptionText::document($value) : throw new InvalidCatalogAttribute('description', 'text');
-                StructuredText::of('description', $document, Product::DESCRIPTION_MAX);
-                $documents[] = $document;
+                // Kept as the panel keeps it — Arabic digits made 0-9 (amendment 12) — so the
+                // import's page shows what will be saved.
+                $documents[] = StructuredText::of('description', $document, Product::DESCRIPTION_MAX)->toArray();
             } catch (InvalidCatalogAttribute $error) {
                 $problems->add("{$at} › {$locale}", $error->reason);
                 $documents[] = null;
@@ -554,7 +556,7 @@ final readonly class ProductsFile
             $name = self::listName((string) $attribute, $where, $problems);
 
             try {
-                if (is_int($value) || is_float($value) || is_string($value) && is_numeric($value)) {
+                if (is_int($value) || is_float($value) || is_string($value) && is_numeric(LatinDigits::of($value))) {
                     $detail = VariantDetail::number((string) $value);
                     $kept = (string) $detail->number;
                 } elseif (is_array($value) && is_string($value['ar'] ?? null) && is_string($value['en'] ?? null) && count($value) === 2) {

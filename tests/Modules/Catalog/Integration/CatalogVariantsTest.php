@@ -13,6 +13,8 @@ use Modules\Catalog\Application\Command\AddVariant\AddVariant;
 use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCode;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCodeHandler;
+use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
+use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
 use Modules\Catalog\Application\Command\DeactivateAttribute\DeactivateAttribute;
 use Modules\Catalog\Application\Command\DeactivateAttribute\DeactivateAttributeHandler;
 use Modules\Catalog\Application\Command\DeactivateAttributeValue\DeactivateAttributeValue;
@@ -396,5 +398,20 @@ describe('the details\' limit', function () {
         $ids = array_map(static fn (): string => strtolower((string) Str::ulid()), range(1, 101));
 
         expect(fn () => catalogVariantsAdd(Px::product(), '1001', ['details' => array_fill_keys($ids, ['number' => '1'])]))->toThrow(InvalidCatalogAttribute::class, 'details');
+    });
+});
+
+describe('every number in Latin digits (amendment 12)', function () {
+    it('saves what is typed in Arabic digits as 0-9: a name, a typed slug, a code — the same code as 1304 — and a detail', function () {
+        $product = Fx::asSystem(fn (): string => app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), 'درج ٦٠ سم', 'Drawer ۶۰ cm', Px::brand(), slugAr: 'درج-٦٠')));
+        $load = Px::attribute('Load', 'INFORMATIONAL');
+        $variant = catalogVariantsAdd($product, '١٣٠٤', ['details' => [$load => ['number' => '٢٥']]]);
+
+        expect((array) DB::table('catalog.products')->where('id', $product)->first(['name_ar', 'name_en']))->toBe(['name_ar' => 'درج 60 سم', 'name_en' => 'Drawer 60 cm'])
+            ->and(DB::table('catalog.product_slugs')->where('product_id', $product)->where('locale', 'ar')->value('slug'))->toBe('درج-60')
+            ->and(DB::table('catalog.variants')->where('id', $variant)->value('code'))->toBe('1304')
+            ->and(DB::table('catalog.product_codes')->where('code', '1304')->value('product_id'))->toBe($product)
+            ->and(app(VariantRepository::class)->find($variant)?->details()[$load]->number)->toBe('25')
+            ->and(fn () => catalogVariantsAdd(Px::product(), '1304'))->toThrow(CodeTaken::class, '1304');
     });
 });
