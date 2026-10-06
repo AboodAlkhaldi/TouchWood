@@ -21,5 +21,7 @@ final class StaffHolderData extends Data
         public bool $phoneVerified,
         /** The account was erased: its name and email are placeholders (§1.1, amendment 13(e)). */
         public bool $anonymized,
+        /** 'ar' or 'en': the language the company reads - a rejection's reason and requests are written in it. */
+        public string $locale,
     ) {}
 }

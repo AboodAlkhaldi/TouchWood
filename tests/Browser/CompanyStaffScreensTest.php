@@ -120,12 +120,18 @@ it('finds a waiting company in the list and approves it with a note', function (
 
 it('rejects with a marked item and a request, then suspends from the menu and reinstates', function () {
     $company = companyStaffBrowserWaiting();
+    // The holder reads English, so the reason and the requests are written in it (amendment 28).
+    DB::table('access.customers')->where('id', $company->customerId())->update(['locale' => 'en']);
     $page = companyStaffBrowserSignIn([B2BPermissions::COMPANY_VIEW, B2BPermissions::COMPANY_REVIEW, B2BPermissions::COMPANY_SUSPEND]);
     $page->navigate("/admin/companies/{$company->id()}");
 
     $page->click('[data-test="reject"]');
     // The button waits for a reason (21(g)).
     expect(browserUntil($page, "document.querySelector('[data-test=\"confirm-reject\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
+
+    $page->assertSee('This company reads English')
+        ->assertAttribute('#reject-reason', 'lang', 'en')
+        ->assertAttributeContains('#reject-reason', 'aria-describedby', 'reject-write-in');
 
     $page->type('#reject-reason', 'The CR number does not match the certificate.')
         ->click('[data-test="flag-cr_number"]')

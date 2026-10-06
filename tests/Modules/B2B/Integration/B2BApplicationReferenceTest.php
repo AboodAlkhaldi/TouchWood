@@ -64,13 +64,13 @@ afterEach(function () {
 });
 
 /**
- * A company account of that store, email confirmed, acting, with its draft filled in completely —
- * or without its papers, so sending it is refused.
+ * A company account of that store, email and phone confirmed (amendment 26(a)), acting, with its
+ * draft filled in completely — or without its papers, so sending it is refused.
  */
 function applicationReferenceDraft(string $storeCode = 'sa', bool $papers = true): string
 {
     $customerId = Fx::customer(strtolower((string) Str::ulid()).'@example.test', $storeCode, 'company');
-    DB::table('access.customers')->where('id', $customerId)->update(['email_verified_at' => now()]);
+    DB::table('access.customers')->where('id', $customerId)->update(['email_verified_at' => now(), 'phone' => B2BFixtures::unusedPhone(), 'phone_verified_at' => now()]);
     Fx::actAsCustomer($customerId);
 
     app(StartApplicationDraftHandler::class)->handle(new StartApplicationDraft);

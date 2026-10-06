@@ -50,5 +50,7 @@ final class CompanyPage extends Data
          * page offers "Apply in this store" (amendments 19(b), 19(c)).
          */
         public ?CompanyPrefillData $prefill,
+        /** Whether the account's phone number is confirmed: Send waits for it (amendment 26(a)). */
+        public bool $phoneConfirmed,
     ) {}
 }
