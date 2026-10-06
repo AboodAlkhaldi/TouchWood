@@ -311,33 +311,55 @@ describe('bringing in', function () {
     });
 
     it('counts what the catalog\'s product it updates has when brought in, whatever was decided when the page changed it', function () {
-        $ready = Px::ready();
         $use = Px::attribute('Use', 'FILTERABLE');
         [$kitchen, $bath] = [Px::value($use, 'Kitchen'), Px::value($use, 'Bath')];
-        Fx::asSystem(fn () => app(SetFilterValuesHandler::class)->handle(new SetFilterValues($ready['product'], [$kitchen])));
-        DB::table('catalog.product_search_words')->insert(['product_id' => $ready['product'], 'normalized' => 'runner', 'word' => 'runner', 'position' => 0]);
-        $before = (array) DB::table('catalog.products')->where('id', $ready['product'])->first(['brand_id', 'category_id']);
-        $warranty = Px::warranty();
-        $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
-        $set = reviewEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
-        $import = Ix::uploadProducts([Ix::product($code, ['attribute_set' => $set, 'variants' => [['code' => $code, 'values' => [reviewEnglish('attributes', $ready['width']) => '60 cm']]]])]);
+        [$warranty, $own] = [Px::warranty(), Px::warranty()];
+        // The first has no warranty; the second has one, and words and filter values of its own.
+        [$bare, $full] = [Px::ready(), Px::ready()];
+        DB::table('catalog.products')->where('id', $full['product'])->update(['warranty_id' => $own]);
+        DB::table('catalog.product_search_words')->insert([
+            ['product_id' => $bare['product'], 'normalized' => 'runner', 'word' => 'runner', 'position' => 0],
+            ['product_id' => $full['product'], 'normalized' => 'rail', 'word' => 'rail', 'position' => 0],
+        ]);
+        Fx::asSystem(function () use ($bare, $full, $kitchen): void {
+            app(SetFilterValuesHandler::class)->handle(new SetFilterValues($bare['product'], [$kitchen]));
+            app(SetFilterValuesHandler::class)->handle(new SetFilterValues($full['product'], [$kitchen]));
+        });
+        $before = static fn (array $ready): array => (array) DB::table('catalog.products')->where('id', $ready['product'])->first(['brand_id', 'category_id']);
+        [$bareBefore, $fullBefore] = [$before($bare), $before($full)];
+        $file = static function (array $ready): array {
+            $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
+            $set = reviewEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
 
-        // Changed while its codes still wait for a decision: what it has is not known yet.
-        expect(app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, null, ['slide'], 'FILL_EMPTY')))->toBe(1);
-        app(SetImportedFiltersHandler::class)->handle(new SetImportedFilters($import, null, [$bath], 'ADD'));
+            return Ix::product($code, ['attribute_set' => $set, 'variants' => [['code' => $code, 'values' => [reviewEnglish('attributes', $ready['width']) => '60 cm']]]]);
+        };
+        $import = Ix::uploadProducts([$file($bare), $file($full)]);
+        [$first, $second] = [Ix::productId($import, 1), Ix::productId($import, 2)];
+
+        // Changed while their codes still wait for a decision: what each has is not known yet.
+        expect(app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, null, ['slide'], 'FILL_EMPTY')))->toBe(2);
+        app(SetImportedFiltersHandler::class)->handle(new SetImportedFilters($import, [$first], [$bath], 'ADD'));
+        app(SetImportedFiltersHandler::class)->handle(new SetImportedFilters($import, [$second], [$bath], 'FILL_EMPTY'));
         app(SetImportedCategoryHandler::class)->handle(new SetImportedCategory($import, null, Px::category('Other'), 'FILL_EMPTY'));
         app(SetImportedWarrantyHandler::class)->handle(new SetImportedWarranty($import, null, $warranty, 'FILL_EMPTY'));
         app(SetImportedBrandHandler::class)->handle(new SetImportedBrand($import, null, Px::brand('Other'), 'FILL_EMPTY'));
-        app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE']]));
-        // The catalog's words go meanwhile: the words asked for the empty are given after all.
-        DB::table('catalog.product_search_words')->where('product_id', $ready['product'])->delete();
+        app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => $first, 'decision' => 'UPDATE'], ['product_id' => $second, 'decision' => 'UPDATE']]));
+        // The first's words go meanwhile: the words asked for the empty are given to it after all.
+        DB::table('catalog.product_search_words')->where('product_id', $bare['product'])->delete();
 
         Ix::bringIn($import);
 
-        expect(reviewState($import, 1))->toBe('UPDATED')
-            ->and((array) DB::table('catalog.products')->where('id', $ready['product'])->first(['brand_id', 'category_id', 'warranty_id']))->toBe([...$before, 'warranty_id' => $warranty])
-            ->and(DB::table('catalog.product_search_words')->where('product_id', $ready['product'])->pluck('word')->all())->toBe(['slide'])
-            ->and(DB::table('catalog.product_filter_values')->where('product_id', $ready['product'])->pluck('value_id')->all())->toEqualCanonicalizing([$kitchen, $bath]);
+        $has = static fn (array $ready): array => [
+            (array) DB::table('catalog.products')->where('id', $ready['product'])->first(['brand_id', 'category_id', 'warranty_id']),
+            DB::table('catalog.product_search_words')->where('product_id', $ready['product'])->pluck('word')->all(),
+            DB::table('catalog.product_filter_values')->where('product_id', $ready['product'])->pluck('value_id')->sort()->values()->all(),
+        ];
+        $values = [$kitchen, $bath];
+        sort($values);
+
+        expect([reviewState($import, 1), reviewState($import, 2)])->toBe(['UPDATED', 'UPDATED'])
+            ->and($has($bare))->toBe([[...$bareBefore, 'warranty_id' => $warranty], ['slide'], $values])
+            ->and($has($full))->toBe([[...$fullBefore, 'warranty_id' => $own], ['rail'], [$kitchen]]);
     });
 
     it('leaves the import failed, never bringing in, when the queue gives up on the work', function () {
