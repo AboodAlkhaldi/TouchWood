@@ -57,6 +57,11 @@ final class InMemoryPermissionCatalog implements PermissionCatalog
                 throw new InvalidPermissionDefinition("The permission \"{$name}\" is never offered in the role editor, so it must have no group.");
             }
 
+            // Admin-only narrows which roles may hold it, so only a permission a role holds has it.
+            if (! $offered && $permission->adminOnly) {
+                throw new InvalidPermissionDefinition("The permission \"{$name}\" is never in a role, so it cannot be admin-only.");
+            }
+
             $this->definitions[$name] = $permission;
         }
     }
@@ -128,6 +133,15 @@ final class InMemoryPermissionCatalog implements PermissionCatalog
     public function definition(string $name): ?PermissionDefinitionDto
     {
         return $this->definitions[$name] ?? null;
+    }
+
+    /**
+     * Whether only an admin role may hold this action: Access's management actions and Platform's
+     * own (`AccessPermissions::adminOnly()`), and any a module declared admin-only.
+     */
+    public function isAdminOnly(string $name): bool
+    {
+        return in_array($name, AccessPermissions::adminOnly(), true) || ($this->definitions[$name]->adminOnly ?? false);
     }
 
     /**

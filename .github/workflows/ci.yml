@@ -37,7 +37,7 @@ jobs:
           php-version: '8.4'
           # gd (with AVIF and WebP), exif and fileinfo are needed for media uploads and image variants.
           # sockets is for the browser tests (pest-plugin-browser).
-          extensions: pdo_pgsql, pgsql, intl, bcmath, mbstring, gd, exif, fileinfo, sockets
+          extensions: pdo_pgsql, pgsql, intl, bcmath, mbstring, gd, exif, fileinfo, sockets, zip
           coverage: none
 
       - uses: actions/setup-node@v4

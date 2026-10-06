@@ -164,12 +164,12 @@ it('changes nothing the second time', function () {
 });
 
 it('leaves a name nobody declares or removes alone, and reports it', function () {
-    $holder = holderOfOldNames(['catalog.product.update', PlatformPermissions::STORE_UPDATE]);
+    $holder = holderOfOldNames([PlatformPermissions::STORE_UPDATE, 'warehouse.bin.move']);
 
     $result = app(PermissionSync::class)->run();
 
-    expect($result['unknown'])->toBe(['catalog.product.update'])
-        ->and(Fx::rolePermissions($holder['role']))->toBe(['catalog.product.update', PlatformPermissions::STORE_UPDATE]);
+    expect($result['unknown'])->toBe(['warehouse.bin.move'])
+        ->and(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::STORE_UPDATE, 'warehouse.bin.move']);
 });
 
 it('runs at the end of php artisan migrate, also with nothing to migrate', function () {

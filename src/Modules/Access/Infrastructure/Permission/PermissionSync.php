@@ -7,7 +7,6 @@ namespace Modules\Access\Infrastructure\Permission;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Audit\RoleAudit;
 use Modules\Access\Application\Authorization\GrantsReader;
-use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Enums\PermissionKind;
@@ -106,7 +105,7 @@ final readonly class PermissionSync
                 $to = $renames[$permission] ?? $permission;
 
                 // A management action never enters a staff role, whatever a rename says.
-                if ($level === RoleLevel::Staff->value && $to !== $permission && in_array($to, AccessPermissions::adminOnly(), true)) {
+                if ($level === RoleLevel::Staff->value && $to !== $permission && $this->catalog->isAdminOnly($to)) {
                     $this->logger->warning('A rename would put a management action into a staff role; it was taken out instead.', ['role_id' => $roleId, 'permission' => $permission]);
 
                     continue;
