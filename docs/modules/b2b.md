@@ -756,10 +756,11 @@ and every handler asks again (handoff §19).
 
 **Where they are.** Three entries in the menu's **Companies** group: **Companies**
 (`b2b.company.view`), **Company Types** and **Document Types**. The two type lists are one
-"types page" (§1.3) with a tab for each list, and always show **the store in the panel's header**
-(frontend.md §2.2): another store's lists are reached by changing the store there. **Each type entry
-is offered to anyone holding any job on that list in the store being worked in** (amendment 23(a),
-owner 2026-10-03): Company Types for `b2b.company_type.create`, `.update`, `.deactivate` or
+"types page" (§1.3) with a tab for each list, and show **the store chosen in the page's own store
+filter** (`?store=<code>`; amendment 30, owner 2026-10-06 — the panel no longer has a store worked
+in, frontend.md §2.2): the stores where the person holds a job on that list, a Super Admin's off
+ones marked Off; the tabs keep the store. **Each type entry is offered to anyone holding any job on
+that list in any store** (amendment 23(a), owner 2026-10-03; amendment 30): Company Types for `b2b.company_type.create`, `.update`, `.deactivate` or
 `b2b.company.transfer_type`; Document Types for `b2b.document_type.create`, `.update` or
 `.deactivate` — through Platform's menu entry for any of several permissions (platform.md §9.4,
 2026-10-03). Pages: `/admin/companies`, `/admin/companies/{id}`, `/admin/company-types`,
@@ -778,9 +779,10 @@ number, tax number, or an application's reference), the status, and the store �
 the reader covers, and no store filter at all when that is one store**. A company whose
 waiting application's type was deactivated since it was sent carries an amber **Type Deactivated**
 mark beside its name, for information (§1.3, amendment 11(a)). Nothing in the list changes anything;
-**the whole row opens the company** (amendment 24). **Times are in the store being worked in** — the panel's current store,
-its zone beside them, as on every panel screen (frontend.md §1.10; amendment 23(b), owner
-2026-10-03) — on the list and on the company page alike.
+**the whole row opens the company** (amendment 24). **Times are in the zone of the store the screen
+shows** — the list filtered to one store, or the company's own store on its page — **else the base
+store's (KSA)**, its zone beside them, as on every panel screen (frontend.md §1.10; amendment 23(b),
+owner 2026-10-03; amendment 30).
 
 **The company page** (`ViewCompany`), read only except for its buttons:
 
@@ -1043,9 +1045,9 @@ type string and HTTP status (handoff §11).
 45. Approve, Reject, Suspend, Reinstate and Correct Company Type each appear only for a reader holding the job and only when it can happen next; Approve is disabled, with the reason, while the company is "Other" or its account is erased.
 46. Rejecting needs a reason, and may mark any of the five fields and any paper sent, and ask for texts and files; suspending and reinstating need a reason, and suspending also waits for the company's name to be typed (amendment 23(c)).
 47. Opening a paper goes through a 30-minute link and is audited; without the job of opening papers the page shows the paper and no way to open it.
-48. A type list is read by anyone holding a job on it in the header's store, and refused to anyone else; its menu entry is offered to exactly those people (amendment 23(a)); the "copied" notice shows until any change to either list or Mark Lists Reviewed.
+48. A type list is read, for the store chosen in its filter, by anyone holding a job on it in that store, and refused to anyone else (amendment 30); its menu entry is offered to exactly those people (amendment 23(a)); the "copied" notice shows until any change to either list or Mark Lists Reviewed.
 49. Deactivating a company type that companies hold asks what happens to them — leave, move to another type, or move to a new one, the last only for someone who may also add types; moving companies between two active types is its own job.
-50. Every time on the staff screens is written in the store being worked in, with its zone beside it — a company of another store included (amendment 23(b)).
+50. Every time on the staff screens is written in the zone of the store the screen shows, else the base store's (KSA), with its zone beside it (amendment 23(b), amendment 30).
 
 ---
 
@@ -1097,3 +1099,4 @@ place in the sections named; this table records what changed and why.
 | 27 | §4.6 | **The admin home's Company Approvals card** (the owner's fix list, point 6; D12, 2026-10-05; platform.md §2.6, §9.8). Shown to a reader holding `b2b.company.view` in the scope — the store being worked in, or every store for All Stores. It says **how many companies wait for a decision** and **who** — the oldest waiting first, up to five, each with its store and the day it was sent, each opening its company — and the companies by status: approved, not approved, suspended. Its link opens the companies list on those waiting, and each figure the list on its status — **for the same stores**: in This Store, the list filtered to that store. Counted by the same reader the list uses, so the card and the list never disagree; the card asks for `b2b.company.view` itself, as the list's handler does, and shows nothing for a scope wider than the reader's stores. | The owner asked to see who waits for approval on the home. | Owner, 2026-10-05 |
 | 28 | §4.6 | **A rejection is written in the company's language** (owner, 2026-10-06). The company reads the reason and each request word for word, so the reject dialog names the language of the account holder (their communication language) and its reason and request fields take that language and direction; the reviewer writes in it. What is written stays as written: changing the account's language later does not translate it. | The owner: the requested fields must read entirely in the client's language. | Owner, 2026-10-06 |
 | 29 | §1.1, §3.2, §5.1 | **A company's CR number, tax number and address are saved in Latin digits** (frontend.md §1.8): `RegistrationNumber` and `CompanyAddress` turn Arabic-Indic and Extended Arabic-Indic digits into 0–9 (`Shared\Domain\Text\LatinDigits`), the company form shows them so as they are typed, and the staff company list searches numbers and references in Latin however they are typed. Rows saved before — companies and applications — are turned once by a migration; the audit log records only that these fields changed, so it holds nothing to turn. A company's name, notes, reasons and the answers to requests are kept as typed. | The owner: "no any arabic numbers across the whole system, so we dont struggle at matching anything in future"; identifiers and addresses saved in Latin, old rows converted. | Owner, 2026-10-06 |
+| 30 | §4.6, §8 (48, 50) | **The type lists choose their own store** (owner, 2026-10-06; frontend.md §2.2, access.md amendment 64): the panel no longer has a store worked in. Company Types and Document Types carry `?store=<code>` — the stores where the person holds a job on that list, a Super Admin's off ones marked Off; the tabs keep it; Add and Mark Lists Reviewed send it; with none asked, the first such store. Their menu entries are offered to anyone holding a job on the list in any store. Times on the staff screens: the store the screen shows, else KSA. | The owner: every store screen has its own store filter; "screen's store, else KSA". | Owner, 2026-10-06 |
