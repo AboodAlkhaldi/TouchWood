@@ -54,6 +54,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §3.5 E3 | **The currencies' buttons**: each form ends with Cancel and its main button side by side; the button that opened it steps out while it is open; Delete Currency, for one no store uses, sits apart on the edit form footer's start side | Owner, 2026-10-06 |
 | §3.5 E1 | **Add Store** on the stores screen, for a Super Admin (platform.md §9.7 #3, #4): everything a store is, at once — code, both names, the country from the shared country picker (filling its time zone when it has only one), tax, time zone, position — and its currency **picked, never typed**, from the currencies no store uses, or **made in the same form** ("New Currency…", and the only way when none is free); the store is added switched off. Replaces "no store is made here" | Owner, 2026-10-06 |
 | §2.2, §2.3 | **The staff view** (the fix list, point 13; D13 (b), D14): View Store in the panel's header; in the shop, the staff-view line with Back to Admin Panel, and a person menu with Admin Panel and Leave Staff View; the builder's picks marked [PROVISIONAL] | Owner, 2026-10-05 (access.md amendment 60) |
+| §1.8, §6 | **Latin digits everywhere**: every figure, count, date and code on Arabic pages too; typed Arabic-Indic digits accepted and saved as 0–9 in number inputs, address fields, phones and a company's CR and tax numbers, and searched in Latin however typed. Replaces 2026-09-19's Arabic-Indic digits | Owner, 2026-10-06 |
 
 ---
 
@@ -268,11 +269,18 @@ wins (§2.7). Screens the design does not show are derived from its look (§2.1)
 - **Fonts:** IBM Plex Sans Arabic for text in both languages, IBM Plex Mono for figures (amounts,
   counts, codes), as in the design.
 - **Colours:** the design's palette, light and dark (§2.1), becomes the shadcn colour tokens.
-- **[DECIDED 2026-09-19] Digits:** Arabic pages show Arabic-Indic digits (٠–٩), except in codes
-  (SKU, order number) and phone numbers, which keep 0–9. Every number input accepts both kinds of
-  digits. This replaces the design's mix (figures in 0–9, numbers inside sentences in ٠–٩).
-- **Checked in the design's own font files, 2026-09-19:** IBM Plex Mono covers Latin only, with no
-  Arabic-Indic digits. On Arabic pages, figures therefore use IBM Plex Sans Arabic, which has them.
+- **[DECIDED by the owner, 2026-10-06] Digits: Latin (0–9) everywhere, Arabic pages included** —
+  "no any arabic numbers across the whole system, so we dont struggle at matching anything in
+  future". Every figure, count, amount, date, time and code is written 0–9. **Typing** Arabic-Indic
+  (٠–٩) or Extended Arabic-Indic (۰–۹) digits is still accepted — in every number input, and in the
+  text that identifies or locates something: address fields, the staff address, phone numbers, a
+  company's CR and tax numbers — and they are **saved as 0–9** (access.md amendment 63, b2b.md
+  amendment 29). Replaces [DECIDED 2026-09-19] "Arabic pages show Arabic-Indic digits, except in
+  codes and phone numbers".
+- **Checked in the design's own font files, 2026-09-19:** IBM Plex Mono covers Latin only. On
+  Arabic pages figures therefore use IBM Plex Sans Arabic: a figure there carries Arabic words with
+  its digits (a month, "قبل 5 ساعات", a unit, a currency's sign), which Mono cannot draw. Its digits
+  are Latin as everywhere (2026-10-06).
 
 - **[DECIDED 2026-09-22] A theme is data, not code.** Every colour, radius, font, spacing value and
   shadow is a CSS custom property on `:root`, overridden by `[data-theme="..."]`. Light and dark are
@@ -532,9 +540,9 @@ and examples. Only when neither has it, show the owner what was searched and ask
     Radix lays out stayed left to right on an Arabic page until the next click, since choosing a
     language answers with the same address and Inertia counts that as no navigation — the
     direction now follows every page the server sends;
-  - **a file's size is written in the page's language and digits** ("٢٫٣ م.ب" on an Arabic page;
-    the server's "2.3 MB" read "MB 2.3" there): the media library is sent the bytes, and counts in
-    the sidebar and on the home page are written in the page's digits too (§1.8).
+  - **a file's size is written in the page's language**, its digits Latin (§1.8, 2026-10-06) — the
+    server's "2.3 MB" read "MB 2.3" on an Arabic page: the media library is sent the bytes, and counts in
+    the sidebar and on the home page are written in Latin digits too (§1.8, 2026-10-06).
   - **the logo** is the owner's files of 2026-10-04 — a frame and a fingerprint, drawn rather than
     fetched: **a navy tile on dark surfaces** (the sidebar, navy in both themes, and dark mode;
     the phone's home-screen icon, once the PNGs arrive) and **a cream tile on light ones** (the
@@ -623,8 +631,8 @@ From the design, with the decided rules applied:
   **Stores and System** (platform.md §9.8: stores on and off, failed jobs, storage used — each
   figure only with its own permission). The sales figures the owner asked for — products sold, money
   taken, each store's sales, products about to run out — come as cards of Sales, Catalog and
-  Inventory when those modules exist; the home does not change for them. Numbers are in the page's
-  digits (§1.8).
+  Inventory when those modules exist; the home does not change for them. Numbers are in Latin
+  digits, as everywhere (§1.8).
 
 ### 2.3 Storefront
 
@@ -676,7 +684,7 @@ The owner's direction, 2026-09-19: the design is look and behaviour only.
 | A two-factor on/off switch | No switch: every staff member signs in with an SMS code | access.md §1.8 |
 | Amounts in Arabic written "SAR" | The sign where one is set, else the letters in the page's language (ر.س) | platform.md §5.1 |
 | Every menu item and all three stores shown | Only what the person may do, and only their stores | handoff §14 |
-| Digits mixed on Arabic pages | Arabic-Indic, except codes and phones | §1.8 |
+| Digits mixed on Arabic pages | Latin (0–9) everywhere (owner, 2026-10-06) | §1.8 |
 | Out-of-scope entries (cashback, wallet top-ups, profit report, tickets, warehouse pickup…) | Not built, and not listed as "coming soon" either | handoff §14, §16 |
 
 ---
@@ -818,7 +826,7 @@ existed (platform.md §3, §9.2 #19). Each screen shows only the stores in the p
 |---|---|---|---|
 | E1 | Stores | `/admin/stores` | The design's card per store: name, currency, tax rate, timezone. `platform.store.view`. **Add Store**, for a Super Admin (`platform.store.create`; platform.md §9.7 #3, #4, owner 2026-10-06): one form for everything a store is — code, both names, the country (choosing one with a single time zone fills it), tax, time zone, position — and its currency, picked from the currencies no store uses or made in the same form ("New Currency…", the only way when none is free; `platform.currency.create` too). The store is added switched off. |
 | E2 | Edit a store | On E1 | Name in both languages, tax rate as a percentage (kept as basis points, platform.md §1.1), timezone, position. The code, country and currency are shown but cannot be changed — they are immutable. `platform.store.update`, that store. |
-| E3 | Currencies | `/admin/currencies` | **[DECIDED 2026-09-19]** Currencies are created and edited **in the panel**, by a Super Admin only (reserved permissions, platform.md §3): name and abbreviation in both languages, the sign, and the exponent — which is locked once any store uses the currency (platform.md §1.2). The sign field shows the sign as the site's font draws it, so a sign the font cannot draw is seen before it is saved (platform.md §5.1). **Each card names the stores using it** — "Used by Saudi Arabia, Egypt", an off store marked Off — or says "No store yet"; numbers in its sentences are in the page's digits. A currency no store uses can be deleted: **Delete Currency…**, confirmed in Geist's Destructive Action Modal by typing the code (platform.md §9.7, owner 2026-10-04). |
+| E3 | Currencies | `/admin/currencies` | **[DECIDED 2026-09-19]** Currencies are created and edited **in the panel**, by a Super Admin only (reserved permissions, platform.md §3): name and abbreviation in both languages, the sign, and the exponent — which is locked once any store uses the currency (platform.md §1.2). The sign field shows the sign as the site's font draws it, so a sign the font cannot draw is seen before it is saved (platform.md §5.1). **Each card names the stores using it** — "Used by Saudi Arabia, Egypt", an off store marked Off — or says "No store yet"; numbers in its sentences are in Latin digits (§1.8). A currency no store uses can be deleted: **Delete Currency…**, confirmed in Geist's Destructive Action Modal by typing the code (platform.md §9.7, owner 2026-10-04). |
 | E4 | Settings | `/admin/settings` | Every declared setting the person may change, grouped by the module that declares it, each with the input its type asks for and its default shown. Store settings apply to the store in the header; global keys need All stores (Access amendment 5). A setting marked sensitive never shows its value (platform.md §1.3). Each setting's permission comes from its own definition, and a row a person may not change is not shown to them. Access's settings sit in **one Access section** (owner, 2026-09-22) although they carry two permissions: a store's own settings are ordinary, the staff sign-in and security numbers are admin-only (R4). A module may put **one line at the top of its section** (platform.md §1.3): the Companies section says whether bank transfer is on or temporarily off (b2b.md amendment 13(c)). A setting whose default is empty — "not set yet" — shows no default under its box: there is no value in force to name (owner, 2026-09-29). |
 | E5 | Media library | `/admin/media` | **[DECIDED 2026-09-19]** The design's table, with a switch to a grid of thumbnails. The table: file, type, size, used in, uploaded. Plus the state of an image's variants (pending, ready, failed), upload (`platform.media.upload`), alt text (`platform.media.update`) — **in a dialog** with Cancel and Save Description (§1.11 #9, 2026-10-02), retry (a failed image, or one pending for 15 minutes), and delete (`platform.media.delete`), which first shows where the file is used and refuses when a use blocks it (platform.md §1.4). Paged by keyset, newest first. |
 | E6 | Audit log | `/admin/audit` | **[DECIDED 2026-09-19]** Built in this stage. Who changed what and when: time, actor, action, subject, source, and the staff member's IP where there is one. Entries for the stores in scope; entries belonging to no store need All stores. Personal fields show only as "changed", never their values (platform.md §1.5). Filters: date range, actor, action, source. `platform.audit.view`. |
@@ -971,8 +979,8 @@ shadcn's components already carry much of it; what this adds is that it is check
 - **Right-to-left:** layouts use logical properties (start and end, never left and right), so Arabic
   mirrors correctly, as shadcn's RTL support expects (§1.8). Directional icons flip; a clock or a
   logo does not. Arabic pages set `lang="ar"` and `dir="rtl"`, English pages `lang="en"` and `ltr`.
-- Numbers, dates and currencies are formatted for the page's language (§1.8), including the
-  Arabic-Indic digits and the currency's sign or letters.
+- Numbers, dates and currencies are formatted for the page's language (§1.8) — its month names and
+  the currency's sign or letters — always in Latin digits (owner, 2026-10-06).
 - An automated pass runs over every page in the browser tests (§7), and the main flows — signing in,
   inviting a staff member, registering, adding an address — are also walked with the keyboard alone.
 
@@ -998,7 +1006,7 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
   to close the account.
 - The theme and display-language toggles survive a reload, and the pages come back in that theme
   with no flash.
-- Arabic mirrors the layout, the sidebar sits on the right, and figures show Arabic-Indic digits.
+- Arabic mirrors the layout, the sidebar sits on the right, and figures show Latin digits (§1.8).
 - Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card.
 - With SSR turned off, every page still renders in the browser.
 - The accessibility pass and the keyboard walk-throughs of §6.

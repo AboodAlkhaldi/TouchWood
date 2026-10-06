@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// محرّر نماذج عناوين المتاجر (المرحلة ٢ب، frontend.md §3.7، قرار ٢٠٢٦-٠٩-١٩).
+// محرّر نماذج عناوين المتاجر (المرحلة 2ب، frontend.md §3.7، قرار 2026-09-19).
 return [
     'title' => 'نماذج العناوين',
     'subtitle' => 'ما تطلبه كل دولة من العميل، وكيف يُطبع العنوان.',
@@ -22,7 +22,7 @@ return [
     'field_number' => 'الحقل :number',
     'required' => 'مطلوب',
     'max_length' => 'أقصى طول',
-    'max_length_hint' => 'بين ١ و:count محرفًا.',
+    'max_length_hint' => 'بين 1 و:count محرفًا.',
     // Fields are reordered by a drag handle, by mouse, touch or keyboard (owner, 2026-10-03: shadcn's
     // dashboard-01 pattern). What a screen reader is told as a field moves, in the page's language:
     // the drag library's own words are English only.

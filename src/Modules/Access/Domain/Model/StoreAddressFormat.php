@@ -6,6 +6,7 @@ namespace Modules\Access\Domain\Model;
 
 use Modules\Access\Domain\Exception\InvalidAddress;
 use Modules\Access\Domain\ValueObject\AddressField;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * One store's address shape (spec §1.9, amendment 41): the fields it asks for and how an address is
@@ -76,7 +77,8 @@ final readonly class StoreAddressFormat
     }
 
     /**
-     * The values to store: trimmed, empty ones dropped, in the format's own order.
+     * The values to store: trimmed, digits in Latin (amendment 63: a building number or postcode
+     * typed on an Arabic keyboard is the same number), empty ones dropped, in the format's own order.
      *
      * @param  array<string, string>  $values
      * @return array<string, string>
@@ -96,7 +98,7 @@ final readonly class StoreAddressFormat
                 throw new InvalidAddress(self::safeKey($key), 'not a field of this store\'s address format');
             }
 
-            $trimmed = self::text($key, $value);
+            $trimmed = LatinDigits::of(self::text($key, $value));
 
             if ($trimmed === '') {
                 continue;

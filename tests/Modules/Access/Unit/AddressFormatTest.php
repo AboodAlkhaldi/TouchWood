@@ -61,6 +61,11 @@ describe('a store\'s address format (spec §1.9)', function () {
         expect(addressFormat()->accept(addressValues(['district' => ' '])))->toBe(['street' => 'King Fahd Road', 'city' => 'Riyadh']);
     });
 
+    it('keeps digits typed on an Arabic or Persian keyboard as Latin ones (amendment 63)', function () {
+        expect(addressFormat()->accept(['street' => 'طريق الملك فهد ٧', 'city' => 'الرياض', 'postal_code' => '۱۲۳۴۵']))
+            ->toBe(['street' => 'طريق الملك فهد 7', 'city' => 'الرياض', 'postal_code' => '12345']);
+    });
+
     it('says whether values still satisfy it', function () {
         $stricter = StoreAddressFormat::of('store-sa', [
             AddressField::of('city', 'المدينة', 'City', true, 100, 0),

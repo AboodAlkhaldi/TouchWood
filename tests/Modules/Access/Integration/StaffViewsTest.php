@@ -114,7 +114,12 @@ describe('the customers a staff member sees (spec §3.3)', function () {
         Fx::customer('omar@example.test', 'sa');
         Fx::actAsStaff(Fx::staffWith([AccessPermissions::CUSTOMER_VIEW], ['sa']));
 
+        DB::table('access.customers')->where('id', $sara)->update(['phone' => '+966501112233', 'phone_verified_at' => now()]);
+
         expect(listedCustomers('SARA@'))->toBe([$sara])
+            ->and(listedCustomers('0111223'))->toBe([$sara])
+            // A phone typed on an Arabic keyboard is the same number (amendment 63).
+            ->and(listedCustomers('٠١١١٢٢٣'))->toBe([$sara])
             ->and(listedCustomers('nobody'))->toBe([]);
     });
 

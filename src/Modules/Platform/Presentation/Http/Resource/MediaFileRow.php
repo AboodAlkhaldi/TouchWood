@@ -26,7 +26,7 @@ final class MediaFileRow extends Data
         public string $filename,
         /** Null for a private file. */
         public ?string $mime,
-        /** Null for a private file. Written for a person by the screen, in its own language and digits. */
+        /** Null for a private file. Written for a person by the screen, in its own language, in Latin digits. */
         public ?int $bytes,
         /** Null for a private file. */
         public ?int $width,
