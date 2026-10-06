@@ -215,5 +215,10 @@ describe('products left out at upload (11(a))', function () {
             ->toBe([['REFUSED', true, null], ['REFUSED', true, null], ['IN', false, null]])
             ->and(DB::table('catalog.imports')->where('id', $import)->value('state'))->toBe('IN')
             ->and(DB::table('catalog.variants')->where('product_id', $sizes['product'])->count())->toBe(2);
+
+        // The page says why (owner: "note Sadmin that we did so cuz of so").
+        $page = app(ViewImportHandler::class)->handle(new ViewImport($import))->products;
+        expect([$page[0]->state, $page[2]->refusal])->toBe(['REFUSED', null])
+            ->and((string) $page[0]->refusal)->toContain('belong to one product already in the catalog');
     });
 });

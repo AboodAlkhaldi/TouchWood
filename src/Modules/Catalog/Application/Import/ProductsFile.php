@@ -759,11 +759,10 @@ final readonly class ProductsFile
         }
 
         if ((is_int($raw) || is_float($raw)) && $raw >= 0 && is_finite((float) $raw)) {
-            // abs(): -0.0 is not below 0, and reads as 0.
-            $text = is_int($raw) ? (string) $raw : rtrim(rtrim(sprintf('%.'.self::PRICE_DECIMALS.'F', abs($raw)), '0'), '.');
+            $text = is_int($raw) ? (string) $raw : rtrim(rtrim(sprintf('%.'.self::PRICE_DECIMALS.'F', $raw), '0'), '.');
             $whole = strstr($text, '.', true);
 
-            if ((is_int($raw) || (float) $text === abs($raw)) && strlen($whole === false ? $text : $whole) <= self::PRICE_DIGITS) {
+            if ((is_int($raw) || (float) $text === $raw) && strlen($whole === false ? $text : $whole) <= self::PRICE_DIGITS) {
                 return $text;
             }
         }
