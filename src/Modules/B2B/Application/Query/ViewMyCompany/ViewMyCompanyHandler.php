@@ -134,6 +134,7 @@ final readonly class ViewMyCompanyHandler
             ),
             $this->elsewhere($account->id, $homeStoreId),
             $company === null && $open === null ? $this->prefill($account->id, $homeStoreId) : null,
+            $account->phoneVerified,
         );
     }
 

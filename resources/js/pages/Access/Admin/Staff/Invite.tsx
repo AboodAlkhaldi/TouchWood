@@ -5,15 +5,27 @@ import { ActionButton } from '@/components/ActionButton';
 import { CountryCombobox } from '@/components/CountryCombobox';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
-import { ProgressStops } from '@/components/geist-only/ProgressStops';
 import { PermissionPicker } from '@/components/PermissionPicker';
 import { RoleChoice } from '@/components/RoleChoice';
-import { ExceptionList, SELECTED_STORES, StoreChoice } from '@/components/RoleStores';
+import { Note } from '@/components/Note';
+import { Steps } from '@/components/Steps';
+import {
+    ActionStores,
+    emptyCustom,
+    reachAllowsCustom,
+    reachStores,
+    reachToSend,
+    SELECTED_STORES,
+    setActionStores,
+    WhereItReaches,
+    withinReach,
+} from '@/components/RoleStores';
 import type { ExceptionRow } from '@/components/RoleStores';
 import { Button } from '@/components/ui/button';
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
+import { useList } from '@/lib/list';
 import { useTranslator } from '@/lib/t';
 import type { InviteStaffPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -28,8 +40,9 @@ import type { InviteStaffPage } from '@/types/generated/Modules/Access/Presentat
 | message next to a field they cannot see.
 |
 | shadcn's parts with Geist's rules (frontend.md §1.11):
-| - the steps are Geist's Progress with stops ("multi-step setup"), the stage said next to the bar -
-|   "Step 2 of 3 · Role";
+| - the steps are drawn as the company page's tracking steps are - a circle each, done, current or
+|   still to come, with its name (the owner, 2026-10-06, in place of Geist's Progress bar); the list
+|   is named "Step 2 of 3 · Role" for a screen reader;
 | - each step's fields are a FieldSet named by its legend, so a screen reader hears "Profile";
 | - the country is a combobox, since the list is the whole world (Geist's Select is for short lists);
 | - "An Admin" is one on/off choice, so a Switch with its hint as the description (Geist's Toggle);
@@ -50,6 +63,9 @@ export default function Invite(page: Props) {
     const [admin, setAdmin] = useState(false);
     const [roleId, setRoleId] = useState<string | null>(null);
     const [chosen, setChosen] = useState<string[]>([]);
+    // The actions the last Send stopped on.
+    const [stoppedOn, setStoppedOn] = useState<string[]>([]);
+    const list = useList();
 
     const form = useForm({
         email: '',
@@ -98,14 +114,30 @@ export default function Invite(page: Props) {
         setChosen(id === null ? [] : (page.savedPermissions[id] ?? []));
     }
 
+    // Where It Reaches bounds every action: each custom choice as the reach allows it now, and what
+    // it lost, worked out from the choices as made (access.md amendment 59, D9).
+    const allowsCustom = reachAllowsCustom(form.data.access_level, form.data.store_ids);
+    const within = withinReach(form.data.exceptions, form.data.access_level, form.data.store_ids);
+    const empty = emptyCustom(within.rows, chosen);
+    const stillStopped = empty.filter((permission) => stoppedOn.includes(permission));
+    const labelOf = (name: string): string => permissions.find((permission) => permission.name === name)?.label ?? name;
+
     function send() {
+        // A custom choice left with nothing stops the send, naming the action (D9).
+        if (empty.length > 0) {
+            setStoppedOn(empty);
+
+            return;
+        }
+
         // transform() only records how to shape the data; the post right after it is what sends.
         form.transform((data) => ({
             ...data,
             admin,
             saved_role_id: edited ? '' : roleId,
             permissions: edited ? chosen : [],
-            exceptions: data.exceptions.filter((row) => chosen.includes(row.permission)),
+            store_ids: reachToSend(data.access_level, data.store_ids),
+            exceptions: allowsCustom ? within.rows.filter((row) => chosen.includes(row.permission)) : [],
         }));
 
         form.post('/admin/staff/invite');
@@ -139,18 +171,14 @@ export default function Invite(page: Props) {
                 }}
                 className="grid max-w-3xl gap-6"
             >
-                <div className="grid gap-2">
-                    <p className="tw-figure text-label-13 text-ink-muted" aria-hidden="true">
-                        {stage}
-                    </p>
-                    <ProgressStops
-                        value={step}
-                        max={steps.length}
-                        label={t('access::staff.invite_title')}
-                        valueText={stage}
-                        // A stop where each step ends, named by the step it closes (Geist: a stop
-                        // with no label is noise).
-                        stops={steps.slice(0, -1).map((name, index) => ({ value: index + 1, tooltip: name }))}
+                {/* The company page's tracking steps, across the form (the owner, 2026-10-06). */}
+                <div className="material-base px-5 py-4">
+                    <Steps
+                        names={steps}
+                        current={step}
+                        label={stage}
+                        doneLabel={t('access::staff.step_done')}
+                        upcomingLabel={t('access::staff.step_upcoming')}
                     />
                 </div>
 
@@ -284,36 +312,35 @@ export default function Invite(page: Props) {
 
                 {step === 3 ? (
                     <div className="grid gap-6">
-                        <FieldSet className="gap-3" aria-describedby="where-hint">
-                            <FieldLegend id="where" className="mb-0 text-heading-16 text-ink">
-                                {t('access::staff.where')}
-                            </FieldLegend>
-                            <FieldDescription id="where-hint" className="text-copy-13 text-ink-muted">
-                                {t('access::staff.where_hint')}
-                            </FieldDescription>
-                            <StoreChoice
-                                labelledBy="where"
-                                stores={page.stores}
-                                level={form.data.access_level}
-                                chosen={form.data.store_ids}
-                                onLevel={(next) => form.setData('access_level', next)}
-                                onChosen={(ids) => form.setData('store_ids', ids)}
-                            />
-                        </FieldSet>
+                        {stillStopped.length > 0 ? (
+                            <Note variant="error" alert data-test="exceptions-empty-refusal">
+                                {t('access::staff.exceptions_empty', { actions: list(stillStopped.map(labelOf)) })}
+                            </Note>
+                        ) : null}
 
-                        <FieldSet className="gap-3" aria-describedby="exceptions-hint">
-                            <FieldLegend className="mb-0 text-heading-16 text-ink">{t('access::staff.exceptions_title')}</FieldLegend>
-                            <FieldDescription id="exceptions-hint" className="text-copy-13 text-ink-muted">
-                                {t('access::staff.exceptions_hint')}
-                            </FieldDescription>
-                            <ExceptionList
+                        <WhereItReaches
+                            stores={page.stores}
+                            level={form.data.access_level}
+                            chosen={form.data.store_ids}
+                            onLevel={(next) => form.setData('access_level', next)}
+                            onChosen={(ids) => form.setData('store_ids', ids)}
+                        />
+
+                        {/* As on one person's role page (C6): only for two or more stores, or every store. */}
+                        {allowsCustom || empty.length > 0 ? (
+                            <ActionStores
                                 permissions={permissions}
+                                groups={page.groups}
                                 chosen={chosen}
-                                stores={page.stores}
-                                rows={form.data.exceptions}
-                                onChange={(rows) => form.setData('exceptions', rows)}
+                                stores={reachStores(page.stores, form.data.access_level, form.data.store_ids)}
+                                offered={page.stores}
+                                rows={within.rows}
+                                onSet={(permission, storeIds) => form.setData('exceptions', setActionStores(form.data.exceptions, permission, storeIds))}
+                                lost={within.lost}
+                                empty={stoppedOn}
+                                only={allowsCustom ? undefined : empty}
                             />
-                        </FieldSet>
+                        ) : null}
                     </div>
                 ) : null}
 

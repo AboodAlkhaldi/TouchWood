@@ -1,11 +1,11 @@
 {
     "generated\\Modules\\Access\\Application\\Command\\SignInStaff\\index.ts": "6a10844d67d83b05a98b400e4168f68a",
     "generated\\Modules\\Access\\Domain\\ValueObject\\index.ts": "837bb04d20286a2389799616296784b8",
-    "generated\\Modules\\Access\\Presentation\\Http\\Resource\\index.ts": "fc776631bd9c1f10e5be762092d3dce1",
+    "generated\\Modules\\Access\\Presentation\\Http\\Resource\\index.ts": "03f45ad7f73dee4a4aec2dec520d73e3",
     "generated\\Modules\\Access\\Public\\Enums\\index.ts": "29264a0146bd41ee46d2aad92020c341",
     "generated\\Modules\\B2B\\Application\\Query\\ViewMyCompany\\index.ts": "a047336de7710397d94b3c5e44d6d38e",
     "generated\\Modules\\B2B\\Domain\\ValueObject\\index.ts": "7a4dd37dd5f68ee8f4252bbc41cf785e",
-    "generated\\Modules\\B2B\\Presentation\\Http\\Resource\\index.ts": "c246618942b11b52c43e6f3e4d2922e3",
+    "generated\\Modules\\B2B\\Presentation\\Http\\Resource\\index.ts": "1edc561128e5a7e928a70f4c2c62f372",
     "generated\\Modules\\B2B\\Public\\Enums\\index.ts": "908b8ed8e6b1611caa6cd01dd713d7ba",
     "generated\\Modules\\Platform\\Presentation\\Http\\Resource\\index.ts": "eb0386a0ce3025a18dd5bc0f7bf0c730",
     "generated\\Modules\\Platform\\Public\\Enums\\index.ts": "7cf23bf1d8973abb50116d457e3cf115",

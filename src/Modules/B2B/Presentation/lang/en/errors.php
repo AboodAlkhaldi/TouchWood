@@ -68,6 +68,10 @@ return [
         'title' => 'Confirm Your Email',
         'detail' => 'Couldn\'t send the application: your email address isn\'t confirmed. Confirm it, then send.',
     ],
+    'phone_not_confirmed' => [
+        'title' => 'Confirm Your Phone',
+        'detail' => 'Couldn\'t send the application: your phone number isn\'t confirmed. Confirm it on your account\'s Phone page, then send.',
+    ],
     'document_type_inactive' => [
         'title' => 'Document Not Accepted',
         'detail' => 'Couldn\'t attach the file: this kind of document isn\'t accepted. Choose one from the list.',

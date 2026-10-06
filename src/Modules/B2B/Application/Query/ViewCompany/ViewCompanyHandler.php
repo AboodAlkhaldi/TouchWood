@@ -97,7 +97,7 @@ final readonly class ViewCompanyHandler
             $company->mayOrder(),
             $customer === null ? null : new HolderView(
                 $customer->firstName, $customer->lastName, $customer->email, $customer->phone,
-                $customer->emailVerified, $customer->phoneVerified, $customer->anonymized,
+                $customer->emailVerified, $customer->phoneVerified, $customer->anonymized, $customer->locale,
             ),
             $applications,
         );

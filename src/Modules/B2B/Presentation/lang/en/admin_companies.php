@@ -146,6 +146,11 @@ return [
         'flags_helper' => 'The company must replace each marked item before it sends its next application.',
         'requests' => 'Requested Items',
         'requests_helper' => 'The company must answer each one before it sends its next application.',
+        // The company reads the reason and the requests word for word, in its own language (owner, 2026-10-06).
+        'write_in' => [
+            'ar' => 'This company reads Arabic: write the reason and each request in Arabic.',
+            'en' => 'This company reads English: write the reason and each request in English.',
+        ],
         'add_request' => 'Add Request',
         'remove_request' => 'Remove request :number',
         'request_kind' => 'Answer As',

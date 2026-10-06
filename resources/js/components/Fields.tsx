@@ -23,10 +23,12 @@ type Common = {
     helper?: ReactNode;
     error?: string;
     className?: string;
+    /** Another element that describes the field too - a note above the form, read before its helper. */
+    alsoDescribedBy?: string;
 };
 
-function describedBy(id: string, helper?: ReactNode, error?: string): string | undefined {
-    const ids = [helper === undefined || helper === null ? null : `${id}-helper`, error ? `${id}-error` : null].filter(Boolean);
+function describedBy(id: string, helper?: ReactNode, error?: string, also?: string): string | undefined {
+    const ids = [also ?? null, helper === undefined || helper === null ? null : `${id}-helper`, error ? `${id}-error` : null].filter(Boolean);
 
     return ids.length === 0 ? undefined : ids.join(' ');
 }
@@ -47,28 +49,29 @@ export function TextField({
     error,
     className,
     inputClassName,
+    alsoDescribedBy,
     ...input
 }: Common & Omit<ComponentProps<typeof Input>, 'id' | 'className'> & { /** For the input itself: `tw-figure` on a number. */ inputClassName?: string }) {
     return (
         <Field className={className}>
             <FieldLabel htmlFor={id}>{label}</FieldLabel>
-            <Input {...input} id={id} className={inputClassName} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, helper, error)} />
+            <Input {...input} id={id} className={inputClassName} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, helper, error, alsoDescribedBy)} />
             <Messages id={id} helper={helper} error={error} />
         </Field>
     );
 }
 
-export function TextareaField({ id, label, helper, error, className, ...input }: Common & Omit<ComponentProps<typeof Textarea>, 'id' | 'className'>) {
+export function TextareaField({ id, label, helper, error, className, alsoDescribedBy, ...input }: Common & Omit<ComponentProps<typeof Textarea>, 'id' | 'className'>) {
     return (
         <Field className={className}>
             <FieldLabel htmlFor={id}>{label}</FieldLabel>
-            <Textarea {...input} id={id} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, helper, error)} />
+            <Textarea {...input} id={id} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, helper, error, alsoDescribedBy)} />
             <Messages id={id} helper={helper} error={error} />
         </Field>
     );
 }
 
-export function SelectField({ id, label, helper, error, className, children, ...select }: Common & Omit<ComponentProps<typeof NativeSelect>, 'id' | 'className'>) {
+export function SelectField({ id, label, helper, error, className, alsoDescribedBy, children, ...select }: Common & Omit<ComponentProps<typeof NativeSelect>, 'id' | 'className'>) {
     return (
         <Field className={className}>
             <FieldLabel htmlFor={id}>{label}</FieldLabel>
@@ -78,7 +81,7 @@ export function SelectField({ id, label, helper, error, className, children, ...
                 {...select}
                 id={id}
                 aria-invalid={error ? true : undefined}
-                aria-describedby={describedBy(id, helper, error)}
+                aria-describedby={describedBy(id, helper, error, alsoDescribedBy)}
             >
                 {children}
             </NativeSelect>

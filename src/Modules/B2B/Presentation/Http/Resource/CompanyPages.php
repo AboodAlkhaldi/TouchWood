@@ -105,6 +105,7 @@ final readonly class CompanyPages
                 $view->prefill->companyTypeOther,
                 ...$storeName($view->prefill->fromStoreId),
             ),
+            $view->phoneConfirmed,
         );
     }
 

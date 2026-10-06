@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Authorization\InvalidPermissionCheck;
 use Modules\Access\Application\Authorization\RoleAuthorizer;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Domain\Exception\ActionStoresBeyondReach;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Infrastructure\Queue\JobActorState;
@@ -57,10 +59,40 @@ it('lets staff act only through their role, in each action\'s stores', function 
         ->and(Fx::storeCodesWith(PlatformPermissions::SETTINGS_UPDATE))->toBe([]);
 });
 
-it('lets an exception reach beyond the store row', function () {
-    Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa'], exceptions: [PlatformPermissions::STORE_UPDATE => ['sa', 'eg']]));
+it('never lets an action reach beyond the store row: Where It Reaches bounds every action (amendment 59)', function () {
+    // An Egypt-only staff member can do nothing in KSA: their own stores for an action are refused
+    // when they lie outside the row, and nothing is assigned.
+    expect(fn () => Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['eg'], exceptions: [PlatformPermissions::STORE_UPDATE => ['sa', 'eg']]))
+        ->toThrow(ActionStoresBeyondReach::class);
 
-    expect(Fx::storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBe(['eg', 'sa']);
+    Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_UPDATE, PlatformPermissions::STORE_VIEW], ['eg']));
+
+    expect(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('sa')))->toBeFalse()
+        ->and(Fx::allows(PlatformPermissions::STORE_VIEW, Fx::inStore('sa')))->toBeFalse()
+        ->and(Fx::storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBe(['eg']);
+});
+
+it('reaches no further than the row even where a hand edit put an action\'s stores beyond it (amendment 59)', function () {
+    $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE, PlatformPermissions::STORE_VIEW], ['sa', 'ae']);
+    // Behind the domain's back, as a hand edit of the database would be: one action reaching KSA and
+    // Egypt, one reaching Egypt alone.
+    DB::table('access.role_assignment_exceptions')->insert([
+        ['staff_user_id' => $staffId, 'permission' => PlatformPermissions::STORE_UPDATE, 'access_level' => 'SELECTED_STORES'],
+        ['staff_user_id' => $staffId, 'permission' => PlatformPermissions::STORE_VIEW, 'access_level' => 'SELECTED_STORES'],
+    ]);
+    DB::table('access.role_assignment_exception_stores')->insert([
+        ['staff_user_id' => $staffId, 'permission' => PlatformPermissions::STORE_UPDATE, 'store_id' => Fx::storeId('sa')],
+        ['staff_user_id' => $staffId, 'permission' => PlatformPermissions::STORE_UPDATE, 'store_id' => Fx::storeId('eg')],
+        ['staff_user_id' => $staffId, 'permission' => PlatformPermissions::STORE_VIEW, 'store_id' => Fx::storeId('eg')],
+    ]);
+    Artisan::call('cache:clear');
+    Fx::actAsStaff($staffId);
+
+    expect(Fx::storeCodesWith(PlatformPermissions::STORE_UPDATE))->toBe(['sa'])
+        ->and(Fx::allows(PlatformPermissions::STORE_UPDATE, Fx::inStore('eg')))->toBeFalse()
+        // Nothing of it left inside the row: not held at all.
+        ->and(Fx::storeCodesWith(PlatformPermissions::STORE_VIEW))->toBe([])
+        ->and(Fx::allows(PlatformPermissions::STORE_VIEW, Fx::inStore('eg')))->toBeFalse();
 });
 
 it('passes an "every store" check only with All stores, never with every store ticked one by one', function () {

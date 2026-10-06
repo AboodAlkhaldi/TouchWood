@@ -155,6 +155,10 @@ the home store, active or not, and the last application the company sent:
 A last application of another company, or one not yet decided, is the caller's bug, and a
 `LogicException` before any of its flags is read.
 
+Before any of these, `SubmitApplicationHandler` refuses an account whose email is not confirmed
+(`EmailNotVerified`), then one whose phone is not, any country's (`PhoneNotConfirmed`, amendment
+26(a)). Filling and saving the draft need neither.
+
 **Five rules are code-only**, with nothing in the database behind them (amendments 5(g) and 6(c)):
 each crosses two tables, which a CHECK cannot see.
 
@@ -373,9 +377,10 @@ reviewer rejects it by hand.
 
 **One page, the design's** (b2b.md §4.5, amendment 14), at `/{store}/{locale}/account/company`:
 a status box and, under it, the form or what was sent, and a side column holding the application's
-lifecycle alone — Geist's Progress with stops, Form, Under Review and Decision, the bar at the stop
-the latest application has reached and the stage said beside it, hidden while the company is
-suspended (amendments 16(e), 22(b)); an approved company's bank account is a card in the main
+lifecycle alone — the card "Your Application", its three steps down the card (shadcn's Card, a list
+and Lucide's circles), Form, Under Review and Decision, at the step the latest application has
+reached, Not Started before anything is, hidden while the company is suspended (amendments 16(e),
+26(b)); an approved company's bank account is a card in the main
 column, its IBAN in a read-only field with a Copy button. Before the first send there is no company, only a draft, and the page shows the
 draft alone. The design is look and behaviour: its own fields, company types and structured address
 lose to the spec.

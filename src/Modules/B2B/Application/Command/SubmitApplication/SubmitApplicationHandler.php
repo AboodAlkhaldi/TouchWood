@@ -23,6 +23,7 @@ use Modules\B2B\Domain\Exception\FlaggedItemNotReplaced;
 use Modules\B2B\Domain\Exception\InvalidCompanyAttribute;
 use Modules\B2B\Domain\Exception\MissingRequiredDocument;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
+use Modules\B2B\Domain\Exception\PhoneNotConfirmed;
 use Modules\B2B\Domain\Exception\RequestNotAnswered;
 use Modules\B2B\Domain\Model\Company;
 use Modules\B2B\Domain\Repository\ApplicationReferenceCounter;
@@ -40,8 +41,8 @@ use Shared\Domain\ValueObject\StoreId;
  * the account's first; a later one — after a rejection, or new details from an approved company —
  * sends the company back to `PENDING`, and it cannot order until staff decide (handoff §8.2).
  *
- * - **A confirmed email is required** (EmailNotVerified); nothing else about the account is — the
- *   phone belongs to ordering, not to applying (§1.2).
+ * - **A confirmed email and a confirmed phone are required** (EmailNotVerified, PhoneNotConfirmed;
+ *   §1.2, amendment 26(a)): the account's own phone, whatever its country.
  * - Everything the draft must hold is the application's own rule (Application::submit): every
  *   value, the home store's types, nothing deactivated, every required paper, every flag replaced,
  *   every request answered. It is given the home store's whole lists, inactive types included, so
@@ -73,7 +74,7 @@ final readonly class SubmitApplicationHandler
     ) {}
 
     /**
-     * @throws NotACompanyAccount|EmailNotVerified
+     * @throws NotACompanyAccount|EmailNotVerified|PhoneNotConfirmed
      * @throws ApplicationNotFound|CompanySuspended|ApplicationNotEditable
      * @throws InvalidCompanyAttribute|CompanyTypeInactive|DocumentNoLongerAccepted|MissingRequiredDocument
      * @throws FlaggedItemNotReplaced|RequestNotAnswered
@@ -85,6 +86,10 @@ final readonly class SubmitApplicationHandler
 
         if (! $account->emailVerified) {
             throw new EmailNotVerified;
+        }
+
+        if (! $account->phoneVerified) {
+            throw new PhoneNotConfirmed;
         }
 
         $store = $this->account->store($account);
