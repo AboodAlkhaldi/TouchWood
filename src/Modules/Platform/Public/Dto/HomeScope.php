@@ -7,8 +7,8 @@ namespace Modules\Platform\Public\Dto;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * Which stores a home card speaks for (platform.md §2.6): the store being worked in, or every store
- * - the admin home's This Store and All Stores (frontend.md §2.2).
+ * Which stores a home card speaks for (platform.md §2.6): the store chosen on Home, or every store
+ * - the admin home's store switcher (frontend.md §2.2).
  */
 final readonly class HomeScope
 {

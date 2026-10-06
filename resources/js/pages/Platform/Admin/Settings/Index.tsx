@@ -3,6 +3,7 @@ import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
+import { StoreFilter } from '@/components/StoreFilter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -24,8 +25,10 @@ import type { SettingRowData, SettingsPage } from '@/types/generated/Modules/Pla
 | section although a store's own settings and the staff security ones carry different permissions
 | (owner, 2026-09-22).
 |
-| A store setting applies to the store in the header, and the section says which store that is. A
-| global one is the same value everywhere, and only somebody who reaches every store may change it.
+| A store setting applies to the store chosen in the page's own store filter (frontend.md §2.2,
+| platform.md §9.10; the owner, 2026-10-06), and each such row says which store that is; its save
+| sends that store. A global one is the same value everywhere, and only somebody who reaches every
+| store may change it.
 |
 | A sensitive setting never shows its value (platform.md §1.3) - not even to the person changing it.
 | The field is empty, and saying nothing leaves it as it was.
@@ -42,13 +45,16 @@ import type { SettingRowData, SettingsPage } from '@/types/generated/Modules/Pla
 
 type Props = SettingsPage;
 
-export default function Index({ groups, storeName }: Props) {
+export default function Index({ groups, storeName, storeCode, stores }: Props) {
     const t = useTranslator();
+    const store: Store = { name: storeName, code: storeCode };
 
     return (
         <AdminLayout title={t('platform::admin_settings.title')} subtitle={t('platform::admin_settings.subtitle')}>
             <div className="grid gap-6">
                 <FormError />
+
+                <StoreFilter stores={stores} value={storeCode} className="max-w-xs" />
 
                 {groups.length === 0 ? (
                     <Empty className="material-base">
@@ -71,7 +77,7 @@ export default function Index({ groups, storeName }: Props) {
                                 <ul className="divide-y divide-line">
                                     {group.settings.map((setting) => (
                                         <li key={setting.key} className="px-6 py-4">
-                                            {setting.type === 'BOOLEAN' ? <Toggle setting={setting} storeName={storeName} /> : <Value setting={setting} storeName={storeName} />}
+                                            {setting.type === 'BOOLEAN' ? <Toggle setting={setting} store={store} /> : <Value setting={setting} store={store} />}
                                         </li>
                                     ))}
                                 </ul>
@@ -84,13 +90,21 @@ export default function Index({ groups, storeName }: Props) {
     );
 }
 
+/** The store a per-store setting belongs to, as the filter chose it. */
+type Store = { name: string | null; code: string | null };
+
+/** What a save sends: the value, and for a store's own setting, which store (platform.md §9.10). */
+function sent(setting: SettingRowData, store: Store, value: string): { value: string; store?: string } {
+    return setting.scope === 'STORE' && store.code !== null ? { value, store: store.code } : { value };
+}
+
 /** The line under a setting's name: where it applies, whether it is secret, its default. */
-function Scope({ setting, storeName }: { setting: SettingRowData; storeName: string | null }) {
+function Scope({ setting, store }: { setting: SettingRowData; store: Store }) {
     const t = useTranslator();
 
     return (
         <>
-            {setting.scope === 'STORE' && storeName !== null ? t('platform::admin_settings.in_store', { store: storeName }) : t('platform::admin_settings.everywhere')}
+            {setting.scope === 'STORE' && store.name !== null ? t('platform::admin_settings.in_store', { store: store.name }) : t('platform::admin_settings.everywhere')}
             {setting.sensitive ? ` · ${t('platform::admin_settings.sensitive')}` : ''}
             {/* A default that is empty means "not set yet": there is no value in force to name (owner, 2026-09-29). */}
             {!setting.sensitive && setting.isDefault && String(setting.default ?? '') !== ''
@@ -101,7 +115,7 @@ function Scope({ setting, storeName }: { setting: SettingRowData; storeName: str
 }
 
 /** A yes-or-no setting: saved the moment it flips (Geist's Toggle). */
-function Toggle({ setting, storeName }: { setting: SettingRowData; storeName: string | null }) {
+function Toggle({ setting, store }: { setting: SettingRowData; store: Store }) {
     const t = useTranslator();
     const [saving, setSaving] = useState(false);
     const [tip, setTip] = useState(false);
@@ -117,7 +131,7 @@ function Toggle({ setting, storeName }: { setting: SettingRowData; storeName: st
 
         router.post(
             `/admin/settings/${setting.key}`,
-            { value: next ? 'true' : 'false' },
+            sent(setting, store, next ? 'true' : 'false'),
             {
                 preserveScroll: true,
                 onStart: () => {
@@ -137,7 +151,7 @@ function Toggle({ setting, storeName }: { setting: SettingRowData; storeName: st
                     {setting.label}
                 </FieldLabel>
                 <FieldDescription id={`${id}-scope`} className="text-copy-13 text-ink-muted">
-                    <Scope setting={setting} storeName={storeName} />
+                    <Scope setting={setting} store={store} />
                 </FieldDescription>
                 {error ? <FieldError id={`${id}-error`}>{error}</FieldError> : null}
             </FieldContent>
@@ -170,7 +184,7 @@ function Toggle({ setting, storeName }: { setting: SettingRowData; storeName: st
 }
 
 /** A number or a text: open to type in, saved by its own button (Geist's Fieldset). */
-function Value({ setting, storeName }: { setting: SettingRowData; storeName: string | null }) {
+function Value({ setting, store }: { setting: SettingRowData; store: Store }) {
     const t = useTranslator();
     const isNumber = setting.type === 'INTEGER';
     // A sensitive setting is written, never read back, so its field starts empty whatever is stored.
@@ -188,6 +202,7 @@ function Value({ setting, storeName }: { setting: SettingRowData; storeName: str
                     return;
                 }
 
+                form.transform((data) => sent(setting, store, data.value) as typeof data);
                 form.post(`/admin/settings/${setting.key}`, {
                     preserveScroll: true,
                     // Saved: what was typed is now what is stored. A secret goes back to empty, in
@@ -211,7 +226,7 @@ function Value({ setting, storeName }: { setting: SettingRowData; storeName: str
                             {setting.label}
                         </FieldLabel>
                         <FieldDescription id={`${setting.key}-scope`} className="text-copy-13 text-ink-muted">
-                            <Scope setting={setting} storeName={storeName} />
+                            <Scope setting={setting} store={store} />
                         </FieldDescription>
                     </FieldContent>
                     {/* In a box of its own, so the field's row keeps its width rules and the input

@@ -23,7 +23,7 @@ interface HomeCards
     /**
      * The cards the person acting now may see, in their order, each with what it shows.
      *
-     * This Store ($allStores false): a card's per-store action held in the store being worked in -
+     * One store ($allStores false): a card's per-store action held in the store chosen on Home -
      * none when no store is. All Stores: held for every store. A card's store-free action shows it
      * in either. A Super Admin holds every permission in every store, so sees every card in either.
      *

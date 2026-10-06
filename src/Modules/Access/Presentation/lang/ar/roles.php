@@ -54,6 +54,10 @@ return [
     // Geist's Checkbox group: the count beside the group's name says how many of how many.
     'chosen_count' => ':count من :total مختارة',
     'not_yours' => 'لا تملك هذه الصلاحية، فلا يمكنك منحها.',
+    // An area's Select All (the owner, 2026-10-06): its name holds the words it shows, then the area.
+    'select_all' => 'تحديد الكل',
+    'select_all_in' => 'تحديد الكل في :area',
+    'none_yours' => 'لا تملك أيًّا من هذه الصلاحيات، فلا يمكنك منحها.',
     'holders_warning' => 'تعديل هذا الدور يغيّره لـ :count من يحملونه.',
     'level_locked' => 'لا يتغيّر مستوى الدور بعد إنشائه.',
 

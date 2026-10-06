@@ -27,15 +27,16 @@ return [
         'dark' => 'Dark',
     ],
 
+    // A screen's own store filter, Home's switcher and the View Store menu (frontend.md §2.2; the
+    // owner, 2026-10-06, access.md amendment 64).
     'store' => [
         'label' => 'Store',
         'stores' => 'Stores',
-        'fell_back' => 'You no longer have access to that store; showing :store',
-        'fell_back_off' => 'The store you were working in is switched off; showing :store',
-        // The switcher's mark on an off store, and why staff cannot choose it (access.md amendment 58(a)).
+        'all' => 'All Stores',
+        // The mark on an off store, which only a Super Admin is offered (access.md amendment 58(a)).
         'off' => 'Off',
-        'off_reason' => ':store is switched off.',
-        'changed' => 'Store changed to :store',
+        // The same mark inside a select's option, where a badge cannot go.
+        'option_off' => ':store (Off)',
     ],
 
     'home' => [
@@ -47,10 +48,6 @@ return [
         // and one sentence; each row then opens its screen and shows its count.
         'waiting_label' => 'Waiting',
         'waiting_note' => 'Some things need you.',
-        // The cards' scope (frontend.md §2.2; the owner's fix list, point 6).
-        'scope' => 'Scope',
-        'scope_all' => 'All Stores',
-        'scope_store' => 'This Store',
     ],
 
     // The staff view (access.md §1.11): the panel's way to the shop, and the shop's way back. The

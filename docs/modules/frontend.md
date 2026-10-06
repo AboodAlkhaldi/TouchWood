@@ -55,6 +55,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §3.5 E1 | **Add Store** on the stores screen, for a Super Admin (platform.md §9.7 #3, #4): everything a store is, at once — code, both names, the country from the shared country picker (filling its time zone when it has only one), tax, time zone, position — and its currency **picked, never typed**, from the currencies no store uses, or **made in the same form** ("New Currency…", and the only way when none is free); the store is added switched off. Replaces "no store is made here" | Owner, 2026-10-06 |
 | §2.2, §2.3 | **The staff view** (the fix list, point 13; D13 (b), D14): View Store in the panel's header; in the shop, the staff-view line with Back to Admin Panel, and a person menu with Admin Panel and Leave Staff View; the builder's picks marked [PROVISIONAL] | Owner, 2026-10-05 (access.md amendment 60) |
 | §1.8, §6 | **Latin digits everywhere**: every figure, count, date and code on Arabic pages too; typed Arabic-Indic digits accepted and saved as 0–9 in number inputs, address fields, phones and a company's CR and tax numbers, and searched in Latin however typed. Replaces 2026-09-19's Arabic-Indic digits | Owner, 2026-10-06 |
+| §1.10, §2.2, §3.3, §3.4, §3.5, §6 | **No store "worked in"**: the sidebar's header is one link to Home; Home's store switcher (All Stores and each store; a Super Admin's off stores marked Off) changes Home's figures only; every store screen has its own store filter (Settings, Company and Document Types, Address Formats, Companies); times in the screen's store, else KSA; View Store opens a menu of the person's stores; Select All per area where actions are ticked. Replaces the store picker of 2026-09-19 | Owner, 2026-10-06 |
 | §1.8 | **IBM Plex Sans Arabic draws Arabic letters**: its Arabic subset is loaded too — only the Latin one was, so every Arabic letter had come from the system's fallback face | Owner, 2026-10-06 |
 
 ---
@@ -349,19 +350,20 @@ stylesheet, the same day.
   words of their own (Cancel, Close, Previous, Next, the typed confirmation's prompt, a sidebar's
   screen-reader words) stay in `lang/*/ui.php`, which every page carries (`App\Http\Page`).
 - **Where Geist has no component** — *replaced by §1.11*: shadcn has all three — the sidebar block
-  that collapses to icons (`sidebar-07`), its team switcher for the store picker, and
+  that collapses to icons (`sidebar-07`), its header block (a link to Home since 2026-10-06), and
   `field-choice-card` for the address picker.
 - **The theme switch** — *replaced by §1.11*: System, Light and Dark.
 - **Store time** (owner, 2026-10-02: "each store will have its own — a viewer from Egypt sees
-  Egypt's time, from KSA KSA's"; for someone in several stores, **the store they are working in**).
-  The server and the database keep UTC; every moment on a screen is written in the zone of the
-  panel's current store, or of the shop's store, with the zone's short name beside it — the store
-  screens' own times included (failed jobs, audit log, media, sessions). Geist's `Time`: in a list
+  Egypt's time, from KSA KSA's"). The server and the database keep UTC; every moment on a screen is
+  written in the zone of the shop's store, or in the panel, **of the store the screen is filtered to,
+  else the base store's (KSA)** (owner, 2026-10-06, when the panel stopped having a store worked in,
+  §2.2) — All Stores, the store-free screens (failed jobs, audit log, media, sessions) included —
+  with the zone's short name beside it. Geist's `Time`: in a list
   a recent moment reads short and relative ("2h ago"), past seven days as a date, the full moment
   on hover and focus — the store's zone and UTC; on a detail page the full moment is the text.
   B2B's company times on the customer's page were already written by the server in the company's
-  store clock (step 6) and are left as they are; **B2B's staff screens use `Time`, in the store
-  being worked in** (b2b.md amendment 23(b), owner 2026-10-03).
+  store clock (step 6) and are left as they are; **B2B's staff screens use `Time`**, in the zone of
+  the store the screen shows (b2b.md amendment 23(b), owner 2026-10-03; amendment 30).
 - **Writing rules** (Geist's, for every English word on a screen; Arabic follows the same
   structure — a verb and its object on a button, the toast that answers it, no "please" — and is
   **formal Arabic (فصحى) everywhere, never colloquial**, the owner's answer of 2026-10-05, over the
@@ -419,6 +421,9 @@ and examples. Only when neither has it, show the owner what was searched and ask
      prop cannot reach them. Words a prop can give - the sidebar trigger's, the rail's, the
      breadcrumb's, a Spinner's name, the pager's Previous and Next (our own links) - are given from
      outside, with no edit; a dialog's own Close button is never drawn (`showCloseButton={false}`).
+
+  **[DECIDED by the owner, 2026-10-07] No dash:** a sixth edit giving shadcn's Checkbox Geist's dash
+  for "some" was proposed and refused — shadcn's two states (empty, ticked) are kept as they are.
 - **The CLI's CSS**: installing a component may add shadcn's default colours to `app.css` (the
   sidebar's, for one). They are not kept: our tokens already feed those names (Look, above).
 - **Geist's pieces that shadcn lacks**, built exactly from Geist's own page, with no invention:
@@ -602,35 +607,44 @@ From the design, with the decided rules applied:
   page (the design's "This screen is next in the build queue"), **to Super Admins only**. Their
   permissions do not exist yet, so they cannot be checked; everyone else sees only screens they
   can use. A module's entries become real, permission-checked items when its screens ship.
+- **[DECIDED by the owner, 2026-10-06] The sidebar's header is one button to Home:** the logo,
+  "TouchWood" and "Admin Panel" (`sidebar-07`'s header block, as a link) — no store menu. Replaces
+  the same day's "make both logo and name same button" and the store picker below. Home is also the
+  menu's first item.
 - **Header:** the sidebar toggle, breadcrumbs, and **View Store** at its end (2026-10-05, the staff
-  view — access.md §1.11): shadcn's outline Button, small, with a store icon, shown while the panel
-  works in a store; it opens that store's shop in the same tab, as the staff member, viewing and
-  never ordering **[PROVISIONAL: same tab]**. The store picker sits in the
-  sidebar's own header (§1.11: `sidebar-07`'s team switcher), with Home as its first row; with one
-  store the logo opens Home, and with two or more it opens the store menu whose first row is Home —
-  the block's logo and store are one button. Home is also the menu's first item (the home, below).
-  **[DECIDED by the owner, 2026-10-06: "make both logo and name same button" — as built; the plan's
-  "the logo always goes Home" is replaced, and `sidebar-07`'s block stays as it is.]** **[DECIDED
-  2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a module gives them
-  content: search with Catalog and Sales, the bell with Ops.
-- **[DECIDED 2026-09-19] The store picker** is **remembered on the staff account**. URLs carry no
-  store (`/admin/...`). Store-free screens (media, roles) ignore it.
-  - It never shows a store outside the person's stores.
-  - One store: the header shows that store's name, with no menu.
-  - Two or more: a picker of exactly those stores.
-  - If the remembered store is no longer one of theirs (an admin removed it), the panel opens in
-    their first remaining store (by store position) and a toast says so: "You no longer have
-    access to Egypt — showing KSA." If the store is given back later, it returns to the picker.
-  - This needs a new field on the staff account: an Access amendment, listed in §4.
+  view — access.md §1.11): shadcn's outline Button, small, with a store icon; it opens a store's shop
+  in the same tab, as the staff member, viewing and never ordering **[PROVISIONAL: same tab]**.
+  **[DECIDED by the owner, 2026-10-06] Which store:** with one store the button opens it; with two or
+  more it opens a short menu (shadcn's DropdownMenu) of the stores the person may view — their own
+  stores that are on, and for a Super Admin every store, an off one marked Off (access.md amendment
+  64). **[DECIDED 2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a
+  module gives them content: search with Catalog and Sales, the bell with Ops.
+- **[REPLACED by the owner, 2026-10-06] No store "worked in":** ~~the store picker remembered on the
+  staff account~~. **Every screen that shows one store's data has its own store filter**, as the
+  Companies list has had: the address says which store (`?store=<code>`, Companies `?store=<id>`).
+  - Home (below), Settings (a store's own settings, platform.md §9.10), Company Types and Document
+    Types (b2b.md amendment 30), Address Formats (already so, §3.7), Companies.
+  - A filter lists the person's stores where they may do that screen's job, by store position; a
+    **Super Admin also sees the stores that are off, marked Off**, to prepare them before they open
+    (platform.md §1.6). One store: no filter, the screen shows it. A store outside the list is
+    refused (403); the screen opens on the first store that is on when none is asked - nobody lands in an off store without choosing it (kept from the review of the foundation, 2026-10-03; confirmed by the owner, 2026-10-07).
+  - Store-free screens (media, roles, staff, customers, the audit log) have none.
+  - The staff account's remembered store (`current_store_id`) and its fall-back toasts are removed
+    (access.md amendment 64).
 - **Page frame:** a title and a one-line subtitle, with the main action at the top right.
 - **The home** (`/admin`; the owner's fix list, point 6 — D11 (a), D12, 2026-10-04/05). **Home is
-  the menu's first item**, and the store menu's first row (above). Under the page frame: what waits for this
-  person (the waiting Note and its rows, as before), then the **cards** — one per thing a module
-  reports (platform.md §2.6), each shown only to someone holding its permission in the scope. A
-  **scope switch, All Stores · This Store**, is offered to a reader whose reach covers every store
-  for at least one card's per-store action — a Super Admin always; a store-free action such as the
-  media library's never offers it — and opens on **All Stores** (owner, 2026-10-05);
-  anyone else sees the store being worked in, with no switch. The first cards: **Company
+  the menu's first item**, and what the sidebar's header opens (above). Under the page frame: what
+  waits for this person (the waiting Note and its rows, as before), then the **cards** — one per
+  thing a module reports (platform.md §2.6), each shown only to someone holding its permission in the
+  scope. **[DECIDED by the owner, 2026-10-06] Its store switcher** (replacing "All Stores · This
+  Store", whose "This Store" was only ever the store worked in) sits in the page's action slot and
+  changes **only Home's figures**: **All Stores** — offered, as before, to a reader whose reach
+  covers every store for at least one card's per-store action, a Super Admin always — then each of
+  the person's stores by name: a Super Admin every store, an off one marked Off; anyone else their
+  own stores that are on. A person with one store and no All Stores sees no switcher. It opens on All
+  Stores where offered, else the first store; the address carries the choice (`/admin?store=sa`).
+  **[PROVISIONAL: a Select, as a list of stores grows; off stores not offered to staff — they can
+  see nothing there]**. The first cards: **Company
   Approvals** (b2b.md amendment 27: how many wait and who, oldest first; companies by status) and
   **Stores and System** (platform.md §9.8: stores on and off, failed jobs, storage used — each
   figure only with its own permission). The sales figures the owner asked for — products sold, money
@@ -813,6 +827,13 @@ see admin roles in the list but cannot open them for editing (amendment 9 and th
   list, listed in §4. Modules built later pick a group for each permission they declare.
   **[DECIDED 2026-09-29]** A **System** area joins them, for the running of the system — first the
   failed jobs (E7) — with its own section in the menu.
+  **[DECIDED by the owner, 2026-10-06] Select All per area:** where actions are ticked (D3, C6, the
+  invitation's step 2), each area's header carries a checkbox that ticks every action of the area
+  the author may give, or clears them. **[DECIDED by the owner, 2026-10-07]** It has shadcn's two
+  states only: ticked when every one of them is ticked, empty otherwise - so with 2 of 6 ticked it
+  is empty, and pressing it ticks all 6; pressed when ticked, it clears them. An action that is
+  locked (not grantable, or above the role's level) is left as it is. There is no Select All across
+  every area.
 - **[DECIDED 2026-09-19] The design's "Permissions by role" table is kept**, on D1: groups down the
   side, saved roles across the top, scrolling sideways as roles are added — **[2026-10-02, owner]
   as a plain table: the area its own column, nothing sticky** (§1.11 #5).
@@ -831,7 +852,7 @@ existed (platform.md §3, §9.2 #19). Each screen shows only the stores in the p
 | E1 | Stores | `/admin/stores` | The design's card per store: name, currency, tax rate, timezone. `platform.store.view`. **Add Store**, for a Super Admin (`platform.store.create`; platform.md §9.7 #3, #4, owner 2026-10-06): one form for everything a store is — code, both names, the country (choosing one with a single time zone fills it), tax, time zone, position — and its currency, picked from the currencies no store uses or made in the same form ("New Currency…", the only way when none is free; `platform.currency.create` too). The store is added switched off. |
 | E2 | Edit a store | On E1 | Name in both languages, tax rate as a percentage (kept as basis points, platform.md §1.1), timezone, position. The code, country and currency are shown but cannot be changed — they are immutable. `platform.store.update`, that store. |
 | E3 | Currencies | `/admin/currencies` | **[DECIDED 2026-09-19]** Currencies are created and edited **in the panel**, by a Super Admin only (reserved permissions, platform.md §3): name and abbreviation in both languages, the sign, and the exponent — which is locked once any store uses the currency (platform.md §1.2). The sign field shows the sign as the site's font draws it, so a sign the font cannot draw is seen before it is saved (platform.md §5.1). **Each card names the stores using it** — "Used by Saudi Arabia, Egypt", an off store marked Off — or says "No store yet"; numbers in its sentences are in Latin digits (§1.8). A currency no store uses can be deleted: **Delete Currency…**, confirmed in Geist's Destructive Action Modal by typing the code (platform.md §9.7, owner 2026-10-04). |
-| E4 | Settings | `/admin/settings` | Every declared setting the person may change, grouped by the module that declares it, each with the input its type asks for and its default shown. Store settings apply to the store in the header; global keys need All stores (Access amendment 5). A setting marked sensitive never shows its value (platform.md §1.3). Each setting's permission comes from its own definition, and a row a person may not change is not shown to them. Access's settings sit in **one Access section** (owner, 2026-09-22) although they carry two permissions: a store's own settings are ordinary, the staff sign-in and security numbers are admin-only (R4). A module may put **one line at the top of its section** (platform.md §1.3): the Companies section says whether bank transfer is on or temporarily off (b2b.md amendment 13(c)). A setting whose default is empty — "not set yet" — shows no default under its box: there is no value in force to name (owner, 2026-09-29). |
+| E4 | Settings | `/admin/settings` | Every declared setting the person may change, grouped by the module that declares it, each with the input its type asks for and its default shown. Store settings apply to the store chosen in the page's own store filter (§2.2; a Super Admin's off stores marked Off, platform.md §9.10); global keys need All stores (Access amendment 5). A setting marked sensitive never shows its value (platform.md §1.3). Each setting's permission comes from its own definition, and a row a person may not change is not shown to them. Access's settings sit in **one Access section** (owner, 2026-09-22) although they carry two permissions: a store's own settings are ordinary, the staff sign-in and security numbers are admin-only (R4). A module may put **one line at the top of its section** (platform.md §1.3): the Companies section says whether bank transfer is on or temporarily off (b2b.md amendment 13(c)). A setting whose default is empty — "not set yet" — shows no default under its box: there is no value in force to name (owner, 2026-09-29). |
 | E5 | Media library | `/admin/media` | **[DECIDED 2026-09-19]** The design's table, with a switch to a grid of thumbnails. The table: file, type, size, used in, uploaded. Plus the state of an image's variants (pending, ready, failed), upload (`platform.media.upload`), alt text (`platform.media.update`) — **in a dialog** with Cancel and Save Description (§1.11 #9, 2026-10-02), retry (a failed image, or one pending for 15 minutes), and delete (`platform.media.delete`), which first shows where the file is used and refuses when a use blocks it (platform.md §1.4). Paged by keyset, newest first. |
 | E6 | Audit log | `/admin/audit` | **[DECIDED 2026-09-19]** Built in this stage. Who changed what and when: time, actor, action, subject, source, and the staff member's IP where there is one. Entries for the stores in scope; entries belonging to no store need All stores. Personal fields show only as "changed", never their values (platform.md §1.5). Filters: date range, actor, action, source. `platform.audit.view`. |
 | E7 | Failed jobs | `/admin/failed-jobs` | **[DECIDED 2026-09-29]** The queue's failed work, oldest first: what the job was in its module's words (its technical name when none), when it failed, the tries it was allowed (Laravel keeps those, not the tries made — owner, 2026-09-29), the error's first line. Opening one shows the whole error and its queue. Fifty at a time, with "Show more". **Retry** puts it back on its queue and off the list — offered only for a job that failed on the database queue; **Delete** removes it unrun, after a confirmation. One at a time, no bulk. Kept until handled. In the **System** section of the menu, with the number waiting beside it, and a dot on its icon while the sidebar is collapsed; the admin home says so while any waits. `platform.jobs.manage`, admin-only (platform.md §3). |
@@ -973,8 +994,8 @@ is "the single highest-value guard in the project". The owner left these numbers
 **[DECIDED 2026-09-19, the owner left it to me] WCAG 2.2 AA** for every screen in this stage.
 shadcn's components already carry much of it; what this adds is that it is checked, not assumed.
 
-- Everything works with a keyboard alone: menus, the store picker, dialogs, the code boxes, the
-  role editor's ticks. Focus is always visible, and a dialog returns focus where it came from.
+- Everything works with a keyboard alone: menus, the store filters and Home's switcher, dialogs,
+  the code boxes, the role editor's ticks. Focus is always visible, and a dialog returns focus where it came from.
 - Every field has a real label, not a placeholder standing in for one. An error is tied to its
   field, so a screen reader announces it, and the toast (§2.1) is announced politely.
 - Colour never carries meaning on its own: a status is a word as well as a colour.
@@ -1002,10 +1023,12 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
   in. An expired link shows the "link no longer works" page.
 - A staff member is invited in three steps, appears in the list under their store, and a person with
   two stores appears under "Centralized".
-- The role editor: ticking actions, filling every action's stores in one row, giving one action its
-  own stores, and saving an edit from a person's page as a personal role.
-- The store picker: two stores switch; one store shows a name and no menu; a removed store falls
-  back with its message.
+- The role editor: ticking actions, a section's Select All (empty until all are ticked; from some, it ticks the rest), filling every action's
+  stores in one row, giving one action its own stores, and saving an edit from a person's page as a
+  personal role.
+- The store filters: each store screen opens on the first store that is on, changes with its filter, refuses a
+  store outside the person's; a Super Admin's off stores are offered marked Off; one store shows no
+  filter. Home's switcher per role; View Store's menu; times in the screen's store, else KSA.
 - A customer registers, verifies the email, adds a phone with its code, saves an address, and asks
   to close the account.
 - The theme and display-language toggles survive a reload, and the pages come back in that theme

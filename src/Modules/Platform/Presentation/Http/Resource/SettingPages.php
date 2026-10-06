@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Presentation\Http\Resource;
 
-use App\Http\PanelStore;
 use Illuminate\Contracts\Foundation\Application;
 use Modules\Platform\Application\Query\ListSettings\ListSettings;
 use Modules\Platform\Application\Query\ListSettings\ListSettingsHandler;
 use Modules\Platform\Application\Query\ListSettings\SettingRow;
-use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
+use Modules\Platform\Public\Contracts\StoreChoices;
+use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Platform\Public\Enums\SettingScope;
+use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -25,16 +27,23 @@ final readonly class SettingPages
 {
     public function __construct(
         private Application $app,
-        private PanelStore $panel,
-        private StoreDirectory $directory,
+        private StoreChoices $choices,
         private InMemorySettingsRegistry $registry,
         private InMemorySettingsSectionLines $lines,
     ) {}
 
-    /** E4. */
-    public function list(ListSettingsHandler $handler): SettingsPage
+    /**
+     * E4, for the store asked for in the page's own filter (platform.md §9.10) - the first the person
+     * may change a store's setting in when none is asked.
+     *
+     * @throws Unauthorized when another store is asked for
+     */
+    public function list(ListSettingsHandler $handler, ?string $storeCode): SettingsPage
     {
-        $storeId = $this->panel->id();
+        $permissions = $this->storeSettingPermissions();
+        $offered = $permissions === [] ? [] : $this->choices->forJobs(...$permissions);
+        $chosen = $permissions === [] ? null : $this->choices->chosen($storeCode, ...$permissions);
+        $storeId = $chosen?->id;
         $rows = $handler->handle(new ListSettings($storeId));
 
         /** @var array<string, list<SettingRowData>> $byModule */
@@ -52,9 +61,32 @@ final readonly class SettingPages
             $groups[] = new SettingGroup($module, $this->moduleName($module), $this->lines->for($module)?->line($store), $settings);
         }
 
-        $named = $storeId === null ? null : $this->directory->storeById($storeId);
+        return new SettingsPage(
+            $groups,
+            $chosen?->name->in($this->locale()),
+            $chosen?->code,
+            array_map(fn (StoreDto $store): StoreOption => new StoreOption($store->code, $store->name->in($this->locale()), $store->isActive), $offered),
+            $chosen?->timezone,
+        );
+    }
 
-        return new SettingsPage($groups, $named?->name->in($this->locale()));
+    /**
+     * The permissions of the settings that belong to one store: holding any of them in a store
+     * puts that store in the filter.
+     *
+     * @return list<string>
+     */
+    private function storeSettingPermissions(): array
+    {
+        $permissions = [];
+
+        foreach ($this->registry->all() as $definition) {
+            if ($definition->scope === SettingScope::Store) {
+                $permissions[$definition->permission] = true;
+            }
+        }
+
+        return array_keys($permissions);
     }
 
     private function row(SettingRow $row): SettingRowData

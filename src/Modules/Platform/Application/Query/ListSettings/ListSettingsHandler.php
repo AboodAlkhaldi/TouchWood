@@ -19,7 +19,8 @@ use Shared\Domain\ValueObject\StoreId;
  * but one answer per row — and the screen is handed only the rows that survived.
  *
  * Where a permission has to hold is decided by the setting's scope, exactly as the handler that
- * writes it decides: a store setting is asked about **the store the panel is on**, and a global one
+ * writes it decides: a store setting is asked about **the store chosen in the page's filter**
+ * (platform.md §9.10), and a global one
  * reaches every store at once, so it is asked about **all stores** (Access amendment 5). A person
  * with one store therefore sees their store's settings and none of the global ones.
  *
@@ -59,6 +60,12 @@ final readonly class ListSettingsHandler
      */
     private function mayChange(SettingDefinitionDto $definition, ?StoreId $store): bool
     {
+        // A store's setting with no store chosen - nobody here has a store screen to show - is not
+        // listed: it has no value to read (the store filter's first store is asked otherwise).
+        if ($definition->scope === SettingScope::Store && $store === null) {
+            return false;
+        }
+
         $reach = $this->authorizer->storesWith($definition->permission);
 
         // Null from Access means every store, now and for any store added later.
@@ -72,10 +79,7 @@ final readonly class ListSettingsHandler
             return false;
         }
 
-        if ($store === null) {
-            return false;
-        }
-
+        // A store's setting, and a store chosen (above).
         foreach ($reach as $reachable) {
             if ($reachable->value === $store->value) {
                 return true;

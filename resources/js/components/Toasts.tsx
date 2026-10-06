@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
-import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
 /*
@@ -11,8 +10,7 @@ import type { SharedProps } from '@/types/page';
 |
 | A success is the flash `status` ("Invitation sent"). A business error shows twice - here, and as
 | a red message beside what it concerns, which the form itself renders: the toast fades, the message
-| beside the field stays until the person changes the form. A store the panel had to leave is said
-| as a warning, not an error (access.md amendment 58; the audit of the foundation).
+| beside the field stays until the person changes the form.
 |
 | Said once per finished visit, never remembered by its words: a person who gets the password wrong
 | twice must hear it twice, or the button reads as broken (found by running it, 2026-09-22). Sonner
@@ -20,26 +18,14 @@ import type { SharedProps } from '@/types/page';
 */
 
 export function Toasts() {
-    const { flash, errors, store, locale } = usePage<SharedProps>().props;
-    const t = useTranslator();
+    const { flash, errors, locale } = usePage<SharedProps>().props;
     const [visit, setVisit] = useState(0);
 
     useEffect(() => router.on('finish', () => setVisit((count) => count + 1)), []);
 
-    // "You no longer have access to that store; showing KSA." The server decided it; this is where
-    // the person is told (frontend.md §2.2). A store switched off is said so (access.md amendment 58).
-    const fellBack =
-        store?.fellBack === true && store.current !== null
-            ? t(store.fellBackFromOff ? 'admin.store.fell_back_off' : 'admin.store.fell_back', { store: store.current.name })
-            : null;
-
     useEffect(() => {
         if (flash.status) {
             toast.success(flash.status);
-        }
-
-        if (fellBack !== null) {
-            toast.warning(fellBack);
         }
 
         // `form` is the business error of §1.7: the one that belongs to no single field.

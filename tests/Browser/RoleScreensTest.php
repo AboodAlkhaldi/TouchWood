@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\B2B\Application\B2BPermissions;
 use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -218,4 +219,95 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
 
     // The menu's own header, not the sidebar's "Roles" (the review of batch A).
     expect((string) $page->script('document.querySelector("[role=menu] [data-slot=dropdown-menu-label]")?.innerText ?? ""'))->toBe('Roles');
+});
+
+/**
+ * How many of one area's boxes are ticked, among those the author may change ("free") and those
+ * locked to them, read from the state Radix writes on each box.
+ *
+ * @return array<string, mixed> on, off, free; lockedOn, locked
+ */
+function roleScreenArea(mixed $page, string $area): array
+{
+    return (array) $page->script(<<<JS
+        (() => {
+            const boxes = [...document.querySelectorAll('[data-test="area-{$area}"] [data-test^="permission-"]')];
+            const locked = boxes.filter((box) => box.getAttribute('aria-disabled') === 'true');
+            const free = boxes.filter((box) => box.getAttribute('aria-disabled') !== 'true');
+            return {
+                on: free.filter((box) => box.dataset.state === 'checked').length,
+                off: free.filter((box) => box.dataset.state === 'unchecked').length,
+                lockedOn: locked.filter((box) => box.dataset.state === 'checked').length,
+                locked: locked.length,
+                free: free.length,
+            };
+        })()
+        JS);
+}
+
+it('ticks every action of an area with its Select All, stays empty for some, and clears them again', function () {
+    $page = visit('/admin/sign-in')
+        ->type('#email', newSuperAdminEmail())
+        ->type('#password', ROLE_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/roles/new');
+    // Company Approvals: many actions, none admin-only, so a new role (staff level) may take all of
+    // them - where Staff and Permissions offers a staff-level role a single one.
+    $all = '[data-test="select-all-companies"]';
+
+    // One per area (the owner, 2026-10-06), named for a screen reader with its area.
+    $page->assertAttribute($all, 'aria-label', 'Select All in Company Approvals')
+        ->assertAttribute($all, 'data-state', 'unchecked');
+
+    // One action ticked of many: the box stays empty - shadcn's two states only (the owner,
+    // 2026-10-07, frontend.md D3).
+    $page->click('[data-test="permission-'.B2BPermissions::COMPANY_VIEW.'"]')
+        ->assertAttribute($all, 'data-state', 'unchecked');
+
+    // Pressed with some ticked, it ticks the rest.
+    $page->click($all)->assertAttribute($all, 'data-state', 'checked');
+    $ticked = roleScreenArea($page, 'companies');
+
+    expect($ticked['on'])->toBe($ticked['free'])
+        ->and($ticked['free'])->toBeGreaterThan(1)
+        // Another area is left as it was.
+        ->and(roleScreenArea($page, 'store_settings')['on'])->toBe(0);
+
+    // From all, it clears them.
+    $page->click($all)->assertAttribute($all, 'data-state', 'unchecked');
+
+    expect(roleScreenArea($page, 'companies')['on'])->toBe(0);
+    $page->assertNoJavaScriptErrors();
+});
+
+it('ticks only what an admin may give with Select All, leaving the locked actions as they are', function () {
+    // An admin holding one of Company Approvals' actions: the rest are shown locked (access.md §1.5).
+    $staffId = Fx::staffWith([AccessPermissions::ROLE_MANAGE, B2BPermissions::COMPANY_VIEW, PlatformPermissions::STORE_VIEW], ['sa'], RoleLevel::Admin);
+    $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', $email)
+        ->type('#password', ROLE_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/roles/new');
+
+    $page->click('[data-test="select-all-companies"]');
+    $area = roleScreenArea($page, 'companies');
+
+    expect($area['free'])->toBe(1)
+        ->and($area['on'])->toBe(1)
+        ->and($area['locked'])->toBeGreaterThan(0)
+        ->and($area['lockedOn'])->toBe(0);
+    $page->assertAttribute('[data-test="select-all-companies"]', 'data-state', 'checked')
+        ->assertNoJavaScriptErrors();
 });

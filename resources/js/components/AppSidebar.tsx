@@ -3,7 +3,7 @@ import { ChevronRight, Home } from 'lucide-react';
 import { useState } from 'react';
 import { MenuIcon } from '@/components/MenuIcon';
 import { NavUser } from '@/components/NavUser';
-import { StoreSwitcher } from '@/components/StoreSwitcher';
+import { PanelHomeLink } from '@/components/PanelHomeLink';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
     DropdownMenu,
@@ -36,7 +36,7 @@ import type { MenuEntry, MenuGroup, SharedProps } from '@/types/page';
 
 /*
 | The panel's sidebar (frontend.md §2.2): shadcn's `sidebar-07` block, as it writes it (§1.11) -
-| the store switcher in the header, the menu in the content, the person in the footer, and the rail.
+| the link to Home in the header, the menu in the content, the person in the footer, and the rail.
 |
 | The menu is sidebar-07's main navigation (the owner's fix list, 2026-10-04, from a screenshot of
 | it): each business area one row with its icon and a chevron, its screens indented under it.
@@ -110,7 +110,7 @@ export function AppSidebar() {
     return (
         <Sidebar collapsible="icon">
             <SidebarHeader>
-                <StoreSwitcher />
+                <PanelHomeLink />
             </SidebarHeader>
 
             <SidebarContent>

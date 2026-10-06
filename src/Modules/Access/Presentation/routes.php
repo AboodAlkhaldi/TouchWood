@@ -65,12 +65,11 @@ Route::prefix('admin')
 
         Route::middleware(RequireStaff::ALIAS)->group(function (): void {
             Route::get('/', [AdminPanelController::class, 'home'])->name('access.staff.home');
-            Route::post('current-store', [AdminPanelController::class, 'chooseStore'])->name('access.staff.current-store');
 
             Route::post('sign-out', [StaffAccountController::class, 'signOut'])->name('access.staff.sign-out');
 
-            // View Store: the shop of the store being worked in, as themselves (spec §1.11). It
-            // names no store; the panel's own answer for them does.
+            // View Store: the shop of the store chosen in its menu, as themselves (spec §1.11,
+            // amendment 64); the handler takes only one of their own stores.
             Route::post('staff-view', [StaffViewController::class, 'open'])->name('access.staff.staff-view');
             Route::post('account/password', [StaffAccountController::class, 'changePassword'])->name('access.staff.password.change');
 

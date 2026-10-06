@@ -23,11 +23,10 @@ final readonly class MenuEntryDto
      * @param  string|list<string>|null  $permission  the action a person needs to be offered it -
      *                                                held in any store, the screen deciding what is
      *                                                in it store by store - or **several, any one
-     *                                                of which, held in the store being worked in**,
-     *                                                is enough: a page that serves several jobs for
-     *                                                that store alone, such as B2B's type lists
-     *                                                (platform.md §9.4; b2b.md amendment 23(a),
-     *                                                owner 2026-10-03). **Null means a "coming
+     *                                                of which, held in any store**, is enough: a
+     *                                                page that serves several jobs, such as B2B's
+     *                                                type lists (platform.md §9.4, §9.10; b2b.md
+     *                                                amendments 23(a), 30). **Null means a "coming
      *                                                soon" entry**, for a module whose permissions
      *                                                do not exist yet: it is shown to Super Admins
      *                                                only (§2.2). An empty list is refused on
@@ -52,12 +51,6 @@ final readonly class MenuEntryDto
         public ?string $icon = null,
         public ?string $count = null,
     ) {}
-
-    /** Several permissions: offered for one of them held in the store being worked in (§9.4). */
-    public function inStoreWorkedIn(): bool
-    {
-        return is_array($this->permission);
-    }
 
     public function labelKey(): string
     {

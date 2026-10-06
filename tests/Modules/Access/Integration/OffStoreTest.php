@@ -7,8 +7,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRole;
 use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
-use Modules\Access\Application\Command\ChooseCurrentStore\ChooseCurrentStore;
-use Modules\Access\Application\Command\ChooseCurrentStore\ChooseCurrentStoreHandler;
 use Modules\Access\Application\Command\DeleteAddress\DeleteAddress;
 use Modules\Access\Application\Command\DeleteAddress\DeleteAddressHandler;
 use Modules\Access\Application\Command\SaveAddress\SaveAddress;
@@ -16,17 +14,18 @@ use Modules\Access\Application\Command\SaveAddress\SaveAddressHandler;
 use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddress;
 use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddressHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
-use Modules\Access\Application\Query\CurrentStore\CurrentStoreForStaff;
 use Modules\Access\Application\Query\ListRoles\ListRolesHandler;
 use Modules\Access\Application\Query\ListStaff\ListStaffHandler;
 use Modules\Access\Application\Query\MyAccount\MyAddressesForCustomer;
 use Modules\Access\Application\Query\MyAccount\MyAddressesInStoreDto;
 use Modules\Access\Application\Query\RoleEditorPermissions\RoleEditorPermissionsHandler;
+use Modules\Access\Application\Query\StoresForStaff\StoresForStaff;
 use Modules\Access\Application\Query\ViewCustomer\ViewCustomer;
 use Modules\Access\Application\Query\ViewCustomer\ViewCustomerHandler;
 use Modules\Access\Application\Query\ViewRole\ViewRoleHandler;
 use Modules\Access\Domain\Exception\AddressNotFound;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Presentation\Http\Resource\CustomerAddressGroup;
 use Modules\Access\Presentation\Http\Resource\CustomerPages;
@@ -43,7 +42,12 @@ use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStore;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\StoreChoices;
+use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Platform\Public\PlatformPermissions;
+use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 
@@ -206,121 +210,67 @@ describe('a customer\'s addresses in an off store', function () {
 });
 
 /*
-| Working in an off store (platform.md §1.6, access.md amendment 58(a); owner, 2026-10-03): a Super
-| Admin may, to prepare it before it opens; a staff member who covers it sees it marked Off and may
-| not choose it; anyone else never sees it.
+| An off store in the panel's store lists (platform.md §1.6, §9.10 #4; access.md amendments 58(a),
+| 64; the owner, 2026-10-06): a Super Admin is offered it everywhere, marked Off, to prepare it
+| before it opens; anyone else, the staff who cover it included, is never offered it, and asking
+| for it by its code is refused.
 */
-describe('working in an off store', function () {
-    it('lets a Super Admin choose it and work in it, marked off', function () {
-        $egypt = Fx::storeId('eg');
+describe('an off store in the panel\'s store lists', function () {
+    it('offers it to a Super Admin, marked off, in Home\'s switcher, View Store and every store filter', function () {
         offStoreSwitch('eg', on: false);
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-        $before = app(CurrentStoreForStaff::class)->forCurrentStaff();
-        app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore($egypt));
-        $after = app(CurrentStoreForStaff::class)->forCurrentStaff();
+        $mine = array_map(static fn (StoreDto $store): array => [$store->code, $store->isActive], app(StoresForStaff::class)->forCurrentStaff());
+        $filter = array_map(static fn (StoreDto $store): array => [$store->code, $store->isActive], app(StoreChoices::class)->forJobs(PlatformPermissions::STORE_VIEW));
+        $asked = app(StoreChoices::class)->chosen('eg', PlatformPermissions::STORE_VIEW);
 
-        expect($before?->available)->toBe([Fx::storeId('sa'), $egypt, Fx::storeId('ae')])
-            ->and($before?->off)->toBe([$egypt])
-            ->and($before?->mayChooseOff)->toBeTrue()
-            ->and($after?->storeId)->toBe($egypt)
-            ->and($after?->fellBack)->toBeFalse();
+        expect($mine)->toBe([['sa', true], ['eg', false], ['ae', true]])
+            ->and($filter)->toBe([['sa', true], ['eg', false], ['ae', true]])
+            ->and($asked?->code)->toBe('eg')
+            ->and($asked?->isActive)->toBeFalse();
     });
 
-    it('shows it to a staff member who covers it, marked off, and refuses it as their store', function () {
-        $egypt = Fx::storeId('eg');
-        Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']));
+    it('never offers it to a staff member who covers it, and refuses it when asked for', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']);
         offStoreSwitch('eg', on: false);
+        Fx::actAsStaff($staffId);
 
-        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
+        $codes = static fn (array $stores): array => array_map(static fn (StoreDto $store): string => $store->code, $stores);
 
-        expect($current?->available)->toBe([Fx::storeId('sa'), $egypt])
-            ->and($current?->off)->toBe([$egypt])
-            ->and($current?->mayChooseOff)->toBeFalse()
-            ->and($current?->storeId)->toBe(Fx::storeId('sa'))
-            ->and(fn () => app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore($egypt)))
-            ->toThrow(InvalidAccessAttribute::class, 'not one of your stores');
+        expect($codes(app(StoresForStaff::class)->forCurrentStaff()))->toBe(['sa'])
+            ->and($codes(app(StoreChoices::class)->forJobs(PlatformPermissions::STORE_VIEW)))->toBe(['sa'])
+            ->and(app(StoresForStaff::class)->byCode('eg'))->toBeNull()
+            ->and(fn () => app(StoreChoices::class)->chosen('eg', PlatformPermissions::STORE_VIEW))->toThrow(Unauthorized::class);
     });
 
     it('never shows it to a staff member who does not cover it', function () {
         Fx::actAsStaff(Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'ae']));
         offStoreSwitch('eg', on: false);
 
-        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
-
-        expect($current?->available)->toBe([Fx::storeId('sa'), Fx::storeId('ae')])
-            ->and($current?->off)->toBe([]);
+        expect(array_map(static fn (StoreDto $store): string => $store->code, app(StoresForStaff::class)->forCurrentStaff()))->toBe(['sa', 'ae']);
     });
 
-    it('lets a staff member whose only store is off sign in to no store at all, seeing it marked off', function () {
-        // Read before the switch: the fixture finds a store by its code, which an off store's is not.
-        $egypt = Fx::storeId('eg');
+    it('leaves a staff member whose only store is off with no store at all', function () {
         $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['eg']);
         offStoreSwitch('eg', on: false);
         Fx::actAsStaff($staffId);
 
-        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
-
-        expect($current?->storeId)->toBeNull()
-            ->and($current?->available)->toBe([$egypt])
-            ->and($current?->off)->toBe([$egypt]);
+        expect(app(StoresForStaff::class)->forCurrentStaff())->toBe([])
+            ->and(app(StoreChoices::class)->forJobs(PlatformPermissions::STORE_VIEW))->toBe([])
+            ->and(app(StoreChoices::class)->chosen(null, PlatformPermissions::STORE_VIEW))->toBeNull();
     });
 
-    it('falls back from a remembered store that was turned off, and says it was switched off', function () {
-        $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']);
-        Fx::actAsStaff($staffId);
-        app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore(Fx::storeId('eg')));
-        $saudi = Fx::storeId('sa');
-
-        offStoreSwitch('eg', on: false);
-        Fx::actAsStaff($staffId);
-        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
-
-        expect($current?->storeId)->toBe($saudi)
-            ->and($current?->fellBack)->toBeTrue()
-            ->and($current?->fellBackFromOff)->toBeTrue();
-    });
-
-    it('keeps a Super Admin in the off store they chose, with nothing to be told', function () {
-        $egypt = Fx::storeId('eg');
-        $superAdmin = Fx::staff(superAdmin: true);
-        Fx::actAsStaff($superAdmin);
-        app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore($egypt));
-
-        offStoreSwitch('eg', on: false);
-        Fx::actAsStaff($superAdmin);
-        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
-
-        expect($current?->storeId)->toBe($egypt)
-            ->and($current?->fellBack)->toBeFalse();
-    });
-
-    it('never lands anyone in an off store by default, a Super Admin included, even when it comes first', function () {
-        // Egypt moved before Saudi Arabia, then switched off: a Super Admin who never chose a store
-        // opens in the first store that is on. An off store is one somebody chooses to prepare
-        // (the review of the foundation, 2026-10-03).
-        $egypt = Fx::storeId('eg');
+    it('never opens a screen on an off store by default, a Super Admin\'s included, even when it comes first', function () {
+        // Egypt moved before Saudi Arabia, then switched off: a screen asked for no store opens on
+        // the first store that is on. An off store is one somebody chooses to prepare (the review of
+        // the foundation, 2026-10-03; kept by platform.md §9.10 #3).
         Fx::asSystem(fn () => app(UpdateStoreHandler::class)->handle(new UpdateStore('eg', position: 0)));
         offStoreSwitch('eg', on: false);
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
-
-        expect($current?->available[0])->toBe($egypt)
-            ->and($current?->storeId)->toBe(Fx::storeId('sa'))
-            ->and($current?->fellBack)->toBeFalse();
-    });
-
-    it('tells someone whose store was taken away that it was taken, not switched off', function () {
-        $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']);
-        Fx::actAsStaff($staffId);
-        app(ChooseCurrentStoreHandler::class)->handle(new ChooseCurrentStore(Fx::storeId('eg')));
-        DB::table('access.staff_users')->where('id', $staffId)->update(['current_store_id' => Fx::storeId('ae')]);
-
-        $current = app(CurrentStoreForStaff::class)->forCurrentStaff();
-
-        expect($current?->fellBack)->toBeTrue()
-            ->and($current?->fellBackFromOff)->toBeFalse();
+        expect(app(StoreChoices::class)->forJobs(PlatformPermissions::STORE_VIEW)[0]->code ?? null)->toBe('eg')
+            ->and(app(StoreChoices::class)->chosen(null, PlatformPermissions::STORE_VIEW)?->code)->toBe('sa')
+            ->and(app(StoreChoices::class)->chosen('', PlatformPermissions::STORE_VIEW)?->code)->toBe('sa');
     });
 });
 
@@ -336,16 +286,20 @@ describe('a staff member\'s stores while one is off', function () {
     }
 
     /**
-     * The stores a staff member covers now, read through the switcher's own answer.
+     * The stores a staff member's assignment covers now, the off ones included, in the stores'
+     * order - read from the assignment itself, since no list the panel offers them holds an off
+     * store any more (amendment 64).
      *
      * @return list<string>
      */
     function offStoreCovered(string $staffId): array
     {
-        Fx::actAsStaff($staffId);
+        $choice = app(RoleAssignmentRepository::class)->byStaff($staffId)?->staffStores();
 
-        // `??` already reads a null on its left as missing, so no nullsafe arrow is needed.
-        return app(CurrentStoreForStaff::class)->forCurrentStaff()->available ?? [];
+        return array_values(array_map(
+            static fn (StoreDto $store): string => $store->id,
+            array_filter(app(PlatformApi::class)->allStores(), static fn (StoreDto $store): bool => $choice?->covers(StoreId::fromString($store->id)) ?? false),
+        ));
     }
 
     it('keeps an off store on a staff member when their stores are saved', function () {

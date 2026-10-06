@@ -125,9 +125,9 @@ function typeListScreensMenu(TestResponse $response): array
 }
 
 describe('the menu', function () {
-    it('offers a type list in the panel itself for a job held in the store being worked in', function () {
-        // Through the panel, not the registry alone: the panel must hand the menu the store it is
-        // working in, or the entry would never be offered (amendment 23(a); the review's re-check).
+    it('offers a type list in the panel itself for a job held in a store', function () {
+        // Through the panel, not the registry alone: an entry is offered for a job held in any store
+        // (amendment 30; platform.md §9.10 #2).
         $browser = typeListScreens([B2BPermissions::COMPANY_TYPE_CREATE]);
         $menu = typeListScreensMenu($browser->get('/admin'));
 
@@ -137,7 +137,7 @@ describe('the menu', function () {
 });
 
 describe('the types page', function () {
-    it('shows the company types of the store in the header, with the notice and what the reader may do', function () {
+    it('shows the company types of the reader\'s first store, with the notice and what the reader may do', function () {
         typeListScreensHolder();
         $browser = typeListScreens([B2BPermissions::COMPANY_TYPE_UPDATE]);
 
@@ -176,12 +176,17 @@ describe('the types page', function () {
         $browser->get('/admin/company-types')->assertForbidden();
     });
 
-    it('shows the lists of the reader\'s own store, which is the one in the header', function () {
+    it('shows the lists of the reader\'s own store, and refuses another store asked for in the address', function () {
         $browser = typeListScreens([B2BPermissions::COMPANY_TYPE_UPDATE], ['eg']);
 
         $browser->get('/admin/company-types')
             ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page->where('storeName', 'Egypt'));
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('storeName', 'Egypt')->where('storeCode', 'eg')->where('storeTimezone', 'Africa/Cairo'));
+
+        // Another store, on or not, or none at all: the same refusal (amendment 30).
+        $browser->get('/admin/company-types?store=sa')->assertForbidden();
+        $browser->get('/admin/company-types?store=zz')->assertForbidden();
+        $browser->get('/admin/company-types?store=eg')->assertOk();
     });
 
     it('refuses someone holding no job on the lists', function () {
@@ -193,10 +198,10 @@ describe('the types page', function () {
 });
 
 describe('adding, renaming and moving', function () {
-    it('adds a company type to the header\'s store, and the notice goes', function () {
+    it('adds a company type to the store the page sent, and the notice goes', function () {
         $browser = typeListScreens([B2BPermissions::COMPANY_TYPE_CREATE]);
 
-        $added = $browser->post('/admin/company-types', ['name_ar' => 'جمعية تعاونية', 'name_en' => 'Cooperative Society', 'position' => '70']);
+        $added = $browser->post('/admin/company-types', ['store' => 'sa', 'name_ar' => 'جمعية تعاونية', 'name_en' => 'Cooperative Society', 'position' => '70']);
 
         expect(AdminBrowser::flashed($added, 'status'))->toBe('Company type added')
             ->and(DB::table('b2b.company_types')->where('store_id', Fx::storeId('sa'))->where('name_en', 'Cooperative Society')->value('position'))->toBe(70)
@@ -207,7 +212,7 @@ describe('adding, renaming and moving', function () {
     it('adds an optional document type', function () {
         $browser = typeListScreens([B2BPermissions::DOCUMENT_TYPE_CREATE]);
 
-        $browser->post('/admin/document-types', ['name_ar' => 'خطاب بنكي', 'name_en' => 'Bank letter', 'position' => '40', 'required' => false]);
+        $browser->post('/admin/document-types', ['store' => 'sa', 'name_ar' => 'خطاب بنكي', 'name_en' => 'Bank letter', 'position' => '40', 'required' => false]);
 
         expect((bool) DB::table('b2b.document_types')->where('store_id', Fx::storeId('sa'))->where('name_en', 'Bank letter')->value('is_required'))->toBeFalse();
     });
@@ -216,10 +221,10 @@ describe('adding, renaming and moving', function () {
         $browser = typeListScreens([B2BPermissions::COMPANY_TYPE_CREATE]);
         $taken = B2BFixtures::companyTypes()[0]->name()->en;
 
-        expect(typeListScreensErrors($browser->post('/admin/company-types', ['name_ar' => '', 'name_en' => 'Cooperative Society', 'position' => '70'])))->toHaveKey('name_ar')
-            ->and(typeListScreensErrors($browser->post('/admin/company-types', ['name_ar' => 'جمعية', 'name_en' => 'Cooperative Society', 'position' => '10001'])))->toHaveKey('position')
-            ->and(typeListScreensErrors($browser->post('/admin/company-types', ['name_ar' => 'جمعية', 'name_en' => 'Cooperative Society', 'position' => 'ten'])))->toHaveKey('position')
-            ->and(AdminBrowser::formError($browser->post('/admin/company-types', ['name_ar' => 'جمعية', 'name_en' => strtoupper($taken), 'position' => '70'])))
+        expect(typeListScreensErrors($browser->post('/admin/company-types', ['store' => 'sa', 'name_ar' => '', 'name_en' => 'Cooperative Society', 'position' => '70'])))->toHaveKey('name_ar')
+            ->and(typeListScreensErrors($browser->post('/admin/company-types', ['store' => 'sa', 'name_ar' => 'جمعية', 'name_en' => 'Cooperative Society', 'position' => '10001'])))->toHaveKey('position')
+            ->and(typeListScreensErrors($browser->post('/admin/company-types', ['store' => 'sa', 'name_ar' => 'جمعية', 'name_en' => 'Cooperative Society', 'position' => 'ten'])))->toHaveKey('position')
+            ->and(AdminBrowser::formError($browser->post('/admin/company-types', ['store' => 'sa', 'name_ar' => 'جمعية', 'name_en' => strtoupper($taken), 'position' => '70'])))
             ->toBe(trans('b2b::errors.type_name_taken.detail', [], 'en'))
             ->and(DB::table('b2b.company_types')->where('store_id', Fx::storeId('sa'))->count())->toBe(count(B2BFixtures::companyTypes()))
             ->and(typeListScreensNotice())->toBeTrue();
@@ -228,8 +233,23 @@ describe('adding, renaming and moving', function () {
     it('refuses adding to someone without the job', function () {
         $browser = typeListScreens([B2BPermissions::COMPANY_TYPE_UPDATE]);
 
-        expect(AdminBrowser::formError($browser->post('/admin/company-types', ['name_ar' => 'جمعية', 'name_en' => 'Cooperative Society', 'position' => '70'])))->not->toBeNull()
+        expect(AdminBrowser::formError($browser->post('/admin/company-types', ['store' => 'sa', 'name_ar' => 'جمعية', 'name_en' => 'Cooperative Society', 'position' => '70'])))->not->toBeNull()
             ->and(DB::table('b2b.company_types')->where('name_en', 'Cooperative Society')->exists())->toBeFalse();
+    });
+
+    it('adds and marks reviewed only in a store the page names and the reader may choose (amendment 30)', function () {
+        $browser = typeListScreens([B2BPermissions::COMPANY_TYPE_CREATE, B2BPermissions::COMPANY_TYPE_UPDATE]);
+        $type = ['name_ar' => 'جمعية', 'name_en' => 'Cooperative Society', 'position' => '70'];
+
+        // No store named - an old tab, a hand-made request - is refused, never sent to a first store;
+        // nor is a store outside the reader's.
+        expect(AdminBrowser::formError($browser->post('/admin/company-types', $type)))->not->toBeNull()
+            ->and(AdminBrowser::formError($browser->post('/admin/company-types', [...$type, 'store' => 'eg'])))->not->toBeNull()
+            ->and(AdminBrowser::formError($browser->post('/admin/type-lists/reviewed')))->not->toBeNull()
+            ->and(AdminBrowser::formError($browser->post('/admin/type-lists/reviewed', ['store' => 'eg'])))->not->toBeNull()
+            ->and(DB::table('b2b.company_types')->where('name_en', 'Cooperative Society')->exists())->toBeFalse()
+            ->and(typeListScreensNotice('sa'))->toBeTrue()
+            ->and(typeListScreensNotice('eg'))->toBeTrue();
     });
 
     it('renames and moves a type, and answers another store\'s type as one that does not exist', function () {
@@ -351,10 +371,10 @@ describe('deactivating, activating and moving companies', function () {
 });
 
 describe('marking the lists reviewed', function () {
-    it('clears the notice of the header\'s store for either list\'s update job, and no other store\'s', function () {
+    it('clears the notice of the store the page sent for either list\'s update job, and no other store\'s', function () {
         $browser = typeListScreens([B2BPermissions::DOCUMENT_TYPE_UPDATE]);
 
-        $reviewed = $browser->post('/admin/type-lists/reviewed');
+        $reviewed = $browser->post('/admin/type-lists/reviewed', ['store' => 'sa']);
 
         expect(AdminBrowser::flashed($reviewed, 'status'))->toBe('Lists marked reviewed')
             ->and(typeListScreensNotice('sa'))->toBeFalse()
@@ -364,7 +384,7 @@ describe('marking the lists reviewed', function () {
     it('refuses someone with neither list\'s update job', function () {
         $browser = typeListScreens([B2BPermissions::COMPANY_TYPE_CREATE, B2BPermissions::DOCUMENT_TYPE_DEACTIVATE]);
 
-        expect(AdminBrowser::formError($browser->post('/admin/type-lists/reviewed')))->not->toBeNull()
+        expect(AdminBrowser::formError($browser->post('/admin/type-lists/reviewed', ['store' => 'sa'])))->not->toBeNull()
             ->and(typeListScreensNotice('sa'))->toBeTrue();
     });
 });

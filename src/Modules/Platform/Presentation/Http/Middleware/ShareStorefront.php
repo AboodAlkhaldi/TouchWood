@@ -54,9 +54,9 @@ final readonly class ShareStorefront
         Inertia::share([
             'locale' => $locale,
             'direction' => $locale === 'ar' ? 'rtl' : 'ltr',
-            // "shop", not "store": the panel already shares a "store", and it is a different thing
-            // - which store a staff member is working in, with the ones they may switch to. One
-            // name for two shapes is how a screen ends up reading the wrong one.
+            // "shop", not "store": the panel once shared a "store" - which store a staff member was
+            // working in - and a page may still name a store of its own. One name for two shapes is
+            // how a screen ends up reading the wrong one.
             'shop' => fn (): ?array => $this->shop($store, $locale),
         ]);
 

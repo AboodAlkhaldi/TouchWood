@@ -124,7 +124,7 @@ final class InMemoryHomeCards implements HomeCards
     }
 
     /**
-     * @param  StoreId|null  $store  the store worked in; null asks for every store
+     * @param  StoreId|null  $store  the store chosen on Home; null asks for every store
      */
     private function mayShow(Authorizer $authorizer, HomeCardDto $card, ?StoreId $store): bool
     {

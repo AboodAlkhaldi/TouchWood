@@ -6,6 +6,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
+import { StoreFilter } from '@/components/StoreFilter';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -20,9 +21,10 @@ import { figure, nameIn, useLocale } from '../shared';
 import { DeactivateModal, TransferModal, TypeFormModal, type Kind } from './Modals';
 
 /*
-| The types page (b2b.md §1.3, §4.6, amendment 21): the company types and the document types of the
-| store in the panel's header, a tab each, on shadcn's parts with Geist's rules (frontend.md §1.11).
-| Another store's lists are reached by changing the store in the header (frontend.md §2.2).
+| The types page (b2b.md §1.3, §4.6, amendment 21): the company types and the document types of one
+| store, a tab each, on shadcn's parts with Geist's rules (frontend.md §1.11). The store is the
+| page's own, chosen in its filter and carried in its address and its tabs (amendment 30; the panel
+| has no store worked in, frontend.md §2.2).
 |
 | The two lists are two addresses, so each tab is a link (Geist's Tabs: the open tab is in the
 | address) inside shadcn's Tabs, which gives them the tab keys: the arrows move between them and
@@ -38,10 +40,12 @@ type Dialog = { action: 'add' | 'rename' | 'move' | 'deactivate' | 'transfer'; t
 
 const HREF: Record<Kind, string> = { company: '/admin/company-types', document: '/admin/document-types' };
 
-export default function Index({ kind: listed, storeName, copiedNotReviewed, types, actions }: StaffTypeListPage) {
+export default function Index({ kind: listed, storeName, storeCode, stores, copiedNotReviewed, types, actions }: StaffTypeListPage) {
     const t = useTranslator();
     const locale = useLocale();
     const kind: Kind = listed === 'document' ? 'document' : 'company';
+    // A tab keeps the store the page shows.
+    const href = (tab: Kind) => `${HREF[tab]}?store=${encodeURIComponent(storeCode)}`;
     const [dialog, setDialog] = useState<Dialog>(null);
     const [reviewing, setReviewing] = useState(false);
     // The ⋯ button of the row whose menu opened the dialog: focus goes back to it on close.
@@ -60,6 +64,8 @@ export default function Index({ kind: listed, storeName, copiedNotReviewed, type
         <div className="grid gap-4">
             <FormError />
 
+            <StoreFilter stores={stores} value={storeCode} className="max-w-xs" />
+
             {copiedNotReviewed ? (
                 <Note
                     variant="warning"
@@ -72,7 +78,7 @@ export default function Index({ kind: listed, storeName, copiedNotReviewed, type
                                 size="sm"
                                 loading={reviewing}
                                 onClick={() =>
-                                    router.post('/admin/type-lists/reviewed', {}, { preserveScroll: true, onStart: () => setReviewing(true), onFinish: () => setReviewing(false) })
+                                    router.post('/admin/type-lists/reviewed', { store: storeCode }, { preserveScroll: true, onStart: () => setReviewing(true), onFinish: () => setReviewing(false) })
                                 }
                                 data-test="mark-reviewed"
                             >
@@ -177,14 +183,14 @@ export default function Index({ kind: listed, storeName, copiedNotReviewed, type
                         {tabs.map((tab) => (
                             <TabsTrigger key={tab.kind} value={tab.kind} asChild className="flex-none px-3 text-label-14">
                                 <Link
-                                    href={HREF[tab.kind]}
+                                    href={href(tab.kind)}
                                     data-test={`tab-${tab.kind}`}
                                     // Enter follows the link as any link does; Space, which a link
                                     // ignores, opens it too, as a tab should (Geist's Tabs).
                                     onKeyDown={(event: KeyboardEvent<HTMLAnchorElement>) => {
                                         if (event.key === ' ') {
                                             event.preventDefault();
-                                            router.visit(HREF[tab.kind]);
+                                            router.visit(href(tab.kind));
                                         }
                                     }}
                                 >
@@ -200,7 +206,7 @@ export default function Index({ kind: listed, storeName, copiedNotReviewed, type
             )}
 
             {dialog !== null && (dialog.action === 'add' || dialog.action === 'rename' || dialog.action === 'move') ? (
-                <TypeFormModal mode={dialog.action} kind={kind} type={dialog.type} open onOpenChange={close} nextPosition={nextPosition} returnFocusTo={opener} />
+                <TypeFormModal mode={dialog.action} kind={kind} type={dialog.type} open onOpenChange={close} nextPosition={nextPosition} store={storeCode} returnFocusTo={opener} />
             ) : null}
             {dialog !== null && dialog.action === 'deactivate' && dialog.type !== null ? (
                 <DeactivateModal

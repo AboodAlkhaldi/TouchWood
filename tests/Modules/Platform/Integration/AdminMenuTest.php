@@ -27,15 +27,16 @@ beforeEach(function () {
 
 /**
  * The entries the person acting now is offered, flattened to "group/key" so a test reads like the
- * menu does - in the store the panel is working in, which the panel always passes; none by default.
+ * menu does. The panel has no store worked in (platform.md §9.10 #2): an entry is offered for a
+ * permission held in any store.
  *
  * @return list<string>
  */
-function offeredMenu(?string $storeWorkedIn = null): array
+function offeredMenu(): array
 {
     $offered = [];
 
-    foreach (app(AdminMenu::class)->forCurrentActor($storeWorkedIn) as $group => $entries) {
+    foreach (app(AdminMenu::class)->forCurrentActor() as $group => $entries) {
         foreach ($entries as $entry) {
             $offered[] = "{$group}/{$entry->key}";
         }
@@ -75,9 +76,8 @@ describe('the admin menu', function () {
 
         // Everything under staff_and_permissions and store_settings but "saved-roles" is a real
         // entry, registered at boot by the module that owns it; the rest are this test's own. The
-        // list grows as screens ship, and the order it grows in is the thing being asserted. Asked
-        // in a store, as the panel always does: B2B's type lists need one (amendment 23(a)).
-        expect(offeredMenu(Fx::storeId('sa')))->toBe([
+        // list grows as screens ship, and the order it grows in is the thing being asserted.
+        expect(offeredMenu())->toBe([
             'catalog/products',
             // B2B's staff screens (b2b.md amendment 21).
             'companies/companies',
@@ -227,7 +227,7 @@ describe('the admin menu', function () {
         // Managing roles is admin-only, so an admin role carries the one that is held.
         Fx::actAsAdmin(['sa'], [$held]);
 
-        expect(offeredMenu(Fx::storeId('sa')))->toContain('staff_and_permissions/either');
+        expect(offeredMenu())->toContain('staff_and_permissions/either');
     })->with([
         'the first' => [AccessPermissions::ROLE_MANAGE],
         'the second' => [PlatformPermissions::AUDIT_VIEW],
@@ -239,14 +239,14 @@ describe('the admin menu', function () {
         );
         Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']));
 
-        expect(offeredMenu(Fx::storeId('sa')))->not->toContain('staff_and_permissions/either');
+        expect(offeredMenu())->not->toContain('staff_and_permissions/either');
     });
 
-    it('offers each of B2B\'s type lists to anyone holding any job on it in the store worked in, and only that list', function (string $job, string $offered, string $notOffered) {
+    it('offers each of B2B\'s type lists to anyone holding any job on it, and only that list', function (string $job, string $offered, string $notOffered) {
         Fx::actAsStaff(Fx::staffWith([$job], ['sa']));
 
-        expect(offeredMenu(Fx::storeId('sa')))->toContain($offered)
-            ->and(offeredMenu(Fx::storeId('sa')))->not->toContain($notOffered);
+        expect(offeredMenu())->toContain($offered)
+            ->and(offeredMenu())->not->toContain($notOffered);
     })->with([
         'adding company types' => [B2BPermissions::COMPANY_TYPE_CREATE, 'companies/company_types', 'companies/document_types'],
         'renaming company types' => [B2BPermissions::COMPANY_TYPE_UPDATE, 'companies/company_types', 'companies/document_types'],
@@ -257,14 +257,13 @@ describe('the admin menu', function () {
         'deactivating document types' => [B2BPermissions::DOCUMENT_TYPE_DEACTIVATE, 'companies/document_types', 'companies/company_types'],
     ]);
 
-    it('does not offer a type list for a job held only in another store, whose page would refuse them', function () {
-        // The list shows the store being worked in alone (b2b.md §4.6), so a job held only in Egypt
-        // offers nothing while working in Saudi Arabia - it would only answer "not allowed"
-        // (amendment 23(a), owner 2026-10-03). Other entries keep "held anywhere".
-        Fx::actAsStaff(Fx::staffWith([B2BPermissions::COMPANY_TYPE_UPDATE, AccessPermissions::STAFF_VIEW], ['eg']));
+    it('offers a type list for a job held in one store only: the list then opens on that store', function () {
+        // The panel has no store worked in (platform.md §9.10 #2; the owner, 2026-10-06): the list
+        // chooses its own store, among those where the job is held (b2b.md amendment 30), so a job
+        // held only in Egypt offers it.
+        Fx::actAsStaff(Fx::staffWith([B2BPermissions::COMPANY_TYPE_UPDATE], ['eg']));
 
-        expect(offeredMenu(Fx::storeId('sa')))->not->toContain('companies/company_types')
-            ->and(offeredMenu(Fx::storeId('eg')))->toContain('companies/company_types')
-            ->and(offeredMenu(Fx::storeId('sa')))->toContain('staff_and_permissions/staff');
+        expect(offeredMenu())->toContain('companies/company_types')
+            ->and(offeredMenu())->not->toContain('companies/document_types');
     });
 });

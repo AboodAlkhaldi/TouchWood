@@ -536,7 +536,7 @@ describe('the routes themselves', function () {
             ->where('viewer.name', 'Staff Member')
             ->where('viewer.isSuperAdmin', false)
             ->where('theme.mode', 'light')
-            ->where('store.available', fn (Collection $stores): bool => $stores->count() === 1)
+            ->where('viewStores', fn (Collection $stores): bool => $stores->count() === 1)
         );
     });
 });

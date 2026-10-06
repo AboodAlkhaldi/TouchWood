@@ -28,7 +28,8 @@ beforeEach(function () {
 
 /*
 | The admin home's cards (frontend.md §2.2; platform.md §2.6, §9.8; b2b.md amendment 27; the owner's
-| fix list, point 6): what each reader is handed, for which scope, and whether the switch is offered.
+| fix list, point 6; access.md amendment 64): what each reader is handed, for which store or All
+| Stores, and which stores the switcher offers.
 */
 
 function adminHomeSignIn(string $staffId): AdminBrowser
@@ -47,14 +48,20 @@ function adminHomeSignIn(string $staffId): AdminBrowser
     return $browser;
 }
 
-it('opens a Super Admin\'s home on All Stores, with the switch, both cards and their words', function () {
+it('opens a Super Admin\'s home on All Stores, with every store in the switcher, both cards and their words', function () {
     B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
     $browser = adminHomeSignIn(Fx::staff(superAdmin: true));
 
     $browser->get('/admin')->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
         ->component('Admin/Home')
-        ->where('scope', 'all')
+        ->where('storeCode', null)
         ->where('offersAllStores', true)
+        ->where('stores', [
+            ['code' => 'sa', 'name' => 'Saudi Arabia', 'isActive' => true],
+            ['code' => 'eg', 'name' => 'Egypt', 'isActive' => true],
+            ['code' => 'ae', 'name' => 'United Arab Emirates', 'isActive' => true],
+        ])
+        ->where('storeTimezone', null)
         ->where('cards.0.key', 'b2b.approvals')
         ->where('cards.0.title', 'Company Approvals')
         ->where('cards.0.figures.0.label', 'Under Review')
@@ -66,9 +73,11 @@ it('opens a Super Admin\'s home on All Stores, with the switch, both cards and t
         ->where('cards.1.figures.0.value', 3)
     );
 
-    // This Store, asked for: the store being worked in; Platform's card without stores on and off.
-    $browser->get('/admin?scope=store')->assertInertia(fn (AssertableInertia $inertia) => $inertia
-        ->where('scope', 'store')
+    // One store, chosen in the switcher: Platform's card without stores on and off, and the store's
+    // own time zone for the page's times.
+    $browser->get('/admin?store=eg')->assertInertia(fn (AssertableInertia $inertia) => $inertia
+        ->where('storeCode', 'eg')
+        ->where('storeTimezone', 'Africa/Cairo')
         ->where('cards.1.key', 'platform.system')
         ->where('cards.1.figures.0.label', 'Failed Jobs')
     );
@@ -81,8 +90,10 @@ it('shows an admin of one store that store\'s cards, with no switch, though a st
     $browser = adminHomeSignIn(Fx::staffWith([B2BPermissions::COMPANY_VIEW, PlatformPermissions::JOBS_MANAGE], ['sa'], RoleLevel::Admin));
 
     $browser->get('/admin')->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
-        ->where('scope', 'store')
+        ->where('storeCode', 'sa')
         ->where('offersAllStores', false)
+        // One store and no All Stores: nothing to switch, so the page draws no switcher.
+        ->has('stores', 1)
         ->has('cards', 2)
         ->where('cards.0.key', 'b2b.approvals')
         // Egypt's waiting company is not theirs to see.
@@ -92,21 +103,21 @@ it('shows an admin of one store that store\'s cards, with no switch, though a st
         ->where('cards.1.figures.0.label', 'Failed Jobs')
     );
 
-    // Asking for All Stores changes nothing they may see.
-    $browser->get('/admin?scope=all')->assertInertia(fn (AssertableInertia $inertia) => $inertia
-        ->where('scope', 'store')
-        ->where('cards.0.key', 'b2b.approvals')
-        ->where('cards.0.figures.0.value', 0)
-    );
+    // Asking for another store's figures, or a store that does not exist, is refused.
+    $browser->get('/admin?store=eg')->assertForbidden();
+    $browser->get('/admin?store=zz')->assertForbidden();
 });
 
-it('gives a reader of two stores of three no All Stores', function () {
+it('gives a reader of two stores of three no All Stores, and a switcher of their two', function () {
     B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount(), 'ae');
     $browser = adminHomeSignIn(Fx::staffWith([B2BPermissions::COMPANY_VIEW], ['sa', 'eg']));
 
-    $browser->get('/admin?scope=all')->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
-        ->where('scope', 'store')
+    $browser->get('/admin')->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
+        ->where('storeCode', 'sa')
         ->where('offersAllStores', false)
+        ->where('stores.0.code', 'sa')
+        ->where('stores.1.code', 'eg')
+        ->has('stores', 2)
         ->where('cards.0.key', 'b2b.approvals')
         ->where('cards.0.figures.0.value', 0)
     );

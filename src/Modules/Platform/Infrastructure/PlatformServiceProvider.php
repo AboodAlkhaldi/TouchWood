@@ -30,6 +30,7 @@ use Modules\Platform\Application\Media\MediaStorage;
 use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Application\Menu\InMemoryAdminMenu;
 use Modules\Platform\Application\PlatformApiImpl;
+use Modules\Platform\Application\Query\AuthorizedStoreChoices;
 use Modules\Platform\Application\Query\ListAudit\AuditReader;
 use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Application\Query\StoreDirectory;
@@ -75,6 +76,7 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
 use Modules\Platform\Public\Contracts\StaffNames;
+use Modules\Platform\Public\Contracts\StoreChoices;
 use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\PlatformPermissions;
@@ -167,6 +169,8 @@ final class PlatformServiceProvider extends ServiceProvider
         // The Authorizer is Access's (Access spec §2.5).
         $this->app->scoped(AuditLog::class, DatabaseAuditLog::class);
         $this->app->scoped(PlatformApi::class, PlatformApiImpl::class);
+        // A store screen's filter (§9.10): scoped, it reads who is acting.
+        $this->app->scoped(StoreChoices::class, AuthorizedStoreChoices::class);
         // Nobody named until the module that owns people binds its own (Access does, amendment 54).
         // Scoped: who may be named depends on who is reading.
         $this->app->scoped(StaffNames::class, UnnamedStaff::class);

@@ -7,6 +7,7 @@ namespace Modules\B2B\Presentation\Http\Resource;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Contracts\Foundation\Application;
+use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ListCompanies\CompanySummary;
 use Modules\B2B\Application\Query\ListCompanies\ListCompanies;
 use Modules\B2B\Application\Query\ListCompanies\ListCompaniesHandler;
@@ -22,7 +23,9 @@ use Modules\B2B\Application\Query\ViewMyCompany\FlagView;
 use Modules\B2B\Application\Query\ViewMyCompany\RequestView;
 use Modules\B2B\Public\Enums\CompanyStatus;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\StoreChoices;
 use Modules\Platform\Public\Dto\StoreDto;
+use Shared\Application\Unauthorized;
 
 /**
  * B2B's staff reads, in the shape the screens want (b2b.md §4.6).
@@ -30,24 +33,35 @@ use Modules\Platform\Public\Dto\StoreDto;
  * It decides nothing. **Who appears and what may be done is B2B's answer** — ListCompanies,
  * ViewCompany and StaffCompanyActionsForReader, each asking for its own job in the right store. What
  * happens here is shaping: a store's id into its name, every time as a moment with its offset in the
- * company's home store's zone (HANDOFF §4) — the page shows it, through Time, in the store being
- * worked in (amendment 23(b)) —, and each application's answers beside the requests they answer.
+ * company's home store's zone (HANDOFF §4) — the page shows it, through Time, in the zone of the
+ * store it shows, else the base store's (amendments 23(b), 30) —, and each application's answers
+ * beside the requests they answer.
  */
 final readonly class StaffCompanyPages
 {
     public function __construct(
         private Application $app,
         private PlatformApi $platform,
+        private StoreChoices $choices,
         private ListCompaniesHandler $list,
         private ViewCompanyHandler $view,
         private StaffCompanyActionsForReader $actions,
     ) {}
 
+    /**
+     * @throws Unauthorized when the filter names a store the reader is not offered - an off one to
+     *                      anyone but a Super Admin (platform.md §9.10 #4)
+     */
     public function list(?string $search, ?string $status, ?string $storeId, int $page): StaffCompanyListPage
     {
+        $offered = $this->choices->forJobs(B2BPermissions::COMPANY_VIEW);
+
+        if ($storeId !== null && ! in_array(strtolower($storeId), array_map(static fn (StoreDto $store): string => $store->id, $offered), true)) {
+            throw new Unauthorized(B2BPermissions::COMPANY_VIEW);
+        }
+
         $found = $this->list->handle(new ListCompanies($search, $status, $storeId, $page));
         $stores = $this->stores();
-        $mine = $this->actions->listStores();
 
         return new StaffCompanyListPage(
             companies: array_map(fn (CompanySummary $company): StaffCompanyRowData => new StaffCompanyRowData(
@@ -66,11 +80,15 @@ final readonly class StaffCompanyPages
             status: $status === null ? null : strtoupper($status),
             storeId: $storeId === null ? null : strtolower($storeId),
             statuses: array_map(static fn (CompanyStatus $case): string => $case->value, CompanyStatus::cases()),
-            // Only the stores the reader covers: filtering by another is refused (amendment 10(j)).
-            stores: array_values(array_map(
-                fn (StoreDto $store): StaffStoreOptionData => new StaffStoreOptionData($store->id, $store->name->in($this->app->getLocale())),
-                array_filter($stores, static fn (StoreDto $store): bool => $mine === null || in_array($store->id, $mine, true)),
-            )),
+            // Only the stores the reader may list: filtering by another is refused (amendment 10(j));
+            // a Super Admin's off stores too, marked Off (amendment 30, platform.md §9.10).
+            stores: array_map(
+                fn (StoreDto $store): StaffStoreOptionData => new StaffStoreOptionData($store->id, $store->code, $store->name->in($this->app->getLocale()), $store->isActive),
+                $offered,
+            ),
+            // The list filtered to one store is written in its zone, else the base store's
+            // (frontend.md §1.10).
+            storeTimezone: $storeId === null ? null : ($stores[strtolower($storeId)] ?? null)?->timezone,
         );
     }
 
@@ -130,6 +148,8 @@ final readonly class StaffCompanyPages
                 static fn (CorrectionChoice $choice): StaffTypeChoiceData => new StaffTypeChoiceData($choice->id, $choice->nameAr, $choice->nameEn, $choice->active),
                 $actions->typeChoices,
             ),
+            // The company's page is written in its own store's zone (frontend.md §1.10).
+            storeTimezone: $home?->timezone,
         );
     }
 
@@ -205,7 +225,8 @@ final readonly class StaffCompanyPages
     }
 
     /**
-     * Every store, by id, in the stores' own order.
+     * Every store, by id, in the stores' own order - the off ones too, so a Super Admin's list
+     * filtered to one still names it and writes its times in its zone (amendment 30).
      *
      * @return array<string, StoreDto>
      */
@@ -213,7 +234,7 @@ final readonly class StaffCompanyPages
     {
         $stores = [];
 
-        foreach ($this->platform->stores() as $store) {
+        foreach ($this->platform->allStores() as $store) {
             $stores[$store->id] = $store;
         }
 

@@ -130,13 +130,12 @@ describe('the panel', function () {
             ->where('stores.2.isActive', false)
             ->where('stores.2.isBase', false)
             ->where('stores.2.switchable', true)
-            // A store a Super Admin may work in, to prepare it before it opens: the panel's switcher
-            // lists it, marked off (access.md amendment 58(a); owner, 2026-10-03).
-            ->has('store.available', 3)
-            ->where('store.available.0.name', 'Saudi Arabia')
-            ->where('store.available.2.name', 'United Arab Emirates')
-            ->where('store.available.2.isActive', false)
-            ->where('store.available.2.choosable', true)
+            // A store a Super Admin prepares before it opens: View Store lists it, marked off
+            // (access.md amendments 58(a), 64).
+            ->has('viewStores', 3)
+            ->where('viewStores.0.name', 'Saudi Arabia')
+            ->where('viewStores.2.name', 'United Arab Emirates')
+            ->where('viewStores.2.isActive', false)
         );
     });
 
@@ -156,7 +155,7 @@ describe('the panel', function () {
             ->and(DB::table('platform.stores')->where('code', 'sa')->value('is_active'))->toBeTrue();
     });
 
-    it('hides the off store from an admin of every store on the stores screen, shows it to them off and unchoosable, and refuses them the switch', function () {
+    it('hides the off store from an admin of every store on the stores screen and in View Store, and refuses them the switch', function () {
         storeSwitchScreensTurnOff('ae');
         $browser = storeSwitchScreensSignIn(Fx::staffWith(
             [PlatformPermissions::STORE_VIEW, PlatformPermissions::STORE_UPDATE],
@@ -168,11 +167,9 @@ describe('the panel', function () {
             ->where('maySwitch', false)
             ->has('stores', 2)
             ->where('stores.1.switchable', false)
-            // In the switcher it is theirs, so it shows, marked off; only a Super Admin may work in
-            // it (access.md amendment 58(a); owner, 2026-10-03).
-            ->has('store.available', 3)
-            ->where('store.available.2.isActive', false)
-            ->where('store.available.2.choosable', false)
+            // Only a Super Admin is offered an off store (access.md amendments 58(a), 64).
+            ->has('viewStores', 2)
+            ->where('viewStores.1.code', 'eg')
         );
 
         expect(AdminBrowser::formError($browser->post('/admin/stores/ae/activate')->assertRedirect()))->not->toBeNull()

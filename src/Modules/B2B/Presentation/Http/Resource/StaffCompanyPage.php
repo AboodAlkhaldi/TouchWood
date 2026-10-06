@@ -27,5 +27,7 @@ final class StaffCompanyPage extends Data
         public array $applications,
         public StaffCompanyActionsData $actions,
         public array $typeChoices,
+        /** The company's own store's zone, for the moments on the page (frontend.md §1.10). */
+        public ?string $storeTimezone,
     ) {}
 }

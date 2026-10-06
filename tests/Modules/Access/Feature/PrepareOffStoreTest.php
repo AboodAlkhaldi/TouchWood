@@ -21,12 +21,14 @@ use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use function Pest\Laravel\seed;
 
 /*
-| Preparing a store before it opens (platform.md §1.6, access.md amendment 58(a); owner, 2026-10-03).
+| Preparing a store before it opens (platform.md §1.6, §9.10; access.md amendments 58(a), 64; owner,
+| 2026-10-03 and 2026-10-06).
 |
 | A Super Admin works inside an off store - its settings, its address form, its company lists - so it
-| is ready when it is switched on, without customers ever seeing it half done. A staff member who
-| covers it sees it in the switcher, marked Off, and may not work in it. These go through the panel
-| the way a person does, because the switcher, the header's store and each screen must agree.
+| is ready when it is switched on, without customers ever seeing it half done. Each screen's own store
+| filter offers it to them, marked Off. Anyone else - a staff member who covers it, an admin who
+| covers every store - is never offered it, and is refused it when asking for it by its code. These go
+| through the panel the way a person does, because each screen and the server behind it must agree.
 */
 
 uses(RefreshDatabase::class);
@@ -40,6 +42,7 @@ beforeEach(function () {
 
 function prepareOffStoreSignIn(string $staffId): AdminBrowser
 {
+    DB::table('access.staff_users')->where('id', $staffId)->update(['locale' => 'en']);
     $browser = new AdminBrowser('10.11.0.'.random_int(20, 250));
 
     $browser->post('/admin/sign-in', [
@@ -52,7 +55,7 @@ function prepareOffStoreSignIn(string $staffId): AdminBrowser
     return $browser;
 }
 
-/** Egypt switched off, its id read first: an off store's code finds no store. */
+/** Egypt switched off, its id read first: an off store's code finds no store in the fixtures. */
 function prepareOffStoreEgyptOff(): string
 {
     $egypt = Fx::storeId('eg');
@@ -61,37 +64,45 @@ function prepareOffStoreEgyptOff(): string
     return $egypt;
 }
 
-/** A Super Admin signed in and working in Egypt, which is off. */
-function prepareOffStoreInEgypt(): AdminBrowser
+/** A Super Admin signed in, with Egypt off. */
+function prepareOffStoreSuperAdmin(): AdminBrowser
 {
-    $egypt = prepareOffStoreEgyptOff();
-    $browser = prepareOffStoreSignIn(Fx::staff(superAdmin: true));
+    prepareOffStoreEgyptOff();
 
-    $browser->post('/admin/current-store', ['store' => $egypt])->assertRedirect();
-
-    return $browser;
+    return prepareOffStoreSignIn(Fx::staff(superAdmin: true));
 }
 
 describe('a Super Admin preparing an off store', function () {
-    it('works in it, the page it is handed marking it off', function () {
-        $browser = prepareOffStoreInEgypt();
+    it('is offered it, marked off, on Home, by View Store and in a store screen\'s filter', function () {
+        $browser = prepareOffStoreSuperAdmin();
 
         $browser->get('/admin')
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('store.current.name', 'Egypt')
-                ->where('store.current.isActive', false)
-                ->where('store.current.choosable', true)
-                ->has('store.available', 3)
-                ->where('store.fellBack', false)
+                ->where('offersAllStores', true)
+                ->where('storeCode', null)
+                ->where('stores.1.code', 'eg')
+                ->where('stores.1.isActive', false)
+                ->where('viewStores.1.code', 'eg')
+                ->where('viewStores.1.isActive', false)
+            );
+
+        $browser->get('/admin/settings?store=eg')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('storeCode', 'eg')
+                ->where('storeName', 'Egypt')
+                ->where('storeTimezone', 'Africa/Cairo')
+                ->has('stores', 3)
+                ->where('stores.1.isActive', false)
             );
     });
 
     it('sets its settings', function () {
-        $browser = prepareOffStoreInEgypt();
+        $browser = prepareOffStoreSuperAdmin();
         $key = CustomerSecuritySettings::LOCKOUT_MINUTES;
 
-        $browser->post("/admin/settings/{$key}", ['value' => '25'])->assertRedirect();
+        $browser->post("/admin/settings/{$key}", ['value' => '25', 'store' => 'eg'])->assertRedirect();
 
         $row = DB::table('platform.settings')->where('key', $key)->first()
             ?? throw new RuntimeException('The setting was not stored.');
@@ -101,7 +112,7 @@ describe('a Super Admin preparing an off store', function () {
     });
 
     it('sets its address form, finding it by its code', function () {
-        $browser = prepareOffStoreInEgypt();
+        $browser = prepareOffStoreSuperAdmin();
         $egypt = (string) DB::table('platform.stores')->where('code', 'eg')->value('id');
 
         $browser->get('/admin/address-formats?store=eg')
@@ -121,13 +132,13 @@ describe('a Super Admin preparing an off store', function () {
     });
 
     it('adds to its company types', function () {
-        $browser = prepareOffStoreInEgypt();
+        $browser = prepareOffStoreSuperAdmin();
 
-        $browser->get('/admin/company-types')
+        $browser->get('/admin/company-types?store=eg')
             ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page->where('storeName', 'Egypt'));
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('storeName', 'Egypt')->where('storeCode', 'eg'));
 
-        $browser->post('/admin/company-types', ['name_ar' => 'جمعية تعاونية', 'name_en' => 'Cooperative Society', 'position' => '70'])
+        $browser->post('/admin/company-types', ['name_ar' => 'جمعية تعاونية', 'name_en' => 'Cooperative Society', 'position' => '70', 'store' => 'eg'])
             ->assertRedirect();
 
         expect(DB::table('b2b.company_types')
@@ -135,28 +146,33 @@ describe('a Super Admin preparing an off store', function () {
             ->where('name_en', 'Cooperative Society')
             ->exists())->toBeTrue();
     });
+
+    it('never lands in it without choosing it, even when it comes first', function () {
+        $browser = prepareOffStoreSuperAdmin();
+
+        // No store asked: the first that is on (platform.md §9.10 #3).
+        $browser->get('/admin/settings')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('storeCode', 'sa'));
+        $browser->get('/admin/company-types')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('storeCode', 'sa'));
+    });
 });
 
 describe('a staff member who covers an off store', function () {
-    it('sees it marked off and not to be chosen, and is refused it', function () {
-        $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']);
-        $egypt = prepareOffStoreEgyptOff();
+    it('is never offered it, and is refused it when asking for it by its code', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW, B2BPermissions::COMPANY_TYPE_UPDATE], ['sa', 'eg']);
+        prepareOffStoreEgyptOff();
         $browser = prepareOffStoreSignIn($staffId);
 
         $browser->get('/admin')
             ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('store.current.name', 'Saudi Arabia')
-                ->has('store.available', 2)
-                ->where('store.available.1.name', 'Egypt')
-                ->where('store.available.1.isActive', false)
-                ->where('store.available.1.choosable', false)
-            );
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('viewStores', [['code' => 'sa', 'name' => 'Saudi Arabia', 'isActive' => true]]));
 
-        $refused = $browser->post('/admin/current-store', ['store' => $egypt]);
+        $browser->get('/admin/company-types')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('storeCode', 'sa')->has('stores', 1));
+        $browser->get('/admin/company-types?store=eg')->assertForbidden();
+        $browser->post('/admin/company-types', ['name_ar' => 'جمعية تعاونية', 'name_en' => 'Cooperative Society', 'position' => '70', 'store' => 'eg']);
 
-        expect(DB::table('access.staff_users')->where('id', $staffId)->value('current_store_id'))->not->toBe($egypt)
-            ->and(AdminBrowser::flashed($refused, 'errors'))->not->toBeNull();
+        expect(DB::table('b2b.company_types')->where('name_en', 'Cooperative Society')->exists())->toBeFalse();
     });
 
     it('cannot open its address form by its code', function () {
@@ -209,22 +225,27 @@ describe('a staff member who covers an off store', function () {
 });
 
 describe('an admin who covers every store, without being a Super Admin', function () {
-    it('is not offered an off store to work in, and is refused it', function () {
+    it('is not offered an off store in any list, and is refused it on every screen and save', function () {
         // Every store, and every admin-only action in them - still not a Super Admin.
-        $adminId = Fx::staffWith([PlatformPermissions::STORE_VIEW, AccessPermissions::ADDRESS_FORMAT_UPDATE], ['*'], RoleLevel::Admin);
+        $adminId = Fx::staffWith([PlatformPermissions::STORE_VIEW, AccessPermissions::ADDRESS_FORMAT_UPDATE, AccessPermissions::SETTINGS_UPDATE], ['*'], RoleLevel::Admin);
         $egypt = prepareOffStoreEgyptOff();
         $browser = prepareOffStoreSignIn($adminId);
+        $key = CustomerSecuritySettings::LOCKOUT_MINUTES;
 
         $browser->get('/admin')
             ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('store.available.1.name', 'Egypt')
-                ->where('store.available.1.choosable', false)
-            );
-
-        $browser->post('/admin/current-store', ['store' => $egypt]);
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('viewStores', 2)->where('viewStores.1.code', 'ae'));
+        $browser->get('/admin/settings')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('stores', 2)->where('stores.1.code', 'ae'));
+        $browser->get('/admin/settings?store=eg')->assertForbidden();
         $browser->get('/admin/address-formats?store=eg')->assertNotFound();
 
-        expect(DB::table('access.staff_users')->where('id', $adminId)->value('current_store_id'))->not->toBe($egypt);
+        // Sent straight to the server: UpdateSetting refuses an off store to anyone but a Super Admin
+        // (platform.md §9.10 #3), as a store that does not exist.
+        $refused = $browser->post("/admin/settings/{$key}", ['value' => '25', 'store' => 'eg']);
+
+        expect(AdminBrowser::formError($refused) ?? AdminBrowser::flashed($refused, 'errors'))->not->toBeNull()
+            ->and(DB::table('platform.settings')->where('key', $key)->where('store_id', $egypt)->exists())->toBeFalse();
     });
 });

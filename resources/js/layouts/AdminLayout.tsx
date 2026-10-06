@@ -1,9 +1,10 @@
 import { Fragment, type ReactNode } from 'react';
-import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ChevronRight, Store as StoreIcon } from 'lucide-react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { ChevronRight } from 'lucide-react';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
+import { ViewStoreButton } from '@/components/ViewStoreButton';
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -12,7 +13,6 @@ import {
     BreadcrumbPage,
     BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { useTranslator } from '@/lib/t';
@@ -22,9 +22,9 @@ import type { SharedProps } from '@/types/page';
 | The admin panel's frame (frontend.md §2.2): shadcn's `sidebar-07` page, as the block writes it
 | (§1.11) - the sidebar, and a top bar with its trigger and the trail back.
 |
-| The store being worked in is chosen in the sidebar's header, which is where the block puts its
-| switcher. The panel carries no store in its URLs: the store is remembered on the account, and a
-| screen that is store-free simply ignores it.
+| The panel has no store "worked in" (the owner, 2026-10-06; access.md amendment 64): the sidebar's
+| header is one link to Home, and a screen that shows one store's data chooses it with its own
+| filter, in its own address (`?store=sa`).
 |
 | The page's own title block - a big title, one line under it, the page's main action at the top
 | end - is ours, kept by the owner (§1.11 #1, 2026-10-02), set in Geist's type.
@@ -58,7 +58,7 @@ type Props = {
 
 export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: Props) {
     const page = usePage<SharedProps>();
-    const { menu, sidebarOpen, store } = page.props;
+    const { menu, sidebarOpen } = page.props;
     const here = page.url.split('?')[0] ?? page.url;
     const t = useTranslator();
 
@@ -113,24 +113,10 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
                             </Breadcrumb>
                         </div>
 
-                        {/* View Store (frontend.md §2.2; access.md §1.11): the shop of the store
-                            being worked in, as this staff member - a post, since it opens a pass;
-                            shown only while the panel works in a store. The address is written out,
-                            as the store switcher's is: the route helper would add its weight to
-                            every admin page (frontend.md §5's page budget). */}
-                        {store?.current ? (
-                            <div className="ms-auto px-4">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    data-test="view-store"
-                                    onClick={() => router.post('/admin/staff-view')}
-                                >
-                                    <StoreIcon aria-hidden="true" />
-                                    {t('admin.staff_view.open')}
-                                </Button>
-                            </div>
-                        ) : null}
+                        {/* View Store (frontend.md §2.2; access.md §1.11, amendment 64). */}
+                        <div className="ms-auto px-4">
+                            <ViewStoreButton />
+                        </div>
                     </header>
 
                     {/* A div, not a main: SidebarInset is the main landmark already, and a page

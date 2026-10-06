@@ -174,6 +174,7 @@ status: string | null,
 storeId: string | null,
 statuses: string[],
 stores: StaffStoreOptionData[],
+storeTimezone: string | null,
 };
 export type StaffCompanyPage = {
 company: StaffCompanyData,
@@ -181,6 +182,7 @@ holder: StaffHolderData | null,
 applications: StaffApplicationData[],
 actions: StaffCompanyActionsData,
 typeChoices: StaffTypeChoiceData[],
+storeTimezone: string | null,
 };
 export type StaffCompanyRowData = {
 id: string,
@@ -210,7 +212,9 @@ locale: string,
 };
 export type StaffStoreOptionData = {
 id: string,
+code: string,
 name: string,
+isActive: boolean,
 };
 export type StaffTypeActionsData = {
 mayReadCompanyTypes: boolean,
@@ -231,6 +235,9 @@ active: boolean,
 export type StaffTypeListPage = {
 kind: string,
 storeName: string,
+storeCode: string,
+stores: StaffStoreOptionData[],
+storeTimezone: string | null,
 copiedNotReviewed: boolean,
 types: StaffTypeRowData[],
 actions: StaffTypeActionsData,

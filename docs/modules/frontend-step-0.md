@@ -129,6 +129,10 @@ refused at boot. The existing catalog tests already assert names in both languag
 
 ## P3 · The staff account remembers the store they are working in — Access
 
+**[REPLACED by the owner, 2026-10-06]** The panel no longer has a store worked in: each screen has
+its own store filter, and the remembered store is removed (access.md amendment 64, frontend.md §2.2).
+What follows is kept as the record of the first decision.
+
 ### Today
 
 Checked: `access.staff_users` has no such column. The admin panel carries no store in its URLs

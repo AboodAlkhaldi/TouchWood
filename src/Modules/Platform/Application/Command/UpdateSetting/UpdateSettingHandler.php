@@ -19,6 +19,7 @@ use Modules\Platform\Domain\Exception\UnknownSetting;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Events\SettingChanged;
+use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
@@ -102,6 +103,13 @@ final readonly class UpdateSettingHandler
     private function storeId(string $code): StoreId
     {
         $store = $this->directory->storeByCode($code) ?? throw new StoreNotFound($code);
+
+        // An off store is as if it were never there, except to whoever may turn it back on (§1.6, as
+        // UpdateStore): its settings are prepared by a Super Admin. The panel's store picker used to
+        // keep everyone else out; the screen's own filter does not decide this (§9.10).
+        if (! $store->isActive && $this->authorizer->storesWith(PlatformPermissions::STORE_SWITCH) === []) {
+            throw new StoreNotFound($code);
+        }
 
         return $store->storeId();
     }
