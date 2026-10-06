@@ -20,7 +20,7 @@ final class CreateStoreCommand extends Command
         {--name-ar= : Arabic name}
         {--name-en= : English name}
         {--country= : ISO 3166-1 alpha-2 country code}
-        {--currency= : ISO 4217 code of an existing currency}
+        {--currency= : ISO 4217 code of an existing currency no store uses (one currency, one store)}
         {--tax-basis-points= : Tax rate in basis points, 1500 = 15%}
         {--timezone= : IANA timezone}
         {--position=0 : Display order}';

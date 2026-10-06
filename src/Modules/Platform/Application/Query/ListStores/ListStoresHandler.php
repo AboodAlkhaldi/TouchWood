@@ -82,6 +82,16 @@ final readonly class ListStoresHandler
         return $this->authorizer->storesWith(PlatformPermissions::STORE_SWITCH) !== [];
     }
 
+    /**
+     * Whether the person acting may open a store from the stores screen (platform.md §9.7 #3): the
+     * reserved, store-free `platform.store.create` - a Super Admin. Offering it is not allowing it:
+     * CreateStore asks again.
+     */
+    public function mayCreate(): bool
+    {
+        return $this->authorizer->storesWith(PlatformPermissions::STORE_CREATE) !== [];
+    }
+
     private function summary(StoreDto $store, bool $editable, bool $maySwitch, string $locale): StoreSummary
     {
         return new StoreSummary(

@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { router, useForm } from '@inertiajs/react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
-import { TextField } from '@/components/Fields';
+import { CountryCombobox } from '@/components/CountryCombobox';
+import { SelectField, TextField } from '@/components/Fields';
 import { DialogError, FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { SearchCombobox } from '@/components/SearchCombobox';
@@ -21,11 +22,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import { toLatinDigits } from '@/lib/digits';
+import { FieldDescription, FieldLegend, FieldSet } from '@/components/ui/field';
+import { NativeSelectOption } from '@/components/ui/native-select';
+import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import { useFocusBack } from '@/lib/use-focus-back';
 import { useReturnFocus } from '@/lib/use-return-focus';
-import type { StoreRow, StoresPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
+import type { NewStoreForm, StoreRow, StoresPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 
 /*
 | E1 - the stores, with E2 as the form on each card (frontend.md §3.5), each store one of shadcn's
@@ -35,9 +40,8 @@ import type { StoreRow, StoresPage } from '@/types/generated/Modules/Platform/Pr
 | store, and the edit form appears only on the ones they may change. Offering is not allowing - the
 | handler behind the form asks again, against that one store.
 |
-| No store is made here. Opening a country stays a console command, so a store is created complete
-| and can never exist half-configured [DECIDED 2026-09-19]; the screen says so rather than leaving
-| somebody hunting for a button.
+| A Super Admin adds a store here too (platform.md §9.7 #3; owner, 2026-10-06, replacing "a console
+| command only"): Add Store takes everything at once, so a store is still never half-configured.
 |
 | The code, the country and the currency are shown and cannot be changed: they are what the store
 | *is*. Platform refuses an attempt to change them rather than ignoring it, and the card says so -
@@ -54,14 +58,33 @@ import type { StoreRow, StoresPage } from '@/types/generated/Modules/Platform/Pr
 
 type Props = StoresPage;
 
-export default function Index({ stores, timezones, maySwitch }: Props) {
+export default function Index({ stores, timezones, maySwitch, add }: Props) {
     const t = useTranslator();
     const [editing, setEditing] = useState<string | null>(null);
+    const [adding, setAdding] = useState(false);
+    // The form takes the button's place while it is open, and its first field takes focus; when it
+    // closes - Cancel, or the store added - focus comes back to the button (the review of P7).
+    const addButton = useRef<HTMLButtonElement>(null);
+    useFocusBack(adding, addButton);
 
     return (
-        <AdminLayout title={t('platform::admin_stores.title')} subtitle={t('platform::admin_stores.subtitle')}>
+        <AdminLayout
+            title={t('platform::admin_stores.title')}
+            subtitle={t('platform::admin_stores.subtitle')}
+            action={
+                // Add Store, for whoever may open one (a Super Admin); the form ends with its own
+                // Cancel, so the button steps out while it is open (platform.md §9.7 #3).
+                add !== null && !adding ? (
+                    <Button ref={addButton} type="button" data-test="add-store" onClick={() => setAdding(true)}>
+                        {t('platform::admin_stores.add')}
+                    </Button>
+                ) : undefined
+            }
+        >
             <div className="grid gap-4">
                 <FormError />
+
+                {add !== null && adding ? <AddStoreForm add={add} timezones={timezones} onDone={() => setAdding(false)} /> : null}
 
                 {stores.length === 0 ? (
                     <Empty className="material-base">
@@ -82,10 +105,273 @@ export default function Index({ stores, timezones, maySwitch }: Props) {
                         />
                     ))
                 )}
-
-                <p className="text-copy-13 text-ink-muted">{t('platform::admin_stores.no_new_store')}</p>
             </div>
         </AdminLayout>
+    );
+}
+
+/** The option that opens the new currency's fields instead of picking a free one. */
+const NEW_CURRENCY = '__new';
+
+/*
+| Add Store (platform.md §9.7 #3, #4; owner, 2026-10-06): everything a store is, at once, so it is
+| never half-configured; it is added switched off. The currency is never typed: it is picked from the
+| currencies no store uses - one currency, one store - or made here, in the same form, when "New
+| Currency…" is picked or when none is free. The country is the shared country picker; choosing a
+| country with one time zone fills it, and one with several leaves the zone to be picked (the review
+| of P7: the first of several, alphabetically, could be hours out).
+*/
+function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones: string[]; onDone: () => void }) {
+    const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
+    const noneFree = add.freeCurrencies.length === 0;
+
+    const form = useForm({
+        code: '',
+        name_ar: '',
+        name_en: '',
+        country: '',
+        currency: add.freeCurrencies[0]?.code ?? '',
+        tax_rate: '',
+        timezone: '',
+        position: String(add.nextPosition),
+        new_currency: noneFree,
+        currency_code: '',
+        currency_exponent: '2',
+        currency_name_ar: '',
+        currency_name_en: '',
+        currency_abbreviation_ar: '',
+        currency_abbreviation_en: '',
+        currency_sign: '',
+    });
+
+    // Read from the page as it is now: a refusal reloads the free currencies, and the one picked may
+    // have been taken meanwhile - or the last one, leaving only a new currency to make.
+    const newCurrency = noneFree || form.data.new_currency;
+    const currency = add.freeCurrencies.some((free) => free.code === form.data.currency) ? form.data.currency : (add.freeCurrencies[0]?.code ?? '');
+
+    return (
+        <Card className="material-base gap-0 border-0 py-0" data-test="add-store-form">
+            <form
+                aria-labelledby="add-store-title"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    form.transform((data) => ({ ...data, currency, new_currency: newCurrency }));
+                    form.post('/admin/stores', { preserveScroll: true, onSuccess: onDone });
+                }}
+            >
+                <CardHeader className="px-5 pt-5 pb-4">
+                    <CardTitle>
+                        <h2 id="add-store-title" className="text-heading-16 text-ink">
+                            {t('platform::admin_stores.add')}
+                        </h2>
+                    </CardTitle>
+                    <CardDescription className="text-copy-13 text-ink-muted">{t('platform::admin_stores.starts_off')}</CardDescription>
+                </CardHeader>
+
+                <CardContent className="grid gap-5 px-5 pb-5 sm:grid-cols-2">
+                    <TextField
+                        id="new-store-code"
+                        label={t('platform::admin_stores.code')}
+                        helper={t('platform::admin_stores.code_hint')}
+                        required
+                        // The form appears because Add Store was pressed: its first field takes the focus.
+                        autoFocus
+                        dir="ltr"
+                        maxLength={8}
+                        inputClassName="tw-figure"
+                        value={form.data.code}
+                        // Lower case as it is typed: it is the shop's address.
+                        onChange={(event) => form.setData('code', event.target.value.toLowerCase())}
+                    />
+                    <TextField
+                        id="new-store-position"
+                        label={t('platform::admin_stores.position')}
+                        helper={t('platform::admin_stores.position_hint')}
+                        required
+                        dir="ltr"
+                        inputMode="numeric"
+                        inputClassName="tw-figure"
+                        value={form.data.position}
+                        onChange={(event) => form.setData('position', toLatinDigits(event.target.value))}
+                    />
+                    <TextField
+                        id="new-store-name_ar"
+                        label={t('platform::admin_stores.name_ar')}
+                        required
+                        lang="ar"
+                        dir="rtl"
+                        value={form.data.name_ar}
+                        onChange={(event) => form.setData('name_ar', event.target.value)}
+                    />
+                    <TextField
+                        id="new-store-name_en"
+                        label={t('platform::admin_stores.name_en')}
+                        required
+                        lang="en"
+                        dir="ltr"
+                        value={form.data.name_en}
+                        onChange={(event) => form.setData('name_en', event.target.value)}
+                    />
+                    <CountryCombobox
+                        id="new-store-country"
+                        label={t('platform::admin_stores.country')}
+                        countries={add.countries}
+                        value={form.data.country}
+                        onChange={(country) => {
+                            // A zone the person picked stays; one filled for the last country goes.
+                            form.setData((data) => ({
+                                ...data,
+                                country,
+                                timezone: add.zones[country] ?? (data.timezone === add.zones[data.country] ? '' : data.timezone),
+                            }));
+                        }}
+                        words={{
+                            search: t('platform::admin_stores.country_search'),
+                            none: (query) => t('platform::admin_stores.country_none', { query }),
+                            ours: t('platform::admin_stores.countries_ours'),
+                            all: t('platform::admin_stores.countries_all'),
+                        }}
+                    />
+                    <TextField
+                        id="new-store-tax_rate"
+                        label={t('platform::admin_stores.tax_rate')}
+                        helper={t('platform::admin_stores.tax_rate_hint')}
+                        required
+                        dir="ltr"
+                        inputMode="decimal"
+                        inputClassName="tw-figure"
+                        value={form.data.tax_rate}
+                        onChange={(event) => form.setData('tax_rate', toLatinDigits(event.target.value))}
+                    />
+                    <SearchCombobox
+                        id="new-store-timezone"
+                        label={t('platform::admin_stores.timezone')}
+                        options={timezones.map((zone) => ({ value: zone, label: zone }))}
+                        value={form.data.timezone}
+                        onChange={(zone) => form.setData('timezone', zone)}
+                        words={{
+                            search: t('platform::admin_stores.timezone_search'),
+                            none: (query) => t('platform::admin_stores.timezone_none', { query }),
+                        }}
+                        ltr
+                        className="sm:col-span-2"
+                    />
+
+                    {noneFree ? null : (
+                        <SelectField
+                            id="new-store-currency"
+                            label={t('platform::admin_stores.currency')}
+                            helper={t('platform::admin_stores.currency_hint')}
+                            value={newCurrency ? NEW_CURRENCY : currency}
+                            onChange={(event) =>
+                                event.target.value === NEW_CURRENCY
+                                    ? form.setData('new_currency', true)
+                                    : form.setData((data) => ({ ...data, currency: event.target.value, new_currency: false }))
+                            }
+                            className="sm:col-span-2"
+                            data-test="new-store-currency"
+                        >
+                            {add.freeCurrencies.map((currency) => (
+                                <NativeSelectOption key={currency.code} value={currency.code}>
+                                    {`${currency.code} · ${currency.name}`}
+                                </NativeSelectOption>
+                            ))}
+                            <NativeSelectOption value={NEW_CURRENCY}>{t('platform::admin_stores.currency_new_option')}</NativeSelectOption>
+                        </SelectField>
+                    )}
+
+                    {newCurrency ? (
+                        <FieldSet className="gap-4 rounded-md border border-line p-4 sm:col-span-2" data-test="new-store-new-currency">
+                            <FieldLegend className="mb-0 text-label-14 text-ink">{t('platform::admin_stores.currency_new')}</FieldLegend>
+                            <FieldDescription className="text-copy-13 text-ink-muted">
+                                {noneFree ? `${t('platform::admin_stores.currency_none_free')} ${t('platform::admin_stores.currency_new_hint')}` : t('platform::admin_stores.currency_new_hint')}
+                            </FieldDescription>
+                            <div className="grid gap-5 sm:grid-cols-2">
+                                <TextField
+                                    id="new-currency-code"
+                                    label={t('platform::admin_currencies.code')}
+                                    helper={t('platform::admin_currencies.code_hint')}
+                                    required
+                                    dir="ltr"
+                                    maxLength={3}
+                                    inputClassName="tw-figure"
+                                    value={form.data.currency_code}
+                                    onChange={(event) => form.setData('currency_code', event.target.value.toUpperCase())}
+                                />
+                                <SelectField
+                                    id="new-currency-exponent"
+                                    label={t('platform::admin_currencies.exponent')}
+                                    helper={t('platform::admin_currencies.exponent_hint', { two: figure(locale, 2), zero: figure(locale, 0) })}
+                                    value={form.data.currency_exponent}
+                                    onChange={(event) => form.setData('currency_exponent', toLatinDigits(event.target.value))}
+                                >
+                                    {add.exponents.map((places) => (
+                                        <NativeSelectOption key={places} value={String(places)}>
+                                            {figure(locale, places)}
+                                        </NativeSelectOption>
+                                    ))}
+                                </SelectField>
+                                <TextField
+                                    id="new-currency-name_ar"
+                                    label={t('platform::admin_currencies.name_ar')}
+                                    required
+                                    lang="ar"
+                                    dir="rtl"
+                                    value={form.data.currency_name_ar}
+                                    onChange={(event) => form.setData('currency_name_ar', event.target.value)}
+                                />
+                                <TextField
+                                    id="new-currency-name_en"
+                                    label={t('platform::admin_currencies.name_en')}
+                                    required
+                                    lang="en"
+                                    dir="ltr"
+                                    value={form.data.currency_name_en}
+                                    onChange={(event) => form.setData('currency_name_en', event.target.value)}
+                                />
+                                <TextField
+                                    id="new-currency-abbreviation_ar"
+                                    label={t('platform::admin_currencies.abbreviation_ar')}
+                                    helper={t('platform::admin_currencies.abbreviation_hint')}
+                                    required
+                                    lang="ar"
+                                    dir="rtl"
+                                    value={form.data.currency_abbreviation_ar}
+                                    onChange={(event) => form.setData('currency_abbreviation_ar', event.target.value)}
+                                />
+                                <TextField
+                                    id="new-currency-abbreviation_en"
+                                    label={t('platform::admin_currencies.abbreviation_en')}
+                                    helper={t('platform::admin_currencies.abbreviation_hint')}
+                                    required
+                                    lang="en"
+                                    dir="ltr"
+                                    value={form.data.currency_abbreviation_en}
+                                    onChange={(event) => form.setData('currency_abbreviation_en', event.target.value)}
+                                />
+                                <TextField
+                                    id="new-currency-sign"
+                                    label={t('platform::admin_currencies.sign')}
+                                    helper={t('platform::admin_currencies.sign_hint')}
+                                    value={form.data.currency_sign}
+                                    onChange={(event) => form.setData('currency_sign', event.target.value)}
+                                />
+                            </div>
+                        </FieldSet>
+                    ) : null}
+                </CardContent>
+
+                <CardFooter className="justify-end gap-2 border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3">
+                    <Button type="button" variant="outline" disabled={form.processing} data-test="cancel-add-store" onClick={onDone}>
+                        {t('platform::admin_stores.cancel')}
+                    </Button>
+                    <ActionButton type="submit" loading={form.processing} data-test="create-store">
+                        {t('platform::admin_stores.create')}
+                    </ActionButton>
+                </CardFooter>
+            </form>
+        </Card>
     );
 }
 

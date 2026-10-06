@@ -1,18 +1,22 @@
-import { useState } from 'react';
-import { useForm } from '@inertiajs/react';
+import { useRef, useState } from 'react';
+import { useForm, usePage } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
+import { DestructiveActionDialog } from '@/components/DestructiveActionDialog';
 import { SelectField, TextField } from '@/components/Fields';
-import { FormError } from '@/components/FormError';
+import { FormError, useFreshRefusal } from '@/components/FormError';
 import { Description } from '@/components/geist-only/Description';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { NativeSelectOption } from '@/components/ui/native-select';
-import { toLatinDigits } from '@/lib/digits';
+import { figure, toLatinDigits } from '@/lib/digits';
+import { useList } from '@/lib/list';
 import { useTranslator } from '@/lib/t';
+import { useFocusBack } from '@/lib/use-focus-back';
 import type { CurrenciesPage, CurrencyRow } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 
 /*
 | E3 - the currencies (frontend.md §3.5), each one of shadcn's Cards in Geist's Fieldset form
@@ -33,9 +37,11 @@ import type { CurrenciesPage, CurrencyRow } from '@/types/generated/Modules/Plat
 | ten riyals at two places and a thousand at none. So the field is shown as settled, with the
 | reason in its helper text, rather than offered and refused.
 |
-| A new currency is a Card whose one button is in its footer; an existing one is a Card whose form
-| opens in shadcn's Collapsible under its header and saves from a footer of the same shape. The
-| buttons that open a form say whether it is open (aria-expanded).
+| A new currency is a Card opened by the page's Add button; an existing one is a Card whose form
+| opens in shadcn's Collapsible under its header. Either form ends with **Cancel and its main button
+| side by side** in its footer, and the button that opened it steps out of the way while it is open;
+| Delete, for a currency no store uses, sits apart on the footer's start side (the owner,
+| 2026-10-06: the buttons' places).
 */
 
 type Props = CurrenciesPage;
@@ -44,26 +50,22 @@ export default function Index({ currencies, exponents }: Props) {
     const t = useTranslator();
     const [adding, setAdding] = useState(false);
     const [editing, setEditing] = useState<string | null>(null);
+    const addButton = useRef<HTMLButtonElement>(null);
+    useFocusBack(adding, addButton);
 
     return (
         <AdminLayout
             title={t('platform::admin_currencies.title')}
             subtitle={t('platform::admin_currencies.subtitle')}
             action={
-                // The page's main action while it is closed; once open it only closes, so it steps
-                // back to a supporting button. It sits in the header, away from the form it opens,
-                // so it names that form itself (Geist's Collapse: aria-expanded, aria-controls).
-                <Button
-                    type="button"
-                    variant={adding ? 'outline' : 'default'}
-                    aria-expanded={adding}
-                    // Only while the form is there: an id that points at nothing helps nobody.
-                    aria-controls={adding ? 'add-currency-form' : undefined}
-                    data-test="add-currency"
-                    onClick={() => setAdding((open) => !open)}
-                >
-                    {t(adding ? 'platform::admin_currencies.cancel' : 'platform::admin_currencies.add')}
-                </Button>
+                // The page's main action, while its form is closed. Once open, the form ends with
+                // its own Cancel and Create side by side, where the eye already is (the owner,
+                // 2026-10-06: the buttons' places; a form's actions close it, Geist's Card footer).
+                adding ? undefined : (
+                    <Button ref={addButton} type="button" data-test="add-currency" onClick={() => setAdding(true)}>
+                        {t('platform::admin_currencies.add')}
+                    </Button>
+                )
             }
         >
             <div className="grid gap-4">
@@ -126,6 +128,18 @@ type CardProps = {
 
 function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
     const t = useTranslator();
+    const list = useList();
+    const { locale } = usePage<SharedProps>().props;
+    const [deleting, setDeleting] = useState(false);
+    const deleteButton = useRef<HTMLButtonElement>(null);
+    const editButton = useRef<HTMLButtonElement>(null);
+    const editForm = useRef<HTMLFormElement>(null);
+    useFocusBack(open, editButton, editForm);
+    // Only the delete's own refusal, never an older one from saving (useFreshRefusal).
+    const deleteRefusal = useFreshRefusal(deleting);
+    const remove = useForm({});
+    // The stores are named, not counted (platform.md §9.7): ":count stores" once read "1 stores".
+    const storeNames = list(currency.stores.map((store) => (store.isActive ? store.name : t('platform::admin_currencies.store_off', { name: store.name }))));
 
     const form = useForm({
         name_ar: currency.nameAr,
@@ -161,20 +175,26 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                         <bdi dir="ltr" className="tw-figure">
                             {currency.sign ?? currency.abbreviationEn}
                         </bdi>{' '}
-                        · {t('platform::admin_currencies.exponent')}: <span className="tw-figure">{currency.exponent}</span> ·{' '}
-                        {currency.storeCount === 0 ? t('platform::admin_currencies.in_use_none') : t('platform::admin_currencies.in_use', { count: currency.storeCount })}
+                        · {t('platform::admin_currencies.exponent')}: {figure(locale, currency.exponent)} ·{' '}
+                        <span data-test={`stores-${currency.code}`}>
+                            {currency.stores.length === 0 ? t('platform::admin_currencies.in_use_none') : t('platform::admin_currencies.in_use', { stores: storeNames })}
+                        </span>
                     </CardDescription>
-                    <CardAction>
-                        <CollapsibleTrigger asChild>
-                            <Button type="button" variant="outline" data-test={`edit-${currency.code}`}>
-                                {t(open ? 'platform::admin_currencies.cancel' : 'platform::admin_currencies.edit')}
-                            </Button>
-                        </CollapsibleTrigger>
-                    </CardAction>
+                    {/* Edit while closed; once open, the form's own footer closes it. */}
+                    {open ? null : (
+                        <CardAction>
+                            <CollapsibleTrigger asChild>
+                                <Button ref={editButton} type="button" variant="outline" data-test={`edit-${currency.code}`}>
+                                    {t('platform::admin_currencies.edit')}
+                                </Button>
+                            </CollapsibleTrigger>
+                        </CardAction>
+                    )}
                 </CardHeader>
 
                 <CollapsibleContent>
                     <form
+                        ref={editForm}
                         onSubmit={(event) => {
                             event.preventDefault();
                             save();
@@ -182,7 +202,7 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                         className="border-t border-line"
                     >
                         <CardContent className="grid gap-5 p-5 sm:grid-cols-2">
-                            <Names form={form} prefix={currency.code} />
+                            <Names form={form} prefix={currency.code} autoFocus />
 
                             <TextField
                                 id={`${currency.code}-sign`}
@@ -198,8 +218,8 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                                 label={t('platform::admin_currencies.exponent')}
                                 helper={
                                     currency.exponentLocked
-                                        ? t('platform::admin_currencies.exponent_locked', { count: currency.storeCount })
-                                        : t('platform::admin_currencies.exponent_hint')
+                                        ? t('platform::admin_currencies.exponent_locked', { stores: storeNames })
+                                        : t('platform::admin_currencies.exponent_hint', { two: figure(locale, 2), zero: figure(locale, 0) })
                                 }
                                 error={form.errors.exponent}
                                 disabled={currency.exponentLocked}
@@ -208,7 +228,7 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                             >
                                 {exponents.map((places) => (
                                     <NativeSelectOption key={places} value={String(places)}>
-                                        {places}
+                                        {figure(locale, places)}
                                     </NativeSelectOption>
                                 ))}
                             </SelectField>
@@ -218,13 +238,50 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                             </div>
                         </CardContent>
 
-                        <CardFooter className="justify-end border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3">
-                            <ActionButton type="submit" loading={form.processing} data-test={`save-${currency.code}`}>
-                                {t('platform::admin_currencies.save')}
-                            </ActionButton>
+                        <CardFooter className="flex-wrap justify-between gap-2 border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3">
+                            {/* Destructive, so apart from Save, on the start side; only for a currency no
+                                store uses (platform.md §9.7) - one in use says so on its line. */}
+                            {currency.deletable ? (
+                                <Button
+                                    ref={deleteButton}
+                                    type="button"
+                                    variant="outline"
+                                    className="text-bad"
+                                    data-test={`delete-${currency.code}`}
+                                    onClick={() => setDeleting(true)}
+                                >
+                                    {`${t('platform::admin_currencies.delete')}…`}
+                                </Button>
+                            ) : (
+                                <span />
+                            )}
+                            <div className="flex gap-2">
+                                <Button type="button" variant="outline" disabled={form.processing} data-test={`cancel-${currency.code}`} onClick={() => onOpenChange(false)}>
+                                    {t('platform::admin_currencies.cancel')}
+                                </Button>
+                                <ActionButton type="submit" loading={form.processing} data-test={`save-${currency.code}`}>
+                                    {t('platform::admin_currencies.save')}
+                                </ActionButton>
+                            </div>
                         </CardFooter>
                     </form>
                 </CollapsibleContent>
+
+                {/* Geist's Destructive Action Modal: the code typed before it goes (platform.md §9.7). */}
+                <DestructiveActionDialog
+                    open={deleting}
+                    onOpenChange={setDeleting}
+                    title={t('platform::admin_currencies.delete_title')}
+                    confirmLabel={t('platform::admin_currencies.delete_confirm')}
+                    description={t('platform::admin_currencies.delete_body', { code: currency.code, name: currency.name })}
+                    irreversibleDescription={t('platform::admin_currencies.delete_irreversible', { code: currency.code })}
+                    verificationPhrase={currency.code}
+                    verificationLabel={t('platform::admin_currencies.verification_label')}
+                    loading={remove.processing}
+                    error={deleteRefusal}
+                    onConfirm={() => remove.post(`/admin/currencies/${currency.code}/delete`, { onSuccess: () => setDeleting(false) })}
+                    returnFocusTo={deleteButton}
+                />
             </Card>
         </Collapsible>
     );
@@ -232,6 +289,7 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
 
 function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => void }) {
     const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
 
     const form = useForm({
         code: '',
@@ -268,6 +326,8 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                         helper={t('platform::admin_currencies.code_hint')}
                         error={form.errors.code}
                         required
+                        // The form appears because Add Currency was pressed: its first field takes the focus.
+                        autoFocus
                         dir="ltr"
                         maxLength={3}
                         inputClassName="tw-figure"
@@ -279,14 +339,14 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                     <SelectField
                         id="new-exponent"
                         label={t('platform::admin_currencies.exponent')}
-                        helper={t('platform::admin_currencies.exponent_hint')}
+                        helper={t('platform::admin_currencies.exponent_hint', { two: figure(locale, 2), zero: figure(locale, 0) })}
                         error={form.errors.exponent}
                         value={form.data.exponent}
                         onChange={(event) => form.setData('exponent', toLatinDigits(event.target.value))}
                     >
                         {exponents.map((places) => (
                             <NativeSelectOption key={places} value={String(places)}>
-                                {places}
+                                {figure(locale, places)}
                             </NativeSelectOption>
                         ))}
                     </SelectField>
@@ -307,7 +367,10 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                     </div>
                 </CardContent>
 
-                <CardFooter className="justify-end border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3">
+                <CardFooter className="justify-end gap-2 border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3">
+                    <Button type="button" variant="outline" disabled={form.processing} data-test="cancel-add-currency" onClick={onDone}>
+                        {t('platform::admin_currencies.cancel')}
+                    </Button>
                     <ActionButton type="submit" data-test="create-currency" loading={form.processing}>
                         {t('platform::admin_currencies.create')}
                     </ActionButton>
@@ -330,7 +393,7 @@ type NamesForm = {
     setData: (field: never, value: never) => void;
 };
 
-function Names({ form, prefix }: { form: NamesForm; prefix: string }) {
+function Names({ form, prefix, autoFocus = false }: { form: NamesForm; prefix: string; /** The first name takes focus: the edit form opens on it. */ autoFocus?: boolean }) {
     const t = useTranslator();
     const field = (key: string, label: string, lang: 'ar' | 'en', hint?: string) => (
         <TextField
@@ -340,6 +403,7 @@ function Names({ form, prefix }: { form: NamesForm; prefix: string }) {
             helper={hint}
             error={form.errors[key]}
             required
+            autoFocus={autoFocus && key === 'name_ar'}
             lang={lang}
             dir={lang === 'en' ? 'ltr' : 'rtl'}
             value={form.data[key] ?? ''}

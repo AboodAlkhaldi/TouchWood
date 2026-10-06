@@ -6,6 +6,9 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Application\Query\ListCurrencies\CurrencyStore;
 use Modules\Platform\Application\Query\ListCurrencies\CurrencySummary;
 use Modules\Platform\Application\Query\ListCurrencies\ListCurrencies;
 use Modules\Platform\Application\Query\ListCurrencies\ListCurrenciesHandler;
@@ -72,23 +75,37 @@ describe('the currencies a person is shown', function () {
         expect($codes)->toBe(['AED', 'EGP', 'SAR']);
     });
 
-    it('settles the decimal places of a currency a store already charges in', function () {
+    it('settles the decimal places of a currency a store already charges in, and names the store', function () {
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
         // Changing it now would reinterpret every amount ever written in it (platform.md §1.2).
         $riyal = listedCurrency('SAR');
 
         expect($riyal->exponentLocked)->toBeTrue()
-            ->and($riyal->storeCount)->toBe(1);
+            // Named, not counted (platform.md §9.7).
+            ->and(array_map(static fn (CurrencyStore $store): array => [$store->nameEn, $store->nameAr, $store->isActive], $riyal->stores))->toBe([['Saudi Arabia', 'السعودية', true]])
+            ->and($riyal->deletable)->toBeFalse();
     });
 
-    it('leaves the decimal places open on a currency no store uses yet', function () {
+    it('leaves the decimal places open on a currency no store uses yet, and offers to delete it', function () {
         unusedCurrency('KWD');
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
         $dinar = listedCurrency('KWD');
 
         expect($dinar->exponentLocked)->toBeFalse()
-            ->and($dinar->storeCount)->toBe(0);
+            ->and($dinar->stores)->toBe([])
+            ->and($dinar->deletable)->toBeTrue();
+    });
+
+    it('names an off store as using its currency, which keeps it from being deleted (platform.md §9.7)', function () {
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        $pound = listedCurrency('EGP');
+
+        expect(array_map(static fn (CurrencyStore $store): array => [$store->nameEn, $store->isActive], $pound->stores))->toBe([['Egypt', false]])
+            ->and($pound->exponentLocked)->toBeTrue()
+            ->and($pound->deletable)->toBeFalse();
     });
 });
