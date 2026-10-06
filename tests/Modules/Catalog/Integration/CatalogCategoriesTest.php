@@ -29,6 +29,7 @@ use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
+use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
 use Modules\Platform\Application\Command\CreateStore\CreateStoreHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
@@ -400,8 +401,9 @@ describe('a store\'s order', function () {
     it('gives a store opened later no order of its own, and a category added after it a place there too', function () {
         $kitchens = catalogCategoriesAdd('Kitchens', ['rank' => 1]);
 
-        // Its admins set its order (owner, 2026-10-03, amendment 2(b)); nothing is copied.
-        Fx::asSystem(fn () => app(CreateStoreHandler::class)->handle(new CreateStore('kw', 'الكويت', 'Kuwait', 'KW', 'SAR', 1500, 'Asia/Kuwait', 4)));
+        // Its admins set its order (owner, 2026-10-03, amendment 2(b)); nothing is copied. A store has a
+        // currency of its own (platform.md §9.7 #3): Kuwait's is made with it.
+        Fx::asSystem(fn () => app(CreateStoreHandler::class)->handle(new CreateStore('kw', 'الكويت', 'Kuwait', 'KW', '', 1500, 'Asia/Kuwait', 4, new CreateCurrency('KWD', 3, 'دينار كويتي', 'Kuwaiti dinar', 'د.ك', 'KWD', null))));
         $doors = catalogCategoriesAdd('Doors', ['rank' => 2]);
 
         expect(catalogCategoriesRanks($kitchens))->toBe(['ae' => 1, 'eg' => 1, 'sa' => 1])
