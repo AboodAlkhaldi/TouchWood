@@ -68,16 +68,15 @@ final readonly class AcceptImportedProductsHandler
                 }
 
                 // Products accepted before that named one of these gain it, now that it is ready —
-                // only those whose file names a code of these, so a long file stays quick.
+                // only those whose file names a code these hold, any of them, so a long file stays quick.
+                $ready = array_values(array_filter(array_map(static fn (ImportProduct $row): ?string => $row->productId, $accepted)));
                 $codes = [];
 
-                foreach ($accepted as $row) {
-                    foreach ($row->codesComingIn() as $code) {
+                foreach ($ready as $productId) {
+                    foreach ($this->products->codesOf($productId) as $code) {
                         $codes[$code] = true;
                     }
                 }
-
-                $ready = array_values(array_filter(array_map(static fn (ImportProduct $row): ?string => $row->productId, $accepted)));
 
                 foreach ($rows as $row) {
                     $named = [...$row->effective()->related, ...$row->effective()->goesWith];

@@ -26,8 +26,13 @@ final readonly class FileProduct
      * @param  string|null  $warrantyId  picked on the import's page (amendment 7(c)): it stands for the warranty's name
      * @param  string|null  $categoryId  picked on the import's page: it stands for the category's path
      * @param  list<string>  $filterValueIds  picked on the import's page, beside the filters the file names
-     * @param  list<string>  $addedSearchWords  added on the page to what a product the file updates has, when the file gives none: merged with the catalog's when brought in
+     * @param  list<string>  $addedSearchWords  added on the page where the file gives none: joined, when brought in, with what the product then has — the catalog's, for a product the file updates
      * @param  list<string>  $addedFilterValueIds  likewise, filter values
+     * @param  int|null  $fillBrandNumber  asked on the page for a product with none (amendment 7(d)): given when brought in only where the file gives none and it updates no catalog product, which always has one
+     * @param  string|null  $fillWarrantyId  likewise, a warranty: given when brought in where the file gives none and the catalog's product it updates has none then
+     * @param  string|null  $fillCategoryId  likewise, a category
+     * @param  list<string>  $fillSearchWords  likewise, search words
+     * @param  list<string>  $fillFilterValueIds  likewise, filter values
      */
     public function __construct(
         public int $number,
@@ -53,6 +58,11 @@ final readonly class FileProduct
         public array $filterValueIds = [],
         public array $addedSearchWords = [],
         public array $addedFilterValueIds = [],
+        public ?int $fillBrandNumber = null,
+        public ?string $fillWarrantyId = null,
+        public ?string $fillCategoryId = null,
+        public array $fillSearchWords = [],
+        public array $fillFilterValueIds = [],
     ) {}
 
     /**
@@ -63,6 +73,48 @@ final readonly class FileProduct
     public function with(array $changes): self
     {
         return self::fromArray([...$this->toArray(), ...$changes]);
+    }
+
+    /** Whether the file gives filter values: by name, or picked on the page. */
+    public function givesFilters(): bool
+    {
+        return $this->filterValueIds !== [] || array_filter($this->filters) !== [];
+    }
+
+    /**
+     * As it is brought in: what the page asked to give the products with none, given where it has none
+     * — the file giving none and, for a product the file updates, the catalog's product having none as
+     * it is then (catalog.md §1.12: it counts what the catalog's product has when the products are
+     * brought in). What was added joins later, with the gallery's and the lists' own (`ImportBringer`).
+     *
+     * @param  array{warranty: bool, category: bool, search_words: bool, filters: bool}|null  $updates  what the catalog's product it updates has, or null when it updates none
+     */
+    public function asBroughtIn(?array $updates): self
+    {
+        $fill = [];
+
+        // A catalog product always has a brand: only a product the file does not update is given one.
+        if ($this->fillBrandNumber !== null && $this->brand === null && $this->brandNumber === null && $updates === null) {
+            $fill['brand_number'] = $this->fillBrandNumber;
+        }
+
+        if ($this->fillWarrantyId !== null && $this->warranty === null && $this->warrantyId === null && ! ($updates['warranty'] ?? false)) {
+            $fill['warranty_id'] = $this->fillWarrantyId;
+        }
+
+        if ($this->fillCategoryId !== null && $this->category === null && $this->categoryId === null && ! ($updates['category'] ?? false)) {
+            $fill['category_id'] = $this->fillCategoryId;
+        }
+
+        if ($this->fillSearchWords !== [] && $this->searchWords === [] && ! ($updates['search_words'] ?? false)) {
+            $fill['search_words'] = $this->fillSearchWords;
+        }
+
+        if ($this->fillFilterValueIds !== [] && ! $this->givesFilters() && ! ($updates['filters'] ?? false)) {
+            $fill['filter_value_ids'] = $this->fillFilterValueIds;
+        }
+
+        return $fill === [] ? $this : $this->with($fill);
     }
 
     /**
@@ -120,6 +172,11 @@ final readonly class FileProduct
             'filter_value_ids' => $this->filterValueIds,
             'added_search_words' => $this->addedSearchWords,
             'added_filter_value_ids' => $this->addedFilterValueIds,
+            'fill_brand_number' => $this->fillBrandNumber,
+            'fill_warranty_id' => $this->fillWarrantyId,
+            'fill_category_id' => $this->fillCategoryId,
+            'fill_search_words' => $this->fillSearchWords,
+            'fill_filter_value_ids' => $this->fillFilterValueIds,
         ];
     }
 
@@ -152,6 +209,10 @@ final readonly class FileProduct
         $addedSearchWords = $data['added_search_words'] ?? [];
         /** @var list<string> $addedFilterValueIds */
         $addedFilterValueIds = $data['added_filter_value_ids'] ?? [];
+        /** @var list<string> $fillSearchWords */
+        $fillSearchWords = $data['fill_search_words'] ?? [];
+        /** @var list<string> $fillFilterValueIds */
+        $fillFilterValueIds = $data['fill_filter_value_ids'] ?? [];
 
         return new self(
             (int) $data['number'],
@@ -177,6 +238,11 @@ final readonly class FileProduct
             $filterValueIds,
             $addedSearchWords,
             $addedFilterValueIds,
+            is_int($data['fill_brand_number'] ?? null) ? $data['fill_brand_number'] : null,
+            self::text($data['fill_warranty_id'] ?? null),
+            self::text($data['fill_category_id'] ?? null),
+            $fillSearchWords,
+            $fillFilterValueIds,
         );
     }
 

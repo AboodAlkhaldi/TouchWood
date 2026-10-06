@@ -39,6 +39,10 @@ use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\RemoveStoreFillItems\RemoveStoreFillItems;
 use Modules\Catalog\Application\Command\RemoveStoreFillItems\RemoveStoreFillItemsHandler;
+use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValues;
+use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValuesHandler;
+use Modules\Catalog\Application\Command\SetImportedBrand\SetImportedBrand;
+use Modules\Catalog\Application\Command\SetImportedBrand\SetImportedBrandHandler;
 use Modules\Catalog\Application\Command\SetImportedCategory\SetImportedCategory;
 use Modules\Catalog\Application\Command\SetImportedCategory\SetImportedCategoryHandler;
 use Modules\Catalog\Application\Command\SetImportedFilters\SetImportedFilters;
@@ -306,20 +310,34 @@ describe('bringing in', function () {
             ->and(DB::table('catalog.product_filter_values')->where('product_id', $product)->pluck('value_id')->all())->toBe([$kitchen]);
     });
 
-    it('counts, for a product it updates, what the catalog\'s product has: only filling the empty passes it by, adding adds to it', function () {
+    it('counts what the catalog\'s product it updates has when brought in, whatever was decided when the page changed it', function () {
         $ready = Px::ready();
-        $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
+        $use = Px::attribute('Use', 'FILTERABLE');
+        [$kitchen, $bath] = [Px::value($use, 'Kitchen'), Px::value($use, 'Bath')];
+        Fx::asSystem(fn () => app(SetFilterValuesHandler::class)->handle(new SetFilterValues($ready['product'], [$kitchen])));
         DB::table('catalog.product_search_words')->insert(['product_id' => $ready['product'], 'normalized' => 'runner', 'word' => 'runner', 'position' => 0]);
-        $import = Ix::uploadProducts([Ix::product($code)]);
+        $before = (array) DB::table('catalog.products')->where('id', $ready['product'])->first(['brand_id', 'category_id']);
+        $warranty = Px::warranty();
+        $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
+        $set = reviewEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
+        $import = Ix::uploadProducts([Ix::product($code, ['attribute_set' => $set, 'variants' => [['code' => $code, 'values' => [reviewEnglish('attributes', $ready['width']) => '60 cm']]]])]);
+
+        // Changed while its codes still wait for a decision: what it has is not known yet.
+        expect(app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, null, ['slide'], 'FILL_EMPTY')))->toBe(1);
+        app(SetImportedFiltersHandler::class)->handle(new SetImportedFilters($import, null, [$bath], 'ADD'));
+        app(SetImportedCategoryHandler::class)->handle(new SetImportedCategory($import, null, Px::category('Other'), 'FILL_EMPTY'));
+        app(SetImportedWarrantyHandler::class)->handle(new SetImportedWarranty($import, null, $warranty, 'FILL_EMPTY'));
+        app(SetImportedBrandHandler::class)->handle(new SetImportedBrand($import, null, Px::brand('Other'), 'FILL_EMPTY'));
         app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE']]));
+        // The catalog's words go meanwhile: the words asked for the empty are given after all.
+        DB::table('catalog.product_search_words')->where('product_id', $ready['product'])->delete();
 
-        expect(app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, null, ['slide'], 'FILL_EMPTY')))->toBe(0)
-            ->and(app(SetImportedCategoryHandler::class)->handle(new SetImportedCategory($import, null, Px::category('Other'), 'FILL_EMPTY')))->toBe(0);
+        Ix::bringIn($import);
 
-        app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, null, ['slide'], 'ADD'));
-        // Kept apart from the catalog's, which join when it is brought in (CatalogImportSaleTest).
-        $edited = json_decode((string) DB::table('catalog.import_products')->where('import_id', $import)->value('edited'), true);
-        expect([$edited['search_words'], $edited['added_search_words']])->toBe([[], ['slide']]);
+        expect(reviewState($import, 1))->toBe('UPDATED')
+            ->and((array) DB::table('catalog.products')->where('id', $ready['product'])->first(['brand_id', 'category_id', 'warranty_id']))->toBe([...$before, 'warranty_id' => $warranty])
+            ->and(DB::table('catalog.product_search_words')->where('product_id', $ready['product'])->pluck('word')->all())->toBe(['slide'])
+            ->and(DB::table('catalog.product_filter_values')->where('product_id', $ready['product'])->pluck('value_id')->all())->toEqualCanonicalizing([$kitchen, $bath]);
     });
 
     it('leaves the import failed, never bringing in, when the queue gives up on the work', function () {
@@ -398,6 +416,26 @@ describe('accepting', function () {
         $accept(2);
         expect(DB::table('catalog.product_relations')->where('product_id', Ix::broughtIn($import, 1))->pluck('related_id')->all())->toBe([Ix::broughtIn($import, 2)])
             ->and(DB::table('catalog.store_variants')->where('product_id', Ix::broughtIn($import, 1))->where('is_active', true)->exists())->toBeFalse();
+    });
+
+    it('links one accepted earlier by any code the one it names holds — a code corrected since included', function () {
+        $category = reviewEnglish('categories', Px::category('Hinges'));
+        $whole = ['description' => ['ar' => 'وصف', 'en' => 'About it'], 'category' => $category];
+        $files = ['products.json' => Ix::json([
+            Ix::product('6100', [...$whole, 'photos' => ['6100.jpg'], 'related' => ['6299']]),
+            Ix::product('6200', [...$whole, 'photos' => ['6200.jpg']]),
+        ]), '6100.jpg' => Ix::image('6100.jpg', 23), '6200.jpg' => Ix::image('6200.jpg', 24)];
+        $import = Ix::upload(Ix::zip($files));
+        Ix::bringIn($import);
+        DB::table('platform.media')->update(['variants_status' => 'READY', 'variants_generated_at' => now()]);
+        $named = (string) DB::table('catalog.variants')->where('product_id', Ix::broughtIn($import, 2))->value('id');
+        Fx::asSystem(fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($named, '6299')));
+        $accept = fn (int $number) => app(AcceptImportedProductsHandler::class)->handle(new AcceptImportedProducts($import, [Ix::productId($import, $number)]));
+
+        $accept(1);
+        $accept(2);
+
+        expect(DB::table('catalog.product_relations')->where('product_id', Ix::broughtIn($import, 1))->pluck('related_id')->all())->toBe([Ix::broughtIn($import, 2)]);
     });
 
     it('archives every one the import created, passing the others by', function () {

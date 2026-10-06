@@ -13,6 +13,8 @@ use Modules\Catalog\Application\Command\AcceptImportedProducts\AcceptImportedPro
 use Modules\Catalog\Application\Command\AcceptImportedProducts\AcceptImportedProductsHandler;
 use Modules\Catalog\Application\Command\ArchiveImportedProducts\ArchiveImportedProducts;
 use Modules\Catalog\Application\Command\ArchiveImportedProducts\ArchiveImportedProductsHandler;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\DecideImportCodes\DecideImportCodes;
 use Modules\Catalog\Application\Command\DecideImportCodes\DecideImportCodesHandler;
 use Modules\Catalog\Application\Command\DeleteImportedProducts\DeleteImportedProducts;
@@ -28,10 +30,10 @@ use function Pest\Laravel\seed;
 
 /*
 | Accepting, archiving and deleting an import's products (catalog.md §1.12, page part 4; amendment
-| 6(e), (f)): a Super Admin's, once the products are in. Accepted, a product is made ready — not
-| published —, switched on in the stores the file named, and related to the ready products whose
-| codes it named; "every ready one" leaves the rest, a chosen one that cannot be is named and nothing
-| changes. Only what the import created and nobody accepted is archived or deleted.
+| 6(e), (f), 9(b)): a Super Admin's, once the products are in. Accepted, a product is made ready —
+| not published: on sale nowhere new, a store's admins publish it — and related to the ready products
+| whose codes it named; "every ready one" leaves the rest, a chosen one that cannot be is named and
+| nothing changes. Only what the import created and nobody accepted is archived or deleted.
 */
 
 uses(RefreshDatabase::class);
@@ -129,8 +131,9 @@ describe('accepting', function () {
             ->and(DB::table('catalog.products')->where('id', Ix::broughtIn($import, 1))->value('stage'))->toBe('DRAFT');
     });
 
-    it('accepts a product it updated, already ready, switching it on nowhere new', function () {
+    it('accepts a product it updated, already ready, on sale where it was and nowhere new', function () {
         $ready = Px::ready(['60 cm']);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
         $width = (string) DB::table('catalog.attributes')->where('id', $ready['width'])->value('name_en');
         $set = (string) DB::table('catalog.attribute_sets')->where('id', DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'))->value('name_en');
@@ -139,12 +142,12 @@ describe('accepting', function () {
             'attribute_set' => $set,
             'variants' => [['code' => $code, 'values' => [$width => '60 cm']]],
         ])]);
-        app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE']]));
+        app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE', 'sale' => 'KEEP']]));
         Ix::bringIn($import);
 
         expect(catalogAcceptState($import, 1))->toBe('UPDATED');
         expect(app(AcceptImportedProductsHandler::class)->handle(new AcceptImportedProducts($import, [Ix::productId($import, 1)])))->toBe(1)
-            ->and(DB::table('catalog.store_products')->where('product_id', $ready['product'])->exists())->toBeFalse();
+            ->and(DB::table('catalog.store_variants')->where('product_id', $ready['product'])->where('is_active', true)->pluck('store_id')->all())->toBe([Fx::storeId('sa')]);
     });
 });
 

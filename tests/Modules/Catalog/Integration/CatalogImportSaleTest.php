@@ -12,6 +12,7 @@ use Modules\Catalog\Application\Command\AddCategory\AddCategory;
 use Modules\Catalog\Application\Command\AddCategory\AddCategoryHandler;
 use Modules\Catalog\Application\Command\BringInImport\BringInImport;
 use Modules\Catalog\Application\Command\BringInImport\BringInImportHandler;
+use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProducts;
 use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProductsHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
@@ -19,6 +20,8 @@ use Modules\Catalog\Application\Command\DecideImportCodes\DecideImportCodes;
 use Modules\Catalog\Application\Command\DecideImportCodes\DecideImportCodesHandler;
 use Modules\Catalog\Application\Command\DecideImportNames\DecideImportNames;
 use Modules\Catalog\Application\Command\DecideImportNames\DecideImportNamesHandler;
+use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProduct;
+use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProductHandler;
 use Modules\Catalog\Application\Command\SetImportedSearchWords\SetImportedSearchWords;
 use Modules\Catalog\Application\Command\SetImportedSearchWords\SetImportedSearchWordsHandler;
 use Modules\Catalog\Application\Query\ViewImport\ViewImport;
@@ -112,6 +115,7 @@ describe('a products file names no store (9(a))', function () {
 describe('a product on sale the file changes (9(c))', function () {
     it('waits for keep on sale or take off sale, every time, and is taken off sale in every store when chosen', function () {
         $taken = saleOnSale();
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('eg'), $taken['product'], true)));
         $kept = saleOnSale();
         $import = Ix::uploadProducts([saleFileProduct($taken, ['name' => ['ar' => 'معدل']]), saleFileProduct($kept)]);
         $decide = fn (array $decisions) => app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, $decisions));
@@ -131,21 +135,68 @@ describe('a product on sale the file changes (9(c))', function () {
         $decide([['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE', 'sale' => 'TAKE_OFF'], ['product_id' => Ix::productId($import, 2), 'decision' => 'UPDATE', 'sale' => 'KEEP']]);
         Ix::bringIn($import);
 
-        expect(saleActive($taken['product']))->toBe([false])
+        expect([saleActive($taken['product']), saleActive($taken['product'], 'eg')])->toBe([[false], [false]])
             ->and(saleActive($kept['product']))->toBe([true])
+            ->and(DB::table('catalog.listing')->where('product_id', $taken['product'])->exists())->toBeFalse()
+            ->and(DB::table('catalog.listing')->where('product_id', $kept['product'])->exists())->toBeTrue()
             ->and(DB::table('catalog.products')->whereIn('id', [$taken['product'], $kept['product']])->pluck('stage')->unique()->values()->all())->toBe(['READY'])
             ->and(DB::table('catalog.products')->where('id', $taken['product'])->value('name_ar'))->toBe('معدل')
-            ->and(DB::table('platform.audit_entries')->where('action', 'catalog.listing.chosen')->where('subject_id', $taken['product'])->where('store_id', Fx::storeId('sa'))->count())->toBe(2);
+            ->and(DB::table('platform.audit_entries')->where('action', 'catalog.listing.chosen')->where('subject_id', $taken['product'])->whereIn('store_id', [Fx::storeId('sa'), Fx::storeId('eg')])->count())->toBe(4);
     });
 
-    it('needs no choice for a product on sale nowhere', function () {
+    it('needs no choice for a product on sale nowhere, nor for one skipped', function () {
         $ready = Px::ready();
-        $import = Ix::uploadProducts([saleFileProduct($ready)]);
-        app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE']]));
+        $skipped = saleOnSale();
+        $import = Ix::uploadProducts([saleFileProduct($ready), saleFileProduct($skipped)]);
+        app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [
+            ['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE'],
+            ['product_id' => Ix::productId($import, 2), 'decision' => 'SKIP'],
+        ]));
+
+        expect(array_map(static fn ($product): bool => $product->onSale, app(ViewImportHandler::class)->handle(new ViewImport($import))->products))->toBe([false, true]);
 
         Ix::bringIn($import);
 
-        expect(DB::table('catalog.imports')->where('id', $import)->value('state'))->toBe('IN');
+        expect(DB::table('catalog.imports')->where('id', $import)->value('state'))->toBe('IN')
+            ->and(saleActive($skipped['product']))->toBe([true]);
+    });
+
+    it('goes with its decision: a new decision without it, or one the catalog lets go, clears it', function () {
+        $ready = saleOnSale();
+        $draft = Px::product();
+        Px::variant($draft, '4600');
+        $import = Ix::uploadProducts([saleFileProduct($ready), Ix::product('4600')]);
+        $decide = fn (int $number, array $decision) => app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, $number), ...$decision]]));
+        $row = fn (int $number): array => (array) DB::table('catalog.import_products')->where('import_id', $import)->where('number', $number)->first(['decision', 'sale']);
+
+        $decide(1, ['decision' => 'UPDATE', 'sale' => 'KEEP']);
+        $decide(1, ['decision' => 'REPLACE']);
+        $decide(2, ['decision' => 'UPDATE', 'sale' => 'KEEP']);
+        // The draft holding its code goes: the decision about it goes too, and its sale with it.
+        Fx::asSystem(fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($draft)));
+
+        try {
+            app(BringInImportHandler::class)->handle(new BringInImport($import));
+        } catch (ImportUndecided) {
+        }
+
+        expect([$row(1), $row(2)])->toBe([['decision' => 'REPLACE', 'sale' => null], ['decision' => null, 'sale' => null]]);
+    });
+
+    it('fails the bringing in, to ask again, when the product went on sale after the confirm', function () {
+        $ready = Px::ready();
+        $import = Ix::uploadProducts([saleFileProduct($ready, ['name' => ['ar' => 'معدل']])]);
+        app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE']]));
+        app(BringInImportHandler::class)->handle(new BringInImport($import));
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
+
+        Fx::asSystem(fn () => app(BringInImportProductsHandler::class)->handle(new BringInImportProducts($import)));
+
+        expect(DB::table('catalog.imports')->where('id', $import)->value('state'))->toBe('FAILED')
+            ->and((string) DB::table('catalog.imports')->where('id', $import)->value('failure'))->toContain('went on sale after the confirm')
+            ->and(DB::table('catalog.products')->where('id', $ready['product'])->value('name_ar'))->not->toBe('معدل')
+            ->and(app(ViewImportHandler::class)->handle(new ViewImport($import))->products[0]->onSale)->toBeTrue()
+            ->and(fn () => app(BringInImportHandler::class)->handle(new BringInImport($import)))->toThrow(ImportUndecided::class);
     });
 });
 
@@ -155,14 +206,15 @@ describe('the confirm, again', function () {
         $code = saleCode($ready['variants'][0]);
         $width = (string) DB::table('catalog.attributes')->where('id', $ready['width'])->value('name_en');
         $set = (string) DB::table('catalog.attribute_sets')->where('id', DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'))->value('name_en');
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
         $import = Ix::uploadProducts([Ix::product($code, ['attribute_set' => $set, 'variants' => [['code' => $code, 'values' => [$width => '60 cm']], ['code' => '7777', 'values' => [$width => '80 cm']]]])]);
         Ix::decideNames($import, ['80 cm' => Ix::create('80 سم', '80 cm')]);
-        $decide = fn (string $decision) => app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => $decision]]));
+        $decide = fn (string $decision) => app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => $decision, 'sale' => 'KEEP']]));
         $decide('UPDATE');
         Px::variant(Px::product(), '7777');
 
         expect(fn () => app(BringInImportHandler::class)->handle(new BringInImport($import)))->toThrow(ImportUndecided::class);
-        expect(DB::table('catalog.import_products')->where('import_id', $import)->value('decision'))->toBeNull()
+        expect((array) DB::table('catalog.import_products')->where('import_id', $import)->first(['decision', 'sale']))->toBe(['decision' => null, 'sale' => null])
             ->and(fn () => $decide('UPDATE'))->toThrow(InvalidCatalogAttribute::class, 'SKIP or RECODE: its codes belong to two catalog products');
     });
 
@@ -215,7 +267,7 @@ describe('words added to a product the file updates', function () {
 });
 
 describe('a job the queue gave up on', function () {
-    it('waits for the work\'s own lock, the products\' first, before saying it stopped', function () {
+    it('takes the products\' lock first, as the work does, before saying it stopped', function () {
         $import = Ix::uploadProducts([Ix::product('1')]);
         app(BringInImportHandler::class)->handle(new BringInImport($import));
         $locks = Cx::recordLocks();

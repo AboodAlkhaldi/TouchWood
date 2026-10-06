@@ -36,11 +36,12 @@ use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use function Pest\Laravel\seed;
 
 /*
-| Changing an import's products before they are brought in (catalog.md §1.12, amendment 7(c), (d)): a
-| Super Admin's; the brand, warranty or category, the stores with a price and stock, search words and
-| filter values, for all the products or the selected — replacing what they have, or only filling the
-| ones that have none (lists may also be added to). "All of this just draft": the file's own is kept,
-| nothing reaches the catalog, the names list follows the products, and each change is audited once.
+| Changing an import's products before they are brought in (catalog.md §1.12, amendment 7(c), (d),
+| 8(a)): a Super Admin's; the brand, warranty or category, search words and filter values, for all the
+| products or the selected — replacing what they have, or only filling the ones that have none (lists
+| may also be added to), kept apart where the file gives none and given when brought in. "All of this
+| just draft": the file's own is kept, nothing reaches the catalog, the names list follows the
+| products, and each change is audited once.
 */
 
 uses(RefreshDatabase::class);
@@ -192,19 +193,22 @@ describe('the warranty and the category', function () {
 });
 
 describe('search words and filter values', function () {
-    it('are added, replaced, or given only to the products that have none', function () {
-        $import = Ix::uploadProducts([Ix::product('1', ['search_words' => ['سحاب']]), Ix::product('2')]);
-        $words = fn (array $words, string $mode) => app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, null, $words, $mode));
+    it('are added, replaced, or given only to the products that have none — kept apart where the file gives none', function () {
+        $import = Ix::uploadProducts([Ix::product('1', ['search_words' => ['سحاب']]), Ix::product('2'), Ix::product('3')]);
+        $words = fn (array $words, string $mode, ?array $only = null) => app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, $only, $words, $mode));
+        $kept = static fn (int $number): array => array_map(static fn (string $key): mixed => catalogChanged($import, $number)[$key], ['search_words', 'added_search_words', 'fill_search_words']);
 
-        $words(['مجرى', 'سَحاب'], 'ADD');
-        expect(catalogChanged($import, 1)['search_words'])->toBe(['سحاب', 'مجرى'])
-            ->and(catalogChanged($import, 2)['search_words'])->toBe(['مجرى', 'سَحاب']);
+        $words(['مجرى', 'سَحاب'], 'ADD', [Ix::productId($import, 1), Ix::productId($import, 2)]);
+        // The file gives none: what it has is known when brought in, so what is added waits apart.
+        expect($kept(1))->toBe([['سحاب', 'مجرى'], [], []])
+            ->and($kept(2))->toBe([[], ['مجرى', 'سَحاب'], []]);
 
-        $words(['درج'], 'FILL_EMPTY');
-        expect(catalogChanged($import, 2)['search_words'])->toBe(['مجرى', 'سَحاب']);
+        expect($words(['درج'], 'FILL_EMPTY'))->toBe(1)
+            ->and($kept(2))->toBe([[], ['مجرى', 'سَحاب'], []])
+            ->and($kept(3))->toBe([[], [], ['درج']]);
 
         $words(['درج'], 'REPLACE');
-        expect(catalogChanged($import, 1)['search_words'])->toBe(['درج']);
+        expect([$kept(1), $kept(2), $kept(3)])->toBe([[['درج'], [], []], [['درج'], [], []], [['درج'], [], []]]);
     });
 
     it('name a product they would take past its limit, and change none', function () {
@@ -224,15 +228,19 @@ describe('search words and filter values', function () {
 
         expect(fn () => $filters([$width], 'ADD'))->toThrow(InvalidCatalogAttribute::class, 'values of filter attributes');
 
+        $kept = static fn (int $number): array => array_map(static fn (string $key): mixed => catalogChanged($import, $number)[$key], ['filter_value_ids', 'added_filter_value_ids', 'fill_filter_value_ids']);
+
         $filters([$kitchen], 'FILL_EMPTY');
-        expect([catalogChanged($import, 1)['filter_value_ids'], catalogChanged($import, 2)['filter_value_ids']])->toBe([[], [$kitchen]]);
+        expect([$kept(1), $kept(2)])->toBe([[[], [], []], [[], [], [$kitchen]]]);
 
         $filters([$kitchen], 'ADD');
         expect([catalogChanged($import, 1)['filters'], catalogChanged($import, 1)['filter_value_ids']])->toBe([['Closing' => ['Soft-close']], [$kitchen]])
+            ->and($kept(2))->toBe([[], [$kitchen], [$kitchen]])
             ->and(Ix::names($import))->toBe(['ATTRIBUTE' => ['Closing'], 'VALUE' => ['Soft-close']]);
 
         $filters([$kitchen], 'REPLACE');
         expect([catalogChanged($import, 1)['filters'], catalogChanged($import, 1)['filter_value_ids']])->toBe([[], [$kitchen]])
+            ->and($kept(2))->toBe([[$kitchen], [], []])
             ->and(Ix::names($import))->toBe([]);
     });
 });

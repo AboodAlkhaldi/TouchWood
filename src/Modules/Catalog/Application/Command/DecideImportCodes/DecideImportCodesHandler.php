@@ -24,12 +24,15 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Deciding the products whose codes the catalog already has** (catalog.md §1.12, page part 2;
- * amendments 6(d), 9(c)): `catalog.import.run`. A product updated or replaced may also be given
- * **keep on sale** or **take off sale** — needed, by the confirm, for one on sale in any store. Each **updates** that product, **replaces** it whole, is
+ * amendments 6(d), 9(c)): `catalog.import.run`. Each **updates** that product, **replaces** it whole, is
  * **skipped**, or — a typo — takes **new codes** for the codes the catalog has: each 1 to 10 digits,
  * no product's in the catalog, now or once, and no other product's of the file. Decided while the
  * import is deciding, or again after bringing it in failed. Each decision that changes something is
  * audited; the catalog changes only when the products are brought in, where the codes are asked again.
+ *
+ * A product updated or replaced may also be given **keep on sale** or **take off sale** — needed, by
+ * the confirm and again when it is brought in, for one on sale in any store; a new decision without
+ * one clears it. Codes two catalog products hold are only skipped or given new ones.
  */
 final readonly class DecideImportCodesHandler
 {

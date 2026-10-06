@@ -148,11 +148,17 @@ final readonly class ImportBringer
             return [null, 'SKIPPED'];
         }
 
-        $product = $row->effective();
+        // What the page asked to fill is given where the product has none as it is now (§1.12).
+        $product = $row->effective()->asBroughtIn($row->decision === ImportProduct::UPDATE ? $this->catalogHas((string) $row->conflictProductId) : null);
         $resolved = self::resolve($product, $references);
 
         if ($resolved === null) {
             return [null, 'HELD'];
+        }
+
+        // Put on sale since the confirm asked (amendment 9(c)): keep or take off is chosen, never assumed.
+        if (in_array($row->decision, [ImportProduct::UPDATE, ImportProduct::REPLACE], true) && $row->sale === null && $this->listings->activeStoresOf((string) $row->conflictProductId) !== []) {
+            throw new InvalidCatalogAttribute('sale', 'keep on sale or take off sale: it went on sale after the confirm');
         }
 
         $result = match ($row->decision) {
@@ -167,6 +173,23 @@ final readonly class ImportBringer
         }
 
         return $result;
+    }
+
+    /**
+     * What the catalog's product the file updates has now, for what the page asked to fill.
+     *
+     * @return array{warranty: bool, category: bool, search_words: bool, filters: bool}
+     */
+    private function catalogHas(string $productId): array
+    {
+        $product = $this->products->find($productId) ?? throw new ProductNotFound($productId);
+
+        return [
+            'warranty' => $product->warrantyId() !== null,
+            'category' => $product->categoryId() !== null,
+            'search_words' => $this->products->searchWords($productId) !== [],
+            'filters' => $this->catalogFilters($productId) !== [],
+        ];
     }
 
     /**
@@ -373,9 +396,9 @@ final readonly class ImportBringer
     }
 
     /**
-     * The gallery, search words and filter values: set when the file gives them, or always when
-     * replacing. Words and values the page added (amendment 8(a)) join the file's — or, for a product
-     * the file updates without giving any, the catalog's as they are now.
+     * The gallery, search words and filter values: set when the file gives them (or the page filled
+     * them), or always when replacing. Words and values the page added (amendment 8(a)) join the
+     * file's — or, for a product the file updates without giving any, the catalog's as they are now.
      *
      * @param  list<string>  $filters
      */

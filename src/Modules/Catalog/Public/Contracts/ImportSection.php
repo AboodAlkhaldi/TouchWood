@@ -7,9 +7,9 @@ namespace Modules\Catalog\Public\Contracts;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * One module's part of a file (catalog.md §2.3): the price and stock a products file or a store file
- * gives for a product in a store, as the file wrote them. **Declared in step 6; its first
- * implementation comes with stage 5**, which may refine it before anything calls it.
+ * One module's part of a store's file (catalog.md §2.3): the price and stock it gives for a product
+ * in that store, as the file wrote them — a products file brings none (amendment 9(a)). **Declared in
+ * step 6; its first implementation comes with stage 5**, which may refine it before anything calls it.
  */
 interface ImportSection
 {
@@ -22,7 +22,7 @@ interface ImportSection
     public function lines(StoreId $store, ?string $price, ?int $stock): array;
 
     /**
-     * The product was accepted, or its item switched on, in the store: keep its part, for these variants.
+     * Its item was switched on in the store: keep its part, for these variants.
      *
      * @param  list<string>  $variantIds
      */

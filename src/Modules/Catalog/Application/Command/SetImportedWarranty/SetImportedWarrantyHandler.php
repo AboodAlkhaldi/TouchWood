@@ -10,14 +10,14 @@ use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
-use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Shared\Application\Unauthorized;
 
 /**
  * **One warranty for an import's products** (catalog.md §1.12, amendment 7(c), (d)): an active
  * warranty, kept by its id — warranties' names need not be unique — replacing the one each has, or
- * only for those that have none.
+ * only for those that have none — the file giving none, and a catalog product it updates having none
+ * when the products are brought in.
  */
 final readonly class SetImportedWarrantyHandler
 {
@@ -45,8 +45,11 @@ final readonly class SetImportedWarrantyHandler
 
         $id = $warranty->id();
 
-        return $this->change->run($command->importId, $command->productIds, 'warranty', $id, $mode, static fn (FileProduct $product, ?Product $updates): FileProduct => $mode === ImportedProductsChange::FILL_EMPTY && ($product->warranty !== null || $product->warrantyId !== null || $updates?->warrantyId() !== null)
-            ? $product
-            : $product->with(['warranty' => null, 'warranty_id' => $id]));
+        // Only filling the empty is asked for now and given when brought in (FileProduct::asBroughtIn).
+        return $this->change->run($command->importId, $command->productIds, 'warranty', $id, $mode, static fn (FileProduct $product): FileProduct => match (true) {
+            $mode === ImportedProductsChange::REPLACE => $product->with(['warranty' => null, 'warranty_id' => $id, 'fill_warranty_id' => null]),
+            $product->warranty !== null || $product->warrantyId !== null || $product->fillWarrantyId !== null => $product,
+            default => $product->with(['fill_warranty_id' => $id]),
+        });
     }
 }

@@ -25,16 +25,18 @@ use Shared\Application\Unauthorized;
 
 /**
  * What every change to an import's products before they are brought in shares (catalog.md §1.12,
- * amendment 7(c), (d)) — the brand, warranty or category, the stores with a price and stock, search
- * words, filter values, for all the products or the selected:
+ * amendment 7(c), (d), 8(a)) — the brand, warranty or category, search words, filter values, for all
+ * the products or the selected:
  *
  * 1. **`catalog.import.run`**, a Super Admin's, before anything is read.
  * 2. **The import's row locked**, so two changes to one import queue up; refused once bringing in
  *    starts (`ImportClosed`), and a failed bringing in is deciding again.
  * 3. **Each product changed as it now is** — as the page's changes left it, or as the file gave it —
  *    the file's own kept beside it ("all of this just draft": nothing reaches the catalog). A product
- *    the file updates counts what the catalog's product has (amendment 8(b)): only filling the empty
- *    passes it by where the catalog's has some, adding adds to the catalog's where the file gives none.
+ *    the file updates counts what the catalog's product has when the products are brought in: where
+ *    the file gives none, filling the empty and adding are kept as asked and given then, whatever the
+ *    decision on its codes is now or becomes (`FileProduct::asBroughtIn`). Adding is checked against
+ *    the limit with what it would have now.
  * 4. **The names list follows the products**: a name no product uses any more goes, a name still used
  *    keeps its decision.
  * 5. **One audit entry** for the change: what, to what, how, and how many products it changed.
@@ -85,7 +87,7 @@ final readonly class ImportedProductsChange
 
     /**
      * @param  array<array-key, mixed>|null  $productIds  the import's products chosen on the page, or null for all
-     * @param  Closure(FileProduct, ?Product): FileProduct  $change  the product as it now is, and the catalog's product it updates => as the change leaves it
+     * @param  Closure(FileProduct, ?Product): FileProduct  $change  the product as it now is, and — adding — the catalog's product it updates => as the change leaves it
      * @return int how many products it changed
      *
      * @throws ImportClosed|InvalidCatalogAttribute|ListItemNotFound
@@ -118,12 +120,11 @@ final readonly class ImportedProductsChange
             }
 
             $changed = [];
-            $counts = in_array($mode, [self::FILL_EMPTY, self::ADD], true);
 
             foreach ($chosen ?? array_keys($products) as $id) {
                 $row = $products[$id];
-                // Read only for a change that counts what the product has: filling the empty, or adding.
-                $updates = $counts && $row->decision === ImportProduct::UPDATE && $row->conflictProductId !== null ? $this->products->find($row->conflictProductId) : null;
+                // Read only for adding, whose limit counts what the product would have now.
+                $updates = $mode === self::ADD && $row->decision === ImportProduct::UPDATE && $row->conflictProductId !== null ? $this->products->find($row->conflictProductId) : null;
                 $now = $change($row->effective(), $updates);
 
                 if ($now->toArray() !== $products[$id]->effective()->toArray()) {

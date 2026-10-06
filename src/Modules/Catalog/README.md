@@ -306,9 +306,10 @@ is a Super Admin's (`catalog.import.run`), from upload to acceptance:
    new codes free in the catalog and in the file.
 3. **Changes before bringing in** (`SetImported…`, amendments 7(c), (d), 8(a), 8(c), 9(a)): brand (by
    its fixed number), warranty, category (kept by id), search words, filter values — for all or the
-   selected, replacing or only filling the empty (lists may also add); a product the file updates
-   counts what the catalog's has, words and values added to it kept apart (`added_search_words`,
-   `added_filter_value_ids`) and joined with the catalog's as they are when brought in.
+   selected, replacing or only filling the empty (lists may also add). A product the file updates
+   counts what the catalog's has **when it is brought in**: where the file gives none, what is filled
+   (`fill_…`) or added (`added_…`) is kept apart, whatever the decision on its codes is then, and given
+   to what the product has at that moment (`FileProduct::asBroughtIn`, `ImportBringer::parts`).
    `SetImportedSlugs` gives a product its own web address when its own would collide
    (`ImportAddresses`). The file's own product stays in `import_products.data`; the changed one in
    `edited`. The names list follows the products. **A name several catalog items answer to** is listed
@@ -389,11 +390,11 @@ page, never stored.
 | `Integration/CatalogImportDecisionsTest` | Deciding names and codes: targets in their list, active, of the right job; what may be created; values under their attribute; new codes free; all or none; closed while bringing in |
 | `Integration/CatalogImportChangesTest` | The changes before bringing in: each field, replace and fill-empty (and add), the selected or all, the file's own kept, the names list following |
 | `Integration/CatalogImportBringInTest` | The confirm asking again; bringing in: lists made, products created with photos, skipped, held, recoded, updated, replaced; all or nothing with the reason; the locks' order |
-| `Integration/CatalogImportAcceptTest` | Accepting (ready, stores, relations), archiving and deleting only what the import created |
+| `Integration/CatalogImportAcceptTest` | Accepting (ready, on sale nowhere new, relations), archiving and deleting only what the import created |
 | `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variants carrying each code of a ready product; mending and removing items |
 | `Integration/CatalogImportPagesTest` | The pages' reads: a products file's page and list, a store file's page with each item's standing, and its store's list |
-| `Integration/CatalogImportSaleTest` | Amendment 9: no store in a products file; keep on sale or take off sale, every time; codes two catalog products hold; words added to an updated product kept apart; a new category's taken address counted; a job given up on waiting for the running one |
-| `Integration/CatalogImportReviewTest` | After step 6's reviews (amendment 8): ambiguous names and colliding addresses decided on the page; the confirm asking again; holding back, replacing whole, updating and restoring; the page's picks brought in; a job given up on; the zip's sizes; linking back on accepting; the store file kept to its store |
+| `Integration/CatalogImportSaleTest` | Amendment 9: no store in a products file; keep on sale or take off sale, every time, in every store, cleared with its decision, asked again when put on sale after the confirm; codes two catalog products hold; words added to an updated product kept apart; a new category's taken address counted; a job given up on taking the products' lock first |
+| `Integration/CatalogImportReviewTest` | After step 6's reviews (amendment 8): ambiguous names and colliding addresses decided on the page; the confirm asking again; holding back, replacing whole, updating and restoring; the page's picks brought in, filling and adding counted against an updated product as it is when brought in; a job given up on; the zip's sizes; linking back on accepting, by any code held; the store file kept to its store |
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 
