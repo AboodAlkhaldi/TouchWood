@@ -98,7 +98,6 @@ Route::prefix('admin')
             Route::post('staff/{staff}/enable', [StaffController::class, 'enable'])->name('access.staff.enable');
             Route::post('staff/{staff}/invitation/resend', [StaffController::class, 'resendInvitation'])->name('access.staff.invitation.resend');
             Route::post('staff/{staff}/invitation/cancel', [StaffController::class, 'cancelInvitation'])->name('access.staff.invitation.cancel');
-            Route::post('staff/{staff}/refresh', [StaffController::class, 'refresh'])->name('access.staff.refresh');
 
             /*
             | Customers (stage 2b step 4, frontend.md 3.7). Staff see the customers of their own
@@ -133,7 +132,6 @@ Route::prefix('admin')
             Route::post('roles/{role}', [RolesController::class, 'update'])->name('access.staff.roles.update');
             Route::post('roles/{role}/clone', [RolesController::class, 'clone'])->name('access.staff.roles.clone');
             Route::post('roles/{role}/delete', [RolesController::class, 'destroy'])->name('access.staff.roles.delete');
-            Route::post('roles/{role}/refresh', [RolesController::class, 'refresh'])->name('access.staff.roles.refresh');
 
             /*
             | "Account & settings" — a staff member's own account (stage 2b step 2, frontend.md

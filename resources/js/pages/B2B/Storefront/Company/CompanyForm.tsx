@@ -1,5 +1,5 @@
 import { type ChangeEvent, createContext, type ReactNode, type RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { ExternalLink, MoreHorizontal } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { DialogError } from '@/components/FormError';
@@ -176,6 +176,7 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
     // Why Send cannot be pressed now, if it cannot: a save still out, or something still missing.
     // While it sends it is `loading` instead, which also stops a second press.
     const blocked = waiting > 0 ? t('b2b::company.saving_wait') : missing.length > 0 ? t('b2b::company.send_incomplete') : undefined;
+    const phoneUrl = link('storefront.account', { tab: 'phone' });
 
     return (
         <ChangesContext.Provider value={changes}>
@@ -187,6 +188,31 @@ export function CompanyForm({ page, draft, lastSent, changing }: Props) {
                         {t('b2b::company.change_warning')}
                     </Note>
                 ) : null}
+
+                {/* Send waits for a confirmed phone, and says so before anything is filled in, with
+                    the way to confirm it (amendment 26(a), owner 2026-10-04). A plain click leaves
+                    after the saves still waiting, as Add Address does: leaving at once would cancel
+                    them (17(i)); a click to open it elsewhere is left to the browser. */}
+                {page.phoneConfirmed ? null : (
+                    <Note variant="warning" data-test="phone-note">
+                        {t('b2b::company.phone_note')}{' '}
+                        <Link
+                            href={phoneUrl}
+                            className="font-medium underline underline-offset-4"
+                            data-test="phone-link"
+                            onClick={(event) => {
+                                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                                    return;
+                                }
+
+                                event.preventDefault();
+                                changes.queue(() => router.visit(phoneUrl));
+                            }}
+                        >
+                            {t('b2b::company.phone_link')}
+                        </Link>
+                    </Note>
+                )}
 
                 <Card title={t('b2b::company.section.details')} hint={t('b2b::company.section.details_hint')} test="details">
                     <div className="grid gap-5">
@@ -349,6 +375,7 @@ function missingItems(page: CompanyPage, draft: CompanyDraftData, lastSent: Comp
         ...(notAccepted > 0 ? [t('b2b::company.missing_not_accepted', { count: figure(notAccepted) })] : []),
         ...(flagged > 0 ? [t('b2b::company.missing_flagged', { count: figure(flagged) })] : []),
         ...(answers > 0 ? [t('b2b::company.missing_answers', { count: figure(answers) })] : []),
+        ...(page.phoneConfirmed ? [] : [t('b2b::company.missing_phone')]),
     ];
 }
 

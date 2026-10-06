@@ -228,6 +228,19 @@ describe('one company', function () {
             );
     });
 
+    it('names the language the holder reads, which a rejection is written in (amendment 28)', function () {
+        $company = companyStaffScreensWaiting();
+        $browser = companyStaffScreens([B2BPermissions::COMPANY_VIEW, B2BPermissions::COMPANY_REVIEW], ['sa']);
+
+        foreach (['en', 'ar'] as $locale) {
+            DB::table('access.customers')->where('id', $company->customerId())->update(['locale' => $locale]);
+
+            $browser->get("/admin/companies/{$company->id()}")
+                ->assertOk()
+                ->assertInertia(fn (AssertableInertia $page) => $page->where('holder.locale', $locale));
+        }
+    });
+
     it('says an answer is a file, giving its id and name only to whoever may open papers (amendment 8(c))', function () {
         // Made before any browser signs in, as the account itself (lesson 120).
         $customerId = B2BFixtures::verifiedCompanyAccount();

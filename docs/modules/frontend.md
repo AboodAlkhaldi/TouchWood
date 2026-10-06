@@ -47,6 +47,9 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.10, §2.3, §3.4, §3.5 | The owner's answer for each piece neither system has (§1.11 table); the theme switch with System, once per area; SMS codes in shadcn's InputOTP | Owner, 2026-10-02, one by one with pictures |
 | §1.10, §1.11 | §1.10's provisional picks settled (type, surfaces, store time stand); the overnight review's Geist rules applied in the rebuild; every module's error messages rewritten in Geist's form | Owner, 2026-10-03 |
 | §1.11, §2.2 | **The owner's fix list after testing the rebuild**: the sidebar as `sidebar-07`'s main navigation (areas that fold, several open, a single screen as its link), thin themed scrollbars that keep the page's room, whole rows, the type lists' "#", the language switch laying the whole page out at once, sizes and counts in the page's digits; the builder's sidebar picks marked [PROVISIONAL] | Owner, 2026-10-04 |
+| §1.10 | **Arabic is formal (فصحى) everywhere**, never colloquial: the company page's two colloquial lines, from the design, rewritten | Owner, 2026-10-05 |
+| §3.3 C3, C6, C9, §3.4 D2, D5 | **Where It Reaches bounds every action** (Access amendment 59): C6 and the invitation's step 3 laid out as the role, its actions, the reach, then each action's stores (All Selected Stores or Custom, only for two or more stores); the Refresh buttons removed | Owner, 2026-10-04 (fix list points 9 and 10) |
+| §3.3 C3, §3.4 D2, §3.3 C2 | **The invitation's steps** drawn as the company page's tracking steps — a circle each, done, current or still to come, with its name — in place of the progress bar; **a role's allowed actions** grouped under a header that reads as one (a sunken band, the area's name in the heading's weight, how many it holds), each action marked with a check | Owner, 2026-10-06 |
 | §2.2, §2.3 | **The staff view** (the fix list, point 13; D13 (b), D14): View Store in the panel's header; in the shop, the staff-view line with Back to Admin Panel, and a person menu with Admin Panel and Leave Staff View; the builder's picks marked [PROVISIONAL] | Owner, 2026-10-05 (access.md amendment 60) |
 
 ---
@@ -345,7 +348,9 @@ stylesheet, the same day.
   store clock (step 6) and are left as they are; **B2B's staff screens use `Time`, in the store
   being worked in** (b2b.md amendment 23(b), owner 2026-10-03).
 - **Writing rules** (Geist's, for every English word on a screen; Arabic follows the same
-  structure — a verb and its object on a button, the toast that answers it, no "please"):
+  structure — a verb and its object on a button, the toast that answers it, no "please" — and is
+  **formal Arabic (فصحى) everywhere, never colloquial**, the owner's answer of 2026-10-05, over the
+  design's own colloquial lines):
 
 | Where | Rule | Example |
 |---|---|---|
@@ -440,7 +445,7 @@ and examples. Only when neither has it, show the owner what was searched and ask
 | 7 | A row in the roles list | **The whole row opens the role**; Edit Role moves into the row's ⋯ menu (shadcn Item + DropdownMenu) |
 | 8 | The staff list, grouped | **A heading per group** (Admins, each store, Centralized), each group a shadcn Item group |
 | 9 | Editing a file's description in the media library | **shadcn's Dialog** with the form, Cancel and Save Description, in place of the extra table row |
-| 10 | The steps beside the company page | **Geist's Progress with stops** (b2b.md amendment 22(b)) |
+| 10 | The steps beside the company page | **The steps down the card** — shadcn's Card, a list and Lucide's circles; it was Geist's Progress with stops (22(b)) until the owner's pick of 2026-10-04 (b2b.md amendment 26(b)) |
 | 11 | How a company field shows its state | **The mix** (b2b.md amendment 22(a)): the save state inside the field's end, the reason under it, red the only edge colour |
 | 12 | Picking a saved address on the company form | **shadcn's field-choice-card**, each tile naming its store, no headings (b2b.md amendment 22(c)) |
 | — | The phone-number fields | No question: plain shadcn Inputs with a helper line; nothing is built |
@@ -737,14 +742,14 @@ manages another admin or themselves.
 | # | Screen | Page | Shows |
 |---|---|---|---|
 | C1 | Staff | `/admin/staff` | The design's list — picture, name, email, role — **grouped by store, with a "Centralized" section** for people working in two or more stores (access.md §1.5). **[DECIDED 2026-09-19]** In place of the design's "last seen": the status (Active, Invited, Disabled) and the date they were invited or joined; nothing new is written on ordinary page loads. Filters by status, and a search by name or email. "Invite member" appears with `access.staff.invite` (which also needs `access.staff.assign_role` in the new person's stores, Access amendment 23). **Admins are a separate short section** above the rest, showing a **name and a role only** — no picture, email, status or date — for anyone but a Super Admin (R1). The list is ordered **by name** for such a reader, because ordering by the joining date would give an admin's away. |
-| C2 | One staff member | `/admin/staff/{id}` | Profile, status, communication language; their role, what it allows, their stores and each action's exceptions; the actions they may be given, each as a button. |
+| C2 | One staff member | `/admin/staff/{id}` | Profile, status, communication language; their role, what it allows, their stores and each action's custom stores; the actions they may be given, each as a button. |
 | C3 | Invite | `/admin/staff/invite` | **[DECIDED 2026-09-19] Three steps** with a progress line — profile, then role, then stores — sent at the end. The profile is what Access requires (email, first and last name, job title, date of birth, country, phone, communication language; address and picture optional — amendment 15). Leaving before the last step sends nothing. |
 | C4 | Edit profile | On C2 | The same fields, except the email and the role. Changing the phone also needs every action of the person's role (Access amendment 26). |
 | C5 | Change email | On C2 | The new address; the change happens when the link sent there is used (Access amendment 17). Someone who never accepted their invitation gets a new invitation at the new address instead (amendment 25). |
-| C6 | Role and stores | On C2 | Access's screen (§1.5): every action ticked or not, one row of store boxes that fills every action, and store boxes per action for exceptions. Store-free actions show their boxes ticked and disabled (amendment 4). Actions the admin does not hold cannot be ticked. Saving an edited saved role here makes it that person's **personal role**. |
+| C6 | Role and stores | On C2 | Access's screen (§1.5, amendment 59), top to bottom: the role (a saved role's card, or one edited into theirs), its actions by business area, **Where It Reaches** (every store, or the ones ticked), then each per-store action's stores — **All Selected Stores** or **Custom**, ticked among the reach's stores only — **shown only for a reach of two or more stores or every store**. A smaller reach cuts every custom choice to it and says so on the action before saving; a custom choice left empty stops the save, naming the action. Store-free actions take no store choice (amendment 4). Actions the admin does not hold cannot be ticked. Saving an edited saved role here makes it that person's **personal role**. The invitation (C3) uses the same parts in the same order across its steps 2 and 3. |
 | C7 | Disable / Enable | On C2 | Disabling ends their sessions and trusted browsers at once (Access). Enabling someone with no role asks for the role in the same step (amendment 27) — a case a revoke no longer creates, since revoking a Super Admin closes the account outright (R3). |
 | C8 | Invitation | On C2, while `INVITED` | Resend (a new link; the old one dies) or cancel. Resending also needs every action of their role (amendment 26). |
-| C9 | Refresh permissions | On C2 | Rebuilds this person's cached permissions (`RefreshStaffPermissions`, amendment 10), for an admin who wants the change to take effect at once. |
+| C9 | ~~Refresh permissions~~ | — | Removed (Access amendment 59): every change already rebuilds the cached permissions in its own transaction; after a hand edit of the database, `php artisan cache:clear` (which empties the whole cache, rate limits included). |
 
 - **Refusals are Access's**: `PermissionEscalation`, `AdminOnlyPermission`, `SuperAdminOnly`,
   `StaffEmailInUse`, `InvalidStaffStatus` (amendment 21), each shown as §2.1 says.
@@ -754,7 +759,7 @@ manages another admin or themselves.
 ### 3.4 Roles
 
 access.md §1.5, §3.2 (`ListRoles`, `ViewRole`, `RoleEditorPermissions`, `CreateRole`, `CloneRole`,
-`UpdateRole`, `DeleteRole`, `RefreshRolePermissions`). The design's "Employee permissions". Seen by
+`UpdateRole`, `DeleteRole`). The design's "Employee permissions". Seen by
 someone with `access.role.manage` or `access.staff.assign_role`; `access.role.manage` is store-free
 (amendment 4). **Only a Super Admin** creates, clones, edits or deletes an **admin** role; admins
 see admin roles in the list but cannot open them for editing (amendment 9 and the step 2 round).
@@ -762,10 +767,10 @@ see admin roles in the list but cannot open them for editing (amendment 9 and th
 | # | Screen | Page | Shows |
 |---|---|---|---|
 | D1 | Roles | `/admin/roles` | Saved roles with their name in the display language, their level (admin or staff), and how many hold each. "New role" and, on a row, "Clone". Personal roles never appear here (access.md §1.5). |
-| D2 | One role | `/admin/roles/{id}` | Its actions, and its holders — only those the viewer manages, plus the total count (amendment 8). Buttons: edit, clone, delete, refresh. |
+| D2 | One role | `/admin/roles/{id}` | Its actions, and its holders — only those the viewer manages, plus the total count (amendment 8). Buttons: edit, clone, delete. |
 | D3 | New / edit role | `/admin/roles/new`, `/admin/roles/{id}/edit` | The name in Arabic and English (each unique among saved roles, ignoring case — amendment 7), the level, and the actions: everything the author holds, with the rest not offered. At least one action (amendment 7). Store-free actions are marked as such; stores are not part of a role, they are chosen per staff member (§3.3 C6). |
 | D4 | Delete a role | On D2 | If anyone holds it, a saved role of the same level must be picked as the replacement, and every holder moves to it (amendment 7). Without one the delete is refused, listing the holders. |
-| D5 | Refresh | On D2 | Rebuilds the cached permissions of the role's holders (`RefreshRolePermissions`, amendment 10). |
+| D5 | ~~Refresh~~ | — | Removed with C9 (Access amendment 59). |
 
 - **[DECIDED 2026-09-19] Actions are grouped by business area** on every screen that lists them
   (D3 and §3.3 C6): "Catalog and variants", "Pricing and campaigns", "Orders and fulfilment",
@@ -871,8 +876,8 @@ page's data as a `spatie/laravel-data` class, §1.6). This stage adds no module 
 |---|---|---|
 | §3.1 admin sign-in | 8 pages for A1–A8 | Already built in Access step 3b |
 | §3.2 my account | `/admin/account` | Own profile, phone (request code, confirm), password, each notification switch, own email for a Super Admin |
-| §3.3 staff | list, one person, invite | Invite, update profile, change email, change role and stores, disable, enable, resend and cancel invitation, refresh permissions |
-| §3.4 roles | list, one role, new, edit | Create, clone, update, delete with a replacement, refresh |
+| §3.3 staff | list, one person, invite | Invite, update profile, change email, change role and stores, disable, enable, resend and cancel invitation |
+| §3.4 roles | list, one role, new, edit | Create, clone, update, delete with a replacement |
 | §3.5 Platform | stores, currencies, settings, media, audit | Update store, create and update currency, update setting, upload media, update alt text, delete media, retry variants |
 | §3.6 storefront | country page, home, register, verify, sign in, password, account, addresses | Register, resend verification, sign in, sign out, password reset, request and confirm a phone code, update profile, save, delete and default an address, ask for deletion |
 

@@ -158,4 +158,21 @@ describe('the staff screens', function () {
 
         expect(Fx::roleOf($staffId))->toBe($saved);
     });
+
+    it('says, at the top of the form, why an action\'s stores beyond Where It Reaches are refused (amendment 59)', function () {
+        $saved = Fx::role([PlatformPermissions::STORE_UPDATE]);
+        $staffId = Fx::staff();
+        Fx::assign($staffId, $saved, ['sa']);
+        $browser = staffScreenAdmin();
+
+        $response = $browser->post("/admin/staff/{$staffId}/role", [
+            'saved_role_id' => $saved,
+            'access_level' => 'SELECTED_STORES',
+            'store_ids' => [Fx::storeId('sa')],
+            'exceptions' => [['permission' => PlatformPermissions::STORE_UPDATE, 'access_level' => 'SELECTED_STORES', 'store_ids' => [Fx::storeId('eg')]]],
+        ]);
+
+        expect(AdminBrowser::formError($response))->toBe('Couldn\'t save the role: "'.PlatformPermissions::STORE_UPDATE.'" is given stores outside Where It Reaches. Choose its stores among those, or add the store to Where It Reaches.')
+            ->and(DB::table('access.role_assignment_exceptions')->where('staff_user_id', $staffId)->exists())->toBeFalse();
+    });
 });

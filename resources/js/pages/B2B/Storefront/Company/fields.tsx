@@ -240,6 +240,9 @@ export function AddressPicker({
     const addUrl = link('storefront.account', { tab: 'addresses', return: 'b2b.company' });
     const storeOf = (address: CompanySavedAddressData) => (locale === 'ar' ? address.storeNameAr : address.storeNameEn);
     const problem = (mustFix(look) ? message : null) ?? marked;
+    // "Saved" only beside an address picked, seen and read out alike: beside an empty list, or one
+    // that no longer holds the address kept, it would name nothing (amendment 26(c)).
+    const shown: Look = value === '' && look === 'saved' ? 'idle' : look;
 
     // A link goes at once; inside the form a button leaves in its turn, after the saves.
     const add =
@@ -353,8 +356,8 @@ export function AddressPicker({
             )}
 
             {/* "Saving…" and "✓ Saved" seen, as every field of the form shows them (amendment 22(a)). */}
-            <SaveBeside look={problem === null ? look : 'idle'} />
-            <FieldState id={stateId} look={look} rule={null} problem={problem} />
+            <SaveBeside look={problem === null ? shown : 'idle'} />
+            <FieldState id={stateId} look={shown} rule={null} problem={problem} />
         </FieldSet>
     );
 }

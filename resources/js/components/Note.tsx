@@ -38,6 +38,8 @@ type NoteProps = {
     /** Announce it: for a message that appears after something the person did. */
     alert?: boolean;
     className?: string;
+    /** For a field that the note describes (aria-describedby). */
+    id?: string;
     'data-test'?: string;
 };
 

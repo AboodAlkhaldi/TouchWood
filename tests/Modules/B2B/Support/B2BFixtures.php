@@ -222,10 +222,33 @@ final class B2BFixtures
     }
 
     /**
-     * A company account registered in the 'sa' store whose email address is confirmed — what
-     * sending an application needs (b2b.md §1.2). Its phone is not.
+     * A company account registered in the 'sa' store whose email address and phone number are
+     * confirmed — what sending an application needs (b2b.md §1.2, amendment 26(a)).
      */
     public static function verifiedCompanyAccount(): string
+    {
+        $customerId = self::verifiedCompanyAccountWithoutPhone();
+        DB::table('access.customers')->where('id', $customerId)->update(['phone' => self::unusedPhone(), 'phone_verified_at' => CarbonImmutable::now()]);
+
+        return $customerId;
+    }
+
+    /**
+     * A phone number no account holds yet. The browser suites keep their data, so a number drawn at
+     * random could, run after run, meet one already stored and stop the account at the phones'
+     * unique index.
+     */
+    public static function unusedPhone(): string
+    {
+        do {
+            $phone = Fx::phone();
+        } while (DB::table('access.customers')->where('phone', $phone)->exists());
+
+        return $phone;
+    }
+
+    /** As above, its email confirmed but no phone yet: it may fill its application, not send it. */
+    public static function verifiedCompanyAccountWithoutPhone(): string
     {
         $customerId = self::companyAccount();
         DB::table('access.customers')->where('id', $customerId)->update(['email_verified_at' => CarbonImmutable::now()]);

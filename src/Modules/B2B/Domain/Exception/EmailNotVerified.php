@@ -7,8 +7,8 @@ namespace Modules\B2B\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * Sending an application before the account's email address is confirmed (b2b.md §1.2, §7).
- * Nothing else about the account is asked for: the phone belongs to ordering, not to applying.
+ * Sending an application before the account's email address is confirmed (b2b.md §1.2, §7); its
+ * phone number is asked for too (PhoneNotConfirmed, amendment 26(a)).
  */
 final class EmailNotVerified extends B2BError
 {

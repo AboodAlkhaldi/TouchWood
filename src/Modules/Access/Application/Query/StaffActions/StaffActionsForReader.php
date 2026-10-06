@@ -68,7 +68,6 @@ final readonly class StaffActionsForReader
             // An invitation can only be resent or cancelled while it is still open.
             mayResendInvitation: $invite && $invited,
             mayCancelInvitation: $invite && $invited,
-            mayRefresh: $assign,
         );
     }
 }

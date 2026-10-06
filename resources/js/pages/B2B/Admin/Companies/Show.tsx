@@ -186,7 +186,7 @@ export default function Show({ company, holder, applications, actions, typeChoic
 
             {actions.mayApprove ? <ApproveModal open={dialog === 'approve'} onOpenChange={opened('approve')} companyId={company.id} typeNote={typeNote} /> : null}
             {actions.mayReject ? (
-                <RejectModal open={dialog === 'reject'} onOpenChange={opened('reject')} companyId={company.id} typeNote={typeNote} papers={waiting?.documents ?? []} locale={locale} />
+                <RejectModal open={dialog === 'reject'} onOpenChange={opened('reject')} companyId={company.id} typeNote={typeNote} papers={waiting?.documents ?? []} locale={locale} writeIn={holder?.locale === 'en' ? 'en' : 'ar'} />
             ) : null}
             {actions.maySuspend ? <SuspendModal open={dialog === 'suspend'} onOpenChange={opened('suspend')} companyId={company.id} companyName={values.name ?? ''} returnFocusTo={more} /> : null}
             {actions.mayReinstate ? (

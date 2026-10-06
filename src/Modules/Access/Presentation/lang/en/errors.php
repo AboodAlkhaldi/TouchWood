@@ -48,6 +48,10 @@ return [
         'title' => 'Admin Roles Only',
         'detail' => 'Couldn\'t save the role: ":permission" is a management action, for admin roles only. Remove it, or make this an admin role.',
     ],
+    'action_stores_beyond_reach' => [
+        'title' => 'Outside Where It Reaches',
+        'detail' => 'Couldn\'t save the role: ":permission" is given stores outside Where It Reaches. Choose its stores among those, or add the store to Where It Reaches.',
+    ],
     'permission_escalation' => [
         'title' => 'More Than You Hold',
         'detail' => 'Couldn\'t give ":permission" there: you don\'t hold it in every store it would reach. Ask someone who does.',

@@ -130,12 +130,23 @@ it('takes a company from the line under the header through its application to "u
         ->assertPathIs('/sa/en/account/company')
         ->assertSee('Not Sent')
         ->assertSee('Your Application')
-        ->assertSee('Step 1 of 3 · Form')
-        ->click('[data-test="start"]')
-        ->assertPresent('[data-test="company-form"]');
+        // Nothing started: every step still to come, and the card says so (amendment 26(b)).
+        ->assertSeeIn('[data-test="lifecycle-badge"]', 'Not Started')
+        ->assertSeeIn('[data-test="lifecycle"]', 'Start your application to fill in the form.');
 
-    // The lifecycle's first step, while it is being filled in (amendment 16(e)).
-    expect(browserUntil($page, "document.querySelector('[data-test=lifecycle]').dataset.step === 'form'"))->toBeTrue();
+    expect($page->script("document.querySelector('[data-test=lifecycle]').dataset.step"))->toBe('not-started')
+        ->and($page->script("document.querySelectorAll('[data-test=lifecycle] [data-test=step-upcoming]').length"))->toBe(3);
+
+    // Its phone is confirmed: the form says nothing about it (amendment 26(a)).
+    $page->click('[data-test="start"]')
+        ->assertPresent('[data-test="company-form"]')
+        ->assertMissing('[data-test="phone-note"]');
+
+    // The lifecycle's first step, while it is being filled in (amendment 16(e)): Form current, the
+    // badge gone until a decision.
+    expect(browserUntil($page, "document.querySelector('[data-test=lifecycle]').dataset.step === 'form'"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=lifecycle] [aria-current=step]')?.textContent.includes('Form')"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=lifecycle-badge]') === null"))->toBeTrue();
 
     // A value the page would not send turns red once it is left, and stays on the page (amendments 16(a), 22(a)).
     $page->type('#company-name', 'A')
@@ -194,8 +205,36 @@ it('takes a company from the line under the header through its application to "u
         ->assertSee('TW-CO-')
         ->assertNoJavaScriptErrors();
 
+    // Sent and waiting: Form done with the day it was sent, Under Review current.
     expect(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->status()->value)->toBe('PENDING')
-        ->and(browserUntil($page, "document.querySelector('[data-test=lifecycle]').dataset.step === 'review'"))->toBeTrue();
+        ->and(browserUntil($page, "document.querySelector('[data-test=lifecycle]').dataset.step === 'review'"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=lifecycle] [data-test=step-done]')?.textContent.includes('Sent')"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=lifecycle] [data-test=step-done] time[datetime]') !== null"))->toBeTrue()
+        ->and($page->script("document.querySelector('[data-test=lifecycle] [aria-current=step]')?.textContent.includes('Our team is checking it.')"))->toBeTrue();
+});
+
+it('says before anything is filled in that Send waits for a confirmed phone, and links to the account\'s Phone page (amendment 26(a))', function () {
+    $customerId = B2BFixtures::verifiedCompanyAccountWithoutPhone();
+    $page = companyScreenSignIn($customerId);
+
+    $page->navigate('/sa/en/account/company')
+        ->click('[data-test="start"]')
+        ->assertPresent('[data-test="company-form"]')
+        ->assertSeeIn('[data-test="phone-note"]', 'Send waits for a confirmed phone number.')
+        ->assertSeeIn('[data-test="phone-link"]', 'Confirm Phone Number')
+        ->assertSeeIn('[data-test="send-missing"]', 'a confirmed phone number')
+        ->assertButtonDisabled('[data-test="send"]')
+        ->assertNoJavaScriptErrors();
+
+    // Pressed straight after typing: the save the field starts as it is left goes first, and the
+    // page leaves after it, as Add Address does (17(i)).
+    $page->type('#company-name', 'Al Noor Trading')
+        ->click('[data-test="phone-link"]')
+        ->assertPathIs('/sa/en/account')
+        ->assertPresent('#phone');
+
+    expect($page->script('new URLSearchParams(location.search).get("tab")'))->toBe('phone')
+        ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->value('name'))->toBe('Al Noor Trading');
 });
 
 it('warns at once, before uploading, that a file is already under another document', function () {
@@ -263,10 +302,12 @@ it('shows a company that was not approved why, and applying again marks what to 
         ->assertSee('Not Approved')
         ->assertSee('The CR number does not match the certificate.');
 
-    // Decided: the third step, with its result.
-    expect(browserUntil($page, "document.querySelector('[data-test=lifecycle]').dataset.step === 'decision'"))->toBeTrue();
+    // Decided: both steps before done, and Decision marked with its result (amendment 26(b)).
+    expect(browserUntil($page, "document.querySelector('[data-test=lifecycle]').dataset.step === 'decision'"))->toBeTrue()
+        ->and($page->script("document.querySelectorAll('[data-test=lifecycle] [data-test=step-done]').length"))->toBe(2)
+        ->and($page->script("document.querySelector('[data-test=lifecycle] [data-test=step-bad]')?.textContent.includes('See the reason on this page, and apply again.')"))->toBeTrue();
 
-    $page->assertSeeIn('[data-test="step-result"]', 'Not Approved')
+    $page->assertSeeIn('[data-test="lifecycle-badge"]', 'Not Approved')
         ->click('[data-test="apply-again"]')
         ->assertSee('Marked in the last decision')
         ->assertSee('Who signs for the company?')
@@ -289,7 +330,8 @@ it('warns an approved company, before it sends a change, that sending it stops i
         ->assertSee('Approved')
         // The bank account is a card of the main column now (amendment 16(e)).
         ->assertSeeIn('[data-test="payment"]', 'Bank transfer is temporarily unavailable')
-        ->assertSeeIn('[data-test="step-result"]', 'Approved')
+        ->assertSeeIn('[data-test="lifecycle-badge"]', 'Approved')
+        ->assertSeeIn('[data-test="step-good"]', 'You can order at company prices.')
         ->click('[data-test="change"]')
         ->assertPresent('[data-test="change-warning"]')
         ->assertSee("These changes go to our team as a new application: you keep ordering until you send them, then can't order until they are approved.")
@@ -413,6 +455,8 @@ it('sends a company with no saved address to add one, brings it back, and saves 
         ->assertSee('Under Review')
         ->assertSee('No Saved Addresses')
         ->assertSee('Add one, and you come straight back here to pick it.')
+        // An address is kept, but there is nothing to pick: no "Saved" beside the empty list (26(c)).
+        ->assertMissing('[data-test="address-picker"] [data-test="save-mark"]')
         ->click('[data-test="add-address"]')
         ->assertPathIs('/sa/en/account')
         ->click('[data-test="add-address-sa"]')
@@ -469,7 +513,11 @@ it('shows a saved address edited since unpicked, with a note, and takes its new 
 
     $page->navigate('/sa/en/account/company')
         ->assertSeeIn('[data-test="address-kept"]', 'Olaya Street')
-        ->assertPresent('[data-test="address-changed"]');
+        ->assertPresent('[data-test="address-changed"]')
+        // Nothing in the list is the address kept: no "Saved" beside it, seen or read out (26(c)).
+        ->assertMissing('[data-test="address-picker"] [data-test="save-mark"]');
+
+    expect($page->script("document.querySelector('[data-test=address-picker] [data-test=field-state]').dataset.look"))->toBe('idle');
 
     expect($page->script("document.querySelector('[data-test=pick-address-{$addressId}]').getAttribute('aria-checked')"))->toBe('false');
 
@@ -478,6 +526,7 @@ it('shows a saved address edited since unpicked, with a note, and takes its new 
     expect(browserUntil($page, "document.body.innerText.includes('Address saved')"))->toBeTrue();
     $page->assertSeeIn('[data-test="address-kept"]', 'Tahlia Street')
         ->assertMissing('[data-test="address-changed"]')
+        ->assertSeeIn('[data-test="address-picker"] [data-test="save-mark"]', 'Saved')
         ->assertNoJavaScriptErrors();
 
     expect(browserUntil($page, "document.querySelector('[data-test=pick-address-{$addressId}]').getAttribute('aria-checked') === 'true'"))->toBeTrue();

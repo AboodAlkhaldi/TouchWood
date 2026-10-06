@@ -113,6 +113,7 @@ final readonly class StaffCompanyPages
                 $holder->emailVerified,
                 $holder->phoneVerified,
                 $holder->anonymized,
+                $holder->locale,
             ),
             applications: $applications,
             actions: new StaffCompanyActionsData(
