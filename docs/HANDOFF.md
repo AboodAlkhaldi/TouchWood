@@ -1633,6 +1633,9 @@ Decide these when the owning module is reached; do not design them now.
   more than one server it must be storage they share.
 - **PHP's zip extension** (`ext-zip`, in `composer.json`) on the server: the products import reads zips
   with it.
+- **Temporary files a stopped import leaves**: the import unpacks a zip's photos into the server's
+  temporary folder and removes them when it ends; a worker killed mid-way (the 60-minute timeout, a
+  restart) leaves them there. Sweep that folder's `twi*` files (the import's prefix) older than a day.
 
 ---
 
