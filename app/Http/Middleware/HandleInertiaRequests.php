@@ -21,8 +21,11 @@ final class HandleInertiaRequests extends Middleware
     protected $rootView = 'app';
 
     /**
-     * Light or dark, remembered per browser in a cookie so the server renders the right one and
-     * nothing flashes (decision of 2026-09-19). Light until the person chooses.
+     * Light, dark or System, remembered per browser in a cookie so the server renders the right one
+     * and nothing flashes (decision of 2026-09-19). **System until the person chooses**, following
+     * the device (owner, 2026-10-02; frontend.md §1.11): the server cannot see the device's setting,
+     * so it renders light and a few lines in the page's head turn it dark before the first paint
+     * when the device is.
      *
      * This is the **mode**, not the whole look. Which campaign the system is wearing - the base
      * one, National Day, Ramadan - is not a browser's choice at all: it belongs to the store, is
@@ -47,6 +50,15 @@ final class HandleInertiaRequests extends Middleware
      */
     public const string SIDEBAR_COOKIE = 'sidebar_state';
 
+    /**
+     * Which of the admin sidebar's business areas are open, their keys joined by dots - several may
+     * be open at once (frontend.md §1.11, the owner's fix list of 2026-10-04).
+     *
+     * Written in the browser by the sidebar, as the one above is, and exempt from encryption for
+     * the same reason: it says how the panel looks and nothing more.
+     */
+    public const string SIDEBAR_SECTIONS_COOKIE = 'sidebar_sections';
+
     /** A year: the choice is a preference, and re-choosing it every session would be a nuisance. */
     public const int COOKIE_MINUTES = 525600;
 
@@ -65,7 +77,10 @@ final class HandleInertiaRequests extends Middleware
                 // Which dress, and whether the lights are on. Two separate things: a campaign has
                 // its own light and its own dark (owner, 2026-09-22).
                 'campaign' => $this->campaign(),
+                // The mode the server renders, and the person's choice behind it: with System the
+                // device decides, so the browser may turn a light render dark (frontend.md §1.11).
                 'mode' => $this->mode($request),
+                'choice' => $this->themeChoice($request),
             ],
             // Each page adds the files it needs; a page that names none carries no words, which is
             // a mistake a test catches rather than a blank screen nobody explains.
@@ -102,7 +117,17 @@ final class HandleInertiaRequests extends Middleware
 
     private function mode(Request $request): string
     {
-        return $request->cookie(self::THEME_COOKIE) === 'dark' ? 'dark' : 'light';
+        return $this->themeChoice($request) === 'dark' ? 'dark' : 'light';
+    }
+
+    /**
+     * What the person chose: light, dark, or System - which is also what nobody choosing means.
+     */
+    private function themeChoice(Request $request): string
+    {
+        $chosen = $request->cookie(self::THEME_COOKIE);
+
+        return $chosen === 'light' || $chosen === 'dark' ? $chosen : 'system';
     }
 
     /**

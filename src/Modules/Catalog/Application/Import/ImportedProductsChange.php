@@ -117,12 +117,22 @@ final readonly class ImportedProductsChange
                 if (! isset($products[$id])) {
                     throw new ListItemNotFound($id);
                 }
+
+                if ($products[$id]->isRefused()) {
+                    throw new InvalidCatalogAttribute("product {$products[$id]->number}", 'a product of the file taking part: it was left out at upload');
+                }
             }
 
             $changed = [];
 
             foreach ($chosen ?? array_keys($products) as $id) {
                 $row = $products[$id];
+
+                // Every one: those left out at upload take no part (amendment 11(a)).
+                if ($row->isRefused()) {
+                    continue;
+                }
+
                 // Read only for adding, whose limit counts what the product would have now.
                 $updates = $mode === self::ADD && $row->decision === ImportProduct::UPDATE && $row->conflictProductId !== null ? $this->products->find($row->conflictProductId) : null;
                 $now = $change($row->effective(), $updates);
@@ -139,7 +149,7 @@ final readonly class ImportedProductsChange
             $this->imports->saveEdits($changed);
             // Checked again when brought in, so this list's own problems are not this change's.
             $this->imports->replaceNames($import->id, CatalogCheck::names(
-                array_values(array_map(static fn (ImportProduct $product): FileProduct => $product->effective(), $products)),
+                array_map(static fn (ImportProduct $product): FileProduct => $product->effective(), ImportProduct::takingPart(array_values($products))),
                 CatalogNames::load($this->brands, $this->categories, $this->attributes, $this->warranties),
                 new FileProblems,
             ));

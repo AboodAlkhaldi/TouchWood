@@ -137,7 +137,7 @@ reach only products Active nowhere.
 | `SetProductGallery`, `SetVariantPhotos`, `SetSearchWords`, `SetFilterValues`, `SetRelations` | `product.update` | Public images in order (20 and 10); search words (30, each once as search reads it); values of filter attributes (amendment 3(a)); related products that are ready, at most 20 (amendment 3(d)) |
 | `MarkProductReady`, `ArchiveProduct`, `RestoreProduct` | `product.publish`, `product.archive` | Ready only with every rule met; restored to the stage it left (`archived_from`) — to ready only the same way (amendment 3(m)) |
 | `ArchiveVariant`, `RestoreVariant` | `product.update` | A variant retired instead of deleted once the product is ready |
-| `DeleteDraftProduct` | `product.archive` | Only a draft is deleted (amendment 3(h)) — whole, its slugs and codes free again |
+| `DeleteDraftProduct` | `product.archive` | Only a draft is deleted (amendment 3(h)) — whole, its slugs and codes free again (`ProductDeletion`, which the import's page also uses, amendment 11(c)) |
 
 **Codes** (amendment 3(e)). Digits only, 1 to 10, kept as text so a leading zero stays.
 `product_codes` holds every code a product ever held, the code its key: a code is never given to
@@ -295,15 +295,19 @@ is a Super Admin's (`catalog.import.run`), from upload to acceptance:
    (at most 500 listed); then `CatalogCheck` checks it against the catalog — an attribute used for two
    jobs, or for a job the catalog's attribute of that name does not have; a category with
    sub-categories; a set whose attributes the variants do not match; a photo not JPEG, PNG or WebP or
-   over the media library's limit; codes two catalog products hold. Any problem refuses the file whole
-   (`ImportRefused`). Otherwise it becomes an import: **each name the catalog lacks listed once** with
-   its products (each missing level of a category path its own row; a brand by number as `#N`), **each
-   product with the catalog's product already holding its codes**, and the zip kept. Nothing in the
+   over the media library's limit; a zip of more than 100,000 entries. Any problem refuses the file
+   whole (`ImportRefused`). Otherwise it becomes an import: **each name the catalog lacks listed once**
+   with its products (each missing level of a category path its own row; a brand by number as `#N`),
+   **each product with the catalog's product already holding its codes**, and the zip kept. **Codes
+   that mix catalog products leave those products out** (`CatalogCheck::conflicts`, amendment 11(a)) —
+   one whose codes two catalog products hold, two or more whose codes one holds: `REFUSED` with the
+   reason, taking no part (`ImportProduct::takingPart`), the rest of the file coming in. Nothing in the
    catalog changes.
 2. **Decisions** (`DecideImportNames`, `DecideImportCodes`): a name means an active one of that list
    doing the file's job, or is refused; values, categories and sets may also be created — **brands,
-   warranties and attributes never** (amendment 7(a)). A code the catalog has: update, replace, skip, or
-   new codes free in the catalog and in the file.
+   warranties and attributes never** (amendment 7(a)); a category picked for a path a product sits in
+   has no sub-categories (`CategoryNotLowest`). A code the catalog has: update, replace, skip, or new
+   codes free in the catalog and in the file.
 3. **Changes before bringing in** (`SetImported…`, amendments 7(c), (d), 8(a), 8(c), 9(a)): brand (by
    its fixed number), warranty, category (kept by id), search words, filter values — for all or the
    selected, replacing or only filling the empty (lists may also add). A product the file updates
@@ -316,10 +320,11 @@ is a Super Admin's (`catalog.import.run`), from upload to acceptance:
    with how many (`matches`): `CatalogNames` answers only when one item does (amendment 8(d)).
 4. **Bringing in** (`BringInImport`, the confirm): names, codes, new codes and new categories'
    addresses asked again against the catalog as it is, what changed kept and audited; while anything
-   waits — a name, a code, or a product's address —, `ImportUndecided`; else `BringInImportJob` is
+   waits — a name, a code, a product's address, keep or take off sale, or **a code a product not a
+   draft keeps** (`ImportCodeChanges`, amendment 11(b)) —, `ImportUndecided`; else `BringInImportJob` is
    queued. A job the queue gives up on leaves the import failed, never bringing in (`failed()`). Its work
-   (`BringInImportProducts` → `ImportBringer`) is **one transaction under the products' lock, then the
-   lists'**: the names decided "create it" made through the lists' handlers, then each product **through
+   (`BringInImportProducts` → `ImportBringer`) unpacks the zip's photos first, then is **one transaction
+   under the products' lock, then the lists'**: the names decided "create it" made through the lists' handlers, then each product **through
    the product handlers** — created as a draft with its photos (`ImportPhotos`, Platform's
    `uploadMediaFor` under `import.run`), updated, replaced, skipped, held back when its set or a
    variant's value was refused, or made with its new codes. Any refusal rolls everything back, and the
@@ -328,7 +333,10 @@ is a Super Admin's (`catalog.import.run`), from upload to acceptance:
 5. **After** (`AcceptImportedProducts`, `ArchiveImportedProducts`, `DeleteImportedProducts`, through
    `BroughtInProducts`): accepting makes ready — **on sale nowhere**: the products file only brings
    products in, and a store's admins publish them with their store file (amendment 9(b)) — and relates
-   to the ready products the file named; archive and delete only what the import created.
+   to the ready products the file named; archive and delete only what the import created and nobody
+   accepted — **whatever was done to it since** (amendment 11(c)): one made ready meanwhile is archived,
+   or deleted whole (`ProductDeletion`) after archiving switched it off everywhere and the products
+   linking to it let go of it.
 
 **A file not brought in may be discarded** (`DiscardImport`, amendment 10(b)): one deciding, or whose
 bringing in failed, goes whole — its rows by their foreign keys' CASCADE, its zip after the commit;
@@ -384,7 +392,7 @@ page, never stored.
 | `Integration/CatalogProductConstraintsTest` | The products' named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code |
 | `Integration/CatalogStoreListingsTest` | Who may choose in which store, an off store prepared; a whole product or single variants; selling terms; "Not available now"; labels; archiving switching off everywhere; a product's shared data needing the job in every store that sells it |
 | `Integration/CatalogDeactivationsTest` | A category or brand deactivated with each product's fate, all or nothing; activating bringing back what hid with it |
-| `Integration/CatalogListGuardsTest` | For every one of the sixty-two list, product and store changes: its lock is the first query inside its own transaction (the products' before its list's, for the seven that change products or their listing rows); an id not in its list is answered as not found; a change that changes nothing writes nothing and records nothing; and what the audit log keeps reads from what was to what is |
+| `Integration/CatalogListGuardsTest` | For every one of the sixty-two list, product and store changes: its lock is the first query inside its own transaction (the products' before its list's, for the seven that change products or their listing rows), nothing of the catalog read before it; an id not in its list is answered as not found; and what the audit log keeps reads from what was to what is. For the thirty-five that can be asked to change nothing: nothing written to the lists, nothing recorded |
 | `Integration/CatalogListConstraintsTest` | The database's named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code; an id that is not a ULID never reaching the database |
 | `Integration/CatalogListingTest` | Which products have rows, and what a row holds — never a code; each of twenty-nine changes writing exactly what the repair writes, eight that alter nothing writing nothing; a row that stays updated in place; the card photo; the repair and its locks |
 | `Integration/CatalogShopTest` | The menu per store and its order, a secondary brand's own category in it; a category's page by keyset, ties included, every brand, the brand filter, labels in the list's order, slugs moved; a brand's page; a product's page or "Not available now"; suggestions |
@@ -403,9 +411,12 @@ page, never stored.
 | `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variants carrying each code of a ready product; mending and removing items |
 | `Integration/CatalogImportPagesTest` | The pages' reads: a products file's page and list, a store file's page with each item's standing, and its store's list |
 | `Integration/CatalogImportSaleTest` | Amendment 9: no store in a products file; keep on sale or take off sale, every time, in every store, cleared with its decision, asked again when put on sale after the confirm; codes two catalog products hold; words added to an updated product kept apart; a new category's taken address counted; a job given up on taking the products' lock first |
+| `Integration/CatalogImportConstraintsTest` | The database's named CHECKs of the import's and the listing's tables (steps 5 and 6), each refused by name — those on a nullable column with it left NULL (lesson 35) |
+| `Integration/CatalogQueuedWorkTest` | Bringing an import in and pruning the search log run as the queue runs them: on the "sync" queue, the system acting for whoever queued them |
+| `Integration/CatalogModulePassTest` | Step 7, the reviews of the whole module (amendment 11): a category picked for a product's path has no sub-categories; archive and delete on the import's page whatever was done since — a product made ready and put on sale since deleted whole, unlinked first; the confirm catching a code a product not a draft keeps, a draft taking the file's; a zip of too many entries |
 | `Integration/CatalogImportDiscardTest` | Amendment 10(b): a file not brought in discarded whole with its zip, deciding or failed; one bringing in or brought in stays; a store's file is not one; a Super Admin's |
 | `Integration/CatalogImportReviewTest` | After step 6's reviews (amendment 8): ambiguous names and colliding addresses decided on the page; the confirm asking again; holding back, replacing whole, updating and restoring; the page's picks brought in, filling and adding counted against an updated product as it is when brought in; a job given up on; the zip's sizes; linking back on accepting, by any code held; the store file kept to its store |
-| `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema |
+| `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema; the store file's job, admin roles only (amendment 6(h)) |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 
 `CatalogListGuardsTest` records every query to check each change takes its lock first, inside its

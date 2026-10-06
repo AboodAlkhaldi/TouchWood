@@ -13,12 +13,14 @@ use Modules\Catalog\Application\Import\ImportAddresses;
 use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\ImportName;
 use Modules\Catalog\Application\Import\ImportNameRow;
+use Modules\Catalog\Application\Import\ImportProduct;
 use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Import\ProductsFile;
 use Modules\Catalog\Domain\Exception\BrandInactive;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
 use Modules\Catalog\Domain\Exception\CategoryInactive;
 use Modules\Catalog\Domain\Exception\CategoryNotFound;
+use Modules\Catalog\Domain\Exception\CategoryNotLowest;
 use Modules\Catalog\Domain\Exception\ImportClosed;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
@@ -101,10 +103,20 @@ final readonly class DecideImportNamesHandler
             $before = $names;
             $catalog = CatalogNames::load($this->brands, $this->categories, $this->attributes, $this->warranties);
             $changed = [];
+            // The category paths a product of the file sits in: the one picked for such a path holds products.
+            $leaves = [];
+
+            foreach (ImportProduct::takingPart($this->imports->products($import->id)) as $row) {
+                $path = $row->effective()->category;
+
+                if ($path !== null) {
+                    $leaves[ImportNameRow::keyOf($path)] = true;
+                }
+            }
 
             foreach ($decisions as $index => $decision) {
                 $name = $names[strtolower($decision['name_id'])] ?? throw new ListItemNotFound($decision['name_id']);
-                $decided = $this->decide($name, $decision, $names, $catalog, "decisions.{$index}");
+                $decided = $this->decide($name, $decision, $names, $catalog, $leaves, "decisions.{$index}");
                 $names[$name->id] = $decided;
                 $changed[$name->id] = true;
 
@@ -141,11 +153,12 @@ final readonly class DecideImportNamesHandler
     /**
      * @param  array{name_id: string, decision: string, target_id: string|null, name_ar: string|null, name_en: string|null, slug_ar: string|null, slug_en: string|null}  $decision
      * @param  array<string, ImportName>  $names
+     * @param  array<string, true>  $leaves  the keys of the category paths a product of the file sits in
      */
-    private function decide(ImportName $name, array $decision, array $names, CatalogNames $catalog, string $at): ImportName
+    private function decide(ImportName $name, array $decision, array $names, CatalogNames $catalog, array $leaves, string $at): ImportName
     {
         return match ($decision['decision']) {
-            ImportName::EXISTING => $name->decided(ImportName::EXISTING, $this->target($name, $decision['target_id'] ?? throw new InvalidCatalogAttribute("{$at}.target_id", 'required'), $names, $catalog, $at), null, null),
+            ImportName::EXISTING => $name->decided(ImportName::EXISTING, $this->target($name, $decision['target_id'] ?? throw new InvalidCatalogAttribute("{$at}.target_id", 'required'), $names, $catalog, $leaves, $at), null, null),
             ImportName::CREATE => in_array($name->kind, self::CREATED, true)
                 ? $this->created($name, $decision, $names, $catalog, $at)
                 : throw new InvalidCatalogAttribute("{$at}.decision", 'EXISTING or REFUSE: brands, warranties and attributes are added in the panel first'),
@@ -155,11 +168,13 @@ final readonly class DecideImportNamesHandler
     }
 
     /**
-     * The one it means: in that list, active, doing the job the file needs of it.
+     * The one it means: in that list, active, doing the job the file needs of it — a category a
+     * product sits in, with no sub-categories (§1.5).
      *
      * @param  array<string, ImportName>  $names
+     * @param  array<string, true>  $leaves
      */
-    private function target(ImportName $name, string $targetId, array $names, CatalogNames $catalog, string $at): string
+    private function target(ImportName $name, string $targetId, array $names, CatalogNames $catalog, array $leaves, string $at): string
     {
         switch ($name->kind) {
             case ImportNameRow::BRAND:
@@ -169,7 +184,11 @@ final readonly class DecideImportNamesHandler
             case ImportNameRow::CATEGORY:
                 $category = $this->categories->find($targetId) ?? throw new CategoryNotFound($targetId);
 
-                return $category->isActive() ? $category->id() : throw new CategoryInactive;
+                if (! $category->isActive()) {
+                    throw new CategoryInactive;
+                }
+
+                return isset($leaves[$name->key]) && $this->categories->childrenOf($category->id()) !== [] ? throw new CategoryNotLowest : $category->id();
             case ImportNameRow::WARRANTY:
                 $warranty = $this->warranties->find($targetId) ?? throw new ListItemNotFound($targetId);
 

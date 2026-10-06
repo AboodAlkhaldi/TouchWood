@@ -8,6 +8,7 @@ use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Domain\ValueObject\StoreId;
@@ -46,47 +47,69 @@ final readonly class CurrentStoreForStaff
         }
 
         $staffId = $actor->id;
-        $theirs = $this->storesOf($staffId);
+        $unlimited = $this->rules->author()->isUnlimited();
+        [$theirs, $off] = $this->storesOf($staffId, $unlimited);
 
         if ($theirs === []) {
             return new CurrentStoreDto(null, false);
         }
 
+        // An off store is shown to whoever covers it, marked Off, but only a Super Admin works in
+        // one - to prepare it before it opens (platform.md §1.6, access.md amendment 58(a); owner,
+        // 2026-10-03). A staff member whose only stores are off still signs in, and works in no
+        // store until one is on again (amendment 53).
+        $choosable = $unlimited ? $theirs : array_values(array_diff($theirs, $off));
         $remembered = $this->staff->currentStore($staffId);
 
-        if ($remembered !== null && in_array($remembered, $theirs, true)) {
-            return new CurrentStoreDto($remembered, false, $theirs);
+        if ($remembered !== null && in_array($remembered, $choosable, true)) {
+            return new CurrentStoreDto($remembered, false, $theirs, $off, $unlimited);
         }
 
-        // Falling back: their first store by position. It is only announced when they had chosen
-        // one and lost it — a person who has never chosen has nothing to be told about.
-        return new CurrentStoreDto($theirs[0], $remembered !== null, $theirs);
+        // Falling back: their first store that is **on**, by position - a Super Admin included. An
+        // off store is one somebody chooses to prepare; nobody lands in one by default (the review of
+        // the foundation, 2026-10-03). It is only announced when they had chosen one and lost it — a
+        // person who has never chosen has nothing to be told about — and it says whether the store
+        // was switched off or taken away from them.
+        $on = array_values(array_diff($theirs, $off));
+
+        if ($on === []) {
+            return new CurrentStoreDto(null, false, $theirs, $off, $unlimited);
+        }
+
+        return new CurrentStoreDto(
+            $on[0],
+            $remembered !== null,
+            $theirs,
+            $off,
+            $unlimited,
+            $remembered !== null && in_array($remembered, $off, true),
+        );
     }
 
     /**
-     * Their stores, in the stores' own order. A Super Admin covers every store without a role
-     * saying so; anyone else covers their assignment's, an exception's stores included.
+     * Their stores, on and off, in the stores' own order, and which of them are off. A Super Admin
+     * covers every store without a role saying so; anyone else covers their assignment's store row,
+     * which every exception lies inside (amendment 59).
      *
-     * Only stores that are **on**: an off store is not offered as a store to work in, to anyone
-     * (platform.md §1.6). A staff member whose only stores are off still signs in, and works in no
-     * store until one is on again (access.md amendment 53).
-     *
-     * @return list<string>
+     * @return array{0: list<string>, 1: list<string>} their stores, and the ones that are off
      */
-    private function storesOf(string $staffId): array
+    private function storesOf(string $staffId, bool $unlimited): array
     {
-        $all = array_map(static fn (object $store): string => $store->id, $this->platform->stores());
+        $all = $this->platform->allStores();
 
-        if ($this->rules->author()->isUnlimited()) {
-            return $all;
+        if (! $unlimited) {
+            $choice = $this->assignments->byStaff($staffId)?->staffStores();
+
+            if ($choice === null) {
+                return [[], []];
+            }
+
+            $all = array_values(array_filter($all, static fn (StoreDto $store): bool => $choice->covers(StoreId::fromString($store->id))));
         }
 
-        $choice = $this->assignments->byStaff($staffId)?->staffStores();
-
-        if ($choice === null) {
-            return [];
-        }
-
-        return array_values(array_filter($all, static fn (string $id): bool => $choice->covers(StoreId::fromString($id))));
+        return [
+            array_map(static fn (StoreDto $store): string => $store->id, $all),
+            array_values(array_map(static fn (StoreDto $store): string => $store->id, array_filter($all, static fn (StoreDto $store): bool => ! $store->isActive))),
+        ];
     }
 }

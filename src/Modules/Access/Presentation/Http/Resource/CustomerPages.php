@@ -41,10 +41,10 @@ final readonly class CustomerPages
     public function list(?string $search, ?string $status, ?string $accountType, int $page): CustomerListPage
     {
         $found = $this->list->handle(new ListCustomers($search, $status, $accountType, $page));
-        $stores = $this->storeNames();
+        [$stores, $off] = $this->stores();
 
         return new CustomerListPage(
-            customers: array_map(fn (CustomerSummary $customer): CustomerRow => $this->row($customer, $stores), $found->customers),
+            customers: array_map(fn (CustomerSummary $customer): CustomerRow => $this->row($customer, $stores, $off), $found->customers),
             total: $found->total,
             page: $found->page,
             perPage: $found->perPage,
@@ -60,7 +60,7 @@ final readonly class CustomerPages
     public function view(string $customerId): CustomerDetailsPage
     {
         $details = $this->view->handle(new ViewCustomer($customerId));
-        $stores = $this->storeNames();
+        [$stores, $off] = $this->stores();
         // What may be done is Access's answer, never this file's: a screen that worked it out
         // itself would be deciding, and there is a test that forbids exactly that.
         $may = $this->actions->forCustomer($customerId);
@@ -73,14 +73,16 @@ final readonly class CustomerPages
         }
 
         return new CustomerDetailsPage(
-            customer: $this->row($details->customer, $stores),
+            customer: $this->row($details->customer, $stores, $off),
             communicationLocale: $details->locale,
             addresses: array_map(
                 static fn (string $storeId): CustomerAddressGroup => new CustomerAddressGroup(
                     $storeId,
-                    // Only stores that are on are named; a store's id is never shown in its place.
+                    // Every store is named, an off one too, and marked (access.md amendment
+                    // 58(d)); a store's id is never shown in its place.
                     $stores[$storeId] ?? '',
                     $byStore[$storeId] ?? [],
+                    ! in_array($storeId, $off, true),
                 ),
                 array_keys($byStore),
             ),
@@ -95,8 +97,9 @@ final readonly class CustomerPages
 
     /**
      * @param  array<string, string>  $stores
+     * @param  list<string>  $off
      */
-    private function row(CustomerSummary $customer, array $stores): CustomerRow
+    private function row(CustomerSummary $customer, array $stores, array $off): CustomerRow
     {
         return new CustomerRow(
             id: $customer->id,
@@ -109,9 +112,10 @@ final readonly class CustomerPages
             phoneVerified: $customer->phoneVerified,
             deletionScheduledFor: $customer->deletionScheduledFor,
             anonymized: $customer->anonymized,
-            // Nothing for a home store that is off (amendments 53, 57): never its raw id.
+            // Named even while it is off, and flagged (access.md amendment 58(c)(d)); never its id.
             homeStore: $stores[$customer->homeStoreId] ?? '',
             registeredAt: $customer->registeredAt,
+            homeStoreIsActive: ! in_array($customer->homeStoreId, $off, true),
         );
     }
 
@@ -130,19 +134,28 @@ final readonly class CustomerPages
     }
 
     /**
-     * Every store's name in the panel's language, by id.
+     * Every store's name in the panel's language, by id, and the ids of those switched off - from
+     * one read of the stores, which is two cache queries (the review of batch A).
      *
-     * @return array<string, string>
+     * Every store, off ones included: an off store's customers and addresses are shown to staff,
+     * marked (access.md amendment 58(c)(d)).
+     *
+     * @return array{0: array<string, string>, 1: list<string>}
      */
-    private function storeNames(): array
+    private function stores(): array
     {
         $locale = $this->app->getLocale();
         $names = [];
+        $off = [];
 
-        foreach ($this->platform->stores() as $store) {
+        foreach ($this->platform->allStores() as $store) {
             $names[$store->storeId()->value] = $store->name->in($locale);
+
+            if (! $store->isActive) {
+                $off[] = $store->storeId()->value;
+            }
         }
 
-        return $names;
+        return [$names, $off];
     }
 }

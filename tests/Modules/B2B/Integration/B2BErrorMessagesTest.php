@@ -182,10 +182,10 @@ it('says a company type from another store\'s list is not valid, in the person\'
         ->and($error instanceof InvalidCompanyAttribute ? $error->attribute : null)->toBe('company_type');
 
     app()->setLocale('en');
-    expect(FormErrors::message($error))->toBe('The company type is not valid.');
+    expect(FormErrors::message($error))->toBe("Couldn't save: the company type isn't valid. Check it and try again.");
 
     app()->setLocale('ar');
-    expect(FormErrors::message($error))->toBe('قيمة نوع الشركة غير صالحة.');
+    expect(FormErrors::message($error))->toBe('تعذّر الحفظ: قيمة نوع الشركة غير صالحة. تحقّق منها وحاول مجددًا.');
 });
 
 it('translates each new refusal, and never shows the English written for the log', function (Closure $work, string $class, string $key) {

@@ -46,6 +46,15 @@ final class AccessPermissions
     // Every staff member, for their own account.
     public const string OWN_ACCOUNT_UPDATE = 'access.own_account.update';
 
+    /** Opening the shop from the panel as themselves: the staff view (spec §1.11). */
+    public const string STAFF_VIEW_OPEN = 'access.staff_view.open';
+
+    /**
+     * Leaving the staff view, from the shop - where the request is a guest's while the view holds,
+     * so it is a guest's action, on the pass this browser carries (spec §1.11).
+     */
+    public const string STAFF_VIEW_LEAVE = 'access.staff_view.leave';
+
     // Staff, through their role.
     public const string STAFF_INVITE = 'access.staff.invite';
 
@@ -99,6 +108,7 @@ final class AccessPermissions
             new PermissionDefinitionDto(self::SESSION_RESET_PASSWORD, $guest, kind: $storeFree),
             new PermissionDefinitionDto(self::STAFF_ACCEPT_INVITATION, $guest, kind: $storeFree),
             new PermissionDefinitionDto(self::ACCOUNT_VERIFY_EMAIL, $guest, kind: $storeFree),
+            new PermissionDefinitionDto(self::STAFF_VIEW_LEAVE, $guest, kind: $storeFree),
 
             new PermissionDefinitionDto(self::ACCOUNT_VERIFY, $customer, kind: $storeFree),
             new PermissionDefinitionDto(self::ACCOUNT_UPDATE, $customer, kind: $storeFree),
@@ -108,6 +118,7 @@ final class AccessPermissions
             new PermissionDefinitionDto(self::SESSION_SIGN_OUT, $customer, kind: $storeFree),
 
             new PermissionDefinitionDto(self::OWN_ACCOUNT_UPDATE, $staff, kind: $storeFree),
+            new PermissionDefinitionDto(self::STAFF_VIEW_OPEN, $staff, kind: $storeFree),
 
             new PermissionDefinitionDto(self::STAFF_INVITE, group: $staffArea),
             new PermissionDefinitionDto(self::STAFF_UPDATE, group: $staffArea),

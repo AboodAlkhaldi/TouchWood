@@ -102,6 +102,13 @@ interface ProductRepository
     public function relations(string $productId, string $kind): array;
 
     /**
+     * The products linking to this one, each with the kinds of its links to it.
+     *
+     * @return array<string, list<string>> product id => kinds
+     */
+    public function linkedFrom(string $productId): array;
+
+    /**
      * @param  list<string>  $relatedIds  in order
      */
     public function replaceRelations(string $productId, string $kind, array $relatedIds): void;

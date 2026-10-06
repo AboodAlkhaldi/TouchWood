@@ -714,7 +714,7 @@ member sets their own password. The admin never knows it. Invitations can be can
 resent.
 
 **Two-factor authentication for staff is in v1**: an SMS code after the password, and a browser
-can be trusted for 30 days (owner, 2026-09-18). A staff member who leaves is **disabled, never
+can be trusted for 12 hours (owner, 2026-10-05; it was 30 days, 2026-09-18). A staff member who leaves is **disabled, never
 deleted** — the audit log names them forever.
 
 Staff profile carries: first name, last name, job title, date of birth, email, phone,
@@ -1633,6 +1633,9 @@ Decide these when the owning module is reached; do not design them now.
   more than one server it must be storage they share.
 - **PHP's zip extension** (`ext-zip`, in `composer.json`) on the server: the products import reads zips
   with it.
+- **Temporary files a stopped import leaves**: the import unpacks a zip's photos into the server's
+  temporary folder and removes them when it ends; a worker killed mid-way (the 60-minute timeout, a
+  restart) leaves them there. Sweep that folder's `twi*` files (the import's prefix) older than a day.
 
 ---
 

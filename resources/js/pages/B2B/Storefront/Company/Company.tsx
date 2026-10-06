@@ -1,37 +1,43 @@
 import { useState } from 'react';
 import { router } from '@inertiajs/react';
-import { Badge, type BadgeVariant, Button, Description, Entity, EntityList, Note } from '@/components/geist';
+import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
+import { Note } from '@/components/Note';
+import { CopyButton } from '@/components/geist-only/CopyButton';
+import { Description } from '@/components/geist-only/Description';
+import { Badge } from '@/components/ui/badge';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from '@/components/ui/item';
 import { AccountLayout } from '@/layouts/AccountLayout';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
-import type {
-    CompanyApplicationData,
-    CompanyDraftData,
-    CompanyPage,
-    CompanyStatusData,
-} from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
-import { CompanyForm, DiscardModal, missingItems } from './CompanyForm';
+import { tone } from '@/lib/tones';
+import type { CompanyApplicationData, CompanyPage, CompanyStatusData } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
+import { companyStatusTone } from '../../status';
+import { CompanyForm, DiscardModal } from './CompanyForm';
 import { CompanyHistory, SentApplication } from './CompanyHistory';
 import { CompanySide } from './CompanySide';
 import { AddressPicker, type Look } from './fields';
-import { Card, Figure, figureOr, StatusBox, typeOf, useLocale, writtenOr } from './parts';
+import { Card, Figure, figureOr, MARK, Phrase, StatusBox, typeOf, useLocale, writtenOr } from './parts';
 
 /*
-| F11 — the company's own page (b2b.md §4.5, amendment 14; the design's company screen).
+| F11 - the company's own page (b2b.md §4.5, amendment 14; the design's company screen).
 |
 | Two columns: the status box and, under it, the form or what was sent; beside them, the
-| application's lifecycle and nothing else (amendment 16(e)) — hidden while the company is suspended.
+| application's lifecycle and nothing else (amendment 16(e)) - hidden while the company is suspended.
 |
 | **Before the first send there is no company, only a draft** (§1.1), and the page shows the draft
-| alone — not sent yet, what is still missing, Continue or Discard. Once there is a company, what it
-| sees follows its status: under review, the application it sent; approved, its details, its
-| address and Change company details; rejected, why, and Apply again; suspended, why, and nothing
-| to change. Every application it sent is listed under that, newest first, with its number.
+| alone - not sent yet, what is still missing (beside Send), Continue or Discard. Once there is a
+| company, what it sees follows its status: under review, the application it sent; approved, its
+| details, its address and Change Company Details; rejected, why, and Apply Again; suspended, why,
+| and nothing to change. Every application it sent is listed under that, newest first.
 |
-| On Geist's parts (frontend.md 1.10): the status box is a Note coloured by the status, the
-| company's details and its bank account are Geist's Description (an em dash where a value is not
-| given), and a button that posts is `loading` until the page answers, so it cannot be pressed twice.
+| On shadcn's parts with Geist's rules (frontend.md §1.11): the status box is Geist's Note coloured
+| by the status, one sentence, and anything else - confirm your email, a reinstatement - its own
+| Note (Geist: one Note per concept); the company's details are Geist's Description (an em dash
+| where a value is not given); the IBAN sits in a read-only field with Geist's Copy Button; a button
+| that posts is `loading` until the page answers, so it cannot be pressed twice.
 |
 | **A company per store** (b2b.md amendments 18-20; owner, 2026-10-02): the page is about the store
 | being browsed, and says which. An account with a company in another store but none here applies
@@ -52,10 +58,7 @@ export default function Company(page: CompanyPage) {
                     <FormError />
                     {page.company === null ? <BeforeACompany page={page} /> : <WithACompany page={page} company={page.company} />}
                     {/* Under review, the application waiting is shown open above; the list below is the ones before it. */}
-                    <CompanyHistory
-                        history={page.company?.status === 'PENDING' ? page.history.slice(1) : page.history}
-                        documentTypes={page.documentTypes}
-                    />
+                    <CompanyHistory history={page.company?.status === 'PENDING' ? page.history.slice(1) : page.history} documentTypes={page.documentTypes} />
                     <Elsewhere page={page} />
                 </div>
 
@@ -73,19 +76,19 @@ function BeforeACompany({ page }: { page: CompanyPage }) {
         <>
             <StatusBox tone="plain" title={t('b2b::company.status.new.title')}>
                 {t('b2b::company.status.new.body')}
-                {page.stage === 'EMAIL_NOT_CONFIRMED' ? (
-                    <p className="mt-2 text-warn" data-test="confirm-email-first">
-                        {t('b2b::company.status.confirm_email')}
-                    </p>
-                ) : null}
-                {page.draft !== null ? <Missing page={page} draft={page.draft} /> : null}
             </StatusBox>
+
+            {page.stage === 'EMAIL_NOT_CONFIRMED' ? (
+                <div data-test="confirm-email-first">
+                    <Note variant="warning">{t('b2b::company.status.confirm_email')}</Note>
+                </div>
+            ) : null}
 
             {page.draft === null && page.prefill !== null ? <CarriedOver prefill={page.prefill} /> : null}
 
             {page.draft === null ? (
                 // A company elsewhere applies here, by name (owner, 2026-10-02: "Apply in this store").
-                <StartButton label={t(page.prefill === null ? 'b2b::company.start' : 'b2b::company.apply_here')} />
+                <StartButton label={page.prefill === null ? t('b2b::company.start') : t('b2b::company.apply_here')} />
             ) : (
                 <CompanyForm page={page} draft={page.draft} lastSent={null} changing={false} />
             )}
@@ -97,23 +100,15 @@ function BeforeACompany({ page }: { page: CompanyPage }) {
 function CarriedOver({ prefill }: { prefill: NonNullable<CompanyPage['prefill']> }) {
     const t = useTranslator();
     const locale = useLocale();
+    const store = locale === 'ar' ? prefill.fromStoreNameAr : prefill.fromStoreNameEn;
 
     return (
         <Note label={t('b2b::company.prefill_label')} data-test="carried-over">
             {/* The type comes along only when this store's list has one of the same name (19(b)). */}
-            {t(prefill.companyTypeId === null && prefill.companyTypeOther === null ? 'b2b::company.prefill_name_only' : 'b2b::company.prefill', {
-                store: locale === 'ar' ? prefill.fromStoreNameAr : prefill.fromStoreNameEn,
-            })}
+            {prefill.companyTypeId === null && prefill.companyTypeOther === null ? t('b2b::company.prefill_name_only', { store }) : t('b2b::company.prefill', { store })}
         </Note>
     );
 }
-
-const ELSEWHERE_BADGE: Record<string, BadgeVariant> = {
-    APPROVED: 'green-subtle',
-    PENDING: 'amber-subtle',
-    REJECTED: 'red-subtle',
-    SUSPENDED: 'red-subtle',
-};
 
 /** The account's companies in the other stores: each store approves its own (amendment 18). */
 function Elsewhere({ page }: { page: CompanyPage }) {
@@ -127,21 +122,22 @@ function Elsewhere({ page }: { page: CompanyPage }) {
     return (
         <section className="grid gap-3" data-test="elsewhere">
             <h2 className="text-heading-16 text-ink">{t('b2b::company.elsewhere')}</h2>
-            <EntityList>
-                {page.elsewhere.map((other) => (
-                    <Entity
-                        key={other.storeId}
-                        data-test={`elsewhere-${other.storeId}`}
-                        title={other.name}
-                        description={locale === 'ar' ? other.storeNameAr : other.storeNameEn}
-                        actions={
-                            <Badge variant={ELSEWHERE_BADGE[other.status] ?? 'gray-subtle'}>
-                                {t(`b2b::company.status.${other.status.toLowerCase()}.title`)}
-                            </Badge>
-                        }
-                    />
+            <ItemGroup className="material-base overflow-hidden">
+                {page.elsewhere.map((other, index) => (
+                    <div key={other.storeId} role="listitem">
+                        {index === 0 ? null : <ItemSeparator className="my-0" />}
+                        <Item size="sm" className="rounded-none px-4" data-test={`elsewhere-${other.storeId}`}>
+                            <ItemContent className="min-w-0">
+                                <ItemTitle className="text-label-14 text-ink">{other.name}</ItemTitle>
+                                <ItemDescription className="text-copy-13 text-ink-muted">{locale === 'ar' ? other.storeNameAr : other.storeNameEn}</ItemDescription>
+                            </ItemContent>
+                            <ItemActions>
+                                <Badge className={tone(companyStatusTone(other.status))}>{t(`b2b::company.status.${other.status.toLowerCase()}.title`)}</Badge>
+                            </ItemActions>
+                        </Item>
+                    </div>
                 ))}
-            </EntityList>
+            </ItemGroup>
         </section>
     );
 }
@@ -177,7 +173,7 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
                     {page.draft === null ? (
                         <>
                             <CompanyAddress page={page} company={company} />
-                            <StartButton label={t('b2b::company.change')} type="secondary" test="change" />
+                            <StartButton label={t('b2b::company.change')} outline test="change" />
                         </>
                     ) : (
                         <CompanyForm page={page} draft={page.draft} lastSent={null} changing />
@@ -188,49 +184,33 @@ function WithACompany({ page, company }: { page: CompanyPage; company: CompanySt
         case 'REJECTED':
             return (
                 <>
-                    <StatusBox tone="bad" title={t('b2b::company.status.rejected.title')}>
-                        <RejectedWhy company={company} history={page.history} />
-                    </StatusBox>
+                    <RejectedWhy company={company} history={page.history} />
                     {page.draft === null ? (
                         <>
                             <CompanyAddress page={page} company={company} />
                             <StartButton label={t('b2b::company.apply_again')} test="apply-again" />
                         </>
                     ) : (
-                        <CompanyForm
-                            page={page}
-                            draft={page.draft}
-                            lastSent={lastSent?.state === 'REJECTED' ? lastSent : null}
-                            changing={false}
-                        />
+                        <CompanyForm page={page} draft={page.draft} lastSent={lastSent?.state === 'REJECTED' ? lastSent : null} changing={false} />
                     )}
                 </>
             );
 
         default:
-            // SUSPENDED: nothing changes until staff reinstate it (§1.1) — but an unsent draft may go.
+            // SUSPENDED: nothing changes until staff reinstate it (§1.1) - but an unsent draft may go.
             return (
                 <>
                     <StatusBox tone="bad" title={t('b2b::company.status.suspended.title')}>
-                        <span data-test="status-reason">{t('b2b::company.status.suspended.body', { reason: company.statusReason ?? '' })}</span>
+                        {/* One sentence, the reason running into what follows: its own ending stop goes. */}
+                        <span data-test="status-reason">
+                            <Reason text={t('b2b::company.status.suspended.body', { reason: MARK })} reason={(company.statusReason ?? '').replace(/[\s.;؛]+$/u, '')} />
+                        </span>
                     </StatusBox>
                     <CompanyCard company={company} reference={null} />
                     {page.draft !== null ? <FrozenDraft /> : null}
                 </>
             );
     }
-}
-
-/** What is still missing before a first send can go (§4.5): the list beside Send, without the fields' own states. */
-function Missing({ page, draft }: { page: CompanyPage; draft: CompanyDraftData }) {
-    const t = useTranslator();
-    const items = missingItems(page, draft, null, t);
-
-    return items.length === 0 ? null : (
-        <p className="mt-2" data-test="missing">
-            {t('b2b::company.missing', { items: items.join(t('b2b::company.separator')) })}
-        </p>
-    );
 }
 
 /** The company as it stands: what it sent last, read-only, as Geist's Description. */
@@ -244,8 +224,8 @@ function CompanyCard({ company, reference }: { company: CompanyStatusData; refer
             <Description
                 items={[
                     ...(reference !== null ? [{ title: t('b2b::company.reference'), content: <Figure>{reference}</Figure> }] : []),
-                    { title: t('b2b::company.field.name'), content: details.name },
-                    { title: t('b2b::company.field.company_type'), content: typeOf(details, locale) },
+                    { title: t('b2b::company.field.name'), content: writtenOr(details.name) },
+                    { title: t('b2b::company.field.company_type'), content: writtenOr(typeOf(details, locale)) },
                     { title: t('b2b::company.field.cr_number'), content: figureOr(details.crNumber) },
                     { title: t('b2b::company.field.tax_number'), content: figureOr(details.taxNumber) },
                     { title: t('b2b::company.field.address'), content: writtenOr(details.address) },
@@ -299,11 +279,11 @@ function CompanyAddress({ page, company }: { page: CompanyPage; company: Company
 /**
  * Where an approved company transfers its payment (§2.3, amendment 12(b)), in the main column
  * (amendment 16(e)): the IBAN, the bank and the holder while bank transfer is on; that it is
- * temporarily unavailable while the store has not filled in all three (amendment 13(c)).
+ * temporarily unavailable while the store has not filled in all three (amendment 13(c)). The IBAN
+ * is a read-only field with Geist's Copy Button at its end (shadcn's input-group-button).
  */
 function BankAccount({ page }: { page: CompanyPage }) {
     const t = useTranslator();
-    const [copied, setCopied] = useState(false);
     const account = page.bankAccount;
 
     return (
@@ -313,29 +293,19 @@ function BankAccount({ page }: { page: CompanyPage }) {
                     {t('b2b::company.payment.off')}
                 </p>
             ) : (
-                <div className="grid gap-3" data-test="bank-account">
+                <div className="grid gap-4" data-test="bank-account">
                     <p className="text-copy-14 text-ink">{t('b2b::company.payment.approved')}</p>
+                    <Field>
+                        <FieldLabel htmlFor="company-iban">{t('b2b::company.payment.iban')}</FieldLabel>
+                        <InputGroup>
+                            <InputGroupInput id="company-iban" readOnly dir="ltr" value={account.iban} className="tw-figure" data-test="iban" />
+                            <InputGroupAddon align="inline-end">
+                                <CopyButton text={account.iban} label={t('b2b::company.payment.copy')} />
+                            </InputGroupAddon>
+                        </InputGroup>
+                    </Field>
                     <Description
-                        columns={1}
                         items={[
-                            {
-                                title: t('b2b::company.payment.iban'),
-                                content: (
-                                    <span className="flex flex-wrap items-center gap-2">
-                                        <Figure>{account.iban}</Figure>
-                                        <Button
-                                            type="secondary"
-                                            size="small"
-                                            data-test="copy-iban"
-                                            onClick={() => {
-                                                void navigator.clipboard?.writeText(account.iban).then(() => setCopied(true));
-                                            }}
-                                        >
-                                            {copied ? t('b2b::company.payment.copied') : t('b2b::company.payment.copy')}
-                                        </Button>
-                                    </span>
-                                ),
-                            },
                             { title: t('b2b::company.payment.bank'), content: account.bank },
                             { title: t('b2b::company.payment.holder'), content: account.holder },
                         ]}
@@ -347,14 +317,14 @@ function BankAccount({ page }: { page: CompanyPage }) {
 }
 
 /** Starts a draft (or a change, or a new application); `loading` until the page comes back with it. */
-function StartButton({ label, type = 'default', test = 'start' }: { label: string; type?: 'default' | 'secondary'; test?: string }) {
+function StartButton({ label, outline = false, test = 'start' }: { label: string; outline?: boolean; test?: string }) {
     const link = useLink();
     const [starting, setStarting] = useState(false);
 
     return (
         <div>
-            <Button
-                type={type}
+            <ActionButton
+                variant={outline ? 'outline' : 'default'}
                 data-test={test}
                 loading={starting}
                 onClick={() => {
@@ -363,7 +333,7 @@ function StartButton({ label, type = 'default', test = 'start' }: { label: strin
                 }}
             >
                 {label}
-            </Button>
+            </ActionButton>
         </div>
     );
 }
@@ -377,9 +347,9 @@ function FrozenDraft() {
         <Card test="frozen-draft">
             <p className="text-copy-14 text-ink">{t('b2b::company.suspended_draft')}</p>
             <div>
-                <Button type="secondary" data-test="discard" onClick={() => setConfirming(true)}>
-                    {t('b2b::company.discard')}
-                </Button>
+                <ActionButton variant="outline" data-test="discard" onClick={() => setConfirming(true)}>
+                    {t('b2b::company.discard_open')}
+                </ActionButton>
             </div>
             <DiscardModal open={confirming} onOpenChange={setConfirming} />
         </Card>
@@ -387,10 +357,9 @@ function FrozenDraft() {
 }
 
 /**
- * Why it was not approved: the last rejection's own reason (amendment 15(b)). The company's reason
- * is what it was told last, which a reinstatement since has replaced — shown then on its own line,
- * never as the reason it was rejected. The reason runs on from the status box's label; the
- * reinstatement is a paragraph of its own.
+ * Why it was not approved: the last rejection's own reason (amendment 15(b)), in the status box. The
+ * company's reason is what it was told last, which a reinstatement since has replaced - said then in
+ * a Note of its own, never as the reason it was rejected.
  */
 function RejectedWhy({ company, history }: { company: CompanyStatusData; history: CompanyApplicationData[] }) {
     const t = useTranslator();
@@ -400,14 +369,28 @@ function RejectedWhy({ company, history }: { company: CompanyStatusData; history
 
     return (
         <>
-            <span data-test="status-reason">{t('b2b::company.status.rejected.body', { reason })}</span>
+            <StatusBox tone="bad" title={t('b2b::company.status.rejected.title')}>
+                <span data-test="status-reason">
+                    <Reason text={t('b2b::company.status.rejected.body', { reason: MARK })} reason={reason} />
+                </span>
+            </StatusBox>
             {since !== null ? (
-                <p className="mt-2" data-test="reinstated">
-                    {t('b2b::company.status.reinstated', { reason: since })}
-                </p>
+                <div data-test="reinstated">
+                    <Note variant="secondary">
+                        <Reason text={t('b2b::company.status.reinstated', { reason: MARK })} reason={since} />
+                    </Note>
+                </div>
             ) : null}
         </>
     );
+}
+
+/**
+ * A sentence with our team's own words inside it: kept whole in their own direction, so an English
+ * reason in an Arabic sentence (or the other way round) keeps its full stop where it was written.
+ */
+function Reason({ text, reason }: { text: string; reason: string }) {
+    return <Phrase text={text} moment={<bdi>{reason}</bdi>} />;
 }
 
 function lastApproved(history: CompanyApplicationData[]): CompanyApplicationData | undefined {

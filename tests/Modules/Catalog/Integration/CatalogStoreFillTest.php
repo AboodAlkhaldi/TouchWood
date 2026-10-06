@@ -90,8 +90,15 @@ describe('the file', function () {
     });
 
     it('is refused when not in its format, every problem listed', function () {
-        expect(fn () => catalogFill([['code' => '1304', 'price' => 1], ['code' => '1304', 'price' => -2]]))->toThrow(ImportRefused::class);
-        expect(DB::table('catalog.imports')->count())->toBe(0);
+        try {
+            catalogFill([['code' => '1304', 'price' => 1], ['code' => '1304', 'price' => -2]]);
+        } catch (ImportRefused $refused) {
+        }
+
+        expect($refused->problems ?? null)->toBe([
+            ['at' => 'item 2 › code', 'problem' => '1304 again: item 1 names it already'],
+            ['at' => 'item 2 › price', 'problem' => 'a number of at least 0, with at most 6 decimal places'],
+        ])->and(DB::table('catalog.imports')->count())->toBe(0);
     });
 
     it('is an admin role\'s job in that store only', function () {
@@ -139,7 +146,7 @@ describe('mending the file', function () {
         $item = catalogFillItem($import, 1);
 
         expect(fn () => app(CorrectStoreFillCodeHandler::class)->handle(new CorrectStoreFillCode($import, $item, '5')))->toThrow(InvalidCatalogAttribute::class, 'a code no other item of the file has')
-            ->and(fn () => app(CorrectStoreFillCodeHandler::class)->handle(new CorrectStoreFillCode($import, $item, 'x1')))->toThrow(InvalidCatalogAttribute::class);
+            ->and(fn () => app(CorrectStoreFillCodeHandler::class)->handle(new CorrectStoreFillCode($import, $item, 'x1')))->toThrow(InvalidCatalogAttribute::class, 'digits only');
 
         app(CorrectStoreFillCodeHandler::class)->handle(new CorrectStoreFillCode($import, $item, $code));
         expect(app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, [$item])))->toBe(1)

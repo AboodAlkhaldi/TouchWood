@@ -26,9 +26,9 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use function Pest\Laravel\seed;
 
 /*
-| Catalog's permissions in Access's catalog (catalog.md §3): one per job, seventeen a role may hold —
-| per store, in the Catalog group, none admin-only — and three reserved to a Super Admin and the
-| system. Their names in both languages are checked with every module's by Access's own test.
+| Catalog's permissions in Access's catalog (catalog.md §3): one per job, eighteen a role may hold —
+| per store, in the Catalog group, one admin-only (the store file's, amendment 6(h)) — and three
+| reserved to a Super Admin and the system. Their names in both languages are checked with every module's by Access's own test.
 */
 
 uses(RefreshDatabase::class);

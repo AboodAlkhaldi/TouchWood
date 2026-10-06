@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonInterval;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -372,4 +373,70 @@ it('marks every Super Admin, current or revoked, when the mark is added, from th
         ->and($marked($revoked))->toBeTrue()
         ->and(DB::table('access.staff_users')->where('id', $revoked)->value('is_super_admin'))->toBeFalse()
         ->and($marked($ordinary))->toBeFalse();
+});
+
+it('stops, naming them, on actions whose own stores reach outside their row, and otherwise removes only an every-store choice under an every-store row (amendment 59)', function () {
+    $migration = require base_path('src/Modules/Access/Infrastructure/Persistence/Migrations/2026_10_05_120000_guard_access_exceptions_within_reach.php');
+
+    // Inside the row, or under a row of every store: nothing to stop on.
+    $inside = Fx::staff();
+    insertAssignmentRow($inside, ['access_level' => 'SELECTED_STORES']);
+    DB::table('access.role_assignment_stores')->insert([['staff_user_id' => $inside, 'store_id' => Fx::storeId('sa')], ['staff_user_id' => $inside, 'store_id' => Fx::storeId('ae')]]);
+    DB::table('access.role_assignment_exceptions')->insert(['staff_user_id' => $inside, 'permission' => 'sales.order.edit', 'access_level' => 'SELECTED_STORES']);
+    DB::table('access.role_assignment_exception_stores')->insert(['staff_user_id' => $inside, 'permission' => 'sales.order.edit', 'store_id' => Fx::storeId('sa')]);
+    $everywhere = Fx::staff();
+    insertAssignmentRow($everywhere);
+    DB::table('access.role_assignment_exceptions')->insert(['staff_user_id' => $everywhere, 'permission' => 'sales.order.edit', 'access_level' => 'ALL_STORES']);
+    $underEvery = Fx::staff();
+    insertAssignmentRow($underEvery);
+    DB::table('access.role_assignment_exceptions')->insert(['staff_user_id' => $underEvery, 'permission' => 'sales.order.edit', 'access_level' => 'SELECTED_STORES']);
+    DB::table('access.role_assignment_exception_stores')->insert(['staff_user_id' => $underEvery, 'permission' => 'sales.order.edit', 'store_id' => Fx::storeId('sa')]);
+
+    $migration->up();
+
+    // "Every store" under an every-store row equals the row: removed, changing nobody's access. The
+    // others are kept as they were.
+    expect(DB::table('access.role_assignment_exceptions')->where('staff_user_id', $everywhere)->exists())->toBeFalse()
+        ->and(DB::table('access.role_assignment_exceptions')->where('staff_user_id', $inside)->exists())->toBeTrue()
+        ->and(DB::table('access.role_assignment_exceptions')->where('staff_user_id', $underEvery)->exists())->toBeTrue();
+
+    // Written as the old rule allowed: a store the row lacks, and every store over a chosen one.
+    $beyond = Fx::staff();
+    insertAssignmentRow($beyond, ['access_level' => 'SELECTED_STORES']);
+    DB::table('access.role_assignment_stores')->insert(['staff_user_id' => $beyond, 'store_id' => Fx::storeId('sa')]);
+    DB::table('access.role_assignment_exceptions')->insert([
+        ['staff_user_id' => $beyond, 'permission' => 'sales.order.edit', 'access_level' => 'SELECTED_STORES'],
+        ['staff_user_id' => $beyond, 'permission' => 'sales.order.view', 'access_level' => 'ALL_STORES'],
+    ]);
+    DB::table('access.role_assignment_exception_stores')->insert(['staff_user_id' => $beyond, 'permission' => 'sales.order.edit', 'store_id' => Fx::storeId('eg')]);
+    $before = DB::table('access.role_assignment_exceptions')->where('staff_user_id', $beyond)->count();
+
+    expect(fn () => $migration->up())->toThrow(RuntimeException::class, "{$beyond} sales.order.edit\n{$beyond} sales.order.view")
+        // It changes nothing, either way.
+        ->and(DB::table('access.role_assignment_exceptions')->where('staff_user_id', $beyond)->count())->toBe($before);
+});
+
+it('cuts every trusted browser to 12 hours from when it was trusted, and lengthens none (amendment 61)', function () {
+    $trust = static function (string $trustedAgo, string $lasts): string {
+        $id = strtolower((string) Str::ulid());
+        $created = now()->sub(CarbonInterval::fromString($trustedAgo));
+        DB::table('access.staff_trusted_browsers')->insert([
+            'id' => $id, 'staff_user_id' => Fx::staff(), 'token_hash' => hash('sha256', $id),
+            'created_at' => $created, 'expires_at' => $created->copy()->add(CarbonInterval::fromString($lasts)), 'last_used_at' => $created,
+        ]);
+
+        return $id;
+    };
+    // Trusted for 30 days, a day ago and an hour ago; and one already shorter than the new rule.
+    $dayOld = $trust('1 day', '30 days');
+    $hourOld = $trust('1 hour', '30 days');
+    $shorter = $trust('1 hour', '2 hours');
+    $hours = static fn (string $id): float => (float) DB::selectOne('SELECT EXTRACT(EPOCH FROM expires_at - created_at) / 3600 AS hours FROM access.staff_trusted_browsers WHERE id = ?', [$id])->hours;
+
+    (require base_path('src/Modules/Access/Infrastructure/Persistence/Migrations/2026_10_05_210000_shorten_staff_trusted_browsers.php'))->up();
+
+    // The day-old one has run out, so its browser asks for a code at its next sign-in.
+    expect($hours($dayOld))->toBe(12.0)
+        ->and($hours($hourOld))->toBe(12.0)
+        ->and($hours($shorter))->toBe(2.0);
 });

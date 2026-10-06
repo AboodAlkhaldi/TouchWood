@@ -228,6 +228,17 @@ final readonly class DatabaseProductRepository implements ProductRepository
         return array_values(array_map('strval', $this->db->table('catalog.product_relations')->where('product_id', strtolower($productId))->where('kind', $kind)->orderBy('position')->pluck('related_id')->all()));
     }
 
+    public function linkedFrom(string $productId): array
+    {
+        $linked = [];
+
+        foreach ($this->db->table('catalog.product_relations')->where('related_id', strtolower($productId))->orderBy('product_id')->orderBy('kind')->get(['product_id', 'kind']) as $row) {
+            $linked[(string) $row->product_id][] = (string) $row->kind;
+        }
+
+        return $linked;
+    }
+
     public function replaceRelations(string $productId, string $kind, array $relatedIds): void
     {
         $this->db->table('catalog.product_relations')->where('product_id', $productId)->where('kind', $kind)->delete();

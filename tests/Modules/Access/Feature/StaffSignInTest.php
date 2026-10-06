@@ -454,7 +454,7 @@ describe('signing in (spec §1.8, §4.4)', function () {
 });
 
 describe('trusted browsers', function () {
-    it('asks no code on a trusted browser for 30 days, and signing out keeps the trust', function () {
+    it('asks no code on a trusted browser for 12 hours, and signing out keeps the trust', function () {
         $staffId = Fx::staff();
         $browser = new AdminBrowser;
         signInFully($browser, $staffId, trust: true);
@@ -476,16 +476,17 @@ describe('trusted browsers', function () {
             ->and(Fx::audits('access.staff_user.signed_in', $staffId))->toBe(2)
             ->and(json_decode((string) $trustedEntry, true))->toBe(['trusted_browser' => [null, true]]);
 
+        // 12 hours (owner, 2026-10-05): still trusted at 11, a code again past 12.
         $browser->post('/admin/sign-out');
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addDays(29));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(11));
         signInPassword($browser, $staffId)->assertRedirect('/admin');
 
         $browser->post('/admin/sign-out');
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addDays(2));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(2));
         signInPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
     });
 
-    it('keeps the trust in a cookie sent only to /admin, out of scripts\' reach, for 30 days', function () {
+    it('keeps the trust in a cookie sent only to /admin, out of scripts\' reach, for 12 hours', function () {
         $browser = new AdminBrowser;
         signInPassword($browser, Fx::staff());
         $response = $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode(), 'trust_browser' => true]);
@@ -494,7 +495,7 @@ describe('trusted browsers', function () {
 
         expect($cookie?->getPath())->toBe('/admin')
             ->and($cookie?->isHttpOnly())->toBeTrue()
-            ->and($cookie?->getMaxAge())->toBeGreaterThan(29 * 86400)->toBeLessThanOrEqual(30 * 86400);
+            ->and($cookie?->getMaxAge())->toBeGreaterThan(11 * 3600)->toBeLessThanOrEqual(12 * 3600);
     });
 
     it('trusts only the browser the cookie came from, for its own staff member', function () {

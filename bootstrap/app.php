@@ -22,11 +22,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // the asset version and the theme; what a module shares on top is the module's own.
         $middleware->web(append: [HandleInertiaRequests::class]);
 
-        // The sidebar remembers whether it is open by writing this cookie in the browser, so it
-        // arrives unencrypted and would otherwise be thrown away before anything could read it.
-        // It is exempt rather than encrypted because it holds one bit about how a panel looks: it
-        // decides nothing, protects nothing, and is read back only to avoid a flicker on load.
-        $middleware->encryptCookies(except: [HandleInertiaRequests::SIDEBAR_COOKIE]);
+        // The sidebar remembers whether it is open, and which of its areas are, by writing these
+        // cookies in the browser, so they arrive unencrypted and would otherwise be thrown away
+        // before anything could read them. They are exempt rather than encrypted because they say
+        // how a panel looks: they decide nothing, protect nothing, and are read back only to avoid
+        // a flicker on load.
+        $middleware->encryptCookies(except: [HandleInertiaRequests::SIDEBAR_COOKIE, HandleInertiaRequests::SIDEBAR_SECTIONS_COOKIE]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         ProblemDetails::register($exceptions);

@@ -6,25 +6,25 @@ declare(strict_types=1);
 // ٢ب، الخطوة ١) تقرأ من هذا الملف: لا توجد ملفات ترجمة منفصلة للواجهة، فتُكتب العبارة مرة واحدة
 // وتُستعمل في الجهتين.
 return [
-    'registered' => 'تم إنشاء الحساب. تفقّد بريدك لتأكيد عنوانك.',
+    'registered' => 'تم إنشاء الحساب؛ أكّد عنوانك من الرسالة التي أرسلناها',
     'verification_sent' => 'تم إرسال رابط التأكيد',
     'email_verified' => 'تم تأكيد بريدك الإلكتروني',
     'code_sent' => 'تم إرسال الرمز إلى جوالك',
     'reset_link_sent' => 'تم إرسال رابط إعادة التعيين، إن كان هذا البريد لحساب لدينا',
-    'password_reset' => 'تم تغيير كلمة المرور. سجّل الدخول بها.',
-    'password_changed' => 'تم تغيير كلمة المرور، وسُجّل الخروج من كل جلسة أخرى.',
-    'email_changed' => 'تم تغيير بريدك الإلكتروني. سجّل الدخول به.',
-    'invitation_accepted' => 'تم إنشاء حسابك. سجّل الدخول ببريدك الإلكتروني وكلمة المرور.',
+    'password_reset' => 'تم تغيير كلمة المرور؛ سجّل الدخول بالجديدة',
+    'password_changed' => 'تم تغيير كلمة المرور، وسُجّل الخروج من كل جلسة أخرى',
+    'email_changed' => 'تم تغيير بريدك الإلكتروني؛ سجّل الدخول بالجديد',
+    'invitation_accepted' => 'تم إنشاء حسابك',
     'signed_out' => 'تم تسجيل خروجك',
 
     // الشاشات (A1–A9).
     'sign_in' => 'تسجيل الدخول',
     'sign_in_subtitle' => 'لوحة الإدارة.',
     'sign_out' => 'تسجيل الخروج',
+    // The shopper's menu in the shop's header (owner's #4, 2026-10-02).
+    'my_account' => 'حسابي',
     'email' => 'بريد العمل',
     'password' => 'كلمة المرور',
-    'show_password' => 'إظهار كلمة المرور',
-    'hide_password' => 'إخفاء كلمة المرور',
     'forgot_password' => 'إعادة تعيين كلمة المرور',
     'back_to_sign_in' => 'العودة لتسجيل الدخول',
 
@@ -36,8 +36,10 @@ return [
 
     'code_title' => 'أدخل الرمز',
     'code_sent_to' => 'أُرسل الرمز إلى :phone.',
-    'code_digit' => 'الخانة :number',
-    'trust_browser' => 'الوثوق بهذا المتصفح لمدة :days يومًا',
+    // The code field's one label: shadcn's InputOTP is one input, not a box per digit.
+    'code_label' => 'رمز الرسالة',
+    'code_incomplete' => 'أدخل أرقام الرمز كلها (:count).',
+    'trust_browser' => 'الوثوق بهذا المتصفح لمدة :hours ساعة',
     'confirm' => 'التحقق من الرمز',
     'resend' => 'إرسال رمز آخر',
     'resend_in' => 'رمز آخر بعد :seconds ثانية',
@@ -80,6 +82,7 @@ return [
     'account_type_company' => 'لشركتي',
     'account_type_company_hint' => 'بيانات الشركة ومستنداتها تأتي بعد ذلك.',
     'account_type_permanent' => 'لا يمكن تغيير هذا الاختيار لاحقًا.',
+    'account_type_required' => 'اختر نوع الحساب.',
     'terms_accept' => 'أوافق على شروط البيع وسياسة الخصوصية.',
 
     'verify_title' => 'تأكيد بريدك الإلكتروني',

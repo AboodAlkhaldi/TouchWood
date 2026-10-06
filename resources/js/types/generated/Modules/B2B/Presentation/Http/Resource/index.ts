@@ -71,6 +71,7 @@ storeNameAr: string,
 storeNameEn: string,
 elsewhere: CompanyElsewhereData[],
 prefill: CompanyPrefillData | null,
+phoneConfirmed: boolean,
 };
 export type CompanyPrefillData = {
 name: string,
@@ -205,6 +206,7 @@ phone: string | null,
 emailVerified: boolean,
 phoneVerified: boolean,
 anonymized: boolean,
+locale: string,
 };
 export type StaffStoreOptionData = {
 id: string,

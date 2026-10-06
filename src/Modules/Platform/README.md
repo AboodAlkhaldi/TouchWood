@@ -58,6 +58,11 @@ Route::prefix('{store}/{locale}')->middleware('store')->group(...);
 
 // A top-level URL your module owns: reserve it in register(), so no store can take it.
 $this->app->make(ReservedPaths::class)->reserve('payments', 'webhooks');
+
+// An off store is a 404 in the shop for everyone (§1.6). A module that knows an exception tells
+// Platform with an OffStoreViewer (§2.7) - Access's, for a staff member viewing the shop from the
+// panel; then the store's pages open and the shop's store switch lists it with isActive false.
+$this->app->make(OffStoreViewers::class)->register('access', StaffViewOffStores::class);
 ```
 
 ```php
@@ -68,9 +73,19 @@ $this->app->make(MediaUsages::class)->register('catalog', ProductImageUsage::cla
 
 ```php
 // A menu entry that counts what waits behind it: a MenuCount, resolved only for people offered the
-// entry. The count shows beside the entry and on the admin home while it is above nothing.
+// entry. The count shows beside the entry and on the admin home while it is above nothing. An entry
+// may name several permissions (a list): it is offered to anyone holding any of them, as B2B's type
+// lists are offered to anyone with any job on the list.
 new MenuEntryDto('platform', 'failed_jobs', 'system', 'platform.admin.failed_jobs',
     PlatformPermissions::JOBS_MANAGE, 10, icon: 'failed_jobs', count: FailedJobsCount::class);
+
+// A card on the admin home (§2.6): a HomeCard class works out its figures for the scope - one store
+// or all stores - and asks the Authorizer itself, as any read across stores does. `permission`
+// holds per-store actions; store-free ones go in `storeFree`, which show the card but never offer
+// All Stores (a test holds every registration to its actions' kinds). Words at `{module}::home.{key}`.
+$this->app->make(HomeCards::class)->register(
+    new HomeCardDto('b2b', 'approvals', B2BPermissions::COMPANY_VIEW, CompanyApprovalsCard::class, 10),
+);
 
 // Queued work is named on the failed jobs screen in your module's words: one line per queued class
 // in Presentation/lang/{ar,en}/jobs.php — AnonymizeCompany at `anonymize_company`, a trailing "Job"
@@ -87,7 +102,7 @@ ids only and are dispatched after the transaction commits.
 
 | Folder | Contents |
 |---|---|
-| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
+| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `HomeCards` and `HomeCard` (the admin home's cards), `OffStoreViewers` and `OffStoreViewer` (who may see an off store in the shop), `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
 | `Domain/Model` | `Store`, `Currency`, `Media`: plain PHP classes holding the rules, with no Laravel inside. |
 | `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. |
 | `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |
@@ -98,8 +113,9 @@ ids only and are dispatched after the transaction commits.
 | `Application/Media` | What media needs from the outside world, as interfaces (storage, file inspection, resizing, the queue), plus `MediaSettings` (the upload-limit declarations) and `InspectedFile`. |
 | `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached) and `MediaReader`. |
 | `Application/FailedJobs` | `FailedJobs`, the queue's failed work as an interface (a page of summaries, read, lock, whether it can be retried, requeue, forget), `FailedJob`, `FailedJobSummary`, and `FailedJobsCount`, the menu's count. |
+| `Application/Home` | `InMemoryHomeCards`, the admin home's cards and who may see each. |
 | `Infrastructure/` | Eloquent and query-builder repositories, caching, the audit writer, Laravel disks, Intervention Image, the queued job, migrations and the service provider. |
-| `Presentation/` | The `store` middleware, the country-choice page, a placeholder store home page, console commands, Arabic and English translations. |
+| `Presentation/` | The `store` middleware, the country-choice page, a placeholder store home page, Platform's own home card (`Home/StoresAndSystemCard`), console commands, Arabic and English translations. |
 
 ---
 
@@ -146,8 +162,10 @@ partial unique index `stores_one_base` keeps the mark on one row. Nothing is del
 goes off; every read that offers a store filters on the switch:
 
 - `PlatformApi::stores()` lists on stores only, and `storeByCode()` answers an off store's code as
-  an unknown one — so `/{off}/...` is a 404 like any unknown code, the country page and both store
-  switchers leave it out, and a cookie naming it counts as no store.
+  an unknown one — so `/{off}/...` is a 404 like any unknown code, the country page and the shop's
+  store chooser leave it out, and a cookie naming it counts as no store. The panel's switcher is the
+  exception: it shows an off store to the staff who cover it, marked Off, and lets only a Super Admin
+  work in it, to prepare it before it opens (access.md amendment 58(a)).
 - `PlatformApi::store($id)` answers any store, with `isActive`, so history names it as it was;
   `allStores()` lists every store for setup work that must reach a store before it opens.
 - The stores screen lists an off store only to whoever holds `platform.store.switch`, and
@@ -158,6 +176,11 @@ goes off; every read that offers a store filters on the switch:
 A currency's `exponent` is locked once any store uses it: changing it would silently
 reinterpret every stored amount. A price shows the currency's sign, or its letters when the sign
 is empty. Clearing a sign that a font cannot draw is a data change, not a deploy.
+
+A currency no store uses — on or off — can be deleted by a Super Admin (`DeleteCurrency`,
+`platform.currency.delete`, reserved; platform.md §9.7): its row is locked before its stores are
+counted, and any store using it refuses the delete (`CurrencyInUse`), the foreign key's `RESTRICT`
+behind it. The currencies screen names the stores using each currency instead of counting them.
 
 ### Resolving a store reads only the cache
 
@@ -352,14 +375,15 @@ on `/admin/failed-jobs` — nothing removes one on its own, so a failure is neve
   keeps the second only while the job is on the queue. So every queued class states its own tries
   (`$tries` or `tries()`) — without it the worker's number applies, which the screen cannot know. A
   test fails for a queued class that does not.
-- **Fifty at a time, oldest first**, with "Show more" continuing from where the page ended (after
-  that job's failure time and id), so a flood of failures never loads at once. The list reads the
+- **Fifty at a time, oldest first**, with Show More adding the next fifty under the rows already
+  shown (after the last job's failure time and id; the owner, 2026-10-04 - the media library and
+  the audit log do the same), so a flood of failures never loads at once. The list reads the
   error's first 2,000 characters, never a payload.
 - **Audited without the error or the payload** — both may hold personal data, and the log is
   forever. The name and when it failed are enough to say what was handled.
 - **Noticed without opening the screen**: a menu entry may carry a count (`MenuCount`), resolved only
   for people the entry is offered to; the admin home lists every entry with something waiting, and
-  the collapsed sidebar shows a dot on the entry's icon where the number has no room.
+  the collapsed sidebar shows a dot on its business area's icon where the number has no room.
 
 ---
 

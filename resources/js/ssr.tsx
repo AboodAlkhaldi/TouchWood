@@ -1,6 +1,7 @@
 import { createInertiaApp } from '@inertiajs/react';
 import createServer from '@inertiajs/react/server';
 import ReactDOMServer from 'react-dom/server';
+import { Providers, firstDirection } from '@/components/Providers';
 
 /*
 | The server half of every page (frontend.md §1.3). Every page is rendered here first, admin
@@ -24,6 +25,11 @@ void createServer((page) =>
 
             return component as never;
         },
-        setup: ({ App, props }) => <App {...props} />,
+        // The same providers as the browser's entry, so the server renders what hydration expects.
+        setup: ({ App, props }) => (
+            <Providers direction={firstDirection(props.initialPage.props)}>
+                <App {...props} />
+            </Providers>
+        ),
     }),
 );

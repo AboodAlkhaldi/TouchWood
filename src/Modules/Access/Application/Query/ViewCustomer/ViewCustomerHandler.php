@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace Modules\Access\Application\Query\ViewCustomer;
 
 use Modules\Access\Application\Address\AddressMapper;
-use Modules\Access\Application\Address\OpenStores;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\CustomerReader;
 use Modules\Access\Application\Query\ListCustomers\CustomerSummary;
 use Modules\Access\Domain\Exception\CustomerNotFound;
-use Modules\Access\Domain\Model\Address;
 use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Enums\AccountType;
@@ -32,7 +30,6 @@ final readonly class ViewCustomerHandler
         private CustomerReader $customers,
         private AddressRepository $addresses,
         private AddressMapper $mapper,
-        private OpenStores $openStores,
     ) {}
 
     /**
@@ -92,21 +89,16 @@ final readonly class ViewCustomerHandler
     }
 
     /**
-     * Their address book in every store that is on, in one query, so support can answer "where is
-     * my order going?" whichever country it was ordered from. An off store's addresses are hidden,
-     * not deleted (amendment 53), here as in every other read (amendment 57).
+     * Their address book in every store, in one query, so support can answer "where is my order
+     * going?" whichever country it was ordered from. An off store's addresses are shown here too,
+     * and the screen marks them Off (access.md amendment 58(d)). This is staff's read only: the
+     * customer's own reads and every other module's still leave them out while the store is off
+     * (amendment 53).
      *
      * @return list<AddressDto>
      */
     private function addressesOf(string $customerId): array
     {
-        $on = [];
-
-        return $this->mapper->toDtos(array_values(array_filter(
-            $this->addresses->forCustomer($customerId),
-            function (Address $address) use (&$on): bool {
-                return $on[$address->storeId()] ??= $this->openStores->isOn($address->storeId());
-            },
-        )));
+        return $this->mapper->toDtos($this->addresses->forCustomer($customerId));
     }
 }

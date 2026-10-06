@@ -128,7 +128,7 @@ Anything missing can also be completed later in the product page.
 - **A zip** with the JSON **at its top, named `products.json`**, and the photos anywhere inside it.
   Paths in the JSON are relative to the zip's top, with forward slashes: `photos/1304-front.jpg`.
   Photos are **JPEG, PNG or WebP**, each at most **10 MB** (an admin setting). The zip is at most
-  **500 MB**.
+  **500 MB**, and holds at most **100,000 entries** (files and folders).
 
 ### 1.7 What refuses the whole file
 
@@ -149,11 +149,22 @@ this second reading listed — if:
 - a `category` path ends at a category that has sub-categories;
 - a product's variants do not give exactly the attributes of its catalog `attribute_set`, or two
   products give a new set different attributes;
-- a photo is not JPEG, PNG or WebP, or is over the media library's limit (10 MB by default);
-- a product's codes belong to two different products already in the catalog.
+- a photo is not JPEG, PNG or WebP, or is over the media library's limit (10 MB by default).
+
+**Left out, the rest of the file coming in** — shown on the import's page as refused, with the reason:
+
+- a product whose codes belong to two different products already in the catalog;
+- two or more products whose codes belong to one product already in the catalog — give that product
+  **once, with all its variants**.
 
 A name the catalog does not have, or that several catalog items share, is **not** an error: the
-import's page asks about it (§1.3).
+import's page asks about it (§1.3). A name of something switched off in the catalog is found, but
+bringing in stops at the product using it, naming it, until it is switched on again or another is
+picked.
+
+**A product already in the catalog that is not a draft keeps its codes.** Updating or replacing it
+with a variant of the same values but another code is listed on the import's page: skip that product,
+or upload the file corrected.
 
 A file that passes changes **nothing** until the Super Admin decides on its page: new names, codes the
 catalog already has (update that product, replace it whole, skip, or give another code). There, all
@@ -182,8 +193,9 @@ them.
 - `items` holds **1 to 1,000** items, **each code once**. The file is at most **2 MB**. The store is
   the one whose page it is uploaded from — the file does not name it.
 - `code` — **required**, 1 to 10 digits **as text**.
-- `price` — **required**, a number of at least 0, in the store's currency.
-- `stock` — optional, a whole number of at least 0.
+- `price` — **required**, a number of at least 0 with at most 6 decimal places, in the store's
+  currency.
+- `stock` — optional, a whole number from 0 to 2,147,483,647.
 - **Until Pricing and Inventory exist (stage 5) prices and stock are shown but not kept.**
 
 **It never creates or changes a product.** Every code must belong to a product already in the

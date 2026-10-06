@@ -10,6 +10,7 @@ use Illuminate\Contracts\Session\Session;
 use Illuminate\Http\Request;
 use Modules\Access\Application\Session\CustomerSessions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
+use Modules\Access\Application\StaffView\StaffViews;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Public\Enums\CustomerStatus;
 use Shared\Application\Actor;
@@ -33,13 +34,17 @@ final readonly class LaravelCustomerSessions implements CustomerSessions
         private RequestActor $actor,
         private CustomerRepository $customers,
         private CustomerSecuritySettings $settings,
+        private StaffViews $views,
     ) {}
 
     public function signedIn(): ?string
     {
         $session = $this->session();
 
-        if ($session === null) {
+        // While a staff view holds, nobody is a customer here (spec §1.11): the shop is shown as a
+        // visitor sees it. The customer's session is left exactly as it was, and is back once the
+        // view ends - a staff member can also be a customer (§1.8).
+        if ($session === null || $this->views->current() !== null) {
             return null;
         }
 
@@ -81,6 +86,9 @@ final readonly class LaravelCustomerSessions implements CustomerSessions
         }
 
         $now = CarbonImmutable::now()->getTimestamp();
+
+        // Signing in as a customer ends a staff view in this browser: they chose to be the customer.
+        $this->views->endHere();
 
         // A new id at every sign-in, and the old one destroyed (spec §1.8).
         $session->migrate(true);

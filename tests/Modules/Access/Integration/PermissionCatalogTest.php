@@ -89,6 +89,8 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'catalog.listing.rebuild',
         'catalog.search_log.prune',
         'platform.currency.create',
+        // Reserved, as creating one is (platform.md §9.7, owner 2026-10-04).
+        'platform.currency.delete',
         'platform.currency.update',
         // Admin-only; a job belongs to no store (owner, 2026-09-29).
         'platform.jobs.manage',

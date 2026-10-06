@@ -99,6 +99,25 @@ final class CatalogFixtures
     }
 
     /**
+     * The rows these queries locked (`FOR UPDATE`), as table and id, in order.
+     *
+     * @param  ArrayObject<int, array{sql: string, bindings: array<array-key, mixed>, level: int}>  $queries
+     * @return list<array{string, string}>
+     */
+    public static function lockedRows(ArrayObject $queries): array
+    {
+        $rows = [];
+
+        foreach ($queries as $query) {
+            if (preg_match('/from "catalog"\."(\w+)".* for update/i', $query['sql'], $match) === 1) {
+                $rows[] = [$match[1], strtolower((string) ($query['bindings'][0] ?? ''))];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * Every advisory lock taken from now on, with the transaction level it was taken at (lesson 110):
      * a list's lock must be taken inside its change's own transaction.
      *

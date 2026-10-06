@@ -19,6 +19,7 @@ use Modules\Access\Presentation\Http\Controller\StaffController;
 use Modules\Access\Presentation\Http\Controller\StaffLinkController;
 use Modules\Access\Presentation\Http\Controller\StaffOwnAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffSignInController;
+use Modules\Access\Presentation\Http\Controller\StaffViewController;
 use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
 use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
 use Modules\Access\Presentation\Http\Middleware\RequireCustomer;
@@ -67,6 +68,10 @@ Route::prefix('admin')
             Route::post('current-store', [AdminPanelController::class, 'chooseStore'])->name('access.staff.current-store');
 
             Route::post('sign-out', [StaffAccountController::class, 'signOut'])->name('access.staff.sign-out');
+
+            // View Store: the shop of the store being worked in, as themselves (spec §1.11). It
+            // names no store; the panel's own answer for them does.
+            Route::post('staff-view', [StaffViewController::class, 'open'])->name('access.staff.staff-view');
             Route::post('account/password', [StaffAccountController::class, 'changePassword'])->name('access.staff.password.change');
 
             /*
@@ -93,7 +98,6 @@ Route::prefix('admin')
             Route::post('staff/{staff}/enable', [StaffController::class, 'enable'])->name('access.staff.enable');
             Route::post('staff/{staff}/invitation/resend', [StaffController::class, 'resendInvitation'])->name('access.staff.invitation.resend');
             Route::post('staff/{staff}/invitation/cancel', [StaffController::class, 'cancelInvitation'])->name('access.staff.invitation.cancel');
-            Route::post('staff/{staff}/refresh', [StaffController::class, 'refresh'])->name('access.staff.refresh');
 
             /*
             | Customers (stage 2b step 4, frontend.md 3.7). Staff see the customers of their own
@@ -128,7 +132,6 @@ Route::prefix('admin')
             Route::post('roles/{role}', [RolesController::class, 'update'])->name('access.staff.roles.update');
             Route::post('roles/{role}/clone', [RolesController::class, 'clone'])->name('access.staff.roles.clone');
             Route::post('roles/{role}/delete', [RolesController::class, 'destroy'])->name('access.staff.roles.delete');
-            Route::post('roles/{role}/refresh', [RolesController::class, 'refresh'])->name('access.staff.roles.refresh');
 
             /*
             | "Account & settings" — a staff member's own account (stage 2b step 2, frontend.md
@@ -174,6 +177,15 @@ Route::prefix('admin')
 Route::middleware(StorefrontArea::MIDDLEWARE_WITHOUT_STORE)
     ->post('preferences', PreferencesController::class)
     ->name('storefront.preferences');
+
+/*
+| Leaving the staff view (spec §1.11), at the top level for the same reason: an off store's pages
+| only read during a staff view (platform.md §2.7), so a post under one would be a 404. The request
+| names the store it came from, and goes back there if that store is on.
+*/
+Route::middleware(StorefrontArea::MIDDLEWARE_WITHOUT_STORE)
+    ->post('staff-view/leave', [StaffViewController::class, 'leave'])
+    ->name('storefront.staff-view.leave');
 
 /*
 | The storefront flows a customer reaches from an email (spec §1.2): the verification link proves

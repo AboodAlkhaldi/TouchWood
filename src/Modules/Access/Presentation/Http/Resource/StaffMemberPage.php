@@ -59,6 +59,5 @@ final class StaffMemberPage extends Data
         public bool $mayEnable,
         public bool $mayResendInvitation,
         public bool $mayCancelInvitation,
-        public bool $mayRefresh,
     ) {}
 }

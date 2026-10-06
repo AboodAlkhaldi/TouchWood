@@ -56,8 +56,9 @@ it('reports a logo and a photo as uses that do not block, and detaches both', fu
     };
     $changes = (array) json_decode((string) DB::table('platform.audit_entries')->where('action', 'catalog.brand.logo_detached')->value('changes'), true);
 
-    // Each list's lock before its rows change.
+    // Each list's lock before its rows change, categories' before brands' as every change takes them.
     expect($at('catalog:brands'))->toBeGreaterThan(-1)->toBeLessThan($at('update "catalog"."brands"'))
+        ->and($at('catalog:categories'))->toBeLessThan($at('catalog:brands'))
         ->and($at('catalog:categories'))->toBeGreaterThan(-1)->toBeLessThan($at('update "catalog"."categories"'))
         ->and($changes)->toBe(['logo_media_id' => [$image, null]])
         ->and(DB::table('platform.media')->where('id', $image)->exists())->toBeFalse()

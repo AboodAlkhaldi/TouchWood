@@ -12,6 +12,8 @@ export type Locale = 'ar' | 'en';
 export type Direction = 'rtl' | 'ltr';
 /** Light or dark. A campaign has one of each. */
 export type Mode = 'light' | 'dark';
+/** What the person chose: a mode, or System, which follows the device (frontend.md §1.11). */
+export type ThemeChoice = Mode | 'system';
 
 /**
  * What the system is wearing: which campaign, and whether the lights are on.
@@ -21,7 +23,10 @@ export type Mode = 'light' | 'dark';
  */
 export type Theme = {
     campaign: string;
+    /** The mode the server rendered: light for System, which the browser may turn dark. */
     mode: Mode;
+    /** Light, dark, or System - what nobody choosing means (owner, 2026-10-02). */
+    choice: ThemeChoice;
     /** Custom properties for a campaign an admin made; absent for the one that ships with us. */
     style?: string;
 };
@@ -52,7 +57,8 @@ export type Shop = {
     name: string;
     currency: string;
     symbol: string;
-    available: { code: string; name: string; current: boolean }[];
+    /** On stores; an off one only during a staff view that covers it, marked by isActive false. */
+    available: { code: string; name: string; current: boolean; isActive: boolean }[];
     languages: string[];
     /** The store's own IANA zone: every moment on a shop page is written in it (owner, 2026-10-02). */
     timezone: string;
@@ -63,6 +69,11 @@ export type Shopper = {
     id: string;
     name: string;
     emailVerified: boolean;
+};
+
+/** A staff member looking at the shop from the panel (access.md §1.11); nobody is a shopper meanwhile. */
+export type StaffView = {
+    name: string;
 };
 
 /** The account's side list: its own tabs, and the pages other modules add (access.md amendment 50). */
@@ -83,6 +94,13 @@ export type Store = {
     name: string;
     /** Its IANA zone: the panel writes every moment in the zone of the store it is working in. */
     timezone: string;
+    /** Switched on. An off store is shown, marked Off, only to the staff who cover it. */
+    isActive: boolean;
+    /**
+     * Whether this person may work in it: every on store of theirs, and an off one only for a
+     * Super Admin preparing it (access.md amendment 58(a)). The others are shown disabled.
+     */
+    choosable: boolean;
 };
 
 /** Who is looking at the page. Null when nobody is signed in. */
@@ -95,15 +113,17 @@ export type Viewer = {
 };
 
 export type CurrentStore = {
-    /** Null when the person has no stores at all. */
+    /** Null when the person has no stores at all, or none they may work in now (all of them off). */
     current: Store | null;
-    /** Only the stores that are theirs; one store means the header shows a name, not a picker. */
+    /** Only the stores that are theirs, on or off; one store means the header shows a name, not a picker. */
     available: Store[];
     /**
      * True when the store they had chosen is no longer theirs and the panel opened somewhere else.
      * The layout says so once, as a toast (frontend.md §2.2).
      */
     fellBack: boolean;
+    /** The store they had chosen was switched off, rather than taken away: the toast says that. */
+    fellBackFromOff: boolean;
 };
 
 export type Flash = {
@@ -133,11 +153,15 @@ export type SharedProps = {
     /** Shop pages only; the panel shares its own "store", which is a different thing. */
     shop?: Shop | null;
     shopper?: Shopper | null;
+    /** Shop pages only, during a staff view. */
+    staffView?: StaffView | null;
     /** Shop pages only, and only for somebody signed in. */
     accountMenu?: AccountMenu | null;
     shopperLines?: ShopperLine[];
     /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */
     sidebarOpen: boolean;
+    /** The sidebar's business areas this browser left open (group keys); several may be. */
+    sidebarSections: string[];
     store: CurrentStore | null;
     flash: Flash;
     errors: PageErrors;

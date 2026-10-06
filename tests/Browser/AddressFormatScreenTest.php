@@ -42,8 +42,10 @@ it('adds a field, names it, and the country asks for it afterwards', function ()
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/address-formats');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/address-formats');
 
     // What a field is called lives in an input's value, not in the page's text, so the screen is
     // read for its own words and the fields are read where they are actually kept (a first go
@@ -76,4 +78,91 @@ it('adds a field, names it, and the country asks for it afterwards', function ()
     expect((string) DB::table('access.store_address_formats')->where('store_id', Fx::storeId('sa'))->value('fields'))
         ->toContain($key);
 
+});
+
+/**
+ * The keys of a store's address form, in the order it asks for them.
+ *
+ * @return list<string>
+ */
+function addressFormatKeys(string $storeCode): array
+{
+    $fields = json_decode((string) DB::table('access.store_address_formats')->where('store_id', Fx::storeId($storeCode))->value('fields'), true);
+
+    return array_values(array_map(static fn (array $field): string => (string) $field['key'], is_array($fields) ? $fields : []));
+}
+
+/**
+ * The form's keys once the save has landed: the click only sends it, so the order is read again
+ * for up to five seconds rather than at once.
+ *
+ * @param  list<string>  $expected
+ * @return list<string>
+ */
+function addressFormatKeysSoon(string $storeCode, array $expected): array
+{
+    for ($tries = 0; $tries < 50; $tries++) {
+        if (addressFormatKeys($storeCode) === $expected) {
+            break;
+        }
+
+        usleep(100_000);
+    }
+
+    return addressFormatKeys($storeCode);
+}
+
+/**
+ * Keys pressed on an element one at a time, a moment apart.
+ *
+ * @param  list<string>  $keys
+ */
+function addressFormatKeysPressed(mixed $page, string $selector, array $keys): void
+{
+    foreach ($keys as $key) {
+        $page->keys($selector, [$key]);
+        $page->wait(0.3);
+    }
+}
+
+it('moves a field by its handle from the keyboard, and the country asks for them in the new order', function () {
+    // The UAE's form, which no other test changes, and which this test puts back as it found it.
+    $staffId = Fx::staffWith([AccessPermissions::ADDRESS_FORMAT_UPDATE], ['ae'], RoleLevel::Admin);
+    $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
+    $before = addressFormatKeys('ae');
+
+    expect(count($before))->toBeGreaterThan(1);
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', $email)
+        ->type('#password', ADDRESS_FORMAT_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/address-formats?store=ae');
+
+    // dnd-kit's keyboard drag, as shadcn's dashboard-01 sets it up: Space picks the first field up,
+    // the down arrow moves it one place, Space puts it down (owner, 2026-10-03: drag handles).
+    // A breath between keys, as a person leaves: dnd-kit measures the fields after each one, and
+    // keys sent in the same instant arrive before it has (found by stepping through it).
+    addressFormatKeysPressed($page, '[data-test="drag-0"]', ['Space', 'ArrowDown', 'Space']);
+    $page->assertNoJavaScriptErrors();
+
+    expect($page->script('document.querySelector("#key-0").value'))->toBe($before[1])
+        ->and($page->script('document.querySelector("#key-1").value'))->toBe($before[0]);
+
+    $page->click('[data-test="save"]')->assertNoJavaScriptErrors();
+
+    $moved = [$before[1], $before[0], ...array_slice($before, 2)];
+
+    expect(addressFormatKeysSoon('ae', $moved))->toBe($moved);
+
+    // And back, the same way, so the form is as it was.
+    addressFormatKeysPressed($page, '[data-test="drag-1"]', ['Space', 'ArrowUp', 'Space']);
+    $page->click('[data-test="save"]')->assertNoJavaScriptErrors();
+
+    expect(addressFormatKeysSoon('ae', $before))->toBe($before);
 });

@@ -6,25 +6,25 @@ declare(strict_types=1);
 // The screens themselves (stage 2b step 1) read the same file: there are no separate frontend
 // translation files, so one line is written once and used on both sides (frontend.md §1.5).
 return [
-    'registered' => 'Account created. Check your email to confirm your address.',
+    'registered' => 'Account created; confirm your address from the email we sent',
     'verification_sent' => 'Confirmation link sent',
     'email_verified' => 'Email address confirmed',
     'code_sent' => 'Code sent to your phone',
     'reset_link_sent' => 'If this email belongs to an account, a reset link is on its way',
-    'password_reset' => 'Password changed. Sign in with your new password.',
-    'password_changed' => 'Password changed. Every other session was signed out.',
-    'email_changed' => 'Email changed. Sign in with your new email.',
-    'invitation_accepted' => 'Account created. Sign in with your email and password.',
+    'password_reset' => 'Password changed; sign in with the new one',
+    'password_changed' => 'Password changed, and every other session was signed out',
+    'email_changed' => 'Email changed; sign in with the new one',
+    'invitation_accepted' => 'Account created',
     'signed_out' => 'Signed out',
 
     // The screens (A1-A9).
     'sign_in' => 'Sign In',
     'sign_in_subtitle' => 'The admin panel.',
     'sign_out' => 'Sign Out',
+    // The shopper's menu in the shop's header (owner's #4, 2026-10-02).
+    'my_account' => 'My Account',
     'email' => 'Work Email',
     'password' => 'Password',
-    'show_password' => 'Show the password',
-    'hide_password' => 'Hide the password',
     'forgot_password' => 'Reset Password',
     'back_to_sign_in' => 'Back to Sign In',
 
@@ -36,8 +36,10 @@ return [
 
     'code_title' => 'Enter the Code',
     'code_sent_to' => 'The code went to :phone.',
-    'code_digit' => 'Digit :number',
-    'trust_browser' => 'Trust This Browser for :days Days',
+    // The code field's one label: shadcn's InputOTP is one input, not a box per digit.
+    'code_label' => 'SMS Code',
+    'code_incomplete' => 'Enter all :count digits of the code.',
+    'trust_browser' => 'Trust This Browser for :hours Hours',
     'confirm' => 'Verify Code',
     'resend' => 'Resend Code',
     'resend_in' => 'Resend Code in :seconds Seconds',
@@ -81,6 +83,7 @@ return [
     'account_type_company' => 'My Company',
     'account_type_company_hint' => 'Your company details and documents come next.',
     'account_type_permanent' => 'This choice can never be changed later.',
+    'account_type_required' => 'Choose a kind of account.',
     'terms_accept' => 'I accept the terms of sale and the privacy policy.',
 
     'verify_title' => 'Confirm Your Email',

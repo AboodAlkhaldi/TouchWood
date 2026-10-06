@@ -858,7 +858,7 @@ describe('deleting media another module uses', function () {
         // The person is told which record uses it, in their language.
         app()->setLocale('en');
         $error = new MediaInUse($id, [new MediaUseDto('testing.thing', (string) $document, true)]);
-        expect(trans('platform::errors.media_in_use.detail', $error->context()))->toBe("The file is still used and cannot be deleted: testing.thing {$document}.");
+        expect(trans('platform::errors.media_in_use.detail', $error->context()))->toBe("Couldn't delete the file: it is still used (testing.thing {$document}). Remove it from those places first.");
 
         expect(TestingMediaUsage::$detachedInTransaction)->toBe([])
             ->and(DB::table('testing_media_refs')->count())->toBe(2)

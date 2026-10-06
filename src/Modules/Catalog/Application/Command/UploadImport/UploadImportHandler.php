@@ -69,36 +69,39 @@ final readonly class UploadImportHandler
         $file = ProductsFile::read($archive->json ?? $this->json($command->path), $archive === null ? null : array_keys($archive->files));
 
         $problems = new FileProblems;
-        $names = CatalogCheck::names($file->products, CatalogNames::load($this->brands, $this->categories, $this->attributes, $this->warranties), $problems);
+        // Codes that mix catalog products leave those products out, the rest coming in (amendment 11(a)).
+        $codes = array_merge(...array_map(static fn ($product): array => $product->codes(), $file->products));
+        [$conflicts, $refused] = CatalogCheck::conflicts($file, $this->imports->codeHolders($codes));
+        $kept = array_values(array_filter($file->products, static fn ($product): bool => ! isset($refused[$product->number])));
+        $names = CatalogCheck::names($kept, CatalogNames::load($this->brands, $this->categories, $this->attributes, $this->warranties), $problems);
 
         if ($archive instanceof ImportArchive) {
             CatalogCheck::photos($file, $archive->files, $this->platform->setting(self::MAX_PUBLIC_BYTES)->int(), $problems);
         }
 
-        $codes = array_merge(...array_map(static fn ($product): array => $product->codes(), $file->products));
-        $conflicts = CatalogCheck::conflicts($file, $this->imports->codeHolders($codes), $problems);
         $problems->refuseIfAny();
 
         $id = $this->imports->nextId();
-        $kept = $archive === null ? null : $this->archives->keep($id, $command->path);
+        $archived = $archive === null ? null : $this->archives->keep($id, $command->path);
         $actor = $this->actors->current();
         $fileName = mb_substr(trim(basename(str_replace('\\', '/', $command->fileName))), 0, 255);
 
         try {
-            $this->db->transaction(function () use ($id, $fileName, $kept, $actor, $names, $file, $conflicts): void {
-                $this->imports->addProductsImport($id, $fileName, $kept, $actor->type === ActorType::Staff ? $actor->id : null, $names, $file->products, $conflicts);
+            $this->db->transaction(function () use ($id, $fileName, $archived, $actor, $names, $file, $conflicts, $refused): void {
+                $this->imports->addProductsImport($id, $fileName, $archived, $actor->type === ActorType::Staff ? $actor->id : null, $names, $file->products, $conflicts, $refused);
                 $this->platform->recordAudit(ListAudit::added('import', $id, [
                     'kind' => 'PRODUCTS',
                     'file_name' => $fileName,
                     'products' => count($file->products),
                     'names_to_decide' => count($names),
                     'codes_to_decide' => count($conflicts),
-                    'photos' => $kept !== null,
+                    'left_out' => count($refused),
+                    'photos' => $archived !== null,
                 ]));
             }, 3);
         } catch (Throwable $error) {
-            if ($kept !== null) {
-                $this->archives->forget($kept);
+            if ($archived !== null) {
+                $this->archives->forget($archived);
             }
 
             throw $error;

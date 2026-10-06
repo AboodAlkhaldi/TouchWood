@@ -110,6 +110,7 @@ final readonly class StaffOwnAccountController
             notifications: $this->notifications($account),
             countries: $this->countries(),
             passwordMinLength: $this->settings->passwordMinLength(),
+            codeLength: $this->settings->codeLength(),
             sessions: $this->sessionRows($sessions),
             trustedBrowsers: $this->trustedRows($sessions),
             tab: in_array($tab, self::TABS, true) ? $tab : self::TABS[0],

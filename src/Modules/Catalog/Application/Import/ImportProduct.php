@@ -25,6 +25,9 @@ final readonly class ImportProduct
     /** … or is switched off in every store when brought in. */
     public const string TAKE_OFF_SALE = 'TAKE_OFF';
 
+    /** Left out at upload (amendment 11(a)): it takes no part in the import. */
+    public const string REFUSED = 'REFUSED';
+
     /**
      * @param  list<string>  $codes
      * @param  array<string, string>|null  $newCodes  for RECODE: each code it gives up => its new one (a
@@ -42,7 +45,24 @@ final readonly class ImportProduct
         public string $state,
         public ?FileProduct $edited = null,
         public ?string $sale = null,
+        public ?string $refusal = null,
     ) {}
+
+    public function isRefused(): bool
+    {
+        return $this->state === self::REFUSED;
+    }
+
+    /**
+     * The rows that take part in the import: every one but those left out at upload.
+     *
+     * @param  list<self>  $rows
+     * @return list<self>
+     */
+    public static function takingPart(array $rows): array
+    {
+        return array_values(array_filter($rows, static fn (self $row): bool => ! $row->isRefused()));
+    }
 
     /** The product as it will come in: as the page's changes left it, or as the file gave it. */
     public function effective(): FileProduct
@@ -52,7 +72,7 @@ final readonly class ImportProduct
 
     public function changedTo(FileProduct $edited): self
     {
-        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $this->decision, $this->newCodes, $this->productId, $this->state, $edited, $this->sale);
+        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $this->decision, $this->newCodes, $this->productId, $this->state, $edited, $this->sale, $this->refusal);
     }
 
     /**
@@ -60,7 +80,7 @@ final readonly class ImportProduct
      */
     public function decided(string $decision, ?array $newCodes, ?string $sale = null): self
     {
-        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $decision, $newCodes, $this->productId, $this->state, $this->edited, $sale);
+        return new self($this->id, $this->number, $this->product, $this->codes, $this->conflictProductId, $decision, $newCodes, $this->productId, $this->state, $this->edited, $sale, $this->refusal);
     }
 
     /**

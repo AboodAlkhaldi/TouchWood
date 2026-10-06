@@ -6,27 +6,27 @@ declare(strict_types=1);
 return [
     'invalid_company_attribute' => [
         'title' => 'Check the Company Details',
-        'detail' => 'The :attribute is not valid.',
+        'detail' => 'Couldn\'t save: the :attribute isn\'t valid. Check it and try again.',
     ],
     'application_not_editable' => [
         'title' => 'Already Sent',
-        'detail' => 'This application has been sent and can no longer be changed.',
+        'detail' => 'Couldn\'t change the application: it has been sent. Wait for the decision.',
     ],
     'missing_required_document' => [
         'title' => 'A Document Is Missing',
-        'detail' => 'Attach every required document before you send the application.',
+        'detail' => 'Couldn\'t send the application: a required document is missing. Attach every required document.',
     ],
     'company_type_inactive' => [
         'title' => 'Choose the Company Type Again',
-        'detail' => 'The company type you chose is no longer offered. Choose another, or Other.',
+        'detail' => 'Couldn\'t use this company type: it is no longer offered. Choose another type.',
     ],
     'company_suspended' => [
         'title' => 'Company Suspended',
-        'detail' => 'While the company is suspended, its registered details cannot be changed.',
+        'detail' => 'Couldn\'t change the company details: the company is suspended. Change them once it is reinstated.',
     ],
     'invalid_company_status' => [
         'title' => 'Nothing to Change',
-        'detail' => 'The company is not in a state that allows that change.',
+        'detail' => 'Couldn\'t make that change: the company\'s state doesn\'t allow it. Reload the page.',
     ],
     'flagged_item_not_replaced' => [
         'title' => 'Replace the Marked Items',
@@ -34,69 +34,73 @@ return [
     ],
     'request_not_answered' => [
         'title' => 'A Request Is Not Answered',
-        'detail' => 'Answer every request in the last decision before you send the application.',
+        'detail' => 'Couldn\'t send the application: a request in the last decision isn\'t answered. Answer every request.',
     ],
     'document_no_longer_accepted' => [
         'title' => 'A Document Is No Longer Accepted',
-        'detail' => 'Remove every document marked as no longer accepted before you send the application.',
+        'detail' => 'Couldn\'t send the application: a document is no longer accepted. Remove every document marked so.',
     ],
     'request_not_found' => [
         'title' => 'Request Not Found',
-        'detail' => 'That request is not one of the last decision\'s.',
+        'detail' => 'Couldn\'t find that request in the last decision. Reload the page.',
     ],
     'answer_kind_mismatch' => [
         'title' => 'Answer as Asked',
-        'detail' => 'Answer this request the way it asks: with text, or with a file.',
+        'detail' => 'Couldn\'t save the answer. Answer the way the request asks: with text, or with a file.',
     ],
     'not_a_company_account' => [
         'title' => 'Company Accounts Only',
-        'detail' => 'Only a company account can apply as a company.',
+        'detail' => 'Couldn\'t apply: only a company account can apply as a company. Register a company account.',
     ],
     'company_not_found' => [
         'title' => 'No Company Yet',
-        'detail' => 'There is no company for this account until its first application is sent.',
+        'detail' => 'Couldn\'t find the company: there is none until its first application is sent. Reload the page.',
     ],
     'application_not_found' => [
-        'title' => 'No application',
-        'detail' => 'There is no application to change. Start one first.',
+        'title' => 'No Application',
+        'detail' => 'Couldn\'t find an application to change. Start one first.',
     ],
     'application_already_open' => [
         'title' => 'Already Waiting',
-        'detail' => 'Your application is waiting for a decision. You can start another once it is decided.',
+        'detail' => 'Couldn\'t start another application: yours is waiting for a decision. Start another once it is decided.',
     ],
     'email_not_verified' => [
         'title' => 'Confirm Your Email',
-        'detail' => 'Confirm your email address before you send the application.',
+        'detail' => 'Couldn\'t send the application: your email address isn\'t confirmed. Confirm it, then send.',
+    ],
+    'phone_not_confirmed' => [
+        'title' => 'Confirm Your Phone',
+        'detail' => 'Couldn\'t send the application: your phone number isn\'t confirmed. Confirm it on your account\'s Phone page, then send.',
     ],
     'document_type_inactive' => [
         'title' => 'Document Not Accepted',
-        'detail' => 'This kind of document is not accepted. Choose one from the list.',
+        'detail' => 'Couldn\'t attach the file: this kind of document isn\'t accepted. Choose one from the list.',
     ],
     'duplicate_document_file' => [
         'title' => 'The Same File Twice',
-        'detail' => 'A file with this name is already under another document. Choose the right file for this one.',
+        'detail' => 'Couldn\'t attach the file: one with this name is already under another document. Choose the right file for this one.',
     ],
     'application_file_not_found' => [
         'title' => 'File Not Found',
-        'detail' => 'That file is not in any of your applications.',
+        'detail' => 'Couldn\'t find that file in your applications. Reload the page.',
     ],
     'type_not_found' => [
         'title' => 'Type Not Found',
-        'detail' => 'There is no such type in your stores\' lists.',
+        'detail' => 'Couldn\'t find that type in your stores\' lists. Reload the page.',
     ],
     // Amendment 13(b), the owner's words.
     'company_type_not_set' => [
         'title' => 'Choose a Listed Type First',
-        'detail' => 'Choose a listed type for this company before approving it.',
+        'detail' => 'Couldn\'t approve the company: it has no listed type. Correct its type first.',
     ],
     // Amendment 13(e).
     'company_account_deleted' => [
         'title' => 'Account Deleted',
-        'detail' => 'The account was deleted: reject this application.',
+        'detail' => 'Couldn\'t approve the company: its account was deleted. Reject the application instead.',
     ],
     'type_name_taken' => [
         'title' => 'Name Already Used',
-        'detail' => 'Another type in this list already has that name, in Arabic or in English.',
+        'detail' => 'Couldn\'t save the type: another one in this list has that name, in Arabic or in English. Choose another name.',
     ],
     'fields' => [
         'address' => 'address',

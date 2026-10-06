@@ -108,12 +108,12 @@ afterEach(function () {
     Ix::cleanUp();
 });
 
-function reviewEnglish(string $table, string $id): string
+function catalogReviewEnglish(string $table, string $id): string
 {
     return (string) DB::table("catalog.{$table}")->where('id', $id)->value('name_en');
 }
 
-function reviewState(string $importId, int $number): string
+function catalogReviewState(string $importId, int $number): string
 {
     return (string) DB::table('catalog.import_products')->where('import_id', $importId)->where('number', $number)->value('state');
 }
@@ -121,12 +121,12 @@ function reviewState(string $importId, int $number): string
 /**
  * @param  list<array<string, mixed>>  $items
  */
-function reviewFill(array $items, string $store = 'sa'): string
+function catalogReviewFill(array $items, string $store = 'sa'): string
 {
     return app(UploadStoreFillHandler::class)->handle(new UploadStoreFill(Fx::storeId($store), Ix::temp(json_encode(['format' => 'touchwood-store-fill/1', 'items' => $items], JSON_THROW_ON_ERROR)), 'prices.json'));
 }
 
-function reviewFillItem(string $importId, int $number): string
+function catalogReviewFillItem(string $importId, int $number): string
 {
     return (string) DB::table('catalog.store_fill_items')->where('import_id', $importId)->where('number', $number)->value('id');
 }
@@ -191,7 +191,7 @@ describe('web addresses that would collide (8(c))', function () {
         $decide('Kitchens / Accessories', Ix::create('إكسسوارات', 'Accessories'));
 
         expect(fn () => $decide('Wardrobes / Accessories', Ix::create('إكسسوارات', 'Accessories')))->toThrow(InvalidCatalogAttribute::class, 'an address no other category has, now or before: give one')
-            ->and(fn () => $decide('Wardrobes', ['decision' => 'CREATE', 'name_ar' => 'خزائن', 'name_en' => 'Wardrobes', 'slug_en' => 'Not A Slug']))->toThrow(InvalidCatalogAttribute::class);
+            ->and(fn () => $decide('Wardrobes', ['decision' => 'CREATE', 'name_ar' => 'خزائن', 'name_en' => 'Wardrobes', 'slug_en' => 'Not A Slug']))->toThrow(InvalidCatalogAttribute::class, 'lower-case Latin letters and digits');
 
         $decide('Wardrobes / Accessories', [...Ix::create('إكسسوارات', 'Accessories'), 'slug_ar' => 'إكسسوارات-خزائن', 'slug_en' => 'wardrobe-accessories']);
         Ix::bringIn($import);
@@ -230,14 +230,14 @@ describe('the confirm asks again', function () {
 describe('bringing in', function () {
     it('holds back a product a value of whose variants was refused, its set the catalog\'s', function () {
         $ready = Px::ready(['60 cm']);
-        $width = reviewEnglish('attributes', $ready['width']);
-        $set = reviewEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
+        $width = catalogReviewEnglish('attributes', $ready['width']);
+        $set = catalogReviewEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
         $import = Ix::uploadProducts([Ix::product('7100', ['attribute_set' => $set, 'variants' => [['code' => '7100', 'values' => [$width => '61 cm']]]]), Ix::product('7200')]);
         Ix::decideNames($import);
 
         Ix::bringIn($import);
 
-        expect([reviewState($import, 1), reviewState($import, 2)])->toBe(['HELD', 'IN']);
+        expect([catalogReviewState($import, 1), catalogReviewState($import, 2)])->toBe(['HELD', 'IN']);
     });
 
     it('replaces a draft whole: its variants the file does not name archived, its relations, gallery and words cleared', function () {
@@ -255,12 +255,12 @@ describe('bringing in', function () {
         $sixty = Px::variant($draft, '4400', [$width => $sixtyValue]);
         $eighty = Px::variant($draft, '4400', [$width => $eightyValue]);
         DB::table('catalog.product_search_words')->insert(['product_id' => $draft, 'normalized' => 'old', 'word' => 'old', 'position' => 0]);
-        $import = Ix::uploadProducts([Ix::product('4400', ['attribute_set' => reviewEnglish('attribute_sets', $set), 'variants' => [['code' => '4400', 'values' => [reviewEnglish('attributes', $width) => '60 cm']]]])]);
+        $import = Ix::uploadProducts([Ix::product('4400', ['attribute_set' => catalogReviewEnglish('attribute_sets', $set), 'variants' => [['code' => '4400', 'values' => [catalogReviewEnglish('attributes', $width) => '60 cm']]]])]);
         app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'REPLACE']]));
 
         Ix::bringIn($import);
 
-        expect(reviewState($import, 1))->toBe('REPLACED')
+        expect(catalogReviewState($import, 1))->toBe('REPLACED')
             ->and(DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->orderBy('position')->pluck('is_archived', 'id')->all())->toEqual([$sixty => false, $eighty => true])
             ->and(DB::table('catalog.product_relations')->where('product_id', $draft)->count())->toBe(0)
             ->and(DB::table('catalog.product_photos')->where('product_id', $draft)->count())->toBe(0)
@@ -278,16 +278,16 @@ describe('bringing in', function () {
         });
         DB::table('catalog.variants')->where('id', $sixty)->update(['length_mm' => 600]);
         $codes = DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->pluck('code', 'id');
-        $width = reviewEnglish('attributes', $ready['width']);
+        $width = catalogReviewEnglish('attributes', $ready['width']);
         $import = Ix::uploadProducts([Ix::product((string) $codes[$sixty], [
-            'attribute_set' => reviewEnglish('attribute_sets', (string) $product->attribute_set_id),
+            'attribute_set' => catalogReviewEnglish('attribute_sets', (string) $product->attribute_set_id),
             'variants' => [['code' => (string) $codes[$sixty], 'values' => [$width => '60 cm'], 'weight_g' => 900], ['code' => (string) $codes[$eighty], 'values' => [$width => '80 cm']]],
         ])]);
         app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE']]));
 
         Ix::bringIn($import);
 
-        expect(reviewState($import, 1))->toBe('UPDATED')
+        expect(catalogReviewState($import, 1))->toBe('UPDATED')
             ->and((array) DB::table('catalog.products')->where('id', $ready['product'])->first(['brand_id', 'warranty_id', 'stage']))->toBe(['brand_id' => $product->brand_id, 'warranty_id' => $warranty, 'stage' => 'READY'])
             ->and((array) DB::table('catalog.variants')->where('id', $sixty)->first(['weight_grams', 'length_mm']))->toBe(['weight_grams' => 900, 'length_mm' => 600])
             ->and(DB::table('catalog.variants')->where('id', $eighty)->value('is_archived'))->toBeFalse();
@@ -329,9 +329,9 @@ describe('bringing in', function () {
         [$bareBefore, $fullBefore] = [$before($bare), $before($full)];
         $file = static function (array $ready): array {
             $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
-            $set = reviewEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
+            $set = catalogReviewEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
 
-            return Ix::product($code, ['attribute_set' => $set, 'variants' => [['code' => $code, 'values' => [reviewEnglish('attributes', $ready['width']) => '60 cm']]]]);
+            return Ix::product($code, ['attribute_set' => $set, 'variants' => [['code' => $code, 'values' => [catalogReviewEnglish('attributes', $ready['width']) => '60 cm']]]]);
         };
         $import = Ix::uploadProducts([$file($bare), $file($full)]);
         [$first, $second] = [Ix::productId($import, 1), Ix::productId($import, 2)];
@@ -357,7 +357,7 @@ describe('bringing in', function () {
         $values = [$kitchen, $bath];
         sort($values);
 
-        expect([reviewState($import, 1), reviewState($import, 2)])->toBe(['UPDATED', 'UPDATED'])
+        expect([catalogReviewState($import, 1), catalogReviewState($import, 2)])->toBe(['UPDATED', 'UPDATED'])
             ->and($has($bare))->toBe([[...$bareBefore, 'warranty_id' => $warranty], ['slide'], $values])
             ->and($has($full))->toBe([[...$fullBefore, 'warranty_id' => $own], ['rail'], [$kitchen]]);
     });
@@ -421,7 +421,7 @@ describe('the zip, unpacked', function () {
 
 describe('accepting', function () {
     it('links a product accepted earlier to the one it names, once that one is accepted too', function () {
-        $category = reviewEnglish('categories', Px::category('Hinges'));
+        $category = catalogReviewEnglish('categories', Px::category('Hinges'));
         $whole = ['description' => ['ar' => 'وصف', 'en' => 'About it'], 'category' => $category];
         $files = ['products.json' => Ix::json([
             Ix::product('6100', [...$whole, 'photos' => ['6100.jpg'], 'related' => ['6200']]),
@@ -441,7 +441,7 @@ describe('accepting', function () {
     });
 
     it('links one accepted earlier by any code the one it names holds — a code corrected since included', function () {
-        $category = reviewEnglish('categories', Px::category('Hinges'));
+        $category = catalogReviewEnglish('categories', Px::category('Hinges'));
         $whole = ['description' => ['ar' => 'وصف', 'en' => 'About it'], 'category' => $category];
         $files = ['products.json' => Ix::json([
             Ix::product('6100', [...$whole, 'photos' => ['6100.jpg'], 'related' => ['6299']]),
@@ -466,25 +466,37 @@ describe('accepting', function () {
         DB::table('catalog.import_products')->where('import_id', $import)->where('number', 1)->update(['state' => 'ACCEPTED']);
 
         expect(app(ArchiveImportedProductsHandler::class)->handle(new ArchiveImportedProducts($import, null)))->toBe(1)
-            ->and([reviewState($import, 1), reviewState($import, 2)])->toBe(['ACCEPTED', 'ARCHIVED']);
+            ->and([catalogReviewState($import, 1), catalogReviewState($import, 2)])->toBe(['ACCEPTED', 'ARCHIVED']);
     });
 });
 
 describe('the store file', function () {
-    it('is reached only by those who fill its own store', function () {
-        $file = reviewFill([['code' => '1', 'price' => 1]]);
-        $item = reviewFillItem($file, 1);
-        Fx::actAsAdmin(['eg'], [CatalogPermissions::LISTING_FILL]);
+    it("is reached only by those who fill its own store: another store's answers as a file that does not exist", function () {
+        $file = catalogReviewFill([['code' => '1', 'price' => 1]]);
+        $item = catalogReviewFillItem($file, 1);
+        $calls = static fn (string $id): array => [
+            fn () => app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($id)),
+            fn () => app(CorrectStoreFillCodeHandler::class)->handle(new CorrectStoreFillCode($id, $item, '2')),
+            fn () => app(RemoveStoreFillItemsHandler::class)->handle(new RemoveStoreFillItems($id, [$item])),
+            fn () => app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($id, null)),
+        ];
 
-        expect(fn () => app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($file)))->toThrow(Unauthorized::class)
-            ->and(fn () => app(CorrectStoreFillCodeHandler::class)->handle(new CorrectStoreFillCode($file, $item, '2')))->toThrow(Unauthorized::class)
-            ->and(fn () => app(RemoveStoreFillItemsHandler::class)->handle(new RemoveStoreFillItems($file, [$item])))->toThrow(Unauthorized::class)
-            ->and(fn () => app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($file, null)))->toThrow(Unauthorized::class);
+        // The job in another store: this store's file and an id no file has answer alike (§7).
+        Fx::actAsAdmin(['eg'], [CatalogPermissions::LISTING_FILL]);
+        foreach ([...$calls($file), ...$calls('01arz3ndektsv4rrffq69g5fav')] as $call) {
+            expect($call)->toThrow(ListItemNotFound::class);
+        }
+
+        // The job nowhere: not allowed, whatever the id.
+        Fx::actAsAdmin(['sa'], [CatalogPermissions::LISTING_CHOOSE]);
+        foreach ($calls($file) as $call) {
+            expect($call)->toThrow(Unauthorized::class);
+        }
     });
 
     it('is no products file, nor a products file one', function () {
         $products = Ix::uploadProducts([Ix::product('1', ['brand' => 'Blumm'])]);
-        $file = reviewFill([['code' => '1', 'price' => 1]]);
+        $file = catalogReviewFill([['code' => '1', 'price' => 1]]);
 
         expect(fn () => app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($products, null)))->toThrow(ListItemNotFound::class)
             ->and(fn () => app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($products)))->toThrow(ListItemNotFound::class)
@@ -494,13 +506,13 @@ describe('the store file', function () {
 
     it('lists every problem of a file not in its format', function () {
         try {
-            reviewFill([['code' => '1304', 'price' => 1], ['code' => '1304', 'price' => -2]]);
+            catalogReviewFill([['code' => '1304', 'price' => 1], ['code' => '1304', 'price' => -2]]);
         } catch (ImportRefused $refused) {
         }
 
         expect($refused->problems ?? null)->toBe([
             ['at' => 'item 2 › code', 'problem' => '1304 again: item 1 names it already'],
-            ['at' => 'item 2 › price', 'problem' => 'a number of at least 0'],
+            ['at' => 'item 2 › price', 'problem' => 'a number of at least 0, with at most 6 decimal places'],
         ]);
     });
 
@@ -509,7 +521,7 @@ describe('the store file', function () {
         $ready = Px::ready(['60 cm']);
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
         $eighty = Fx::asSystem(fn (): string => app(AddVariantHandler::class)->handle(new AddVariant($ready['product'], $code, [$ready['width'] => Px::value($ready['width'], '80 cm')])));
-        $file = reviewFill([['code' => $code, 'price' => 10]]);
+        $file = catalogReviewFill([['code' => $code, 'price' => 10]]);
 
         app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($file, null));
 
@@ -530,7 +542,7 @@ describe('the store file', function () {
             app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($archived['variants'][1]));
             app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($corrected['variants'][0], '8800'));
         });
-        $file = reviewFill([['code' => $archivedCode, 'price' => 1], ['code' => $oldCode, 'price' => 2]]);
+        $file = catalogReviewFill([['code' => $archivedCode, 'price' => 1], ['code' => $oldCode, 'price' => 2]]);
         Fx::actAsAdmin(['sa'], [CatalogPermissions::LISTING_FILL]);
 
         expect(array_map(static fn (StoreFillItemView $item): ?string => $item->standing, app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($file))->items))->toBe(['ARCHIVED', 'UNKNOWN'])
@@ -540,7 +552,7 @@ describe('the store file', function () {
 
 describe('a new value', function () {
     it('is not made twice by one file under one attribute', function () {
-        $width = reviewEnglish('attributes', Px::attribute('Width'));
+        $width = catalogReviewEnglish('attributes', Px::attribute('Width'));
         $import = Ix::uploadProducts([
             Ix::product('1', ['attribute_set' => 'Sizes', 'variants' => [['code' => '1', 'values' => [$width => '60cm']]]]),
             Ix::product('2', ['attribute_set' => 'Sizes', 'variants' => [['code' => '2', 'values' => [$width => '60 cms']]]]),

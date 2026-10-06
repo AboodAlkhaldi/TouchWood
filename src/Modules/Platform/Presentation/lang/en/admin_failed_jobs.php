@@ -6,24 +6,24 @@ declare(strict_types=1);
 // confirmation are the owner's words (2026-09-29).
 return [
     'title' => 'Failed Jobs',
-    'subtitle' => 'Work that ran in the background and failed its last try, oldest first. Each waits here until it is retried or deleted.',
-    'none' => 'Nothing has failed.',
+    'subtitle' => 'Background work that failed its last try, oldest first, waiting to be retried or deleted.',
+    'none' => 'Background work that fails its last try waits here.',
 
     'job' => 'Job',
     'failed_at' => 'Failed',
     'tries' => 'Tries Allowed',
     'no_limit' => 'No limit',
     'set_by_worker' => 'Set by the worker',
-    'more' => 'Show More',
     'queue' => 'Queue',
     'error' => 'Error',
 
     'retry' => 'Retry Job',
+    'actions' => 'Actions',
+    'delete_open' => 'Delete Job…',
+    'copy_error' => 'Copy Error',
     'retried' => 'Job requeued',
-    'delete' => 'Delete Job',
     'confirm_delete' => 'The job will not run. This cannot be undone.',
     'deleted' => 'Job deleted',
-    'cancel' => 'Cancel',
 
     // Asked for by the Geist screens (frontend.md 1.10): empty states' titles, disabled
     // buttons' reasons and dialogs' own words.

@@ -46,7 +46,7 @@ afterEach(function () {
     Ix::cleanUp();
 });
 
-function discardImport(string $importId): void
+function catalogDiscardImport(string $importId): void
 {
     app(DiscardImportHandler::class)->handle(new DiscardImport($importId));
 }
@@ -62,8 +62,8 @@ describe('discarding a products file', function () {
         $archive = (string) DB::table('catalog.imports')->where('id', $zip)->value('archive');
         Storage::disk('local')->assertExists($archive);
 
-        discardImport($zip);
-        discardImport($failed);
+        catalogDiscardImport($zip);
+        catalogDiscardImport($failed);
 
         Storage::disk('local')->assertMissing($archive);
         expect(DB::table('catalog.imports')->whereIn('id', [$zip, $failed])->exists())->toBeFalse()
@@ -78,11 +78,11 @@ describe('discarding a products file', function () {
         $import = Ix::uploadProducts([Ix::product('1')]);
         app(BringInImportHandler::class)->handle(new BringInImport($import));
 
-        expect(fn () => discardImport($import))->toThrow(ImportClosed::class);
+        expect(fn () => catalogDiscardImport($import))->toThrow(ImportClosed::class);
 
         Fx::asSystem(fn () => app(BringInImportProductsHandler::class)->handle(new BringInImportProducts($import)));
 
-        expect(fn () => discardImport($import))->toThrow(ImportClosed::class)
+        expect(fn () => catalogDiscardImport($import))->toThrow(ImportClosed::class)
             ->and(DB::table('catalog.imports')->where('id', $import)->value('state'))->toBe('IN');
     });
 
@@ -90,10 +90,10 @@ describe('discarding a products file', function () {
         $import = Ix::uploadProducts([Ix::product('1')]);
         $fill = app(UploadStoreFillHandler::class)->handle(new UploadStoreFill(Fx::storeId('sa'), Ix::temp(json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => '1', 'price' => 1]]], JSON_THROW_ON_ERROR)), 'prices.json'));
 
-        expect(fn () => discardImport($fill))->toThrow(ListItemNotFound::class);
+        expect(fn () => catalogDiscardImport($fill))->toThrow(ListItemNotFound::class);
 
         Fx::actAsAdmin(['*'], CatalogPermissions::jobs());
-        expect(fn () => discardImport($import))->toThrow(Unauthorized::class)
+        expect(fn () => catalogDiscardImport($import))->toThrow(Unauthorized::class)
             ->and(DB::table('catalog.imports')->whereIn('id', [$import, $fill])->count())->toBe(2);
     });
 });

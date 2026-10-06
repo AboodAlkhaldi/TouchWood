@@ -8,7 +8,7 @@ specification, [docs/modules/access.md](../../../docs/modules/access.md); this f
 code is organised and why.
 
 **The module is complete.** A staff member is invited with their whole profile, accepts, and signs
-in with a password and an SMS code, on a browser they may keep trusted for thirty days; one role
+in with a password and an SMS code, on a browser they may keep trusted for twelve hours; one role
 each, with the stores it reaches, and nobody grants more than they hold. A customer registers in a
 store and is signed in at once, verifies their email by link and their phone by code, keeps an
 address book in every country they order from, and may ask for the account to be deleted — which
@@ -116,7 +116,7 @@ $this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
 | `Domain/Exception` | `AccessError` and its subclasses, with messages in `Presentation/lang/{ar,en}/errors.php`. |
 | `Application/Permission` | `InMemoryPermissionCatalog` (declarations, renames, removals, checked at boot), `AccessPermissions` (Access's list, and which actions are admin-only), `InvalidPermissionDefinition` (a declaration that contradicts itself, refused at boot). |
 | `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`, `InvalidPermissionCheck` (a per-store permission checked without a store, or the other way round). |
-| `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole`, `RefreshStaffPermissions`, `RefreshRolePermissions`. Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`, `SignInCustomer`, `SignOutCustomer`, `RequestCustomerPasswordReset`, `ResetCustomerPassword`, `ChangeOwnCustomerPassword`, `ResendCustomerEmailVerification`, `SaveAddress`, `DeleteAddress`, `SetDefaultAddress`, `RequestAccountDeletion`. Staff: `UpdateStoreAddressFormat`, `BlockCustomer`, `UnblockCustomer`, `DeleteCustomerOnRequest`, `CancelCustomerDeletion`; the scheduled `AnonymizeDueAccounts`. |
+| `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole` (the Refresh commands went with amendment 59). Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`, `SignInCustomer`, `SignOutCustomer`, `RequestCustomerPasswordReset`, `ResetCustomerPassword`, `ChangeOwnCustomerPassword`, `ResendCustomerEmailVerification`, `SaveAddress`, `DeleteAddress`, `SetDefaultAddress`, `RequestAccountDeletion`. Staff: `UpdateStoreAddressFormat`, `BlockCustomer`, `UnblockCustomer`, `DeleteCustomerOnRequest`, `CancelCustomerDeletion`; the scheduled `AnonymizeDueAccounts`. |
 | `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, `ListCustomers`, `ViewCustomer`, `ListStaff`, `ViewStaff`, and the `RoleReader`, `CustomerReader` and `StaffReader` they use, with `StaffVisibility` (who a reader may see, and how much of them). |
 | `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `OwnPasswordCheck` ("type your current password", counted like a wrong one at sign-in), `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`), `AddressLimits` (registrations and reset requests per address). |
 | `Application/Customer` | `CurrentCustomer` (whose account this request may change), `StaffCustomerAction` (what the four staff actions on a customer share: the reason, and the customer's home store to check in), `CustomerMapper`, the `CustomerLinks` port (the verification and password-reset links), the `GuestVisitors` port (the guest id this browser carries). |
@@ -158,20 +158,23 @@ decide how staff sign in (owner, 2026-09-21) — go only into admin roles. So do
 amendment 5): Platform flags it `adminOnly` in `PlatformPermissions`, and `AccessPermissions::adminOnly()`
 adds every action so flagged to Access's own list. **A module above Access declares an admin-only
 action with `adminOnly: true`** on its `PermissionDefinitionDto` — Catalog's `catalog.listing.fill`,
-the store file (amendment 58). `InMemoryPermissionCatalog::isAdminOnly()` is the one question every
+the store file (amendment 62). `InMemoryPermissionCatalog::isAdminOnly()` is the one question every
 check asks: the role editor, a role's rules, the authorizer and the permission sync. A store's own settings are
 `settings.update`, an ordinary action a staff role may hold. Only a Super Admin
 creates, edits or gives admin roles and manages admins; nobody changes their own role. An admin
 manages a staff member only when holding **assign roles** in **all** of their stores — a staff
-member's stores being their store row plus any store an exception adds. The same holds for
-anything else that changes a staff member's access: editing, deleting or refreshing a saved role
-they hold, or moving them when a role is deleted (amendment 11). A role page lists only the
+member's stores being their store row, which every action's own stores lie inside (amendment 59).
+The same holds for anything else that changes a staff member's access: editing or deleting a
+saved role they hold, or moving them when a role is deleted (amendment 11). A role page lists only the
 holders the reader could reassign.
 
 ### One role per staff member, stores per staff member
 
-A role holds only actions. The stores sit on the assignment: one store row for every action, and
-any action may have its own stores for that person (an exception). A **saved** role is shared —
+A role holds only actions. The stores sit on the assignment: one store row — Where It Reaches —
+for every action, and, when it holds two or more stores or every store, any action may be kept to
+some of them for that person (an exception). Nothing reaches beyond the row: `RoleAssignment`
+refuses an exception outside it (`ActionStoresBeyondReach`) and keeps none equal to it
+(amendment 59). A **saved** role is shared —
 editing it changes it for everyone who holds it, so only an author covering every holder may edit
 it. Editing a staff member's role from their page makes their **personal** role, edited in place
 from then on, and deleted when they move back to a saved role.
@@ -201,8 +204,11 @@ looking the id up, so someone without the right learns nothing about which ids e
 
 `RoleAuthorizer` denies by default. A staff member's permissions are built from four tables, so
 they are cached per staff member with Shared's `VersionedCache` (1 hour at most, as a safety net).
-Every change replaces the cached copy **inside its transaction**, and admins can also rebuild it by
-hand (`RefreshStaffPermissions`, `RefreshRolePermissions`). A warm check reads only the cache table.
+Every change replaces the cached copy **inside its transaction**; after a hand edit of the
+database, `php artisan cache:clear` empties it — the whole cache, rate limits included (amendment 59
+removed the Refresh buttons, proven in `ChangeStaffRoleTest`). An action's stores are clipped to the
+row as they are loaded, so even a hand edit cannot carry one beyond it. A warm check reads only the
+cache table.
 A cold load is **one SQL statement**, so a snapshot is one consistent moment even while a change
 commits. The cache holds plain arrays, because `config/cache.php` refuses to rebuild objects. Every
 migration or rollback replaces every staff member's cached copy, as Platform does for its caches.
@@ -374,7 +380,7 @@ comes with the screens, in the frontend foundation stage (amendment 12).
 
 ```
 password ─┬─ trusted browser ──────────────────────────────▶ signed in
-          ├─ SMS code (within 15 minutes) ── right code ───▶ signed in (+ trust this browser, 30 days)
+          ├─ SMS code (within 15 minutes) ── right code ───▶ signed in (+ trust this browser, 12 hours)
           └─ a Super Admin with no phone: new number ── its code verifies it ──▶ signed in
 ```
 
@@ -403,7 +409,7 @@ password ─┬─ trusted browser ───────────────
   code already sent. Only a Super Admin whose phone was reset chooses a number here; anyone else
   with no phone is refused until an admin gives them one.
 - **A trusted browser** holds a random token in `touchwood_admin_trust` (only its hash is stored),
-  for one staff member, 30 days. Signing out keeps it. It is forgotten when the account is disabled
+  for one staff member, 12 hours (a setting; it was 30 days until 2026-10-05). Signing out keeps it. It is forgotten when the account is disabled
   or revoked, the password is changed or reset, or the phone changes (by the person, an admin, or a
   Super Admin phone reset).
 - **Password reset** by an email link valid 30 minutes, at most 3 emails an hour per account; the
@@ -427,6 +433,33 @@ password ─┬─ trusted browser ───────────────
   the `DETAIL` and `CONTEXT` lines, and a value it could not read at the end of the error line.
 
 Every number here is a setting (`StaffSecuritySettings`), except the 15 minutes to enter the code.
+
+### The staff view: from the panel to the shop, as themselves
+
+**View Store** in the panel's header (spec §1.11, amendment 60) opens the shop of the store being
+worked in. It is built as **a pass, not a session**:
+
+- `OpenStaffViewHandler` (every staff member, `access.staff_view.open`) takes the store from the
+  panel's own answer for them, never from the request, and `LaravelStaffViews` writes a row in
+  `access.staff_views` and a random token in its own cookie, `tw_staff_view` - path `/` given
+  explicitly (an admin request's cookies default to `/admin`), HTTP-only, gone with the browser. The
+  row keeps the token's hash, a hash of the admin session's id, the store, the session version and
+  when that admin session signed in. Opening it is audited.
+- The shop reads the pass beside its own session, never inside it. While it holds,
+  `LaravelCustomerSessions::signedIn()` answers nobody, so the request stays a guest - no customer
+  page, no ordering - and a customer signed in to the shop in the same browser is untouched, back
+  when the view ends. `ShareStorefrontPage` shares `staffView` with their name.
+- **Off stores**: Access registers `StaffViewOffStores` with Platform's `OffStoreViewers`: a Super
+  Admin's pass sees every off store (the owner, 2026-10-06: only a Super Admin) - Platform opens them
+  to look only (GET, HEAD) and lists them marked Off; to any other staff member, a visitor, and any
+  form, they stay a 404.
+- **It ends** when its admin session ends - every shop page checks that session's row in
+  `access.admin_sessions` is still there, and `LaravelStaffSessions::end()` deletes that session's
+  passes at once - on sign out everywhere, at the next shop page once the staff member is disabled or their
+  session version changes, 12 hours after that admin sign-in, after 30 minutes without a shop page,
+  on **Leave Staff View** (`LeaveStaffViewHandler` at `/staff-view/leave`, a guest's action on this
+  browser's pass, at the top level because an off store's pages take no post), and
+  when that browser signs in as a customer.
 
 ### The storefront: a customer signing in
 
@@ -502,8 +535,13 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   Platform whether the store is on, and `AccessApi::address()` / `addresses()`, deleting and making
   one the default all answer as if it were not there; saving one in an off store is refused as an
   unknown store, and the address book lists on stores only (Platform's `stores()`). The staff
-  customer screen hides them too, and names no home store that is off — never its id (amendment
-  57). Turned back on, everything is as it was.
+  customer screen names an off home store and shows the addresses saved in an off store, each
+  marked Off (amendment 58(d), replacing 57's hiding) — the customer still cannot use them while
+  it is off. The panel's store switcher shows an off store to the staff who cover it, marked Off and
+  disabled with its reason, and only a Super Admin may work in it, to prepare it (58(a)); the staff
+  editor keeps an off store a person holds (58(b)); and a change to an off store's own data — its
+  address form — is refused unless a Super Admin makes it (58(f)). Turned back on, everything is as
+  it was.
 
 ### Deleting an account: locked now, anonymized in fourteen days
 

@@ -1,37 +1,45 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useForm } from '@inertiajs/react';
-import { Button, FieldMessage, Fieldset, Input, Select } from '@/components/geist';
+import { ActionButton } from '@/components/ActionButton';
+import { CountryCombobox } from '@/components/CountryCombobox';
+import { SelectField, TextareaField, TextField } from '@/components/Fields';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { FieldDescription, FieldError, FieldGroup, FieldLegend, FieldSet } from '@/components/ui/field';
+import { NativeSelectOption } from '@/components/ui/native-select';
+import { initials } from '@/lib/initials';
 import { useTranslator } from '@/lib/t';
 import { EmailBlock } from '@/pages/Access/Admin/Account/EmailBlock';
 import { PhoneBlock } from '@/pages/Access/Admin/Account/PhoneBlock';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
-| B1 - the account tab (frontend.md §3.2), in Geist (1.10).
+| B1 - the account tab (frontend.md §3.2), on shadcn's parts with Geist's rules (§1.11).
 |
 | The picture, the profile, the communication language, and beside them the two things that cannot
 | simply be typed over: the email, which travels by link, and the phone, which travels by code.
 |
 | The language here is the **communication** language - what emails and sign-in codes are written in
-| (Access amendment 16). It is labelled apart from the ع / EN toggle in the sidebar, which changes
-| only what this browser displays and is nobody else's business. Confusing the two is the whole
-| reason the spec asks for the label.
+| (Access amendment 16). It is labelled apart from the language button in the person menu, which
+| changes only what this browser displays and is nobody else's business.
 |
-| The profile is one Geist Fieldset that is itself the form: its fields, and in its footer the one
-| button that saves them.
+| The profile is one Card that is itself the form: its fields, and in its footer the one button that
+| saves them. The picture is shadcn's Avatar - the image, or the person's initials when there is
+| none or it fails to load - and choosing one is our own "Choose Picture" button over a hidden file
+| input (owner, 2026-10-03), so its words are the page's language, not the browser's. The country is
+| a combobox, since the list is the whole world (Geist's Select is for short lists); the address a
+| Textarea, since an address wraps (Geist's Input: switch to a Textarea once content can wrap).
 */
 
 type Props = {
     account: AccountPage;
 };
 
-/** The file chooser's label, drawn as Geist's small secondary button, with the ring the hidden input would have. */
-const CHOOSER =
-    'inline-flex h-8 w-fit cursor-pointer items-center rounded-[var(--tw-radius)] bg-surface px-2 text-button-14 text-ink shadow-[0_0_0_1px_var(--tw-line-strong)] transition-colors hover:bg-surface-sunken has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand';
-
 export function ProfileTab({ account }: Props) {
     const t = useTranslator();
     const [chosen, setChosen] = useState<string | null>(null);
+    const picker = useRef<HTMLInputElement>(null);
 
     const form = useForm<{
         first_name: string;
@@ -55,186 +63,190 @@ export function ProfileTab({ account }: Props) {
         remove_avatar: false,
     });
 
+    const name = `${account.firstName} ${account.lastName}`.trim();
+    const showImage = account.avatarUrl !== null && !form.data.remove_avatar;
+    const status = form.data.remove_avatar
+        ? t('access::account.picture_removed')
+        : chosen !== null
+          ? t('access::account.picture_chosen', { name: chosen })
+          : account.avatarUrl === null
+            ? t('access::account.no_picture')
+            : '';
+
     return (
         <div className="grid gap-6">
-            <Fieldset
-                as="form"
-                onSubmit={(event) => {
-                    event.preventDefault();
-                    form.post('/admin/account/profile', { preserveScroll: true });
-                }}
-                title={t('access::account.profile_title')}
-                footerAction={
-                    <Button typeName="submit" loading={form.processing} data-test="save-profile">
-                        {t('access::account.save')}
-                    </Button>
-                }
-            >
-                {/* The picture. What is stored is never sent back from here: the form says
-                    "a new one", "none" or nothing at all, and the server keeps the rest. A media id
-                    coming back from a browser would let anybody wear any public image we hold. */}
-                <div className="grid gap-2">
-                    <p className="text-label-14 font-medium text-ink">{t('access::account.picture')}</p>
-                    <p className="text-copy-13 text-ink-muted">{t('access::account.picture_hint')}</p>
+            <Card className="material-base gap-0 border-0 py-0">
+                <form
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        form.post('/admin/account/profile', { preserveScroll: true });
+                    }}
+                >
+                    <CardHeader className="px-6 pt-5 pb-4">
+                        <CardTitle className="text-heading-20 text-ink">
+                            <h2>{t('access::account.profile_title')}</h2>
+                        </CardTitle>
+                    </CardHeader>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-4">
-                        {account.avatarUrl === null || form.data.remove_avatar ? (
-                            <span className="grid size-16 place-items-center rounded-pill bg-surface-sunken text-heading-20 text-ink-muted">
-                                {account.firstName.slice(0, 1)}
-                            </span>
-                        ) : (
-                            <img
-                                src={account.avatarUrl}
-                                alt=""
-                                className="size-16 rounded-pill object-cover"
-                            />
-                        )}
+                    <CardContent className="grid gap-6 px-6 pb-5">
+                        {/* The picture. What is stored is never sent back from here: the form says
+                            "a new one", "none" or nothing at all, and the server keeps the rest. A
+                            media id coming back from a browser would let anybody wear any public
+                            image we hold. */}
+                        <FieldSet className="gap-2" aria-describedby="avatar-hint avatar-status">
+                            <FieldLegend variant="label" className="text-label-14 text-ink">
+                                {t('access::account.picture')}
+                            </FieldLegend>
+                            <FieldDescription id="avatar-hint">{t('access::account.picture_hint')}</FieldDescription>
 
-                        <div className="grid gap-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <label className={CHOOSER}>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="sr-only"
-                                        aria-describedby={form.errors.avatar ? 'avatar-error' : undefined}
-                                        onChange={(event) => {
-                                            const file = event.target.files?.[0] ?? null;
-                                            form.setData((was) => ({
-                                                ...was,
-                                                avatar: file,
-                                                remove_avatar: false,
-                                            }));
-                                            setChosen(file === null ? null : file.name);
-                                        }}
-                                    />
-                                    {t(
-                                        account.avatarUrl === null
-                                            ? 'access::account.choose_picture'
-                                            : 'access::account.replace_picture',
-                                    )}
-                                </label>
+                            <div className="mt-1 flex flex-wrap items-center gap-4">
+                                <Avatar className="size-16" title={name}>
+                                    {showImage ? <AvatarImage src={account.avatarUrl ?? undefined} alt="" /> : null}
+                                    <AvatarFallback className="bg-surface-sunken text-heading-20 text-ink-muted">{initials(name)}</AvatarFallback>
+                                </Avatar>
 
-                                {account.avatarUrl !== null && !form.data.remove_avatar ? (
-                                    <Button
-                                        type="secondary"
-                                        size="small"
-                                        onClick={() => {
-                                            form.setData((was) => ({
-                                                ...was,
-                                                avatar: null,
-                                                remove_avatar: true,
-                                            }));
-                                            setChosen(null);
-                                        }}
-                                    >
-                                        {t('access::account.remove_picture')}
-                                    </Button>
-                                ) : null}
+                                <div className="grid gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {/* Out of the tab order and hidden from a screen reader: the
+                                            button below is the control, in the page's words. */}
+                                        <input
+                                            ref={picker}
+                                            id="avatar"
+                                            type="file"
+                                            accept="image/*"
+                                            tabIndex={-1}
+                                            aria-hidden="true"
+                                            className="sr-only"
+                                            onChange={(event) => {
+                                                const file = event.target.files?.[0] ?? null;
+                                                form.setData((was) => ({ ...was, avatar: file, remove_avatar: false }));
+                                                setChosen(file === null ? null : file.name);
+                                            }}
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            aria-describedby={form.errors.avatar ? 'avatar-error' : undefined}
+                                            onClick={() => picker.current?.click()}
+                                            data-test="choose-picture"
+                                        >
+                                            {t(account.avatarUrl === null ? 'access::account.choose_picture' : 'access::account.replace_picture')}
+                                        </Button>
+
+                                        {showImage ? (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                    form.setData((was) => ({ ...was, avatar: null, remove_avatar: true }));
+                                                    setChosen(null);
+
+                                                    if (picker.current !== null) {
+                                                        picker.current.value = '';
+                                                    }
+                                                }}
+                                            >
+                                                {t('access::account.remove_picture')}
+                                            </Button>
+                                        ) : null}
+                                    </div>
+
+                                    <p id="avatar-status" role="status" className="text-copy-13 text-ink-muted">
+                                        {status}
+                                    </p>
+                                </div>
                             </div>
 
-                            <p className="text-copy-13 text-ink-muted">
-                                {form.data.remove_avatar
-                                    ? t('access::account.picture_removed')
-                                    : chosen !== null
-                                      ? t('access::account.picture_chosen', { name: chosen })
-                                      : account.avatarUrl === null
-                                        ? t('access::account.no_picture')
-                                        : ''}
-                            </p>
-                        </div>
-                    </div>
+                            {form.errors.avatar ? <FieldError id="avatar-error">{form.errors.avatar}</FieldError> : null}
+                        </FieldSet>
 
-                    <FieldMessage id="avatar" error={form.errors.avatar} />
-                </div>
+                        <FieldGroup className="grid gap-5 sm:grid-cols-2">
+                            <TextField
+                                id="first_name"
+                                name="first_name"
+                                label={t('access::account.first_name')}
+                                error={form.errors.first_name}
+                                required
+                                value={form.data.first_name}
+                                onChange={(event) => form.setData('first_name', event.target.value)}
+                            />
+                            <TextField
+                                id="last_name"
+                                name="last_name"
+                                label={t('access::account.last_name')}
+                                error={form.errors.last_name}
+                                required
+                                value={form.data.last_name}
+                                onChange={(event) => form.setData('last_name', event.target.value)}
+                            />
+                            <TextField
+                                id="job_title"
+                                name="job_title"
+                                label={t('access::account.job_title')}
+                                error={form.errors.job_title}
+                                required
+                                value={form.data.job_title}
+                                onChange={(event) => form.setData('job_title', event.target.value)}
+                            />
+                            {/* A date input speaks the browser's own language and always hands back
+                                YYYY-MM-DD, which is what Access asks for - so nothing here parses a
+                                date, and an Arabic reader still gets an Arabic calendar. */}
+                            <TextField
+                                id="date_of_birth"
+                                name="date_of_birth"
+                                type="date"
+                                label={t('access::account.date_of_birth')}
+                                error={form.errors.date_of_birth}
+                                required
+                                dir="ltr"
+                                value={form.data.date_of_birth}
+                                onChange={(event) => form.setData('date_of_birth', event.target.value)}
+                            />
+                            <CountryCombobox
+                                id="country"
+                                label={t('access::account.country')}
+                                countries={account.countries}
+                                value={form.data.country}
+                                onChange={(code) => form.setData('country', code)}
+                                error={form.errors.country}
+                                words={{ search: t('access::account.country_search'), none: (query) => t('access::account.country_none', { query }) }}
+                            />
+                            <SelectField
+                                id="locale"
+                                name="locale"
+                                label={t('access::account.communication_language')}
+                                helper={t('access::account.communication_language_hint')}
+                                error={form.errors.locale}
+                                required
+                                value={form.data.locale}
+                                onChange={(event) => form.setData('locale', event.target.value)}
+                            >
+                                <NativeSelectOption value="ar">{t('access::account.language.ar')}</NativeSelectOption>
+                                <NativeSelectOption value="en">{t('access::account.language.en')}</NativeSelectOption>
+                            </SelectField>
+                        </FieldGroup>
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                    <Input
-                        id="first_name"
-                        name="first_name"
-                        label={t('access::account.first_name')}
-                        error={form.errors.first_name}
-                        required
-                        value={form.data.first_name}
-                        onChange={(event) => form.setData('first_name', event.target.value)}
-                    />
+                        <TextareaField
+                            id="address"
+                            name="address"
+                            label={t('access::account.address')}
+                            helper={t('access::account.address_hint')}
+                            error={form.errors.address}
+                            rows={3}
+                            value={form.data.address}
+                            onChange={(event) => form.setData('address', event.target.value)}
+                        />
+                    </CardContent>
 
-                    <Input
-                        id="last_name"
-                        name="last_name"
-                        label={t('access::account.last_name')}
-                        error={form.errors.last_name}
-                        required
-                        value={form.data.last_name}
-                        onChange={(event) => form.setData('last_name', event.target.value)}
-                    />
-
-                    <Input
-                        id="job_title"
-                        name="job_title"
-                        label={t('access::account.job_title')}
-                        error={form.errors.job_title}
-                        required
-                        value={form.data.job_title}
-                        onChange={(event) => form.setData('job_title', event.target.value)}
-                    />
-
-                    {/* A date input speaks the browser's own language and always hands back
-                        YYYY-MM-DD, which is what Access asks for - so nothing here parses a
-                        date, and an Arabic reader still gets an Arabic calendar. */}
-                    <Input
-                        id="date_of_birth"
-                        name="date_of_birth"
-                        type="date"
-                        label={t('access::account.date_of_birth')}
-                        error={form.errors.date_of_birth}
-                        required
-                        dir="ltr"
-                        value={form.data.date_of_birth}
-                        onChange={(event) => form.setData('date_of_birth', event.target.value)}
-                    />
-
-                    <Select
-                        id="country"
-                        name="country"
-                        label={t('access::account.country')}
-                        error={form.errors.country}
-                        required
-                        value={form.data.country}
-                        onChange={(event) => form.setData('country', event.target.value)}
-                    >
-                        {account.countries.map((country) => (
-                            <option key={country.code} value={country.code}>
-                                {country.name}
-                            </option>
-                        ))}
-                    </Select>
-
-                    <Select
-                        id="locale"
-                        name="locale"
-                        label={t('access::account.communication_language')}
-                        helper={t('access::account.communication_language_hint')}
-                        error={form.errors.locale}
-                        required
-                        value={form.data.locale}
-                        onChange={(event) => form.setData('locale', event.target.value)}
-                    >
-                        <option value="ar">{t('access::account.language.ar')}</option>
-                        <option value="en">{t('access::account.language.en')}</option>
-                    </Select>
-                </div>
-
-                <Input
-                    id="address"
-                    name="address"
-                    label={t('access::account.address')}
-                    helper={t('access::account.address_hint')}
-                    error={form.errors.address}
-                    value={form.data.address}
-                    onChange={(event) => form.setData('address', event.target.value)}
-                />
-            </Fieldset>
+                    <CardFooter className="justify-end border-t border-line bg-surface-sunken px-6 py-4 [.border-t]:pt-4">
+                        <ActionButton type="submit" loading={form.processing} data-test="save-profile">
+                            {t('access::account.save')}
+                        </ActionButton>
+                    </CardFooter>
+                </form>
+            </Card>
 
             <EmailBlock account={account} />
             <PhoneBlock account={account} />

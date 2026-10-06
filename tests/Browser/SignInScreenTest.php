@@ -113,6 +113,11 @@ it('will not send a new password while the two boxes differ', function () {
 
     $page->type('#password', 'a long enough password')
         ->type('#password_repeat', 'a long enough passwerd')
+        // Out of reach at once, and said once the box is left (Geist: validate on blur, not on
+        // every keystroke - the shadcn rebuild).
+        ->assertDisabled('[data-test="save-password"]')
+        ->assertDontSee((string) __('access::auth.passwords_differ', [], 'ar'))
+        ->click('#password')
         ->assertSee((string) __('access::auth.passwords_differ', [], 'ar'))
         ->assertDisabled('[data-test="save-password"]');
 
@@ -120,5 +125,20 @@ it('will not send a new password while the two boxes differ', function () {
         ->type('#password_repeat', 'a long enough password')
         ->assertDontSee((string) __('access::auth.passwords_differ', [], 'ar'))
         ->assertEnabled('[data-test="save-password"]')
+        ->assertNoJavaScriptErrors();
+});
+
+it('says why nothing was sent when Enter is pressed while the two boxes differ', function () {
+    // Enter sends a form by pressing its submit button, and that button refuses a press while the
+    // two differ - so no submit ever happens, and without the form's own Enter the message would
+    // never show (the batch B review).
+    $page = visit('/admin/password/reset/a-token-this-page-never-reads');
+
+    $page->type('#password', 'a long enough password')
+        ->type('#password_repeat', 'a long enough passwerd')
+        ->assertDontSee((string) __('access::auth.passwords_differ', [], 'ar'))
+        ->keys('#password_repeat', 'Enter')
+        ->assertSee((string) __('access::auth.passwords_differ', [], 'ar'))
+        ->assertPathIs('/admin/password/reset/a-token-this-page-never-reads')
         ->assertNoJavaScriptErrors();
 });

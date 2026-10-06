@@ -45,7 +45,12 @@ final readonly class UpdateStoreAddressFormatHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
         $storeId = $store->value;
 
-        if ($this->platform->store($store) === null) {
+        // An off store is worked in by a Super Admin alone, preparing it before it opens; to anyone
+        // else it answers as a store that does not exist, a request sent straight to the server
+        // included (access.md amendment 58(f); owner, 2026-10-03).
+        $found = $this->platform->store($store);
+
+        if ($found === null || (! $found->isActive && ! $this->authorizer->isUnlimited())) {
             throw new InvalidAccessAttribute('store', 'unknown');
         }
 

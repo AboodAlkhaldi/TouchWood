@@ -293,6 +293,8 @@ describe('bringing in', function () {
             ->and($state->archive)->not->toBeNull()
             ->and(DB::table('catalog.products')->count())->toBe($products)
             ->and(DB::table('platform.media')->count())->toBe($media)
+            // The photo added to the media library before the refusal leaves no file behind either.
+            ->and(Storage::disk('public')->allFiles())->toBe([])
             ->and(DB::table('catalog.import_products')->where('import_id', $import)->pluck('state')->unique()->all())->toBe(['WAITING'])
             ->and(Fx::audits('catalog.import.failed', $import))->toBe(1);
     });

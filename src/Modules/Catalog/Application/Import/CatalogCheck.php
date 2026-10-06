@@ -79,31 +79,51 @@ final class CatalogCheck
     }
 
     /**
+     * Which catalog product each product of the file would update or replace — and the products left
+     * out, the rest of the file coming in (owner, 2026-10-06, amendment 11(a)): one whose codes two
+     * catalog products hold, and two or more whose codes one catalog product holds — the file gives a
+     * product once, with all its variants.
+     *
      * @param  array<string, string>  $holders  code => the catalog's product holding it
-     * @return array<int, string> product number => the catalog's product already holding its codes
+     * @return array{array<int, string>, array<int, string>} product number => the catalog's product holding its codes; product number => why it is left out
      */
-    public static function conflicts(ProductsFile $file, array $holders, FileProblems $problems): array
+    public static function conflicts(ProductsFile $file, array $holders): array
     {
-        $conflicts = [];
+        $held = [];
+        $touching = [];
 
         foreach ($file->products as $product) {
-            $held = [];
-
             foreach ($product->codes() as $code) {
                 if (isset($holders[$code])) {
-                    $held[$holders[$code]][] = $code;
+                    $held[$product->number][$holders[$code]][] = $code;
                 }
             }
 
-            if (count($held) > 1) {
-                $groups = array_map(static fn (array $codes): string => implode(', ', $codes), array_values($held));
-                $problems->add("product {$product->number} › variants", 'codes of one catalog product at most, to update or replace it: '.implode(' and ', $groups).' belong to '.count($held).' different products');
-            } elseif ($held !== []) {
-                $conflicts[$product->number] = (string) array_key_first($held);
+            foreach (array_keys($held[$product->number] ?? []) as $catalogId) {
+                $touching[(string) $catalogId][] = $product->number;
             }
         }
 
-        return $conflicts;
+        $conflicts = [];
+        $refused = [];
+
+        foreach ($held as $number => $groups) {
+            $others = [];
+
+            foreach (array_keys($groups) as $catalogId) {
+                array_push($others, ...array_diff($touching[(string) $catalogId], [$number]));
+            }
+
+            if (count($groups) > 1) {
+                $refused[$number] = 'its codes '.implode(' and ', array_map(static fn (array $codes): string => implode(', ', $codes), array_values($groups))).' belong to '.count($groups).' different products already in the catalog: a product of the file updates or replaces one only';
+            } elseif ($others !== []) {
+                $refused[$number] = 'its codes and those of product '.implode(', ', array_unique($others)).' belong to one product already in the catalog: the file gives it once, with all its variants';
+            } else {
+                $conflicts[$number] = (string) array_key_first($groups);
+            }
+        }
+
+        return [$conflicts, $refused];
     }
 
     private function product(FileProduct $product): void

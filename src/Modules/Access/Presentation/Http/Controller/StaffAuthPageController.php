@@ -160,14 +160,14 @@ final readonly class StaffAuthPageController
 
     /**
      * The code screen, built the same way wherever it appears: how many boxes, how long until
-     * another code and how many days a browser is trusted all come from settings.
+     * another code and how many hours a browser is trusted all come from settings.
      */
     private function codePage(?string $maskedPhone, string $action, string $resendAction): SignInCodePage
     {
         return new SignInCodePage(
             $maskedPhone,
             $this->settings->codeLength(),
-            $this->settings->trustedBrowserDays(),
+            $this->settings->trustedBrowserHours(),
             $this->settings->codeResendSeconds(),
             $action,
             $resendAction,

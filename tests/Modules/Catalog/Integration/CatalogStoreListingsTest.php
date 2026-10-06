@@ -63,6 +63,7 @@ use Modules\Catalog\Domain\Exception\TooMany;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
+use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
@@ -70,6 +71,7 @@ use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -367,7 +369,10 @@ describe('archiving', function () {
 
         expect(DB::table('catalog.store_variants')->where('is_active', true)->count())->toBe(0)
             ->and(DB::table('catalog.store_variants')->count())->toBe(4)
-            ->and(Fx::audits('catalog.listing.chosen', $ready['product']))->toBe(4);
+            ->and(Fx::audits('catalog.listing.chosen', $ready['product']))->toBe(4)
+            // Each in its own store.
+            ->and(DB::table('platform.audit_entries')->where('action', 'catalog.listing.chosen')->where('subject_id', $ready['product'])->pluck('store_id')->countBy()->sortKeys()->all())
+            ->toEqual(collect([Fx::storeId('eg') => 2, Fx::storeId('sa') => 2])->sortKeys()->all());
     });
 
     it('switches an archived variant off in every store, the others kept on', function () {
@@ -557,5 +562,42 @@ describe('what step 4\'s review found', function () {
         app(DeleteMediaHandler::class)->handle(new DeleteMedia($photo));
 
         expect(array_values(array_unique(array_column((array) $locks, 'key'))))->toBe(['catalog:products', 'catalog:brands']);
+    });
+});
+
+describe('each listing change\'s own job (review of step 7)', function () {
+    it('needs its own job in that store: no other job, nor the job in another store, will do', function (string $permission, Closure $change) {
+        $ready = Px::ready();
+        $label = catalogListingLabel('Offer');
+        catalogListingChoose('sa', $ready['product']);
+        $all = [CatalogPermissions::LISTING_CHOOSE, CatalogPermissions::LISTING_SELLING, CatalogPermissions::LISTING_UNAVAILABLE, CatalogPermissions::LISTING_LABELS];
+
+        Cx::actAsStaffWith(array_values(array_diff($all, [$permission])));
+        expect(fn () => $change($ready, $label))->toThrow(Unauthorized::class);
+
+        Cx::actAsStaffWith([$permission], ['eg']);
+        expect(fn () => $change($ready, $label))->toThrow(Unauthorized::class);
+
+        Cx::actAsStaffWith([$permission], ['sa']);
+        $change($ready, $label);
+    })->with([
+        'labels' => [CatalogPermissions::LISTING_LABELS, fn (array $ready, string $label) => app(AttachLabelsHandler::class)->handle(new AttachLabels(Fx::storeId('sa'), $ready['product'], [$label]))],
+        'selling terms' => [CatalogPermissions::LISTING_SELLING, fn (array $ready) => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $ready['product'], [$ready['variants'][0] => ['retail' => true, 'wholesale' => false]]))],
+        '"Not available now"' => [CatalogPermissions::LISTING_UNAVAILABLE, fn (array $ready) => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $ready['product']))],
+        'clearing "Not available now"' => [CatalogPermissions::LISTING_UNAVAILABLE, fn (array $ready) => app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow(Fx::storeId('sa'), $ready['product']))],
+    ]);
+});
+
+describe('"Not available now" on a whole product (§8 #7)', function () {
+    it('hides a variant added and chosen later too', function () {
+        $ready = Px::ready(['60 cm']);
+        catalogListingChoose('sa', $ready['product']);
+        app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $ready['product']));
+        $later = Fx::asSystem(fn (): string => app(AddVariantHandler::class)->handle(new AddVariant($ready['product'], '7272', [$ready['width'] => Px::value($ready['width'], '80 cm')])));
+
+        catalogListingChoose('sa', $ready['product'], true, [...$ready['variants'], $later]);
+        $variant = app(CatalogApi::class)->storeVariant(StoreId::fromString(Fx::storeId('sa')), $later);
+
+        expect([$variant?->isActive, $variant?->orderable, $variant?->notAvailableNow])->toBe([true, false, true]);
     });
 });

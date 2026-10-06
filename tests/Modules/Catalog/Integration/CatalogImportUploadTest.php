@@ -264,18 +264,32 @@ describe('what refuses the file', function () {
         expect($problems)->toBe([['at' => 'product 3 › attribute_set', 'problem' => 'the same attributes in every product for the new set Sizes: product 1 gives it others']]);
     });
 
-    it('refuses a product whose codes two of the catalog\'s products hold', function () {
+    it('leaves out the products whose codes mix catalog products, saying why, and takes the rest (11(a))', function () {
         $first = Px::ready();
         $second = Px::ready();
-        $code = fn (array $ready): string => (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
+        $sizes = Px::ready(['60 cm', '80 cm']);
+        $code = fn (string $variantId): string => (string) DB::table('catalog.variants')->where('id', $variantId)->value('code');
+        [$sixty, $eighty] = [$code($sizes['variants'][0]), $code($sizes['variants'][1])];
 
-        $problems = catalogUploadProblems(Ix::temp(Ix::json([
-            Ix::product('1', ['attribute_set' => 'Sizes', 'variants' => [['code' => $code($first), 'values' => ['Width' => '1']], ['code' => $code($second), 'values' => ['Width' => '2']]]]),
-        ])));
+        $import = Ix::uploadProducts([
+            // Two catalog products' codes in one product of the file.
+            Ix::product('1', ['brand' => 'Hettichh', 'attribute_set' => 'Sizes', 'variants' => [['code' => $code($first['variants'][0]), 'values' => ['Width' => '1']], ['code' => $code($second['variants'][0]), 'values' => ['Width' => '2']]]]),
+            // One catalog product's codes in two products of the file.
+            Ix::product($sixty, ['brand' => 'Hettichh']),
+            Ix::product($eighty, ['brand' => 'Hettichh']),
+            Ix::product('9100', ['brand' => 'Blumm']),
+        ]);
 
-        expect($problems)->toHaveCount(1)
-            ->and($problems[0]['at'])->toBe('product 1 › variants')
-            ->and($problems[0]['problem'])->toContain($code($first).' and '.$code($second).' belong to 2 different products');
+        $rows = DB::table('catalog.import_products')->where('import_id', $import)->orderBy('number')->get(['state', 'refusal', 'conflict_product_id']);
+        $why = array_map('strval', $rows->pluck('refusal')->all());
+        expect($rows->pluck('state')->all())->toBe(['REFUSED', 'REFUSED', 'REFUSED', 'WAITING'])
+            ->and($why[0])->toContain($code($first['variants'][0]).' and '.$code($second['variants'][0]).' belong to 2 different products already in the catalog')
+            ->and($why[1])->toBe('its codes and those of product 3 belong to one product already in the catalog: the file gives it once, with all its variants')
+            ->and($why[2])->toContain('those of product 2')
+            ->and($rows->pluck('conflict_product_id')->filter()->all())->toBe([])
+            // Taking no part: no names are asked for them.
+            ->and(Ix::names($import))->toBe(['BRAND' => ['Blumm']])
+            ->and(json_decode((string) DB::table('platform.audit_entries')->where('action', 'catalog.import.added')->where('subject_id', $import)->value('changes'), true)['left_out'] ?? null)->toBe([null, 3]);
     });
 
     it('lists every problem at once, and keeps nothing', function () {

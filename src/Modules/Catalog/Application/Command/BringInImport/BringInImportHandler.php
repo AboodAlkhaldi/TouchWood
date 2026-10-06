@@ -13,6 +13,7 @@ use Modules\Catalog\Application\Import\CatalogNames;
 use Modules\Catalog\Application\Import\FileProblems;
 use Modules\Catalog\Application\Import\FileProduct;
 use Modules\Catalog\Application\Import\ImportAddresses;
+use Modules\Catalog\Application\Import\ImportCodeChanges;
 use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\ImportName;
 use Modules\Catalog\Application\Import\ImportNameRow;
@@ -67,6 +68,7 @@ final readonly class BringInImportHandler
         private AttributeRepository $attributes,
         private WarrantyRepository $warranties,
         private StoreListingRepository $listings,
+        private ImportCodeChanges $codeChanges,
         private ConnectionInterface $db,
     ) {}
 
@@ -79,7 +81,7 @@ final readonly class BringInImportHandler
 
         // What is asked again is kept whether or not anything still waits, so the page shows what to
         // decide; the refusal comes after it is saved.
-        [$names, $codes, $addresses, $sales] = $this->db->transaction(function () use ($command): array {
+        [$names, $codes, $addresses, $sales, $codeChanges] = $this->db->transaction(function () use ($command): array {
             $import = $this->imports->lock($command->importId);
 
             if ($import === null || $import->kind !== ImportHeader::PRODUCTS) {
@@ -92,27 +94,29 @@ final readonly class BringInImportHandler
 
             $checked = $this->askAgain($import);
             $names = count(array_filter($this->imports->names($import->id), static fn (ImportName $name): bool => $name->decision === null));
-            $rows = $this->imports->products($import->id);
+            $rows = ImportProduct::takingPart($this->imports->products($import->id));
             $codes = count(array_filter($rows, static fn (ImportProduct $row): bool => $row->conflictProductId !== null && $row->decision === null));
             $addresses = count($this->addresses->taken($rows)) + count($this->takenCategoryAddresses($this->imports->names($import->id)));
             $sales = count(array_filter($rows, fn (ImportProduct $row): bool => $this->needsSale($row)));
+            // A product not a draft keeps its codes (amendment 11(b)): skipped, or the file corrected.
+            $codeChanges = count($this->codeChanges->of($import->id, $rows));
 
             if ($checked !== null) {
                 $this->platform->recordAudit($checked);
             }
 
-            if ($names === 0 && $codes === 0 && $addresses === 0 && $sales === 0) {
+            if ($names === 0 && $codes === 0 && $addresses === 0 && $sales === 0 && $codeChanges === 0) {
                 $this->imports->start($import->id);
                 $this->queue->bringIn($import->id);
                 $now = ['state' => ImportHeader::BRINGING_IN, 'products' => count($rows)];
                 $this->platform->recordAudit(ListAudit::changed('import', 'bringing_in', $import->id, ['state' => $import->state, 'products' => null], $now) ?? throw new LogicException('No change to record.'));
             }
 
-            return [$names, $codes, $addresses, $sales];
+            return [$names, $codes, $addresses, $sales, $codeChanges];
         }, 3);
 
-        if ($names > 0 || $codes > 0 || $addresses > 0 || $sales > 0) {
-            throw new ImportUndecided($names, $codes, $addresses, $sales);
+        if ($names > 0 || $codes > 0 || $addresses > 0 || $sales > 0 || $codeChanges > 0) {
+            throw new ImportUndecided($names, $codes, $addresses, $sales, $codeChanges);
         }
     }
 
@@ -123,7 +127,7 @@ final readonly class BringInImportHandler
      */
     private function askAgain(ImportHeader $import): ?AuditEntryDto
     {
-        $rows = $this->imports->products($import->id);
+        $rows = ImportProduct::takingPart($this->imports->products($import->id));
         [$added, $removed] = $this->imports->replaceNames($import->id, CatalogCheck::names(
             array_map(static fn (ImportProduct $row): FileProduct => $row->effective(), $rows),
             CatalogNames::load($this->brands, $this->categories, $this->attributes, $this->warranties),
@@ -131,7 +135,7 @@ final readonly class BringInImportHandler
         ));
         $held = $this->holders($rows);
         $reopened = $this->imports->recordConflicts(array_map(static fn (array $ids): ?string => $ids[0] ?? null, $held));
-        $stale = $this->staleCodes($this->imports->products($import->id), $held);
+        $stale = $this->staleCodes(ImportProduct::takingPart($this->imports->products($import->id)), $held);
         $this->imports->undecideCodes($stale);
         $now = ['names_added' => $added, 'names_gone' => $removed, 'codes_reopened' => $reopened + count($stale)];
 

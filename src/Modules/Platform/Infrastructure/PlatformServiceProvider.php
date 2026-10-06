@@ -21,6 +21,7 @@ use Modules\Platform\Application\Audit\UnnamedStaff;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\FailedJobs\FailedJobs;
 use Modules\Platform\Application\FailedJobs\FailedJobsCount;
+use Modules\Platform\Application\Home\InMemoryHomeCards;
 use Modules\Platform\Application\Media\ImageVariantGenerator;
 use Modules\Platform\Application\Media\InMemoryMediaUsages;
 use Modules\Platform\Application\Media\MediaInspector;
@@ -32,6 +33,7 @@ use Modules\Platform\Application\PlatformApiImpl;
 use Modules\Platform\Application\Query\ListAudit\AuditReader;
 use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Application\Query\StoreDirectory;
+use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
@@ -59,17 +61,21 @@ use Modules\Platform\Infrastructure\Queue\RequeueStuckMediaVariantsJob;
 use Modules\Platform\Presentation\Console\CreateCurrencyCommand;
 use Modules\Platform\Presentation\Console\CreateStoreCommand;
 use Modules\Platform\Presentation\Console\RequeueStuckMediaVariantsCommand;
+use Modules\Platform\Presentation\Home\StoresAndSystemCard;
 use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
 use Modules\Platform\Presentation\Http\Middleware\ShareStorefront;
 use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
 use Modules\Platform\Presentation\Http\StorefrontLanguage;
 use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\OffStoreViewers;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
 use Modules\Platform\Public\Contracts\StaffNames;
+use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\PlatformPermissions;
 use Psr\Log\LoggerInterface;
@@ -122,10 +128,18 @@ final class PlatformServiceProvider extends ServiceProvider
         $this->app->singleton(InMemorySettingsSectionLines::class);
         $this->app->alias(InMemorySettingsSectionLines::class, SettingsSectionLines::class);
 
+        // Who may see an off store in the shop: nobody, unless a module says so (platform.md §2.7).
+        $this->app->singleton(InMemoryOffStoreViewers::class);
+        $this->app->alias(InMemoryOffStoreViewers::class, OffStoreViewers::class);
+
         // Modules register their admin menu entries here, Platform included: the menu is built from
         // what each person may do, and grows module by module (stage 2b, P6).
         $this->app->singleton(InMemoryAdminMenu::class);
         $this->app->alias(InMemoryAdminMenu::class, AdminMenu::class);
+
+        // The admin home's cards, registered by every module as menu entries are (platform.md §2.6).
+        $this->app->singleton(InMemoryHomeCards::class);
+        $this->app->alias(InMemoryHomeCards::class, HomeCards::class);
 
         // One pattern for {store} on every route, built from every module's reserved paths, so no
         // module imports Platform's interior to register storefront routes. Built after every
@@ -208,6 +222,15 @@ final class PlatformServiceProvider extends ServiceProvider
             new MenuEntryDto('platform', 'audit', 'audit', 'platform.admin.audit', PlatformPermissions::AUDIT_VIEW, 10, icon: 'audit'),
             // With the number waiting beside it, and on the admin home (owner, 2026-09-29).
             new MenuEntryDto('platform', 'failed_jobs', 'system', 'platform.admin.failed_jobs', PlatformPermissions::JOBS_MANAGE, 10, icon: 'failed_jobs', count: FailedJobsCount::class),
+        );
+
+        // Its card on the admin home (platform.md §9.8): each figure asks for its own permission.
+        // Failed jobs and media are store-free: they show the card, but never offer All Stores.
+        $this->app->make(HomeCards::class)->register(
+            new HomeCardDto('platform', 'system', PlatformPermissions::STORE_VIEW, StoresAndSystemCard::class, 20, storeFree: [
+                PlatformPermissions::JOBS_MANAGE,
+                ...StoresAndSystemCard::MEDIA,
+            ]),
         );
 
         // Images whose variant job was lost are queued again (owner's decision, 2026-09-16). Scheduled

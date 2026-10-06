@@ -68,6 +68,12 @@ Global, not store-scoped.
 
 `Money` never assumes an exponent (handoff §5.1); it is always read from this row.
 
+**One currency, one store** (owner, 2026-10-06): a currency is used by **at most one store** — a unique key on `platform.stores.currency_code` — so two stores never share one (§9.7 #4).
+
+**A currency no store uses — on or off — may be deleted** by a Super Admin; one any store uses
+never is (`CurrencyInUse`), since a store's currency never changes (§1.1). The currencies screen
+names the stores using each currency (§9.7, owner 2026-10-04).
+
 **[DECIDED] How a price shows its currency:** the `sign` when the currency has one; otherwise
 the `abbreviation` in the page's language. If a sign cannot be displayed — no Unicode character
 yet, or the site's font has no glyph for it — the `sign` is cleared on the currency row and every
@@ -237,13 +243,22 @@ Not an aggregate — a rule that holds for every request, job and command.
 - **[DECIDED 2026-10-01, owner] An off store is as if it were never there** for everyone outside
   the admin's history:
   - its storefront paths answer **404, exactly as an unknown code** — nothing says it exists;
-  - the country chooser and every store switcher, the shop's and the panel's, list **on** stores
-    only; a cookie naming an off store counts as no store;
+  - the country chooser and the shop's store switcher list **on** stores only; a cookie naming an
+    off store counts as no store;
   - staff screens about it disappear: it is not offered as a store to work in, and its settings are
     not shown. It remains **only in history** — orders, the audit log — where it is named as it was;
-  - **a Super Admin** still sees it, in the stores screen, to turn it back on;
+  - **[2026-10-03, owner] in the panel's store switcher**, a staff member who covers the off store
+    sees it **marked Off and disabled**, with the reason ("Egypt is switched off."), and cannot
+    choose it; staff who do not cover it never see it;
+  - **a Super Admin** still sees it, in the stores screen, to turn it back on, and **[2026-10-03,
+    owner] may work inside it to prepare it before it opens**: the panel's switcher offers it to
+    them, marked Off, and its settings, address format and B2B lists can be set (§9.6 #5);
   - work already under way in it continues: its open orders stay with staff to finish, and jobs
-    dispatched in it still run.
+    dispatched in it still run;
+  - **[2026-10-05, the staff view — access.md §1.11]** a staff member viewing the shop from the
+    panel - a Super Admin only (owner, 2026-10-06) - sees the off stores: their pages open to look only (a form sent there is still
+    a 404), and the shop's store switch lists them marked Off. Platform does not know who that is: it asks the **off-store viewers** other modules
+    register (§2.7), and with none saying yes, the store is a 404 as above (§9.9).
 - **[DECIDED 2026-09-18] The language is the second segment:** `brand.com/sa/ar/...` and
   `brand.com/sa/en/...`, so search engines see one address per language. The supported languages
   are `ar` and `en` (every name in the system has both); anything else is a 404. The page, its
@@ -393,6 +408,42 @@ cannot import Platform's interior. They count toward the ~20-class ceiling.
 Until Access exists, Platform's own code runs with a system actor from console commands, and
 tests bind fakes for `Authorizer` and `ActorContext`.
 
+### 2.6 `Modules\Platform\Public\Contracts\HomeCards` — the admin home's cards (§9.8)
+
+The admin home (frontend.md §2.2) is built the way the admin menu is: **every module registers its
+own cards** in its service provider, and Platform keeps the list because it sits below everything.
+A module built later adds its cards without the home changing.
+
+| Type | Purpose |
+|---|---|
+| `HomeCardDto` | `module`, `key` (its words at `{module}::home.{key}…`: `title`, each figure's label, the list's heading, and `open` — the words of the link to its whole screen), `permission` — per-store actions: one, or several any one of which is enough — `card` (the class of a `HomeCard`), `position`, and `storeFree` — store-free actions that show the card too, in either scope. A store-free action held at all is held "everywhere", so it never offers All Stores: listed with the per-store ones, it would offer it to an admin of one store (the review of P5). |
+| `HomeCard` (interface) | `data(HomeScope $scope): ?HomeCardData` — what the card shows for the scope, or nothing. Resolved only for a reader the card is offered to, and still asks the `Authorizer` itself, as a read across stores does (handoff §19): a card reading another module's data returns nothing for a scope wider than the reader's stores, and a figure that needs a permission of its own asks for it. A card whose links lead to a list links to it for the same stores, so the two agree. |
+| `HomeScope` | The stores the card speaks for: **one** — the store being worked in — or **all stores** (`stores(): ?list<StoreId>`, null for all). |
+| `HomeCardData` | `figures` (a label key, a number, a unit — `count` or `bytes` — and an optional link and tone), `rows` (a short list: a label already in words, an optional detail, moment and link), and an optional link to the card's whole screen. |
+| `HomeCards` (registry) | `register(HomeCardDto ...)`; `forCurrentActor(?string $storeWorkedIn, bool $allStores)`: the cards the reader may see, in order, each with its data — **This Store**: a permission held in the store being worked in; **All Stores**: held for every store; a Super Admin sees every card in either; a store-free action shows its card in either. `offersAllStores()`: whether the reader holds any card's per-store action for every store. |
+
+Platform never reaches into Access: who holds what is asked of the Shared `Authorizer`
+(`isUnlimited()`, `storesWith()`). What a card shows is not protection — every screen it links to
+still asserts its own permission.
+
+### 2.7 `Modules\Platform\Public\Contracts\OffStoreViewers` — who may see an off store in the shop (§9.9)
+
+An off store is a 404 in the shop (§1.6). The one exception — a staff member viewing the shop from
+the panel (access.md §1.11) — is Access's to recognise, and Platform sits below Access, so Access
+tells Platform through a registry, as it does for the audit log's names.
+
+| Type | Purpose |
+|---|---|
+| `OffStoreViewer` (interface) | `mayView(StoreId $store): bool` — whether the request now being answered may see this off store's shop. Asked only about an off store. |
+| `OffStoreViewers` (registry) | `register(string $module, string $viewer)` — a class implementing `OffStoreViewer`, one per module, resolved each time it is asked so it reads the request being answered. Platform's own side asks whether any registered viewer says yes; none registered: no. |
+
+`ResolveStore` asks it for an off store's code before answering 404 — **for a request that only
+reads** (GET, HEAD): a form sent into a closed store would write into it, so it stays a 404 for
+everyone (the review of P6); `ShareStorefront` asks it for
+each off store before leaving it out of the shop's store switch, and lists the ones it may show with
+`isActive: false`. Nothing else changes: `PlatformApi::storeByCode()` and `stores()` still answer as
+if an off store were not there, for every other caller.
+
 ---
 
 ## 3 · Use cases
@@ -400,16 +451,18 @@ tests bind fakes for `Authorizer` and `ActorContext`.
 Permissions follow `{module}.{resource}.{action}`. **Reserved** means Super Admin only: the
 permission exists so every handler asserts one, but it is never offered in the role editor.
 **[DECIDED 2026-09-18]** Creating a store, creating or changing a currency, and the variants job
-stay reserved: each reaches every store at once.
+stay reserved: each reaches every store at once. Deleting a currency no store uses joins them
+(§9.7).
 
 | Use case | Who | Permission | Store-checked |
 |---|---|---|---|
-| `CreateStore` — all attributes at once; created **off** (§1.1, 2026-10-01) | Super Admin | `platform.store.create` (reserved) | Global |
+| `CreateStore` — all attributes at once; created **off** (§1.1, 2026-10-01); its currency one no store uses (`CurrencyTaken`), or a new one made in the same transaction, which needs `platform.currency.create` too (§9.7 #3, #4) | Super Admin | `platform.store.create` (reserved) | Global |
 | `ActivateStore` / `DeactivateStore` — the on/off switch; the base store cannot be turned off (`BaseStoreAlwaysActive`); audited (owner, 2026-10-01) | Super Admin | `platform.store.switch` (reserved) | Global |
 | `UpdateStore` — name, tax rate, timezone, position | Staff | `platform.store.update` | That store |
 | `ListStores` / `ViewStore` (admin) | Staff | `platform.store.view` | Only stores in the actor's scope; an **off** store only to a Super Admin (§1.6) |
 | `CreateCurrency` | Super Admin | `platform.currency.create` (reserved) | Global |
 | `UpdateCurrency` — name, abbreviation, sign (including clearing it); exponent only while no store uses it | Super Admin | `platform.currency.update` (reserved) | Global |
+| `DeleteCurrency` — only while no store, on or off, uses it (`CurrencyInUse`); audited (§9.7) | Super Admin | `platform.currency.delete` (reserved) | Global |
 | `ViewSettings` | Staff | `platform.settings.view` | That store; ``GLOBAL` keys need all-stores access |
 | `UpdateSetting` | Staff | **The permission in the setting's definition**, e.g. `loyalty.settings.update`. Platform's own settings (the media upload limits) use `platform.settings.update` **[DECIDED 2026-09-18]** | That store; `GLOBAL` keys need all-stores access |
 | `UploadMedia` | Staff | `platform.media.upload` | Global (media belongs to no store) |
@@ -521,7 +574,7 @@ strings. IDs are ULIDs (`char(26)`) except where noted.
 | `code` | `varchar(8)` NOT NULL | UNIQUE; `CHECK (code ~ '^[a-z]{2,8}$')` |
 | `name` | `jsonb` NOT NULL | ar and en |
 | `country_code` | `char(2)` NOT NULL | `CHECK (country_code ~ '^[A-Z]{2}$')` |
-| `currency_code` | `char(3)` NOT NULL | FK → `platform.currencies(code)` ON DELETE RESTRICT |
+| `currency_code` | `char(3)` NOT NULL | FK → `platform.currencies(code)` ON DELETE RESTRICT; unique (`stores_one_per_currency`, 2026-10-06): one currency, one store (§9.7 #4) |
 | `tax_rate_basis_points` | `integer` NOT NULL | `CHECK (tax_rate_basis_points BETWEEN 0 AND 10000)` |
 | `timezone` | `varchar(64)` NOT NULL | |
 | `position` | `smallint` NOT NULL DEFAULT 0 | |
@@ -529,7 +582,7 @@ strings. IDs are ULIDs (`char(26)`) except where noted.
 | `is_base` | `boolean` NOT NULL DEFAULT false | 2026-10-02. Unique where true (`stores_one_base`); `CHECK (NOT is_base OR is_active)` (`stores_base_always_active`). The migration marks KSA (`sa`) as the base store, and the seed does the same — infrastructure may name a store; `Domain/` and `Application/` never do (handoff §2 rule 2) |
 | `created_at`, `updated_at` | `timestamptz` | |
 
-Indexes: unique `(code)`.
+Indexes: unique `(code)`; unique `(currency_code)` (`stores_one_per_currency`).
 
 ### 5.3 `platform.settings`
 
@@ -766,6 +819,8 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── CurrencyAlreadyExists                 CONFLICT  ¹
 ├── InvalidCurrencyAttribute              INVALID     code, exponent or sign format  ¹
 ├── CurrencyExponentLocked                CONFLICT
+├── CurrencyInUse                         CONFLICT    deleting a currency a store uses (§9.7)
+├── CurrencyTaken                         CONFLICT    opening a store with a currency another store uses (§9.7 #4)
 ├── UnknownSetting                        INVALID
 ├── InvalidSettingValue                   INVALID
 ├── SettingScopeMismatch                  INVALID
@@ -791,7 +846,7 @@ variant transition, an over-long file name or alt text, a malformed checksum); t
   "type": "platform.store_code_taken",
   "title": "رمز المتجر مستخدم",
   "status": 409,
-  "detail": "Another store already uses the code \"sa\".",
+  "detail": "Couldn't use the code \"sa\": another store already has it. Choose another code.",
   "correlation_id": "01J…"
 }
 ```
@@ -830,7 +885,9 @@ stack traces, SQL, or another customer's data.
 - Migrations create the `platform` schema, every table, check constraint and index above.
 - Audit triggers reject `UPDATE`, `DELETE` and `TRUNCATE` on `audit_entries`.
 - Settings uniqueness holds for both store rows and global (NULL store) rows.
-- A currency used by a store cannot be deleted.
+- A currency used by a store cannot be deleted — by `DeleteCurrency` (`CurrencyInUse`, a store on
+  or off), and by the database (`RESTRICT`); one no store uses is, by a Super Admin only, audited,
+  and gone from the directory at once (§9.7).
 - Deleting media another module uses: the module detaches it in the same transaction and the
   audit entry lists where it was used; a use that blocks refuses the delete with `MediaInUse`
   naming it, and nothing changes; a module refusing its own change cancels the whole delete; a
@@ -992,7 +1049,8 @@ in full in that module's specification.
 | B2B step 5 | B2B (whether bank transfer is on) | **A module's line in its settings section** (§1.3): one line at the top of the module's section of the settings page, answered by the module for the store shown — "Bank transfer: on", or "Bank transfer: temporarily off — fill in all three to turn it on". Shown only with the section. Nothing else about settings changes | `docs/modules/b2b.md` amendment 13(c) |
 | B2B step 6 | B2B (the same file in two sections) | **How the library keeps a file name, public** (§1.4): `Modules\Platform\Public\MediaFilename::kept()` answers a name as the media library would keep it — the name alone, without folders, control characters or invisible formatting characters, trimmed of spaces — so a module can compare a name it is given with the names of files it holds. The media model keeps names by the same function; nothing about what is kept changes | `docs/modules/b2b.md` amendment 17(d) |
 | During the B2B stage | Everyone who runs the shop (owner, 2026-09-29) | **Failed jobs** (§3): an admin screen for the queue's failed work — the list, one job's whole error, retry one, delete one — under one admin-only permission, `platform.jobs.manage`, in a new **System** area; a count in the menu and a notice on the admin home while any waits; nothing deleted on its own. The menu entry's count and the home's notice are small additions to the panel, built with it | This section, §3; `docs/modules/frontend.md` E7 |
-| 2026-10-02 | Access (Super Admins are invisible) | **[PROVISIONAL 2026-10-02 — owner to confirm]** **`StaffNames`**, a public contract Platform defines and Access binds: the audit log asks it how each staff id on a page — actor, requester, subject — is named to the reader. A Super Admin, to anyone but another Super Admin, is "System administrator", and the entry then shows no id, no IP address, and, for an entry about them, no changes; filtering the log by their id answers no entries. Until a module binds it, nobody is named (`UnnamedStaff`). The audit rows gain `actorName` (filled now), `requestedByName` and `subjectName` | `docs/modules/access.md` amendments 54 and 56 |
+| 2026-10-02 | Access (Super Admins are invisible) | **[Confirmed by the owner, 2026-10-03]** **`StaffNames`**, a public contract Platform defines and Access binds: the audit log asks it how each staff id on a page — actor, requester, subject — is named to the reader. A Super Admin, to anyone but another Super Admin, is "System administrator", and the entry then shows no id, no IP address, and, for an entry about them, no changes; filtering the log by their id answers no entries. Until a module binds it, nobody is named (`UnnamedStaff`). The audit rows gain `actorName` (filled now), `requestedByName` and `subjectName` | `docs/modules/access.md` amendments 54 and 56 |
+| 2026-10-03 | B2B (the type lists' menu entries), any module | **A menu entry offered for any of several permissions**: `MenuEntryDto` takes a list of permissions, and the entry is offered to whoever holds **any** of them in the store being worked in. A single permission works as before; none still means a "coming soon" entry, shown to Super Admins only. What is offered is still not protection: the handler behind the screen asserts its own permission | `docs/modules/b2b.md` amendment 23(a) |
 
 ### 9.5 The owner's new direction — 2026-10-01 and 2026-10-02
 
@@ -1006,14 +1064,53 @@ records the same change for the whole system.
 
 ### 9.6 Choices made while building the switch — 2026-10-02
 
-Taken during an unattended build, where the spec did not settle the point; each is the builder's
-recommendation and waits for the owner.
+Taken during an unattended build, where the spec did not settle the point, as the builder
+recommended. **Settled by the owner on 2026-10-03:** #1, #2, #3 and #4 are confirmed as built, #6 was replaced after the review of the foundation (access.md amendment 58(f)),
+and #5 is replaced (below).
 
 | # | Sections | Choice | Why |
 |---|---|---|---|
-| 1 | §2.1, §2.3 | **[PROVISIONAL 2026-10-02 — owner to confirm]** **What other modules are told.** `PlatformApi::stores()` lists **on** stores only — every chooser, switcher and store picker reads it. `storeByCode()` answers an off store's code exactly as an unknown one: a code arrives from a URL, a cookie or a form. `store($id)` still answers **any** store, on or off, so an id from an order, an address or an audit entry names the store as it was. A new `allStores()` lists every store, for work that must reach a store before it opens (Access's starting address format and B2B's starting type lists use it). `StoreDto` gains `isActive` and `isBase` | The safe default for a module that forgets: whatever `stores()` offers is open. History keeps its names |
-| 2 | §3, §5.7 | **[PROVISIONAL 2026-10-02 — owner to confirm]** **The seed** turns on each launch store it creates, at once, through `ActivateStore` (audited, as the system), and marks KSA the base store when no store carries the mark. A store that already existed is left as it is, so running the seed again never undoes a Super Admin's switch | The launch stores are live; the seed must not fight the switch |
-| 3 | §3, §1.6 | **[PROVISIONAL 2026-10-02 — owner to confirm]** `UpdateStore` on an off store answers `StoreNotFound` to anyone who may not switch stores — the stores screen lists it only to them; a Super Admin may still edit it | "As if it were never there" for every use case, not only the list |
-| 4 | §1.5, §6.1 | **[PROVISIONAL 2026-10-02 — owner to confirm]** **Audit**: `platform.store.activated` and `platform.store.deactivated`, each with `is_active` before and after; `platform.store.created` also records `is_active` (false). A switch to the state the store is already in writes, audits and announces nothing | Each switch is a change someone may ask about later; nothing happened when nothing changed |
-| 5 | §1.6 | **[PROVISIONAL 2026-10-02 — owner to confirm]** An off store is not a store to work in for **anyone, a Super Admin included**: the panel's store switcher and its current store offer on stores only, and a Super Admin sees an off store only on the stores screen. So an off store's own settings, address format and B2B lists can be prepared only once it is on. **Question for the owner:** should a Super Admin be able to work in an off store, to prepare it before it opens? | §1.6 names only the stores screen for a Super Admin |
-| 6 | §1.6 | **[PROVISIONAL 2026-10-02 — owner to confirm]** The handlers that change one store's data by id — a setting, an address format, a B2B list — do not refuse an off store themselves; no screen offers it. Refused in code: choosing the panel's store, saving a customer's address, and the stores screen's own update (#3) | Kept small for the night; the screens are where an off store must not appear |
+| 1 | §2.1, §2.3 | **[Confirmed by the owner, 2026-10-03]** **What other modules are told.** `PlatformApi::stores()` lists **on** stores only — every chooser, switcher and store picker reads it. `storeByCode()` answers an off store's code exactly as an unknown one: a code arrives from a URL, a cookie or a form. `store($id)` still answers **any** store, on or off, so an id from an order, an address or an audit entry names the store as it was. A new `allStores()` lists every store, for work that must reach a store before it opens (Access's starting address format and B2B's starting type lists use it). `StoreDto` gains `isActive` and `isBase` | The safe default for a module that forgets: whatever `stores()` offers is open. History keeps its names |
+| 2 | §3, §5.7 | **[Confirmed by the owner, 2026-10-03]** **The seed** turns on each launch store it creates, at once, through `ActivateStore` (audited, as the system), and marks KSA the base store when no store carries the mark. A store that already existed is left as it is, so running the seed again never undoes a Super Admin's switch | The launch stores are live; the seed must not fight the switch |
+| 3 | §3, §1.6 | **[Confirmed by the owner, 2026-10-03]** `UpdateStore` on an off store answers `StoreNotFound` to anyone who may not switch stores — the stores screen lists it only to them; a Super Admin may still edit it | "As if it were never there" for every use case, not only the list |
+| 4 | §1.5, §6.1 | **[Confirmed by the owner, 2026-10-03]** **Audit**: `platform.store.activated` and `platform.store.deactivated`, each with `is_active` before and after; `platform.store.created` also records `is_active` (false). A switch to the state the store is already in writes, audits and announces nothing | Each switch is a change someone may ask about later; nothing happened when nothing changed |
+| 5 | §1.6 | **[Replaced by the owner, 2026-10-03]** The overnight pick, that an off store was a store to work in for nobody, a Super Admin included, is replaced. **A Super Admin may work inside an off store, to prepare it before it opens**: the panel's store switcher offers it to them, marked Off, and they may choose it as the store they work in and set its settings, address format and B2B lists. A staff member who covers it sees it in the switcher, marked Off and disabled with the reason, and cannot choose it. Anyone else never sees it. The shop, customers, guests and other modules still treat it as never there (§1.6) | The owner: a store is prepared before it opens, without showing it half ready (access.md amendment 58(a)) |
+| 6 | §1.6 | **[Replaced by the owner, 2026-10-03, after the review of the foundation: access.md amendment 58(f)]** The overnight pick read: the handlers that change one store's data by id — a setting, an address format, a B2B list — do not refuse an off store themselves; no screen offers it. Refused in code: choosing the panel's store, saving a customer's address, and the stores screen's own update (#3) | Kept small for the night; the screens are where an off store must not appear |
+
+### 9.7 The owner's fix list — 2026-10-04 (point 11, currencies)
+
+The owner asked what creating a currency does, and how to know whether one is used. Answered: a
+currency is only a store's currency, fixed when the store is opened (from the command line); adding
+one changes nothing until a store is opened with it. **The owner's answer (D15):** keep "Add
+Currency"; add **Delete** for a currency no store uses; **name the stores** using each; fix "1
+stores" and the digits.
+
+| # | Sections | Decision |
+|---|---|---|
+| 1 | §1.2, §3, §7 | **`DeleteCurrency`**: a Super Admin (`platform.currency.delete`, reserved like creating and changing one) deletes a currency **no store — on or off — uses**; any store using it refuses the delete (`CurrencyInUse`), with the foreign key's `RESTRICT` behind it. The currency row is locked before the stores are counted, so a store opened with it at the same moment cannot slip through. Audited (`platform.currency.deleted`, with what it was); the directory's cache is invalidated in the same transaction. |
+| 2 | frontend.md E3 | **The currencies screen names the stores** using each currency — "Used by Saudi Arabia, Egypt", an off store marked Off — instead of a count (which read "1 stores"), and "No store yet" otherwise; the exponent's lock names them too. A card no store uses offers **Delete Currency…**, confirmed in Geist's Destructive Action Modal by typing the code. Numbers in a sentence are in the page's digits (frontend.md §1.8). |
+| 3 | §3, frontend.md E1 | **Stores are created on the stores screen too** (owner, 2026-10-06), replacing [DECIDED 2026-09-19] "a console command only". A Super Admin's **Add Store** form takes everything at once — code, both names, the country (picked from a list), the currency, the tax rate, the time zone (filled from a country that has only one, changeable) and the position — so a store is still never half-configured; it is created **switched off**, to be prepared and turned on (§1.6). `CreateStore` is the one use case behind both the form and the command, which stays. |
+| 4 | §1.2, §3, §5.2, §7 | **One currency, one store** (owner, 2026-10-06): a currency serves at most one store — refused in `CreateStore` (`CurrencyTaken`) and by a unique index on `platform.stores.currency_code`. The form's currency is **never typed**: it is picked from the currencies **no store uses**, or **created in the same form** — "New Currency" is always offered, and is the form itself when no currency is free; the new currency and the store are made in one transaction (`CreateStore` carries the new currency, asking `platform.currency.create` too). A store's currency still never changes; a currency's names and sign are changed on the currencies screen. |
+
+### 9.8 The admin home — 2026-10-04/05 (the owner's fix list, point 6)
+
+The owner asked for a home with "a brief of
+everything", for one store or all stores. **Answers:** D11 (a) — the frame and the first cards now;
+D12 — the first cards are **Company Approvals** and **Stores, failed jobs, storage**, and the sales
+figures (products sold, money taken, each store's sales, products about to run out) come with the
+modules that hold them; the home opens on **All Stores** for a reader whose reach is every store.
+
+| # | Sections | Decision |
+|---|---|---|
+| 1 | §2.6 | **The home-card contract**: modules register cards as they register menu entries; each card has its permission and speaks for a scope — one store or all stores; the home shows only the cards the reader may see in that scope (frontend.md §2.2). |
+| 2 | §2.6 | **Platform's card, Stores and System**: stores on and off (`platform.store.view`; in All Stores only — a single store's state is in the store switcher; **stores off only to whoever may switch stores**, `platform.store.switch`, as the stores screen lists off stores only to them, §1.6), failed jobs (`platform.jobs.manage`, linking to them), and storage used by the media library (any media permission). Each figure is shown only with its own permission; the card, with any of them. Failed jobs and storage belong to no store, so they read the same in either scope, and are the card's `storeFree` actions. |
+
+### 9.9 The staff view's off stores — 2026-10-05 (the owner's fix list, point 13)
+
+D14: the staff
+view shows the shop as a visitor sees it, **plus the stores that are switched off** (access.md §1.11,
+amendment 60).
+
+| # | Sections | Decision |
+|---|---|---|
+| 1 | §1.6, §2.7 | **An off store opens in the shop for a Super Admin's staff view — to look only** (GET, HEAD), and the shop's store switch lists it marked Off; for everyone else it stays a 404 and unlisted. Platform asks the **off-store viewers** registered by other modules (`OffStoreViewers`), because only Access knows a staff view; `storeByCode()` and `stores()` are unchanged for every other caller. Whose staff view it is is Access's to know: a Super Admin's only (owner, 2026-10-06: "staff cant view an off store, only super admin can"). |

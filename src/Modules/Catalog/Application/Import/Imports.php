@@ -13,13 +13,15 @@ interface Imports
     public function nextId(): string;
 
     /**
-     * A product file that passed its checks, DECIDING, with its products WAITING.
+     * A product file that passed its checks, DECIDING, with its products WAITING — those left out
+     * REFUSED, with why (amendment 11(a)).
      *
      * @param  list<ImportNameRow>  $names
      * @param  list<FileProduct>  $products
      * @param  array<int, string>  $conflicts  product number => the catalog's product already holding one of its codes
+     * @param  array<int, string>  $refused  product number => why it is left out
      */
-    public function addProductsImport(string $id, string $fileName, ?string $archive, ?string $uploadedBy, array $names, array $products, array $conflicts): void;
+    public function addProductsImport(string $id, string $fileName, ?string $archive, ?string $uploadedBy, array $names, array $products, array $conflicts, array $refused = []): void;
 
     /**
      * An admins' store file that passed its checks, OPEN, its items as the file gave them.

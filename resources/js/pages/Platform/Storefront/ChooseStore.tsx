@@ -1,10 +1,13 @@
 import { Link } from '@inertiajs/react';
+import { ChevronRight } from 'lucide-react';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item';
 import { useTranslator } from '@/lib/t';
 import type { ChooseStorePage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 
 /*
-| F1 - choosing a country (frontend.md §3.6), in Geist's type and materials (1.10).
+| F1 - choosing a country (frontend.md §3.6), each country one of shadcn's linked Items (its
+| `item-link` example, §1.11) with Geist's type.
 |
 | The one page of the shop that belongs to no store: it is here because the visitor has not chosen
 | one. The choice is remembered for a year, so somebody who has chosen never sees this page again -
@@ -13,8 +16,8 @@ import type { ChooseStorePage } from '@/types/generated/Modules/Platform/Present
 |
 | Prices, stock and delivery all follow from this choice, which is why it is a page of its own
 | rather than a dropdown in a corner. Each country is a link, not a button: choosing one goes
-| somewhere. Geist has no component for a tile that links, so each is built from its base material,
-| outlined in brand under the pointer.
+| somewhere. The Item draws its own hover; nothing overrides the material's shadow (Geist's
+| Materials).
 */
 
 type Props = ChooseStorePage;
@@ -30,21 +33,28 @@ export default function ChooseStore({ stores }: Props) {
                     <p className="text-copy-14 text-ink-muted">{t('platform::stores.choose_intro')}</p>
                 </div>
 
-                <ul className="grid gap-3 sm:grid-cols-3">
+                <ItemGroup className="grid gap-3 sm:grid-cols-3">
                     {stores.map((store) => (
-                        <li key={store.code}>
-                            <Link
-                                href={store.href}
-                                className="material-base grid gap-1 p-4 text-center transition-shadow hover:shadow-[0_0_0_1px_var(--tw-brand)]"
-                            >
-                                <span className="text-label-14 font-medium text-ink">{store.name}</span>
-                                <span className="tw-figure text-label-12 text-ink-muted" dir="ltr">
-                                    {store.currency} {store.symbol}
-                                </span>
-                            </Link>
-                        </li>
+                        <div key={store.code} role="listitem">
+                            <Item variant="outline" asChild className="h-full bg-surface">
+                                <Link href={store.href} data-test={`choose-${store.code}`}>
+                                    <ItemContent>
+                                        <ItemTitle className="text-label-14 font-medium text-ink">{store.name}</ItemTitle>
+                                        <ItemDescription className="tw-figure text-label-12 text-ink-muted">
+                                            <bdi dir="ltr">
+                                                {store.currency} {store.symbol}
+                                            </bdi>
+                                        </ItemDescription>
+                                    </ItemContent>
+                                    <ItemActions>
+                                        {/* Points the way the page reads: mirrored on an Arabic page. */}
+                                        <ChevronRight aria-hidden="true" className="size-4 text-ink-subtle rtl:-scale-x-100" />
+                                    </ItemActions>
+                                </Link>
+                            </Item>
+                        </div>
                     ))}
-                </ul>
+                </ItemGroup>
             </div>
         </StorefrontLayout>
     );

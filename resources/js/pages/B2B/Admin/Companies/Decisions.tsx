@@ -1,43 +1,54 @@
-import { useEffect, useState } from 'react';
+import { type RefObject, useEffect, useState } from 'react';
 import { useForm, type InertiaFormProps } from '@inertiajs/react';
 import { Plus, X } from 'lucide-react';
-import {
-    Button,
-    Checkbox,
-    Input,
-    Modal,
-    ModalCancel,
-    Note,
-    Select,
-    Textarea,
-} from '@/components/geist';
+import { ActionButton } from '@/components/ActionButton';
+import { DestructiveActionDialog } from '@/components/DestructiveActionDialog';
+import { SelectField, TextareaField, TextField } from '@/components/Fields';
+import { useFreshRefusal } from '@/components/FormError';
+import { Note } from '@/components/Note';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
+import { NativeSelectOption } from '@/components/ui/native-select';
 import { useTranslator } from '@/lib/t';
-import type {
-    StaffFileData,
-    StaffTypeChoiceData,
-} from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
+import type { StaffFileData, StaffTypeChoiceData } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { nameIn, type Locale } from '../shared';
+import { StaffDialog } from '../StaffDialog';
 
 /*
-| The decisions on one company (b2b.md §3.2, §4.6, amendment 21), each in Geist's Modal: its title a
-| statement, its primary button repeating it, the toast answering with the same verb.
+| The decisions on one company (b2b.md §3.2, §4.6, amendments 21 and 23), on shadcn's Dialog and
+| AlertDialog with Geist's Modal rules: the title a statement, the primary button repeating it, the
+| toast answering with the same verb, and a refusal said inside the dialog - never behind it - which
+| stays open to retry (Geist's Modal; the audit of B2B).
 |
-| Reject and Suspend are destructive - focus starts on Cancel, an outside click does not close them,
-| and the button wakes only once a reason is written - but not the typed confirmation: both can be
-| undone, by applying again or by reinstating (21(g)). Every modal stays open on a refusal, with the
-| refusal beside the field it names or at the top of the page, and closes once the server agreed.
+| Reject is destructive - shadcn's AlertDialog, focus starting on Cancel - with its button waking
+| only once a reason is written; it can be undone by applying again (21(g)). Suspend asks for the
+| company's name to be typed (owner, amendment 23(c)): Geist's Destructive Action Modal, because
+| suspending stops all ordering and emails the customer; the reason is still required. Approve,
+| Reinstate and Correct Company Type are plain Dialogs. Each closes once the server agreed.
 */
 
 type Base = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     companyId: string;
+    /** For a dialog opened from the page's ⋯ menu: its button takes focus back. */
+    returnFocusTo?: RefObject<HTMLElement | null>;
 };
-
-const FIELDS = ['name', 'company_type', 'cr_number', 'tax_number', 'address'] as const;
 
 function url(companyId: string, action: string): string {
     return `/admin/companies/${companyId}/${action}`;
+}
+
+function TypeNote({ note }: { note: string | null }) {
+    const t = useTranslator();
+
+    return note === null ? null : (
+        <Note variant="warning" size="small" label={t('b2b::admin_companies.application.type_changed.label')}>
+            {note}
+        </Note>
+    );
 }
 
 export function ApproveModal({ open, onOpenChange, companyId, typeNote }: Base & { typeNote: string | null }) {
@@ -55,38 +66,30 @@ export function ApproveModal({ open, onOpenChange, companyId, typeNote }: Base &
     }
 
     return (
-        <Modal
+        <StaffDialog
             open={open}
             onOpenChange={onOpenChange}
             title={t('b2b::admin_companies.approve.title')}
             description={t('b2b::admin_companies.approve.body')}
-            actions={
-                <>
-                    <ModalCancel onClick={() => onOpenChange(false)} />
-                    <Button loading={form.processing} onClick={submit} data-test="confirm-approve">
-                        {t('b2b::admin_companies.approve.button')}
-                    </Button>
-                </>
+            busy={form.processing}
+            confirm={
+                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-approve">
+                    {t('b2b::admin_companies.approve.button')}
+                </ActionButton>
             }
         >
-            <div className="grid gap-4">
-                {typeNote === null ? null : (
-                    <Note variant="warning" size="small" label={t('b2b::admin_companies.application.type_changed.label')}>
-                        {typeNote}
-                    </Note>
-                )}
-                <Textarea
-                    id="approve-note"
-                    rows={3}
-                    label={t('b2b::admin_companies.approve.note')}
-                    helper={t('b2b::admin_companies.approve.note_helper')}
-                    error={form.errors.note}
-                    value={form.data.note}
-                    onChange={(event) => form.setData('note', event.target.value)}
-                    data-test="approve-note"
-                />
-            </div>
-        </Modal>
+            <TypeNote note={typeNote} />
+            <TextareaField
+                id="approve-note"
+                rows={3}
+                label={t('b2b::admin_companies.approve.note')}
+                helper={t('b2b::admin_companies.approve.note_helper')}
+                error={form.errors.note}
+                value={form.data.note}
+                onChange={(event) => form.setData('note', event.target.value)}
+                data-test="approve-note"
+            />
+        </StaffDialog>
     );
 }
 
@@ -97,9 +100,31 @@ type RejectForm = {
     requests: { kind: string; label: string }[];
 };
 
+/** The five fields a rejection may mark: B2B's FlaggedField, in its order (StaffScreenFieldsTest). */
+const FIELDS = ['name', 'company_type', 'cr_number', 'tax_number', 'address'] as const;
+
+/** Each field with its name, the keys written out so the words check reads each one. */
+function useFieldNames(): { field: string; label: string }[] {
+    const t = useTranslator();
+    const label: Record<(typeof FIELDS)[number], string> = {
+        name: t('b2b::admin_companies.application.flag.name'),
+        company_type: t('b2b::admin_companies.application.flag.company_type'),
+        cr_number: t('b2b::admin_companies.application.flag.cr_number'),
+        tax_number: t('b2b::admin_companies.application.flag.tax_number'),
+        address: t('b2b::admin_companies.application.flag.address'),
+    };
+
+    return FIELDS.map((field) => ({ field, label: label[field] }));
+}
+
 /**
  * A reason, and what the next application must fix or add (§1.2, amendment 4): any of the five
- * fields, any paper the waiting application sent, and requests for a text or a file under a label.
+ * fields, any paper the waiting application sent, and requests for a text or a file under a label -
+ * shadcn's field-checkbox and its form-array pattern, each group's helper and error tied to it.
+ *
+ * The company reads them word for word, so the reason and each request are written in its own
+ * language - the dialog names it, and its fields take that language and direction (the owner,
+ * 2026-10-06). What is written stays as written, whatever language the account picks later.
  */
 export function RejectModal({
     open,
@@ -108,13 +133,22 @@ export function RejectModal({
     papers,
     locale,
     typeNote,
-}: Base & { papers: StaffFileData[]; locale: Locale; typeNote: string | null }) {
+    writeIn,
+}: Base & { papers: StaffFileData[]; locale: Locale; typeNote: string | null; writeIn: Locale }) {
     const t = useTranslator();
+    const fields = useFieldNames();
     const form = useForm<RejectForm>({ reason: '', flags: [], documents: [], requests: [] });
 
     function toggle(list: 'flags' | 'documents', value: string, on: boolean) {
         const current = form.data[list];
         form.setData(list, on ? [...current, value] : current.filter((item) => item !== value));
+    }
+
+    function setRequest(index: number, change: Partial<{ kind: string; label: string }>) {
+        form.setData(
+            'requests',
+            form.data.requests.map((each, at) => (at === index ? { ...each, ...change } : each)),
+        );
     }
 
     function submit() {
@@ -127,163 +161,202 @@ export function RejectModal({
         });
     }
 
+    const flagsDescribed = ['reject-flags-helper', form.errors.flags ? 'reject-flags-error' : null].filter(Boolean).join(' ');
+    const requestsDescribed = ['reject-requests-helper', form.errors.requests ? 'reject-requests-error' : null].filter(Boolean).join(' ');
+
     return (
-        <Modal
+        <StaffDialog
             open={open}
             onOpenChange={onOpenChange}
             destructive
-            size="large"
+            wide
             title={t('b2b::admin_companies.reject.title')}
             description={t('b2b::admin_companies.reject.body')}
-            actions={
-                <>
-                    <ModalCancel onClick={() => onOpenChange(false)} />
-                    <Button
-                        type="error"
-                        loading={form.processing}
-                        disabledReason={form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined}
-                        onClick={submit}
-                        data-test="confirm-reject"
-                    >
-                        {t('b2b::admin_companies.reject.button')}
-                    </Button>
-                </>
+            busy={form.processing}
+            confirm={
+                <ActionButton
+                    variant="destructive"
+                    loading={form.processing}
+                    disabledReason={form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined}
+                    onClick={submit}
+                    data-test="confirm-reject"
+                >
+                    {t('b2b::admin_companies.reject.button')}
+                </ActionButton>
             }
         >
-            <div className="grid gap-5">
-                {/* The reviewer decides with the type's deactivation in front of them, rejecting as
-                    much as approving (§3.2). */}
-                {typeNote === null ? null : (
-                    <Note variant="warning" size="small" label={t('b2b::admin_companies.application.type_changed.label')}>
-                        {typeNote}
-                    </Note>
-                )}
-                <Textarea
-                    id="reject-reason"
-                    rows={3}
-                    label={t('b2b::admin_companies.reason')}
-                    helper={t('b2b::admin_companies.reject.reason_helper')}
-                    error={form.errors.reason}
-                    value={form.data.reason}
-                    onChange={(event) => form.setData('reason', event.target.value)}
-                    data-test="reject-reason"
-                />
+            {/* The reviewer decides with the type's deactivation in front of them, rejecting as much
+                as approving (§3.2). */}
+            <TypeNote note={typeNote} />
+            {/* Tied to the reason and each request, so a field read on its own still says it. */}
+            <Note id="reject-write-in" variant="secondary" data-test="reject-write-in">
+                {writeIn === 'ar' ? t('b2b::admin_companies.reject.write_in.ar') : t('b2b::admin_companies.reject.write_in.en')}
+            </Note>
+            <TextareaField
+                id="reject-reason"
+                lang={writeIn}
+                dir={writeIn === 'ar' ? 'rtl' : 'ltr'}
+                alsoDescribedBy="reject-write-in"
+                rows={3}
+                label={t('b2b::admin_companies.reason')}
+                helper={t('b2b::admin_companies.reject.reason_helper')}
+                error={form.errors.reason}
+                value={form.data.reason}
+                onChange={(event) => form.setData('reason', event.target.value)}
+                data-test="reject-reason"
+            />
 
-                <fieldset className="grid gap-2">
-                    <legend className="mb-1 text-label-14 font-medium text-ink">{t('b2b::admin_companies.reject.flags')}</legend>
-                    <p className="text-copy-13 text-ink-muted">{t('b2b::admin_companies.reject.flags_helper')}</p>
-                    {FIELDS.map((field) => (
-                        <Checkbox
-                            key={field}
-                            id={`flag-${field}`}
-                            checked={form.data.flags.includes(field)}
-                            onChange={(on) => toggle('flags', field, on)}
-                            data-test={`flag-${field}`}
-                        >
-                            {t(`b2b::admin_companies.application.flag.${field}`)}
-                        </Checkbox>
+            <FieldSet aria-describedby={flagsDescribed} className="gap-3">
+                <FieldLegend variant="label" className="mb-0 text-label-14 text-ink">
+                    {t('b2b::admin_companies.reject.flags')}
+                </FieldLegend>
+                <FieldDescription id="reject-flags-helper" className="text-copy-13 text-ink-muted">
+                    {t('b2b::admin_companies.reject.flags_helper')}
+                </FieldDescription>
+                <FieldGroup className="gap-2">
+                    {fields.map(({ field, label }) => (
+                        <Field key={field} orientation="horizontal">
+                            <Checkbox
+                                id={`flag-${field}`}
+                                checked={form.data.flags.includes(field)}
+                                onCheckedChange={(on) => toggle('flags', field, on === true)}
+                                className="border-ink-subtle"
+                                data-test={`flag-${field}`}
+                            />
+                            <FieldLabel htmlFor={`flag-${field}`} className="text-label-14 font-normal text-ink">
+                                {label}
+                            </FieldLabel>
+                        </Field>
                     ))}
                     {papers.map((paper) => (
-                        <Checkbox
-                            key={paper.documentTypeId}
-                            id={`flag-document-${paper.documentTypeId}`}
-                            checked={form.data.documents.includes(paper.documentTypeId)}
-                            onChange={(on) => toggle('documents', paper.documentTypeId, on)}
-                            data-test={`flag-document-${paper.documentTypeId}`}
-                        >
-                            {nameIn(locale, paper.documentTypeNameAr, paper.documentTypeNameEn) || t('b2b::admin_companies.application.paper')}
-                        </Checkbox>
-                    ))}
-                    {form.errors.flags ? (
-                        <p role="alert" className="text-copy-13 text-bad">
-                            {form.errors.flags}
-                        </p>
-                    ) : null}
-                </fieldset>
-
-                <fieldset className="grid gap-3">
-                    <legend className="mb-1 text-label-14 font-medium text-ink">{t('b2b::admin_companies.reject.requests')}</legend>
-                    <p className="text-copy-13 text-ink-muted">{t('b2b::admin_companies.reject.requests_helper')}</p>
-                    {form.data.requests.map((request, index) => (
-                        <div key={index} className="flex flex-wrap items-end gap-2" data-test={`request-${index}`}>
-                            <Select
-                                id={`request-kind-${index}`}
-                                className="w-32"
-                                label={t('b2b::admin_companies.reject.request_kind')}
-                                value={request.kind}
-                                onChange={(event) =>
-                                    form.setData(
-                                        'requests',
-                                        form.data.requests.map((each, at) => (at === index ? { ...each, kind: event.target.value } : each)),
-                                    )
-                                }
-                            >
-                                <option value="TEXT">{t('b2b::admin_companies.application.kind.TEXT')}</option>
-                                <option value="FILE">{t('b2b::admin_companies.application.kind.FILE')}</option>
-                            </Select>
-                            <Input
-                                id={`request-label-${index}`}
-                                className="min-w-48 flex-1"
-                                label={t('b2b::admin_companies.reject.request_label')}
-                                placeholder={t('b2b::admin_companies.reject.request_label_placeholder')}
-                                value={request.label}
-                                onChange={(event) =>
-                                    form.setData(
-                                        'requests',
-                                        form.data.requests.map((each, at) => (at === index ? { ...each, label: event.target.value } : each)),
-                                    )
-                                }
-                                data-test={`request-label-${index}`}
+                        <Field key={paper.documentTypeId} orientation="horizontal">
+                            <Checkbox
+                                id={`flag-document-${paper.documentTypeId}`}
+                                checked={form.data.documents.includes(paper.documentTypeId)}
+                                onCheckedChange={(on) => toggle('documents', paper.documentTypeId, on === true)}
+                                className="border-ink-subtle"
+                                data-test={`flag-document-${paper.documentTypeId}`}
                             />
-                            <Button
-                                type="tertiary"
-                                svgOnly
-                                aria-label={t('b2b::admin_companies.reject.remove_request', { number: index + 1 })}
-                                onClick={() => form.setData('requests', form.data.requests.filter((_, at) => at !== index))}
-                            >
-                                <X className="size-4" />
-                            </Button>
-                        </div>
+                            <FieldLabel htmlFor={`flag-document-${paper.documentTypeId}`} className="text-label-14 font-normal text-ink">
+                                {nameIn(locale, paper.documentTypeNameAr, paper.documentTypeNameEn) || t('b2b::admin_companies.application.paper')}
+                            </FieldLabel>
+                        </Field>
                     ))}
-                    {form.errors.requests ? (
-                        <p role="alert" className="text-copy-13 text-bad">
-                            {form.errors.requests}
-                        </p>
-                    ) : null}
-                    <div>
-                        <Button
-                            type="secondary"
-                            size="small"
-                            prefix={<Plus className="size-4" />}
-                            onClick={() => form.setData('requests', [...form.data.requests, { kind: 'TEXT', label: '' }])}
-                            data-test="add-request"
-                        >
-                            {t('b2b::admin_companies.reject.add_request')}
-                        </Button>
+                </FieldGroup>
+                {form.errors.flags ? <FieldError id="reject-flags-error">{form.errors.flags}</FieldError> : null}
+            </FieldSet>
+
+            <FieldSet aria-describedby={requestsDescribed} className="gap-3">
+                <FieldLegend variant="label" className="mb-0 text-label-14 text-ink">
+                    {t('b2b::admin_companies.reject.requests')}
+                </FieldLegend>
+                <FieldDescription id="reject-requests-helper" className="text-copy-13 text-ink-muted">
+                    {t('b2b::admin_companies.reject.requests_helper')}
+                </FieldDescription>
+                {form.data.requests.map((request, index) => (
+                    <div key={index} className="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]" data-test={`request-${index}`}>
+                        <SelectField id={`request-kind-${index}`} label={t('b2b::admin_companies.reject.request_kind')} value={request.kind} onChange={(event) => setRequest(index, { kind: event.target.value })}>
+                            <NativeSelectOption value="TEXT">{t('b2b::admin_companies.application.kind.TEXT')}</NativeSelectOption>
+                            <NativeSelectOption value="FILE">{t('b2b::admin_companies.application.kind.FILE')}</NativeSelectOption>
+                        </SelectField>
+                        {/* The row's own remove, inside its label's field (shadcn's form-array). */}
+                        <Field>
+                            <FieldLabel htmlFor={`request-label-${index}`}>{t('b2b::admin_companies.reject.request_label')}</FieldLabel>
+                            <InputGroup>
+                                <InputGroupInput
+                                    id={`request-label-${index}`}
+                                    lang={writeIn}
+                                    dir={writeIn === 'ar' ? 'rtl' : 'ltr'}
+                                    aria-describedby="reject-write-in"
+                                    placeholder={t('b2b::admin_companies.reject.request_label_placeholder')}
+                                    value={request.label}
+                                    onChange={(event) => setRequest(index, { label: event.target.value })}
+                                    data-test={`request-label-${index}`}
+                                />
+                                <InputGroupAddon align="inline-end">
+                                    <InputGroupButton
+                                        size="icon-xs"
+                                        aria-label={t('b2b::admin_companies.reject.remove_request', { number: index + 1 })}
+                                        onClick={() => form.setData('requests', form.data.requests.filter((_, at) => at !== index))}
+                                        data-test={`remove-request-${index}`}
+                                    >
+                                        <X aria-hidden="true" />
+                                    </InputGroupButton>
+                                </InputGroupAddon>
+                            </InputGroup>
+                        </Field>
                     </div>
-                </fieldset>
-            </div>
-        </Modal>
+                ))}
+                {form.errors.requests ? <FieldError id="reject-requests-error">{form.errors.requests}</FieldError> : null}
+                <div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => form.setData('requests', [...form.data.requests, { kind: 'TEXT', label: '' }])}
+                        data-test="add-request"
+                    >
+                        <Plus aria-hidden="true" />
+                        {t('b2b::admin_companies.reject.add_request')}
+                    </Button>
+                </div>
+            </FieldSet>
+        </StaffDialog>
     );
 }
 
-/** Suspending from any status, with a reason the customer is emailed (§4.1). */
-export function SuspendModal({ open, onOpenChange, companyId }: Base) {
+/**
+ * Suspending from any status, with a reason the customer is emailed (§4.1) - asked with the
+ * company's name typed (owner, amendment 23(c): Geist's Destructive Action Modal).
+ */
+export function SuspendModal({ open, onOpenChange, companyId, companyName, returnFocusTo }: Base & { companyName: string }) {
     const t = useTranslator();
     const form = useForm({ reason: '' });
+    const refusal = useFreshRefusal(open);
 
     return (
-        <ReasonModal
+        <DestructiveActionDialog
             open={open}
-            onOpenChange={onOpenChange}
-            form={form}
-            action={url(companyId, 'suspend')}
-            name="suspend"
-            destructive
+            onOpenChange={(next) => {
+                onOpenChange(next);
+
+                if (!next) {
+                    form.reset();
+                    form.clearErrors();
+                }
+            }}
             title={t('b2b::admin_companies.suspend.title')}
-            body={t('b2b::admin_companies.suspend.body')}
-            helper={t('b2b::admin_companies.suspend.reason_helper')}
-            button={t('b2b::admin_companies.suspend.button')}
+            description={t('b2b::admin_companies.suspend.body')}
+            verificationPhrase={companyName}
+            verificationLabel={t('b2b::admin_companies.suspend.name_label')}
+            returnFocusTo={returnFocusTo}
+            // A reason written is kept from a stray click outside, as a typed name is.
+            dirty={form.data.reason !== ''}
+            confirmLabel={t('b2b::admin_companies.suspend.button')}
+            loading={form.processing}
+            error={refusal}
+            waitingFor={form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined}
+            body={
+                <TextareaField
+                    id="suspend-reason"
+                    rows={3}
+                    label={t('b2b::admin_companies.reason')}
+                    helper={t('b2b::admin_companies.suspend.reason_helper')}
+                    error={form.errors.reason}
+                    value={form.data.reason}
+                    onChange={(event) => form.setData('reason', event.target.value)}
+                    data-test="suspend-reason"
+                />
+            }
+            onConfirm={() =>
+                form.post(url(companyId, 'suspend'), {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        onOpenChange(false);
+                        form.reset();
+                    },
+                })
+            }
         />
     );
 }
@@ -294,13 +367,12 @@ export function ReinstateModal({ open, onOpenChange, companyId, returnsTo }: Bas
     const form = useForm({ reason: '' });
 
     return (
-        <ReasonModal
+        <ReasonDialog
             open={open}
             onOpenChange={onOpenChange}
             form={form}
             action={url(companyId, 'reinstate')}
             name="reinstate"
-            destructive={false}
             title={t('b2b::admin_companies.reinstate.title')}
             body={t('b2b::admin_companies.reinstate.body', { status: returnsTo })}
             helper={t('b2b::admin_companies.reinstate.reason_helper')}
@@ -311,13 +383,12 @@ export function ReinstateModal({ open, onOpenChange, companyId, returnsTo }: Bas
 
 type ReasonForm = InertiaFormProps<{ reason: string }>;
 
-function ReasonModal({
+function ReasonDialog({
     open,
     onOpenChange,
     form,
     action,
     name,
-    destructive,
     title,
     body,
     helper,
@@ -328,7 +399,6 @@ function ReasonModal({
     form: ReasonForm;
     action: string;
     name: string;
-    destructive: boolean;
     title: string;
     body: string;
     helper: string;
@@ -347,28 +417,24 @@ function ReasonModal({
     }
 
     return (
-        <Modal
+        <StaffDialog
             open={open}
             onOpenChange={onOpenChange}
-            destructive={destructive}
             title={title}
             description={body}
-            actions={
-                <>
-                    <ModalCancel onClick={() => onOpenChange(false)} />
-                    <Button
-                        type={destructive ? 'error' : 'default'}
-                        loading={form.processing}
-                        disabledReason={form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined}
-                        onClick={submit}
-                        data-test={`confirm-${name}`}
-                    >
-                        {button}
-                    </Button>
-                </>
+            busy={form.processing}
+            confirm={
+                <ActionButton
+                    loading={form.processing}
+                    disabledReason={form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined}
+                    onClick={submit}
+                    data-test={`confirm-${name}`}
+                >
+                    {button}
+                </ActionButton>
             }
         >
-            <Textarea
+            <TextareaField
                 id={`${name}-reason`}
                 rows={3}
                 label={t('b2b::admin_companies.reason')}
@@ -378,7 +444,7 @@ function ReasonModal({
                 onChange={(event) => form.setData('reason', event.target.value)}
                 data-test={`${name}-reason`}
             />
-        </Modal>
+        </StaffDialog>
     );
 }
 
@@ -393,6 +459,7 @@ export function CorrectTypeModal({
     open,
     onOpenChange,
     companyId,
+    returnFocusTo,
     choices,
     mayChooseOther,
     currentTypeId,
@@ -429,9 +496,7 @@ export function CorrectTypeModal({
 
     function submit() {
         form.transform((data) =>
-            choice === OTHER
-                ? { type_id: '', other: data.other, confirm_reactivation: false }
-                : { type_id: choice, other: '', confirm_reactivation: reactivates },
+            choice === OTHER ? { type_id: '', other: data.other, confirm_reactivation: false } : { type_id: choice, other: '', confirm_reactivation: reactivates },
         );
         form.post(url(companyId, 'type'), {
             preserveScroll: true,
@@ -442,63 +507,54 @@ export function CorrectTypeModal({
     const typeError = (form.errors as Record<string, string | undefined>).type;
 
     return (
-        <Modal
+        <StaffDialog
             open={open}
+            returnFocusTo={returnFocusTo}
             onOpenChange={onOpenChange}
             title={t('b2b::admin_companies.correct.title')}
             description={t('b2b::admin_companies.correct.body')}
-            actions={
-                <>
-                    <ModalCancel onClick={() => onOpenChange(false)} />
-                    <Button
-                        loading={form.processing}
-                        disabledReason={unchanged ? t('b2b::admin_companies.correct.choose_first') : undefined}
-                        onClick={submit}
-                        data-test="confirm-correct-type"
-                    >
-                        {t('b2b::admin_companies.correct.button')}
-                    </Button>
-                </>
+            busy={form.processing}
+            confirm={
+                <ActionButton
+                    loading={form.processing}
+                    disabledReason={unchanged ? t('b2b::admin_companies.correct.choose_first') : undefined}
+                    onClick={submit}
+                    data-test="confirm-correct-type"
+                >
+                    {t('b2b::admin_companies.correct.button')}
+                </ActionButton>
             }
         >
-            <div className="grid gap-4">
-                <Select
-                    id="correct-type"
-                    label={t('b2b::admin_companies.correct.type')}
-                    placeholder={t('b2b::admin_companies.correct.choose')}
-                    value={choice}
-                    error={typeError}
-                    onChange={(event) => setChoice(event.target.value)}
-                    data-test="correct-type-choice"
-                >
-                    {choices.map((each) => (
-                        <option key={each.id} value={each.id}>
-                            {each.active
-                                ? nameIn(locale, each.nameAr, each.nameEn)
-                                : t('b2b::admin_companies.correct.deactivated', { name: nameIn(locale, each.nameAr, each.nameEn) })}
-                        </option>
-                    ))}
-                    {mayChooseOther ? <option value={OTHER}>{t('b2b::admin_companies.correct.other')}</option> : null}
-                </Select>
+            <SelectField id="correct-type" label={t('b2b::admin_companies.correct.type')} value={choice} error={typeError} onChange={(event) => setChoice(event.target.value)} data-test="correct-type-choice">
+                <NativeSelectOption value="" disabled>
+                    {t('b2b::admin_companies.correct.choose')}
+                </NativeSelectOption>
+                {choices.map((each) => (
+                    <NativeSelectOption key={each.id} value={each.id}>
+                        {each.active
+                            ? nameIn(locale, each.nameAr, each.nameEn)
+                            : t('b2b::admin_companies.correct.deactivated', { name: nameIn(locale, each.nameAr, each.nameEn) })}
+                    </NativeSelectOption>
+                ))}
+                {mayChooseOther ? <NativeSelectOption value={OTHER}>{t('b2b::admin_companies.correct.other')}</NativeSelectOption> : null}
+            </SelectField>
 
-                {choice === OTHER ? (
-                    <Input
-                        id="correct-other"
-                        label={t('b2b::admin_companies.correct.other_words')}
-                        value={form.data.other}
-                        error={form.errors.other}
-                        onChange={(event) => form.setData('other', event.target.value)}
-                        data-test="correct-type-other"
-                    />
-                ) : null}
+            {choice === OTHER ? (
+                <TextField
+                    id="correct-other"
+                    label={t('b2b::admin_companies.correct.other_words')}
+                    value={form.data.other}
+                    error={form.errors.other}
+                    onChange={(event) => form.setData('other', event.target.value)}
+                    data-test="correct-type-other"
+                />
+            ) : null}
 
-                {reactivates ? (
-                    <Note variant="warning" size="small" label={t('b2b::admin_companies.correct.reactivates_label')} data-test="reactivates">
-                        {t('b2b::admin_companies.correct.reactivates')}
-                    </Note>
-                ) : null}
-            </div>
-        </Modal>
+            {reactivates ? (
+                <Note variant="warning" size="small" label={t('b2b::admin_companies.correct.reactivates_label')} data-test="reactivates">
+                    {t('b2b::admin_companies.correct.reactivates')}
+                </Note>
+            ) : null}
+        </StaffDialog>
     );
 }
-

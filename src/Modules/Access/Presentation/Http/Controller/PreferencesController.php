@@ -42,7 +42,8 @@ final readonly class PreferencesController
         $value = $request->string('value')->toString();
 
         $cookie = match (true) {
-            $preference === 'theme' && in_array($value, ['light', 'dark'], true) => HandleInertiaRequests::THEME_COOKIE,
+            // System follows the device (frontend.md §1.11; owner, 2026-10-02).
+            $preference === 'theme' && in_array($value, ['light', 'dark', 'system'], true) => HandleInertiaRequests::THEME_COOKIE,
             $preference === 'locale' && in_array($value, ['ar', 'en'], true) => HandleInertiaRequests::LOCALE_COOKIE,
             default => null,
         };

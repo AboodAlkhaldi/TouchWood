@@ -83,23 +83,6 @@ final readonly class CachedStoreDirectory implements StoreDirectory
         ), $currencies));
     }
 
-    /**
-     * Counted from the same snapshot the stores come from, so it costs no query at all.
-     *
-     * @return array<string, int>
-     */
-    public function storeCountByCurrency(): array
-    {
-        $counts = [];
-
-        foreach ($this->snapshot()['stores'] as $store) {
-            $code = $store['currency_code'];
-            $counts[$code] = ($counts[$code] ?? 0) + 1;
-        }
-
-        return $counts;
-    }
-
     public function invalidate(): void
     {
         $this->cache->invalidate();

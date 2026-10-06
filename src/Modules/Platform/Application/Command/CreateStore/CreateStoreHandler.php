@@ -10,9 +10,11 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Platform\Application\Audit\StoreAudit;
 use Modules\Platform\Application\AuditLog;
+use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Domain\Exception\CurrencyNotFound;
+use Modules\Platform\Domain\Exception\CurrencyTaken;
 use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
 use Modules\Platform\Domain\Exception\StoreCodeTaken;
 use Modules\Platform\Domain\Model\Store;
@@ -30,6 +32,11 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
 
+/**
+ * Opening a store (§1.1, §3): complete in one step, from the console or the stores screen (§9.7 #3),
+ * created switched off. Its currency is one no store uses - one currency, one store (§9.7 #4) - or
+ * one made here in the same transaction, which needs the right to create currencies too.
+ */
 final readonly class CreateStoreHandler
 {
     public const string PERMISSION = PlatformPermissions::STORE_CREATE;
@@ -43,11 +50,16 @@ final readonly class CreateStoreHandler
         private StoreDirectory $directory,
         private AuditLog $auditLog,
         private InMemoryReservedPaths $reservedPaths,
+        private CreateCurrencyHandler $createCurrency,
     ) {}
 
     public function handle(CreateStore $command): StoreId
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
+
+        if ($command->newCurrency !== null) {
+            $this->authorizer->authorize(CreateCurrencyHandler::PERMISSION, PermissionScope::global());
+        }
 
         $code = StoreCode::fromString($command->code);
 
@@ -55,7 +67,7 @@ final readonly class CreateStoreHandler
         if ($this->reservedPaths->isReserved($code->value)) {
             throw new InvalidStoreAttribute('code', "\"{$code->value}\" is reserved for the application");
         }
-        $currency = CurrencyCode::fromString($command->currencyCode);
+        $currency = CurrencyCode::fromString($command->newCurrency === null ? $command->currencyCode : $command->newCurrency->code);
 
         $store = Store::create(
             $this->stores->nextId(),
@@ -68,13 +80,23 @@ final readonly class CreateStoreHandler
             $command->position,
         );
 
-        $this->db->transaction(function () use ($store, $code, $currency) {
+        $this->db->transaction(function () use ($command, $store, $code, $currency) {
+            // The new currency first, in this same transaction: refused, nothing is made at all.
+            if ($command->newCurrency !== null) {
+                $this->createCurrency->handle($command->newCurrency);
+            }
+
             if (! $this->currencies->exists($currency)) {
                 throw new CurrencyNotFound($currency->value);
             }
 
             if ($this->stores->codeExists($code)) {
                 throw new StoreCodeTaken($code->value);
+            }
+
+            // One currency, one store; the unique index on the column refuses a race too.
+            if ($this->currencies->isUsedByAnyStore($currency)) {
+                throw new CurrencyTaken($currency->value);
             }
 
             $this->stores->add($store);

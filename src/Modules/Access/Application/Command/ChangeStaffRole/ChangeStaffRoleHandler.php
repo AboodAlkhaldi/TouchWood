@@ -60,12 +60,16 @@ final readonly class ChangeStaffRoleHandler
         }
 
         $row = StoreChoice::of($command->accessLevel, $command->storeIds);
-        $exceptions = ActionStores::toChoices($command->exceptions);
+        $requested = ActionStores::toChoices($command->exceptions);
+        // Where It Reaches bounds every action (amendment 59), read from the request alone, so no
+        // staff member answers it differently from an id that never existed (amendments 54, 57).
+        // What was asked is still judged as asked below (an action of the role, not store-free).
+        $exceptions = RoleAssignment::within($row, $requested);
 
         // Before anything is looked up, so someone without the action learns nothing about ids.
         $this->rules->requireSomewhere(self::PERMISSION);
 
-        $this->db->transaction(function () use ($command, $row, $exceptions): void {
+        $this->db->transaction(function () use ($command, $row, $requested, $exceptions): void {
             // Roles are locked before staff and assignments, in every handler, so two changes cannot
             // deadlock.
             $saved = $command->savedRoleId === null ? null : $this->savedRole($command->savedRoleId);
@@ -105,7 +109,7 @@ final readonly class ChangeStaffRoleHandler
                 $this->rules->requireGrantable($author, $role->level(), $role->permissions());
             }
 
-            $this->rules->requireValidExceptions($role->permissions(), $exceptions);
+            $this->rules->requireValidExceptions($role->permissions(), $requested);
             $this->rules->requireCovers($author, $role->permissions(), $next);
 
             $roleChanges = $role->pullChanges();

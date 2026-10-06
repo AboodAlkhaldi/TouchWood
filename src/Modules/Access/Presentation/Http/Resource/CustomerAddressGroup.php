@@ -24,5 +24,7 @@ final class CustomerAddressGroup extends Data
         public string $storeId,
         public string $storeName,
         public array $addresses,
+        /** Off: shown to staff, marked, though the customer cannot use them until it is on again (access.md amendment 58(d)). */
+        public bool $isActive = true,
     ) {}
 }

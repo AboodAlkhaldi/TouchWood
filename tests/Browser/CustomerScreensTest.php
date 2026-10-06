@@ -42,6 +42,8 @@ function customerScreenSuperAdminEmail(): string
 it('draws the list, opens a customer, and blocks them with a reason', function () {
     $email = strtolower((string) Str::ulid()).'@example.test';
     $customerId = Fx::customer($email, 'sa');
+    // A second one, so a link stretched over more than its own row would be caught below.
+    $neighbourId = Fx::customer(strtolower((string) Str::ulid()).'@example.test', 'sa');
 
     $page = visit('/admin/sign-in')
         ->type('#email', customerScreenSuperAdminEmail())
@@ -49,12 +51,28 @@ it('draws the list, opens a customer, and blocks them with a reason', function (
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/customers');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/customers');
 
     $page->assertSee('Customers')
-        ->assertSee($email)
-        ->click("[data-test=\"customer-{$customerId}\"]")
+        ->assertSee($email);
+
+    // The whole row opens the customer (the owner's fix list, 2026-10-04): what lies under the
+    // middle of each row's email address is that row's own link, stretched over the row - and over
+    // nothing more, or the neighbour's row would open the wrong customer.
+    foreach ([$customerId, $neighbourId] as $id) {
+        expect($page->script(<<<JS
+            (() => {
+                const cell = document.querySelector('[data-test="customer-row-{$id}"] bdi');
+                const box = cell.getBoundingClientRect();
+                return document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)?.closest('a')?.getAttribute('href') ?? null;
+            })()
+            JS))->toBe("/admin/customers/{$id}");
+    }
+
+    $page->click("[data-test=\"customer-{$customerId}\"]")
         ->assertPathIs("/admin/customers/{$customerId}")
         // Read only, except for the actions: the screen says so in as many words.
         ->assertSee('A customer')

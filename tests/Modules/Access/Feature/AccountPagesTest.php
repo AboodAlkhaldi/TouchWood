@@ -155,6 +155,8 @@ describe('the account screen', function () {
                 ->where('tab', 'account')
                 // The rule in words comes from the setting, never from the screen.
                 ->where('passwordMinLength', 12)
+                // One box per digit in the phone change's code step, from the setting too.
+                ->where('codeLength', 6)
             );
     });
 
@@ -367,7 +369,7 @@ describe('B1 - the email', function () {
         // this is an action taken on a screen they are already reading (owner, 2026-09-24). What
         // matters either way is that nothing happened.
         $response->assertRedirect();
-        expect(accountFieldError($response, 'form'))->toBe('You do not have permission to do this.')
+        expect(accountFieldError($response, 'form'))->toBe("Couldn't do that: it isn't one of your jobs. Ask an administrator for it.")
             ->and(RecordingSecurityMessages::installed()->emailChanges)->toBe([]);
     });
 });
@@ -448,7 +450,7 @@ describe('B3 - the password', function () {
         $response->assertRedirect();
 
         expect(AdminBrowser::flashed($response, 'status'))
-            ->toBe('Password changed. Every other session was signed out.')
+            ->toBe('Password changed, and every other session was signed out')
             ->and((string) DB::table('access.staff_users')->where('id', $staffId)->value('password'))
             ->not->toBe($before);
 

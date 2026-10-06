@@ -25,7 +25,7 @@ return [
     'staff.ip_minutes' => 'How Long That Address Waits (Minutes)',
     'staff.session_idle_minutes' => 'Signed Out After Doing Nothing (Minutes)',
     'staff.session_max_hours' => 'Longest a Session Lasts (Hours)',
-    'staff.trusted_browser_days' => 'A Trusted Browser Is Remembered (Days)',
+    'staff.trusted_browser_hours' => 'A Trusted Browser Is Remembered (Hours)',
     'staff.password_reset_minutes' => 'A Reset Link Lasts (Minutes)',
     'staff.password_reset_hourly_limit' => 'Reset Emails an Hour',
 

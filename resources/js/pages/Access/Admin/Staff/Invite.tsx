@@ -1,48 +1,61 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useForm } from '@inertiajs/react';
+import { Link, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { ActionButton } from '@/components/ActionButton';
+import { CountryCombobox } from '@/components/CountryCombobox';
+import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { PermissionPicker } from '@/components/PermissionPicker';
-import { ExceptionList, SELECTED_STORES, StoreChoice } from '@/components/RoleStores';
+import { RoleChoice } from '@/components/RoleChoice';
+import { Note } from '@/components/Note';
+import { Steps } from '@/components/Steps';
+import {
+    ActionStores,
+    emptyCustom,
+    reachAllowsCustom,
+    reachStores,
+    reachToSend,
+    SELECTED_STORES,
+    setActionStores,
+    WhereItReaches,
+    withinReach,
+} from '@/components/RoleStores';
 import type { ExceptionRow } from '@/components/RoleStores';
-import { Badge, Button, ButtonLink, Checkbox, Input, RadioGroup, Select } from '@/components/geist';
+import { Button } from '@/components/ui/button';
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
+import { NativeSelectOption } from '@/components/ui/native-select';
+import { Switch } from '@/components/ui/switch';
+import { useList } from '@/lib/list';
 import { useTranslator } from '@/lib/t';
 import type { InviteStaffPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
 | C3 - inviting a staff member (frontend.md §3.3).
 |
-| Three steps with a progress line: who they are, what they may do, and where. **Nothing is sent
-| until the last step** [decided 2026-09-19] - leaving halfway writes nothing and creates nobody,
-| so there is no half-made account for an admin to find later and wonder about.
+| Three steps: who they are, what they may do, and where. **Nothing is sent until the last step**
+| [decided 2026-09-19] - leaving halfway writes nothing and creates nobody, so there is no half-made
+| account for an admin to find later and wonder about.
 |
 | A refusal that belongs to an earlier step takes the person back to it, rather than showing a
 | message next to a field they cannot see.
 |
-| In Geist's fields and choices (frontend.md 1.10). Geist has no stepper, so the progress line is
-| built from its type and colours. The role is one choice of several, so a RadioGroup - a saved
-| role, or a role of their own. The button that moves on stays a submit, so Enter on any field
-| goes to the next step exactly as the button does.
+| shadcn's parts with Geist's rules (frontend.md §1.11):
+| - the steps are drawn as the company page's tracking steps are - a circle each, done, current or
+|   still to come, with its name (the owner, 2026-10-06, in place of Geist's Progress bar); the list
+|   is named "Step 2 of 3 · Role" for a screen reader;
+| - each step's fields are a FieldSet named by its legend, so a screen reader hears "Profile";
+| - the country is a combobox, since the list is the whole world (Geist's Select is for short lists);
+| - "An Admin" is one on/off choice, so a Switch with its hint as the description (Geist's Toggle);
+| - the role is shadcn's choice cards (Geist's Choicebox), as on one person's role screen.
+| The button that moves on stays a submit, so Enter on any field goes to the next step exactly as
+| the button does.
 */
 
 type Props = InviteStaffPage;
 
-const PROFILE_FIELDS = [
-    'email',
-    'first_name',
-    'last_name',
-    'job_title',
-    'date_of_birth',
-    'country',
-    'address',
-    'phone',
-    'locale',
-];
+const PROFILE_FIELDS = ['email', 'first_name', 'last_name', 'job_title', 'date_of_birth', 'country', 'address', 'phone', 'locale'];
 
 const ROLE_FIELDS = ['saved_role_id', 'permissions'];
-
-/** The radio value for "a role of their own", which is no saved role at all. */
-const OWN_ROLE = 'own';
 
 export default function Invite(page: Props) {
     const t = useTranslator();
@@ -50,6 +63,9 @@ export default function Invite(page: Props) {
     const [admin, setAdmin] = useState(false);
     const [roleId, setRoleId] = useState<string | null>(null);
     const [chosen, setChosen] = useState<string[]>([]);
+    // The actions the last Send stopped on.
+    const [stoppedOn, setStoppedOn] = useState<string[]>([]);
+    const list = useList();
 
     const form = useForm({
         email: '',
@@ -69,10 +85,7 @@ export default function Invite(page: Props) {
     // An admin is not tied to a store, and only a Super Admin may bring one in.
     const permissions = admin ? page.adminPermissions : page.permissions;
     const level = admin ? 'ADMIN' : 'STAFF';
-    const roles = useMemo(
-        () => page.savedRoles.filter((role) => role.level === level),
-        [page.savedRoles, level],
-    );
+    const roles = useMemo(() => page.savedRoles.filter((role) => role.level === level), [page.savedRoles, level]);
 
     const edited = useMemo(() => {
         if (roleId === null) {
@@ -101,24 +114,37 @@ export default function Invite(page: Props) {
         setChosen(id === null ? [] : (page.savedPermissions[id] ?? []));
     }
 
+    // Where It Reaches bounds every action: each custom choice as the reach allows it now, and what
+    // it lost, worked out from the choices as made (access.md amendment 59, D9).
+    const allowsCustom = reachAllowsCustom(form.data.access_level, form.data.store_ids);
+    const within = withinReach(form.data.exceptions, form.data.access_level, form.data.store_ids);
+    const empty = emptyCustom(within.rows, chosen);
+    const stillStopped = empty.filter((permission) => stoppedOn.includes(permission));
+    const labelOf = (name: string): string => permissions.find((permission) => permission.name === name)?.label ?? name;
+
     function send() {
+        // A custom choice left with nothing stops the send, naming the action (D9).
+        if (empty.length > 0) {
+            setStoppedOn(empty);
+
+            return;
+        }
+
         // transform() only records how to shape the data; the post right after it is what sends.
         form.transform((data) => ({
             ...data,
             admin,
             saved_role_id: edited ? '' : roleId,
             permissions: edited ? chosen : [],
-            exceptions: data.exceptions.filter((row) => chosen.includes(row.permission)),
+            store_ids: reachToSend(data.access_level, data.store_ids),
+            exceptions: allowsCustom ? within.rows.filter((row) => chosen.includes(row.permission)) : [],
         }));
 
         form.post('/admin/staff/invite');
     }
 
-    const steps = [
-        t('access::staff.step_profile'),
-        t('access::staff.step_role'),
-        t('access::staff.step_stores'),
-    ];
+    const steps = [t('access::staff.step_profile'), t('access::staff.step_role'), t('access::staff.step_stores')];
+    const stage = `${t('access::staff.step_of', { step, total: steps.length })} · ${steps[step - 1] ?? ''}`;
 
     return (
         <AdminLayout
@@ -126,9 +152,9 @@ export default function Invite(page: Props) {
             subtitle={t('access::staff.invite_subtitle')}
             breadcrumbs={[{ label: t('access::staff.title'), href: '/admin/staff' }]}
             action={
-                <ButtonLink href="/admin/staff" type="tertiary">
-                    {t('access::staff.cancel')}
-                </ButtonLink>
+                <Button variant="ghost" asChild>
+                    <Link href="/admin/staff">{t('access::staff.cancel')}</Link>
+                </Button>
             }
         >
             <form
@@ -145,274 +171,189 @@ export default function Invite(page: Props) {
                 }}
                 className="grid max-w-3xl gap-6"
             >
-                <ol className="flex flex-wrap items-center gap-3 text-label-14">
-                    {steps.map((label, index) => {
-                        const number = index + 1;
-
-                        return (
-                            <li
-                                key={label}
-                                aria-current={number === step ? 'step' : undefined}
-                                className="flex items-center gap-2"
-                            >
-                                <span
-                                    className={[
-                                        'tw-figure grid size-6 place-items-center rounded-full text-label-12',
-                                        number === step
-                                            ? 'bg-brand text-ink-on-brand'
-                                            : number < step
-                                              ? 'bg-brand-soft text-brand'
-                                              : 'bg-surface-sunken text-ink-muted',
-                                    ].join(' ')}
-                                >
-                                    {number}
-                                </span>
-                                <span className={number === step ? 'text-ink' : 'text-ink-muted'}>{label}</span>
-                                {number < steps.length ? <span className="text-ink-subtle">·</span> : null}
-                            </li>
-                        );
-                    })}
-
-                    <li className="tw-figure ms-auto text-label-13 text-ink-muted">
-                        {t('access::staff.step_of', { step, total: steps.length })}
-                    </li>
-                </ol>
+                {/* The company page's tracking steps, across the form (the owner, 2026-10-06). */}
+                <div className="material-base px-5 py-4">
+                    <Steps
+                        names={steps}
+                        current={step}
+                        label={stage}
+                        doneLabel={t('access::staff.step_done')}
+                        upcomingLabel={t('access::staff.step_upcoming')}
+                    />
+                </div>
 
                 <FormError />
 
                 {step === 1 ? (
-                    <section className="material-base grid gap-4 p-5 sm:grid-cols-2">
-                        <Input
-                            id="first_name"
-                            label={t('access::staff.first_name')}
-                            error={form.errors.first_name}
-                            required
-                            value={form.data.first_name}
-                            onChange={(event) => form.setData('first_name', event.target.value)}
-                        />
-
-                        <Input
-                            id="last_name"
-                            label={t('access::staff.last_name')}
-                            error={form.errors.last_name}
-                            required
-                            value={form.data.last_name}
-                            onChange={(event) => form.setData('last_name', event.target.value)}
-                        />
-
-                        <Input
-                            id="email"
-                            type="email"
-                            label={t('access::staff.email')}
-                            error={form.errors.email}
-                            dir="ltr"
-                            required
-                            value={form.data.email}
-                            onChange={(event) => form.setData('email', event.target.value)}
-                        />
-
-                        <Input
-                            id="phone"
-                            label={t('access::staff.phone')}
-                            error={form.errors.phone}
-                            dir="ltr"
-                            inputClassName="tw-figure"
-                            required
-                            value={form.data.phone}
-                            onChange={(event) => form.setData('phone', event.target.value)}
-                        />
-
-                        <Input
-                            id="job_title"
-                            label={t('access::staff.job_title')}
-                            error={form.errors.job_title}
-                            required
-                            value={form.data.job_title}
-                            onChange={(event) => form.setData('job_title', event.target.value)}
-                        />
-
-                        <Input
-                            id="date_of_birth"
-                            type="date"
-                            label={t('access::staff.date_of_birth')}
-                            error={form.errors.date_of_birth}
-                            dir="ltr"
-                            required
-                            value={form.data.date_of_birth}
-                            onChange={(event) => form.setData('date_of_birth', event.target.value)}
-                        />
-
-                        <Select
-                            id="country"
-                            label={t('access::staff.country')}
-                            error={form.errors.country}
-                            required
-                            value={form.data.country}
-                            onChange={(event) => form.setData('country', event.target.value)}
-                        >
-                            {/* The countries our stores are in come first, under their own
-                                heading; they appear in the long list too, so somebody looking
-                                for Saudi Arabia under S still finds it (owner, 2026-09-24). */}
-                            <optgroup label={t('access::staff.countries_ours')}>
-                                {page.countries
-                                    .filter((country) => country.ours)
-                                    .map((country) => (
-                                        <option key={`ours-${country.code}`} value={country.code}>
-                                            {country.name}
-                                        </option>
-                                    ))}
-                            </optgroup>
-
-                            <optgroup label={t('access::staff.countries_all')}>
-                                {page.countries.map((country) => (
-                                    <option key={country.code} value={country.code}>
-                                        {country.name}
-                                    </option>
-                                ))}
-                            </optgroup>
-                        </Select>
-
-                        <Select
-                            id="locale"
-                            label={t('access::staff.communication_language')}
-                            helper={t('access::staff.communication_language_hint')}
-                            error={form.errors.locale}
-                            value={form.data.locale}
-                            onChange={(event) => form.setData('locale', event.target.value)}
-                        >
-                            <option value="ar">العربية</option>
-                            <option value="en">English</option>
-                        </Select>
-
-                        <Input
-                            id="address"
-                            label={t('access::staff.address')}
-                            error={form.errors.address}
-                            value={form.data.address}
-                            onChange={(event) => form.setData('address', event.target.value)}
-                            className="sm:col-span-2"
-                        />
-                    </section>
+                    <FieldSet className="material-base gap-4 p-5">
+                        <FieldLegend className="mb-0 text-heading-16 text-ink">{t('access::staff.profile')}</FieldLegend>
+                        <FieldGroup className="grid gap-4 sm:grid-cols-2">
+                            <TextField
+                                id="first_name"
+                                label={t('access::staff.first_name')}
+                                error={form.errors.first_name}
+                                required
+                                value={form.data.first_name}
+                                onChange={(event) => form.setData('first_name', event.target.value)}
+                            />
+                            <TextField
+                                id="last_name"
+                                label={t('access::staff.last_name')}
+                                error={form.errors.last_name}
+                                required
+                                value={form.data.last_name}
+                                onChange={(event) => form.setData('last_name', event.target.value)}
+                            />
+                            <TextField
+                                id="email"
+                                type="email"
+                                label={t('access::staff.email')}
+                                error={form.errors.email}
+                                dir="ltr"
+                                required
+                                value={form.data.email}
+                                onChange={(event) => form.setData('email', event.target.value)}
+                            />
+                            <TextField
+                                id="phone"
+                                label={t('access::staff.phone')}
+                                error={form.errors.phone}
+                                dir="ltr"
+                                inputClassName="tw-figure"
+                                required
+                                value={form.data.phone}
+                                onChange={(event) => form.setData('phone', event.target.value)}
+                            />
+                            <TextField
+                                id="job_title"
+                                label={t('access::staff.job_title')}
+                                error={form.errors.job_title}
+                                required
+                                value={form.data.job_title}
+                                onChange={(event) => form.setData('job_title', event.target.value)}
+                            />
+                            <TextField
+                                id="date_of_birth"
+                                type="date"
+                                label={t('access::staff.date_of_birth')}
+                                error={form.errors.date_of_birth}
+                                dir="ltr"
+                                required
+                                value={form.data.date_of_birth}
+                                onChange={(event) => form.setData('date_of_birth', event.target.value)}
+                            />
+                            <CountryCombobox
+                                id="country"
+                                label={t('access::staff.country')}
+                                countries={page.countries}
+                                value={form.data.country}
+                                onChange={(code) => form.setData('country', code)}
+                                error={form.errors.country}
+                                words={{
+                                    search: t('access::staff.country_search'),
+                                    none: (query) => t('access::staff.country_none', { query }),
+                                    ours: t('access::staff.countries_ours'),
+                                    all: t('access::staff.countries_all'),
+                                }}
+                            />
+                            <SelectField
+                                id="locale"
+                                label={t('access::staff.communication_language')}
+                                helper={t('access::staff.communication_language_hint')}
+                                error={form.errors.locale}
+                                value={form.data.locale}
+                                onChange={(event) => form.setData('locale', event.target.value)}
+                            >
+                                <NativeSelectOption value="ar">العربية</NativeSelectOption>
+                                <NativeSelectOption value="en">English</NativeSelectOption>
+                            </SelectField>
+                            <TextField
+                                id="address"
+                                label={t('access::staff.address')}
+                                error={form.errors.address}
+                                value={form.data.address}
+                                onChange={(event) => form.setData('address', event.target.value)}
+                                className="sm:col-span-2"
+                            />
+                        </FieldGroup>
+                    </FieldSet>
                 ) : null}
 
                 {step === 2 ? (
                     <div className="grid gap-6">
                         {page.maySetAdmin ? (
-                            <div className="material-base px-4 py-3">
-                                <Checkbox
+                            <Field orientation="horizontal" className="material-base px-4 py-3">
+                                <FieldContent>
+                                    <FieldLabel htmlFor="as_admin" className="text-label-14 text-ink">
+                                        {t('access::staff.as_admin')}
+                                    </FieldLabel>
+                                    <FieldDescription id="as_admin-hint" className="text-copy-13 text-ink-muted">
+                                        {t('access::staff.as_admin_hint')}
+                                    </FieldDescription>
+                                </FieldContent>
+                                <Switch
                                     id="as_admin"
+                                    aria-describedby="as_admin-hint"
                                     checked={admin}
-                                    onChange={(on) => {
+                                    onCheckedChange={(on) => {
                                         setAdmin(on);
                                         pick(null);
                                     }}
-                                >
-                                    <span className="grid gap-0.5">
-                                        <span>{t('access::staff.as_admin')}</span>
-                                        <span className="text-copy-13 text-ink-muted">{t('access::staff.as_admin_hint')}</span>
-                                    </span>
-                                </Checkbox>
-                            </div>
+                                    className="data-[state=unchecked]:bg-ink-subtle"
+                                />
+                            </Field>
                         ) : null}
 
-                        <section className="material-base p-5">
-                            <RadioGroup
-                                name="role"
-                                legend={
-                                    <span className="grid gap-1">
-                                        <span className="text-heading-16 text-ink">{t('access::staff.pick_role')}</span>
-                                        <span className="text-copy-13 font-normal text-ink-muted">
-                                            {t('access::staff.pick_role_hint')}
-                                        </span>
-                                    </span>
-                                }
-                                value={roleId ?? OWN_ROLE}
-                                onChange={(value) => pick(value === OWN_ROLE ? null : value)}
-                                options={[
-                                    ...roles.map((role) => ({
-                                        value: role.id,
-                                        label: (
-                                            <span className="grid gap-0.5">
-                                                <span className="flex flex-wrap items-center gap-2">
-                                                    {role.name}
-                                                    {roleId === role.id && edited ? (
-                                                        <Badge variant="amber-subtle" size="small">
-                                                            {t('access::staff.edited')}
-                                                        </Badge>
-                                                    ) : null}
-                                                </span>
-                                                <span className="tw-figure text-copy-13 text-ink-muted">
-                                                    {t('access::staff.actions_count', { count: role.permissionCount })}
-                                                </span>
-                                            </span>
-                                        ),
-                                    })),
-                                    {
-                                        value: OWN_ROLE,
-                                        label: (
-                                            <span className="grid gap-0.5">
-                                                <span>{t('access::staff.own_role')}</span>
-                                                <span className="text-copy-13 text-ink-muted">{t('access::staff.own_role_hint')}</span>
-                                            </span>
-                                        ),
-                                    },
-                                ]}
-                            />
-                        </section>
+                        <RoleChoice roles={roles} value={roleId} edited={edited} onPick={pick} />
 
-                        <PermissionPicker
-                            permissions={permissions}
-                            groups={page.groups}
-                            chosen={chosen}
-                            onChange={setChosen}
-                        />
+                        <PermissionPicker permissions={permissions} groups={page.groups} chosen={chosen} onChange={setChosen} />
                     </div>
                 ) : null}
 
                 {step === 3 ? (
                     <div className="grid gap-6">
-                        <section className="grid gap-3">
-                            <div className="grid gap-1">
-                                <h2 className="text-heading-16 text-ink">{t('access::staff.where')}</h2>
-                                <p className="text-copy-13 text-ink-muted">{t('access::staff.where_hint')}</p>
-                            </div>
+                        {stillStopped.length > 0 ? (
+                            <Note variant="error" alert data-test="exceptions-empty-refusal">
+                                {t('access::staff.exceptions_empty', { actions: list(stillStopped.map(labelOf)) })}
+                            </Note>
+                        ) : null}
 
-                            <StoreChoice
-                                stores={page.stores}
-                                level={form.data.access_level}
-                                chosen={form.data.store_ids}
-                                onLevel={(next) => form.setData('access_level', next)}
-                                onChosen={(ids) => form.setData('store_ids', ids)}
-                            />
-                        </section>
+                        <WhereItReaches
+                            stores={page.stores}
+                            level={form.data.access_level}
+                            chosen={form.data.store_ids}
+                            onLevel={(next) => form.setData('access_level', next)}
+                            onChosen={(ids) => form.setData('store_ids', ids)}
+                        />
 
-                        <section className="grid gap-3">
-                            <div className="grid gap-1">
-                                <h2 className="text-heading-16 text-ink">{t('access::staff.exceptions_title')}</h2>
-                                <p className="text-copy-13 text-ink-muted">{t('access::staff.exceptions_hint')}</p>
-                            </div>
-
-                            <ExceptionList
+                        {/* As on one person's role page (C6): only for two or more stores, or every store. */}
+                        {allowsCustom || empty.length > 0 ? (
+                            <ActionStores
                                 permissions={permissions}
+                                groups={page.groups}
                                 chosen={chosen}
-                                stores={page.stores}
-                                rows={form.data.exceptions}
-                                onChange={(rows) => form.setData('exceptions', rows)}
+                                stores={reachStores(page.stores, form.data.access_level, form.data.store_ids)}
+                                offered={page.stores}
+                                rows={within.rows}
+                                onSet={(permission, storeIds) => form.setData('exceptions', setActionStores(form.data.exceptions, permission, storeIds))}
+                                lost={within.lost}
+                                empty={stoppedOn}
+                                only={allowsCustom ? undefined : empty}
                             />
-                        </section>
+                        ) : null}
                     </div>
                 ) : null}
 
                 <div className="flex flex-wrap items-center gap-3">
                     {step > 1 ? (
-                        <Button type="secondary" onClick={() => setStep(step - 1)}>
+                        <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
                             {t('access::staff.back')}
                         </Button>
                     ) : null}
 
-                    <Button typeName="submit" loading={form.processing}>
+                    <ActionButton type="submit" loading={form.processing}>
                         {t(step < 3 ? 'access::staff.next' : 'access::staff.send_invitation')}
-                    </Button>
+                    </ActionButton>
 
                     <span className="text-copy-13 text-ink-muted">{t('access::staff.nothing_sent_yet')}</span>
                 </div>

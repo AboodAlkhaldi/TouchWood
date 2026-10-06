@@ -14,6 +14,7 @@ canChangeEmail: boolean,
 notifications: NotificationSetting[],
 countries: CountryOption[],
 passwordMinLength: number,
+codeLength: number,
 sessions: StaffSessionRow[],
 trustedBrowsers: TrustedBrowserRow[],
 tab: string,
@@ -55,6 +56,7 @@ id: string,
 code: string,
 name: string,
 hasFormat: boolean,
+isActive: boolean,
 };
 export type AddressRow = {
 id: string,
@@ -90,11 +92,13 @@ passwordMinimumLength: number,
 addresses: AddressBookStore[],
 deletionDays: number,
 returnTo: string | null,
+codeLength: number,
 };
 export type CustomerAddressGroup = {
 storeId: string,
 storeName: string,
 addresses: AddressRow[],
+isActive: boolean,
 };
 export type CustomerDetailsPage = {
 customer: CustomerRow,
@@ -133,6 +137,7 @@ deletionScheduledFor: string | null,
 anonymized: boolean,
 homeStore: string,
 registeredAt: string,
+homeStoreIsActive: boolean,
 };
 export type CustomerSignInPage = {
 rememberDays: number,
@@ -147,6 +152,33 @@ grantable: boolean,
 export type EmailChangePage = {
 token: string,
 newEmail: string,
+};
+export type HomeCardBlock = {
+key: string,
+title: string,
+figures: HomeFigureBlock[],
+rows: HomeRowBlock[],
+rowsLabel: string | null,
+href: string | null,
+openLabel: string | null,
+};
+export type HomeFigureBlock = {
+label: string,
+value: number,
+unit: string,
+href: string | null,
+tone: string | null,
+};
+export type HomePage = {
+scope: string,
+offersAllStores: boolean,
+cards: HomeCardBlock[],
+};
+export type HomeRowBlock = {
+label: string,
+detail: string | null,
+at: string | null,
+href: string | null,
 };
 export type InvitationPage = {
 token: string,
@@ -232,7 +264,7 @@ mayCreate: boolean,
 export type SignInCodePage = {
 maskedPhone: string | null,
 length: number,
-trustDays: number,
+trustHours: number,
 resendIn: number,
 action: string,
 resendAction: string,
@@ -287,7 +319,6 @@ mayDisable: boolean,
 mayEnable: boolean,
 mayResendInvitation: boolean,
 mayCancelInvitation: boolean,
-mayRefresh: boolean,
 };
 export type StaffRolePage = {
 staffId: string,
@@ -325,6 +356,7 @@ isCurrent: boolean,
 export type StoreOption = {
 id: string,
 name: string,
+isActive: boolean,
 };
 export type TrustedBrowserRow = {
 id: string,
