@@ -243,7 +243,7 @@ final class AccessServiceProvider extends ServiceProvider
         // Every web request starts as a guest, so no route ever runs as the system.
         $this->app->make(HttpKernel::class)->pushMiddleware(IdentifyRequestActor::class);
 
-        // A staff view sees the off stores its staff member covers (spec §1.11; platform.md §2.6).
+        // A Super Admin's staff view sees the off stores too (spec §1.11; platform.md §2.7).
         $this->app->make(OffStoreViewers::class)->register('access', StaffViewOffStores::class);
 
         // The panel's own session driver: the same database driver, writing the staff member each

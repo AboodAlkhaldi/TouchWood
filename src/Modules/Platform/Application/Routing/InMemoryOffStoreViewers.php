@@ -11,7 +11,7 @@ use Modules\Platform\Public\Contracts\OffStoreViewers;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * The modules' off-store viewers, collected from their service providers (platform.md §2.6). Each
+ * The modules' off-store viewers, collected from their service providers (platform.md §2.7). Each
  * is resolved when asked, so a viewer that reads the request - Access's staff view - reads this one.
  */
 final class InMemoryOffStoreViewers implements OffStoreViewers

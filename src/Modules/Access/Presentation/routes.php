@@ -182,7 +182,7 @@ Route::middleware(StorefrontArea::MIDDLEWARE_WITHOUT_STORE)
 
 /*
 | Leaving the staff view (spec §1.11), at the top level for the same reason: an off store's pages
-| only read during a staff view (platform.md §2.6), so a post under one would be a 404. The request
+| only read during a staff view (platform.md §2.7), so a post under one would be a 404. The request
 | names the store it came from, and goes back there if that store is on.
 */
 Route::middleware(StorefrontArea::MIDDLEWARE_WITHOUT_STORE)

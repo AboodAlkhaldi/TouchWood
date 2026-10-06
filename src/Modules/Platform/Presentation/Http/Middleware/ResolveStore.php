@@ -28,7 +28,7 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * An off store is a 404, exactly as an unknown code (§1.6) - unless a module's off-store viewer
  * says this request may see it, and it only reads: a staff member viewing the shop from the panel
- * (§2.6; access.md §1.11). Nobody else learns the store exists.
+ * (§2.7; access.md §1.11). Nobody else learns the store exists.
  */
 final readonly class ResolveStore
 {

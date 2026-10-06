@@ -79,7 +79,7 @@ final readonly class ShareStorefront
 
         $available = [];
 
-        // The stores that are on, and an off one only for a viewer who may see it (§2.6) - marked,
+        // The stores that are on, and an off one only for a viewer who may see it (§2.7) - marked,
         // so the switch can say it is off. Anyone else is offered on stores only (§1.6).
         foreach ($this->platform->allStores() as $store) {
             if (! $store->isActive && ! $this->offStoreViewers->mayView($store->storeId())) {

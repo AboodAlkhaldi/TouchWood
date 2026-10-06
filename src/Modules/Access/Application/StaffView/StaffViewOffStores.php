@@ -9,7 +9,7 @@ use Modules\Platform\Public\Contracts\OffStoreViewer;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * Which off stores a staff view may see in the shop (spec §1.11; platform.md §1.6, §2.6): every one,
+ * Which off stores a staff view may see in the shop (spec §1.11; platform.md §1.6, §2.7): every one,
  * for a Super Admin - the one who prepares a store before it opens - and none for anyone else (the
  * owner, 2026-10-06: "staff cant view an off store, only super admin can"). Nobody without a pass
  * sees any.

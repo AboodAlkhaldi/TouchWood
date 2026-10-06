@@ -8,7 +8,7 @@ use Modules\Platform\Public\Contracts\OffStoreViewers;
 use Shared\Domain\ValueObject\StoreId;
 
 /*
-| Who may see an off store in the shop (platform.md §1.6, §2.6): nobody, unless a module's viewer
+| Who may see an off store in the shop (platform.md §1.6, §2.7): nobody, unless a module's viewer
 | says so - Access's, for a staff view (access.md §1.11).
 */
 

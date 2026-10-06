@@ -34,7 +34,7 @@ afterEach(function () {
 });
 
 /*
-| The staff view (access.md §1.11, amendment 60; frontend.md §2.2, §2.3; platform.md §2.6, §9.9): a
+| The staff view (access.md §1.11, amendment 60; frontend.md §2.2, §2.3; platform.md §2.7, §9.9): a
 | staff member opens the shop from the panel as themselves - a visitor's shop plus the off stores they
 | cover, no customer, no ordering - through a pass in its own cookie that never outlives its admin
 | session.

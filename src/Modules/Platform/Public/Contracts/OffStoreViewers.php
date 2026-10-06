@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Platform\Public\Contracts;
 
 /**
- * Where a module tells Platform who may see an off store in the shop (platform.md §2.6). Register
+ * Where a module tells Platform who may see an off store in the shop (platform.md §2.7). Register
  * once, in your module's service provider; one viewer per module. With none saying yes, an off
  * store is a 404, as if it were never there (§1.6).
  */

@@ -252,7 +252,7 @@ Not an aggregate — a rule that holds for every request, job and command.
   - **[2026-10-05, the staff view — access.md §1.11]** a staff member viewing the shop from the
     panel - a Super Admin only (owner, 2026-10-06) - sees the off stores: their pages open to look only (a form sent there is still
     a 404), and the shop's store switch lists them marked Off. Platform does not know who that is: it asks the **off-store viewers** other modules
-    register (§2.6), and with none saying yes, the store is a 404 as above (§9.9).
+    register (§2.7), and with none saying yes, the store is a 404 as above (§9.9).
 - **[DECIDED 2026-09-18] The language is the second segment:** `brand.com/sa/ar/...` and
   `brand.com/sa/en/...`, so search engines see one address per language. The supported languages
   are `ar` and `en` (every name in the system has both); anything else is a 404. The page, its
@@ -402,12 +402,11 @@ cannot import Platform's interior. They count toward the ~20-class ceiling.
 Until Access exists, Platform's own code runs with a system actor from console commands, and
 tests bind fakes for `Authorizer` and `ActorContext`.
 
-### 2.6 `Modules\Platform\Public\Contracts\OffStoreViewers` — who may see an off store in the shop (§9.9)
+### 2.7 `Modules\Platform\Public\Contracts\OffStoreViewers` — who may see an off store in the shop (§9.9)
 
-(Numbered 2.6 here; the admin home's cards take 2.6 on their own branch, and one moves when both
-are in.) An off store is a 404 in the shop (§1.6). The one exception — a staff member viewing the
-shop from the panel (access.md §1.11) — is Access's to recognise, and Platform sits below Access, so
-Access tells Platform through a registry, as it does for the audit log's names.
+An off store is a 404 in the shop (§1.6). The one exception — a staff member viewing the shop from
+the panel (access.md §1.11) — is Access's to recognise, and Platform sits below Access, so Access
+tells Platform through a registry, as it does for the audit log's names.
 
 | Type | Purpose |
 |---|---|
@@ -1056,4 +1055,4 @@ amendment 60).
 
 | # | Sections | Decision |
 |---|---|---|
-| 1 | §1.6, §2.6 | **An off store opens in the shop for a Super Admin's staff view — to look only** (GET, HEAD), and the shop's store switch lists it marked Off; for everyone else it stays a 404 and unlisted. Platform asks the **off-store viewers** registered by other modules (`OffStoreViewers`), because only Access knows a staff view; `storeByCode()` and `stores()` are unchanged for every other caller. Whose staff view it is is Access's to know: a Super Admin's only (owner, 2026-10-06: "staff cant view an off store, only super admin can"). |
+| 1 | §1.6, §2.7 | **An off store opens in the shop for a Super Admin's staff view — to look only** (GET, HEAD), and the shop's store switch lists it marked Off; for everyone else it stays a 404 and unlisted. Platform asks the **off-store viewers** registered by other modules (`OffStoreViewers`), because only Access knows a staff view; `storeByCode()` and `stores()` are unchanged for every other caller. Whose staff view it is is Access's to know: a Super Admin's only (owner, 2026-10-06: "staff cant view an off store, only super admin can"). |

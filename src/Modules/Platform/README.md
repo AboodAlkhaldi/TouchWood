@@ -60,7 +60,7 @@ Route::prefix('{store}/{locale}')->middleware('store')->group(...);
 $this->app->make(ReservedPaths::class)->reserve('payments', 'webhooks');
 
 // An off store is a 404 in the shop for everyone (§1.6). A module that knows an exception tells
-// Platform with an OffStoreViewer (§2.6) - Access's, for a staff member viewing the shop from the
+// Platform with an OffStoreViewer (§2.7) - Access's, for a staff member viewing the shop from the
 // panel; then the store's pages open and the shop's store switch lists it with isActive false.
 $this->app->make(OffStoreViewers::class)->register('access', StaffViewOffStores::class);
 ```

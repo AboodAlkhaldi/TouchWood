@@ -124,7 +124,7 @@ final class PlatformServiceProvider extends ServiceProvider
         $this->app->singleton(InMemorySettingsSectionLines::class);
         $this->app->alias(InMemorySettingsSectionLines::class, SettingsSectionLines::class);
 
-        // Who may see an off store in the shop: nobody, unless a module says so (platform.md §2.6).
+        // Who may see an off store in the shop: nobody, unless a module says so (platform.md §2.7).
         $this->app->singleton(InMemoryOffStoreViewers::class);
         $this->app->alias(InMemoryOffStoreViewers::class, OffStoreViewers::class);
 
