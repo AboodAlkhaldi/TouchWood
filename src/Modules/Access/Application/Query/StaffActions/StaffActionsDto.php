@@ -21,7 +21,6 @@ final readonly class StaffActionsDto
         public bool $mayEnable,
         public bool $mayResendInvitation,
         public bool $mayCancelInvitation,
-        public bool $mayRefresh,
     ) {}
 
     /**
@@ -29,6 +28,6 @@ final readonly class StaffActionsDto
      */
     public static function none(): self
     {
-        return new self(false, false, false, false, false, false, false, false);
+        return new self(false, false, false, false, false, false, false);
     }
 }

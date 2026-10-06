@@ -15,8 +15,6 @@ use Modules\Access\Application\Command\CreateRole\CreateRole;
 use Modules\Access\Application\Command\CreateRole\CreateRoleHandler;
 use Modules\Access\Application\Command\DeleteRole\DeleteRole;
 use Modules\Access\Application\Command\DeleteRole\DeleteRoleHandler;
-use Modules\Access\Application\Command\RefreshRolePermissions\RefreshRolePermissions;
-use Modules\Access\Application\Command\RefreshRolePermissions\RefreshRolePermissionsHandler;
 use Modules\Access\Application\Command\UpdateRole\UpdateRole;
 use Modules\Access\Application\Command\UpdateRole\UpdateRoleHandler;
 use Modules\Access\Application\Query\ListRoles\ListRolesHandler;
@@ -150,18 +148,6 @@ final readonly class RolesController
         }
 
         return redirect('/admin/roles')->with('status', __('access::roles.deleted'));
-    }
-
-    /** D5. */
-    public function refresh(Request $request, string $roleId, RefreshRolePermissionsHandler $handler): RedirectResponse
-    {
-        try {
-            $handler->handle(new RefreshRolePermissions($roleId));
-        } catch (DomainError $error) {
-            return FormErrors::back($request, $error);
-        }
-
-        return back()->with('status', __('access::roles.refreshed'));
     }
 
     private function level(Request $request): RoleLevel

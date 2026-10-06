@@ -23,8 +23,6 @@ use Modules\Access\Application\Command\EnableStaff\EnableStaff;
 use Modules\Access\Application\Command\EnableStaff\EnableStaffHandler;
 use Modules\Access\Application\Command\InviteStaff\InviteStaff;
 use Modules\Access\Application\Command\InviteStaff\InviteStaffHandler;
-use Modules\Access\Application\Command\RefreshStaffPermissions\RefreshStaffPermissions;
-use Modules\Access\Application\Command\RefreshStaffPermissions\RefreshStaffPermissionsHandler;
 use Modules\Access\Application\Command\ResendStaffInvitation\ResendStaffInvitation;
 use Modules\Access\Application\Command\ResendStaffInvitation\ResendStaffInvitationHandler;
 use Modules\Access\Application\Command\UpdateStaffProfile\UpdateStaffProfile;
@@ -267,18 +265,6 @@ final readonly class StaffController
         }
 
         return redirect('/admin/staff')->with('status', __('access::staff.invitation_cancelled'));
-    }
-
-    /** C9. For an admin who wants a change to take effect at once. */
-    public function refresh(Request $request, string $staffId, RefreshStaffPermissionsHandler $handler): RedirectResponse
-    {
-        try {
-            $handler->handle(new RefreshStaffPermissions($staffId));
-        } catch (DomainError $error) {
-            return FormErrors::back($request, $error);
-        }
-
-        return back()->with('status', __('access::staff.refreshed'));
     }
 
     private function optional(Request $request, string $field): ?string

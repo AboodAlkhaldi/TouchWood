@@ -17,7 +17,8 @@ interface GrantsReader
 
     /**
      * Call inside the transaction of the change: the rebuilt permissions become visible exactly
-     * when the change does. Also what an admin's "refresh" button runs (owner, 2026-09-19).
+     * when the change does. There is no button for it (amendment 59): after a hand edit of the
+     * database, `php artisan cache:clear`.
      */
     public function refresh(string ...$staffIds): void;
 }

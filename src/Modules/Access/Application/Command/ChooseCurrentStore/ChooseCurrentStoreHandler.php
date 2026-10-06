@@ -66,7 +66,8 @@ final readonly class ChooseCurrentStoreHandler
 
     /**
      * A Super Admin covers every store without a role saying so; anyone else covers the stores of
-     * their assignment — the store row chosen for them plus any an exception adds (access.md §1.5).
+     * their assignment — the store row chosen for them, which bounds every action (access.md §1.5,
+     * amendment 59).
      */
     private function covers(string $staffId, StoreId $store): bool
     {

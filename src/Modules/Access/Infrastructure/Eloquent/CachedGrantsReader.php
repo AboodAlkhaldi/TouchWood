@@ -105,16 +105,18 @@ final readonly class CachedGrantsReader implements GrantsReader
         $grants = [];
 
         foreach (self::strings(self::json((string) $row->permissions)) as $permission) {
-            $grants[$permission] = $exceptions[$permission] ?? $storeRow;
+            // Where It Reaches bounds every action (amendment 59): what is written is refused beyond
+            // it, and what a hand edit put beyond it reaches no further than the row - an action
+            // left with no store there is not held at all (the review of P4).
+            $reach = isset($exceptions[$permission]) ? $storeRow->intersect($exceptions[$permission]) : $storeRow;
+
+            if ($reach !== null) {
+                $grants[$permission] = $reach;
+            }
         }
 
-        $stores = $storeRow;
-
-        foreach ($exceptions as $exception) {
-            $stores = $stores->union($exception);
-        }
-
-        return new StaffGrants($staffId, $status, $superAdmin, RoleLevel::from((string) $row->level), (string) $row->role_id, $grants, $stores, $sessionVersion);
+        // Their stores are the row alone: every action's lie inside it (amendment 59).
+        return new StaffGrants($staffId, $status, $superAdmin, RoleLevel::from((string) $row->level), (string) $row->role_id, $grants, $storeRow, $sessionVersion);
     }
 
     /**
