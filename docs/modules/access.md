@@ -757,7 +757,7 @@ session and trusted browser at once. Only someone who accepted can be disabled a
 ### 4.4 Staff sign-in
 
 `password ok → (trusted browser? → signed in) : SMS code → (right code → signed in, optionally trust
-this browser for 30 days)`. Wrong codes follow the same limits as customer codes. A Super Admin whose
+this browser for 12 hours — amendment 61)`. Wrong codes follow the same limits as customer codes. A Super Admin whose
 phone was reset gives a new number after the password, and the code sent there verifies it
 (amendment 14). The code step must be finished within 15 minutes of the password (amendment 34);
 after that, the password is asked again.

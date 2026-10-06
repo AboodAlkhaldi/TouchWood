@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonInterval;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -372,4 +373,29 @@ it('marks every Super Admin, current or revoked, when the mark is added, from th
         ->and($marked($revoked))->toBeTrue()
         ->and(DB::table('access.staff_users')->where('id', $revoked)->value('is_super_admin'))->toBeFalse()
         ->and($marked($ordinary))->toBeFalse();
+});
+
+it('cuts every trusted browser to 12 hours from when it was trusted, and lengthens none (amendment 61)', function () {
+    $trust = static function (string $trustedAgo, string $lasts): string {
+        $id = strtolower((string) Str::ulid());
+        $created = now()->sub(CarbonInterval::fromString($trustedAgo));
+        DB::table('access.staff_trusted_browsers')->insert([
+            'id' => $id, 'staff_user_id' => Fx::staff(), 'token_hash' => hash('sha256', $id),
+            'created_at' => $created, 'expires_at' => $created->copy()->add(CarbonInterval::fromString($lasts)), 'last_used_at' => $created,
+        ]);
+
+        return $id;
+    };
+    // Trusted for 30 days, a day ago and an hour ago; and one already shorter than the new rule.
+    $dayOld = $trust('1 day', '30 days');
+    $hourOld = $trust('1 hour', '30 days');
+    $shorter = $trust('1 hour', '2 hours');
+    $hours = static fn (string $id): float => (float) DB::selectOne('SELECT EXTRACT(EPOCH FROM expires_at - created_at) / 3600 AS hours FROM access.staff_trusted_browsers WHERE id = ?', [$id])->hours;
+
+    (require base_path('src/Modules/Access/Infrastructure/Persistence/Migrations/2026_10_05_210000_shorten_staff_trusted_browsers.php'))->up();
+
+    // The day-old one has run out, so its browser asks for a code at its next sign-in.
+    expect($hours($dayOld))->toBe(12.0)
+        ->and($hours($hourOld))->toBe(12.0)
+        ->and($hours($shorter))->toBe(2.0);
 });
