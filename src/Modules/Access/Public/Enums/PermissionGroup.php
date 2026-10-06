@@ -29,10 +29,11 @@ enum PermissionGroup: string
     /** The running of the system — first the failed jobs (owner, 2026-09-29; frontend.md E7). */
     case System = 'system';
 
-    // Nothing declares these yet; they are the groups the modules still to be built will use
-    // (handoff §14 and the design's own grouping).
+    /** Catalog's jobs (catalog.md §3, from 2026-10-02). */
     case Catalog = 'catalog';
 
+    // Nothing declares these yet; they are the groups the modules still to be built will use
+    // (handoff §14 and the design's own grouping).
     case Pricing = 'pricing';
 
     case Orders = 'orders';

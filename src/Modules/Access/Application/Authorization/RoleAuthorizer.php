@@ -178,7 +178,7 @@ final readonly class RoleAuthorizer implements Authorizer
             return null;
         }
 
-        if (! $staff->isAdmin() && in_array($definition->name, AccessPermissions::adminOnly(), true)) {
+        if (! $staff->isAdmin() && $this->catalog->isAdminOnly($definition->name)) {
             return null;
         }
 
