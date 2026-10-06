@@ -22,6 +22,8 @@ use Modules\Catalog\Application\Command\DeleteImportedProducts\DeleteImportedPro
 use Modules\Catalog\Application\Command\DeleteImportedProducts\DeleteImportedProductsHandler;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
+use Modules\Catalog\Application\Command\SetImportedSearchWords\SetImportedSearchWords;
+use Modules\Catalog\Application\Command\SetImportedSearchWords\SetImportedSearchWordsHandler;
 use Modules\Catalog\Application\Command\SetRelations\SetRelations;
 use Modules\Catalog\Application\Command\SetRelations\SetRelationsHandler;
 use Modules\Catalog\Application\Query\ViewImport\ViewImport;
@@ -29,6 +31,7 @@ use Modules\Catalog\Application\Query\ViewImport\ViewImportHandler;
 use Modules\Catalog\Domain\Exception\CategoryNotLowest;
 use Modules\Catalog\Domain\Exception\ImportRefused;
 use Modules\Catalog\Domain\Exception\ImportUndecided;
+use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogImports as Ix;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -193,5 +196,24 @@ describe('a zip of too many entries (11(d))', function () {
 
         expect($refused->problems ?? null)->toBe([['at' => 'file', 'problem' => 'at most 100,000 entries in the zip, files and folders']])
             ->and(DB::table('catalog.imports')->exists())->toBeFalse();
+    });
+});
+
+describe('products left out at upload (11(a))', function () {
+    it('take no part in a change, the confirm or bringing in, the rest of the file coming in', function () {
+        $sizes = Px::ready(['60 cm', '80 cm']);
+        $code = static fn (string $variantId): string => (string) DB::table('catalog.variants')->where('id', $variantId)->value('code');
+        $import = Ix::uploadProducts([Ix::product($code($sizes['variants'][0])), Ix::product($code($sizes['variants'][1])), Ix::product('9100')]);
+        $words = fn (?array $only) => app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, $only, ['slide'], 'ADD'));
+
+        expect(fn () => $words([Ix::productId($import, 1)]))->toThrow(InvalidCatalogAttribute::class, 'left out at upload')
+            ->and($words(null))->toBe(1);
+
+        Ix::bringIn($import);
+
+        expect(DB::table('catalog.import_products')->where('import_id', $import)->orderBy('number')->get(['state', 'edited', 'conflict_product_id'])->map(static fn (object $row): array => [$row->state, $row->edited === null, $row->conflict_product_id])->all())
+            ->toBe([['REFUSED', true, null], ['REFUSED', true, null], ['IN', false, null]])
+            ->and(DB::table('catalog.imports')->where('id', $import)->value('state'))->toBe('IN')
+            ->and(DB::table('catalog.variants')->where('product_id', $sizes['product'])->count())->toBe(2);
     });
 });
