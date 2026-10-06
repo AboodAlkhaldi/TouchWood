@@ -52,7 +52,8 @@ Every step ends the same way: `composer check` green → the **browser suite** g
 checks** on every new guard → an **independent review** by separate read-only agents (spec
 conformance; correctness and security; tests and tooling) → **every finding verified in the code**
 before acting on it → the owner decides each finding that changes behaviour → fixes → checks again →
-commit by path → PR into the stage branch → merged (by the owner, unless they say otherwise).
+commit by path → PR into `main` → merged when the owner says so (CONVENTIONS.md, "Branches and
+versions").
 
 Also:
 - **A README per module** next to its code (`src/Modules/{Name}/README.md`): how it is built. The
@@ -196,8 +197,8 @@ module meets (`tests/Architecture`).
 
 | Thing | Rule |
 |---|---|
-| Worktree, branch, databases, port | Your own worktree off **`main`**, a stage-like branch with a branch per step, and **your own dev and test databases** — never the shared `touchwood` / `touchwood_test`. Ask the owner for the names and the port; the Catalog backend used `TouchWood-catalog`, `touchwood_catalog` / `touchwood_test_catalog` and 8003 (its `catalog` branch is merged and deleted). In your worktree only, point `phpunit.xml` at your test database and `git update-index --skip-worktree phpunit.xml`. |
-| Branches | A branch is for a stage or a real new thing; a small fix is a commit on `main` after `composer check`. Delete a branch as soon as it merges, local and remote. |
+| Worktree, branch, databases, port | Your own worktree under `.claude/worktrees/`, off a fresh **`main`**; a short branch per step, each its own PR into `main`; and **your own dev and test databases** — never the shared `touchwood` / `touchwood_test`. Ask the owner for the names and the port; the Catalog backend used `TouchWood-catalog`, `touchwood_catalog` / `touchwood_test_catalog` and 8003 (its `catalog` branch is merged and deleted). In your worktree only, point `phpunit.xml` at your test database and `git update-index --skip-worktree phpunit.xml`. |
+| Branches | Trunk-based (owner, 2026-10-07; `docs/CONVENTIONS.md`, "Branches and versions"). `main` is the only long-lived branch: one short branch and one PR into `main` per step, spec or feature, named `<type>/<module>-<what>`, squash-merged within a day or two. There are no stage branches and no stacked PRs. A small fix is a commit straight on `main`, after `composer check`. Delete a branch as soon as it merges, locally and on GitHub. The owner decides each merge. |
 | Shared files | Expect conflicts in `docs/HANDOFF.md`, `deptrac.yaml`, `composer.json`/`.lock`, `package.json`/`-lock`, the generated TypeScript types and their manifest, the permission lists, `resources/css/themes.css`, and amendment numbers in a module's spec (two branches can each add "the next" one — check `main` before numbering). |
 | Who asks the owner | You ask about the screens. A change to another module is that module's amendment: say so and ask. |
 
