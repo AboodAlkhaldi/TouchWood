@@ -12,17 +12,29 @@ use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
 use Modules\Platform\Application\Command\CreateStore\CreateStoreHandler;
+use Modules\Platform\Application\Command\DeleteCurrency\DeleteCurrency;
+use Modules\Platform\Application\Command\DeleteCurrency\DeleteCurrencyHandler;
 use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrency;
 use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrencyHandler;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStore;
 use Modules\Platform\Application\Command\UpdateStore\UpdateStoreHandler;
 use Modules\Platform\Domain\Exception\CurrencyAlreadyExists;
 use Modules\Platform\Domain\Exception\CurrencyExponentLocked;
+use Modules\Platform\Domain\Exception\CurrencyInUse;
 use Modules\Platform\Domain\Exception\CurrencyNotFound;
+use Modules\Platform\Domain\Exception\CurrencyTaken;
 use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
 use Modules\Platform\Domain\Exception\StoreAttributeImmutable;
 use Modules\Platform\Domain\Exception\StoreCodeTaken;
 use Modules\Platform\Domain\Exception\StoreNotFound;
+use Modules\Platform\Domain\Model\Store;
+use Modules\Platform\Domain\Repository\StoreRepository;
+use Modules\Platform\Domain\ValueObject\CountryCode;
+use Modules\Platform\Domain\ValueObject\CurrencyCode;
+use Modules\Platform\Domain\ValueObject\StoreCode;
+use Modules\Platform\Domain\ValueObject\TaxRate;
+use Modules\Platform\Domain\ValueObject\Timezone;
+use Modules\Platform\Domain\ValueObject\TranslatedText;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Platform\Public\Events\CurrencyUpdated;
@@ -72,12 +84,47 @@ describe('creating', function () {
     });
 
     it('lists stores by position', function () {
-        givenCurrency();
-        givenStore('xc', position: 3);
-        givenStore('xa', position: 1);
-        givenStore('xb', position: 2);
+        // One currency, one store (§9.7 #4): each its own.
+        givenCurrency('XTA');
+        givenCurrency('XTB');
+        givenCurrency('XTC');
+        givenStore('xc', 'XTC', position: 3);
+        givenStore('xa', 'XTA', position: 1);
+        givenStore('xb', 'XTB', position: 2);
 
         expect(array_map(fn (StoreDto $store): string => $store->code, platform()->stores()))->toBe(['xa', 'xb', 'xc']);
+    });
+
+    it('opens a store only with a currency no store uses: one currency, one store (§9.7 #4)', function () {
+        givenCurrency();
+        givenStore('xa');
+
+        expect(fn () => givenStore('xb'))->toThrow(CurrencyTaken::class)
+            ->and(platform()->storeByCode('xb'))->toBeNull();
+    });
+
+    it('says the currency is taken, not the code, when two stores race for one free currency', function () {
+        givenCurrency();
+        givenStore('xa');
+        $raced = Store::create(app(StoreRepository::class)->nextId(), StoreCode::fromString('xb'), TranslatedText::of('متجر', 'Store', 'name'), CountryCode::fromString('XA'), CurrencyCode::fromString('XTS'), TaxRate::fromBasisPoints(1500), Timezone::fromString('Asia/Riyadh'), 2);
+
+        // Past the handler's own check, as the second of two at once would be: the index refuses it,
+        // and names the currency.
+        expect(fn () => app(StoreRepository::class)->add($raced))->toThrow(CurrencyTaken::class);
+    });
+
+    it('opens a store with a new currency made in the same step, and makes neither when the store is refused', function () {
+        $new = new CreateCurrency('XTN', 3, 'عملة جديدة', 'New Currency', 'ع.ج', 'XTN', null);
+
+        app(CreateStoreHandler::class)->handle(new CreateStore('xn', 'متجر', 'Store', 'XA', '', 1500, 'Asia/Riyadh', 5, $new));
+
+        expect(DB::table('platform.stores')->where('code', 'xn')->value('currency_code'))->toBe('XTN')
+            ->and((int) DB::table('platform.currencies')->where('code', 'XTN')->value('exponent'))->toBe(3);
+
+        // The store's code taken: the new currency is not left behind either.
+        expect(fn () => app(CreateStoreHandler::class)->handle(new CreateStore('xn', 'متجر', 'Store', 'XA', '', 1500, 'Asia/Riyadh', 6, new CreateCurrency('XTO', 2, 'عملة', 'Other', 'ع', 'XTO', null))))
+            ->toThrow(StoreCodeTaken::class)
+            ->and(DB::table('platform.currencies')->where('code', 'XTO')->exists())->toBeFalse();
     });
 
     it('announces a new store', function () {
@@ -197,4 +244,53 @@ describe('updating a currency', function () {
     it('reports a currency that does not exist', function () {
         app(UpdateCurrencyHandler::class)->handle(new UpdateCurrency('XXX', nameEn: 'Nothing'));
     })->throws(CurrencyNotFound::class);
+});
+
+describe('deleting a currency (platform.md §9.7)', function () {
+    it('deletes a currency no store uses, audits what it was, and serves it no longer', function () {
+        givenCurrency();
+        expect(platform()->currency('XTS'))->not->toBeNull(); // warm the cache
+
+        app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XTS'));
+
+        $entry = DB::table('platform.audit_entries')->where('action', 'platform.currency.deleted')->where('subject_id', 'XTS')->first();
+
+        expect(DB::table('platform.currencies')->where('code', 'XTS')->exists())->toBeFalse()
+            ->and(platform()->currency('XTS'))->toBeNull()
+            ->and($entry)->not->toBeNull()
+            ->and(json_decode((string) $entry?->changes, true)['exponent'] ?? null)->toBe([2, null]);
+    });
+
+    it('refuses a currency a store uses, on or off, and deletes nothing', function (bool $on) {
+        givenCurrency();
+        app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', 'XTS', 1500, 'Asia/Riyadh', 1));
+
+        if ($on) {
+            app(ActivateStoreHandler::class)->handle(new ActivateStore('xa'));
+        }
+
+        expect(fn () => app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XTS')))->toThrow(CurrencyInUse::class)
+            ->and(DB::table('platform.currencies')->where('code', 'XTS')->exists())->toBeTrue()
+            ->and(DB::table('platform.audit_entries')->where('action', 'platform.currency.deleted')->exists())->toBeFalse();
+    })->with(['an on store' => [true], 'an off store' => [false]]);
+
+    it('reports a currency that does not exist', function () {
+        app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XXX'));
+    })->throws(CurrencyNotFound::class);
+
+    it('deletes nothing when the actor is not allowed', function () {
+        // Written straight in: through its handler, the authorizer would already be built for the
+        // system, and the actor set below would never reach it.
+        DB::table('platform.currencies')->insert(['code' => 'XTS', 'exponent' => 2, 'name' => json_encode(['ar' => 'عملة', 'en' => 'Currency']), 'abbreviation' => json_encode(['ar' => 'ع', 'en' => 'XTS']), 'created_at' => now(), 'updated_at' => now()]);
+        app()->instance(ActorContext::class, new class implements ActorContext
+        {
+            public function current(): Actor
+            {
+                return Actor::staff('01j8z3k4m5n6p7q8r9s0t1v2w3');
+            }
+        });
+
+        expect(fn () => app(DeleteCurrencyHandler::class)->handle(new DeleteCurrency('XTS')))->toThrow(Unauthorized::class)
+            ->and(DB::table('platform.currencies')->where('code', 'XTS')->exists())->toBeTrue();
+    });
 });

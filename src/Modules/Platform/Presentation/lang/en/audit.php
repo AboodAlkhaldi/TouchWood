@@ -11,6 +11,7 @@ return [
     'store.deactivated' => 'Store turned off',
     'currency.created' => 'Currency added',
     'currency.updated' => 'Currency changed',
+    'currency.deleted' => 'Currency deleted',
     'setting.updated' => 'Setting changed',
     'media.uploaded' => 'File uploaded',
     'media.deleted' => 'File deleted',

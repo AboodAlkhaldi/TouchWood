@@ -168,6 +168,11 @@ A currency's `exponent` is locked once any store uses it: changing it would sile
 reinterpret every stored amount. A price shows the currency's sign, or its letters when the sign
 is empty. Clearing a sign that a font cannot draw is a data change, not a deploy.
 
+A currency no store uses — on or off — can be deleted by a Super Admin (`DeleteCurrency`,
+`platform.currency.delete`, reserved; platform.md §9.7): its row is locked before its stores are
+counted, and any store using it refuses the delete (`CurrencyInUse`), the foreign key's `RESTRICT`
+behind it. The currencies screen names the stores using each currency instead of counting them.
+
 ### Resolving a store reads only the cache
 
 `StoreDirectory` loads every store and currency in two queries and caches the snapshot.

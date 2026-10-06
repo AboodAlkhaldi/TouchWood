@@ -278,11 +278,34 @@ it('accepts guests and integrations as actors, and the system acting for one of 
     'an import with its real date' => [['source' => 'IMPORT', 'occurred_at' => '2019-05-01 10:00:00+00']],
 ]);
 
-it('refuses a second store with the same code', function () {
+it('refuses a second store with the same code, by the code\'s own index', function () {
+    insertCurrencyRow();
+    insertCurrencyRow(['code' => 'XTA']);
+    insertStoreRow();
+
+    // Its own currency, so only the code can be what refuses it.
+    expect(fn () => insertStoreRow(['currency_code' => 'XTA']))->toThrow(QueryException::class, 'platform_stores_code_unique');
+});
+
+it('refuses a second store with the same currency: one currency, one store (§9.7 #4)', function () {
     insertCurrencyRow();
     insertStoreRow();
 
-    expect(fn () => insertStoreRow())->toThrow(QueryException::class);
+    expect(fn () => insertStoreRow(['code' => 'xb']))->toThrow(QueryException::class, 'stores_one_per_currency');
+});
+
+it('stops the one-currency migration on stores that already share one, naming them, and adds no index', function () {
+    $migration = require base_path('src/Modules/Platform/Infrastructure/Persistence/Migrations/2026_10_06_100000_one_store_per_currency.php');
+
+    // Back to before the rule, with two stores sharing a currency, as an installation could have had.
+    $migration->down();
+    insertCurrencyRow();
+    insertStoreRow();
+    insertStoreRow(['code' => 'xb']);
+
+    // Which store gets which currency is the owner's to decide, so the migration names them and stops.
+    expect(fn () => $migration->up())->toThrow(RuntimeException::class, 'XTS: xa, xb')
+        ->and(DB::table('pg_indexes')->where('schemaname', 'platform')->where('indexname', 'stores_one_per_currency')->exists())->toBeFalse();
 });
 
 it('refuses to delete a currency a store uses', function () {

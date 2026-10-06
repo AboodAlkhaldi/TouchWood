@@ -37,11 +37,17 @@ final readonly class ListCurrenciesHandler
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
-        $counts = $this->directory->storeCountByCurrency();
+        // Every store, on and off, in the stores' own order, under the currency it charges in.
+        $byCurrency = [];
+
+        foreach ($this->directory->stores() as $store) {
+            $byCurrency[$store->currencyCode][] = new CurrencyStore($store->name->ar, $store->name->en, $store->isActive);
+        }
+
         $summaries = [];
 
         foreach ($this->directory->currencies() as $currency) {
-            $inUse = $counts[$currency->code] ?? 0;
+            $stores = $byCurrency[$currency->code] ?? [];
 
             $summaries[] = new CurrencySummary(
                 $currency->code,
@@ -51,8 +57,9 @@ final readonly class ListCurrenciesHandler
                 $currency->abbreviation->ar,
                 $currency->abbreviation->en,
                 $currency->sign,
-                $inUse,
-                $inUse > 0,
+                $stores,
+                $stores !== [],
+                $stores === [],
             );
         }
 

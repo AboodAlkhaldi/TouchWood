@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Platform\Presentation\Http\Resource;
 
 use Illuminate\Contracts\Foundation\Application;
+use Modules\Platform\Application\Query\ListCurrencies\CurrencyStore;
 use Modules\Platform\Application\Query\ListCurrencies\CurrencySummary;
 use Modules\Platform\Application\Query\ListCurrencies\ListCurrencies;
 use Modules\Platform\Application\Query\ListCurrencies\ListCurrenciesHandler;
@@ -43,8 +44,12 @@ final readonly class CurrencyPages
             $currency->abbreviationEn,
             $currency->sign,
             $currency->exponent,
-            $currency->storeCount,
+            array_map(fn (CurrencyStore $store): CurrencyStoreRow => new CurrencyStoreRow(
+                $this->locale() === 'en' ? $store->nameEn : $store->nameAr,
+                $store->isActive,
+            ), $currency->stores),
             $currency->exponentLocked,
+            $currency->deletable,
         );
     }
 

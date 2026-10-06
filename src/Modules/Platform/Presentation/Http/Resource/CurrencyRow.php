@@ -25,8 +25,15 @@ final class CurrencyRow extends Data
         /** What a price shows next to its amount; the abbreviation when there is none. */
         public ?string $sign,
         public int $exponent,
-        public int $storeCount,
+        /**
+         * The stores that charge in it, on and off, named rather than counted (platform.md §9.7).
+         *
+         * @var list<CurrencyStoreRow>
+         */
+        public array $stores,
         /** Settled the moment a store charges in it, and shown as settled (platform.md 1.2). */
         public bool $exponentLocked,
+        /** No store charges in it: Delete Currency is offered (platform.md §9.7). */
+        public bool $deletable,
     ) {}
 }
