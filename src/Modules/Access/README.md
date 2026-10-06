@@ -8,7 +8,7 @@ specification, [docs/modules/access.md](../../../docs/modules/access.md); this f
 code is organised and why.
 
 **The module is complete.** A staff member is invited with their whole profile, accepts, and signs
-in with a password and an SMS code, on a browser they may keep trusted for thirty days; one role
+in with a password and an SMS code, on a browser they may keep trusted for twelve hours; one role
 each, with the stores it reaches, and nobody grants more than they hold. A customer registers in a
 store and is signed in at once, verifies their email by link and their phone by code, keeps an
 address book in every country they order from, and may ask for the account to be deleted — which
@@ -380,7 +380,7 @@ comes with the screens, in the frontend foundation stage (amendment 12).
 
 ```
 password ─┬─ trusted browser ──────────────────────────────▶ signed in
-          ├─ SMS code (within 15 minutes) ── right code ───▶ signed in (+ trust this browser, 30 days)
+          ├─ SMS code (within 15 minutes) ── right code ───▶ signed in (+ trust this browser, 12 hours)
           └─ a Super Admin with no phone: new number ── its code verifies it ──▶ signed in
 ```
 
@@ -409,7 +409,7 @@ password ─┬─ trusted browser ───────────────
   code already sent. Only a Super Admin whose phone was reset chooses a number here; anyone else
   with no phone is refused until an admin gives them one.
 - **A trusted browser** holds a random token in `touchwood_admin_trust` (only its hash is stored),
-  for one staff member, 30 days. Signing out keeps it. It is forgotten when the account is disabled
+  for one staff member, 12 hours (a setting; it was 30 days until 2026-10-05). Signing out keeps it. It is forgotten when the account is disabled
   or revoked, the password is changed or reset, or the phone changes (by the person, an admin, or a
   Super Admin phone reset).
 - **Password reset** by an email link valid 30 minutes, at most 3 emails an hour per account; the
@@ -433,6 +433,33 @@ password ─┬─ trusted browser ───────────────
   the `DETAIL` and `CONTEXT` lines, and a value it could not read at the end of the error line.
 
 Every number here is a setting (`StaffSecuritySettings`), except the 15 minutes to enter the code.
+
+### The staff view: from the panel to the shop, as themselves
+
+**View Store** in the panel's header (spec §1.11, amendment 60) opens the shop of the store being
+worked in. It is built as **a pass, not a session**:
+
+- `OpenStaffViewHandler` (every staff member, `access.staff_view.open`) takes the store from the
+  panel's own answer for them, never from the request, and `LaravelStaffViews` writes a row in
+  `access.staff_views` and a random token in its own cookie, `tw_staff_view` - path `/` given
+  explicitly (an admin request's cookies default to `/admin`), HTTP-only, gone with the browser. The
+  row keeps the token's hash, a hash of the admin session's id, the store, the session version and
+  when that admin session signed in. Opening it is audited.
+- The shop reads the pass beside its own session, never inside it. While it holds,
+  `LaravelCustomerSessions::signedIn()` answers nobody, so the request stays a guest - no customer
+  page, no ordering - and a customer signed in to the shop in the same browser is untouched, back
+  when the view ends. `ShareStorefrontPage` shares `staffView` with their name.
+- **Off stores**: Access registers `StaffViewOffStores` with Platform's `OffStoreViewers`: a Super
+  Admin's pass sees every off store (the owner, 2026-10-06: only a Super Admin) - Platform opens them
+  to look only (GET, HEAD) and lists them marked Off; to any other staff member, a visitor, and any
+  form, they stay a 404.
+- **It ends** when its admin session ends - every shop page checks that session's row in
+  `access.admin_sessions` is still there, and `LaravelStaffSessions::end()` deletes that session's
+  passes at once - on sign out everywhere, at the next shop page once the staff member is disabled or their
+  session version changes, 12 hours after that admin sign-in, after 30 minutes without a shop page,
+  on **Leave Staff View** (`LeaveStaffViewHandler` at `/staff-view/leave`, a guest's action on this
+  browser's pass, at the top level because an off store's pages take no post), and
+  when that browser signs in as a customer.
 
 ### The storefront: a customer signing in
 

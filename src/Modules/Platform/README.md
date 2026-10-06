@@ -58,6 +58,11 @@ Route::prefix('{store}/{locale}')->middleware('store')->group(...);
 
 // A top-level URL your module owns: reserve it in register(), so no store can take it.
 $this->app->make(ReservedPaths::class)->reserve('payments', 'webhooks');
+
+// An off store is a 404 in the shop for everyone (§1.6). A module that knows an exception tells
+// Platform with an OffStoreViewer (§2.7) - Access's, for a staff member viewing the shop from the
+// panel; then the store's pages open and the shop's store switch lists it with isActive false.
+$this->app->make(OffStoreViewers::class)->register('access', StaffViewOffStores::class);
 ```
 
 ```php
@@ -97,7 +102,7 @@ ids only and are dispatched after the transaction commits.
 
 | Folder | Contents |
 |---|---|
-| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `HomeCards` and `HomeCard` (the admin home's cards), `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
+| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `HomeCards` and `HomeCard` (the admin home's cards), `OffStoreViewers` and `OffStoreViewer` (who may see an off store in the shop), `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
 | `Domain/Model` | `Store`, `Currency`, `Media`: plain PHP classes holding the rules, with no Laravel inside. |
 | `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. |
 | `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |

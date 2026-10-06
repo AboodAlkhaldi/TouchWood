@@ -264,7 +264,7 @@ mayCreate: boolean,
 export type SignInCodePage = {
 maskedPhone: string | null,
 length: number,
-trustDays: number,
+trustHours: number,
 resendIn: number,
 action: string,
 resendAction: string,

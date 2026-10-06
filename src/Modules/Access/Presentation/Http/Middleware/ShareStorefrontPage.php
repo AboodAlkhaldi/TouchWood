@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Modules\Access\Application\Query\CustomerReader;
 use Modules\Access\Application\Session\CustomerSessions;
+use Modules\Access\Application\StaffView\StaffViewPass;
+use Modules\Access\Application\StaffView\StaffViews;
 use Modules\Access\Presentation\Http\CustomerAccountTabs;
 use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Contracts\ShopperLines;
@@ -47,6 +49,7 @@ final readonly class ShareStorefrontPage
         private CustomerReader $customers,
         private CustomerAccountPages $accountPages,
         private ShopperLines $lines,
+        private StaffViews $staffViews,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -66,6 +69,9 @@ final readonly class ShareStorefrontPage
             'shopper' => fn (): ?array => self::shopper($customer()),
             'accountMenu' => fn (): ?array => $this->accountMenu($customer()),
             'shopperLines' => fn (): array => $this->shopperLines($customer()),
+            // A staff member looking at the shop from the panel (spec §1.11), by name only - while
+            // it holds, nobody above is a customer.
+            'staffView' => fn (): ?array => self::staffView($this->staffViews->current()),
             // The shop's own group, never the panel's (§1.4). It travels with the page because
             // Blade's @routes never reaches the server renderer.
             'routes' => fn (): array => (new Ziggy(group: 'storefront'))->toArray(),
@@ -158,6 +164,14 @@ final readonly class ShareStorefrontPage
             static fn (ShopperLineDto $line): array => ['text' => $line->text, 'routeName' => $line->routeName, 'tone' => $line->tone->value],
             $this->lines->for((string) $customer['id'], $type, ($customer['email_verified'] ?? false) === true),
         );
+    }
+
+    /**
+     * @return array{name: string}|null
+     */
+    private static function staffView(?StaffViewPass $pass): ?array
+    {
+        return $pass === null ? null : ['name' => $pass->name];
     }
 
     /**

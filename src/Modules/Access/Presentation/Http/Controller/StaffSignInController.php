@@ -80,7 +80,7 @@ final readonly class StaffSignInController
 
         if ($trust !== null) {
             // Encrypted by the "web" group, HTTP only, sent to /admin alone.
-            $response->withCookie(cookie($this->trustCookie(), $trust['token'], $trust['days'] * 24 * 60, '/admin', null, null, true, false, 'lax'));
+            $response->withCookie(cookie($this->trustCookie(), $trust['token'], $trust['hours'] * 60, '/admin', null, null, true, false, 'lax'));
         }
 
         return $response;

@@ -50,7 +50,8 @@ final readonly class StaffSecuritySettings implements LockoutLimits
 
     public const string SESSION_MAX_HOURS = 'access.staff.session_max_hours';
 
-    public const string TRUSTED_BROWSER_DAYS = 'access.staff.trusted_browser_days';
+    /** How long a trusted browser skips the SMS code: 12 hours (owner, 2026-10-05; was 30 days). */
+    public const string TRUSTED_BROWSER_HOURS = 'access.staff.trusted_browser_hours';
 
     public const string PASSWORD_RESET_MINUTES = 'access.staff.password_reset_minutes';
 
@@ -86,7 +87,7 @@ final readonly class StaffSecuritySettings implements LockoutLimits
             $setting(self::IP_MINUTES, 15, 1, 1440),
             $setting(self::SESSION_IDLE_MINUTES, 30, 5, 720),
             $setting(self::SESSION_MAX_HOURS, 12, 1, 72),
-            $setting(self::TRUSTED_BROWSER_DAYS, 30, 1, 90),
+            $setting(self::TRUSTED_BROWSER_HOURS, 12, 1, 720),
             $setting(self::PASSWORD_RESET_MINUTES, 30, 5, 1440),
             $setting(self::PASSWORD_RESETS_PER_HOUR, 3, 1, 20),
         ];
@@ -122,9 +123,9 @@ final readonly class StaffSecuritySettings implements LockoutLimits
         return $this->int(self::SESSION_MAX_HOURS);
     }
 
-    public function trustedBrowserDays(): int
+    public function trustedBrowserHours(): int
     {
-        return $this->int(self::TRUSTED_BROWSER_DAYS);
+        return $this->int(self::TRUSTED_BROWSER_HOURS);
     }
 
     public function passwordResetMinutes(): int

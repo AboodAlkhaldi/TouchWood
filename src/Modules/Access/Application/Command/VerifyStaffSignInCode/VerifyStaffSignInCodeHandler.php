@@ -44,7 +44,7 @@ final readonly class VerifyStaffSignInCodeHandler
     ) {}
 
     /**
-     * @return array{token: string, days: int}|null the trust cookie to set, when the browser is trusted
+     * @return array{token: string, hours: int}|null the trust cookie to set, when the browser is trusted
      *
      * @throws InvalidCode|SignInRefused|PhoneAlreadyInUse
      */

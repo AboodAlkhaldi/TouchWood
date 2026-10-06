@@ -6,7 +6,7 @@ namespace Modules\Access\Application\Command\VerifyStaffSignInCode;
 
 /**
  * The second step of signing in: the SMS code, for the sign-in this browser started with the right
- * password (spec §4.4). $trustBrowser: no code on this browser for the next 30 days.
+ * password (spec §4.4). $trustBrowser: no code on this browser for the next 12 hours (a setting).
  */
 final readonly class VerifyStaffSignInCode
 {

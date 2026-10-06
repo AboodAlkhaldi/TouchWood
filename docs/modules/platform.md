@@ -254,7 +254,11 @@ Not an aggregate — a rule that holds for every request, job and command.
     owner] may work inside it to prepare it before it opens**: the panel's switcher offers it to
     them, marked Off, and its settings, address format and B2B lists can be set (§9.6 #5);
   - work already under way in it continues: its open orders stay with staff to finish, and jobs
-    dispatched in it still run.
+    dispatched in it still run;
+  - **[2026-10-05, the staff view — access.md §1.11]** a staff member viewing the shop from the
+    panel - a Super Admin only (owner, 2026-10-06) - sees the off stores: their pages open to look only (a form sent there is still
+    a 404), and the shop's store switch lists them marked Off. Platform does not know who that is: it asks the **off-store viewers** other modules
+    register (§2.7), and with none saying yes, the store is a 404 as above (§9.9).
 - **[DECIDED 2026-09-18] The language is the second segment:** `brand.com/sa/ar/...` and
   `brand.com/sa/en/...`, so search engines see one address per language. The supported languages
   are `ar` and `en` (every name in the system has both); anything else is a 404. The page, its
@@ -421,6 +425,24 @@ A module built later adds its cards without the home changing.
 Platform never reaches into Access: who holds what is asked of the Shared `Authorizer`
 (`isUnlimited()`, `storesWith()`). What a card shows is not protection — every screen it links to
 still asserts its own permission.
+
+### 2.7 `Modules\Platform\Public\Contracts\OffStoreViewers` — who may see an off store in the shop (§9.9)
+
+An off store is a 404 in the shop (§1.6). The one exception — a staff member viewing the shop from
+the panel (access.md §1.11) — is Access's to recognise, and Platform sits below Access, so Access
+tells Platform through a registry, as it does for the audit log's names.
+
+| Type | Purpose |
+|---|---|
+| `OffStoreViewer` (interface) | `mayView(StoreId $store): bool` — whether the request now being answered may see this off store's shop. Asked only about an off store. |
+| `OffStoreViewers` (registry) | `register(string $module, string $viewer)` — a class implementing `OffStoreViewer`, one per module, resolved each time it is asked so it reads the request being answered. Platform's own side asks whether any registered viewer says yes; none registered: no. |
+
+`ResolveStore` asks it for an off store's code before answering 404 — **for a request that only
+reads** (GET, HEAD): a form sent into a closed store would write into it, so it stays a 404 for
+everyone (the review of P6); `ShareStorefront` asks it for
+each off store before leaving it out of the shop's store switch, and lists the ones it may show with
+`isActive: false`. Nothing else changes: `PlatformApi::storeByCode()` and `stores()` still answer as
+if an off store were not there, for every other caller.
 
 ---
 
@@ -1072,7 +1094,7 @@ stores" and the digits.
 
 ### 9.8 The admin home — 2026-10-04/05 (the owner's fix list, point 6)
 
-(§9.7 is the currencies page, on its own branch.) The owner asked for a home with "a brief of
+The owner asked for a home with "a brief of
 everything", for one store or all stores. **Answers:** D11 (a) — the frame and the first cards now;
 D12 — the first cards are **Company Approvals** and **Stores, failed jobs, storage**, and the sales
 figures (products sold, money taken, each store's sales, products about to run out) come with the
@@ -1082,3 +1104,13 @@ modules that hold them; the home opens on **All Stores** for a reader whose reac
 |---|---|---|
 | 1 | §2.6 | **The home-card contract**: modules register cards as they register menu entries; each card has its permission and speaks for a scope — one store or all stores; the home shows only the cards the reader may see in that scope (frontend.md §2.2). |
 | 2 | §2.6 | **Platform's card, Stores and System**: stores on and off (`platform.store.view`; in All Stores only — a single store's state is in the store switcher; **stores off only to whoever may switch stores**, `platform.store.switch`, as the stores screen lists off stores only to them, §1.6), failed jobs (`platform.jobs.manage`, linking to them), and storage used by the media library (any media permission). Each figure is shown only with its own permission; the card, with any of them. Failed jobs and storage belong to no store, so they read the same in either scope, and are the card's `storeFree` actions. |
+
+### 9.9 The staff view's off stores — 2026-10-05 (the owner's fix list, point 13)
+
+D14: the staff
+view shows the shop as a visitor sees it, **plus the stores that are switched off** (access.md §1.11,
+amendment 60).
+
+| # | Sections | Decision |
+|---|---|---|
+| 1 | §1.6, §2.7 | **An off store opens in the shop for a Super Admin's staff view — to look only** (GET, HEAD), and the shop's store switch lists it marked Off; for everyone else it stays a 404 and unlisted. Platform asks the **off-store viewers** registered by other modules (`OffStoreViewers`), because only Access knows a staff view; `storeByCode()` and `stores()` are unchanged for every other caller. Whose staff view it is is Access's to know: a Super Admin's only (owner, 2026-10-06: "staff cant view an off store, only super admin can"). |
