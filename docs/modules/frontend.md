@@ -866,7 +866,7 @@ page's data as a `spatie/laravel-data` class, §1.6). This stage adds no module 
 | §3.2 my account | `/admin/account` | Own profile, phone (request code, confirm), password, each notification switch, own email for a Super Admin |
 | §3.3 staff | list, one person, invite | Invite, update profile, change email, change role and stores, disable, enable, resend and cancel invitation, refresh permissions |
 | §3.4 roles | list, one role, new, edit | Create, clone, update, delete with a replacement, refresh |
-| §3.5 Platform | stores, currencies, settings, media, audit | Update store, create, update and delete currency, update setting, upload media, update alt text, delete media, retry variants |
+| §3.5 Platform | stores, currencies, settings, media, audit | Create and update store, create, update and delete currency, update setting, upload media, update alt text, delete media, retry variants |
 | §3.6 storefront | country page, home, register, verify, sign in, password, account, addresses | Register, resend verification, sign in, sign out, password reset, request and confirm a phone code, update profile, save, delete and default an address, ask for deletion |
 
 Each one calls the use case of the same name in access.md §3 or platform.md §3. Where a use case is
