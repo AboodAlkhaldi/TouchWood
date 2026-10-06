@@ -585,8 +585,8 @@ From the design, with the decided rules applied:
   sidebar's own header (§1.11: `sidebar-07`'s team switcher), with Home as its first row; with one
   store the logo opens Home, and with two or more it opens the store menu whose first row is Home —
   the block's logo and store are one button. Home is also the menu's first item (the home, below).
-  **[OPEN — to the owner, 2026-10-05: the plan said "the logo always goes Home"; a logo of its own,
-  apart from the store button, would change `sidebar-07`'s block.]** **[DECIDED
+  **[DECIDED by the owner, 2026-10-06: "make both logo and name same button" — as built; the plan's
+  "the logo always goes Home" is replaced, and `sidebar-07`'s block stays as it is.]** **[DECIDED
   2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a module gives them
   content: search with Catalog and Sales, the bell with Ops.
 - **[DECIDED 2026-09-19] The store picker** is **remembered on the staff account**. URLs carry no
