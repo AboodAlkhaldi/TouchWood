@@ -10,6 +10,7 @@ use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MenuCount;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Shared\Application\Authorizer;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * The admin menu, collected from the modules' service providers at boot (stage 2b, P6), the way
@@ -61,6 +62,12 @@ final class InMemoryAdminMenu implements AdminMenu
                 throw new LogicException("The menu entry \"{$entry->module}.{$entry->key}\" is in \"{$entry->group}\", which is not a business area the role editor uses.");
             }
 
+            // A list names the permissions any one of which offers the entry; an empty one would
+            // offer it to nobody while looking as if it were guarded (b2b.md amendment 23(a)).
+            if (is_array($entry->permission) && ($entry->permission === [] || in_array('', $entry->permission, true))) {
+                throw new LogicException("The menu entry \"{$entry->module}.{$entry->key}\" names its permissions as a list, which must hold at least one permission and nothing else.");
+            }
+
             if ($entry->count !== null && ! is_subclass_of($entry->count, MenuCount::class)) {
                 throw new LogicException("The menu entry \"{$entry->module}.{$entry->key}\" counts with \"{$entry->count}\", which does not implement ".MenuCount::class.'.');
             }
@@ -79,7 +86,7 @@ final class InMemoryAdminMenu implements AdminMenu
         }
     }
 
-    public function forCurrentActor(): array
+    public function forCurrentActor(?string $storeWorkedIn = null): array
     {
         // Asked once, not per entry: a Super Admin is offered the entries of modules not built yet,
         // whose permissions cannot be checked because they do not exist (§2.2).
@@ -90,7 +97,7 @@ final class InMemoryAdminMenu implements AdminMenu
         foreach (self::GROUPS as $group) {
             $offered = array_values(array_filter(
                 $this->entries,
-                fn (MenuEntryDto $entry): bool => $entry->group === $group && $this->mayUse($authorizer, $entry, $unlimited),
+                fn (MenuEntryDto $entry): bool => $entry->group === $group && $this->mayUse($authorizer, $entry, $unlimited, $storeWorkedIn),
             ));
 
             if ($offered === []) {
@@ -120,19 +127,51 @@ final class InMemoryAdminMenu implements AdminMenu
         return $counter->count();
     }
 
-    private function mayUse(Authorizer $authorizer, MenuEntryDto $entry, bool $unlimited): bool
+    private function mayUse(Authorizer $authorizer, MenuEntryDto $entry, bool $unlimited, ?string $storeWorkedIn): bool
     {
-        $permission = $entry->permission;
+        $permissions = $entry->permissions();
 
         // No permission means the module is not built yet - the entry is "coming soon", and only
-        // someone unlimited is shown it. Read from the property rather than through comingSoon() so
-        // that what is passed on below is provably a permission (review of step 0).
-        if ($permission === null) {
+        // someone unlimited is shown it.
+        if ($permissions === []) {
             return $unlimited;
         }
 
-        // Held anywhere is enough to be offered the screen; the screen itself decides what is in it
-        // for this person, store by store.
-        return $authorizer->storesWith($permission) !== [];
+        // One permission: held anywhere, and the screen decides what is in it store by store. Several,
+        // any one of which is enough: held in the store being worked in, for a page serving several
+        // jobs for that store alone, which would otherwise answer "not allowed" (platform.md §9.4;
+        // b2b.md amendment 23(a)).
+        foreach ($permissions as $permission) {
+            $stores = $authorizer->storesWith($permission);
+            $held = $entry->inStoreWorkedIn() ? self::holdsIn($stores, $storeWorkedIn) : $stores !== [];
+
+            if ($held) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<StoreId>|null  $stores  null for every store
+     */
+    private static function holdsIn(?array $stores, ?string $storeWorkedIn): bool
+    {
+        if ($storeWorkedIn === null) {
+            return false;
+        }
+
+        if ($stores === null) {
+            return true;
+        }
+
+        foreach ($stores as $store) {
+            if ($store->value === $storeWorkedIn) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

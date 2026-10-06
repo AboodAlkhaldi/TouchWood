@@ -68,7 +68,9 @@ $this->app->make(MediaUsages::class)->register('catalog', ProductImageUsage::cla
 
 ```php
 // A menu entry that counts what waits behind it: a MenuCount, resolved only for people offered the
-// entry. The count shows beside the entry and on the admin home while it is above nothing.
+// entry. The count shows beside the entry and on the admin home while it is above nothing. An entry
+// may name several permissions (a list): it is offered to anyone holding any of them, as B2B's type
+// lists are offered to anyone with any job on the list.
 new MenuEntryDto('platform', 'failed_jobs', 'system', 'platform.admin.failed_jobs',
     PlatformPermissions::JOBS_MANAGE, 10, icon: 'failed_jobs', count: FailedJobsCount::class);
 
@@ -146,8 +148,10 @@ partial unique index `stores_one_base` keeps the mark on one row. Nothing is del
 goes off; every read that offers a store filters on the switch:
 
 - `PlatformApi::stores()` lists on stores only, and `storeByCode()` answers an off store's code as
-  an unknown one — so `/{off}/...` is a 404 like any unknown code, the country page and both store
-  switchers leave it out, and a cookie naming it counts as no store.
+  an unknown one — so `/{off}/...` is a 404 like any unknown code, the country page and the shop's
+  store chooser leave it out, and a cookie naming it counts as no store. The panel's switcher is the
+  exception: it shows an off store to the staff who cover it, marked Off, and lets only a Super Admin
+  work in it, to prepare it before it opens (access.md amendment 58(a)).
 - `PlatformApi::store($id)` answers any store, with `isActive`, so history names it as it was;
   `allStores()` lists every store for setup work that must reach a store before it opens.
 - The stores screen lists an off store only to whoever holds `platform.store.switch`, and
@@ -352,14 +356,15 @@ on `/admin/failed-jobs` — nothing removes one on its own, so a failure is neve
   keeps the second only while the job is on the queue. So every queued class states its own tries
   (`$tries` or `tries()`) — without it the worker's number applies, which the screen cannot know. A
   test fails for a queued class that does not.
-- **Fifty at a time, oldest first**, with "Show more" continuing from where the page ended (after
-  that job's failure time and id), so a flood of failures never loads at once. The list reads the
+- **Fifty at a time, oldest first**, with Show More adding the next fifty under the rows already
+  shown (after the last job's failure time and id; the owner, 2026-10-04 - the media library and
+  the audit log do the same), so a flood of failures never loads at once. The list reads the
   error's first 2,000 characters, never a payload.
 - **Audited without the error or the payload** — both may hold personal data, and the log is
   forever. The name and when it failed are enough to say what was handled.
 - **Noticed without opening the screen**: a menu entry may carry a count (`MenuCount`), resolved only
   for people the entry is offered to; the admin home lists every entry with something waiting, and
-  the collapsed sidebar shows a dot on the entry's icon where the number has no room.
+  the collapsed sidebar shows a dot on its business area's icon where the number has no room.
 
 ---
 

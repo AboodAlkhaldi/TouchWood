@@ -65,6 +65,8 @@ final readonly class ShareAdminPage
             // sidebar component itself, and read back here so the server's first paint already has
             // it right - worked out in the browser instead, the page would flicker on every load.
             'sidebarOpen' => $request->cookie(HandleInertiaRequests::SIDEBAR_COOKIE) !== 'false',
+            // Which of its business areas are open, read back for the same reason.
+            'sidebarSections' => $this->openSections($request),
             'store' => fn (): ?array => $this->store($locale, $opening),
             // Only the admin group: a page here never carries the storefront's URLs (§1.4). It
             // travels with the page because Blade's @routes never reaches the SSR renderer.
@@ -111,6 +113,28 @@ final readonly class ShareAdminPage
     }
 
     /**
+     * The sidebar's open business areas, as this browser left them: their keys, joined by dots in a
+     * cookie the browser writes. It arrives as typed by whoever holds the browser, so only what can
+     * be a group's key is kept - a word of letters and underscores - and no more of them than the
+     * menu could ever hold; a key that names no group simply opens nothing.
+     *
+     * @return list<string>
+     */
+    private function openSections(Request $request): array
+    {
+        $cookie = $request->cookie(HandleInertiaRequests::SIDEBAR_SECTIONS_COOKIE);
+
+        if (! is_string($cookie) || $cookie === '') {
+            return [];
+        }
+
+        // \z, not $: a $ would let a key through with a newline after it.
+        $keys = array_filter(explode('.', $cookie), fn (string $key): bool => preg_match('/^[a-z_]{1,40}\z/', $key) === 1);
+
+        return array_slice(array_values(array_unique($keys)), 0, 20);
+    }
+
+    /**
      * The menu, as Platform's registry answered for this person, with each entry's words and link
      * resolved. A group with nothing in it for them is not here at all.
      *
@@ -120,7 +144,8 @@ final readonly class ShareAdminPage
     {
         $groups = [];
 
-        foreach ($this->menu->forCurrentActor() as $group => $entries) {
+        // The store being worked in, for the entries whose screen shows that store alone.
+        foreach ($this->menu->forCurrentActor($this->panelStore->id()) as $group => $entries) {
             $groups[] = [
                 'key' => $group,
                 'label' => (string) __('access::permission_groups.'.$group, [], $locale),
@@ -156,17 +181,27 @@ final readonly class ShareAdminPage
 
         $named = [];
 
-        foreach ($this->platform->stores() as $store) {
+        // Every store, off ones included: the switcher shows a staff member the off stores they
+        // cover, marked Off, and a Super Admin works in one to prepare it (access.md amendment
+        // 58(a)). Which of them this person sees was decided by CurrentStoreForStaff.
+        foreach ($this->platform->allStores() as $store) {
             // A store's name is held in both languages; the panel shows the one being read. Its zone
             // goes with it: the panel writes every moment in the time of the store it is working
             // in (owner, 2026-10-02: a viewer from Egypt sees Egypt's time).
-            $named[$store->id] = ['id' => $store->id, 'name' => $store->name->in($locale), 'timezone' => $store->timezone];
+            $named[$store->id] = [
+                'id' => $store->id,
+                'name' => $store->name->in($locale),
+                'timezone' => $store->timezone,
+                'isActive' => $store->isActive,
+                'choosable' => $store->isActive || $opening->mayChooseOff,
+            ];
         }
 
         return [
             'current' => $opening->storeId === null ? null : ($named[$opening->storeId] ?? null),
             'available' => array_values(array_intersect_key($named, array_flip($opening->available))),
             'fellBack' => $opening->fellBack,
+            'fellBackFromOff' => $opening->fellBackFromOff,
         ];
     }
 }

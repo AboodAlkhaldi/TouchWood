@@ -34,9 +34,12 @@ interface AdminMenu
      * A "coming soon" entry — one with no permission, for a module not built yet — is returned for
      * a Super Admin only. A group with nothing in it for this person is not returned at all.
      *
+     * @param  string|null  $storeWorkedIn  the store the panel is working in, which an entry naming
+     *                                      several permissions needs one of them held in
+     *                                      (platform.md §9.4); with none, such an entry is not offered
      * @return array<string, list<MenuEntryDto>> group => its entries
      */
-    public function forCurrentActor(): array;
+    public function forCurrentActor(?string $storeWorkedIn = null): array;
 
     /**
      * How many wait behind the entry, when it counts anything (MenuEntryDto::$count); null when it

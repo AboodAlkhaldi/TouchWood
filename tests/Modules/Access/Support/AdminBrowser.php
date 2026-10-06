@@ -22,6 +22,9 @@ final class AdminBrowser
     /** @var array<string, string> name => decrypted value */
     private array $cookies = [];
 
+    /** @var array<string, string> name => value, for the cookies a page writes itself (the sidebar's) */
+    private array $plainCookies = [];
+
     /**
      * @param  array<string, string>  $server  more of what the browser sends, such as HTTP_HOST
      */
@@ -64,6 +67,15 @@ final class AdminBrowser
     public function setCookie(string $name, string $value): void
     {
         $this->cookies[$name] = $value;
+    }
+
+    /**
+     * A cookie the page writes in the browser itself - the sidebar's - which reaches the server as
+     * it is, not encrypted (bootstrap/app.php exempts it), so it is sent as it is.
+     */
+    public function setPlainCookie(string $name, string $value): void
+    {
+        $this->plainCookies[$name] = $value;
     }
 
     /**
@@ -117,6 +129,10 @@ final class AdminBrowser
 
         foreach ($this->cookies as $name => $value) {
             $cookies[$name] = encrypt(CookieValuePrefix::create($name, $key).$value, false);
+        }
+
+        foreach ($this->plainCookies as $name => $value) {
+            $cookies[$name] = $value;
         }
 
         $response = call($method, $uri, $data, $cookies, [], [...$this->server, 'REMOTE_ADDR' => $this->ip]);

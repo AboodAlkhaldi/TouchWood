@@ -37,6 +37,8 @@ final class AccountPage extends Data
      * @param  list<NotificationSetting>  $notifications  every topic, in the order they are shown
      * @param  list<CountryOption>  $countries  every ISO country, named in the page's language
      * @param  int  $passwordMinLength  from the setting, never written into the screen
+     * @param  int  $codeLength  how many digits the SMS code has, from the setting: the Change Phone
+     *                           Number dialog draws one box per digit (frontend.md §1.11, InputOTP)
      * @param  string  $tab  which tab opens: account, security or notifications
      */
     public function __construct(
@@ -55,6 +57,7 @@ final class AccountPage extends Data
         public array $notifications,
         public array $countries,
         public int $passwordMinLength,
+        public int $codeLength,
         /** @var list<StaffSessionRow> where they are signed in, most recently seen first */
         public array $sessions,
         /** @var list<TrustedBrowserRow> the browsers that skip the SMS code, until they expire */

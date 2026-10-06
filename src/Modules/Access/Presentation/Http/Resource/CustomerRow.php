@@ -22,6 +22,8 @@ final class CustomerRow extends Data
      *                                             It is a third thing the list says about an
      *                                             account, beside active and blocked
      * @param  string  $homeStore  the store they registered in, named in the panel's language
+     * @param  bool  $homeStoreIsActive  false when it is switched off: the customer is listed still,
+     *                                   flagged (access.md amendment 58(c))
      */
     public function __construct(
         public string $id,
@@ -36,5 +38,6 @@ final class CustomerRow extends Data
         public bool $anonymized,
         public string $homeStore,
         public string $registeredAt,
+        public bool $homeStoreIsActive = true,
     ) {}
 }

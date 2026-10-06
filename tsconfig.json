@@ -27,6 +27,9 @@
         "paths": {
             "@/*": [
                 "./resources/js/*"
+            ],
+            "cn": [
+                "./resources/js/lib/cn.ts"
             ]
         }
     },

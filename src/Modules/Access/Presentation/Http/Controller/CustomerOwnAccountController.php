@@ -233,6 +233,7 @@ final readonly class CustomerOwnAccountController
             addresses: $this->addressBook($locale),
             deletionDays: RequestAccountDeletionHandler::DAYS,
             returnTo: $this->returnPage($request->query('return'), $account->accountType)?->name(),
+            codeLength: $this->settings->codeLength(),
         );
     }
 

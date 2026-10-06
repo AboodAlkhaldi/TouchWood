@@ -39,6 +39,8 @@ final class CustomerAccountPage extends Data
      * @param  string|null  $returnTo  the page that sent them to their addresses, `{module}.{key}`,
      *                                 which saving an address goes back to (amendment 51); only
      *                                 ever one registered for their account type
+     * @param  int  $codeLength  how many digits the code sent to a new number has - a setting, 4 to
+     *                           8 - so the phone tab draws one box per digit (frontend.md §1.11)
      */
     public function __construct(
         public string $tab,
@@ -57,5 +59,6 @@ final class CustomerAccountPage extends Data
         public array $addresses,
         public int $deletionDays,
         public ?string $returnTo,
+        public int $codeLength,
     ) {}
 }

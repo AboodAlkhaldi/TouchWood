@@ -150,11 +150,13 @@ final readonly class GrantRules
     }
 
     /**
-     * Every store in the choice exists.
+     * Every store in the choice exists - on or off: a staff member keeps an off store they hold
+     * when their stores are saved, and an admin who covers it may give it while it is off (access.md
+     * amendment 58(b); owner, 2026-10-03). Covering it is requireCovers' to ask.
      */
     public function requireKnownStores(StoreChoice $stores): void
     {
-        $known = array_map(fn (StoreDto $store): string => $store->id, $this->platform->stores());
+        $known = array_map(fn (StoreDto $store): string => $store->id, $this->platform->allStores());
 
         foreach ($stores->storeIds() as $storeId) {
             if (! in_array($storeId, $known, true)) {

@@ -1,22 +1,21 @@
 import type { ReactNode } from 'react';
 import { usePage } from '@inertiajs/react';
-import { Note, type NoteVariant } from '@/components/geist';
+import { Note, type NoteVariant } from '@/components/Note';
+import { Card as ShadcnCard, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SharedProps } from '@/types/page';
-import type {
-    CompanyTypeOptionData,
-    CompanyValuesData,
-} from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
+import type { CompanyTypeOptionData, CompanyValuesData } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 
 /*
-| Small pieces the company page is built from (b2b.md §4.5), on Geist's parts (frontend.md 1.10):
-| its cards, its status box, and how a time, a type, a code or a written value is put on the page in
-| its language.
+| Small pieces the company page is built from (b2b.md §4.5), on shadcn's parts with Geist's rules
+| (frontend.md §1.11): its cards, its status box, and how a type, a code or a written value is put
+| on the page in its language. A moment is Time's, in the home store's zone (HANDOFF §4).
 |
-| A card is Geist's base material. The status box is Geist's Note, its colour chosen by what the
-| status means - neutral before anything is sent, amber while it waits, green once approved, red
-| when refused or suspended - and its title the Note's label, so it reads "Under Review: …" as a
-| Note does. Read-only values go in Geist's Description, where a value that is not there is an em
-| dash; `figureOr` and `writtenOr` hand it nothing rather than an empty element, so the dash shows.
+| A card is shadcn's Card in Geist's base material. The status box is Geist's Note, its colour chosen
+| by what the status means - neutral before anything is sent, amber while it waits, green once
+| approved, red when refused or suspended - its title the Note's label and its content one sentence
+| (Geist's Note: one Note per concept). Read-only values go in Geist's Description, where a value
+| that is not there is an em dash; `figureOr` and `writtenOr` hand it nothing rather than an empty
+| element, so the dash shows.
 */
 
 export type Tone = 'plain' | 'good' | 'warn' | 'bad';
@@ -30,22 +29,21 @@ const NOTE: Record<Tone, NoteVariant> = {
 
 export function Card({ title, hint, children, test }: { title?: string; hint?: string; children: ReactNode; test?: string }) {
     return (
-        <section data-test={test} className="material-base grid gap-4 p-5">
+        <ShadcnCard data-test={test} className="material-base gap-0 border-0 py-0">
             {title ? (
-                <header className="grid gap-1">
-                    <h2 className="text-heading-16 text-ink">{title}</h2>
-                    {hint ? <p className="text-copy-13 text-ink-muted">{hint}</p> : null}
-                </header>
+                <CardHeader className="gap-1 px-5 pt-5 pb-4">
+                    <CardTitle className="text-heading-16 text-ink">
+                        <h2>{title}</h2>
+                    </CardTitle>
+                    {hint ? <CardDescription className="text-copy-13 text-ink-muted">{hint}</CardDescription> : null}
+                </CardHeader>
             ) : null}
-            {children}
-        </section>
+            <CardContent className={title ? 'grid gap-4 px-5 pb-5' : 'grid gap-4 p-5'}>{children}</CardContent>
+        </ShadcnCard>
     );
 }
 
-/**
- * The design's status box, as Geist's Note: the status as its label, then what it means now. The
- * first sentence runs on from the label; anything after it is a paragraph of its own.
- */
+/** The design's status box, as Geist's Note: the status as its label, then what it means now. */
 export function StatusBox({ tone, title, children }: { tone: Tone; title: string; children?: ReactNode }) {
     return (
         <div data-test="status-box" data-tone={tone}>
@@ -54,14 +52,6 @@ export function StatusBox({ tone, title, children }: { tone: Tone; title: string
             </Note>
         </div>
     );
-}
-
-/**
- * A time as the server wrote it — already in the home store's clock (HANDOFF §4) — to the minute.
- * It is never converted again here: the browser's own clock is not the store's.
- */
-export function when(at: string | null): string {
-    return at === null ? '' : at.slice(0, 16).replace('T', ' ');
 }
 
 export function useLocale(): 'ar' | 'en' {
@@ -82,12 +72,28 @@ export function typeOf(values: CompanyValuesData, locale: 'ar' | 'en'): string {
     return (locale === 'ar' ? values.companyTypeNameAr : values.companyTypeNameEn) ?? '';
 }
 
-/** Figures, codes and numbers read left to right on an Arabic page too (frontend.md §1.8). */
+/** Stands in for a moment inside a translated sentence, so each language keeps its own order. */
+export const MARK = '⁣';
+
+/** A sentence with a moment inside it ("Sent 2h ago"), the moment drawn by Time. */
+export function Phrase({ text, moment }: { text: string; moment: ReactNode }) {
+    const [before, after] = text.split(MARK);
+
+    return (
+        <>
+            {before}
+            {moment}
+            {after}
+        </>
+    );
+}
+
+/** Codes and numbers read left to right on an Arabic page too (frontend.md §1.8). */
 export function Figure({ children }: { children: ReactNode }) {
     return (
-        <span className="tw-figure" dir="ltr">
+        <bdi className="tw-figure" dir="ltr">
             {children}
-        </span>
+        </bdi>
     );
 }
 

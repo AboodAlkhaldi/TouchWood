@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTranslator } from '@/lib/t';
 import { NotificationsTab } from '@/pages/Access/Admin/Account/NotificationsTab';
 import { ProfileTab } from '@/pages/Access/Admin/Account/ProfileTab';
@@ -11,21 +13,18 @@ import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/
 | B1-B4 - "Account & settings" (frontend.md §3.2).
 |
 | One screen with four tabs, because it is one person's account: Account, Security, Sessions,
-| Notifications.
-| Every staff member has it, and it only ever shows the person looking at it - there is no id in any
-| route behind it.
+| Notifications. Every staff member has it, and it only ever shows the person looking at it - there
+| is no id in any route behind it.
 |
-| Which tab is open is this browser's business while the person is here, and the server's when they
-| arrive: a form that saved comes back to `?tab=security` rather than dropping them at the top of the
-| first tab, which reads as the page having forgotten what they were doing.
+| shadcn's Tabs, its `line` look (frontend.md §1.11; Geist's Tabs: a Title Case noun each, the open
+| one underlined in ink): Radix gives the arrow keys, the roving focus and the roles a screen reader
+| needs, which the hand-made buttons before did not. The account arrives in one payload, so pressing
+| a tab costs no round trip.
 |
-| The tabs are buttons and a panel rather than a component with a state machine. They carry the
-| roles a screen reader needs, arrow keys are not intercepted, and there is nothing to render
-| differently on the server than in the browser.
-|
-| They wear Geist's Tabs look (frontend.md 1.10) - a Title Case noun each, the open one underlined
-| in ink - but stay buttons, not Geist's link tabs: the account arrives in one payload, and pressing
-| a heading should not cost a round trip (the shop's account works the same way, AccountLayout).
+| The open tab lives in the address (Geist's Tabs: reflect the active tab in the URL; §1.11 "Applied
+| in the rebuild"), so a refresh or a shared link opens the same tab, and the server's answer wins
+| when it changes - which is exactly when a form has saved and sent the person back to the tab they
+| were on (`?tab=security`).
 */
 
 type Props = AccountPage;
@@ -42,44 +41,46 @@ export default function Account(account: Props) {
     const t = useTranslator();
     const [open, setOpen] = useState<Tab>(() => asTab(account.tab));
 
-    // The server's answer wins whenever it changes - which is exactly when a form has saved and
-    // sent the person back to the tab they were on. Keyed on the string, not on the props object,
-    // so an unrelated re-render does not drag them back to a tab they have since left.
+    // Keyed on the string, not on the props object, so an unrelated re-render does not drag the
+    // person back to a tab they have since left.
     useEffect(() => setOpen(asTab(account.tab)), [account.tab]);
+
+    function choose(value: string) {
+        const tab = asTab(value);
+        setOpen(tab);
+
+        // Into the address without a visit, through Inertia, so its own record of the page - the
+        // one Back and Forward bring back - says the same tab as the address (the batch B review).
+        // Any other part of the address stays.
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+        router.replace({ url: `${url.pathname}${url.search}${url.hash}`, props: (props) => ({ ...props, tab }), preserveState: true, preserveScroll: true });
+    }
 
     return (
         <AdminLayout title={t('access::account.title')} subtitle={t('access::account.subtitle')}>
-            <div className="grid gap-6">
-                <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-line">
+            <Tabs value={open} onValueChange={choose} className="gap-6">
+                <TabsList variant="line" className="h-10 w-full justify-start overflow-x-auto border-b border-line p-0" aria-label={t('access::account.title')}>
                     {TABS.map((tab) => (
-                        <button
-                            key={tab}
-                            type="button"
-                            role="tab"
-                            id={`tab-${tab}`}
-                            aria-selected={open === tab}
-                            aria-controls={`panel-${tab}`}
-                            data-test={`tab-${tab}`}
-                            onClick={() => setOpen(tab)}
-                            className={[
-                                '-mb-px inline-flex h-10 shrink-0 items-center border-b-2 px-3 text-label-14 transition-colors',
-                                open === tab
-                                    ? 'border-ink text-ink'
-                                    : 'border-transparent text-ink-muted hover:text-ink',
-                            ].join(' ')}
-                        >
+                        <TabsTrigger key={tab} value={tab} data-test={`tab-${tab}`} className="flex-none px-3 text-label-14">
                             {t(`access::account.tab.${tab}`)}
-                        </button>
+                        </TabsTrigger>
                     ))}
-                </div>
+                </TabsList>
 
-                <div role="tabpanel" id={`panel-${open}`} aria-labelledby={`tab-${open}`}>
-                    {open === 'account' ? <ProfileTab account={account} /> : null}
-                    {open === 'security' ? <SecurityTab account={account} /> : null}
-                    {open === 'sessions' ? <SessionsTab account={account} /> : null}
-                    {open === 'notifications' ? <NotificationsTab account={account} /> : null}
-                </div>
-            </div>
+                <TabsContent value="account">
+                    <ProfileTab account={account} />
+                </TabsContent>
+                <TabsContent value="security">
+                    <SecurityTab account={account} />
+                </TabsContent>
+                <TabsContent value="sessions">
+                    <SessionsTab account={account} />
+                </TabsContent>
+                <TabsContent value="notifications">
+                    <NotificationsTab account={account} />
+                </TabsContent>
+            </Tabs>
         </AdminLayout>
     );
 }

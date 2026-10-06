@@ -12,8 +12,9 @@ import type { SharedProps } from '@/types/page';
 | and the dark theme changed nothing at all until something forced a reload (found by running it,
 | 2026-09-22).
 |
-| This puts the two back in step: the server still decides, and the document follows what it
-| decided, on the first paint and on every visit after it.
+| This puts the two back in step: the server still decides - the "System" theme excepted, which the
+| device settles in the browser - and the document follows what was decided, on the first paint and
+| on every visit after it.
 |
 | It renders nothing. It is in every layout rather than in one place high up, because a page is
 | reached through its layout and there is no component above them all inside the Inertia tree.
@@ -36,11 +37,32 @@ export function SyncDocument() {
         if (html.dataset.campaign !== theme.campaign) {
             html.dataset.campaign = theme.campaign;
         }
+    }, [locale, direction, theme.campaign]);
 
-        if (html.dataset.mode !== theme.mode) {
-            html.dataset.mode = theme.mode;
+    useEffect(() => {
+        const html = document.documentElement;
+
+        if (theme.choice !== 'system') {
+            if (html.dataset.mode !== theme.mode) {
+                html.dataset.mode = theme.mode;
+            }
+
+            return;
         }
-    }, [locale, direction, theme.campaign, theme.mode]);
+
+        // System: the device decides, now and whenever it changes - the head script already did
+        // the first paint, and this keeps the page in step if the device turns dark at sunset
+        // (frontend.md §1.11).
+        const device = window.matchMedia('(prefers-color-scheme: dark)');
+        const follow = () => {
+            html.dataset.mode = device.matches ? 'dark' : 'light';
+        };
+
+        follow();
+        device.addEventListener('change', follow);
+
+        return () => device.removeEventListener('change', follow);
+    }, [theme.choice, theme.mode]);
 
     return null;
 }

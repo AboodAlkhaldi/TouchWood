@@ -68,35 +68,43 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
         ->click('button[type="submit"]')
         ->assertPathIs('/admin');
 
-    // The owner's words (2026-09-29), from the menu this person was offered.
-    $page->assertSee('Failed Jobs: 2 waiting')
+    // From the menu this person was offered: a row that opens the failed jobs, with its count
+    // (owner, 2026-10-03: one row per waiting item, under one note - replacing the sentence of
+    // 2026-09-29).
+    $page->assertSeeIn('[data-test="waiting-platform.failed_jobs"]', 'Failed Jobs')
+        ->assertSeeIn('[data-test="waiting-platform.failed_jobs"] [data-slot="badge"]', '2')
+        // The menu's System area holds one screen, so it is that screen's link, its count beside it
+        // (frontend.md §1.11, the owner's fix list, 2026-10-04).
+        ->assertSeeIn('[data-test="area-system"]', 'Failed Jobs')
         ->assertSeeIn('[data-test="count-platform.failed_jobs"]', '2')
-        ->assertMissing('[data-test="dot-platform.failed_jobs"]')
+        ->assertMissing('[data-test="dot-system"]')
         ->assertNoJavaScriptErrors();
 
-    // On the rail of icons the number has no room; a dot on the icon says something waits (owner,
-    // 2026-09-29). Opened again after, as the rest of the test reads the full sidebar.
+    // On the rail of icons the number has no room; a dot on the area's icon says something waits
+    // (owner, 2026-09-29). Opened again after, as the rest of the test reads the full sidebar.
     $page->click('[data-sidebar="trigger"]')
-        ->assertVisible('[data-test="dot-platform.failed_jobs"]')
+        ->assertVisible('[data-test="dot-system"]')
         ->assertMissing('[data-test="count-platform.failed_jobs"]')
         ->click('[data-sidebar="trigger"]')
         ->assertVisible('[data-test="count-platform.failed_jobs"]')
-        ->assertMissing('[data-test="dot-platform.failed_jobs"]');
+        ->assertMissing('[data-test="dot-system"]');
 
     $page->click('[data-test="waiting-platform.failed_jobs"]')
         ->assertPathIs('/admin/failed-jobs')
         ->assertSee("Making an image's sizes")
         ->assertSee('RuntimeException: The disk did not answer.');
 
-    $page->click("[data-test=\"retry-{$retried}\"]")
-        ->assertSee('Job requeued')
-        ->assertNoJavaScriptErrors();
+    $page->click("[data-test=\"retry-{$retried}\"]");
+    // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
+    expect(browserUntil($page, "document.body.innerText.includes('Job requeued')"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
 
     $page->click("[data-test=\"delete-{$deleted}\"]")
         ->assertSee('The job will not run. This cannot be undone.')
-        ->click("[data-test=\"delete-confirm-{$deleted}\"]")
-        ->assertSee('Job deleted')
-        ->assertSee('Nothing has failed.')
+        ->click("[data-test=\"delete-confirm-{$deleted}\"]");
+    // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
+    expect(browserUntil($page, "document.body.innerText.includes('Job deleted')"))->toBeTrue();
+    $page->assertSee('Background work that fails its last try waits here.')
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('failed_jobs')->count())->toBe(0)

@@ -12,7 +12,7 @@ return [
 
     'filters' => 'Filters',
     'search' => 'Search',
-    'search_placeholder' => 'TW-CO-26-0001',
+    'search_placeholder' => 'Search companies',
     'search_helper' => 'By name, CR number, tax number or application reference.',
     'search_button' => 'Search Companies',
     'status_filter' => 'Status',
@@ -29,7 +29,7 @@ return [
         'changed' => 'Last Change',
     ],
     'status' => [
-        'PENDING' => 'Pending',
+        'PENDING' => 'Under Review',
         'APPROVED' => 'Approved',
         'REJECTED' => 'Rejected',
         'SUSPENDED' => 'Suspended',
@@ -89,7 +89,7 @@ return [
 
     'application' => [
         'state' => [
-            'SUBMITTED' => 'Waiting',
+            'SUBMITTED' => 'Under Review',
             'APPROVED' => 'Approved',
             'REJECTED' => 'Rejected',
         ],
@@ -103,9 +103,9 @@ return [
         'values' => 'What Was Sent',
         'papers' => 'Papers',
         'no_papers' => 'No papers were sent.',
-        'uploaded' => 'Uploaded :date',
         'open' => 'Open File',
         'open_locked' => 'Opening company papers is not one of your jobs.',
+        'uploaded_on' => 'Uploaded',
         'flags' => 'Marked Items',
         'requests' => 'Requested Items',
         'answers' => 'Answers',
@@ -128,8 +128,6 @@ return [
         ],
     ],
 
-    'actions' => 'Open company actions',
-
     'approve' => [
         'button' => 'Approve Company',
         'title' => 'Approve Company',
@@ -137,7 +135,7 @@ return [
         'note' => 'Note',
         'note_helper' => 'Optional, and emailed to the customer with the approval.',
         'type_not_set' => 'Correct the company type to a listed type first.',
-        'account_deleted' => 'The account was deleted. Reject the application instead.',
+        'account_deleted' => 'The account was deleted, so reject the application instead.',
     ],
     'reject' => [
         'button' => 'Reject Application',
@@ -160,6 +158,7 @@ return [
         'body' => 'The company can\'t order or change its details until it is reinstated. The reason is emailed to the customer.',
         'button' => 'Suspend Company',
         'reason_helper' => 'Emailed to the customer with the suspension.',
+        'name_label' => 'company name',
     ],
     'reinstate' => [
         'button' => 'Reinstate Company',
@@ -178,7 +177,7 @@ return [
         'deactivated' => ':name (deactivated)',
         'choose_first' => 'Choose a type other than the one the company holds.',
         'reactivates_label' => 'Deactivated Type',
-        'reactivates' => 'This type is deactivated. Correcting to it makes it active again for the whole store.',
+        'reactivates' => 'Correcting to it makes it active again for the whole store.',
         'button' => 'Correct Company Type',
     ],
     'reason' => 'Reason',

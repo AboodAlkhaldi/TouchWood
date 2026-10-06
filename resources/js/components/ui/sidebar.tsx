@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
@@ -5,6 +7,7 @@ import { PanelLeftIcon } from "lucide-react"
 import { Slot } from "radix-ui"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useTranslator } from "@/lib/t"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -162,6 +165,10 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  // Ours, edit 5 of frontend.md §1.11 (owner, 2026-10-03): upstream names the phone's sidebar in
+  // English only; a screen reader hears it in the page's language. Checked by
+  // tests/Architecture/ShadcnEditsTest.
+  const t = useTranslator()
 
   if (collapsible === "none") {
     return (
@@ -194,8 +201,8 @@ function Sidebar({
           side={side}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{t("ui.sidebar")}</SheetTitle>
+            <SheetDescription>{t("ui.sidebar_description")}</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
@@ -277,9 +284,6 @@ function SidebarTrigger({
   )
 }
 
-// Ours: the rail was the one place upstream still wrote -right-4 and left-0, so in Arabic it sat
-// off the wrong edge of a sidebar that had correctly moved to the right. Written as -end-4 and
-// start-0 it follows the sidebar, the way the two offcanvas offsets below already do.
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   const { toggleSidebar } = useSidebar()
 
@@ -292,6 +296,10 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
+        // Ours, edit 4 of frontend.md §1.11 (owner, 2026-10-03): upstream writes -right-4 and
+        // left-0 here, so in Arabic the rail sat on the far side of the screen, away from a sidebar
+        // that had correctly moved to the right. Written as -end-4 and start-0 it follows the
+        // sidebar. Put this back after every reinstall; tests/Architecture/ShadcnEditsTest checks it.
         "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 rtl:translate-x-1/2 transition-all ease-linear group-data-[side=left]:-end-4 group-data-[side=right]:start-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex",
         "in-data-[side=left]:cursor-w-resize rtl:in-data-[side=left]:cursor-e-resize in-data-[side=right]:cursor-e-resize rtl:in-data-[side=right]:cursor-w-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize rtl:[[data-side=left][data-state=collapsed]_&]:cursor-w-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize rtl:[[data-side=right][data-state=collapsed]_&]:cursor-e-resize",

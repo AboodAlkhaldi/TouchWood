@@ -14,6 +14,7 @@ canChangeEmail: boolean,
 notifications: NotificationSetting[],
 countries: CountryOption[],
 passwordMinLength: number,
+codeLength: number,
 sessions: StaffSessionRow[],
 trustedBrowsers: TrustedBrowserRow[],
 tab: string,
@@ -55,6 +56,7 @@ id: string,
 code: string,
 name: string,
 hasFormat: boolean,
+isActive: boolean,
 };
 export type AddressRow = {
 id: string,
@@ -90,11 +92,13 @@ passwordMinimumLength: number,
 addresses: AddressBookStore[],
 deletionDays: number,
 returnTo: string | null,
+codeLength: number,
 };
 export type CustomerAddressGroup = {
 storeId: string,
 storeName: string,
 addresses: AddressRow[],
+isActive: boolean,
 };
 export type CustomerDetailsPage = {
 customer: CustomerRow,
@@ -133,6 +137,7 @@ deletionScheduledFor: string | null,
 anonymized: boolean,
 homeStore: string,
 registeredAt: string,
+homeStoreIsActive: boolean,
 };
 export type CustomerSignInPage = {
 rememberDays: number,
@@ -325,6 +330,7 @@ isCurrent: boolean,
 export type StoreOption = {
 id: string,
 name: string,
+isActive: boolean,
 };
 export type TrustedBrowserRow = {
 id: string,

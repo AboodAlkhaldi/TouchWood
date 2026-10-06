@@ -75,8 +75,11 @@ final readonly class ViewTypeListsHandler
             throw new Unauthorized($jobs[0]);
         }
 
-        // Only now, and only for someone who may read it, is the store looked up.
-        if ($this->platform->store($store) === null) {
+        // Only now, and only for someone who may read it, is the store looked up. An off store's
+        // lists are read by a Super Admin alone, preparing it (access.md amendment 58(f)).
+        $found = $this->platform->store($store);
+
+        if ($found === null || (! $found->isActive && ! $this->authorizer->isUnlimited())) {
             throw new InvalidCompanyAttribute('store', 'a store');
         }
 

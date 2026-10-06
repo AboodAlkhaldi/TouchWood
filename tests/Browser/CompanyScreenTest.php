@@ -114,26 +114,6 @@ function companyScreenMinimum(string $key, int $value): void
     Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting($key, null, $value)));
 }
 
-/**
- * Whether the expression comes to hold in the page within four seconds: a field's state follows its
- * save, and the plugin's own assertions read the page once.
- */
-function companyScreenUntil(mixed $page, string $expression): bool
-{
-    return $page->script(<<<JS
-        () => new Promise((resolve) => {
-            // Under the plugin's own five seconds for a script, so it answers rather than times out.
-            const until = Date.now() + 4000;
-            const tick = () => {
-                let held = false;
-                try { held = Boolean({$expression}); } catch (error) { held = false; }
-                if (held || Date.now() > until) { resolve(held); } else { setTimeout(tick, 50); }
-            };
-            tick();
-        })
-        JS) === true;
-}
-
 /** How a field says it stands: idle, unsaved, saving, saved, invalid or refused. */
 function companyScreenLook(string $selector): string
 {
@@ -148,29 +128,29 @@ it('takes a company from the line under the header through its application to "u
     $page->assertSee('Continue Company Application')
         ->click('[data-test="shopper-line"]')
         ->assertPathIs('/sa/en/account/company')
-        ->assertSee('Not Sent Yet')
+        ->assertSee('Not Sent')
         ->assertSee('Your Application')
-        ->assertSee('Usually within two business days')
+        ->assertSee('Step 1 of 3 · Form')
         ->click('[data-test="start"]')
         ->assertPresent('[data-test="company-form"]');
 
     // The lifecycle's first step, while it is being filled in (amendment 16(e)).
-    expect(companyScreenUntil($page, "document.querySelector('[data-test=step-send]').dataset.state === 'current'"))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('[data-test=lifecycle]').dataset.step === 'form'"))->toBeTrue();
 
-    // A value the page would not send turns yellow and stays on the page (amendment 16(a)).
+    // A value the page would not send turns red once it is left, and stays on the page (amendments 16(a), 22(a)).
     $page->type('#company-name', 'A')
         ->keys('#company-name', 'Tab')
-        ->assertSee('At least 2 characters.')
+        ->assertSee('Company name needs at least 2 characters.')
         ->type('#company-cr_number', 'CR#1010')
         ->keys('#company-cr_number', 'Tab')
-        ->assertSee('Letters, digits, spaces and dashes only.');
+        ->assertSee('Commercial registration number takes only letters, digits, spaces and dashes.');
 
-    expect(companyScreenUntil($page, companyScreenLook('#company-name').' === "invalid"'))->toBeTrue()
-        ->and(companyScreenUntil($page, companyScreenLook('#company-cr_number').' === "invalid"'))->toBeTrue()
+    expect(browserUntil($page, companyScreenLook('#company-name').' === "invalid"'))->toBeTrue()
+        ->and(browserUntil($page, companyScreenLook('#company-cr_number').' === "invalid"'))->toBeTrue()
         ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->value('name'))->toBeNull()
         ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->value('cr_number'))->toBeNull();
 
-    // Put right, each is saved as it is left, and says so in green.
+    // Put right, each is saved as it is left, and says "✓ Saved" at its end.
     $page->clear('#company-name')
         ->type('#company-name', 'Al Noor Trading')
         ->keys('#company-name', 'Tab')
@@ -181,11 +161,11 @@ it('takes a company from the line under the header through its application to "u
         ->type('#company-tax_number', '300123456700003')
         ->keys('#company-tax_number', 'Tab')
         ->click('[data-test="pick-address-'.$addressId.'"]')
-        ->assertDontSee('At least 2 characters.');
+        ->assertDontSee('Company name needs at least 2 characters.');
 
-    expect(companyScreenUntil($page, companyScreenLook('#company-name').' === "saved"'))->toBeTrue()
-        ->and(companyScreenUntil($page, companyScreenLook('#company-tax_number').' === "saved"'))->toBeTrue()
-        ->and(companyScreenUntil($page, "document.querySelector('[data-test=address-picker] [data-test=field-state]').dataset.look === 'saved'"))->toBeTrue()
+    expect(browserUntil($page, companyScreenLook('#company-name').' === "saved"'))->toBeTrue()
+        ->and(browserUntil($page, companyScreenLook('#company-tax_number').' === "saved"'))->toBeTrue()
+        ->and(browserUntil($page, "document.querySelector('[data-test=address-picker] [data-test=field-state]').dataset.look === 'saved'"))->toBeTrue()
         ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->value('address_id'))->toBe($addressId);
 
     // Nothing is complete without the papers: Send waits, and says what is missing (16(d)).
@@ -197,7 +177,7 @@ it('takes a company from the line under the header through its application to "u
     // does for a file too large for the server. The papers go in as the customer instead; the
     // upload itself is MyCompanyPageTest's.
     $page->attach('[data-test="file-'.B2BFixtures::documentTypes()[0]->id().'"]', B2BFixtures::pdf())
-        ->assertSee("Couldn't upload the file.");
+        ->assertSee("Couldn't upload the file: it may be larger than the server accepts. Choose a smaller file, or try again.");
     companyScreenPapers($customerId);
 
     $page->navigate('/sa/en/account/company')
@@ -206,15 +186,16 @@ it('takes a company from the line under the header through its application to "u
         ->assertValue('#company-cr_number', '1010123456')
         ->assertMissing('[data-test="send-missing"]');
 
-    $page->click('[data-test="send"]')
-        ->assertSee('Application sent')
-        ->assertSee('Under Review')
+    $page->click('[data-test="send"]');
+    // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
+    expect(browserUntil($page, "document.body.innerText.includes('Application sent')"))->toBeTrue();
+    $page->assertSee('Under Review')
         ->assertSee('Your account is under review')
         ->assertSee('TW-CO-')
         ->assertNoJavaScriptErrors();
 
     expect(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('sa'))?->status()->value)->toBe('PENDING')
-        ->and(companyScreenUntil($page, "document.querySelector('[data-test=step-review]').dataset.state === 'current'"))->toBeTrue();
+        ->and(browserUntil($page, "document.querySelector('[data-test=lifecycle]').dataset.step === 'review'"))->toBeTrue();
 });
 
 it('warns at once, before uploading, that a file is already under another document', function () {
@@ -232,7 +213,7 @@ it('warns at once, before uploading, that a file is already under another docume
     $held = DB::table('platform.media')->count();
 
     $page->attach("[data-test=\"file-{$second}\"]", $same)
-        ->assertSeeIn("[data-test=\"document-{$second}\"]", 'The same file cannot go into two sections.')
+        ->assertSeeIn("[data-test=\"document-{$second}\"]", "the same file can't go into two sections.")
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('platform.media')->count())->toBe($held);
@@ -248,7 +229,7 @@ it('reads right to left in Arabic, in the dark, on a phone', function () {
     $page = visit('/sa/ar/sign-in');
     $page->click('[data-test="theme-dark"]');
     // Read until the server's answer is in (lesson 121), as StorefrontFrameTest does.
-    expect($page->script("new Promise((done) => { const from = Date.now(); (function look() { const mode = document.documentElement.dataset.mode; if (mode === 'dark' || Date.now() - from > 4000) { done(mode); } else { setTimeout(look, 50); } })(); })"))->toBe('dark');
+    expect(browserUntil($page, "document.documentElement.dataset.mode === 'dark'"))->toBeTrue();
     $page->type('#email', $email)
         ->type('#password', Fx::CUSTOMER_PASSWORD)
         ->click('button[type="submit"]')
@@ -266,10 +247,9 @@ it('reads right to left in Arabic, in the dark, on a phone', function () {
 
     expect($page->script('document.documentElement.dir'))->toBe('rtl')
         ->and($page->script('document.documentElement.dataset.mode'))->toBe('dark')
-        // The date is isolated inside the Arabic sentence, so the browser keeps its order
-        // (lib/bidi.ts): innerText keeps the order it was written in either way, so the mark is
-        // what is checked.
-        ->and($page->script('document.querySelector("[data-test^=application-] summary").innerText.includes("\\u2068" + "2026-")'))->toBeTrue()
+        // The moment is an element of its own inside the Arabic sentence, written by Time in the
+        // page's language, so the browser keeps the sentence's order around it.
+        ->and($page->script('document.querySelector("[data-test=sent] [data-test^=application-] time[datetime]")?.closest("span")?.textContent.includes("أُرسل")'))->toBeTrue()
         ->and($page->script('document.documentElement.scrollWidth <= document.documentElement.clientWidth'))->toBeTrue();
 });
 
@@ -284,7 +264,7 @@ it('shows a company that was not approved why, and applying again marks what to 
         ->assertSee('The CR number does not match the certificate.');
 
     // Decided: the third step, with its result.
-    expect(companyScreenUntil($page, "document.querySelector('[data-test=step-decision]').dataset.state === 'current'"))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('[data-test=lifecycle]').dataset.step === 'decision'"))->toBeTrue();
 
     $page->assertSeeIn('[data-test="step-result"]', 'Not Approved')
         ->click('[data-test="apply-again"]')
@@ -294,9 +274,9 @@ it('shows a company that was not approved why, and applying again marks what to 
 
     // Applying again starts again at the first step; the marked CR number keeps its red mark and
     // is not shown "Saved" beside it, while a field nobody marked is (amendment 17(f)).
-    expect(companyScreenUntil($page, "document.querySelector('[data-test=step-send]').dataset.state === 'current'"))->toBeTrue()
-        ->and(companyScreenUntil($page, companyScreenLook('#company-cr_number').' === "idle"'))->toBeTrue()
-        ->and(companyScreenUntil($page, companyScreenLook('#company-name').' === "saved"'))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('[data-test=lifecycle]').dataset.step === 'form'"))->toBeTrue()
+        ->and(browserUntil($page, companyScreenLook('#company-cr_number').' === "idle"'))->toBeTrue()
+        ->and(browserUntil($page, companyScreenLook('#company-name').' === "saved"'))->toBeTrue();
 });
 
 it('warns an approved company, before it sends a change, that sending it stops its ordering until approved', function () {
@@ -312,7 +292,7 @@ it('warns an approved company, before it sends a change, that sending it stops i
         ->assertSeeIn('[data-test="step-result"]', 'Approved')
         ->click('[data-test="change"]')
         ->assertPresent('[data-test="change-warning"]')
-        ->assertSee('These changes go to our team as a new application.')
+        ->assertSee("These changes go to our team as a new application: you keep ordering until you send them, then can't order until they are approved.")
         ->assertNoJavaScriptErrors();
 });
 
@@ -354,29 +334,29 @@ it('shows a server\'s refusal in red on its own field through the next field\'s 
 
     // Red, and saying why: the refusal's answer gave the page the raised minimum, so it names the
     // reason rather than only "not valid" (amendment 17(g)).
-    $page->assertSee('At least 20 characters.');
+    $page->assertSee('Tax number needs at least 20 characters.');
 
-    expect(companyScreenUntil($page, companyScreenLook('#company-tax_number').' === "refused"'))->toBeTrue()
-        ->and(companyScreenUntil($page, companyScreenLook('#company-cr_number').' === "saved"'))->toBeTrue()
+    expect(browserUntil($page, companyScreenLook('#company-tax_number').' === "refused"'))->toBeTrue()
+        ->and(browserUntil($page, companyScreenLook('#company-cr_number').' === "saved"'))->toBeTrue()
         ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->where('state', 'DRAFT')->value('cr_number'))->toBe('2020123456');
 
     $page->assertPresent('[data-test="send-missing"]')
         ->assertButtonDisabled('[data-test="send"]');
 
-    // Another value short of the new minimum now turns yellow on the page itself, and is not sent.
+    // Another value short of the new minimum now turns red on the page itself, and is not sent.
     $page->clear('#company-tax_number')
         ->type('#company-tax_number', '300123456700088')
         ->keys('#company-tax_number', 'Tab')
-        ->assertSee('At least 20 characters.');
+        ->assertSee('Tax number needs at least 20 characters.');
 
-    expect(companyScreenUntil($page, companyScreenLook('#company-tax_number').' === "invalid"'))->toBeTrue();
+    expect(browserUntil($page, companyScreenLook('#company-tax_number').' === "invalid"'))->toBeTrue();
 
     $page->clear('#company-tax_number')
         ->type('#company-tax_number', '30012345670008812345')
         ->keys('#company-tax_number', 'Tab')
-        ->assertDontSee('At least 20 characters.');
+        ->assertDontSee('Tax number needs at least 20 characters.');
 
-    expect(companyScreenUntil($page, companyScreenLook('#company-tax_number').' === "saved"'))->toBeTrue()
+    expect(browserUntil($page, companyScreenLook('#company-tax_number').' === "saved"'))->toBeTrue()
         ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->where('state', 'DRAFT')->value('tax_number'))->toBe('30012345670008812345');
 
     $page->assertMissing('[data-test="send-missing"]')
@@ -395,8 +375,8 @@ it('keeps "Other" chosen until its words are left, and saves them as the type', 
         ->assertPresent('#company-type-other')
         ->assertPresent('[data-test="send-missing"]');
 
-    // Chosen, not yet left: plain — not saved yet, and not yellow (the owner's choice, 17(k)).
-    expect(companyScreenUntil($page, companyScreenLook('#company-type-other').' === "unsaved"'))->toBeTrue();
+    // Chosen, not yet left: plain — not saved yet, and not red (the owner's choice, 17(k)).
+    expect(browserUntil($page, companyScreenLook('#company-type-other').' === "unsaved"'))->toBeTrue();
 
     $page->type('#company-type-other', 'Cooperative society')
         ->keys('#company-type-other', 'Tab')
@@ -431,7 +411,8 @@ it('sends a company with no saved address to add one, brings it back, and saves 
 
     $page->navigate('/sa/en/account/company')
         ->assertSee('Under Review')
-        ->assertSee('You have no saved addresses yet.')
+        ->assertSee('No Saved Addresses')
+        ->assertSee('Add one, and you come straight back here to pick it.')
         ->click('[data-test="add-address"]')
         ->assertPathIs('/sa/en/account')
         ->click('[data-test="add-address-sa"]')
@@ -450,9 +431,10 @@ it('sends a company with no saved address to add one, brings it back, and saves 
 
     $addressId = (string) DB::table('access.addresses')->where('customer_id', $customerId)->value('id');
 
-    $page->click("[data-test=\"pick-address-{$addressId}\"]")
-        ->assertSee('Address saved')
-        ->assertSeeIn('[data-test="address-kept"]', 'Olaya Street')
+    $page->click("[data-test=\"pick-address-{$addressId}\"]");
+    // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
+    expect(browserUntil($page, "document.body.innerText.includes('Address saved')"))->toBeTrue();
+    $page->assertSeeIn('[data-test="address-kept"]', 'Olaya Street')
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('b2b.companies')->where('customer_id', $customerId)->value('address_id'))->toBe($addressId)
@@ -467,7 +449,7 @@ it('hides the lifecycle and the address from a suspended company', function () {
 
     companyScreenSignIn($suspended)
         ->navigate('/sa/en/account/company')
-        ->assertSee('You cannot order or change your company details until our team reinstates the account.')
+        ->assertSee("until our team reinstates the account, you can't order or change your company details.")
         ->assertMissing('[data-test="steps"]')
         ->assertMissing('[data-test="payment"]')
         ->assertMissing('[data-test="address"]')
@@ -489,15 +471,16 @@ it('shows a saved address edited since unpicked, with a note, and takes its new 
         ->assertSeeIn('[data-test="address-kept"]', 'Olaya Street')
         ->assertPresent('[data-test="address-changed"]');
 
-    expect($page->script("document.querySelector('[data-test=pick-address-{$addressId}]').checked"))->toBeFalse();
+    expect($page->script("document.querySelector('[data-test=pick-address-{$addressId}]').getAttribute('aria-checked')"))->toBe('false');
 
-    $page->click("[data-test=\"pick-address-{$addressId}\"]")
-        ->assertSee('Address saved')
-        ->assertSeeIn('[data-test="address-kept"]', 'Tahlia Street')
+    $page->click("[data-test=\"pick-address-{$addressId}\"]");
+    // Sonner draws the toast a moment after the answer: waited for, not read once (lesson 121).
+    expect(browserUntil($page, "document.body.innerText.includes('Address saved')"))->toBeTrue();
+    $page->assertSeeIn('[data-test="address-kept"]', 'Tahlia Street')
         ->assertMissing('[data-test="address-changed"]')
         ->assertNoJavaScriptErrors();
 
-    expect($page->script("document.querySelector('[data-test=pick-address-{$addressId}]').checked"))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('[data-test=pick-address-{$addressId}]').getAttribute('aria-checked') === 'true'"))->toBeTrue();
 });
 
 it('keeps what was typed after a save went out, and shows its own refusal in red (amendment 17(c))', function () {
@@ -526,7 +509,7 @@ it('keeps what was typed after a save went out, and shows its own refusal in red
         write('300123456700099');
         JS);
 
-    expect(companyScreenUntil($page, companyScreenLook('#company-tax_number').' === "refused"'))->toBeTrue()
+    expect(browserUntil($page, companyScreenLook('#company-tax_number').' === "refused"'))->toBeTrue()
         ->and($page->value('#company-tax_number'))->toBe('300123456700099')
         ->and(DB::table('b2b.applications')->where('customer_id', $customerId)->where('state', 'DRAFT')->value('tax_number'))->toBe('30012345670008812345');
 

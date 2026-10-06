@@ -92,7 +92,7 @@ it('gives a company account its tabs, the pages added for company accounts, and 
             ['key' => 'security', 'label' => 'Password'],
             ['key' => 'phone', 'label' => 'Phone'],
             ['key' => 'addresses', 'label' => 'Addresses'],
-            ['key' => 'close', 'label' => 'Close Account'],
+            ['key' => 'close', 'label' => 'Account Closure'],
         ])
         // Among whatever the real modules add as well — B2B's company page, from step 6.
         ->where('accountMenu.pages', fn (Collection $pages): bool => shopFrameHolds($pages, ['key' => 'access.test_company', 'label' => 'access::account_pages.test_company', 'routeName' => 'storefront.sign-in']))

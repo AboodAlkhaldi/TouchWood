@@ -1,19 +1,32 @@
 import { type ReactNode } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { ChevronDown, LogOut, UserRound } from 'lucide-react';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
 import { ThemeToggle } from '@/components/Preferences';
 import { Logo } from '@/components/Logo';
-import { Button, ButtonLink, Select } from '@/components/geist';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { SharedProps, ShopperLine } from '@/types/page';
 
 /*
-| The shop's frame (frontend.md §2.3).
+| The shop's frame (frontend.md §2.3), on shadcn's code with Geist's rules (§1.11).
 |
-| The header carries the logo, the country, the language and the theme, and either "Sign in" or the
-| name of whoever is signed in. Search and the basket belong to Catalog and Sales and are not here.
+| The header carries the logo, the country, the language, and either "Sign in" or the name of
+| whoever is signed in, which opens their menu - My Account and Sign Out (owner's #4, 2026-10-02).
+| Search and the basket belong to Catalog and Sales and are not here. The theme switch is in the
+| footer, once for the whole shop (Geist: "once per app, in the footer or settings").
 |
 | **The country and the language are both in the address**, not in a cookie the page reads: a shop
 | page lives at /{store}/{locale}, so switching either is a link to the same page written the other
@@ -21,9 +34,6 @@ import type { SharedProps, ShopperLine } from '@/types/page';
 | see three stores in two languages rather than one page that changes under it.
 |
 | Arabic mirrors the whole frame, because the page's dir is set on <html> by the server.
-|
-| Dressed in Geist (frontend.md 1.10): its Select for the country, its buttons for the way in and
-| out, its type scale throughout.
 */
 
 type Props = {
@@ -48,7 +58,7 @@ export function StorefrontLayout({ title, children }: Props) {
                             href={shop === null || shop === undefined ? '/' : `/${shop.code}/${locale}`}
                             className="flex items-center gap-3"
                         >
-                            <Logo className="text-brand" />
+                            <Logo tone="auto" decorative />
                             <span className="text-heading-16">TouchWood</span>
                         </Link>
 
@@ -59,8 +69,6 @@ export function StorefrontLayout({ title, children }: Props) {
                                     <LanguageSwitch shop={shop} locale={locale} url={page.url} />
                                 </>
                             )}
-
-                            <ThemeToggle to="/preferences" />
 
                             {/* Only under a store: the country page has none, and every address in
                                 the shop is written inside one. */}
@@ -76,7 +84,11 @@ export function StorefrontLayout({ title, children }: Props) {
                 <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
 
                 <footer className="border-t border-line bg-surface">
-                    <div className="mx-auto w-full max-w-6xl px-4 py-6 text-label-12 text-ink-muted">TouchWood</div>
+                    <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-6">
+                        <span className="text-label-12 text-muted-foreground">TouchWood</span>
+                        {/* The shop's one theme switch, small, as Geist sizes it for a footer. */}
+                        <ThemeToggle to="/preferences" size="small" />
+                    </div>
                 </footer>
             </div>
 
@@ -87,12 +99,13 @@ export function StorefrontLayout({ title, children }: Props) {
 }
 
 /**
- * Whoever is in the shop: the way in, or their name and the way out (frontend.md §3.6).
+ * Whoever is in the shop: the way in, or their name, which opens their menu (frontend.md §3.6;
+ * owner's #4, 2026-10-02: shadcn's user menu, the nav-user pattern of `sidebar-07`).
  *
  * An address that has not been confirmed is said here rather than left for the moment somebody
  * tries to order: until it is, they may look around and fill a basket and no more (F4).
  *
- * The name opens their account; a sign-out is a post, because it changes something.
+ * A sign-out is a post, because it changes something; destructive, so it is last (Geist's Menu).
  */
 function Shopper({ shopper }: { shopper: SharedProps['shopper'] }) {
     const t = useTranslator();
@@ -100,31 +113,46 @@ function Shopper({ shopper }: { shopper: SharedProps['shopper'] }) {
 
     if (shopper === null || shopper === undefined) {
         return (
-            <ButtonLink type="secondary" size="small" href={link('storefront.sign-in')}>
-                {t('access::auth.sign_in')}
-            </ButtonLink>
+            <Button variant="outline" size="sm" asChild>
+                <Link href={link('storefront.sign-in')}>{t('access::auth.sign_in')}</Link>
+            </Button>
         );
     }
 
     return (
         <span className="flex items-center gap-2">
             {shopper.emailVerified ? null : (
-                <Link
-                    href={link('storefront.verify-email')}
-                    data-test="verify-email"
-                    className="inline-flex h-6 items-center rounded-full bg-warn-soft px-2.5 text-label-12 font-medium text-warn hover:underline"
-                >
-                    {t('access::auth.verify_pending')}
-                </Link>
+                // A badge says it in words, never by colour alone (Geist's Badge).
+                <Badge asChild variant="outline" className="border-transparent bg-warn-soft text-warn">
+                    <Link href={link('storefront.verify-email')} data-test="verify-email">
+                        {t('access::auth.verify_pending')}
+                    </Link>
+                </Badge>
             )}
 
-            <Link href={link('storefront.account')} data-test="my-account" className="px-1 text-label-14 font-medium text-ink hover:text-brand">
-                {shopper.name}
-            </Link>
-
-            <Button type="tertiary" size="small" data-test="sign-out" onClick={() => router.post(link('storefront.account.sign-out'))}>
-                {t('access::auth.sign_out')}
-            </Button>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" data-test="shopper-menu">
+                        {shopper.name}
+                        <ChevronDown aria-hidden="true" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-48 rounded-lg">
+                    <DropdownMenuLabel className="truncate font-normal text-muted-foreground">{shopper.name}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                        <Link href={link('storefront.account')} data-test="my-account">
+                            <UserRound />
+                            {t('access::auth.my_account')}
+                        </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" data-test="sign-out" onSelect={() => router.post(link('storefront.account.sign-out'))}>
+                        <LogOut />
+                        {t('access::auth.sign_out')}
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </span>
     );
 }
@@ -174,9 +202,9 @@ function CountrySwitch({ shop, locale }: { shop: NonNullable<SharedProps['shop']
     const t = useTranslator();
 
     return (
-        <Select
+        <NativeSelect
             id="country-switch"
-            size="small"
+            size="sm"
             data-test="country-switch"
             value={shop.code}
             aria-label={t('platform::stores.choose_title')}
@@ -184,11 +212,11 @@ function CountrySwitch({ shop, locale }: { shop: NonNullable<SharedProps['shop']
             className="w-40"
         >
             {shop.available.map((store) => (
-                <option key={store.code} value={store.code}>
+                <NativeSelectOption key={store.code} value={store.code}>
                     {store.name}
-                </option>
+                </NativeSelectOption>
             ))}
-        </Select>
+        </NativeSelect>
     );
 }
 
@@ -210,18 +238,19 @@ function LanguageSwitch({
             {shop.languages
                 .filter((language) => language !== locale)
                 .map((language) => (
-                    <Link
-                        key={language}
-                        data-test={`language-${language}`}
-                        // The language is the second segment: /sa/ar/account becomes /sa/en/account.
-                        href={url.replace(`/${shop.code}/${locale}`, `/${shop.code}/${language}`)}
-                        // Written in the language being offered, never translated: somebody who
-                        // cannot read the current one must still recognise it.
-                        lang={language}
-                        className="inline-flex h-8 items-center rounded-[var(--tw-radius)] bg-surface px-2.5 text-button-14 text-ink shadow-[0_0_0_1px_var(--tw-line-strong)] hover:bg-surface-sunken"
-                    >
-                        {language === 'ar' ? 'العربية' : 'English'}
-                    </Link>
+                    // The owner's #3 (2026-10-02): one button showing the other language's name.
+                    <Button key={language} variant="outline" size="sm" asChild>
+                        <Link
+                            data-test={`language-${language}`}
+                            // The language is the second segment: /sa/ar/account becomes /sa/en/account.
+                            href={url.replace(`/${shop.code}/${locale}`, `/${shop.code}/${language}`)}
+                            // Written in the language being offered, never translated: somebody who
+                            // cannot read the current one must still recognise it.
+                            lang={language}
+                        >
+                            {language === 'ar' ? 'العربية' : 'English'}
+                        </Link>
+                    </Button>
                 ))}
         </span>
     );

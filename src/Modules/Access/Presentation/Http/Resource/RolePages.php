@@ -121,6 +121,7 @@ final readonly class RolePages
     public function one(ViewRoleHandler $handler, ListRolesHandler $roles, string $roleId): RolePage
     {
         $role = $handler->handle(new ViewRole($roleId));
+        $stores = $this->storeNames();
 
         return new RolePage(
             $role->id,
@@ -131,7 +132,7 @@ final readonly class RolePages
             $this->actions($role),
             $this->groups(),
             $role->holderCount,
-            array_map($this->holder(...), $role->holders),
+            array_map(fn (RoleHolder $holder): RoleHolderRow => $this->holder($holder, $stores), $role->holders),
             $role->editable,
             // Somewhere for the holders to go, if this role is deleted while anybody holds it.
             $this->sameLevel($roles, $role),
@@ -249,28 +250,39 @@ final readonly class RolePages
         );
     }
 
-    private function holder(RoleHolder $holder): RoleHolderRow
+    /**
+     * @param  array<string, string>  $stores  from storeNames(): every store, an off one marked
+     */
+    private function holder(RoleHolder $holder, array $stores): RoleHolderRow
     {
-        $names = null;
-
-        if ($holder->storeIds !== null) {
-            $byId = [];
-
-            foreach ($this->platform->stores() as $store) {
-                $byId[$store->id] = $store->name->in($this->locale());
-            }
-
-            $names = array_values(array_filter(array_map(
-                static fn (string $storeId): ?string => $byId[$storeId] ?? null,
-                $holder->storeIds,
-            )));
-        }
-
         return new RoleHolderRow(
             $holder->staffId,
             trim($holder->firstName.' '.$holder->lastName),
-            $names,
+            $holder->storeIds === null ? null : array_values(array_filter(array_map(
+                static fn (string $storeId): ?string => $stores[$storeId] ?? null,
+                $holder->storeIds,
+            ))),
         );
+    }
+
+    /**
+     * Every store's name, read once for the page: an off store a holder keeps is named and marked
+     * "Egypt · Off", as on the staff member's page (access.md amendment 58(b)), rather than
+     * silently left out (the review of batch A).
+     *
+     * @return array<string, string>
+     */
+    private function storeNames(): array
+    {
+        $mark = (string) __('admin.store.off', [], $this->locale());
+        $stores = [];
+
+        foreach ($this->platform->allStores() as $store) {
+            $name = $store->name->in($this->locale());
+            $stores[$store->id] = $store->isActive ? $name : "{$name} · {$mark}";
+        }
+
+        return $stores;
     }
 
     /**

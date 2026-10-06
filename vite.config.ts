@@ -23,11 +23,14 @@ export default defineConfig({
         tailwindcss(),
     ],
     resolve: {
-        alias: {
-            // The same alias tsconfig.json declares, so an import reads the same to the editor, to
-            // the type checker and to the bundler.
-            '@': fileURLToPath(new URL('./resources/js', import.meta.url)),
-        },
+        // The same aliases tsconfig.json declares, so an import reads the same to the editor, to
+        // the type checker and to the bundler.
+        alias: [
+            { find: '@', replacement: fileURLToPath(new URL('./resources/js', import.meta.url)) },
+            // shadcn's `cn`, told about Geist's type scale; only the bare name, so `cn/config`
+            // inside it still reaches the package (resources/js/lib/cn.ts).
+            { find: /^cn$/, replacement: fileURLToPath(new URL('./resources/js/lib/cn.ts', import.meta.url)) },
+        ],
     },
     server: {
         watch: {

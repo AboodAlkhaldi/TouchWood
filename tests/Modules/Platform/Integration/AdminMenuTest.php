@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Modules\Access\Application\Authorization\InvalidPermissionCheck;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Public\Enums\StaffStatus;
+use Modules\B2B\Application\B2BPermissions;
 use Modules\Platform\Infrastructure\Queue\JobActorState;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Dto\MenuEntryDto;
@@ -26,15 +27,15 @@ beforeEach(function () {
 
 /**
  * The entries the person acting now is offered, flattened to "group/key" so a test reads like the
- * menu does.
+ * menu does - in the store the panel is working in, which the panel always passes; none by default.
  *
  * @return list<string>
  */
-function offeredMenu(): array
+function offeredMenu(?string $storeWorkedIn = null): array
 {
     $offered = [];
 
-    foreach (app(AdminMenu::class)->forCurrentActor() as $group => $entries) {
+    foreach (app(AdminMenu::class)->forCurrentActor($storeWorkedIn) as $group => $entries) {
         foreach ($entries as $entry) {
             $offered[] = "{$group}/{$entry->key}";
         }
@@ -74,8 +75,9 @@ describe('the admin menu', function () {
 
         // Everything under staff_and_permissions and store_settings but "saved-roles" is a real
         // entry, registered at boot by the module that owns it; the rest are this test's own. The
-        // list grows as screens ship, and the order it grows in is the thing being asserted.
-        expect(offeredMenu())->toBe([
+        // list grows as screens ship, and the order it grows in is the thing being asserted. Asked
+        // in a store, as the panel always does: B2B's type lists need one (amendment 23(a)).
+        expect(offeredMenu(Fx::storeId('sa')))->toBe([
             'catalog/products',
             // B2B's staff screens (b2b.md amendment 21).
             'companies/companies',
@@ -204,5 +206,65 @@ describe('the admin menu', function () {
             fn () => app(AdminMenu::class)->register(new MenuEntryDto('access', 'counted', 'staff_and_permissions', 'test.counted', AccessPermissions::STAFF_VIEW, count: stdClass::class)),
             'does not implement',
         ],
+        'an empty list of permissions, which would guard nothing (b2b.md amendment 23(a))' => [
+            fn () => app(AdminMenu::class)->register(new MenuEntryDto('access', 'empty', 'staff_and_permissions', 'test.empty', [])),
+            'must hold at least one permission',
+        ],
+        'a list holding something that is not a permission' => [
+            fn () => app(AdminMenu::class)->register(new MenuEntryDto('access', 'blank', 'staff_and_permissions', 'test.blank', [AccessPermissions::STAFF_VIEW, ''])),
+            'must hold at least one permission',
+        ],
     ]);
+
+    /*
+    | An entry may name several permissions, any one of which offers it (owner, 2026-10-03; b2b.md
+    | amendment 23(a)): a page that serves several jobs is offered to whoever holds any of them.
+    */
+    it('offers an entry naming several permissions to whoever holds any one of them', function (string $held) {
+        app(AdminMenu::class)->register(
+            new MenuEntryDto('access', 'either', 'staff_and_permissions', 'test.either', [AccessPermissions::ROLE_MANAGE, PlatformPermissions::AUDIT_VIEW], 30),
+        );
+        // Managing roles is admin-only, so an admin role carries the one that is held.
+        Fx::actAsAdmin(['sa'], [$held]);
+
+        expect(offeredMenu(Fx::storeId('sa')))->toContain('staff_and_permissions/either');
+    })->with([
+        'the first' => [AccessPermissions::ROLE_MANAGE],
+        'the second' => [PlatformPermissions::AUDIT_VIEW],
+    ]);
+
+    it('does not offer an entry naming several permissions to someone holding none of them', function () {
+        app(AdminMenu::class)->register(
+            new MenuEntryDto('access', 'either', 'staff_and_permissions', 'test.either', [AccessPermissions::ROLE_MANAGE, PlatformPermissions::AUDIT_VIEW], 30),
+        );
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa']));
+
+        expect(offeredMenu(Fx::storeId('sa')))->not->toContain('staff_and_permissions/either');
+    });
+
+    it('offers each of B2B\'s type lists to anyone holding any job on it in the store worked in, and only that list', function (string $job, string $offered, string $notOffered) {
+        Fx::actAsStaff(Fx::staffWith([$job], ['sa']));
+
+        expect(offeredMenu(Fx::storeId('sa')))->toContain($offered)
+            ->and(offeredMenu(Fx::storeId('sa')))->not->toContain($notOffered);
+    })->with([
+        'adding company types' => [B2BPermissions::COMPANY_TYPE_CREATE, 'companies/company_types', 'companies/document_types'],
+        'renaming company types' => [B2BPermissions::COMPANY_TYPE_UPDATE, 'companies/company_types', 'companies/document_types'],
+        'deactivating company types' => [B2BPermissions::COMPANY_TYPE_DEACTIVATE, 'companies/company_types', 'companies/document_types'],
+        'moving companies between types' => [B2BPermissions::COMPANY_TRANSFER_TYPE, 'companies/company_types', 'companies/document_types'],
+        'adding document types' => [B2BPermissions::DOCUMENT_TYPE_CREATE, 'companies/document_types', 'companies/company_types'],
+        'renaming document types' => [B2BPermissions::DOCUMENT_TYPE_UPDATE, 'companies/document_types', 'companies/company_types'],
+        'deactivating document types' => [B2BPermissions::DOCUMENT_TYPE_DEACTIVATE, 'companies/document_types', 'companies/company_types'],
+    ]);
+
+    it('does not offer a type list for a job held only in another store, whose page would refuse them', function () {
+        // The list shows the store being worked in alone (b2b.md §4.6), so a job held only in Egypt
+        // offers nothing while working in Saudi Arabia - it would only answer "not allowed"
+        // (amendment 23(a), owner 2026-10-03). Other entries keep "held anywhere".
+        Fx::actAsStaff(Fx::staffWith([B2BPermissions::COMPANY_TYPE_UPDATE, AccessPermissions::STAFF_VIEW], ['eg']));
+
+        expect(offeredMenu(Fx::storeId('sa')))->not->toContain('companies/company_types')
+            ->and(offeredMenu(Fx::storeId('eg')))->toContain('companies/company_types')
+            ->and(offeredMenu(Fx::storeId('sa')))->toContain('staff_and_permissions/staff');
+    });
 });

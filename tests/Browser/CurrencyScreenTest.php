@@ -42,8 +42,10 @@ it('draws the currencies, shows a sign as a price will, and settles the decimal 
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/currencies');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/currencies');
 
     $page->assertSee('Currencies')
         ->assertSee('SAR')
@@ -53,11 +55,13 @@ it('draws the currencies, shows a sign as a price will, and settles the decimal 
     // why rather than offering a change that would be refused.
     $page->click('[data-test="edit-SAR"]')
         ->assertSee('Settled')
-        ->assertSee('As a price will show it')
+        // The sign as a price shows it, as Geist's Description: "Preview" and the sample price.
+        ->assertSeeIn('[data-test="sign-preview"]', 'Preview')
+        ->assertSeeIn('[data-test="sign-preview"]', '1,234.50')
         ->assertNoJavaScriptErrors();
 
     // Typed, and drawn at once: this is the whole point of the field.
-    $page->type('#SAR-sign', 'ر.س')->assertSee('ر.س');
+    $page->type('#SAR-sign', 'ر.س')->assertSeeIn('[data-test="sign-preview"]', 'ر.س');
 
     expect($page->script('document.querySelector("#SAR-exponent").disabled'))->toBeTrue();
 });
@@ -78,8 +82,10 @@ it('adds a currency from the screen', function () {
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code')
         ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
-        ->click('button[type="submit"]')
-        ->navigate('/admin/currencies');
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/currencies');
 
     // Named: the panel's own header carries buttons too, and "header button" finds one of those.
     $page->click('[data-test="add-currency"]')

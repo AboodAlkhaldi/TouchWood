@@ -37,3 +37,18 @@ export function toLatinDigits(value: string): string {
 
     return out;
 }
+
+/*
+| The language tag for Intl - dates, times, numbers - on a page in `locale`: an Arabic page shows
+| Arabic-Indic digits (§1.8), and says so to Intl, since plain "ar" now formats in Latin digits
+| (CLDR 46 made Latin the Arabic default; checked 2026-10-04 with ICU 77 / CLDR 47: "123", while
+| "ar-u-nu-arab" gives "١٢٣"). Codes and phone numbers are never formatted through Intl.
+*/
+export function intlLocale(locale: string): string {
+    return locale === 'ar' ? 'ar-u-nu-arab' : 'en';
+}
+
+/** A whole number in the page's digits (frontend.md §1.8): Arabic-Indic on an Arabic page. */
+export function figure(locale: string, value: number): string {
+    return new Intl.NumberFormat(intlLocale(locale)).format(value);
+}
