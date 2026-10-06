@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\B2B\Application\B2BPermissions;
 use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -255,21 +256,23 @@ it('ticks every action of an area with its Select All, shows a dash for some, an
 
     expect(signedInToPanel($page))->toBeTrue();
     $page->navigate('/admin/roles/new');
-    $all = '[data-test="select-all-staff_and_permissions"]';
+    // Company Approvals: many actions, none admin-only, so a new role (staff level) may take all of
+    // them - where Staff and Permissions offers a staff-level role a single one.
+    $all = '[data-test="select-all-companies"]';
 
     // One per area (the owner, 2026-10-06), named for a screen reader with its area.
-    $page->assertAttribute($all, 'aria-label', 'Select All in Staff and Permissions')
+    $page->assertAttribute($all, 'aria-label', 'Select All in Company Approvals')
         ->assertAttribute($all, 'data-state', 'unchecked');
 
     // One action ticked: some, so a dash (frontend.md §1.11 edit 6) rather than a tick.
-    $page->click('[data-test="permission-'.AccessPermissions::STAFF_VIEW.'"]')
+    $page->click('[data-test="permission-'.B2BPermissions::COMPANY_VIEW.'"]')
         ->assertAttribute($all, 'data-state', 'indeterminate');
     expect($page->script("getComputedStyle(document.querySelector('{$all} [data-slot=\"checkbox-indicator\"] svg:last-child')).display"))->toBe('block')
         ->and($page->script("getComputedStyle(document.querySelector('{$all} [data-slot=\"checkbox-indicator\"] svg:first-child')).display"))->toBe('none');
 
     // From some, it ticks the rest.
     $page->click($all)->assertAttribute($all, 'data-state', 'checked');
-    $ticked = roleScreenArea($page, 'staff_and_permissions');
+    $ticked = roleScreenArea($page, 'companies');
 
     expect($ticked['on'])->toBe($ticked['free'])
         ->and($ticked['free'])->toBeGreaterThan(1)
@@ -279,13 +282,13 @@ it('ticks every action of an area with its Select All, shows a dash for some, an
     // From all, it clears them.
     $page->click($all)->assertAttribute($all, 'data-state', 'unchecked');
 
-    expect(roleScreenArea($page, 'staff_and_permissions')['on'])->toBe(0);
+    expect(roleScreenArea($page, 'companies')['on'])->toBe(0);
     $page->assertNoJavaScriptErrors();
 });
 
 it('ticks only what an admin may give with Select All, leaving the locked actions as they are', function () {
-    // An admin holding two of the area's actions: the rest are shown locked (access.md §1.5).
-    $staffId = Fx::staffWith([AccessPermissions::ROLE_MANAGE, AccessPermissions::STAFF_VIEW, PlatformPermissions::STORE_VIEW], ['sa'], RoleLevel::Admin);
+    // An admin holding one of Company Approvals' actions: the rest are shown locked (access.md §1.5).
+    $staffId = Fx::staffWith([AccessPermissions::ROLE_MANAGE, B2BPermissions::COMPANY_VIEW, PlatformPermissions::STORE_VIEW], ['sa'], RoleLevel::Admin);
     $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
 
     $page = visit('/admin/sign-in')
@@ -299,13 +302,13 @@ it('ticks only what an admin may give with Select All, leaving the locked action
     expect(signedInToPanel($page))->toBeTrue();
     $page->navigate('/admin/roles/new');
 
-    $page->click('[data-test="select-all-staff_and_permissions"]');
-    $area = roleScreenArea($page, 'staff_and_permissions');
+    $page->click('[data-test="select-all-companies"]');
+    $area = roleScreenArea($page, 'companies');
 
-    expect($area['free'])->toBeGreaterThan(0)
-        ->and($area['on'])->toBe($area['free'])
+    expect($area['free'])->toBe(1)
+        ->and($area['on'])->toBe(1)
         ->and($area['locked'])->toBeGreaterThan(0)
         ->and($area['lockedOn'])->toBe(0);
-    $page->assertAttribute('[data-test="select-all-staff_and_permissions"]', 'data-state', 'checked')
+    $page->assertAttribute('[data-test="select-all-companies"]', 'data-state', 'checked')
         ->assertNoJavaScriptErrors();
 });
