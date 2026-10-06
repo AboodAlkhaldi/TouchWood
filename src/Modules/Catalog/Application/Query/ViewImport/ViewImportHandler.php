@@ -6,6 +6,7 @@ namespace Modules\Catalog\Application\Query\ViewImport;
 
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Import\ImportAddresses;
+use Modules\Catalog\Application\Import\ImportCodeChanges;
 use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\ImportName;
 use Modules\Catalog\Application\Import\ImportNameRow;
@@ -37,6 +38,7 @@ final readonly class ViewImportHandler
         private Readiness $readiness,
         private ImportAddresses $addresses,
         private StoreListingRepository $listings,
+        private ImportCodeChanges $codeChanges,
     ) {}
 
     /**
@@ -53,7 +55,9 @@ final readonly class ViewImportHandler
 
         $rows = $this->imports->products($import->id);
         $names = $this->imports->names($import->id);
-        $taken = $import->isDeciding() ? $this->addresses->taken($rows) : [];
+        $taken = $import->isDeciding() ? $this->addresses->taken(ImportProduct::takingPart($rows)) : [];
+        // Those that would change a code their catalog product keeps (amendment 11(b)).
+        $codeChanges = $import->isDeciding() ? array_fill_keys($this->codeChanges->of($import->id, ImportProduct::takingPart($rows)), true) : [];
         $created = array_values(array_filter($names, static fn (ImportName $name): bool => $name->kind === ImportNameRow::CATEGORY && $name->decision === ImportName::CREATE));
 
         return new ImportView(
@@ -65,7 +69,7 @@ final readonly class ViewImportHandler
             $import->uploadedBy,
             (string) $import->uploadedAt,
             array_map(fn (ImportName $name): ImportNameView => new ImportNameView($name->id, $name->kind, $name->written, $name->attribute, $name->attributeKind?->value, $name->decision, $name->targetId, $name->nameAr, $name->nameEn, $name->products, $name->matches, $name->slugAr, $name->slugEn, $import->isDeciding() && in_array($name, $created, true) && $this->categoryTaken($name, $created)), $names),
-            array_map(fn (ImportProduct $row): ImportProductView => $this->product($row, $taken[$row->id] ?? []), $rows),
+            array_map(fn (ImportProduct $row): ImportProductView => $this->product($row, $taken[$row->id] ?? [], isset($codeChanges[$row->id])), $rows),
         );
     }
 
@@ -86,7 +90,7 @@ final readonly class ViewImportHandler
     /**
      * @param  list<string>  $addressTaken
      */
-    private function product(ImportProduct $row, array $addressTaken): ImportProductView
+    private function product(ImportProduct $row, array $addressTaken, bool $codeChange): ImportProductView
     {
         $product = $row->effective();
         $draft = $row->productId === null ? null : $this->products->find($row->productId);
@@ -110,6 +114,8 @@ final readonly class ViewImportHandler
             $addressTaken,
             $onSale,
             $row->sale,
+            $row->refusal,
+            $codeChange,
         );
     }
 }

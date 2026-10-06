@@ -7,6 +7,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ActivateBrand\ActivateBrand;
 use Modules\Catalog\Application\Command\ActivateBrand\ActivateBrandHandler;
@@ -358,5 +359,12 @@ describe('the brand\'s fixed number (amendments 7(b), 10(a))', function () {
             ->toThrow(QueryException::class, 'a brand keeps its number');
         expect(fn () => DB::transaction(fn () => DB::table('catalog.brands')->where('id', $blum)->update(['number' => $next + 2])))
             ->toThrow(QueryException::class);
+
+        // Behind the code, by name: one number, one brand; never below 1.
+        $row = (array) DB::table('catalog.brands')->where('id', $blum)->first();
+        $copy = static fn (int $number) => DB::transaction(fn () => DB::table('catalog.brands')->insert([...$row, 'id' => strtolower((string) Str::ulid()), 'name_ar' => 'نسخة', 'name_en' => 'Copy', 'is_default' => false, 'number' => $number]));
+
+        expect(fn () => $copy($next + 2))->toThrow(QueryException::class, 'brands_number_unique')
+            ->and(fn () => $copy(0))->toThrow(QueryException::class, 'brands_number_positive');
     });
 });

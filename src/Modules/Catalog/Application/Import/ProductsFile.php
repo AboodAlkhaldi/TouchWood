@@ -738,9 +738,19 @@ final readonly class ProductsFile
         return array_values(array_unique($codes));
     }
 
+    /** Decimal places a price may have (amendment 11(d)): one with more is refused, never rounded. */
+    public const int PRICE_DECIMALS = 6;
+
+    /** Digits before a price's point: it is kept as text of at most 32 characters. */
+    public const int PRICE_DIGITS = 25;
+
+    /** The largest stock: the column's integer (amendment 11(d)). */
+    public const int MAX_STOCK = 2_147_483_647;
+
     /**
-     * A price as the file wrote it — a number of at least 0 — kept as text, so nothing is lost
-     * before Pricing reads it (stage 5).
+     * A price as the file wrote it — a number of at least 0, at most 6 decimal places — kept as text,
+     * so nothing is lost before Pricing reads it (stage 5). A number JSON gives with more places than
+     * that is refused rather than rounded.
      */
     public static function price(mixed $raw, string $at, bool $required, FileProblems $problems): ?string
     {
@@ -749,10 +759,16 @@ final readonly class ProductsFile
         }
 
         if ((is_int($raw) || is_float($raw)) && $raw >= 0 && is_finite((float) $raw)) {
-            return is_int($raw) ? (string) $raw : rtrim(rtrim(sprintf('%.6F', $raw), '0'), '.');
+            // abs(): -0.0 is not below 0, and reads as 0.
+            $text = is_int($raw) ? (string) $raw : rtrim(rtrim(sprintf('%.'.self::PRICE_DECIMALS.'F', abs($raw)), '0'), '.');
+            $whole = strstr($text, '.', true);
+
+            if ((is_int($raw) || (float) $text === abs($raw)) && strlen($whole === false ? $text : $whole) <= self::PRICE_DIGITS) {
+                return $text;
+            }
         }
 
-        $problems->add($at, 'a number of at least 0');
+        $problems->add($at, 'a number of at least 0, with at most '.self::PRICE_DECIMALS.' decimal places');
 
         return null;
     }
@@ -763,11 +779,11 @@ final readonly class ProductsFile
             return null;
         }
 
-        if (is_int($raw) && $raw >= 0) {
+        if (is_int($raw) && $raw >= 0 && $raw <= self::MAX_STOCK) {
             return $raw;
         }
 
-        $problems->add($at, 'a whole number of at least 0');
+        $problems->add($at, 'a whole number from 0 to '.number_format(self::MAX_STOCK));
 
         return null;
     }

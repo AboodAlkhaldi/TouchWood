@@ -94,6 +94,8 @@ return new class extends Migration
             $table->string('sale', 16)->nullable();
             $table->ulid('product_id')->nullable();
             $table->string('state', 16);
+            // Why a product of the file was left out at upload (amendment 11(a)).
+            $table->text('refusal')->nullable();
 
             $table->foreign('import_id', 'import_products_import')->references('id')->on('catalog.imports')->cascadeOnDelete();
             // A product deleted later leaves the row as the record of what the file held.
@@ -107,7 +109,9 @@ return new class extends Migration
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_decision CHECK (decision IS NULL OR decision IN ('UPDATE','REPLACE','SKIP','RECODE'))");
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_recode CHECK (CASE WHEN decision = 'RECODE' THEN jsonb_typeof(new_codes) = 'object' ELSE new_codes IS NULL END)");
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_sale CHECK (sale IS NULL OR (sale IN ('KEEP','TAKE_OFF') AND decision IN ('UPDATE','REPLACE')))");
-        DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_state CHECK (state IN ('WAITING','IN','UPDATED','REPLACED','SKIPPED','HELD','ACCEPTED','ARCHIVED','DELETED'))");
+        DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_state CHECK (state IN ('WAITING','REFUSED','IN','UPDATED','REPLACED','SKIPPED','HELD','ACCEPTED','ARCHIVED','DELETED'))");
+        // A product left out takes no part: its reason, and no catalog product, decision or change.
+        DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_refused CHECK (CASE WHEN state = 'REFUSED' THEN refusal IS NOT NULL AND conflict_product_id IS NULL AND decision IS NULL AND edited IS NULL ELSE refusal IS NULL END)");
         DB::statement('ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_number CHECK (number >= 1)');
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_data_object CHECK (jsonb_typeof(data) = 'object')");
         DB::statement("ALTER TABLE catalog.import_products ADD CONSTRAINT import_products_edited_object CHECK (edited IS NULL OR jsonb_typeof(edited) = 'object')");

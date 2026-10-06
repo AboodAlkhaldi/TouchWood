@@ -274,7 +274,8 @@ describe('a job the queue gave up on', function () {
 
         app(BringInImportProductsHandler::class)->stopped($import);
 
-        expect($locks->getArrayCopy()[0]['key'] ?? null)->toBe('catalog:products')
+        // Inside its own transaction (level 2 under RefreshDatabase's): outside one, the lock refuses.
+        expect($locks->getArrayCopy()[0] ?? null)->toBe(['key' => 'catalog:products', 'level' => 2])
             ->and(DB::table('catalog.imports')->where('id', $import)->value('state'))->toBe('FAILED');
     });
 });

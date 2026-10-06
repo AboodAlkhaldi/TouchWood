@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application\Command\DeleteDraftProduct;
 
-use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
+use Modules\Catalog\Application\Products\ProductDeletion;
 use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
 use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
-use Modules\Catalog\Domain\Repository\VariantRepository;
 use Shared\Application\Unauthorized;
 
 /**
@@ -31,7 +30,7 @@ final readonly class DeleteDraftProductHandler
         private ProductAccess $access,
         private SharedListChange $change,
         private ProductRepository $products,
-        private VariantRepository $variants,
+        private ProductDeletion $deletion,
         private Readiness $readiness,
     ) {}
 
@@ -50,16 +49,7 @@ final readonly class DeleteDraftProductHandler
                 throw new InvalidStageChange;
             }
 
-            $entries = [];
-
-            foreach ($this->variants->ofProduct($product->id()) as $variant) {
-                $entries[] = ListAudit::deleted('variant', $variant->id(), ['product_id' => $product->id(), ...$variant->snapshot()]);
-            }
-
-            $entries[] = ListAudit::deleted('product', $product->id(), [...$product->snapshot(), 'codes' => implode(',', $this->products->codesOf($product->id())) ?: null]);
-            $this->products->delete($product->id());
-
-            return [null, $entries];
+            return [null, $this->deletion->delete($product)];
         });
     }
 }

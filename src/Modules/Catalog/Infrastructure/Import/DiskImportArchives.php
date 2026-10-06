@@ -32,6 +32,9 @@ final readonly class DiskImportArchives implements ImportArchives
 
     private const string MANIFEST = 'products.json';
 
+    /** Entries a zip may hold, folders included (catalog.md §1.12, amendment 11(d)). */
+    public const int MAX_ENTRIES = 100_000;
+
     /**
      * @param  string  $temporary  the directory unpacked photos and local copies are written in
      */
@@ -100,6 +103,11 @@ final readonly class DiskImportArchives implements ImportArchives
             if (! $this->disk()->writeStream($archive, $stream)) {
                 throw new LogicException("The zip of import {$importId} could not be kept.");
             }
+        } catch (Throwable $error) {
+            // Nothing half-written is left behind (amendment 10(b)).
+            $this->disk()->delete($archive);
+
+            throw $error;
         } finally {
             if (is_resource($stream)) {
                 fclose($stream);
@@ -165,10 +173,14 @@ final readonly class DiskImportArchives implements ImportArchives
      *
      * @return array<string, array{int, int}>
      *
-     * @throws ImportRefused when two entries are one path
+     * @throws ImportRefused when two entries are one path, or there are too many
      */
     private static function entries(ZipArchive $zip): array
     {
+        if ($zip->numFiles > self::MAX_ENTRIES) {
+            throw self::refused('at most '.number_format(self::MAX_ENTRIES).' entries in the zip, files and folders');
+        }
+
         $entries = [];
 
         for ($index = 0; $index < $zip->numFiles; $index++) {

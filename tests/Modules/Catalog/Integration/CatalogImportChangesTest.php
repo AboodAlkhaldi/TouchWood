@@ -150,8 +150,10 @@ describe('the products changed', function () {
         $import = Ix::uploadProducts([Ix::product('1')]);
         $change = fn () => app(SetImportedSearchWordsHandler::class)->handle(new SetImportedSearchWords($import, null, ['درج'], 'ADD'));
 
-        DB::table('catalog.imports')->where('id', $import)->update(['state' => 'BRINGING_IN']);
-        expect($change)->toThrow(ImportClosed::class);
+        foreach (['BRINGING_IN', 'IN'] as $state) {
+            DB::table('catalog.imports')->where('id', $import)->update(['state' => $state]);
+            expect($change)->toThrow(ImportClosed::class);
+        }
 
         DB::table('catalog.imports')->where('id', $import)->update(['state' => 'FAILED', 'failure' => 'Product 1: no.']);
         $change();

@@ -126,7 +126,7 @@ return [
     ],
     'import_undecided' => [
         'title' => 'Decisions still wait',
-        'detail' => 'Before the products are brought in: decide every new name and every code the catalog already has, give an address to every product whose address is taken, and choose keep on sale or take off sale for every product on sale that the file changes.',
+        'detail' => 'Before the products are brought in: decide every new name and every code the catalog already has, give an address to every product whose address is taken, choose keep on sale or take off sale for every product on sale that the file changes, and skip every product whose codes the file would change though it is no longer a draft (or upload the file corrected).',
     ],
     'import_closed' => [
         'title' => 'Decided already',

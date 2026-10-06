@@ -367,7 +367,10 @@ describe('archiving', function () {
 
         expect(DB::table('catalog.store_variants')->where('is_active', true)->count())->toBe(0)
             ->and(DB::table('catalog.store_variants')->count())->toBe(4)
-            ->and(Fx::audits('catalog.listing.chosen', $ready['product']))->toBe(4);
+            ->and(Fx::audits('catalog.listing.chosen', $ready['product']))->toBe(4)
+            // Each in its own store.
+            ->and(DB::table('platform.audit_entries')->where('action', 'catalog.listing.chosen')->where('subject_id', $ready['product'])->pluck('store_id')->countBy()->sortKeys()->all())
+            ->toEqual(collect([Fx::storeId('eg') => 2, Fx::storeId('sa') => 2])->sortKeys()->all());
     });
 
     it('switches an archived variant off in every store, the others kept on', function () {

@@ -10,12 +10,15 @@ use Modules\Catalog\Application\Listing\StoreListingChange;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Platform\Public\Dto\AuditEntryDto;
+use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * What every change to an admins' store file shares (catalog.md §1.3; amendment 6(g), (h)):
  * **`catalog.listing.fill` in the file's store** — an admin role's job only —, asked before its items
- * are read; the products' lock first and then the file's row, as every store change takes them
+ * are read: first in some store, so a file of a store the reader does not cover answers as one that
+ * does not exist (§7); the products' lock first and then the file's row, as every store change takes them
  * (`StoreListingChange`); its items, the chosen ones of this file or all; the audit in that store.
  */
 final readonly class StoreFills
@@ -25,6 +28,7 @@ final readonly class StoreFills
     public function __construct(
         private StoreListingChange $change,
         private Imports $imports,
+        private Authorizer $authorizer,
     ) {}
 
     /**
@@ -34,9 +38,17 @@ final readonly class StoreFills
      */
     public function authorize(string $importId): string
     {
-        $import = $this->imports->header($importId);
+        // The job somewhere, else "not allowed"; then a file of a store not covered is "not found".
+        $stores = $this->authorizer->storesWith(self::PERMISSION);
 
-        if ($import === null || $import->kind !== ImportHeader::STORE_FILL || $import->storeId === null) {
+        if ($stores === []) {
+            throw new Unauthorized(self::PERMISSION);
+        }
+
+        $import = $this->imports->header($importId);
+        $covered = $stores === null || in_array($import?->storeId, array_map(static fn (StoreId $store): string => $store->value, $stores), true);
+
+        if ($import === null || $import->kind !== ImportHeader::STORE_FILL || $import->storeId === null || ! $covered) {
             throw new ListItemNotFound($importId);
         }
 

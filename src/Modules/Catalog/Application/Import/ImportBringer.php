@@ -73,7 +73,6 @@ final readonly class ImportBringer
 {
     public function __construct(
         private Imports $imports,
-        private ImportArchives $archives,
         private PlatformApi $platform,
         private BrandRepository $brands,
         private CategoryRepository $categories,
@@ -100,13 +99,15 @@ final readonly class ImportBringer
     ) {}
 
     /**
+     * @param  array<string, string>  $files  the zip's photos, unpacked before the locks were taken: its path => the file
      * @return array<string, int> how many products came in, were updated, replaced, skipped or held back
      *
      * @throws ImportStepFailed
      */
-    public function bringIn(ImportHeader $import): array
+    public function bringIn(ImportHeader $import, array $files): array
     {
-        $rows = $this->imports->products($import->id);
+        // Those left out at upload take no part (amendment 11(a)): they stay as they were refused.
+        $rows = ImportProduct::takingPart($this->imports->products($import->id));
         $names = [];
 
         foreach ($this->imports->names($import->id) as $name) {
@@ -119,19 +120,14 @@ final readonly class ImportBringer
         $references = new ImportReferences($catalog, $names, $created, $default);
         // Products are made from a store that is on, as in the panel (amendment 3(j)); the first will do.
         $store = $this->platform->stores()[0] ?? null;
-        $files = $import->archive === null ? [] : $this->archives->unpack($import->archive, self::photoPaths($rows));
         $photos = new ImportPhotos($this->platform, $files);
         $results = [];
         $counts = ['IN' => 0, 'UPDATED' => 0, 'REPLACED' => 0, 'SKIPPED' => 0, 'HELD' => 0];
 
-        try {
-            foreach ($rows as $row) {
-                [$productId, $state] = $this->step("product {$row->number}", fn (): array => $this->bringInOne($row, $references, $store, $photos));
-                $results[$row->id] = ['product_id' => $productId, 'state' => $state];
-                $counts[$state]++;
-            }
-        } finally {
-            $this->archives->release($files);
+        foreach ($rows as $row) {
+            [$productId, $state] = $this->step("product {$row->number}", fn (): array => $this->bringInOne($row, $references, $store, $photos));
+            $results[$row->id] = ['product_id' => $productId, 'state' => $state];
+            $counts[$state]++;
         }
 
         $this->imports->recordResults($results);
@@ -569,7 +565,7 @@ final readonly class ImportBringer
      * @param  list<ImportProduct>  $rows
      * @return list<string> every photo the products coming in name, each once
      */
-    private static function photoPaths(array $rows): array
+    public static function photoPaths(array $rows): array
     {
         $paths = [];
 
@@ -585,7 +581,7 @@ final readonly class ImportBringer
     /**
      * @param  array<string, string>  $valueIds  attribute id => value id
      */
-    private static function combination(array $valueIds): string
+    public static function combination(array $valueIds): string
     {
         ksort($valueIds);
 

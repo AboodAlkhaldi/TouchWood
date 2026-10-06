@@ -43,7 +43,13 @@ final readonly class DatabaseImports implements Imports
         return strtolower((string) Str::ulid());
     }
 
-    public function addProductsImport(string $id, string $fileName, ?string $archive, ?string $uploadedBy, array $names, array $products, array $conflicts): void
+    /**
+     * @param  list<ImportNameRow>  $names
+     * @param  list<FileProduct>  $products
+     * @param  array<int, string>  $conflicts
+     * @param  array<int, string>  $refused
+     */
+    public function addProductsImport(string $id, string $fileName, ?string $archive, ?string $uploadedBy, array $names, array $products, array $conflicts, array $refused = []): void
     {
         $now = CarbonImmutable::now();
 
@@ -68,8 +74,9 @@ final readonly class DatabaseImports implements Imports
                 'number' => $product->number,
                 'data' => json_encode($product->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
                 'codes' => '{'.implode(',', $product->codes()).'}',
-                'conflict_product_id' => $conflicts[$product->number] ?? null,
-                'state' => 'WAITING',
+                'conflict_product_id' => isset($refused[$product->number]) ? null : $conflicts[$product->number] ?? null,
+                'state' => isset($refused[$product->number]) ? ImportProduct::REFUSED : 'WAITING',
+                'refusal' => $refused[$product->number] ?? null,
             ], $chunk));
         }
     }
@@ -226,6 +233,7 @@ final readonly class DatabaseImports implements Imports
                 (string) $row->state,
                 $edited === null ? null : FileProduct::fromArray($edited),
                 self::text($row->sale),
+                self::text($row->refusal),
             );
         })->all());
     }

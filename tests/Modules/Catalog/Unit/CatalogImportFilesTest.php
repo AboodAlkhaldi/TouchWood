@@ -190,8 +190,19 @@ describe('what refuses a store file', function () {
         'a code written as a number' => ['{"format": "touchwood-store-fill/1", "items": [{"code": 1304, "price": 1}]}', 'item 1 › code', 'in quotes'],
         'a code twice' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1}, {"code": "1304", "price": 2}]}', 'item 2 › code', 'item 1 names it'],
         'a field the format does not have' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1, "store": "sa"}]}', 'item 1 › store', 'not a field'],
-        'a stock below 0' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1, "stock": -1}]}', 'item 1 › stock', 'at least 0'],
+        'a stock below 0' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1, "stock": -1}]}', 'item 1 › stock', 'from 0 to 2,147,483,647'],
+        // Amendment 11(d): what its column holds, and a price never rounded.
+        'a stock past the column' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1, "stock": 2147483648}]}', 'item 1 › stock', 'from 0 to 2,147,483,647'],
+        'a price of seven decimal places' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 19.9999999}]}', 'item 1 › price', 'at most 6 decimal places'],
+        'a price past 25 digits' => ['{"format": "touchwood-store-fill/1", "items": [{"code": "1304", "price": 1e26}]}', 'item 1 › price', 'at most 6 decimal places'],
     ]);
+
+    it('keeps a price as the file wrote it, up to 6 decimal places, and the largest stock its column holds', function () {
+        $items = StoreFillFile::read('{"format": "touchwood-store-fill/1", "items": ['
+            .'{"code": "1", "price": 120.5, "stock": 2147483647}, {"code": "2", "price": 0.000001}, {"code": "3", "price": -0.0}, {"code": "4", "price": 19.99}, {"code": "5", "price": 7}]}')->items;
+
+        expect(array_map(static fn ($item): array => [$item->price, $item->stock], $items))->toBe([['120.5', 2147483647], ['0.000001', null], ['0', null], ['19.99', null], ['7', null]]);
+    });
 });
 
 describe('a description in plain text', function () {

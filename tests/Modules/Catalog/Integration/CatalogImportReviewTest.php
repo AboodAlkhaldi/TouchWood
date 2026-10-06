@@ -471,15 +471,27 @@ describe('accepting', function () {
 });
 
 describe('the store file', function () {
-    it('is reached only by those who fill its own store', function () {
+    it("is reached only by those who fill its own store: another store's answers as a file that does not exist", function () {
         $file = reviewFill([['code' => '1', 'price' => 1]]);
         $item = reviewFillItem($file, 1);
-        Fx::actAsAdmin(['eg'], [CatalogPermissions::LISTING_FILL]);
+        $calls = static fn (string $id): array => [
+            fn () => app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($id)),
+            fn () => app(CorrectStoreFillCodeHandler::class)->handle(new CorrectStoreFillCode($id, $item, '2')),
+            fn () => app(RemoveStoreFillItemsHandler::class)->handle(new RemoveStoreFillItems($id, [$item])),
+            fn () => app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($id, null)),
+        ];
 
-        expect(fn () => app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($file)))->toThrow(Unauthorized::class)
-            ->and(fn () => app(CorrectStoreFillCodeHandler::class)->handle(new CorrectStoreFillCode($file, $item, '2')))->toThrow(Unauthorized::class)
-            ->and(fn () => app(RemoveStoreFillItemsHandler::class)->handle(new RemoveStoreFillItems($file, [$item])))->toThrow(Unauthorized::class)
-            ->and(fn () => app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($file, null)))->toThrow(Unauthorized::class);
+        // The job in another store: this store's file and an id no file has answer alike (§7).
+        Fx::actAsAdmin(['eg'], [CatalogPermissions::LISTING_FILL]);
+        foreach ([...$calls($file), ...$calls('01arz3ndektsv4rrffq69g5fav')] as $call) {
+            expect($call)->toThrow(ListItemNotFound::class);
+        }
+
+        // The job nowhere: not allowed, whatever the id.
+        Fx::actAsAdmin(['sa'], [CatalogPermissions::LISTING_CHOOSE]);
+        foreach ($calls($file) as $call) {
+            expect($call)->toThrow(Unauthorized::class);
+        }
     });
 
     it('is no products file, nor a products file one', function () {
@@ -500,7 +512,7 @@ describe('the store file', function () {
 
         expect($refused->problems ?? null)->toBe([
             ['at' => 'item 2 › code', 'problem' => '1304 again: item 1 names it already'],
-            ['at' => 'item 2 › price', 'problem' => 'a number of at least 0'],
+            ['at' => 'item 2 › price', 'problem' => 'a number of at least 0, with at most 6 decimal places'],
         ]);
     });
 

@@ -62,9 +62,16 @@ final readonly class CatalogImagesUsage implements MediaUsage
             $this->locks->lock(ListLocks::PRODUCTS);
         }
 
+        // Then the lists' own, categories before brands, in the order every change takes them.
+        if ($categoryIds !== []) {
+            $this->locks->lock(ListLocks::CATEGORIES);
+        }
+
         if ($brandIds !== []) {
             $this->locks->lock(ListLocks::BRANDS);
+        }
 
+        if ($brandIds !== []) {
             foreach ($this->brands->withLogo($mediaId) as $id) {
                 $brand = $this->brands->byId($id);
 
@@ -83,8 +90,6 @@ final readonly class CatalogImagesUsage implements MediaUsage
         }
 
         if ($categoryIds !== []) {
-            $this->locks->lock(ListLocks::CATEGORIES);
-
             foreach ($this->categories->withImage($mediaId) as $id) {
                 $category = $this->categories->byId($id);
 

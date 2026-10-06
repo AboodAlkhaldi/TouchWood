@@ -11,6 +11,7 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Import\ImportArchives;
 use Modules\Catalog\Application\Import\ImportBringer;
 use Modules\Catalog\Application\Import\ImportHeader;
+use Modules\Catalog\Application\Import\ImportProduct;
 use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Import\ImportStepFailed;
 use Modules\Catalog\Domain\Repository\ListLocks;
@@ -58,25 +59,37 @@ final readonly class BringInImportProductsHandler
             // Inside: a refusal, this one included, leaves the import failed with why, never stuck.
             $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
-            // One attempt: a second would fail the same way, and the page says why.
-            $archive = $this->db->transaction(function () use ($command): ?string {
-                foreach (self::LOCKS as $list) {
-                    $this->locks->lock($list);
-                }
+            // The zip's photos unpacked before the catalog's locks are taken: neither the zip nor the
+            // decisions change while bringing in runs, and a large zip unpacked under the locks would
+            // hold up every change in the panel meanwhile.
+            $header = $this->imports->header($command->importId);
+            $files = $header?->archive === null || $header->state !== ImportHeader::BRINGING_IN
+                ? []
+                : $this->archives->unpack($header->archive, ImportBringer::photoPaths(ImportProduct::takingPart($this->imports->products($header->id))));
 
-                $import = $this->imports->lock($command->importId);
+            try {
+                // One attempt: a second would fail the same way, and the page says why.
+                $archive = $this->db->transaction(function () use ($command, $files): ?string {
+                    foreach (self::LOCKS as $list) {
+                        $this->locks->lock($list);
+                    }
 
-                // Brought in already, failed, or never started: nothing to do.
-                if ($import === null || $import->state !== ImportHeader::BRINGING_IN) {
-                    return null;
-                }
+                    $import = $this->imports->lock($command->importId);
 
-                $now = ['state' => ImportHeader::IN, ...array_change_key_case($this->bringer->bringIn($import))];
-                $this->imports->finish($import->id);
-                $this->platform->recordAudit(ListAudit::changed('import', 'brought_in', $import->id, [...array_fill_keys(array_keys($now), null), 'state' => $import->state], $now) ?? throw new LogicException('No change to record.'));
+                    // Brought in already, failed, or never started: nothing to do.
+                    if ($import === null || $import->state !== ImportHeader::BRINGING_IN) {
+                        return null;
+                    }
 
-                return $import->archive;
-            });
+                    $now = ['state' => ImportHeader::IN, ...array_change_key_case($this->bringer->bringIn($import, $files))];
+                    $this->imports->finish($import->id);
+                    $this->platform->recordAudit(ListAudit::changed('import', 'brought_in', $import->id, [...array_fill_keys(array_keys($now), null), 'state' => $import->state], $now) ?? throw new LogicException('No change to record.'));
+
+                    return $import->archive;
+                });
+            } finally {
+                $this->archives->release($files);
+            }
         } catch (Throwable $error) {
             $failed = $error instanceof ImportStepFailed ? $error : new ImportStepFailed('bringing in', $error);
             $this->recordFailure($command->importId, $failed->reason());

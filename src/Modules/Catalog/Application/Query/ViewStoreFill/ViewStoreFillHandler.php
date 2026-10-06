@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application\Query\ViewStoreFill;
 
-use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Import\StoreFillItem;
 use Modules\Catalog\Application\Import\StoreFills;
-use Modules\Catalog\Application\Listing\StoreListingChange;
 use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
@@ -21,7 +19,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * **A store file's page** (catalog.md §1.3; amendment 6(g)): `catalog.listing.fill` in the file's
- * store. Each open item read against the catalog as it is now: unknown, not ready (and what its
+ * store, asked as every change to the file asks it (`StoreFills`) — a file of a store not covered is
+ * "not found". Each open item read against the catalog as it is now: unknown, not ready (and what its
  * product lacks), archived, already on there, or ready.
  */
 final readonly class ViewStoreFillHandler
@@ -29,7 +28,7 @@ final readonly class ViewStoreFillHandler
     public const string PERMISSION = StoreFills::PERMISSION;
 
     public function __construct(
-        private StoreListingChange $change,
+        private StoreFills $fills,
         private Imports $imports,
         private ProductRepository $products,
         private VariantRepository $variants,
@@ -42,13 +41,8 @@ final readonly class ViewStoreFillHandler
      */
     public function handle(ViewStoreFill $query): StoreFillView
     {
-        $import = $this->imports->header($query->importId);
-
-        if ($import === null || $import->kind !== ImportHeader::STORE_FILL || $import->storeId === null) {
-            throw new ListItemNotFound($query->importId);
-        }
-
-        $store = $this->change->authorize(self::PERMISSION, $import->storeId)->value;
+        $store = $this->fills->authorize($query->importId);
+        $import = $this->imports->header($query->importId) ?? throw new ListItemNotFound($query->importId);
 
         return new StoreFillView(
             $import->id,
