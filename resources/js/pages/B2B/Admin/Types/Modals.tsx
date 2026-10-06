@@ -40,6 +40,7 @@ export function TypeFormModal({
     open,
     onOpenChange,
     nextPosition,
+    store,
     returnFocusTo,
 }: {
     mode: 'add' | 'rename' | 'move';
@@ -48,6 +49,8 @@ export function TypeFormModal({
     open: boolean;
     onOpenChange: (open: boolean) => void;
     nextPosition: number;
+    /** The store the page shows: a new type is added to it (b2b.md amendment 30). */
+    store: string;
     returnFocusTo?: RefObject<HTMLElement | null>;
 }) {
     const t = useTranslator();
@@ -79,6 +82,8 @@ export function TypeFormModal({
 
     function submit() {
         const target = mode === 'add' ? base(kind) : `${base(kind)}/${type?.id ?? ''}/${mode}`;
+        // A new type names its store; a type changed is found in its own.
+        form.transform((data) => (mode === 'add' ? { ...data, store } : data));
         form.post(target, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
     }
 

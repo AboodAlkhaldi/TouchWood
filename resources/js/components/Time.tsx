@@ -10,9 +10,10 @@ import type { SharedProps } from '@/types/page';
 | shadcn's HoverCard (frontend.md §1.10, §1.11).
 |
 | The server and the database keep UTC; nothing is converted on the way. What changes is only how
-| the moment is written: in the zone of the store the person is working in - the panel's current
-| store, or the shop's store - with the zone's short name beside it, so two people in different
-| stores never confuse "5:00" with "5:00".
+| the moment is written: in the zone of the store the page shows - a panel screen filtered to one
+| store, or the shop's store - else, in the panel, the base store's (the owner, 2026-10-06, when the
+| panel stopped having a store worked in), with the zone's short name beside it, so two people in
+| different stores never confuse "5:00" with "5:00".
 |
 | Geist's rules: in a list (`relative`, the default) a recent moment reads short and relative -
 | "2m ago", "5h ago", "Yesterday" - and anything past seven days as a date; hovering or focusing
@@ -30,13 +31,15 @@ import type { SharedProps } from '@/types/page';
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * The zone the person is working in: the panel's current store, else the shop's. A page with
- * neither - the panel's sign-in - writes UTC, and says so beside the time.
+ * The zone the page writes its moments in (frontend.md §1.10): the store a panel screen shows
+ * (`storeTimezone`, its own page value), else the panel's base store (`panelTimezone`, shared), else
+ * the shop's store. A page with none - nothing signed in, no store - writes UTC, and says so beside
+ * the time.
  */
 export function useStoreZone(): string {
-    const { store, shop } = usePage<SharedProps>().props;
+    const { storeTimezone, panelTimezone, shop } = usePage<SharedProps>().props;
 
-    return store?.current?.timezone ?? shop?.timezone ?? 'UTC';
+    return storeTimezone ?? panelTimezone ?? shop?.timezone ?? 'UTC';
 }
 
 /**

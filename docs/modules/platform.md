@@ -247,12 +247,14 @@ Not an aggregate — a rule that holds for every request, job and command.
     off store counts as no store;
   - staff screens about it disappear: it is not offered as a store to work in, and its settings are
     not shown. It remains **only in history** — orders, the audit log — where it is named as it was;
-  - **[2026-10-03, owner] in the panel's store switcher**, a staff member who covers the off store
-    sees it **marked Off and disabled**, with the reason ("Egypt is switched off."), and cannot
-    choose it; staff who do not cover it never see it;
+  - ~~in the panel's store switcher, a staff member who covers the off store sees it marked Off and
+    disabled~~ **[REPLACED 2026-10-06, owner — §9.10 #4]** the panel has no store switcher: no list
+    in the panel offers an off store to anyone but a Super Admin, and asking for one by its code is
+    refused;
   - **a Super Admin** still sees it, in the stores screen, to turn it back on, and **[2026-10-03,
-    owner] may work inside it to prepare it before it opens**: the panel's switcher offers it to
-    them, marked Off, and its settings, address format and B2B lists can be set (§9.6 #5);
+    owner] may work inside it to prepare it before it opens**: every store filter, Home's switcher
+    and View Store offer it to them, marked Off (§9.10 #4), and its settings, address format and
+    B2B lists can be set (§9.6 #5);
   - work already under way in it continues: its open orders stay with staff to finish, and jobs
     dispatched in it still run;
   - **[2026-10-05, the staff view — access.md §1.11]** a staff member viewing the shop from the
@@ -1104,7 +1106,7 @@ modules that hold them; the home opens on **All Stores** for a reader whose reac
 | # | Sections | Decision |
 |---|---|---|
 | 1 | §2.6 | **The home-card contract**: modules register cards as they register menu entries; each card has its permission and speaks for a scope — one store or all stores; the home shows only the cards the reader may see in that scope (frontend.md §2.2). |
-| 2 | §2.6 | **Platform's card, Stores and System**: stores on and off (`platform.store.view`; in All Stores only — a single store's state is in the store switcher; **stores off only to whoever may switch stores**, `platform.store.switch`, as the stores screen lists off stores only to them, §1.6), failed jobs (`platform.jobs.manage`, linking to them), and storage used by the media library (any media permission). Each figure is shown only with its own permission; the card, with any of them. Failed jobs and storage belong to no store, so they read the same in either scope, and are the card's `storeFree` actions. |
+| 2 | §2.6 | **Platform's card, Stores and System**: stores on and off (`platform.store.view`; in All Stores only — a single store's state is on the stores screen; **stores off only to whoever may switch stores**, `platform.store.switch`, as the stores screen lists off stores only to them, §1.6), failed jobs (`platform.jobs.manage`, linking to them), and storage used by the media library (any media permission). Each figure is shown only with its own permission; the card, with any of them. Failed jobs and storage belong to no store, so they read the same in either scope, and are the card's `storeFree` actions. |
 
 ### 9.9 The staff view's off stores — 2026-10-05 (the owner's fix list, point 13)
 
@@ -1126,6 +1128,6 @@ access.md amendment 64).
 |---|---|---|
 | 1 | §2.6 | **Home's scope is the store chosen on Home** (`/admin?store=<code>`), or All Stores where offered — no longer the store worked in. `HomeCards::forCurrentActor(?string $store, bool $allStores)` keeps its shape; the caller passes the chosen store. A store outside the reader's list is refused (403). |
 | 2 | §9.4 | **A menu entry offered for any of several permissions is offered when one is held in any store** — the panel has no store worked in; the screen then chooses a store where the job is held. |
-| 3 | §1.3, §3, frontend.md E4 | **Settings has its own store filter** for a store's own settings (`?store=<code>`): the stores where the reader may read store settings — a Super Admin every store, an off one marked Off; anyone else their stores that are on. Saving a store's setting sends the store's code. **`UpdateSetting` refuses an off store to anyone but a Super Admin** (`StoreNotFound`, as `UpdateStore` does, §9.6 #3): the store picker used to guarantee it. With no store asked, the page shows the first. |
+| 3 | §1.3, §3, frontend.md E4 | **Settings has its own store filter** for a store's own settings (`?store=<code>`): the stores where the reader may read store settings — a Super Admin every store, an off one marked Off; anyone else their stores that are on. Saving a store's setting sends the store's code. **`UpdateSetting` refuses an off store to anyone but a Super Admin** (`StoreNotFound`, as `UpdateStore` does, §9.6 #3): the store picker used to guarantee it. With no store asked, the page shows the first store that is on: nobody lands in an off store without choosing it, a Super Admin included (kept from the review of the foundation, 2026-10-03). The same holds for every store filter (`StoreChoices::chosen`). |
 | 4 | §1.6 | **A Super Admin's off stores are offered in every store filter, marked Off**, to prepare them before they open (§9.6 #5). Anyone else's filters list only stores that are on. |
-| 5 | frontend.md §1.10 | **Times in the panel** are written in the zone of the store the screen is filtered to, else the **base store's** zone (the store marked `is_base`, KSA): a shared page value, which a store screen overrides with its store's zone. |
+| 5 | frontend.md §1.10 | **Times in the panel** are written in the zone of the store the screen is filtered to, else the **base store's** zone (the store marked `is_base`, KSA). The base zone is a shared page value (`panelTimezone`); a store screen sends its store's zone beside it as its own page value (`storeTimezone`), which the page reads first. A page value never takes a shared value's name. |

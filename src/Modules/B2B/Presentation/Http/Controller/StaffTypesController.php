@@ -46,9 +46,10 @@ use Shared\Domain\Error\DomainError;
  * The types page (b2b.md §1.3, §3.2, §4.6, amendment 21): one store's company types and document
  * types, and every change staff make to them.
  *
- * **The store is the panel's**, the one in the header (frontend.md §2.2): a type is changed in its own
- * store, which its handler reads from the type; adding one and "Reviewed" name the header's store,
- * never one from the request. Each handler asks for its own job in that store; this checks nothing.
+ * **The store is the page's own** (`?store=sa`; amendment 30, the owner 2026-10-06 - the panel has
+ * no store worked in): a type is changed in its own store, which its handler reads from the type;
+ * adding one and "Reviewed" send the page's store, which must be one the person may choose here.
+ * Each handler asks for its own job in that store; this checks nothing more.
  */
 final readonly class StaffTypesController
 {
@@ -63,20 +64,20 @@ final readonly class StaffTypesController
         private StaffTypePages $pages,
     ) {}
 
-    public function companyTypes(): Response
+    public function companyTypes(Request $request): Response
     {
-        return $this->page->render('B2B/Admin/Types/Index', $this->pages->page(ViewTypeLists::COMPANY)->toArray(), self::WORDS);
+        return $this->page->render('B2B/Admin/Types/Index', $this->pages->page(ViewTypeLists::COMPANY, self::storeCode($request))->toArray(), self::WORDS);
     }
 
-    public function documentTypes(): Response
+    public function documentTypes(Request $request): Response
     {
-        return $this->page->render('B2B/Admin/Types/Index', $this->pages->page(ViewTypeLists::DOCUMENT)->toArray(), self::WORDS);
+        return $this->page->render('B2B/Admin/Types/Index', $this->pages->page(ViewTypeLists::DOCUMENT, self::storeCode($request))->toArray(), self::WORDS);
     }
 
     public function addCompanyType(StaffTypeRequest $request, AddCompanyTypeHandler $handler): RedirectResponse
     {
         return $this->act($request, fn () => $handler->handle(new AddCompanyType(
-            $this->pages->storeId(), $request->text('name_ar'), $request->text('name_en'), $request->number('position'),
+            $this->pages->storeId([ViewTypeLists::COMPANY], self::storeCode($request)), $request->text('name_ar'), $request->text('name_en'), $request->number('position'),
         )), 'b2b::admin_types.toast.company.added', self::TYPE_FIELDS);
     }
 
@@ -129,7 +130,7 @@ final readonly class StaffTypesController
     public function addDocumentType(StaffTypeRequest $request, AddDocumentTypeHandler $handler): RedirectResponse
     {
         return $this->act($request, fn () => $handler->handle(new AddDocumentType(
-            $this->pages->storeId(), $request->text('name_ar'), $request->text('name_en'), $request->number('position'), $request->boolean('required'),
+            $this->pages->storeId([ViewTypeLists::DOCUMENT], self::storeCode($request)), $request->text('name_ar'), $request->text('name_en'), $request->number('position'), $request->boolean('required'),
         )), 'b2b::admin_types.toast.document.added', self::TYPE_FIELDS);
     }
 
@@ -167,7 +168,20 @@ final readonly class StaffTypesController
     /** Nothing to change: the "copied" notice goes (amendment 10(d)). */
     public function markReviewed(Request $request, MarkTypeListsReviewedHandler $handler): RedirectResponse
     {
-        return $this->act($request, fn () => $handler->handle(new MarkTypeListsReviewed($this->pages->storeId())), 'b2b::admin_types.toast.reviewed');
+        // Either list's page offers it, so either list's jobs make the store one to choose here; the
+        // handler asks for its own job there.
+        return $this->act($request, fn () => $handler->handle(new MarkTypeListsReviewed(
+            $this->pages->storeId([ViewTypeLists::COMPANY, ViewTypeLists::DOCUMENT], self::storeCode($request)),
+        )), 'b2b::admin_types.toast.reviewed');
+    }
+
+    /** The store the page shows, or sent with its action (amendment 30); null when none, or not text. */
+    private static function storeCode(Request $request): ?string
+    {
+        $code = $request->input('store');
+        $code = is_string($code) ? trim($code) : '';
+
+        return $code === '' ? null : $code;
     }
 
     /**

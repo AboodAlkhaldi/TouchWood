@@ -26,6 +26,11 @@ import { tone } from '@/lib/tones';
 | - the box, its label, and "Every store, by its nature" as the label's description, not part of
 | its name. The box's edge is ink-subtle, 3.12:1 on a card, where shadcn's input line is 1.59:1.
 |
+| **Select All** (the owner, 2026-10-06; §3.4 D3): one per area, in its header - a box that ticks
+| every action of the area the author may give, or clears them, with a dash while only some are
+| ticked (shadcn's Checkbox, edit 6 of §1.11). A locked action is left as it is, and the box reads
+| only the actions it can change. With nothing to give it is locked too, its reason in a tooltip.
+|
 | Stores are not here at all. What a role allows and where a person may do it are two different
 | questions, and the second is answered per staff member (§3.3 C6).
 */
@@ -60,6 +65,13 @@ export function PermissionPicker({ permissions, groups, chosen, onChange, disabl
         onChange(on ? [...chosen, name] : chosen.filter((each) => each !== name));
     }
 
+    /** Ticks, or clears, every one of these at once; the rest stay as they are. */
+    function setAll(names: string[], on: boolean) {
+        const these = new Set(names);
+
+        onChange(on ? [...chosen.filter((each) => !these.has(each)), ...names] : chosen.filter((each) => !these.has(each)));
+    }
+
     function lockedBecause(permission: PickerPermission): string | undefined {
         if (disabled) {
             return t('access::roles.not_editable');
@@ -80,6 +92,24 @@ export function PermissionPicker({ permissions, groups, chosen, onChange, disabl
                 }
 
                 const chosenHere = inGroup.filter((permission) => held.has(permission.name)).length;
+                const givable = disabled ? [] : inGroup.filter((permission) => permission.grantable).map((permission) => permission.name);
+                const givenHere = givable.filter((name) => held.has(name)).length;
+                const allState = givable.length > 0 && givenHere === givable.length ? true : givenHere > 0 ? 'indeterminate' : false;
+                const allLocked = disabled ? t('access::roles.not_editable') : givable.length === 0 ? t('access::roles.none_yours') : undefined;
+                const allId = `select-all-${group.key}`;
+                const allBox = (
+                    <Checkbox
+                        id={allId}
+                        checked={allState}
+                        aria-label={t('access::roles.select_all_in', { area: group.label })}
+                        aria-disabled={allLocked === undefined ? undefined : true}
+                        aria-describedby={allLocked === undefined ? undefined : `${allId}-locked`}
+                        // From "some" Radix answers true: a dash ticks the rest.
+                        onCheckedChange={(next) => (allLocked === undefined ? setAll(givable, next === true) : undefined)}
+                        className="border-ink-subtle aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                        data-test={allId}
+                    />
+                );
 
                 return (
                     <Card key={group.key} className="material-base gap-0 border-0 py-0" data-test={`area-${group.key}`}>
@@ -92,11 +122,34 @@ export function PermissionPicker({ permissions, groups, chosen, onChange, disabl
                                         <FieldLegend id={`area-${group.key}-legend`} className="mb-0 text-heading-14 text-ink">
                                             {group.label}
                                         </FieldLegend>
-                                        {chosenHere > 0 ? (
-                                            <Badge className={tone('blue-subtle')}>
-                                                <span className="tw-figure">{t('access::roles.chosen_count', { count: chosenHere, total: inGroup.length })}</span>
-                                            </Badge>
-                                        ) : null}
+                                        <div className="flex items-center gap-3">
+                                            {chosenHere > 0 ? (
+                                                <Badge className={tone('blue-subtle')}>
+                                                    <span className="tw-figure">{t('access::roles.chosen_count', { count: chosenHere, total: inGroup.length })}</span>
+                                                </Badge>
+                                            ) : null}
+                                            <Field orientation="horizontal" className="w-auto gap-2">
+                                                {allLocked === undefined ? (
+                                                    allBox
+                                                ) : (
+                                                    // On a span, never on the box (lesson 133), as each action's lock is.
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <span className="inline-flex">{allBox}</span>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>{allLocked}</TooltipContent>
+                                                    </Tooltip>
+                                                )}
+                                                {allLocked === undefined ? null : (
+                                                    <span id={`${allId}-locked`} className="sr-only">
+                                                        {allLocked}
+                                                    </span>
+                                                )}
+                                                <FieldLabel htmlFor={allId} className={allLocked === undefined ? 'text-label-13 text-ink' : 'text-label-13 text-ink-subtle'}>
+                                                    {t('access::roles.select_all')}
+                                                </FieldLabel>
+                                            </Field>
+                                        </div>
                                     </div>
 
                                     <FieldGroup className="gap-0.5 p-2">

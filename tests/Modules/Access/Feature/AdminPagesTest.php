@@ -234,7 +234,7 @@ describe('the admin panel itself', function () {
         );
     });
 
-    it('tells the panel who is looking at it, and which store they are in', function () {
+    it('tells the panel who is looking at it, their stores for View Store, and the base store\'s time zone', function () {
         $browser = signedInBrowser([PlatformPermissions::STORE_VIEW]);
 
         $browser->get('/admin')->assertInertia(fn (AssertableInertia $inertia) => $inertia
@@ -242,11 +242,12 @@ describe('the admin panel itself', function () {
             ->where('viewer.name', 'Staff Member')
             ->where('viewer.isSuperAdmin', false)
             ->where('viewer.roleLabel', fn (?string $role): bool => is_string($role) && $role !== '')
-            // One store: the header shows its name, in the language being read, and there is
-            // nothing to pick.
-            ->where('store.fellBack', false)
-            ->where('store.current.name', 'Saudi Arabia')
-            ->where('store.available', fn (Collection $stores): bool => $stores->count() === 1)
+            // One store, named in the language being read: View Store opens it with nothing to pick.
+            // No store is worked in (access.md amendment 64), so the page is handed none.
+            ->where('viewStores', [['code' => 'sa', 'name' => 'Saudi Arabia', 'isActive' => true]])
+            ->missing('store')
+            // Times on a screen showing no one store: the base store's zone (frontend.md §1.10).
+            ->where('panelTimezone', 'Asia/Riyadh')
         );
     });
 

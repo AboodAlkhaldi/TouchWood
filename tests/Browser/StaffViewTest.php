@@ -16,9 +16,10 @@ use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use function Pest\Laravel\seed;
 
 /*
-| The staff view in a real browser (access.md §1.11; frontend.md §2.2, §2.3): View Store in the
-| panel's header opens the shop as the staff member, with the line and the menu that lead back, and
-| a Super Admin sees the store they are preparing while it is off.
+| The staff view in a real browser (access.md §1.11, amendment 64; frontend.md §2.2, §2.3): View
+| Store in the panel's header opens the shop as the staff member - their one store at once, or the
+| one chosen from its menu - with the line and the menu that lead back, and a Super Admin sees the
+| store they are preparing while it is off.
 |
 | No RefreshDatabase - the suite keeps its data - so Egypt is switched on again afterwards.
 */
@@ -74,15 +75,15 @@ it('opens the shop from the panel as the staff member, and goes back', function 
     $page->assertPresent('a[href$="/sign-in"]');
 });
 
-it('takes a Super Admin into the off store they are preparing, and back to the panel', function () {
-    // Read while it is on: an off store's code answers as an unknown one.
-    $egypt = Fx::storeId('eg');
+it('takes a Super Admin into the off store they are preparing, from View Store\'s menu, and back to the panel', function () {
     Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
-    $superAdmin = Fx::staff(superAdmin: true);
-    DB::table('access.staff_users')->where('id', $superAdmin)->update(['current_store_id' => $egypt]);
-    $page = staffViewBrowserSignIn($superAdmin);
+    $page = staffViewBrowserSignIn(Fx::staff(superAdmin: true));
 
-    $page->click('[data-test="view-store"]');
+    // More than one store: a menu of them, the off one marked (amendment 64).
+    $page->click('[data-test="view-store"]')
+        ->assertSeeIn('[data-test="view-store-eg"]', 'Egypt')
+        ->assertSeeIn('[data-test="view-store-eg"]', 'Off')
+        ->click('[data-test="view-store-eg"]');
     expect(browserUntil($page, "location.pathname === '/eg/en'"))->toBeTrue();
     $page->assertPresent('[data-test="staff-view-line"]')->assertNoJavaScriptErrors();
     expect($page->script("document.querySelector('[data-test=\"country-switch\"] option[value=\"eg\"]')?.textContent ?? ''"))->toContain('(Off)');

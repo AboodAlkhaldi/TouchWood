@@ -27,15 +27,16 @@ return [
         'dark' => 'داكن',
     ],
 
+    // A screen's own store filter, Home's switcher and the View Store menu (frontend.md §2.2; the
+    // owner, 2026-10-06, access.md amendment 64).
     'store' => [
         'label' => 'المتجر',
         'stores' => 'المتاجر',
-        'fell_back' => 'لم يعد لديك وصول إلى ذلك المتجر؛ نعرض :store',
-        'fell_back_off' => 'المتجر الذي كنت تعمل فيه متوقف؛ نعرض :store',
-        // The switcher's mark on an off store, and why staff cannot choose it (access.md amendment 58(a)).
+        'all' => 'كل المتاجر',
+        // The mark on an off store, which only a Super Admin is offered (access.md amendment 58(a)).
         'off' => 'متوقف',
-        'off_reason' => ':store متوقف.',
-        'changed' => 'تم تغيير المتجر إلى :store',
+        // The same mark inside a select's option, where a badge cannot go.
+        'option_off' => ':store (متوقف)',
     ],
 
     'home' => [
@@ -47,10 +48,6 @@ return [
         // and one sentence; each row then opens its screen and shows its count.
         'waiting_label' => 'بانتظارك',
         'waiting_note' => 'هناك ما يحتاج إليك.',
-        // نطاق البطاقات (frontend.md §2.2).
-        'scope' => 'النطاق',
-        'scope_all' => 'كل المتاجر',
-        'scope_store' => 'هذا المتجر',
     ],
 
     // The staff view (access.md §1.11): the panel's way to the shop, and the shop's way back. The

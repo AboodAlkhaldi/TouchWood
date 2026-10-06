@@ -108,7 +108,7 @@ final class B2BServiceProvider extends ServiceProvider
 
         /*
         | The staff screens (step 7, b2b.md §4.6), in the menu's Companies group. Each type list is
-        | offered to anyone holding any job on it **in the store being worked in** — adding, renaming,
+        | offered to anyone holding any job on it **in any store** (amendment 30) — adding, renaming,
         | deactivating, moving companies between types (amendment 23(a), owner 2026-10-03) — the same
         | jobs that may read the list, where the list is that store's alone. What is offered is never
         | what is allowed: every handler behind these asks again (handoff §19).

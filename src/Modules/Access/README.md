@@ -116,7 +116,7 @@ $this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
 | `Application/Permission` | `InMemoryPermissionCatalog` (declarations, renames, removals, checked at boot), `AccessPermissions` (Access's list, and which actions are admin-only), `InvalidPermissionDefinition` (a declaration that contradicts itself, refused at boot). |
 | `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`, `InvalidPermissionCheck` (a per-store permission checked without a store, or the other way round). |
 | `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole` (the Refresh commands went with amendment 59). Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`, `SignInCustomer`, `SignOutCustomer`, `RequestCustomerPasswordReset`, `ResetCustomerPassword`, `ChangeOwnCustomerPassword`, `ResendCustomerEmailVerification`, `SaveAddress`, `DeleteAddress`, `SetDefaultAddress`, `RequestAccountDeletion`. Staff: `UpdateStoreAddressFormat`, `BlockCustomer`, `UnblockCustomer`, `DeleteCustomerOnRequest`, `CancelCustomerDeletion`; the scheduled `AnonymizeDueAccounts`. |
-| `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, `ListCustomers`, `ViewCustomer`, `ListStaff`, `ViewStaff`, and the `RoleReader`, `CustomerReader` and `StaffReader` they use, with `StaffVisibility` (who a reader may see, and how much of them). |
+| `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, `ListCustomers`, `ViewCustomer`, `ListStaff`, `ViewStaff`, and the `RoleReader`, `CustomerReader` and `StaffReader` they use, with `StaffVisibility` (who a reader may see, and how much of them); `StoresForStaff`, a staff member's stores - a Super Admin every store, anyone else their assignment's stores that are on - for Home's switcher and View Store (amendment 64). |
 | `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `OwnPasswordCheck` ("type your current password", counted like a wrong one at sign-in), `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`), `AddressLimits` (registrations and reset requests per address). |
 | `Application/Customer` | `CurrentCustomer` (whose account this request may change), `StaffCustomerAction` (what the four staff actions on a customer share: the reason, and the customer's home store to check in), `CustomerMapper`, the `CustomerLinks` port (the verification and password-reset links), the `GuestVisitors` port (the guest id this browser carries). |
 | `Application/Address` | `AddressMapper` (a store's order, its layout, and whether the address still fits), `StoreIds` (the store an address belongs to, as it arrives from a caller), `StartingAddressFormat` (the scheme every store starts with), `GiveEveryStoreAnAddressFormat` (run when the schema is migrated). |
@@ -432,11 +432,14 @@ Every number here is a setting (`StaffSecuritySettings`), except the 15 minutes 
 
 ### The staff view: from the panel to the shop, as themselves
 
-**View Store** in the panel's header (spec §1.11, amendment 60) opens the shop of the store being
-worked in. It is built as **a pass, not a session**:
+**View Store** in the panel's header (spec §1.11, amendments 60 and 64) opens a store's shop: with
+one store the button opens it, with more a short menu of the person's stores (`ShareAdminPage`
+shares them as `viewStores`). It is built as **a pass, not a session**:
 
-- `OpenStaffViewHandler` (every staff member, `access.staff_view.open`) takes the store from the
-  panel's own answer for them, never from the request, and `LaravelStaffViews` writes a row in
+- `OpenStaffViewHandler` (every staff member, `access.staff_view.open`) takes the store's code from
+  the request and keeps it only if `StoresForStaff` lists it for them - a Super Admin every store,
+  anyone else the stores of their assignment that are on - else it refuses the request as a bad
+  field; `LaravelStaffViews` writes a row in
   `access.staff_views` and a random token in its own cookie, `tw_staff_view` - path `/` given
   explicitly (an admin request's cookies default to `/admin`), HTTP-only, gone with the browser. The
   row keeps the token's hash, a hash of the admin session's id, the store, the session version and

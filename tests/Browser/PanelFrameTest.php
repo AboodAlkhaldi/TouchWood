@@ -19,9 +19,9 @@ use function Pest\Laravel\seed;
 
 /*
 | The frames on shadcn's blocks, in a real browser (frontend.md §1.11): the theme that follows the
-| device, and the store switcher in the sidebar's header with an off store in it (access.md
-| amendment 58(a)). The page tests beside these prove what each page is handed; these prove what a
-| person sees and can press.
+| device; the sidebar's header, one link to Home; and an off store in a screen's own store filter and
+| in View Store (access.md amendments 58(a), 64). The page tests beside these prove what each page is
+| handed; these prove what a person sees and can press.
 */
 
 // Deliberately no RefreshDatabase: the suite serves the application in this process, and a served
@@ -108,30 +108,48 @@ it('stays light on a dark device once Light is chosen, and follows it again on S
     expect($page->script('document.documentElement.dataset.mode'))->toBe('dark');
 });
 
-it('shows a staff member who covers an off store that store disabled, with the reason', function () {
-    $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg']);
-    $egypt = panelFrameEgyptOff();
+it('takes the sidebar\'s header to Home, with no store to choose in it', function () {
+    // The owner, 2026-10-06 (access.md amendment 64): the logo and name are one link to Home.
+    $page = panelFrameSignIn(Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'ae']));
+    $page->navigate('/admin/stores');
 
-    $page = panelFrameSignIn($staffId);
-    $page->click('[data-test="store-switcher"]')
-        ->assertSee('Egypt is switched off.');
+    $page->assertMissing('[data-test="store-switcher"]')
+        ->assertAttribute('[data-test="panel-home"]', 'href', '/admin')
+        ->click('[data-test="panel-home"]');
 
-    expect($page->script("document.querySelector('[data-test=\"store-{$egypt}\"]').getAttribute('aria-disabled')"))->toBe('true');
+    expect(browserUntil($page, "window.location.pathname === '/admin'"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
 });
 
-it('lets a Super Admin choose an off store, to prepare it before it opens', function () {
-    $egypt = panelFrameEgyptOff();
+it('offers a Super Admin an off store in a store screen\'s own filter, marked off, and opens it there', function () {
+    panelFrameEgyptOff();
 
-    $superAdmin = Fx::staff(superAdmin: true);
-    $page = panelFrameSignIn($superAdmin);
-    $page->click('[data-test="store-switcher"]')
-        ->click("[data-test=\"store-{$egypt}\"]");
+    $page = panelFrameSignIn(Fx::staff(superAdmin: true));
+    $page->navigate('/admin/settings');
 
-    // The header now names the store being worked in.
-    $page->assertSeeIn('[data-test="store-switcher"]', 'Egypt');
-    // And says it is off, where they work, not only in the list (the review, 2026-10-03).
-    $page->assertSeeIn('[data-test="store-switcher"]', 'Off');
-    expect(DB::table('access.staff_users')->where('id', $superAdmin)->value('current_store_id'))->toBe($egypt);
+    // No store asked: the first store that is on (platform.md §9.10 #3).
+    expect($page->script("document.querySelector('[data-test=\"store-filter\"]').value"))->toBe('sa')
+        ->and($page->script("document.querySelector('[data-test=\"store-filter\"] option[value=\"eg\"]').textContent"))->toBe('Egypt (Off)');
+
+    $page->select('[data-test="store-filter"]', 'eg');
+
+    expect(browserUntil($page, "window.location.search === '?store=eg'"))->toBeTrue()
+        ->and(browserUntil($page, "document.querySelector('[data-test=\"store-filter\"]').value === 'eg'"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
+it('never offers a staff member an off store they cover in View Store\'s menu', function () {
+    // The store filters' side of it is proven on the pages (PrepareOffStoreTest).
+    $staffId = Fx::staffWith([PlatformPermissions::STORE_VIEW], ['sa', 'eg', 'ae']);
+    panelFrameEgyptOff();
+
+    $page = panelFrameSignIn($staffId);
+
+    // View Store: a menu of their stores that are on.
+    $page->click('[data-test="view-store"]')
+        ->assertVisible('[data-test="view-store-sa"]')
+        ->assertVisible('[data-test="view-store-ae"]')
+        ->assertMissing('[data-test="view-store-eg"]');
 });
 
 it('folds the menu into business areas, opens the one being read, lets several stay open and remembers them', function () {

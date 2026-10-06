@@ -170,9 +170,11 @@ href: string | null,
 tone: string | null,
 };
 export type HomePage = {
-scope: string,
+storeCode: string | null,
 offersAllStores: boolean,
+stores: StoreOptionBlock[],
 cards: HomeCardBlock[],
+storeTimezone: string | null,
 };
 export type HomeRowBlock = {
 label: string,
@@ -355,6 +357,11 @@ isCurrent: boolean,
 };
 export type StoreOption = {
 id: string,
+name: string,
+isActive: boolean,
+};
+export type StoreOptionBlock = {
+code: string,
 name: string,
 isActive: boolean,
 };

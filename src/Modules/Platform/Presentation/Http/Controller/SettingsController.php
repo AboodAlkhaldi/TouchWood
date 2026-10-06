@@ -6,14 +6,12 @@ namespace Modules\Platform\Presentation\Http\Controller;
 
 use App\Http\FormErrors;
 use App\Http\Page;
-use App\Http\PanelStore;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Response;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Application\Query\ListSettings\ListSettingsHandler;
-use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Presentation\Http\Resource\SettingPages;
 use Modules\Platform\Public\Enums\SettingScope;
@@ -27,8 +25,10 @@ use Shared\Domain\Error\DomainError;
  * may not change is not on the screen at all: each setting carries its own permission, so that is
  * one answer per row rather than one for the page.
  *
- * A store setting applies to the store in the panel's header, which is where the store comes from -
- * never from the request. Somebody cannot reach another store's settings by editing a form.
+ * A store setting applies to the store chosen in the page's own filter (platform.md §9.10; the owner,
+ * 2026-10-06 - the panel has no store worked in). The store comes with the request, so nothing is
+ * taken on trust: the page offers only the stores the person may change, and the handler asserts the
+ * setting's permission in the store sent and refuses an off one to anyone but a Super Admin.
  */
 final readonly class SettingsController
 {
@@ -40,12 +40,12 @@ final readonly class SettingsController
         private SettingPages $pages,
     ) {}
 
-    /** E4. */
-    public function index(ListSettingsHandler $settings): Response
+    /** E4, for the store in the address (`?store=sa`), or the first the person may change. */
+    public function index(Request $request, ListSettingsHandler $settings): Response
     {
         return $this->page->render(
             'Platform/Admin/Settings/Index',
-            $this->pages->list($settings)->toArray(),
+            $this->pages->list($settings, self::query($request, 'store'))->toArray(),
             self::WORDS,
         );
     }
@@ -55,18 +55,16 @@ final readonly class SettingsController
         string $key,
         UpdateSettingHandler $handler,
         InMemorySettingsRegistry $registry,
-        PanelStore $panel,
-        StoreDirectory $directory,
     ): RedirectResponse {
         $definition = $registry->definition($key);
 
         try {
             $handler->handle(new UpdateSetting(
                 $key,
-                // The header's store, never the form's: a per-store setting belongs to the store
-                // the person is looking at. An unknown key goes to the handler as it is, and the
+                // The store the page shows, sent with the save: a per-store setting belongs to it. A
+                // global one takes none. An unknown key goes to the handler as it is, and the
                 // handler is the one that says so.
-                $definition?->scope === SettingScope::Store ? $this->storeCode($panel, $directory) : null,
+                $definition?->scope === SettingScope::Store ? self::query($request, 'store') : null,
                 $this->value($request, $definition?->type),
             ));
         } catch (DomainError $error) {
@@ -76,11 +74,13 @@ final readonly class SettingsController
         return back()->with('status', __('platform::admin_settings.saved'));
     }
 
-    private function storeCode(PanelStore $panel, StoreDirectory $directory): ?string
+    /** A text field of the request, trimmed; null when absent, empty, or not text (`?store[]=`). */
+    private static function query(Request $request, string $field): ?string
     {
-        $storeId = $panel->id();
+        $value = $request->input($field);
+        $value = is_string($value) ? trim($value) : '';
 
-        return $storeId === null ? null : $directory->storeById($storeId)?->code;
+        return $value === '' ? null : $value;
     }
 
     /**

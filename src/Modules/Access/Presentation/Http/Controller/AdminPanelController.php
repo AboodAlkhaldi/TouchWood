@@ -4,33 +4,31 @@ declare(strict_types=1);
 
 namespace Modules\Access\Presentation\Http\Controller;
 
-use App\Http\FormErrors;
 use App\Http\Page;
-use App\Http\PanelStore;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Response;
-use Modules\Access\Application\Command\ChooseCurrentStore\ChooseCurrentStore;
-use Modules\Access\Application\Command\ChooseCurrentStore\ChooseCurrentStoreHandler;
+use Modules\Access\Application\Query\StoresForStaff\StoresForStaff;
 use Modules\Access\Presentation\Http\Resource\HomeCardBlock;
 use Modules\Access\Presentation\Http\Resource\HomeFigureBlock;
 use Modules\Access\Presentation\Http\Resource\HomePage;
 use Modules\Access\Presentation\Http\Resource\HomeRowBlock;
+use Modules\Access\Presentation\Http\Resource\StoreOptionBlock;
 use Modules\Platform\Public\Contracts\HomeCards;
-use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\HomeCardView;
 use Modules\Platform\Public\Dto\HomeFigure;
 use Modules\Platform\Public\Dto\HomeRow;
-use Shared\Domain\Error\DomainError;
-use Shared\Domain\ValueObject\StoreId;
+use Modules\Platform\Public\Dto\StoreDto;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
- * The panel itself: where it opens, and the two choices a person makes about it (frontend.md §2.2).
+ * The panel's home (frontend.md §2.2).
  *
- * The home shows the cards the modules register (platform.md §2.6) that this reader may see, for
- * one scope: All Stores - first, for a reader whose reach covers every store for a card (the owner,
- * 2026-10-05) - or the store being worked in. Each card's words are put into the reader's language
- * here, so the page needs no module's words of its own.
+ * The home shows the cards the modules register (platform.md §2.6) that this reader may see, for one
+ * scope chosen in its own switcher (the owner, 2026-10-06; access.md amendment 64): **All Stores** -
+ * first, for a reader whose reach covers every store for a card - or one of the reader's stores
+ * (`/admin?store=sa`; a Super Admin's off stores too). The switcher changes the figures only. Each
+ * card's words are put into the reader's language here, so the page needs no module's words of its
+ * own.
  */
 final readonly class AdminPanelController
 {
@@ -38,18 +36,29 @@ final readonly class AdminPanelController
         private Page $page,
     ) {}
 
-    public function home(Request $request, HomeCards $cards, PanelStore $panelStore): Response
+    public function home(Request $request, HomeCards $cards, StoresForStaff $stores): Response
     {
-        $storeWorkedIn = $panelStore->id();
+        $mine = $stores->forCurrentStaff();
         $offersAllStores = $cards->offersAllStores();
-        // All Stores first when it is offered; This Store only when asked for, and there is one.
-        $allStores = $offersAllStores && ($request->query('scope') !== 'store' || $storeWorkedIn === null);
+        $asked = $request->query('store');
+        // Anything but text (`?store[]=`) is no store asked for.
+        $asked = is_string($asked) ? trim($asked) : '';
+        $chosen = null;
+
+        if ($asked !== '') {
+            // One of theirs, or nothing to show: another store's figures are not this reader's.
+            $chosen = $stores->byCode($asked) ?? throw new AccessDeniedHttpException;
+        } elseif (! $offersAllStores) {
+            // No All Stores for them: their first store, by the stores' own order.
+            $chosen = $mine[0] ?? null;
+        }
 
         $page = new HomePage(
-            $allStores ? 'all' : 'store',
-            // A switch needs two sides: All Stores, and a store being worked in.
-            $offersAllStores && $storeWorkedIn !== null,
-            array_map($this->block(...), $cards->forCurrentActor($storeWorkedIn, $allStores)),
+            $chosen?->code,
+            $offersAllStores,
+            array_map(static fn (StoreDto $store): StoreOptionBlock => new StoreOptionBlock($store->code, $store->name->in(app()->getLocale()), $store->isActive), $mine),
+            array_map($this->block(...), $cards->forCurrentActor($chosen?->id, $chosen === null && $offersAllStores)),
+            $chosen?->timezone,
         );
 
         return $this->page->render('Admin/Home', $page->toArray(), ['admin', 'access::auth']);
@@ -83,28 +92,5 @@ final readonly class AdminPanelController
         $line = __($key);
 
         return is_string($line) ? $line : $key;
-    }
-
-    /**
-     * Which store the panel is working in. A preference, never a permission: the handler refuses any
-     * store that is not theirs, and every screen still scopes itself by what they may do.
-     */
-    public function chooseStore(Request $request, ChooseCurrentStoreHandler $handler, PlatformApi $platform): RedirectResponse
-    {
-        $storeId = $request->string('store')->toString();
-
-        try {
-            $handler->handle(new ChooseCurrentStore($storeId));
-        } catch (DomainError $error) {
-            return FormErrors::back($request, $error, ['store']);
-        }
-
-        $store = $platform->store(StoreId::fromString($storeId));
-
-        return back()->with('status', __('admin.store.changed', [
-            // The handler above refused anything that is not theirs, so the store is real here;
-            // the name is still read defensively, because a message is not worth an error page.
-            'store' => $store === null ? '' : $store->name->in(app()->getLocale()),
-        ]));
     }
 }

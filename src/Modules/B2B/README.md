@@ -507,13 +507,17 @@ offers deactivated types only to someone who may also activate them, and says th
 active again before it is assigned (8(b)); "Other" is not offered once the company is approved.
 
 **Reading a type list is part of every job on it**, in that store (21(c)): `ViewTypeLists` lets in
-anyone holding any of the list's jobs there, and says which of them they hold. The store is always
-the panel's — the one in the header (`App\Http\PanelStore`) — never one from the request; adding a
-type and "Reviewed" name it, and every other change reads the store from the type itself. A company
-type's holders are counted in one grouped query, from the type's own store.
+anyone holding any of the list's jobs there, and says which of them they hold. **The store is the
+screen's own filter** (`?store=<code>`, amendment 30; the owner, 2026-10-06): Platform's
+`StoreChoices` lists the stores where the reader holds one of the list's jobs - a Super Admin every
+store, an off one marked Off; anyone else their stores that are on - and refuses any other (403);
+with none asked, the first. Adding a type and "Reviewed" send the store's code and are checked the
+same way; every other change reads the store from the type itself. A company type's holders are
+counted in one grouped query, from the type's own store.
 
 **Times** on these screens are written by the page builder as moments with their offset, and shown
-through `Time` in the store being worked in, the panel's, its zone beside them (amendment 23(b)). **A paper's file name and its id** go only to someone who may open
+through `Time` in the zone of the store the screen shows (`storeTimezone`), else the base store's,
+its zone beside them (amendments 23(b), 30). **A paper's file name and its id** go only to someone who may open
 it — the id, because a reader without the private-files permission is never told which file exists
 (amendment 8(c)); to anyone else the paper shows its type and date, and its Open button is disabled
 with the reason. Each opening is a plain GET, audited by `DownloadCompanyDocument` before the link is

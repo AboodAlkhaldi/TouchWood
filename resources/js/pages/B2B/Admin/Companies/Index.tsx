@@ -28,8 +28,8 @@ import { companyStatusTone } from '../../status';
 | first, the oldest sent first, then the rest by their latest status change; 25 a page. The filters
 | go into the address, so a refresh or a shared link lands on the same list. Nothing here changes
 | anything: **the whole row opens the company** (owner, 2026-10-04, as the roles list), its name the
-| real link for a keyboard and a screen reader. Times are moments in the store being worked in
-| (amendment 23(b)), relative in the cells, the full moment on hover or focus (Geist's Table), raised
+| real link for a keyboard and a screen reader. Times are moments in the zone of the store filtered
+| to, else the base store's (amendment 23(b), 30), relative in the cells, the full moment on hover or focus (Geist's Table), raised
 | above the row's link so it can be reached.
 */
 
@@ -142,7 +142,8 @@ export default function Index({ companies, total, page, perPage, search, status,
                                     <NativeSelectOption value="">{t('b2b::admin_companies.all_stores')}</NativeSelectOption>
                                     {stores.map((store) => (
                                         <NativeSelectOption key={store.id} value={store.id}>
-                                            {store.name}
+                                            {/* A Super Admin's off store, marked (b2b.md amendment 30). */}
+                                            {store.isActive ? store.name : t('admin.store.option_off', { store: store.name })}
                                         </NativeSelectOption>
                                     ))}
                                 </SelectField>

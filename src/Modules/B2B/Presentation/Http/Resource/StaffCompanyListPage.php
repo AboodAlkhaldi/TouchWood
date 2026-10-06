@@ -17,8 +17,8 @@ final class StaffCompanyListPage extends Data
     /**
      * @param  list<StaffCompanyRowData>  $companies  waiting first, the oldest sent first
      * @param  list<string>  $statuses  the four statuses the list may be filtered by
-     * @param  list<StaffStoreOptionData>  $stores  the stores the reader may filter by; never named
-     *                                              `store`, which every panel page carries already
+     * @param  list<StaffStoreOptionData>  $stores  the stores the reader may filter by - a Super
+     *                                              Admin's off ones too, marked Off (amendment 30)
      */
     public function __construct(
         public array $companies,
@@ -30,5 +30,7 @@ final class StaffCompanyListPage extends Data
         public ?string $storeId,
         public array $statuses,
         public array $stores,
+        /** The filtered store's zone, for the moments on the page; null for every store (frontend.md §1.10). */
+        public ?string $storeTimezone,
     ) {}
 }

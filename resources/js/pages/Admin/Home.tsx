@@ -1,20 +1,19 @@
-import { Link, router, usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { Note } from '@/components/Note';
+import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from '@/components/ui/item';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/cn';
 import { figure } from '@/lib/digits';
 import { fileSize } from '@/lib/file-size';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
-import { SWITCH_ITEM, SWITCH_TRACK } from '@/lib/view-switch';
 import type { HomeCardBlock, HomeFigureBlock, HomePage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 import type { MenuEntry, SharedProps } from '@/types/page';
 
@@ -31,15 +30,17 @@ import type { MenuEntry, SharedProps } from '@/types/page';
 | optional short list, and a link to its whole screen. Only the cards this reader may see in the
 | scope arrive; a module built later adds its own without this page changing.
 |
-| The **scope switch**, All Stores · This Store, is shadcn's ToggleGroup in the page's action slot,
-| as the media library's view switch is: offered only to a reader whose reach covers every store
-| for a card, and opening on All Stores (the owner, 2026-10-05). The scope is in the address, so a
-| reload or a shared link keeps it.
+| The **store switcher** (the owner, 2026-10-06; access.md amendment 64) sits in the page's action
+| slot and changes the figures only: All Stores - for a reader whose reach covers every store for a
+| card, a Super Admin always - then each of the person's stores, a Super Admin's off ones marked Off;
+| one store and no All Stores means no switcher. The same store filter as every store screen
+| (StoreFilter), so the choice is in the address (`/admin?store=sa`): a reload or a shared link keeps
+| it.
 */
 
 type Props = HomePage;
 
-export default function Home({ scope, offersAllStores, cards }: Props) {
+export default function Home({ storeCode, offersAllStores, stores, cards }: Props) {
     const t = useTranslator();
     const { menu, locale } = usePage<SharedProps>().props;
     const waiting: MenuEntry[] = menu.flatMap((group) => group.entries).filter((entry) => entry.count !== null && entry.count > 0);
@@ -48,28 +49,7 @@ export default function Home({ scope, offersAllStores, cards }: Props) {
         <AdminLayout
             title={t('admin.home.title')}
             subtitle={t('admin.home.subtitle')}
-            action={
-                offersAllStores ? (
-                    <ToggleGroup
-                        type="single"
-                        value={scope}
-                        // Pressed again it would clear; a scope is always one of the two.
-                        onValueChange={(next) =>
-                            next === 'all' || next === 'store' ? router.get('/admin', next === 'all' ? {} : { scope: 'store' }, { preserveScroll: true }) : undefined
-                        }
-                        aria-label={t('admin.home.scope')}
-                        data-test="home-scope"
-                        className={SWITCH_TRACK}
-                    >
-                        <ToggleGroupItem value="all" data-test="scope-all" className={SWITCH_ITEM}>
-                            {t('admin.home.scope_all')}
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="store" data-test="scope-store" className={SWITCH_ITEM}>
-                            {t('admin.home.scope_store')}
-                        </ToggleGroupItem>
-                    </ToggleGroup>
-                ) : undefined
-            }
+            action={<StoreFilter stores={stores} value={storeCode} all={offersAllStores} className="min-w-48" />}
         >
             <div className="grid gap-4">
                 {waiting.length > 0 ? (

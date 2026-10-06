@@ -25,13 +25,17 @@ use Symfony\Component\HttpFoundation\Response;
 final readonly class StaffViewController
 {
     /**
-     * The shop's home page of the store being worked in, in the panel's language - every store
-     * offers both (platform.md §1.6). A full visit, not an Inertia one: it leaves the panel's frame.
+     * The shop's home page of the store chosen in View Store's menu (amendment 64), in the panel's
+     * language - every store offers both (platform.md §1.6). A full visit, not an Inertia one: it
+     * leaves the panel's frame.
      */
     public function open(Request $request, OpenStaffViewHandler $handler, PlatformApi $platform): Response|RedirectResponse
     {
+        $code = $request->input('store');
+
         try {
-            $storeId = $handler->handle(new OpenStaffView);
+            // Anything but text (`store[]=`) names no store, and is refused as one that is not theirs.
+            $storeId = $handler->handle(new OpenStaffView(is_string($code) ? trim($code) : ''));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }

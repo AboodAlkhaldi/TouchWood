@@ -57,6 +57,10 @@ return [
     // Geist's Checkbox group: the count beside the group's name says how many of how many.
     'chosen_count' => ':count of :total chosen',
     'not_yours' => 'You do not hold this action, so you cannot give it.',
+    // An area's Select All (the owner, 2026-10-06): its name holds the words it shows, then the area.
+    'select_all' => 'Select All',
+    'select_all_in' => 'Select All in :area',
+    'none_yours' => 'You hold none of these actions, so you cannot give them.',
     'holders_warning' => 'Changing this role changes it for the :count people who hold it.',
     'level_locked' => "A role's level cannot change after it is made.",
 

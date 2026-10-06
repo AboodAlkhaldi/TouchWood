@@ -14,7 +14,6 @@ use Modules\Access\Application\Command\UpdateStoreAddressFormat\UpdateStoreAddre
 use Modules\Access\Application\Command\UpdateStoreAddressFormat\UpdateStoreAddressFormatHandler;
 use Modules\Access\Application\Query\AddressFormats\AddressFormatDto;
 use Modules\Access\Application\Query\AddressFormats\AddressFormatsForStaff;
-use Modules\Access\Application\Query\CurrentStore\CurrentStoreForStaff;
 use Modules\Access\Application\Query\MyAccount\AddressFieldDto;
 use Modules\Access\Domain\Model\StoreAddressFormat;
 use Modules\Access\Domain\ValueObject\AddressField;
@@ -24,6 +23,7 @@ use Modules\Access\Presentation\Http\Resource\AddressFormatPage;
 use Modules\Access\Presentation\Http\Resource\AddressFormatStore;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
+use Shared\Application\Authorizer;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -51,7 +51,7 @@ final readonly class AddressFormatController
         private AddressFormatsForStaff $formats,
         private PlatformApi $platform,
         private Application $app,
-        private CurrentStoreForStaff $current,
+        private Authorizer $authorizer,
     ) {}
 
     public function index(Request $request): Response
@@ -168,13 +168,25 @@ final readonly class AddressFormatController
             return $store->storeId()->value;
         }
 
-        return $stores === [] ? null : $stores[0]->id;
+        // None asked: the first that is on. Nobody lands in an off store without choosing it, a
+        // Super Admin included (platform.md §9.10 #3).
+        foreach ($stores as $store) {
+            if ($store->isActive) {
+                return $store->id;
+            }
+        }
+
+        return null;
     }
 
-    /** Whether this person works in off stores too: a Super Admin, preparing one before it opens. */
+    /**
+     * Whether this person is offered off stores too: a Super Admin, preparing one before it opens
+     * (amendment 64 - asked of the Authorizer now the panel has no current store to answer it).
+     * Offering only: the handler behind the form asks for its own permission in the store.
+     */
     private function mayWorkInOffStores(): bool
     {
-        return $this->current->forCurrentStaff()?->mayChooseOff === true;
+        return $this->authorizer->isUnlimited();
     }
 
     private function anyStoreByCode(string $code): ?StoreDto

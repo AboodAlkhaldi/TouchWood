@@ -75,12 +75,21 @@ describe('the settings screen', function () {
         $browser = settingsScreenSignIn($staffId);
 
         $key = CustomerSecuritySettings::LOCKOUT_MINUTES;
-        $browser->post("/admin/settings/{$key}", ['value' => '20'])->assertRedirect();
+
+        // A store's own setting names its store, the one the page's filter shows (platform.md
+        // §9.10 #3): without it nothing is saved; another store's is refused.
+        $missing = $browser->post("/admin/settings/{$key}", ['value' => '20']);
+        $elsewhere = $browser->post("/admin/settings/{$key}", ['value' => '20', 'store' => 'ae']);
+
+        expect($missing->status())->toBeLessThan(500)
+            ->and($elsewhere->status())->toBeLessThan(500)
+            ->and(DB::table('platform.settings')->where('key', $key)->exists())->toBeFalse();
+
+        $browser->post("/admin/settings/{$key}", ['value' => '20', 'store' => 'sa'])->assertRedirect();
 
         $row = DB::table('platform.settings')->where('key', $key)->first()
             ?? throw new RuntimeException('The setting was not stored.');
 
-        // The store the panel is on, never one the form named.
         expect($row->store_id)->toBe(Fx::storeId('sa'))
             ->and(json_decode((string) $row->value, true))->toBe(20);
     });

@@ -87,6 +87,14 @@ $this->app->make(HomeCards::class)->register(
     new HomeCardDto('b2b', 'approvals', B2BPermissions::COMPANY_VIEW, CompanyApprovalsCard::class, 10),
 );
 
+// A screen showing one store's data has its own store filter, `?store=<code>` (frontend.md §2.2;
+// the owner, 2026-10-06 - the panel has no store "worked in"). StoreChoices lists the stores where
+// the reader holds any of the screen's permissions - a Super Admin every store, off ones included;
+// anyone else their stores that are on - and chosen() gives the one asked for, the first that is on when none
+// is, or refuses with Unauthorized (403). A page sends the store's zone as `storeTimezone`.
+$options = $choices->forJobs(B2BPermissions::COMPANY_VIEW);
+$store = $choices->chosen($code, B2BPermissions::COMPANY_VIEW);
+
 // Queued work is named on the failed jobs screen in your module's words: one line per queued class
 // in Presentation/lang/{ar,en}/jobs.php — AnonymizeCompany at `anonymize_company`, a trailing "Job"
 // left off. And it states its tries (`public int $tries = 3;`), which the screen shows. A test fails
@@ -102,7 +110,7 @@ ids only and are dispatched after the transaction commits.
 
 | Folder | Contents |
 |---|---|
-| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `HomeCards` and `HomeCard` (the admin home's cards), `OffStoreViewers` and `OffStoreViewer` (who may see an off store in the shop), `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
+| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `HomeCards` and `HomeCard` (the admin home's cards), `StoreChoices` (the stores a panel screen's filter offers), `OffStoreViewers` and `OffStoreViewer` (who may see an off store in the shop), `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
 | `Domain/Model` | `Store`, `Currency`, `Media`: plain PHP classes holding the rules, with no Laravel inside. |
 | `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. |
 | `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |
@@ -111,7 +119,7 @@ ids only and are dispatched after the transaction commits.
 | `Application/Audit` | Builds the audit entry for each kind of change (`StoreAudit`, `CurrencyAudit`, `MediaAudit`). |
 | `Application/Settings` | The settings registry, strict type checks and reading with defaults. |
 | `Application/Media` | What media needs from the outside world, as interfaces (storage, file inspection, resizing, the queue), plus `MediaSettings` (the upload-limit declarations) and `InspectedFile`. |
-| `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached) and `MediaReader`. |
+| `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached), `MediaReader`, and `AuthorizedStoreChoices` (`StoreChoices`: a screen's stores, from the Authorizer's reach). |
 | `Application/FailedJobs` | `FailedJobs`, the queue's failed work as an interface (a page of summaries, read, lock, whether it can be retried, requeue, forget), `FailedJob`, `FailedJobSummary`, and `FailedJobsCount`, the menu's count. |
 | `Application/Home` | `InMemoryHomeCards`, the admin home's cards and who may see each. |
 | `Infrastructure/` | Eloquent and query-builder repositories, caching, the audit writer, Laravel disks, Intervention Image, the queued job, migrations and the service provider. |

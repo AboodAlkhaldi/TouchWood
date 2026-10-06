@@ -89,18 +89,14 @@ export type ShopperLine = {
     tone: ShopperLineTone;
 };
 
-export type Store = {
-    id: string;
+/**
+ * One of the person's stores, as View Store's menu lists them (access.md amendment 64): a Super
+ * Admin's every store, an off one marked; anyone else's that are on.
+ */
+export type ViewStore = {
+    code: string;
     name: string;
-    /** Its IANA zone: the panel writes every moment in the zone of the store it is working in. */
-    timezone: string;
-    /** Switched on. An off store is shown, marked Off, only to the staff who cover it. */
     isActive: boolean;
-    /**
-     * Whether this person may work in it: every on store of theirs, and an off one only for a
-     * Super Admin preparing it (access.md amendment 58(a)). The others are shown disabled.
-     */
-    choosable: boolean;
 };
 
 /** Who is looking at the page. Null when nobody is signed in. */
@@ -110,20 +106,6 @@ export type Viewer = {
     roleLabel: string | null;
     avatarUrl: string | null;
     isSuperAdmin: boolean;
-};
-
-export type CurrentStore = {
-    /** Null when the person has no stores at all, or none they may work in now (all of them off). */
-    current: Store | null;
-    /** Only the stores that are theirs, on or off; one store means the header shows a name, not a picker. */
-    available: Store[];
-    /**
-     * True when the store they had chosen is no longer theirs and the panel opened somewhere else.
-     * The layout says so once, as a toast (frontend.md §2.2).
-     */
-    fellBack: boolean;
-    /** The store they had chosen was switched off, rather than taken away: the toast says that. */
-    fellBackFromOff: boolean;
 };
 
 export type Flash = {
@@ -150,7 +132,7 @@ export type SharedProps = {
     };
     viewer: Viewer | null;
     menu: MenuGroup[];
-    /** Shop pages only; the panel shares its own "store", which is a different thing. */
+    /** Shop pages only. */
     shop?: Shop | null;
     shopper?: Shopper | null;
     /** Shop pages only, during a staff view. */
@@ -162,7 +144,15 @@ export type SharedProps = {
     sidebarOpen: boolean;
     /** The sidebar's business areas this browser left open (group keys); several may be. */
     sidebarSections: string[];
-    store: CurrentStore | null;
+    /** Panel pages: the stores View Store may open (access.md amendment 64). */
+    viewStores?: ViewStore[];
+    /** Panel pages: the base store's zone, for a screen that shows no one store (frontend.md §1.10). */
+    panelTimezone?: string;
+    /**
+     * A panel screen's own value, not a shared one: the zone of the one store it shows (Home, a store
+     * screen filtered to a store). Read by Time before panelTimezone.
+     */
+    storeTimezone?: string | null;
     flash: Flash;
     errors: PageErrors;
 };

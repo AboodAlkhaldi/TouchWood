@@ -9,7 +9,7 @@ use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
-use Modules\Access\Application\Query\CurrentStore\CurrentStoreForStaff;
+use Modules\Access\Application\Query\StoresForStaff\StoresForStaff;
 use Modules\Access\Application\StaffView\StaffViews;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\StaffNotFound;
@@ -20,12 +20,13 @@ use Shared\Application\PermissionScope;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * The staff view's pass (spec §1.11): every active staff member may look at the shop of the store
- * they are working in, as a visitor sees it plus the off stores they cover, and order nothing.
+ * The staff view's pass (spec §1.11): every active staff member may look at the shop of one of their
+ * stores, as a visitor sees it, and order nothing.
  *
- * The store is the panel's own answer for them - never one the request names - so it is always one
- * of theirs, and an off one only for a Super Admin, who may work in it (amendment 58(a)). Audited,
- * with the store: looking at a closed store is something somebody may ask about later.
+ * The store is the one chosen in View Store's menu (amendment 64), and it must be one of theirs as
+ * StoresForStaff answers - an off one only for a Super Admin, who prepares it (amendment 58(a)) - so
+ * a request naming another is refused. Audited, with the store: looking at a closed store is
+ * something somebody may ask about later.
  */
 final readonly class OpenStaffViewHandler
 {
@@ -35,7 +36,7 @@ final readonly class OpenStaffViewHandler
         private Authorizer $authorizer,
         private GrantRules $rules,
         private GrantsReader $grants,
-        private CurrentStoreForStaff $currentStore,
+        private StoresForStaff $stores,
         private StaffUserRepository $staff,
         private StaffViews $views,
         private PlatformApi $platform,
@@ -45,14 +46,14 @@ final readonly class OpenStaffViewHandler
     /**
      * @return string the store's id, whose shop opens
      *
-     * @throws InvalidAccessAttribute when they work in no store
+     * @throws InvalidAccessAttribute when the store is not one of theirs
      * @throws StaffNotFound
      */
     public function handle(OpenStaffView $command): string
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $staffId = $this->rules->currentStaffId();
-        $storeId = $this->currentStore->forCurrentStaff()?->storeId;
+        $storeId = $this->stores->byCode($command->storeCode)?->id;
 
         if ($storeId === null) {
             throw new InvalidAccessAttribute('store', 'not one of your stores');

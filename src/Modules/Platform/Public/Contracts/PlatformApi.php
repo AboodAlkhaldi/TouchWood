@@ -50,9 +50,9 @@ interface PlatformApi
     /**
      * Every store, **on and off**, ordered by position — for work that must reach a store before it
      * opens (a new store's starting data) and for history. Never for a list a person chooses from,
-     * with one exception: the panel's store switcher, which shows a staff member the off stores
-     * they cover, marked Off, and lets a Super Admin work in one to prepare it (platform.md §1.6;
-     * owner, 2026-10-03).
+     * with one exception: a Super Admin's lists in the panel (every store filter, Home's switcher,
+     * View Store), which offer the off stores marked Off, to prepare one before it opens
+     * (platform.md §1.6, §9.10 #4; owner, 2026-10-06).
      *
      * @return list<StoreDto>
      */

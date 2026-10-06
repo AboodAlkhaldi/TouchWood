@@ -17,7 +17,7 @@ final readonly class HomeCardDto
      * @param  string  $module  the module whose figures it shows, e.g. "b2b"
      * @param  string  $key  unique within that module; its words are read from `{module}::home.{key}`
      * @param  string|list<string>  $permission  per-store actions, any one of which is enough - held
-     *                                           in the store being worked in for This Store, for
+     *                                           in the store chosen on Home for one store, for
      *                                           every store for All Stores
      * @param  string  $card  the class of a HomeCard, which works out what the card shows
      * @param  int  $position  where it sits among the cards, lowest first

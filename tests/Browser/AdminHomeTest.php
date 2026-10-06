@@ -16,7 +16,8 @@ use function Pest\Laravel\seed;
 
 /*
 | The admin home in a real browser (frontend.md §2.2; the owner's fix list, point 6): Home first in
-| the menu, the cards, the scope switch, and a waiting company opening its page.
+| the menu, the cards, the store switcher (access.md amendment 64), and a waiting company opening its
+| page.
 |
 | No RefreshDatabase - the suite keeps its data - so other tests' waiting companies may come first;
 | what is checked is that the list leads to a company, not which one.
@@ -35,7 +36,7 @@ afterEach(function () {
     File::deleteDirectory(B2BFixtures::uploads());
 });
 
-it('opens a Super Admin\'s home on All Stores with the cards, switches to This Store, and opens a waiting company', function () {
+it('opens a Super Admin\'s home on All Stores with the cards, switches to one store, and opens a waiting company', function () {
     B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
     $email = (string) DB::table('access.staff_users')->where('id', Fx::staff(superAdmin: true))->value('email');
 
@@ -49,17 +50,19 @@ it('opens a Super Admin\'s home on All Stores with the cards, switches to This S
 
     expect(signedInToPanel($page))->toBeTrue();
 
-    // Home first in the menu, lit; the cards; All Stores pressed.
+    // Home first in the menu, lit; the cards; All Stores chosen in the switcher.
     $page->assertPresent('[data-test="menu-home"][data-active="true"]')
         ->assertSeeIn('[data-test="card-b2b.approvals"]', 'Company Approvals')
         ->assertSeeIn('[data-test="card-b2b.approvals"]', 'Waiting the Longest')
         ->assertSeeIn('[data-test="card-platform.system"]', 'Stores On')
         ->assertNoJavaScriptErrors();
-    expect($page->script("document.querySelector('[data-test=\"scope-all\"]').dataset.state"))->toBe('on');
+    expect($page->script("document.querySelector('[data-test=\"store-filter\"]').value"))->toBe('')
+        ->and($page->script("document.querySelector('[data-test=\"store-filter\"] option[value=\"\"]').textContent"))->toBe('All Stores');
 
-    // This Store: the address says so, and stores on and off - an all-stores figure - goes.
-    $page->click('[data-test="scope-store"]');
-    expect(browserUntil($page, "new URLSearchParams(location.search).get('scope') === 'store'"))->toBeTrue();
+    // One store (the owner, 2026-10-06): the address says which, and stores on and off - an
+    // all-stores figure - goes.
+    $page->select('[data-test="store-filter"]', 'sa');
+    expect(browserUntil($page, "new URLSearchParams(location.search).get('store') === 'sa'"))->toBeTrue();
     $page->assertDontSeeIn('[data-test="card-platform.system"]', 'Stores On')
         ->assertNoJavaScriptErrors();
 

@@ -69,11 +69,11 @@ function staffViewOff(string $code): void
 }
 
 describe('opening it', function () {
-    it('opens the shop of the store being worked in as the staff member, with a pass only its hash is kept of, audited', function () {
+    it('opens the chosen store\'s shop as the staff member, with a pass only its hash is kept of, audited', function () {
         $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa']);
         $browser = staffViewSignIn($staffId);
 
-        $response = $browser->post('/admin/staff-view')->assertRedirect('/sa/en');
+        $response = $browser->post('/admin/staff-view', ['store' => 'sa'])->assertRedirect('/sa/en');
 
         $cookie = collect($response->headers->getCookies())->first(fn ($cookie): bool => $cookie->getName() === LaravelStaffViews::COOKIE);
         $token = (string) $browser->cookie(LaravelStaffViews::COOKIE);
@@ -99,24 +99,57 @@ describe('opening it', function () {
         $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa']);
         $browser = staffViewSignIn($staffId);
 
-        $browser->post('/admin/staff-view');
+        $browser->post('/admin/staff-view', ['store' => 'sa']);
         $first = $browser->cookie(LaravelStaffViews::COOKIE);
-        $browser->post('/admin/staff-view');
+        $browser->post('/admin/staff-view', ['store' => 'sa']);
 
         expect(staffViewRows($staffId))->toBe(1)
             ->and($browser->cookie(LaravelStaffViews::COOKIE))->not->toBe($first);
     });
 
-    it('opens nothing for a staff member with no store to work in, and nothing for a visitor', function () {
+    it('opens nothing for a staff member with no store, and nothing for a visitor', function () {
         // Their only store, switched off once they hold it (access.md amendment 53).
         $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['eg']);
         staffViewOff('eg');
         $browser = staffViewSignIn($staffId);
 
-        $browser->post('/admin/staff-view')->assertRedirect();
-        (new AdminBrowser)->post('/admin/staff-view')->assertRedirect('/admin/sign-in');
+        $browser->post('/admin/staff-view', ['store' => 'eg'])->assertRedirect();
+        (new AdminBrowser)->post('/admin/staff-view', ['store' => 'sa'])->assertRedirect('/admin/sign-in');
 
         expect(DB::table('access.staff_views')->count())->toBe(0);
+    });
+
+    it('opens the store chosen in its menu, and refuses one that is not theirs, one that does not exist and none (amendment 64)', function () {
+        $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa', 'ae']);
+        $browser = staffViewSignIn($staffId);
+
+        // Refused as the whole form's error (FormErrors::back), never as a server error.
+        foreach (['eg', 'zz', '', '../sa'] as $code) {
+            expect(AdminBrowser::formError($browser->post('/admin/staff-view', ['store' => $code])->assertRedirect()))->not->toBeNull();
+        }
+        expect(AdminBrowser::formError($browser->post('/admin/staff-view')->assertRedirect()))->not->toBeNull();
+
+        expect(staffViewRows($staffId))->toBe(0);
+
+        $browser->post('/admin/staff-view', ['store' => 'ae'])->assertRedirect('/ae/en');
+
+        expect(DB::table('access.staff_views')->where('staff_user_id', $staffId)->value('store_id'))->toBe(Fx::storeId('ae'));
+    });
+
+    it('offers View Store the person\'s stores, a Super Admin\'s off ones marked off, and a staff member\'s on ones only', function () {
+        $coveringId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa', 'eg']);
+        staffViewOff('eg');
+
+        staffViewSignIn(Fx::staff(superAdmin: true))->get('/admin')->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('viewStores', [
+                ['code' => 'sa', 'name' => 'Saudi Arabia', 'isActive' => true],
+                ['code' => 'eg', 'name' => 'Egypt', 'isActive' => false],
+                ['code' => 'ae', 'name' => 'United Arab Emirates', 'isActive' => true],
+            ])
+        );
+        staffViewSignIn($coveringId)->get('/admin')->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('viewStores', [['code' => 'sa', 'name' => 'Saudi Arabia', 'isActive' => true]])
+        );
     });
 });
 
@@ -128,7 +161,7 @@ describe('what the shop shows', function () {
         $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa']);
         staffViewSignIn($staffId, $browser);
 
-        $browser->post('/admin/staff-view')->assertRedirect('/sa/en');
+        $browser->post('/admin/staff-view', ['store' => 'sa'])->assertRedirect('/sa/en');
 
         // A visitor's shop: no customer, so nothing customer-only opens.
         $browser->get('/sa/en')->assertInertia(fn (AssertableInertia $page) => $page->where('shopper', null)->has('staffView'));
@@ -152,11 +185,9 @@ describe('what the shop shows', function () {
 
     it('lets an off store be looked at, never written into', function () {
         $staffId = Fx::staff(superAdmin: true);
-        $egypt = Fx::storeId('eg');
         staffViewOff('eg');
         $browser = staffViewSignIn($staffId);
-        $browser->post('/admin/current-store', ['store' => $egypt]);
-        $browser->post('/admin/staff-view')->assertRedirect('/eg/en');
+        $browser->post('/admin/staff-view', ['store' => 'eg'])->assertRedirect('/eg/en');
 
         $browser->get('/eg/en/register')->assertOk();
         $browser->post('/eg/en/account/register', [
@@ -176,27 +207,26 @@ describe('what the shop shows', function () {
     });
 
     it('opens an off store only for a Super Admin\'s staff view, and lists it marked off', function () {
-        // Read while it is on: an off store's code answers as an unknown one.
-        $egypt = Fx::storeId('eg');
         $coveringId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa', 'eg']);
         staffViewOff('eg');
 
         // A visitor: as if it were never there.
         (new AdminBrowser)->get('/eg/en')->assertNotFound();
 
-        // A Super Admin working in it (the owner, 2026-10-06: only a Super Admin views an off store).
+        // A Super Admin choosing it (the owner, 2026-10-06: only a Super Admin views an off store).
         $superAdmin = staffViewSignIn(Fx::staff(superAdmin: true));
-        $superAdmin->post('/admin/current-store', ['store' => $egypt]);
-        $superAdmin->post('/admin/staff-view')->assertRedirect('/eg/en');
+        $superAdmin->post('/admin/staff-view', ['store' => 'eg'])->assertRedirect('/eg/en');
         $superAdmin->get('/eg/en')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
             ->where('shop.code', 'eg')
             ->where('shop.available', fn (Collection $stores): bool => $stores->contains(fn (array $store): bool => $store['code'] === 'eg' && $store['isActive'] === false))
         );
 
-        // Any other staff member - even one whose stores include it: a 404, and not in the list.
+        // Any other staff member - even one whose stores include it: refused when asked for, a 404,
+        // and not in the list.
         foreach ([$coveringId, Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa'])] as $staffId) {
             $other = staffViewSignIn($staffId);
-            $other->post('/admin/staff-view')->assertRedirect('/sa/en');
+            expect(AdminBrowser::formError($other->post('/admin/staff-view', ['store' => 'eg'])))->not->toBeNull();
+            $other->post('/admin/staff-view', ['store' => 'sa'])->assertRedirect('/sa/en');
             $other->get('/eg/en')->assertNotFound();
             $other->get('/sa/en')->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('shop.available', fn (Collection $stores): bool => ! $stores->contains(fn (array $store): bool => $store['code'] === 'eg'))
@@ -207,11 +237,9 @@ describe('what the shop shows', function () {
     it('opens no email confirmation link in an off store, even in a Super Admin\'s staff view', function () {
         $customerId = Fx::customer('noura@example.test', 'eg');
         $link = RecordingSecurityMessages::installed()->emailVerifications[0]['link'] ?? '';
-        $egypt = Fx::storeId('eg');
         staffViewOff('eg');
         $browser = staffViewSignIn(Fx::staff(superAdmin: true));
-        $browser->post('/admin/current-store', ['store' => $egypt]);
-        $browser->post('/admin/staff-view')->assertRedirect('/eg/en');
+        $browser->post('/admin/staff-view', ['store' => 'eg'])->assertRedirect('/eg/en');
         $browser->get('/eg/en')->assertOk();
 
         // The link is opened like a page but writes: not found there, as for a visitor (owner, 2026-10-06).
@@ -234,7 +262,7 @@ describe('how long it lives', function () {
     it('ends with the admin session it came from', function () {
         $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa']);
         $browser = staffViewSignIn($staffId);
-        $browser->post('/admin/staff-view');
+        $browser->post('/admin/staff-view', ['store' => 'sa']);
 
         $browser->post('/admin/sign-out');
 
@@ -246,14 +274,14 @@ describe('how long it lives', function () {
         $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa']);
         $here = staffViewSignIn($staffId);
         $there = staffViewSignIn($staffId);
-        $here->post('/admin/staff-view');
+        $here->post('/admin/staff-view', ['store' => 'sa']);
 
         // From the account's sessions list on another device: the row goes, and the pass with it.
         $there->post('/admin/account/sessions/'.$here->cookie((string) config('access.admin.session_cookie')));
         $here->get('/sa/en')->assertInertia(fn (AssertableInertia $page) => $page->where('staffView', null));
 
         // A busy shop keeps a pass while the panel sits idle - until the panel finds itself idle.
-        $there->post('/admin/staff-view');
+        $there->post('/admin/staff-view', ['store' => 'sa']);
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(20));
         $there->get('/sa/en')->assertInertia(fn (AssertableInertia $page) => $page->has('staffView.name'));
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(20));
@@ -268,8 +296,8 @@ describe('how long it lives', function () {
         $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa']);
         $here = staffViewSignIn($staffId);
         $there = staffViewSignIn($staffId);
-        $here->post('/admin/staff-view');
-        $there->post('/admin/staff-view');
+        $here->post('/admin/staff-view', ['store' => 'sa']);
+        $there->post('/admin/staff-view', ['store' => 'sa']);
 
         $here->post('/admin/account/sessions/all');
 
@@ -280,7 +308,7 @@ describe('how long it lives', function () {
     it('ends at the next shop page once they are disabled or their session version changes', function (array $change) {
         $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa']);
         $browser = staffViewSignIn($staffId);
-        $browser->post('/admin/staff-view');
+        $browser->post('/admin/staff-view', ['store' => 'sa']);
 
         DB::table('access.staff_users')->where('id', $staffId)->update($change);
         app(GrantsReader::class)->refresh($staffId);
@@ -295,7 +323,7 @@ describe('how long it lives', function () {
     it('ends after the staff idle limit without a shop page, and kept seen while used', function () {
         $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa']);
         $browser = staffViewSignIn($staffId);
-        $browser->post('/admin/staff-view');
+        $browser->post('/admin/staff-view', ['store' => 'sa']);
 
         // Twenty minutes, twice: each page keeps it.
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(20));
@@ -318,7 +346,7 @@ describe('how long it lives', function () {
             CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(25));
             $browser->get('/admin')->assertOk();
         }
-        $browser->post('/admin/staff-view')->assertRedirect('/sa/en');
+        $browser->post('/admin/staff-view', ['store' => 'sa'])->assertRedirect('/sa/en');
 
         // Busy in the shop: 10:50 after the sign-in, 11:15, 11:40, then 12:05 - the pass is an hour
         // old, but its admin sign-in is past the maximum.
@@ -336,7 +364,7 @@ describe('how long it lives', function () {
         Fx::customer('sara@example.test', 'sa');
         $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_VIEW], ['sa']);
         $browser = staffViewSignIn($staffId);
-        $browser->post('/admin/staff-view');
+        $browser->post('/admin/staff-view', ['store' => 'sa']);
 
         $become($browser)->assertRedirect('/sa/en');
 

@@ -133,6 +133,9 @@ max: number | null,
 export type SettingsPage = {
 groups: SettingGroup[],
 storeName: string | null,
+storeCode: string | null,
+stores: StoreOption[],
+storeTimezone: string | null,
 };
 export type StoreChoiceRow = {
 code: string,
@@ -151,6 +154,11 @@ export type StoreHomePage = {
 name: string,
 currency: string,
 symbol: string,
+};
+export type StoreOption = {
+code: string,
+name: string,
+isActive: boolean,
 };
 export type StoreRow = {
 id: string,

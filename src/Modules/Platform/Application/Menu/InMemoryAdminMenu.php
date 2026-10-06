@@ -10,7 +10,6 @@ use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MenuCount;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Shared\Application\Authorizer;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * The admin menu, collected from the modules' service providers at boot (stage 2b, P6), the way
@@ -86,7 +85,7 @@ final class InMemoryAdminMenu implements AdminMenu
         }
     }
 
-    public function forCurrentActor(?string $storeWorkedIn = null): array
+    public function forCurrentActor(): array
     {
         // Asked once, not per entry: a Super Admin is offered the entries of modules not built yet,
         // whose permissions cannot be checked because they do not exist (§2.2).
@@ -97,7 +96,7 @@ final class InMemoryAdminMenu implements AdminMenu
         foreach (self::GROUPS as $group) {
             $offered = array_values(array_filter(
                 $this->entries,
-                fn (MenuEntryDto $entry): bool => $entry->group === $group && $this->mayUse($authorizer, $entry, $unlimited, $storeWorkedIn),
+                fn (MenuEntryDto $entry): bool => $entry->group === $group && $this->mayUse($authorizer, $entry, $unlimited),
             ));
 
             if ($offered === []) {
@@ -127,7 +126,7 @@ final class InMemoryAdminMenu implements AdminMenu
         return $counter->count();
     }
 
-    private function mayUse(Authorizer $authorizer, MenuEntryDto $entry, bool $unlimited, ?string $storeWorkedIn): bool
+    private function mayUse(Authorizer $authorizer, MenuEntryDto $entry, bool $unlimited): bool
     {
         $permissions = $entry->permissions();
 
@@ -137,37 +136,11 @@ final class InMemoryAdminMenu implements AdminMenu
             return $unlimited;
         }
 
-        // One permission: held anywhere, and the screen decides what is in it store by store. Several,
-        // any one of which is enough: held in the store being worked in, for a page serving several
-        // jobs for that store alone, which would otherwise answer "not allowed" (platform.md §9.4;
-        // b2b.md amendment 23(a)).
+        // Any of its permissions held in any store: the screen then chooses a store where the job is
+        // held, with its own filter (platform.md §9.10; the panel has no store worked in since
+        // 2026-10-06 - before, an entry of several permissions looked at that store alone, §9.4).
         foreach ($permissions as $permission) {
-            $stores = $authorizer->storesWith($permission);
-            $held = $entry->inStoreWorkedIn() ? self::holdsIn($stores, $storeWorkedIn) : $stores !== [];
-
-            if ($held) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @param  list<StoreId>|null  $stores  null for every store
-     */
-    private static function holdsIn(?array $stores, ?string $storeWorkedIn): bool
-    {
-        if ($storeWorkedIn === null) {
-            return false;
-        }
-
-        if ($stores === null) {
-            return true;
-        }
-
-        foreach ($stores as $store) {
-            if ($store->value === $storeWorkedIn) {
+            if ($authorizer->storesWith($permission) !== []) {
                 return true;
             }
         }
