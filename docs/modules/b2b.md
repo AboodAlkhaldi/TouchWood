@@ -188,11 +188,14 @@ be tidied away into the other.
 - **[DECIDED 2026-09-27] A draft is kept until it is sent, and the customer may discard it**
   (amendment 3), which deletes the files it holds — those no other application of theirs still
   holds. Nothing sent is ever discarded.
-- **One open application at a time** (handoff §8.2), **per account** — not per company, since a
-  first draft has no company. Reapplication is unlimited once the last one was decided.
+- **One open application at a time** (handoff §8.2), **per account and store** (amendments 18–20) —
+  not per company, since a first draft has no company. Reapplication is unlimited once the last one was decided.
 - **[DECIDED 2026-09-26] Submitting requires a confirmed email address.** It is refused until then,
-  and the account says which step it is on (§4.3). Nothing else about the account is required:
-  the phone belongs to ordering, not to applying.
+  and the account says which step it is on (§4.3). **And a confirmed phone number** (amendment 26(a),
+  owner 2026-10-04): the account's own — Access keeps one per account, confirmed by SMS — whatever
+  its country. Without one the form can be filled and saved as ever; only Send is refused
+  (`PhoneNotConfirmed`), and the page says so at the top of the form, with the way to the account's
+  Phone page (§4.5).
 - **[DECIDED 2026-09-28] Each value is checked when the draft is saved** (amendment 4): a value
   that is there must already be a valid one, and a wrong one is refused on its own field while the
   person is still on that page. Only **completeness** waits for sending — every value filled, every
@@ -646,7 +649,10 @@ its fields, its company types or its address differ from this spec, the spec hol
   tax number; the address, **picked from the account's saved addresses**, amendment 16(f)),
   documents (every active type of the home store, required ones marked, one file each to open,
   replace or remove, a greyed type and anything "no longer accepted" marked, §1.3), what the last
-  rejection asked for (only when it asked), and the note — then **Send**.
+  rejection asked for (only when it asked), and the note — then **Send**. **Without a confirmed
+  phone number** the form opens with a Note at its top saying Send waits for one, linking to the
+  account's Phone page; Send stays out of reach, and the phone is listed beside it with what is
+  still missing (amendment 26(a)).
   **It saves itself** (amendment 14(a)): each field when the person leaves it, each file when it is
   uploaded, so a wrong value is shown on its own field at once (amendment 4) and nothing is lost by
   leaving; Send checks that it is complete. **Send waits for a clean form** (amendment 15(a)): it
@@ -707,7 +713,8 @@ its fields, its company types or its address differ from this spec, the spec hol
   each written in its store's format (access.md §1.9) — never typed here. **They are shadcn's choice
   cards (`field-choice-card`), each naming its store, with no store headings (amendment 22(c)).**
   An address its store's
-  format no longer accepts cannot be picked. **With none saved**, the section says so; **Add an
+  format no longer accepts cannot be picked. **With none saved**, the section says so — and no
+  "Saved" beside it: that mark belongs to an address the person picked (amendment 26(c)); **Add an
   address** — offered with saved addresses too (amendment 17(k)) — opens the account's Addresses
   page and, once one is saved, brings the person back to the application to pick it (access.md
   amendment 51); in the form it waits for the saves still going (17(i)). **The application and the
@@ -719,11 +726,17 @@ its fields, its company types or its address differ from this spec, the spec hol
   30-minute link, §1.4), the reason or note it got, and what it flagged or asked for. No staff
   names (§3.1).
 - **The lifecycle** (amendment 16(e), which replaces 14(h)'s four steps and its two cards; **how it
-  looks, amendment 22(b)**): Geist's **Progress with stops**, three of them — **Form**, **Under
-  Review**, **Decision** — the bar standing at the stop the latest application has reached: no
-  application or a draft open, the first; sent and waiting, the second; decided, the third,
-  showing its result. The sentence each step carried before goes. A company applying again after a decision starts
-  again at the first. **Hidden while the company is suspended.** The side column holds nothing
+  looks, amendment 26(b)**, which replaces 22(b)'s bar): the card **"Your Application"**, its three
+  steps — **Form**, **Under Review**, **Decision** — **down the card**, each marked done (✓),
+  current (●) or still to come (○), a step done saying when it ended and the current one what to do.
+  **Four states**, the owner's (2026-10-04): **nothing started** — no application and no draft, only
+  the button to start — every step still to come and the card marked **Not Started**; **a draft
+  open**, Form current; **sent and waiting**, Form done with the day it was sent, Under Review
+  current; **decided**, both done — Under Review with the day it was decided — and Decision marked
+  with its result, Approved (✓) or Not Approved (✕), and what it means, the card marked with the
+  result. A company applying again after a decision
+  starts again at Form, the earlier applications staying in the list below. **Hidden while the
+  company is suspended.** The side column holds nothing
   else: "How a company pays" and "Before approval" are gone, and an approved company's bank account
   is in the main column (above).
 - **Times** on the page, and the year in a reference, are the **home store's** (HANDOFF §4: UTC
@@ -893,7 +906,7 @@ Addresses written before amendment 16 keep their text and have no id. No map pin
 | `applications (customer_id, state)` | "Has this account an open application?" — asked on every submit, and for the banner on every shop page |
 | `applications (company_id, submitted_at DESC)` | One company's history, newest first |
 | **Unique** `application_documents (application_id, document_type_id)`, named `application_documents_one_per_type` | One file per type (amendment 3); its leading column also serves "the documents of one application" |
-| **Partial unique** `applications (customer_id) WHERE state IN ('DRAFT','SUBMITTED')` | One open application at a time, enforced where two tabs cannot both win |
+| **Partial unique** `applications (customer_id, store_id) WHERE state IN ('DRAFT','SUBMITTED')` (`applications_one_open_per_store`, amendment 20(c)) | One open application at a time per account and store, enforced where two tabs cannot both win |
 | **Unique** `applications (reference)`, named `applications_reference_unique` | One application per number (amendment 14(g)); also serves staff searching the company list by a reference |
 | **Unique** `company_types (store_id, lower(name_ar))` and `(store_id, lower(name_en))`, named `company_types_name_ar_unique` and `company_types_name_en_unique`; the same two on `document_types`, named `document_types_name_ar_unique` and `document_types_name_en_unique` | Names unique in each language, ignoring case, **within one store**; two stores may share a name (§1.3, amendments 2 and 5) |
 | **Partial unique** `application_flags (application_id, field) WHERE field IS NOT NULL`, named `application_flags_one_per_field`, and `application_flags (application_id, document_type_id) WHERE document_type_id IS NOT NULL`, named `application_flags_one_per_document` | One flag per field, and one per document type, on a rejected application (amendment 4) |
@@ -930,8 +943,9 @@ type string and HTTP status (handoff §11).
 | `NotACompanyAccount` | FORBIDDEN | An individual account — or one Access cannot find (amendment 9(b)) — reached an application use case (§3.1) |
 | `CompanyNotFound` | NOT_FOUND | No company for that account — or not one this staff member may see |
 | `ApplicationNotFound` | NOT_FOUND | — |
-| `ApplicationAlreadyOpen` | CONFLICT | A draft or submitted application already exists for the account |
+| `ApplicationAlreadyOpen` | CONFLICT | A submitted application already waits for the account in this store (a draft is returned, not refused) |
 | `EmailNotVerified` | CONFLICT | Submitting before the address is confirmed (§1.2) |
+| `PhoneNotConfirmed` | CONFLICT | Submitting before the account has a confirmed phone number (§1.2, amendment 26(a)) |
 | `MissingRequiredDocument` | UNPROCESSABLE | Submitting without every active required type |
 | `ApplicationNotEditable` | CONFLICT | Changing an application that is no longer `DRAFT` |
 | `FlaggedItemNotReplaced` | UNPROCESSABLE | Sending while a field or document the last rejection flagged is unchanged (§1.2, amendment 4). One general message for every item: "Replace every item marked in the last decision before you send the application." (amendment 6(e)) |
@@ -964,7 +978,7 @@ type string and HTTP status (handoff §11).
 2. A draft saved, left and reopened: everything typed is still there, and there is still no company row.
 3. Submitting creates the company `PENDING`; the application becomes `SUBMITTED`.
 4. Submitting without a required document is refused, and nothing is created.
-5. Submitting before the email is confirmed is refused.
+5. Submitting before the email is confirmed is refused; so is submitting before the account's phone is confirmed, any country's, while filling and saving the draft stay open and the form says so at its top, with the way to confirm it (amendment 26(a)).
 6. A second submit while one is open is refused — including two requests at once, which the partial unique index has to decide.
 7. Approving lets them order, rejecting does not, and each is emailed — the rejection with its reason, the approval with the staff member's note when they wrote one.
 8. Reapplying after a rejection carries the previous documents; the rejected application keeps its own copies unchanged.
@@ -1019,8 +1033,8 @@ type string and HTTP status (handoff §11).
 38. The minimums are settings, one set for every store, changed under `platform.settings.update` and bounded by each field's maximum; a value is held to them when saved and again when sent, so a value saved before a minimum was raised stops the send until it is changed (amendment 16(b)).
 39. A paper whose file name is exactly that of a file under another document type of the draft is refused, by the page and by the server; replacing a section's own file with the same name is allowed; answers are not compared (amendment 16(c)).
 40. Send is inactive until everything is complete, with what is missing listed; the server refuses an incomplete send on its own (amendment 16(d)).
-41. The address is picked from the account's saved addresses, any store's, and only one its format accepts; another account's address is refused as unknown; the application and the company keep a copy that editing or deleting the saved address does not change; with none saved, Add an address goes to the Addresses page and back to the application once one is saved (amendment 16(f); access.md amendment 51).
-42. The side column is the lifecycle alone — a progress bar with three stops, Form, Under Review and Decision with its result — with the bar at the stop the latest application has reached (amendment 22(b)), back at the first when a company applies again, hidden while suspended; an approved company's bank account is a card in the main column, or "temporarily unavailable" (amendment 16(e)).
+41. The address is picked from the account's saved addresses, any store's, and only one its format accepts; another account's address is refused as unknown; the application and the company keep a copy that editing or deleting the saved address does not change; with none saved, Add an address goes to the Addresses page and back to the application once one is saved (amendment 16(f); access.md amendment 51); "✓ Saved" shows beside the address only while one in the list is the one kept (amendment 26(c)).
+42. The side column is the lifecycle alone — the card "Your Application", its three steps down the card, Form, Under Review and Decision with its result, at the step the latest application has reached, every step still to come and the card marked Not Started before anything is (amendment 26(b)), back at the first when a company applies again, hidden while suspended; an approved company's bank account is a card in the main column, or "temporarily unavailable" (amendment 16(e)).
 
 **The staff screens** (amendment 21)
 
@@ -1079,4 +1093,6 @@ place in the sections named; this table records what changed and why.
 | 23 | §4.6, §8 (43–49) | **Step 7's picks, settled** (owner, 2026-10-03, one by one with pictures). (a) **The Company Types and Document Types entries are offered to anyone holding any job on that list** in the store being worked in — adding, renaming, deactivating, moving companies between types — through platform.md's new menu entry for any of several permissions; replaces 21(b). (b) **Times on the staff screens are in the store being worked in**, as on every other panel screen (frontend.md §1.10, store time); replaces 21(i) and §4.6's "the company's home store's". (c) **Suspend Company asks for the company's name to be typed** — Geist's Destructive Action Modal — because suspending stops all ordering and emails the customer; the reason is still required. **Reject Application stays a plain destructive Modal** with a required reason, as an everyday review decision. Replaces 21(g) for Suspend. (d) **Confirmed as built**: all of amendment 20, and the rest of 21; 21(k)'s words are checked again against Geist's writing rules in the rebuild. | The owner's answers to the overnight picks; Geist's rule for a serious, reversible action; the store-time rule everywhere in the panel. | Owner, 2026-10-03 |
 | 24 | §4.5, §4.6, §8 (37, 42) | **The rebuild's B2B picks** (owner, 2026-10-04, each from a picture; frontend.md §1.11). (a) **The status badges are one map on both sides**: Approved green; Pending and Under Review amber; Rejected and Suspended red (Geist's Badge, after Atlassian's lozenges); an application waiting for a decision reads "Under Review" on both sides. (b) **The staff Companies list: the whole row opens the company**, as the roles list. (c) **The saved-address picker shows up to six choice cards, then a searchable list** (Geist's Choicebox: "cap at 4–6 tiles"). (d) **An approved company's change warning is one Note, at the top of the form**; replaces §4.5's "at its top and again above Send". (e) **Every word that breaks Geist's writing rules is rewritten**, Arabic and English saying the same: a status box, a note, a helper one sentence; a field's error names the field ("Company name needs at least 2 characters."); under each field its rule in grey ("2 to 200 characters.", 22(a)). | The owner's answers to the rebuild's questions for batches C to F. | Owner, 2026-10-04 |
 | 25 | §4.6 | **The two type lists' table** (the owner's fix list after testing the rebuild; frontend.md §1.11). The position is a narrow "#" column of its own — it sat aligned against the Arabic name in both languages — and the two names follow the page's language: English first on an English page, Arabic first on an Arabic one. | The position number read as part of the second column; it needs a place of its own for the table to read as structured. | Owner, 2026-10-04 |
+| 26 | §1.2, §4.5, §5.2, §7 | **The owner's fix list of 2026-10-04 for applying** (frontend.md §1.11). (a) **A confirmed phone number before Send**: the account's own, any country; the form is filled and saved as ever, Send is refused until then (`PhoneNotConfirmed`), the page says so at the top of the form with the way to the Phone page, and lists it with what is still missing. (b) **The lifecycle card in four states, its steps down the card** (the owner's pick of two drawings): nothing started — every step to come, marked Not Started —; a draft open; sent and waiting; decided, with its result; each step done, current or to come, with its date and what to do. Replaces 22(b)'s bar. (c) The address picker shows "Saved" only beside an address picked, never beside an empty list. Also, kept as they are (owner): an approved company still changes its details through a new application, which stops its ordering until approved (amendment 3); a second application waiting in the same store is refused, another store's is not (amendments 18–20) — §1.2, §5.2 and §7 now say per store, as amendment 20(c) made them. | The owner, after testing the rebuilt company page. | Owner, 2026-10-04 |
 | 27 | §4.6 | **The admin home's Company Approvals card** (the owner's fix list, point 6; D12, 2026-10-05; platform.md §2.6, §9.8; 26 is the applying rules, on its own branch). Shown to a reader holding `b2b.company.view` in the scope — the store being worked in, or every store for All Stores. It says **how many companies wait for a decision** and **who** — the oldest waiting first, up to five, each with its store and the day it was sent, each opening its company — and the companies by status: approved, not approved, suspended. Its link opens the companies list on those waiting, and each figure the list on its status — **for the same stores**: in This Store, the list filtered to that store. Counted by the same reader the list uses, so the card and the list never disagree; the card asks for `b2b.company.view` itself, as the list's handler does, and shows nothing for a scope wider than the reader's stores. | The owner asked to see who waits for approval on the home. | Owner, 2026-10-05 |
+| 28 | §4.6 | **A rejection is written in the company's language** (owner, 2026-10-06; 27 is the admin home's card, on its own branch). The company reads the reason and each request word for word, so the reject dialog names the language of the account holder (their communication language) and its reason and request fields take that language and direction; the reviewer writes in it. What is written stays as written: changing the account's language later does not translate it. | The owner: the requested fields must read entirely in the client's language. | Owner, 2026-10-06 |

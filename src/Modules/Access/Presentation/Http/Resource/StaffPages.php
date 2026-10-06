@@ -145,7 +145,6 @@ final readonly class StaffPages
             mayEnable: $may->mayEnable,
             mayResendInvitation: $may->mayResendInvitation,
             mayCancelInvitation: $may->mayCancelInvitation,
-            mayRefresh: $may->mayRefresh,
         );
     }
 
@@ -329,9 +328,9 @@ final readonly class StaffPages
     /**
      * What their role allows, and where each action reaches.
      *
-     * An action normally reaches the stores of the assignment. An **exception** is one action given
-     * stores of its own (access.md §1.5), and it is marked as one — otherwise an admin cannot tell
-     * why somebody can do a single thing in a store the rest of their role never touches.
+     * An action normally reaches the stores of the assignment. An **exception** is one action kept
+     * to some of them (access.md §1.5, amendment 59), and it is marked as one — otherwise an admin
+     * cannot tell why somebody cannot do a single thing in a store the rest of their role reaches.
      *
      * @param  array<string, string>  $stores
      * @return list<StaffActionRow>

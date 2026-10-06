@@ -290,7 +290,7 @@ final readonly class GrantRules
     }
 
     /**
-     * Editing, deleting or refreshing a saved role changes the access of everyone who holds it:
+     * Editing or deleting a saved role changes the access of everyone who holds it:
      * only an author who covers all the stores of every holder may do it (owner's decisions,
      * 2026-09-19).
      *

@@ -113,6 +113,128 @@ it('saves a role and its stores from the editor', function () {
     expect(DB::table('access.role_assignments')->where('staff_user_id', $staffId)->exists())->toBeTrue();
 });
 
+it('bounds every action by Where It Reaches: cuts an action\'s stores to a smaller reach, says so, and stops a save that leaves it none (amendment 59)', function () {
+    $staffId = Fx::staff(firstName: 'Nora '.Str::random(6));
+    Fx::assign($staffId, Fx::role([PlatformPermissions::STORE_VIEW, PlatformPermissions::STORE_UPDATE]), ['sa', 'ae'], [PlatformPermissions::STORE_UPDATE => ['sa']]);
+    $action = '[data-test="exception-'.PlatformPermissions::STORE_UPDATE.'"]';
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', staffScreenSuperAdminEmail())
+        ->type('#password', STAFF_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate("/admin/staff/{$staffId}/role");
+
+    // Two stores: each action's stores are offered, and Edit Stores is kept to KSA.
+    $page->assertSee('Each Action\'s Stores')
+        ->assertSeeIn($action, 'Custom')
+        ->assertNoJavaScriptErrors();
+    expect($page->script("document.querySelector('{$action} [data-test=\"exception-".PlatformPermissions::STORE_UPDATE."-custom\"]').dataset.state"))->toBe('checked');
+
+    // KSA taken out of the reach: the action's only store goes, and the page says so before saving.
+    $page->click('#access_level-store-'.Fx::storeId('sa'))
+        ->assertSeeIn($action, 'Taken out, no longer in Where It Reaches: Saudi Arabia.')
+        // One store left: only the action left with nothing is listed, to be put right.
+        ->assertMissing('[data-test="exception-'.PlatformPermissions::STORE_VIEW.'"]');
+
+    // Ticked back, KSA comes back to the action, and the line goes (the review of P4).
+    $page->click('#access_level-store-'.Fx::storeId('sa'))
+        ->assertMissing($action.' [data-test="exception-'.PlatformPermissions::STORE_UPDATE.'-cut"]');
+    expect(browserUntil($page, "document.querySelector('[id=\"exception-".PlatformPermissions::STORE_UPDATE.'-store-'.Fx::storeId('sa')."\"]')?.dataset.state === 'checked'"))->toBeTrue();
+
+    $page->click('#access_level-store-'.Fx::storeId('sa'))
+        ->assertSeeIn($action, 'Taken out, no longer in Where It Reaches: Saudi Arabia.');
+
+    // Saving stops, naming the action, and nothing is written.
+    $page->click('button[type="submit"]')
+        ->assertSee('none is chosen for Edit Stores')
+        ->assertPresent($action.' [data-test="exception-'.PlatformPermissions::STORE_UPDATE.'-empty"]');
+    expect(DB::table('access.role_assignment_stores')->where('staff_user_id', $staffId)->count())->toBe(2);
+
+    // Put right - the action works in every store the reach has, the UAE alone - and saved. With
+    // one store there is nothing per action to choose, so the section goes.
+    $page->click('[data-test="exception-'.PlatformPermissions::STORE_UPDATE.'-all"]')
+        ->assertMissing('[data-test="action-stores"]')
+        ->assertMissing('[data-test="exceptions-empty-refusal"]')
+        ->click('button[type="submit"]')
+        ->assertPathIs("/admin/staff/{$staffId}");
+
+    expect(DB::table('access.role_assignment_stores')->where('staff_user_id', $staffId)->pluck('store_id')->all())->toBe([Fx::storeId('ae')])
+        ->and(DB::table('access.role_assignment_exceptions')->where('staff_user_id', $staffId)->exists())->toBeFalse();
+});
+
+it('saves Every Store from chosen stores, keeping an action\'s custom stores inside it (the review of P4)', function () {
+    $staffId = Fx::staff(firstName: 'Reem '.Str::random(6));
+    Fx::assign($staffId, Fx::role([PlatformPermissions::STORE_VIEW, PlatformPermissions::STORE_UPDATE]), ['sa', 'ae'], [PlatformPermissions::STORE_UPDATE => ['sa']]);
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', staffScreenSuperAdminEmail())
+        ->type('#password', STAFF_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+
+    // The ticks stay on the page for going back, but "every store" is sent without a list.
+    $page->navigate("/admin/staff/{$staffId}/role")
+        ->click('#access_level-ALL_STORES')
+        ->click('button[type="submit"]')
+        ->assertPathIs("/admin/staff/{$staffId}")
+        ->assertNoJavaScriptErrors();
+
+    expect(DB::table('access.role_assignments')->where('staff_user_id', $staffId)->value('access_level'))->toBe('ALL_STORES')
+        ->and(DB::table('access.role_assignment_stores')->where('staff_user_id', $staffId)->exists())->toBeFalse()
+        ->and(DB::table('access.role_assignment_exception_stores')->where('staff_user_id', $staffId)->pluck('store_id')->all())->toBe([Fx::storeId('sa')]);
+});
+
+it('invites a member whose one action is kept to some of the stores they reach (amendment 59)', function () {
+    $page = visit('/admin/sign-in')
+        ->type('#email', staffScreenSuperAdminEmail())
+        ->type('#password', STAFF_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $email = 'invited.'.Str::lower(Str::random(8)).'@touchwood.test';
+
+    $page->navigate('/admin/staff/invite')
+        ->type('#first_name', 'Dana')
+        ->type('#last_name', 'Al-Harbi')
+        ->type('#email', $email)
+        ->type('#phone', Fx::phone())
+        ->type('#job_title', 'Buyer')
+        ->type('#date_of_birth', '1993-05-11')
+        ->click('button[type="submit"]')
+        ->assertPresent('[data-test="step-2"][data-state="current"]')
+        ->click('[data-test="permission-'.PlatformPermissions::STORE_UPDATE.'"]')
+        ->click('[data-test="permission-'.PlatformPermissions::STORE_VIEW.'"]')
+        ->click('button[type="submit"]')
+        ->assertSee('Where It Reaches')
+        ->click('#access_level-store-'.Fx::storeId('sa'))
+        ->click('#access_level-store-'.Fx::storeId('ae'))
+        ->click('[data-test="exception-'.PlatformPermissions::STORE_UPDATE.'-custom"]')
+        ->click('[id="exception-'.PlatformPermissions::STORE_UPDATE.'-store-'.Fx::storeId('ae').'"]')
+        ->click('button[type="submit"]');
+
+    // Sent: the new member's own page.
+    expect(browserUntil($page, '/^\/admin\/staff\/[0-9a-z]{26}$/.test(window.location.pathname)'))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+
+    $staffId = (string) DB::table('access.staff_users')->where('email', $email)->value('id');
+
+    expect($page->script('window.location.pathname'))->toBe("/admin/staff/{$staffId}")
+        ->and(DB::table('access.role_assignment_stores')->where('staff_user_id', $staffId)->pluck('store_id')->all())->toEqualCanonicalizing([Fx::storeId('sa'), Fx::storeId('ae')])
+        ->and(DB::table('access.role_assignment_exception_stores')->where('staff_user_id', $staffId)->where('permission', PlatformPermissions::STORE_UPDATE)->pluck('store_id')->all())->toBe([Fx::storeId('ae')]);
+});
+
 it('walks the invitation through its three steps, sending nothing before the last', function () {
     $page = visit('/admin/sign-in')
         ->type('#email', staffScreenSuperAdminEmail())
@@ -140,14 +262,16 @@ it('walks the invitation through its three steps, sending nothing before the las
         ->type('#date_of_birth', '1994-02-17')
         ->click('button[type="submit"]');
 
-    // Step two: still nobody in the table, because the form has not been sent. The step's number,
-    // not a word: "Role" is on every step (the stepper) and in the sidebar too.
-    $page->assertSee('Step 2 of 3')->assertNoJavaScriptErrors();
+    // Step two: still nobody in the table, because the form has not been sent. The step's state,
+    // not a word: "Role" is on every step (the steps) and in the sidebar too.
+    $page->assertPresent('[data-test="step-2"][data-state="current"]')->assertNoJavaScriptErrors();
     expect(DB::table('access.staff_users')->where('email', $email)->exists())->toBeFalse();
 
     // Step three, and still nobody: the whole form is one request, sent at the end.
     $page->click('button[type="submit"]')
         ->assertSee('Where It Reaches')
+        // No store ticked yet: nothing to choose per action (amendment 59).
+        ->assertMissing('[data-test="action-stores"]')
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('access.staff_users')->where('email', $email)->exists())->toBeFalse();

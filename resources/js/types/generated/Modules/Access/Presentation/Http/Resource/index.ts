@@ -319,7 +319,6 @@ mayDisable: boolean,
 mayEnable: boolean,
 mayResendInvitation: boolean,
 mayCancelInvitation: boolean,
-mayRefresh: boolean,
 };
 export type StaffRolePage = {
 staffId: string,

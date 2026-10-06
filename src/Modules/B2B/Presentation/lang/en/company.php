@@ -24,7 +24,12 @@ return [
     'missing_not_accepted' => 'documents no longer accepted (:count)',
     'missing_flagged' => 'items marked in the last decision (:count)',
     'missing_marked' => 'fields not saved or not valid yet',
+    'missing_phone' => 'a confirmed phone number',
     'separator' => ', ',
+
+    // Send waits for the account's confirmed phone number (amendment 26(a)).
+    'phone_note' => 'Send waits for a confirmed phone number. Fill in the form meanwhile: it saves as you go.',
+    'phone_link' => 'Confirm Phone Number',
 
     'start' => 'Start Application',
     'apply_again' => 'Apply Again',
@@ -131,15 +136,31 @@ return [
     'sent' => 'Application sent',
     'discarded' => 'Draft discarded',
 
-    // The side column: the application's lifecycle and nothing else (amendment 16(e)).
+    // The side column: the application's lifecycle and nothing else (amendments 16(e), 26(b)).
     'steps' => [
         'title' => 'Your Application',
         'form' => 'Form',
         'review' => 'Under Review',
         'decision' => 'Decision',
-        'stage' => 'Step :step of :total · :name',
+        'not_started' => 'Not Started',
+        // Not naming the button: it reads otherwise for a company of another store (apply_here).
+        'form_start' => 'Start your application to fill in the form.',
+        'form_now' => 'Fill in your company\'s details and documents, then send.',
+        // The day it was sent is the page's own "Sent :date" (sent_at), as in the main column.
+        'review_now' => 'Our team is checking it. You can browse and fill your cart meanwhile.',
+        'decided' => 'Decided :date',
+        'decision_approved' => 'You can order at company prices.',
+        // The reason is in the status box: beside the card on a wide screen, above it on a phone.
+        'decision_rejected' => 'See the reason on this page, and apply again.',
         'approved' => 'Approved',
         'rejected' => 'Not Approved',
+        // Each step's circle, said in words for a screen reader.
+        'mark' => [
+            'done' => 'done',
+            'upcoming' => 'not reached yet',
+            'good' => 'approved',
+            'bad' => 'not approved',
+        ],
     ],
     // An approved company's bank account, in the main column (amendment 16(e)).
     'payment' => [

@@ -108,14 +108,20 @@ describe('the store a staff member is working in', function () {
             ->toBe(Fx::storeId('ae'));
     });
 
-    it('follows a store an exception adds, not only the row chosen for them', function () {
-        // Their role's stores are KSA; one action reaches the UAE too (access.md §1.5).
-        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa'], exceptions: [PlatformPermissions::STORE_UPDATE => ['sa', 'ae']]);
+    it('follows the row chosen for them, which every action\'s own stores lie inside (amendment 59)', function () {
+        // Their role reaches KSA and the UAE; one action is kept to KSA (access.md §1.5).
+        $staffId = Fx::staffWith([PlatformPermissions::STORE_UPDATE, PlatformPermissions::STORE_VIEW], ['sa', 'ae'], exceptions: [PlatformPermissions::STORE_UPDATE => ['sa']]);
         Fx::actAsStaff($staffId);
 
         chooseStore('ae');
 
         expect(rememberedStore($staffId))->toBe(Fx::storeId('ae'));
+
+        // Not a store an action's own stores name outside the row - here put there by hand, as the
+        // old rule's union would have let them choose it.
+        DB::table('access.role_assignment_exception_stores')->insert(['staff_user_id' => $staffId, 'permission' => PlatformPermissions::STORE_UPDATE, 'store_id' => Fx::storeId('eg')]);
+
+        expect(fn () => chooseStore('eg'))->toThrow(InvalidAccessAttribute::class, 'not one of your stores');
     });
 
     it('is refused to a customer and to a guest', function () {
