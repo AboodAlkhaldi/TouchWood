@@ -47,6 +47,10 @@ return [
         // and one sentence; each row then opens its screen and shows its count.
         'waiting_label' => 'Waiting',
         'waiting_note' => 'Some things need you.',
+        // The cards' scope (frontend.md §2.2; the owner's fix list, point 6).
+        'scope' => 'Scope',
+        'scope_all' => 'All Stores',
+        'scope_store' => 'This Store',
     ],
 
     // The staff view (access.md §1.11): the panel's way to the shop, and the shop's way back. The

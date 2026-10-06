@@ -39,12 +39,15 @@ use Modules\B2B\Infrastructure\Listener\AnonymizeCompany;
 use Modules\B2B\Infrastructure\Listener\WriteStartingTypes;
 use Modules\B2B\Infrastructure\Media\ApplicationFilesUsage;
 use Modules\B2B\Infrastructure\Settings\BankTransferLine;
+use Modules\B2B\Presentation\Home\CompanyApprovalsCard;
 use Modules\B2B\Presentation\Storefront\CompanyShopperLine;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
+use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
 
@@ -116,6 +119,12 @@ final class B2BServiceProvider extends ServiceProvider
             // it can never drift apart.
             new MenuEntryDto('b2b', 'company_types', 'companies', 'b2b.admin.company-types', ViewTypeListsHandler::COMPANY_JOBS, 20, icon: 'company_types'),
             new MenuEntryDto('b2b', 'document_types', 'companies', 'b2b.admin.document-types', ViewTypeListsHandler::DOCUMENT_JOBS, 30, icon: 'document_types'),
+        );
+
+        // Its card on the admin home: who waits for approval, and the companies by status
+        // (amendment 27; the owner, 2026-10-05).
+        $this->app->make(HomeCards::class)->register(
+            new HomeCardDto('b2b', 'approvals', B2BPermissions::COMPANY_VIEW, CompanyApprovalsCard::class, 10),
         );
 
         if (! $this->app->routesAreCached()) {

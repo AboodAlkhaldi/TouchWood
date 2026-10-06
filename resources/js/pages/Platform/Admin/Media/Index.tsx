@@ -37,6 +37,7 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import { useLoadMore } from '@/lib/use-load-more';
 import { useReturnFocus } from '@/lib/use-return-focus';
+import { SWITCH_ITEM, SWITCH_TRACK } from '@/lib/view-switch';
 import type { MediaFileRow, MediaPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 
@@ -93,7 +94,7 @@ export default function Index({ media, nextCreatedAt, nextId, mayUpload, mayUpda
                     onValueChange={(next) => (next === 'table' || next === 'grid' ? setView(next) : undefined)}
                     aria-label={t('platform::admin_media.view')}
                     data-test="view-switch"
-                    className="gap-0.5 rounded-[var(--tw-radius)] bg-surface-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--tw-line)]"
+                    className={SWITCH_TRACK}
                 >
                     <ToggleGroupItem value="table" data-test="view-table" className={SWITCH_ITEM}>
                         {t('platform::admin_media.table')}
@@ -171,9 +172,6 @@ function SizesBadge({ file }: { file: MediaFileRow }) {
         </Badge>
     );
 }
-
-/** Geist's Switch items: the chosen one raised on the track. */
-const SWITCH_ITEM = 'h-8 rounded-[calc(var(--tw-radius)-2px)] px-3 text-label-13 text-ink-muted hover:bg-transparent hover:text-ink data-[state=on]:bg-surface data-[state=on]:text-ink data-[state=on]:shadow-[var(--tw-shadow-small)]';
 
 /** A value that is not known or not shown: Geist's em dash. */
 function Unknown() {

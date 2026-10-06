@@ -47,6 +47,10 @@ return [
         // and one sentence; each row then opens its screen and shows its count.
         'waiting_label' => 'بانتظارك',
         'waiting_note' => 'هناك ما يحتاج إليك.',
+        // نطاق البطاقات (frontend.md §2.2).
+        'scope' => 'النطاق',
+        'scope_all' => 'كل المتاجر',
+        'scope_store' => 'هذا المتجر',
     ],
 
     // The staff view (access.md §1.11): the panel's way to the shop, and the shop's way back. The

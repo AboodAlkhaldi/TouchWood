@@ -79,6 +79,14 @@ $this->app->make(MediaUsages::class)->register('catalog', ProductImageUsage::cla
 new MenuEntryDto('platform', 'failed_jobs', 'system', 'platform.admin.failed_jobs',
     PlatformPermissions::JOBS_MANAGE, 10, icon: 'failed_jobs', count: FailedJobsCount::class);
 
+// A card on the admin home (§2.6): a HomeCard class works out its figures for the scope - one store
+// or all stores - and asks the Authorizer itself, as any read across stores does. `permission`
+// holds per-store actions; store-free ones go in `storeFree`, which show the card but never offer
+// All Stores (a test holds every registration to its actions' kinds). Words at `{module}::home.{key}`.
+$this->app->make(HomeCards::class)->register(
+    new HomeCardDto('b2b', 'approvals', B2BPermissions::COMPANY_VIEW, CompanyApprovalsCard::class, 10),
+);
+
 // Queued work is named on the failed jobs screen in your module's words: one line per queued class
 // in Presentation/lang/{ar,en}/jobs.php — AnonymizeCompany at `anonymize_company`, a trailing "Job"
 // left off. And it states its tries (`public int $tries = 3;`), which the screen shows. A test fails
@@ -94,7 +102,7 @@ ids only and are dispatched after the transaction commits.
 
 | Folder | Contents |
 |---|---|
-| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `OffStoreViewers` and `OffStoreViewer` (who may see an off store in the shop), `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
+| `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `HomeCards` and `HomeCard` (the admin home's cards), `OffStoreViewers` and `OffStoreViewer` (who may see an off store in the shop), `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
 | `Domain/Model` | `Store`, `Currency`, `Media`: plain PHP classes holding the rules, with no Laravel inside. |
 | `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. |
 | `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |
@@ -105,8 +113,9 @@ ids only and are dispatched after the transaction commits.
 | `Application/Media` | What media needs from the outside world, as interfaces (storage, file inspection, resizing, the queue), plus `MediaSettings` (the upload-limit declarations) and `InspectedFile`. |
 | `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached) and `MediaReader`. |
 | `Application/FailedJobs` | `FailedJobs`, the queue's failed work as an interface (a page of summaries, read, lock, whether it can be retried, requeue, forget), `FailedJob`, `FailedJobSummary`, and `FailedJobsCount`, the menu's count. |
+| `Application/Home` | `InMemoryHomeCards`, the admin home's cards and who may see each. |
 | `Infrastructure/` | Eloquent and query-builder repositories, caching, the audit writer, Laravel disks, Intervention Image, the queued job, migrations and the service provider. |
-| `Presentation/` | The `store` middleware, the country-choice page, a placeholder store home page, console commands, Arabic and English translations. |
+| `Presentation/` | The `store` middleware, the country-choice page, a placeholder store home page, Platform's own home card (`Home/StoresAndSystemCard`), console commands, Arabic and English translations. |
 
 ---
 

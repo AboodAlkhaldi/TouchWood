@@ -153,6 +153,33 @@ export type EmailChangePage = {
 token: string,
 newEmail: string,
 };
+export type HomeCardBlock = {
+key: string,
+title: string,
+figures: HomeFigureBlock[],
+rows: HomeRowBlock[],
+rowsLabel: string | null,
+href: string | null,
+openLabel: string | null,
+};
+export type HomeFigureBlock = {
+label: string,
+value: number,
+unit: string,
+href: string | null,
+tone: string | null,
+};
+export type HomePage = {
+scope: string,
+offersAllStores: boolean,
+cards: HomeCardBlock[],
+};
+export type HomeRowBlock = {
+label: string,
+detail: string | null,
+at: string | null,
+href: string | null,
+};
 export type InvitationPage = {
 token: string,
 name: string,
