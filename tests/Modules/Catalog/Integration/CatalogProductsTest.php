@@ -91,25 +91,31 @@ function catalogProductsSlugs(string $productId): array
 }
 
 describe('creating', function () {
-    it('takes catalog.product.create in the store it is created from, which must be on', function () {
-        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_CREATE], ['sa']);
-        $ae = Fx::storeId('ae');
+    it('takes catalog.product.create in some store that is on, and asks no store (amendment 13(f))', function () {
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_CREATE], ['eg']);
 
-        expect(app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), 'درج')))->toBeString()
-            ->and(fn () => app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('eg'), 'درج آخر')))->toThrow(Unauthorized::class)
-            ->and(fn () => app(CreateProductHandler::class)->handle(new CreateProduct('not-a-store', 'درج آخر')))->toThrow(Unauthorized::class);
+        expect(app(CreateProductHandler::class)->handle(new CreateProduct('درج')))->toBeString();
 
         Cx::actAsStaffWith([CatalogPermissions::PRODUCT_CREATE]);
+
+        expect(app(CreateProductHandler::class)->handle(new CreateProduct('درج آخر')))->toBeString();
+
+        // The job held only in a store that is off, or not at all: refused, nothing made.
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_CREATE], ['ae']);
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('ae')));
 
-        expect(fn () => app(CreateProductHandler::class)->handle(new CreateProduct($ae, 'درج ثالث')))->toThrow(InvalidCatalogAttribute::class, 'store')
-            ->and(DB::table('catalog.products')->count())->toBe(1);
+        expect(fn () => app(CreateProductHandler::class)->handle(new CreateProduct('درج ثالث')))->toThrow(Unauthorized::class);
+
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE]);
+
+        expect(fn () => app(CreateProductHandler::class)->handle(new CreateProduct('درج رابع')))->toThrow(Unauthorized::class)
+            ->and(DB::table('catalog.products')->count())->toBe(2);
     });
 
     it('makes a draft from the Arabic name alone, on the default brand, with no English address yet', function () {
         Cx::actAsStaffWith([CatalogPermissions::PRODUCT_CREATE]);
         $locks = Cx::recordLocks();
-        $id = app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), 'درج تخزين ملابس'));
+        $id = app(CreateProductHandler::class)->handle(new CreateProduct('درج تخزين ملابس'));
         $product = app(ProductRepository::class)->find($id);
 
         expect($product?->stage()->value)->toBe('DRAFT')
@@ -122,21 +128,21 @@ describe('creating', function () {
 
     it('makes both addresses from both names, and refuses an English address without an English name', function () {
         Cx::actAsStaffWith([CatalogPermissions::PRODUCT_CREATE]);
-        $id = app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), 'مفصلة هادئة', 'Soft Hinge'));
+        $id = app(CreateProductHandler::class)->handle(new CreateProduct('مفصلة هادئة', 'Soft Hinge'));
 
         expect(catalogProductsSlugs($id))->toBe(['ar' => 'مفصلة-هادئة', 'en' => 'soft-hinge'])
-            ->and(fn () => app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), 'مقبض', slugEn: 'handle')))->toThrow(InvalidCatalogAttribute::class, 'slug_en');
+            ->and(fn () => app(CreateProductHandler::class)->handle(new CreateProduct('مقبض', slugEn: 'handle')))->toThrow(InvalidCatalogAttribute::class, 'slug_en');
     });
 
     it('refuses an address another product holds, an unknown brand and a deactivated one', function () {
         Cx::actAsStaffWith([CatalogPermissions::PRODUCT_CREATE]);
-        app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), 'مفصلة هادئة', 'Soft Hinge'));
+        app(CreateProductHandler::class)->handle(new CreateProduct('مفصلة هادئة', 'Soft Hinge'));
         $off = Px::brand('Off');
         Fx::asSystem(fn () => app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($off)));
 
-        expect(fn () => app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), 'مفصلة هادئة')))->toThrow(SlugTaken::class)
-            ->and(fn () => app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), 'مقبض', brandId: '01j8z3k4m5n6p7q8r9s0t1v2w3')))->toThrow(BrandNotFound::class)
-            ->and(fn () => app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), 'مقبض', brandId: $off)))->toThrow(BrandInactive::class)
+        expect(fn () => app(CreateProductHandler::class)->handle(new CreateProduct('مفصلة هادئة')))->toThrow(SlugTaken::class)
+            ->and(fn () => app(CreateProductHandler::class)->handle(new CreateProduct('مقبض', brandId: '01j8z3k4m5n6p7q8r9s0t1v2w3')))->toThrow(BrandNotFound::class)
+            ->and(fn () => app(CreateProductHandler::class)->handle(new CreateProduct('مقبض', brandId: $off)))->toThrow(BrandInactive::class)
             ->and(DB::table('catalog.products')->count())->toBe(1);
     });
 });
@@ -242,7 +248,7 @@ describe('deleting a draft', function () {
             ->and(Fx::audits('catalog.variant.deleted', $variant))->toBe(1);
 
         // Another product takes the freed address and code.
-        $next = app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), str_replace('-', ' ', $slugs['ar'])));
+        $next = app(CreateProductHandler::class)->handle(new CreateProduct(str_replace('-', ' ', $slugs['ar'])));
 
         expect(catalogProductsSlugs($next)['ar'])->toBe($slugs['ar'])
             ->and(Px::variant($next, '1304'))->toBeString();

@@ -48,7 +48,6 @@ use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\ValueObject\VariantDetail;
 use Modules\Catalog\Public\Enums\AttributeKind;
 use Modules\Platform\Public\Contracts\PlatformApi;
-use Modules\Platform\Public\Dto\StoreDto;
 use Throwable;
 
 /**
@@ -118,14 +117,12 @@ final readonly class ImportBringer
         $created = $this->createLists($names, $catalog, $rows);
         $default = $this->brands->defaultBrand()?->id() ?? throw new LogicException('No default brand: the seed makes one.');
         $references = new ImportReferences($catalog, $names, $created, $default);
-        // Products are made from a store that is on, as in the panel (amendment 3(j)); the first will do.
-        $store = $this->platform->stores()[0] ?? null;
         $photos = new ImportPhotos($this->platform, $files);
         $results = [];
         $counts = ['IN' => 0, 'UPDATED' => 0, 'REPLACED' => 0, 'SKIPPED' => 0, 'HELD' => 0];
 
         foreach ($rows as $row) {
-            [$productId, $state] = $this->step("product {$row->number}", fn (): array => $this->bringInOne($row, $references, $store, $photos));
+            [$productId, $state] = $this->step("product {$row->number}", fn (): array => $this->bringInOne($row, $references, $photos));
             $results[$row->id] = ['product_id' => $productId, 'state' => $state];
             $counts[$state]++;
         }
@@ -138,7 +135,7 @@ final readonly class ImportBringer
     /**
      * @return array{string|null, string} the product it became, and its state
      */
-    private function bringInOne(ImportProduct $row, ImportReferences $references, ?StoreDto $store, ImportPhotos $photos): array
+    private function bringInOne(ImportProduct $row, ImportReferences $references, ImportPhotos $photos): array
     {
         if ($row->decision === ImportProduct::SKIP) {
             return [null, 'SKIPPED'];
@@ -160,7 +157,7 @@ final readonly class ImportBringer
         $result = match ($row->decision) {
             ImportProduct::UPDATE => [$this->update((string) $row->conflictProductId, $product, $resolved, false, $photos), 'UPDATED'],
             ImportProduct::REPLACE => [$this->update((string) $row->conflictProductId, $product, $resolved, true, $photos), 'REPLACED'],
-            default => [$this->create($product, $row->newCodes ?? [], $resolved, $store, $photos), 'IN'],
+            default => [$this->create($product, $row->newCodes ?? [], $resolved, $photos), 'IN'],
         };
 
         // Taken off sale as the Super Admin chose (amendment 9(c)): off in every store, still ready.
@@ -286,10 +283,9 @@ final readonly class ImportBringer
      * @param  array<string, string>  $newCodes  each code it gives up => its new one
      * @param  array{brand: string, givenBrand: string|null, category: string|null, warranty: string|null, set: string|null, variants: list<array{values: array<string, string>, details: array<string, array<string, string>>, file: FileVariant}>, filters: list<string>}  $resolved
      */
-    private function create(FileProduct $product, array $newCodes, array $resolved, ?StoreDto $store, ImportPhotos $photos): string
+    private function create(FileProduct $product, array $newCodes, array $resolved, ImportPhotos $photos): string
     {
-        $storeId = ($store ?? throw new InvalidCatalogAttribute('store', 'a store that is on'))->id;
-        $id = $this->createProduct->handle(new CreateProduct($storeId, $product->nameAr, $product->nameEn, $resolved['brand'], $product->slugAr, $product->slugEn));
+        $id = $this->createProduct->handle(new CreateProduct($product->nameAr, $product->nameEn, $resolved['brand'], $product->slugAr, $product->slugEn));
         $this->editDetails->handle(new EditProductDetails($id, $product->nameAr, $product->nameEn, $resolved['brand'], $product->slugAr, $product->slugEn, $product->descriptionAr, $product->descriptionEn, $resolved['category'], $resolved['warranty'], $resolved['set']));
 
         foreach ($resolved['variants'] as $position => $variant) {

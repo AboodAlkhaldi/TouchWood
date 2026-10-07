@@ -403,7 +403,7 @@ describe('the details\' limit', function () {
 
 describe('every number in Latin digits (amendment 12)', function () {
     it('saves what is typed in Arabic digits as 0-9: a name, a typed slug, a code — the same code as 1304 — and a detail', function () {
-        $product = Fx::asSystem(fn (): string => app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), 'درج ٦٠ سم', 'Drawer ۶۰ cm', Px::brand(), slugAr: 'درج-٦٠')));
+        $product = Fx::asSystem(fn (): string => app(CreateProductHandler::class)->handle(new CreateProduct('درج ٦٠ سم', 'Drawer ۶۰ cm', Px::brand(), slugAr: 'درج-٦٠')));
         $load = Px::attribute('Load', 'INFORMATIONAL');
         $variant = catalogVariantsAdd($product, '١٣٠٤', ['details' => [$load => ['number' => '٢٥']]]);
 

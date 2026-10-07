@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application\Command\CreateProduct;
 
-use InvalidArgumentException;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Lists\SharedListChange;
@@ -24,9 +23,10 @@ use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * **Creating a product** (catalog.md §1.1, §3): `catalog.product.create` in the staff member's
- * working store, which must be on (amendment 3(j)). A draft, Active nowhere, on an active brand;
- * its slugs free among products, now and ever. Under the products' lock.
+ * **Creating a product** (catalog.md §1.1, §3): `catalog.product.create` in **some store that is on**
+ * - no store is asked, the panel having no store worked in (amendment 13(f), replacing 3(j)'s working
+ * store). A draft, Active nowhere, on an active brand; its slugs free among products, now and ever.
+ * Under the products' lock.
  */
 final readonly class CreateProductHandler
 {
@@ -48,17 +48,7 @@ final readonly class CreateProductHandler
      */
     public function handle(CreateProduct $command): string
     {
-        try {
-            $store = StoreId::fromString($command->storeId);
-        } catch (InvalidArgumentException) {
-            throw new Unauthorized(self::PERMISSION);
-        }
-
-        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
-
-        if ($this->platform->store($store)?->isActive !== true) {
-            throw new InvalidCatalogAttribute('store', 'a store that is on');
-        }
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($this->storeThatIsOn()));
 
         [$name, $slugs] = ProductInput::names($command->nameAr, $command->nameEn, $command->slugAr, $command->slugEn);
         $id = $this->products->nextId();
@@ -74,5 +64,34 @@ final readonly class CreateProductHandler
 
             return [$id, [ListAudit::added('product', $id, $product->snapshot())]];
         });
+    }
+
+    /**
+     * The first store that is on where the reader holds the job - with All stores, the first store
+     * that is on.
+     *
+     * @throws Unauthorized when the reader holds the job in no store that is on
+     */
+    private function storeThatIsOn(): StoreId
+    {
+        $held = $this->authorizer->storesWith(self::PERMISSION);
+
+        if ($held === []) {
+            throw new Unauthorized(self::PERMISSION);
+        }
+
+        $holds = [];
+
+        foreach ($held ?? [] as $store) {
+            $holds[$store->value] = true;
+        }
+
+        foreach ($this->platform->stores() as $store) {
+            if ($held === null || isset($holds[strtolower($store->id)])) {
+                return StoreId::fromString($store->id);
+            }
+        }
+
+        throw new Unauthorized(self::PERMISSION);
     }
 }

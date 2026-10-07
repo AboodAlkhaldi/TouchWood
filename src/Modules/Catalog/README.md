@@ -134,8 +134,9 @@ the products' lock.
 **Who may.** `ProductAccess` asks for the permission in every store where the product is Active
 (catalog.md §1.1): first in some store, before anything is read; then, inside the change once the
 product's row is locked, in each store where any of its variants is switched on (step 4,
-`authorizeFor`). A product Active nowhere needs it in some store only. Creating checks the creator's
-working store, which must be on (amendment 3(j)); deleting a draft, making one ready and restoring
+`authorizeFor`). A product Active nowhere needs it in some store only. Creating asks no store: the
+job in some store that is on (amendment 13(f), replacing 3(j)'s working store); deleting a draft,
+making one ready and restoring
 reach only products Active nowhere.
 
 | Handler | Permission | What it keeps |
@@ -452,7 +453,7 @@ reader's grants from the cache table — and 9 since #108.
 | `Integration/CatalogSmallListsTest` | Labels, warranties and word pairs, including a pair the database's language order would sort the other way |
 | `Integration/CatalogImagesUsageTest` | Deleting a logo or photo's file: detached and audited, or refused with nothing changed |
 | `Integration/CatalogAuditNamesTest` | Every action the code records is named in both languages, and nothing else is |
-| `Integration/CatalogProductsTest` | Creating and editing a product: who may, the working store on, names and slugs, what it points at, the set fixed once it has a variant, deleting a draft, the database's CHECKs |
+| `Integration/CatalogProductsTest` | Creating and editing a product: who may, the job in some store that is on (amendment 13(f)), names and slugs, what it points at, the set fixed once it has a variant, deleting a draft, the database's CHECKs |
 | `Integration/CatalogVariantsTest` | Combinations, details and measures; codes held, shared by sizes, taken, freed by a draft and corrected on every variant carrying them; a name, slug, code and detail typed in Arabic digits saved 0-9 |
 | `Integration/CatalogListsInUseTest` | A list item a product or variant uses: not deleted, a category's sub-categories, a set's members, an attribute's job |
 | `Integration/CatalogProductPartsTest` | Gallery and variant photos, search words, filter values, relations; a photo's file deleted from the media library |

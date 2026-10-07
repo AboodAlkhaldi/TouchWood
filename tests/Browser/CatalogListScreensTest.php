@@ -103,7 +103,7 @@ it('adds a brand from its dialog, and deactivates another after reading the prod
     // Two brands, each its own number: the first one ever made is the default, which never goes (§1.6).
     catalogListBrowserBrand(catalogListBrowserFresh(), 'Keep');
     $brand = catalogListBrowserBrand(catalogListBrowserFresh(), 'Leaving');
-    $product = Fx::asSystem(fn (): string => app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), "درج {$n}", "Drawer {$n}", $brand)));
+    $product = Fx::asSystem(fn (): string => app(CreateProductHandler::class)->handle(new CreateProduct("درج {$n}", "Drawer {$n}", $brand)));
 
     $page = catalogListBrowser([P::BRAND_MANAGE]);
     $page->navigate('/admin/brands', BROWSER_PAGE_LOAD);
