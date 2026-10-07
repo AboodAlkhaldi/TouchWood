@@ -8,10 +8,15 @@
 
 **Status:** **APPROVED** by the owner, 2026-10-02 (§9.1 #43); the import's file format written with
 the owner on 2026-10-05 (amendment 6); **being built** from 2026-10-02 (`src/Modules/Catalog/README.md`). Changes from here on are
-amendments and need the owner's agreement.
+amendments and need the owner's agreement. **The backend is built** (steps 1–7, `main` since #91, and
+amendment 12); **its screens** — the admin's and the shop's — are specified in §4.4 and §4.5
+(amendment 13, 2026-10-07), with the owner's rule on individuals and companies (§1.13, amendment 14),
+and built from 2026-10-07.
 **Tier:** 1 (commerce core). **Build stage:** 4 (handoff §17).
 **Depends on:** Platform, and Access's public surface for declaring permissions only (§2.4,
-**[DECIDED 2026-10-02]** — a change to handoff §4.4 and `deptrac.yaml`).
+**[DECIDED 2026-10-02]** — a change to handoff §4.4 and `deptrac.yaml`); its screens, from its
+Presentation layer, on the framework glue in `app/Http` as every module's screens do (owner,
+2026-10-07, amendment 13(d)).
 **Needs from shared plumbing:** nothing new. Catalog consumes events (§6.2), but each of its listeners
 is written to do its work once however often it runs, as B2B's are, so `processed_events` is still not
 needed **[ACCEPTED 2026-10-02, §9.3 #1]**.
@@ -484,6 +489,54 @@ brought in, is not (owner, 2026-10-06, amendment 10(b)).
   provider they are then ignored with a warning (handoff §9.1).
 - **The admins' file that fills one store** (§1.3) is a separate, smaller page, under its own job.
 
+### 1.13 Individuals and companies (amendment 14)
+
+**The owner's rule** (2026-10-07, relayed from the stage 5 session and confirmed by the owner to this
+one): "we dont have two kind of pricings, the individuals can only buy retail only, the wholesale is
+only for companies, so we dont have a special companies prices ... the prices are same all across
+system but the individual person can only purchase from retail products (and also he can only see
+selected categories) but companies can see and buy both retail and wholesale with also selected
+categories, so we can as admins select the individual and company accounts buyable things and also
+what also reachable". The handoff's side of it — one price for everyone, wholesale for companies only,
+reversing handoff §6's "wholesale is public" — is written by the stage 5 pull request (#97, handoff
+§0.1 and §6; not yet merged when this was written, so handoff §6 on `main` still reads the old rule);
+Catalog's side is here.
+
+- **In each store, admins choose which categories individuals see and which companies see**
+  (owner's clarification: "by categories, per store … a category brings everything under it").
+  Two switches per category per store, **Individuals** and **Companies**, under a new job,
+  **`catalog.category.audience`, admin roles only** (owner, 2026-10-07, #4: "admins pick"; declared
+  `adminOnly`, as `catalog.listing.fill` is).
+- **A category nobody has switched is seen by both** — a new category, and every category of a store
+  opened later (owner, 2026-10-07, #3: nothing disappears by surprise). **Switching a parent switches
+  everything under it the same way; a sub-category may then be switched on its own** (#5). A product
+  is seen by a kind of account where **its own category** is on for it. **A sub-category added, or
+  moved, under a parent takes that parent's switches in every store**, as switching the parent would
+  have given it — otherwise one added later under a parent switched off for individuals would show
+  to them **[PROPOSED P24]**.
+- **Individuals buy retail only; companies buy retail and wholesale.** A company that is pending,
+  rejected or suspended **sees the company side** — the companies' categories and the wholesale side
+  — and orders only once that store approves it (B2B's rule, unchanged). **Guests see everything**,
+  individuals' and companies' alike ("he can see everything … but when registering or login he will
+  be limited to his profile") — what either kind of account sees, so a category switched off for both
+  is seen by no one **[PROPOSED P25]**; a staff member viewing the shop is a guest (access.md §1.11). What a
+  guest may put in a cart, and what happens to it at sign-in, is Sales' question (stage 6), not
+  Catalog's.
+- **What an individual is shown** (#6): only a product with at least one variant on sale **retail**
+  in that store, and of it only those variants; **a product whose variants there all sell wholesale
+  only is not shown to individuals at all** — not listed, searched or suggested; a link to it shows
+  "Not available now" (§1.4) **[PROPOSED P18]**. Its retail minimum and maximum apply; the wholesale
+  ones are not shown.
+- **What a card shows** (#7): the price of **the first variant this viewer can buy** — switched on,
+  orderable now, priced, in the product's own order (§2.2, amendment 15). An individual's card may
+  therefore show another variant's price than a company's.
+- **Who is looking** is asked of **Platform's `ShopperType`** — guest, individual or company — which
+  Access fills from the signed-in customer's account type (owner, 2026-10-07, #2), as Access fills
+  Platform's `StaffNames`: Catalog never reaches into Access for it (handoff §4.4).
+- **Search, the menu, category and brand pages, suggestions and a product's page** all answer for the
+  viewer's kind, from the listing's own rows (§5.4): each row says whether individuals and companies
+  see it, and holds each side's card price.
+
 ---
 
 ## 2 · Public contract
@@ -517,9 +570,29 @@ inside their own transaction, so a list is never stale and every dependency stil
 `orderable(StoreId, list<variantId>, bool)`, `prices(StoreId, map variantId → Money|null)`,
 `salesRanks(StoreId, map productId → int)`. Until stage 5, orderable follows §1.3. **Step 5 declares
 the interface only; where these facts are kept, and which price a card shows, come with stage 5,
-which first calls it** (owner, 2026-10-05, amendment 5(i)). Every change rewrites a product's
+which first calls it** (owner, 2026-10-05, amendment 5(i)) — **now proposed below** (amendment 15):
+Catalog keeps them and picks the card's variant, built with the shop's pages (P22). Every change rewrites a product's
 listing rows from Catalog's own tables, so a pushed fact is kept where that writer reads it — its
 own table — never only in the listing's columns, which the next change would write over.
+
+**The prices, as stage 5 proposes them** (amendment 15, 2026-10-07 — the stage 5 session's
+proposal, for the owner's OK with Pricing's own spec, #97) **[PROPOSED P22]**:
+
+- `prices(StoreId $store, array $prices)` takes, per **variant**, a `ListingPrice` or `null` (no price:
+  not on sale there, §1.3 from stage 5). `ListingPrice` — a new `Public/Dto` — holds `Money $now`,
+  what one piece costs now in that store (the lowest applicable price — base, sale, campaign, category
+  discount — never a quantity price), and `?Money $before`, the base price **only while `$now` is
+  lower** (the owner: during a sale, the old price crossed out beside the new one); both without VAT.
+- Catalog keeps what is pushed in its own table (`store_variant_facts`, §5.2) and **chooses the card's
+  variant** itself: **the first, in the product's own order, switched on in the store, orderable now and
+  priced — and buyable by the viewer** (owner, 2026-10-07, #7; amendment 14). The listing keeps that
+  price, and its old price, **for each side** — companies and guests; individuals (§5.4) — and the
+  price filter and sort read them.
+- Pricing pushes inside its own transaction, only the variants that changed, one store a call. Catalog
+  builds the receiving side — the table, the listing's columns, `ListingFacts` bound — with the shop's
+  pages (§4.5), so stage 5 has something to call; until then every price is empty and nothing shows
+  one (amendment 5(b)). **Open, for the owner** (from stage 5): what a company's card shows when its
+  first variant sells wholesale only — stage 5 would push the same one-piece price.
 
 ### 2.3 The import's sections — added by the modules above **[DECIDED 2026-10-02]**
 
@@ -533,9 +606,13 @@ once, that prices and stock were not kept.
 
 | From | What | State |
 |---|---|---|
-| Access | **Declaring Catalog's permissions** in `PermissionCatalog`, in the `Catalog` group | **Done in step 1** (PR #77): `deptrac.yaml` lets Catalog's interior use Access's public surface, and `tests/Architecture/CatalogAccessUseTest.php` holds it to the five permission classes. Access itself is not changed by Catalog (owner, 2026-10-03: "the access is well working so we don't have to mess with it") |
+| Access | **Declaring Catalog's permissions** in `PermissionCatalog`, in the `Catalog` group | **Done in step 1** (PR #77): `deptrac.yaml` lets Catalog's interior use Access's public surface, and `tests/Architecture/CatalogAccessUseTest.php` holds it to the five permission classes. Access itself is not changed by Catalog (owner, 2026-10-03: "the access is well working so we don't have to mess with it") — **but for one binding**: Access fills Platform's `ShopperType` (below; owner, 2026-10-07, amendment 14(a)), as it fills `StaffNames`; Catalog still uses nothing of Access beyond declaring its permissions |
 | Platform | Stores, settings, the audit log, `MediaUsages` (photos and logos are detachable uses), `uploadMediaFor` (staff upload photos under Catalog's own permission) | Exists |
 | Platform | **Photo addresses for product cards** — `mediaUrls()` reads one media row per call (`DatabaseMediaReader::urls`) | **No Platform change [ACCEPTED 2026-10-02, §9.3 #17]**: Catalog asks `mediaUrls()` when it writes a listing row and keeps the card photo's addresses in that row, refreshed on `MediaVariantsReady`, so a product grid reads no media at all. A change of CDN address is followed by the repair job (§3) |
+| Platform | **Photo addresses for a page of photos at once** — the shop's product page (§4.5) | **A Platform addition** (owner, 2026-10-07, #10): one read answering the addresses of a list of media ids, so a product page reads its gallery in one query, not one per photo (today `mediaUrls()` reads one row a call). Platform's own amendment (`PlatformApi::mediaUrlsOf`), built with the first screens, step 1: the lists' logos and photos are read the same way |
+| Platform | **Who is looking in the shop** — a guest, an individual or a company (§1.13) | **A Platform contract, `ShopperType`, that Access fills** from the signed-in customer's account type (owner, 2026-10-07, #2), as Access fills `StaffNames`; Platform's own answer, until Access binds it, is "guest". Platform's and Access's amendments, built with amendment 14 |
+| Platform | **The shop frame's parts** — the category menu and the search box on every shop page (§4.5) | **A small Platform list** a module adds to, shared with every shop page (owner, 2026-10-07, #9), as B2B's shopper lines are added through Access. Platform's amendment, built with the shop's pages |
+| Platform | **Staff names** on the import's pages (§4.4 S11) | **Exists**: `StaffNames::forReader`, which Access binds — a Super Admin named only to another Super Admin (owner, 2026-10-07, Q5) |
 | Platform | **On stores only**: the store switch (platform.md §1.6) | **Exists** since the overnight stack reached `main` (#76, 2026-10-03): `StoreDto::$isActive` and `$isBase`, and the `StoreActivated` / `StoreDeactivated` events. Shoppers see only stores that are on; **staff prepare a store that is off** — its products, selling terms, labels and menu order (owner, 2026-10-04, amendment 4(e), (f)); an off store's rows stay, as its history does |
 
 ### 2.5 DTOs and enums
@@ -549,12 +626,13 @@ Plain `final readonly` classes (handoff §4.3). Enums stored as strings: `Produc
 ## 3 · Use cases
 
 **[DECIDED 2026-10-02] One permission per job, any role** — staff or admin — may be given any of them;
-none is admin-only. **The shared lists use one permission each.** Names below are my proposal
+none is admin-only — **but two since**: the store file's `catalog.listing.fill` (amendment 6(h)) and
+who sees a category, `catalog.category.audience` (amendment 14(c)). **The shared lists use one permission each.** Names below are my proposal
 **[ACCEPTED 2026-10-02, §9.3 #18]**; all in the `Catalog` group.
 
 | Use case | Permission | Scope |
 |---|---|---|
-| `CreateProduct` — a draft, Active nowhere | `catalog.product.create` | The staff member's working store, which must be on (amendment 3(j)) |
+| `CreateProduct` — a draft, Active nowhere | `catalog.product.create` | ~~The staff member's working store, which must be on (amendment 3(j))~~ **Some store that is on** — no store is asked: the panel has no store worked in any more (owner, 2026-10-07, Q6, amendment 13(f)) |
 | `UpdateProduct` — names, slugs, description, brand, category, warranty, search words, gallery, relations; `AddVariant`, `UpdateVariant`, `ArchiveVariant`, `RestoreVariant` | `catalog.product.update` | **Every store where the product is Active**; any store when it is Active nowhere |
 | `CorrectVariantCode` | `catalog.variant.correct_code` | As `UpdateProduct` |
 | `MarkProductReady` | `catalog.product.publish` | Some store: a draft is Active nowhere (amendment 4(l)) |
@@ -566,6 +644,10 @@ none is admin-only. **The shared lists use one permission each.** Names below ar
 | `AttachLabels` | `catalog.listing.labels` | That store |
 | The admins' store file (§1.3, amendment 6(g)) — `UploadStoreFill`, `CorrectStoreFillCode`, `RemoveStoreFillItems`, `SwitchOnStoreFillItems`; reading its page and the store's files (`ViewStoreFill`, `ListStoreFills`) | `catalog.listing.fill`, **admin roles only, enforced** (amendment 6(h); access.md amendment 62) | That store |
 | `RankCategories` | `catalog.category.rank` | That store |
+| `SetCategoryAudiences` — which categories individuals see and which companies see in the store, a parent's switch carried to everything under it (§1.13, amendment 14) | `catalog.category.audience`, **admin roles only** (declared `adminOnly`, as `catalog.listing.fill`) | That store |
+| `UploadCatalogImage` — a photo chosen on a screen, uploaded to Platform's library before the form that uses it is saved (§4.4) | The job of what it is for: a list's job with All stores (a logo, a category's photo); `catalog.product.update` (a product's or a variant's) | A list's: All stores. A product's: Catalog checks the job in every store where the product is Active itself, as `UpdateProduct` does, then gives Platform's `uploadMediaFor` — which takes one scope — one of those stores, or a store where the reader holds the job when it is Active nowhere |
+| The screens' reads (§4.4): `ListBrands`, `ListCategories`, `ListAttributes`, `ViewAttribute`, `ListVariations`, `ListLabels`, `ListWarranties`, `ListWordPairs`, `ProductsReached` | The list's job | Any store; `ProductsReached` All stores |
+| `ListSearchesWithNoResults` | `catalog.search_word.manage` | All stores |
 | Category tree: add, rename, move, deactivate (with each product's choice), activate, delete | `catalog.category.manage` | All stores |
 | Brands: add, edit, make default, deactivate (with each product's choice), activate, delete | `catalog.brand.manage` | All stores |
 | Attributes, values, attribute sets, colours | `catalog.attribute.manage` | All stores |
@@ -617,6 +699,428 @@ the variant or its product makes it Inactive.
 `active ⇄ inactive`, each deactivation carrying each product's choice (§1.5, §1.6); deleted only when
 unused.
 
+### 4.4 The admin screens (amendment 13)
+
+**Written 2026-10-07** (amendment 13). What the owner answered is cited as such; everything marked
+**[PROPOSED Pn]** is mine, listed in §9.7 — **built as recommended on the owner's word** ("B",
+2026-10-07: build straight away, the owner reviewing the specs with the built screens, any change
+coming as a fix). The use cases
+behind every button are §3's, unchanged unless a line here says so. A screen offers only what the
+reader may do next — **what a reader may do is answered by an Application query**, never by the
+screen asking the authorizer (`tests/Architecture/AccessDecisionsTest`) — and every handler asks
+again (handoff §19). A page someone may not open is the error page; a button someone may not press
+is refused where they pressed it.
+
+**What every screen keeps** (frontend.md §1.8–§1.11, §2.2):
+
+- **Geist's rules on shadcn's code**, never rebuilt: the page frame (a title, a one-line subtitle,
+  one main action), tables in `material-base`, a row's ⋯ menu with the destructive item last, a
+  dialog's main button repeating its title's verb, a toast answering a destructive button with the
+  same verb ("Delete Brand" → "Brand deleted"), a button that cannot be pressed shown disabled with
+  its reason. Status badges in words as well as colour: **Active** green-subtle, **Inactive**
+  gray-subtle; a product's stage **Draft** gray-subtle, **Ready** green-subtle, **Archived**
+  amber-subtle **[PROPOSED P3]**.
+- **Every number in 0-9**, typed Arabic digits turned into 0-9 as they are typed (frontend.md §1.8,
+  `toLatinDigits`); **every moment through `Time`**, in the zone of the store the screen shows, else
+  the base store's (frontend.md §1.10).
+- **Every store screen has its own store filter** (`?store=<code>`, frontend.md §2.2; `StoreChoices`):
+  the stores where the reader holds that screen's job, a Super Admin's off stores marked Off; no
+  filter at all for one store.
+- **Names in the page's language first**, the other language beside it; a list's place as a narrow
+  "#" column (as b2b.md amendment 25).
+- **The words** in `src/Modules/Catalog/Presentation/lang/{ar,en}/admin_*.php` and `menu.php`,
+  formal Arabic (frontend.md §1.10); **refusals are §7's**, shown as the built screens show them
+  (frontend.md §2.1: under the field they name, else at the top of the form, and as a toast).
+- **A product's code is staff's**: shown in the panel in Geist's mono figures, never on a shop page
+  (amendment 5(d)).
+
+**Where they are.** Admin routes in `Presentation/admin-routes.php`, named `catalog.admin.*` — the
+panel's route list carries them (`config/ziggy.php`'s admin group gains `catalog.admin.*`), loaded by
+the module's provider — through `App\Http\AdminArea`, `Page` and `FormErrors`, which Catalog may now
+use from its Presentation layer (owner, 2026-10-07, amendment 13(d); `deptrac.yaml`
+`Catalog: [+CatalogPublic, AccessPublic, AppHttp]`, `tests/Architecture/AppHttpTest` keeping it to
+Presentation). **The menu** — Platform's `AdminMenu`, in the **Catalog** group, its icon `catalog`;
+each entry offered to anyone holding any of its jobs in any store, the screen deciding the rest (as
+B2B's type lists, b2b.md amendment 23(a)):
+
+| # | Entry | Address | Offered for |
+|---|---|---|---|
+| 10 | Products · المنتجات | `/admin/products` | `catalog.product.view` — the products' read (§3): every other product and listing job is used from these screens, so a role giving one gives this too |
+| 20 | Categories · الأقسام | `/admin/categories` | `catalog.category.manage`, `catalog.category.rank`, `catalog.category.audience` (amendment 14) |
+| 30 | Brands · الماركات | `/admin/brands` | `catalog.brand.manage` |
+| 40 | Attributes · الخصائص | `/admin/attributes` | `catalog.attribute.manage` |
+| 50 | Variations · الاختلافات | `/admin/variations` | `catalog.attribute.manage` |
+| 60 | Labels · الشارات | `/admin/labels` | `catalog.label.manage` |
+| 70 | Warranties · الضمانات | `/admin/warranties` | `catalog.warranty.manage` |
+| 80 | Search Words · كلمات البحث | `/admin/search-words` | `catalog.search_word.manage` |
+| 90 | Store Files · ملفات المتاجر | `/admin/store-files` | `catalog.listing.fill` (admin roles only) |
+| 100 | Products Import · استيراد المنتجات | `/admin/imports` | `catalog.import.run` (Super Admin) — the first entry under a reserved permission. The menu offers it, as it asks `storesWith()`, which answers every store for a Super Admin; the entry names its own group, so the permission still needs none. `PermissionGroup`'s note that reserved actions "never appear in the menu" stops being true and is corrected — a comment in Access — with step 4 |
+
+**Attributes and Variations are two screens** — the attributes with their values and colour swatches
+edited inside each, and the attribute sets under the design's own name, "Variations" (owner,
+2026-10-07, amendment 13, #12); there is no separate Colours screen: a colour attribute's values carry
+their swatch. **No search in the panel's header yet** — it comes with Sales, one search for products
+and orders; the products list has its own (owner, 2026-10-07, Q8). **No Catalog card on Home** until
+the owner's Home ideas arrive (Q8).
+
+**Reading a shared list** **[PROPOSED P2]**: anyone holding the list's job in any store reads it;
+every change on it still needs the job with All stores (§1.5–§1.11), so for a reader without All
+stores each button is disabled with that reason. Reading needs no new permission: it is part of every
+job on the list, as B2B's type lists read (b2b.md §4.6).
+
+**The admin reads the screens add** (amendment 11(e): "read with their screens") — Application
+queries, each asking its own job, each **one query or a fixed few, never one per row** (frontend.md
+§5, 15 queries an admin page):
+
+| Query | Job | What it answers |
+|---|---|---|
+| `ListBrands` | `catalog.brand.manage`, any store | every brand with its fixed number, logo's address, names, agency, default and default-listings marks, place, state, and how many products carry it |
+| `ListCategories` | `.category.manage`, `.rank` or `.audience`, any store | the whole tree in one read, each with its state, photo, how many products sit in it and below it — and, for the store chosen, its place in that store's menu and who sees it there (amendment 14) |
+| `ListAttributes`, `ViewAttribute` | `catalog.attribute.manage`, any store | the attributes with their value counts; one attribute with its values |
+| `ListVariations` | `catalog.attribute.manage`, any store | the sets with their attributes in order, and whether variants are built on each |
+| `ListLabels`, `ListWarranties` | their jobs, any store | the lists, with how many products use each |
+| `ListWordPairs`, `ListSearchesWithNoResults` | `catalog.search_word.manage`, any store to read the pairs; **All stores** for the searches (§3) | the pairs; the submitted searches that found nothing, grouped by words, store and language, with how many times and when last (P11) |
+| `ProductsReached` | the deactivating list's job, All stores | the products a brand's or a category's deactivation reaches, with each one's stage and where it sits — for the fates dialog |
+| `ListProducts` | `catalog.product.view`, any store | the products list (S8) |
+| `ViewProduct` | `catalog.product.view`, any store | one product, whole (S9), with each covered store's row and what the reader may do there |
+| `CatalogActionsForReader` | — (asks the authorizer for the reader) | for each screen, which buttons the reader may press, and why not (as Access's `StaffActionsForReader`) |
+
+**Photos chosen on a screen** — a brand's logo, a category's photo, a product's and a variant's — are
+**uploaded on that screen** and go to Platform's media library through `uploadMediaFor`, under the
+screen's own job in its scope: there is **no picker of files already in the library** (none exists;
+Platform keeps one copy of an identical public image, so uploading the same file again reuses it)
+**[PROPOSED P5]**. A new Catalog command, `UploadCatalogImage` (the job and scope of what the photo is
+for), uploads and answers the photo's id; the form then saves with it, as every handler already takes
+media ids.
+
+#### S1 · Brands — `/admin/brands`
+
+A table, in the brands' own order: **#** · **No.** (the brand's fixed number, amendment 7(b)) · logo ·
+name · **Agency** (House Brand · Exclusive Agent · Distributor) · **Listings** (Shown everywhere, or
+**Secondary**: reached only through its own category, amendment 5(k)) · **Products** · state, with a
+**Default** badge on the default brand. **Add Brand** is the page's main action.
+
+- **Add Brand / Edit Brand** (a dialog): both names (100 characters each); the web addresses, folded
+  under "Web Addresses" and made from the names when left empty; the agency; "Show this brand's
+  products in search, on the home page and in shop-wide lists" (on by default — off makes it
+  secondary, and the line says what that means); the origin country (the shared country picker,
+  optional); the place; the description in both languages or neither (5,000 characters, P1); the
+  logo (upload, or remove).
+- **⋯ menu**: Edit…, Make Default (an active brand, not the default), Activate or Deactivate…, Delete…
+  (only a brand no product carries, archived ones included; the default brand neither deactivated nor
+  deleted — its items disabled, with the reason).
+- **Deactivate Brand…** (the fates dialog, shared with categories): every product of the brand, in
+  any stage (`ProductsReached`), with one choice for all — **Hide** or **Move to** another active
+  brand — and a choice per product to override it, in a table that opens from "Choose Product by
+  Product". The dialog says, before the button, that **a hidden product cannot be ordered** (amendment
+  5(j)) and comes back when the brand is switched on again (amendment 5(m)). All or nothing, as the
+  handler is.
+
+#### S2 · Categories — `/admin/categories?store=`
+
+**The tree**, every category in one table, a parent's rows folded under it **[PROPOSED P7]**: name ·
+photo · **Products** (in it and below it) · state. The **store filter** chooses whose columns the rest
+of the table shows (its menu order, who sees it — amendment 14): the stores where the reader holds
+`catalog.category.rank` or `catalog.category.audience`, a Super Admin's off ones marked Off.
+
+- **Add Category** (main action) and, on a row's ⋯ menu, **Add Sub-Category…**: both names (100); the
+  parent (none, or an active category holding no products — a category holding products takes no
+  sub-category, `CategoryHoldsProducts`); its place among its siblings, written into every store as it
+  starts (amendment 1(d)); the web addresses (folded, made from the names); the photo.
+- **⋯ menu**: Edit…, Move… (another parent and the place among its new siblings, amendment 2(c)),
+  Activate or Deactivate…, Delete… (only one with no product and no sub-category).
+- **Deactivate Category…** — the fates dialog of S1, with three choices: **Hide** (cannot be ordered,
+  comes back with the category), **Leave** (stays in the closed category: found by search, its brand
+  page and a link, listed in no category page) or **Move to** another active lowest category outside
+  what goes; every product in it and under it, in any stage, those under a sub-category switched off
+  before asked again (amendment 4(d), (g)); the sub-categories going with it are named.
+- **The store's menu order** (`catalog.category.rank`, that store): the rows of one parent dragged
+  into their order — shadcn's `dashboard-01` drag handles on `@dnd-kit`, as the address formats'
+  fields (by mouse, touch or keyboard) — then **Save Order** for that parent **[PROPOSED P8]**. A
+  category the store has not placed shows the base store's place, marked as such (amendment 5(a)).
+- **Who sees it in this store** — two switches a row, **Individuals** and **Companies**
+  (`catalog.category.audience`, admin roles only, amendment 14), each saving the moment it flips
+  **[PROPOSED P9]**: switching a parent switches everything under it the same way; a sub-category may
+  then be switched on its own (owner, 2026-10-07, #5).
+
+#### S3 · Attributes — `/admin/attributes`, `/admin/attributes/{id}`
+
+**The list**: # · name · **Kind** (Details Only · Filter · Makes Variants) · unit · **Colour** · values ·
+state; **Add Attribute** (a dialog: both names, the kind, the unit in both languages or neither (20),
+"Colour" for a filter or variant-making attribute, the place). **The whole row opens the attribute.**
+
+**One attribute**: its details as a form — **the kind and Colour locked**, with the reason, once it
+has values or variants carry details of it (amendment 1(i), 3(k)), and kept "Makes Variants" while a
+variation holds it — then **its values**: # · name · swatch (a colour attribute's: `#rrggbb`, chosen
+with the browser's colour input beside the hex field) · state · ⋯ (Edit…, Activate or Deactivate,
+Delete… — only one no variant and no product's filters carry). **Add Value** (both names, 100, never
+the same as another value of this attribute in either language ignoring case — `NameTaken`). A "Details
+Only" attribute has no values: its row says so. ⋯ on the attribute: Activate or Deactivate, Delete…
+(only one no variation holds and nothing carries; its values go with it).
+
+#### S4 · Variations — `/admin/variations`
+
+The attribute sets (the design's "Variations": "Attribute sets — measurement, finish — that generate
+variants"): name · its attributes, in order · **In Use** when variants are built on it · state.
+**Add Variation** (a dialog: both names; one to ten "Makes Variants" attributes, picked from the
+active ones and put in order by drag) **[PROPOSED P8]**. Edit…: the name always; the attributes only
+while no variant is built on it (`AttributeSetInUse`, amendment 3(k)) — locked with the reason.
+Activate or Deactivate, Delete… (one no product takes).
+
+#### S5 · Labels — `/admin/labels`
+
+«الشارات» (amendment 1(b)): # · **the label as a shopper sees it** (Geist's Badge, in its look) ·
+name in the other language · **Meaning** · products · state. **Add Label**: both names — one or two
+words, 30 characters (amendment 1(f)) —, **the meaning** (Neutral · Information · Healthy · Warning ·
+Error) and **Strong or Subtle** — the Badge's ten looks, named by meaning, never by a bare colour
+(amendment 1(e)) — and the place; a live preview of the badge. Delete only a label no store shows.
+
+#### S6 · Warranties — `/admin/warranties`
+
+Name · **Period** ("24 months", or "Lifetime") · products · state. **Add Warranty**: both names (100),
+the period — months from 1 to 600, or "Lifetime" — and the terms in both languages (5,000 each, P1).
+Delete only one no product carries.
+
+#### S7 · Search Words — `/admin/search-words?store=`
+
+**Word Pairs**: each pair as "word ↔ word", **Delete** on its row (pairs are added and deleted, never
+edited, amendment 2(d)); **Add Word Pair** (two words, 50 characters each, not the same once search
+reads them). **Searches That Found Nothing** (`catalog.search_word.manage` with All stores, §3): the
+submitted searches that found nothing in the last 12 months, grouped by the words, the store and the
+language — **times searched** and **last searched** — the most searched first, 50 at a time with
+**Show More**; a store filter (All Stores, or one); **Add Word Pair…** on a row opens the form with
+those words in it **[PROPOSED P11]**. The log keeps no person (§1.11).
+
+#### S8 · Products — `/admin/products?store=`
+
+The design's "All products", without what is not Catalog's: no price, stock or tax column (Pricing and
+Inventory, stage 5), no "Import CSV" (the import is its own screen, S11). **[PROPOSED P4]**
+
+- **Columns**: photo · name (the other language under it) · **codes** (mono) · brand · category ·
+  stage · **In Stores** — the stores the reader covers where the product is on, as their codes · the
+  number of variants. **The whole row opens the product.**
+- **The store filter** offers **All Stores** first (the stores the reader covers for
+  `catalog.product.view`); one store chosen, the **In Stores** column becomes that store's state —
+  **On** (n of m variants), **Off**, **Not Chosen**, **Not Available Now** — and a filter by it.
+- **Filters**: a search by name, in either language, or by code (a code typed finds the product
+  holding it); the stage; the category (the shared combobox); the brand. 50 at a time, newest first,
+  with **Show More** (keyset, handoff §5.4).
+- **Every product is listed** to whoever holds `catalog.product.view` in some store — a product
+  belongs to no store; what each store does with it is shown only for the stores the reader covers
+  **[PROPOSED P4]**.
+- **Add Product** (main action, `catalog.product.create`): the Arabic name, the English name
+  (optional while a draft), the brand (the default brand chosen) → a draft, and its page opens.
+  **No store is asked** (owner, 2026-10-07, Q6, amendment 13(f)).
+
+#### S9 · A product — `/admin/products/{id}?tab=`
+
+**Tabs, the tab in the address** (owner, 2026-10-07, #11): **Details · Variants · Photos · Search and
+Filters · Related · Stores**. Above them: the name, the stage badge, the codes; **a draft's Note**
+naming what it still lacks to be made ready, in words (`Readiness`: the English name, the description
+in each language, a lowest active category, a variant, a ready photo).
+
+- **The main action** follows the stage: **Make Ready** (a draft; disabled, with the missing items,
+  until it is complete — `catalog.product.publish`), **Restore** (an archived product,
+  `catalog.product.archive`). **⋯**: Archive Product… (a ready or draft product, switched off in every
+  store — the dialog says so), and last, **Delete Draft…** (a draft only, gone whole with its codes and
+  addresses free again).
+- **Details** (`catalog.product.update` in every store where it is on, §1.1 — else read only, the
+  reason given once at the top): both names (200), the web addresses (folded), the brand, the category
+  (the lowest active ones, each shown with its path), the warranty (or none), the variation (fixed
+  once the product has variants — locked with the reason), the description in both languages
+  (20,000, P1). **Save Details**, out of reach until something changes (Geist's Fieldset).
+- **Variants**: # · **code** · its values · details · weight and size · photos · Archived. **Add
+  Variant…** (a dialog): the code (1–10 digits); one value for each attribute of the variation; the
+  details of each "Details Only" attribute — text in both languages, or a number with its unit —;
+  weight in grams and length, width and height in millimetres (each optional, 1–1,000,000); the
+  place. ⋯ on a row: Edit… (its code only while the product is a draft — once ready a code is
+  **corrected**, amendment 3(c)), **Correct Code…** (`catalog.variant.correct_code`, a ready product;
+  the dialog says every variant holding the code takes the new one), **Photos…** (its own, up to 10),
+  Archive or Restore, and **Delete…** (a draft's variant only).
+- **Photos**: the gallery as tiles (shadcn's `Attachment`, as the media library's grid), **the first
+  being the card's photo**, ordered by drag; each tile's size state (Waiting · Ready · Failed — a
+  product is shown only with a ready one); **Add Photos** (upload: JPEG, PNG or WebP, the media
+  library's limit), Remove on a tile. At most 20.
+- **Search and Filters**: **search words** as removable badges with an input and **Add Word** (30
+  kept, 50 characters each; a word typed twice is kept once, quietly, amendment 3(f)); **filters** —
+  for each filter attribute, its values as checkboxes, several allowed (amendment 3(a)) — **Save
+  Filters**.
+- **Related**: two ordered lists, **You May Also Like** (picked; left empty, the shop fills it from
+  the same category, then brand — §1.10) and **Goes With** (picked only) — each a list of
+  products (name and code) with Remove and drag to order, **Add Product…** searching the ready
+  products by name or code (the products list's search). At most 20 each.
+- **Stores** — **one row per store**, as the owner described the product page ("one single global
+  panel and in it will show each store's status", §1.3), **not a store filter**: every store the
+  reader covers — where they hold `catalog.product.view` (§3) —, a Super Admin's off stores too,
+  marked Off **[PROPOSED P6]**.
+  Each store's card holds:
+  - **On in This Store** — the whole product, and a table of its variants, each with an **On**
+    switch (`catalog.listing.choose`: a whole product or single variants, a ready product only) and
+    **Retail** and **Wholesale** switches (`catalog.listing.selling`), a variant first switched on
+    selling retail only (amendment 4);
+  - **Quantities** — retail minimum and maximum, wholesale minimum and maximum (1–100,000; a
+    maximum never below its minimum; a wholesale minimum while any variant sells wholesale) with
+    **Save Quantities**;
+  - **Not Available Now** — on the whole product, and on each variant (`catalog.listing.unavailable`),
+    each saving as it flips;
+  - **Labels** — up to 10 of the active labels, shown as their badges (`catalog.listing.labels`);
+  - **Prices and stock** — not in this stage: the card says once that they come with Pricing and
+    Inventory (§1.3).
+
+  Each control is drawn for someone holding its job in that store; anyone else sees the state, read
+  only. A product the store has never chosen shows only **Switch On** (`NotChosenInStore` otherwise).
+
+#### S10 · Store Files — `/admin/store-files?store=`
+
+**Admin roles only** (`catalog.listing.fill`, amendment 6(h)); the store filter offers the stores
+where the reader holds it. **The store's files**, newest first: the file's name · when · items · items
+still open; **Upload Store File** (a `.json` of `touchwood-store-fill/1`, 2 MB, 1,000 items; the
+format's guide linked). A refused file lists every problem — where, and what — under the upload
+(`ImportRefused`, at most 500).
+
+**One file** — `/admin/store-files/{id}` — **with no uploader shown** (Catalog README; choice #19 of
+step 6, accepted by the owner in #88): a Note, once — **the prices and stock are shown and not kept
+until Pricing and Inventory exist** (§1.3, §9.3 #15) —, then the items: # · **code** · the product
+(its name, a link to its page) · price · stock · **standing**: **Ready** · **Not Ready** (what it lacks)
+· **Archived** · **Already On** · **Unknown Code** · then what the admin did, **Switched On** or
+**Removed**. Ticked rows: **Switch On Selected**, **Remove Selected…**; and **Switch On Every Ready
+One**. An unknown code's row: **Correct Code…** (checked again). A product not ready opens in its page
+to be completed, then is switched on here.
+
+#### S11 · Products Import — `/admin/imports`
+
+**The Super Admin's only** (`catalog.import.run`). **The files**, newest first: name · **uploaded by**
+(Platform's `StaffNames`: a Super Admin reads as named to another Super Admin — owner, 2026-10-07,
+Q5) · when · products · state (**Deciding** · **Bringing In** · **In** · **Failed**). **Upload Products
+File** — a `.json` (20 MB), or a `.zip` with `products.json` at its top and its photos (500 MB,
+100,000 entries); 2,000 products a file; the guide (`docs/modules/catalog-import/`) linked. A refused
+file lists every problem, as S10.
+
+**One import** — `/admin/imports/{id}?part=` — the import's page of §1.12 in four **tabs in the
+address** **[PROPOSED P12]** — its parts 1 and 2, the changes and addresses part 2 ends with, and its
+part 4 — each tab with how many still wait:
+
+1. **Names** — each name the catalog lacks, once, grouped by kind (category path, brand, attribute,
+   value, set, warranty), with how many products use it and, when several catalog items answer to it,
+   how many (amendment 8(d)). Per row, or for the ticked rows: **It Means…** (one of that list, of the
+   right job — a combobox), **Create It** (a value, a category or a set only: its names corrected and
+   completed, a category's own web address when its own is taken, amendment 8(c)) or **Refuse It**.
+2. **Codes** — each product of the file whose codes the catalog holds: the catalog's product (a
+   link) and whether it is on sale; **Update** · **Replace Whole** · **Skip** · **New Codes…**, and for
+   one on sale, **Keep on Sale** or **Take Off Sale**, every time, no default (amendment 9(c)); a
+   product that would change a code its ready product keeps is marked, to skip or to correct in the
+   file (amendment 11(b)).
+3. **Before Bringing In** — the changes to all the products, or the ticked ones: brand, warranty,
+   category, search words, filter values, each with **Replace** · **Only Fill Empty** (· **Add**, for
+   words and values) (amendments 7(c), (d), 8(a)); and **the web addresses that would collide**, each
+   given its own (amendment 8(c)).
+4. **Products** — every product of the file with its state: Waiting · **Left Out**, with why (amendment
+   11(a)) · In · Updated · Replaced · Skipped · Held Back · Accepted · Archived · Deleted — and, brought
+   in, what each still lacks, its name a link to its page. Ticked rows, once brought in: **Accept**
+   (the ready ones: made ready, on sale nowhere, amendment 9(b)), **Archive…**, **Delete…** — the
+   dialogs saying that the Super Admin's word is carried out over anything done since, a product on
+   sale switched off first (amendment 11(c)) —; and **Accept Every Ready One**.
+
+**The main action follows the state**: **Bring Products In** while deciding — disabled, with how many
+names, codes, addresses, sales and code changes still wait (`ImportUndecided`), until none does; while
+bringing in, a line saying so, the page asking again every few seconds until it is done
+**[PROPOSED P12]**; failed, the reason and that nothing was kept. **Discard Import…** (⋯, deciding or
+failed: the page, its decisions and its zip gone, amendment 10(b)) — a typed confirmation
+**[PROPOSED P10]**.
+
+**The import's reads are made in batches** — the products of a file read together, not one at a time,
+and the products part shown 100 at a time — so the page keeps the admin budget **[PROPOSED P13]**:
+`ViewImport` and `ViewStoreFill` today read the catalog once or more per row, which for a file of
+2,000 products is thousands of queries.
+
+### 4.5 The shop's pages (amendment 13)
+
+Built **last**, now, **with no price, no stock and no Add to Cart** until Pricing, Inventory and Sales
+bring them (owner, 2026-10-07, Q7; amendment 5(b): a product a store chose counts as on sale without a
+price until then). The shop's design (`docs/design/v2/TouchWood Home.dc.html`, `TouchWood
+Screens.dc.html`) is Arabic only and has no search results page and no brand page: those are drawn
+from its look (frontend.md §2.1); **where it shows a product code, nothing is shown** (amendment 5(d)).
+
+**Addresses** (owner, 2026-10-07, #8), under the store and the language, named `storefront.catalog.*`:
+
+| Page | Address |
+|---|---|
+| A category | `/{store}/{locale}/categories/{slug}` |
+| A brand | `/{store}/{locale}/brands/{slug}` |
+| A product | `/{store}/{locale}/products/{slug}` |
+| Search results | `/{store}/{locale}/search?q=` |
+| Suggestions while typing | `/{store}/{locale}/search/suggest?q=` — answers JSON, never logged (amendment 5(e)) |
+
+An old slug answers **301** to the current one; a slug that never existed, a draft, a category that
+lists nothing here, an inactive brand, **404** in the shop's frame — an active brand always has its
+page (amendment 5(m)). **Every page carries its canonical address and
+the same page's address in the other language** **[PROPOSED P19]**.
+
+**Who is looking** (amendment 14): the page asks Platform's `ShopperType` — a guest, an individual or a
+company — and shows that person's side: **individuals** the categories ticked for individuals and the
+retail side only; **companies** — pending, rejected and suspended ones too — the categories ticked for
+companies, retail and wholesale; **guests**, and staff viewing the shop (access.md §1.11), **everything**.
+
+**On every shop page** — the header gains **the category menu** and **the search box**, put there by
+Catalog through a small Platform list of the shop frame's parts (owner, 2026-10-07, #9), so the
+account pages carry them too:
+
+- **The menu**: shadcn's Navigation Menu — "All Categories" opening the top categories with their
+  sub-categories (the design's mega menu), and the top categories in a row; on a phone, a Sheet with
+  the tree folding **[PROPOSED P20]**. A category is in it by itself once the store lists something in
+  it or under it for this viewer, in the store's order (§1.5). Kept per store, language and viewer
+  type in the never-stale cache (CONVENTIONS, `VersionedCache`), invalidated inside every change that
+  alters it.
+- **The search box**: as the shopper types (two letters or more, a moment after they stop), up to
+  eight suggestions — photo and name — asked of the server and shown under the box (shadcn's Command
+  in a Popover, as its combobox examples are built; the panel's `SearchCombobox` filters a list it is
+  given and is not this); **Enter**, or "See All Results", opens the results page, which logs the
+  search (amendment 5(e)).
+
+**A category's page**: the path to it (breadcrumbs), its name, its sub-categories as links, then the
+products below it — cards of photo, name and labels (every label attached, in the list's order,
+amendment 1(g)) — 24 at a time with **Show More** (keyset, as built). **Filters** **[PROPOSED P14]**:
+the brands, the values of the filter attributes present in what is listed, and, for a company or a
+guest, **Retail** or **Wholesale** — each with how many products it would show, all from one read;
+chosen filters as chips with **Clear All**; the address keeps them. **Sort** **[PROPOSED P15]**:
+**Best-Selling** (the default — newest first until Sales ranks products) and **Newest**; price filters
+and sorts come with Pricing. The design's technical list view waits (handoff §15.2).
+
+**A brand's page**: its logo, name and description, then its products as a category page shows them,
+with Show More. A secondary brand keeps its page (§1.6).
+
+**A product's page** — available: the path to its category, the brand (a link to its page), the
+labels, the name; **the gallery** — a large photo and its thumbnails: a chosen variant's own photos,
+falling back to the product's gallery (§1.2); **the choices** — one row per attribute of the variation, its values as buttons, a
+colour's with its swatch; values no variant on sale has disabled; the chosen variant's details and
+weight and size in a table; **the description**; **the warranty** — its name, period and terms;
+**how it is sold** here, for this viewer — retail, and wholesale for a company or a guest, with the
+minimums and maximums (§1.3) **[PROPOSED P17]**; then **Goes With** and **You May Also Like** as cards
+(§1.10). No code, no price, no Add to Cart. The variant shown is matched in the browser from the list
+the server sent, for display only; **Sales resolves the variant on the server** when there is a cart
+(handoff §9.1).
+
+**Not available now** — anything that exists here but cannot be ordered by this viewer now (§1.4;
+amendment 14: also a product this viewer's account type does not see **[PROPOSED P18]**): its name,
+photos and description, a Note "Not available now", nothing to choose or order, and `noindex`.
+
+**Search results**: "N results for …", the cards, 48 at a time with **Show More** **[PROPOSED P16]**;
+none found: a short line and the way to the categories. Only the brands shown in default listings
+(amendment 5(k)), only what this viewer may see.
+
+**The budget** (frontend.md §5: 8 queries a shop page, warm, each page's real count recorded). Counted
+from the code on 2026-10-07, not yet measured: the frame already reads 4 (the store, twice, through
+the cache); the menu as built 3 more; a category page as built 11–12 in all; a product page — the
+frame, the menu, its own reads, its suggestions — about 19–21, and one more per photo. **The pages
+are built towards 8** **[PROPOSED P21]**: the menu from the cache (2); a category's or brand's page in
+two reads (its owner, name and whether it lists anything, in one; the cards with their labels, in
+one) — 8 in all; a product page's photos in **one Platform read for all of them** (owner, 2026-10-07,
+#10: a Platform addition, §2.4), and the page itself kept, like the menu, in the never-stale cache per
+store, language and viewer — as the handoff keeps the home page ("cached homepage payload with explicit
+invalidation", §5.4) — invalidated inside every change that alters it: the frame, the menu and the
+page, 8. Suggestions as built (2–3). A page that still cannot keep 8 is brought to the owner with its
+measured count, never raised quietly.
+
 ---
 
 ## 5 · Tables
@@ -654,6 +1158,8 @@ relations, variants and theirs) are removed with it — which happens only when 
 | `catalog.store_products` | (`store_id`, `product_id` FK CASCADE) PK · `not_available_now` · `retail_minimum` `integer` NOT NULL DEFAULT 1 · `retail_maximum`, `wholesale_minimum`, `wholesale_maximum` `integer` NULL — each 1–100,000, a maximum never below its minimum (CHECKs) · timestamps |
 | `catalog.store_product_labels` | (`store_id`, `product_id` FK CASCADE, `label_id` FK RESTRICT) PK |
 | `catalog.store_category_ranks` | (`store_id`, `category_id` FK CASCADE) PK · `rank` `integer` |
+| `catalog.store_category_audiences` | (`store_id` FK → `platform.stores` RESTRICT, `category_id` FK CASCADE) PK · `for_individuals`, `for_companies` `boolean` NOT NULL — **no row means both** (amendment 14: a category nobody switched is seen by both), so a new category and a store opened later need no rows · timestamps |
+| `catalog.store_variant_facts` | (`store_id`, `variant_id` FK CASCADE) PK · `orderable` `boolean` NULL — Inventory's (null: §1.3's rule until it pushes) · `price_minor`, `price_before_minor` `bigint` NULL and `currency` `char(3)` NULL — Pricing's `ListingPrice` (amendment 15), the before only with a now, and a currency with either · timestamps. **[PROPOSED P22]** The pushed facts kept where the listing's writer reads them (§2.2). Sales' ranks (stage 6) get their own table when Sales first pushes them |
 
 **5.3 The lists**
 
@@ -676,7 +1182,7 @@ relations, variants and theirs) are removed with it — which happens only when 
 | Table | Columns |
 |---|---|
 | `catalog.search_log` | `id` `bigint` identity PK · `store_id` FK RESTRICT · `locale` `char(2)` · `query` `varchar(200)` — normalised · `results` `integer` · `searched_at` `timestamptz` DEFAULT `now()` — **no person** (§1.11). Indexes `(searched_at)` for the nightly removal, `(store_id, results, searched_at)` for the zero-result list |
-| `catalog.listing` | **The listing and search read model** (handoff §5.4): one row per store, language and product that is **listed or reachable by search** there (§1.4). `store_id`, `locale`, `product_id` PK · `name`, `slug` · `brand_id`, `brand_visible_by_default` (copied from the brand, handoff §9.4) · `category_id` and `category_path` (the ids above it, for a parent's page) · `in_category_pages` (false while "left" in an inactive category) · `value_ids`, `label_ids` (for filters and cards) · `card_media_id` FK → `platform.media` RESTRICT and `card_photo` (its addresses, §2.4) · `orderable` · `price_minor` `bigint` NULL and `sales_rank` `integer` NULL (pushed, §2.2) · `search_document` `tsvector`, `search_text` (normalised, for trigrams: the page's name, then the other language's, a line apart — amendment 5(f)). Indexes: `(store_id, locale, brand_visible_by_default, sales_rank)` and `(store_id, locale, brand_id)` (handoff §9.4); GIN on `search_document`, `category_path`, `value_ids`; trigram GIN on `search_text` |
+| `catalog.listing` | **The listing and search read model** (handoff §5.4): one row per store, language and product that is **listed or reachable by search** there (§1.4). `store_id`, `locale`, `product_id` PK · `name`, `slug` · `brand_id`, `brand_visible_by_default` (copied from the brand, handoff §9.4) · `category_id` and `category_path` (the ids above it, for a parent's page) · `in_category_pages` (false while "left" in an inactive category) · `value_ids`, `label_ids` (for filters and cards) · `card_media_id` FK → `platform.media` RESTRICT and `card_photo` (its addresses, §2.4) · `orderable` · `price_minor` `bigint` NULL and `sales_rank` `integer` NULL (pushed, §2.2) · `search_document` `tsvector`, `search_text` (normalised, for trigrams: the page's name, then the other language's, a line apart — amendment 5(f)). Indexes: `(store_id, locale, brand_visible_by_default, sales_rank)` and `(store_id, locale, brand_id)` (handoff §9.4); GIN on `search_document`, `category_path`, `value_ids`; trigram GIN on `search_text`. **Gains, with the shop's pages** (amendments 14, 15): `for_individuals`, `for_companies` `boolean` — whether each kind of account sees the product here (its own category's switches, and for individuals a variant sold retail, §1.13); `sells_retail`, `sells_wholesale` `boolean` — any variant here, for the shop's Retail and Wholesale filter; `price_before_minor` beside `price_minor` (companies' and guests' card), and `retail_price_minor`, `retail_price_before_minor` (individuals' card) — each from the card's variant for that side (§2.2) |
 
 **5.5 The import and the store file** **[ACCEPTED 2026-10-05; as built, accepted 2026-10-06]**
 (amendments 6, 8(f)) — the owner accepted the tables as built in step 6, listed column by column.
@@ -821,10 +1327,12 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 **Contract and architecture**
 
 19. `CatalogApi` answers with DTOs only; the listing facts and the import's sections are accepted
-    from the modules above — the listing facts tested with stage 5, which implements them (amendment
-    5(i)), the import's sections likewise with stage 5 (declared in step 6); a store's rows are
+    from the modules above — the listing facts' receiving side tested with the shop's pages (amendment
+    15, P22), the facts themselves with stage 5, which pushes them; the import's sections with stage 5
+    (declared in step 6); a store's rows are
     written only with that store named (amendment 4(h)), read across stores only as §5.2 says.
-20. Catalog imports only Platform's and Access's public surfaces; every handler asserts a
+20. Catalog imports only Platform's and Access's public surfaces — and, from its Presentation layer
+    only, the framework glue (amendment 13(d)); every handler asserts a
     permission; every CHECK, unique index and foreign key has a code rule that refuses first; no
     country, currency or store name in `Domain/` or `Application/`.
 21. A storefront listing page stays within its query budget (frontend.md §5), measured warm, once
@@ -848,6 +1356,35 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 26. Brands, warranties and attributes are never created from a file; a brand is named by its fixed
     number or its name; changes made on the page before bringing in reach the catalog only when the
     products are brought in (amendment 7).
+
+**The screens** (amendment 13)
+
+27. Every page route: who may open it, what its data holds — **never a code in anything a shop page
+    receives** —, and the error page where it must not open; a store screen refuses a store outside
+    the reader's, opens on the first store that is on, and shows no filter for one store.
+28. Every form endpoint: a refusal lands under the field it names or at the top of the form; success
+    flashes its toast and redirects; a reader without the job sees the button disabled with its reason,
+    and the handler refuses it anyway.
+29. Each page's queries, warm, recorded and held: 15 an admin page, 8 a shop page (frontend.md §5); the
+    import's and the store file's pages within 15 for a file at its limit.
+30. In a browser (Pest's plugin), in both languages and on a phone: a brand added, edited, made the
+    default, deactivated with its products' fates and deleted; a category tree with a store's order
+    dragged and saved; a product created, completed through its tabs, made ready, switched on in a
+    store with its terms and labels; a store file uploaded (through the use case — the plugin's server
+    takes no file) and switched on; an import decided, brought in and accepted.
+31. The shop: the menu, a category's page with its filters and Show More, a brand's page, a product's
+    page and its "Not available now" twin (`noindex`), a search's suggestions and results, an old
+    address answering 301 — and no code, price or Add to Cart anywhere.
+
+**Individuals and companies** (amendment 14)
+
+32. A category switched off for individuals in a store leaves their menu, pages, search and
+    suggestions there, and only there; companies and guests still see it; a parent's switch reaches
+    everything under it; a store opened later shows everything to both.
+33. An individual never sees a product whose variants all sell wholesale only, nor the wholesale
+    side of another; a pending company sees the company side; a guest and a staff view see both.
+34. The switches are an admin role's job only, in that store; every change writes the listing in the
+    same transaction, and the repair job writes the same rows.
 
 ---
 
@@ -949,7 +1486,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
     Platform's contract does not change; a change of CDN address is followed by the repair job. (The
     alternative: a Platform addition, one call returning the addresses of a page of photos.)
 18. The permission names of §3, and `CreateProduct` checked in the staff member's working store (the
-    panel's store picker, frontend.md §2.2), since a new product belongs to no store yet.
+    panel's store picker, frontend.md §2.2), since a new product belongs to no store yet. (**Replaced
+    by amendment 13(f)**: the panel has no store worked in since 2026-10-06 — some store that is on.)
 19. No way from `READY` back to `DRAFT`.
 20. The listing read model's rows are written inside the transaction of each change (never stale, as
     the owner chose for pushed facts), with a repair job that rebuilds them — handoff §5.4 says
@@ -983,7 +1521,7 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 ### 9.6 Amendments during the build
 
 Changes to the spec approved on 2026-10-02, each with the owner's agreement, applied in place in the
-sections named.
+sections named — amendment 15 still waits for it, with Pricing's own spec.
 
 | # | Where | Change | Source |
 |---|---|---|---|
@@ -999,3 +1537,40 @@ sections named.
 | 10 | §1.6, §1.12, §3, §5.5 | **The owner's word on step 6's choices** (owner, 2026-10-06, after reading the 19 choices: "all good", but for these). (a) **A deleted brand's number is free again**: "a deleted brand number is reusable, once brand is deleted its number gets free, no gaps" — a new brand takes the lowest number no brand holds; a brand's own number still never changes while it exists. (b) **Uploaded files are not kept**: "once we read the data and finish the operation we're done with it and file is no longer at our db or sys" — a JSON file and a store file are let go once read; a zip only until its products are brought in; **an import not brought in may be discarded** by the Super Admin, its zip with it (the one case the owner was asked about: "a discard action"). (c) The hosting items found while building step 6 — the import job's queue, the zip's disk, PHP's zip support — go to handoff §15.4 for the agent who sets up the hosting. | Owner, 2026-10-06 |
 | 11 | §1.3, §1.12, §3, §4.1, §5.2, §5.5, §8 | **After the reviews of the whole module (step 7)** (owner, 2026-10-06, asked one by one). (a) **Codes that mix catalog products are left out, the rest of the file coming in**: a product whose codes two of the catalog's products hold, and two or more products whose codes one catalog product holds — "that must be defined in the file": the file gives that product once, with all its variants — no longer refuse the whole file; they are shown on the import's page as refused, with the reason ("note Sadmin that we did so"), and take no part in it. (b) **A product not a draft keeps its codes**: the confirm lists one the file would update or replace with a variant of the same values but another code, and waits — skipped, or the file uploaded corrected — before anything runs. (c) **The Super Admin's word on the import's page is carried out**: "3 overwrites what have been done by other staff" — archiving or deleting a product the import created and nobody accepted, whatever was done to it since; one made ready meanwhile is archived, or **deleted whole even if a store put it on sale** ("Delete it anyway"), switched off there first — replacing §4.1's "only a draft is deleted" for this one case. (d) **Three refusals** for files no one would mean: a stock over 2,147,483,647, a price with more than 6 decimal places, a zip of more than 100,000 entries. (e) Written down from the reviews, nothing changed: the file's related and goes-with products are linked when products are accepted on the import's page; the product list and page and the zero-result searches list are read with their screens; cross-store reads (§5.2). | Owner, 2026-10-06 |
 | 12 | §1.1, §1.2, §1.3, §1.11, §1.12, §5.3 | **Every number in Latin digits** (owner, 2026-10-06: "all numbers inside system gonna be latin"; the rule for the whole system, frontend.md §1.8, Shared's `LatinDigits`, platform.md §2.5): Arabic-Indic and Persian digits typed anywhere in Catalog — a name, a value, a detail, a search word, a word pair, a web address, a description, a code; in the panel, a products file or a store file — are saved as 0-9. A typed Arabic slug's `١١٠` is now saved as `110` rather than refused (amendment 2(f): the slug still holds 0–9 only), and a detail's number typed `٢٥` is `25`. Names and searches were already compared with digits read that way (§1.11). Catalog's tables held no data to convert when this was written. | Owner, 2026-10-06 |
+| 13 | Status, §2.4, §3, §4.4, §4.5, §8, §9.3, §9.7; frontend.md §2.2, §2.3 | **The screens** (owner, 2026-10-07, answering in two batches in the conversation — a first, Q1–Q11, on setup and structure; a second, #1–#12, on the screens and the rule below — "all else approved as recommended", "all else accepted"). (a) Their own worktree, databases and port. (b) **Written into this file**, as B2B's screens are in b2b.md. (c) **Built in this order**: the six shared lists (seven screens — attributes and variations apart), then the products list and a product's page, then each store's rows and the store file, then the import, then the shop. (d) **Catalog may use the shared web glue** (`App\Http`), as B2B does. (e) **The import's pages name their uploader through Platform's `StaffNames`** — Access untouched. (f) **`CreateProduct` asks no store**: the job in some store that is on — the panel has no store worked in any more (frontend.md §2.2, 2026-10-06). (g) **The shop is built now, last, with no price, stock or Add to Cart** until their modules. (h) **No search in the panel's header and no Catalog card on Home yet**; the products list searches by name or code. (i) **Catalog first**: stage 5's and 6's screens later, as their backends land. (j) The owner, asked whether to write every spec before building: "what about writing all specs and then let you work alone till finish?" — then, asked again, **"B": build straight away on the recommendations** (§9.7), the owner reviewing the specs and the built screens together, a change coming as a fix. (k) **Each step's pull request merged by this session once its checks are green** — the full check, the browser suite and an independent review first ("Q1.B": "let you merge then fixes if there"). (l) Shop addresses `/products/`, `/categories/`, `/brands/`, `/search`; the menu and the search box on every shop page through a small Platform list; a product's photos in **one Platform read** ("Q10. as recommened", after asking whether it was the best way); a product's admin page in **tabs, the tab in the address**; **Attributes and Variations** two screens, no Colours screen. If stuck on the backend, ask its builder's session (owner). | Owner, 2026-10-07 |
+| 14 | §1.13, §2.2, §2.4, §3, §4.4, §4.5, §5.2, §5.4, §8 | **Individuals and companies** (owner, 2026-10-07, relayed by the stage 5 session and confirmed here: "you massage the session and tell it with our new rules then it applies the correct fixing of it"). In each store, admins choose which categories individuals see and which companies see; individuals buy retail only, companies retail and wholesale; a pending, rejected or suspended company sees the company side; guests see everything. On the owner's answers: (a) who is looking is asked of **a Platform contract Access fills**; (b) a category nobody switched is **seen by both**; (c) **a new job, admin roles only**; (d) **a parent's switch reaches everything under it, a sub-category may then change alone**; (e) **a product all wholesale-only in a store is not shown to individuals**, a mixed one shows them its retail variants; (f) **a card shows the first variant this viewer can buy**. The handoff's side — one price for everyone, wholesale for companies — is the stage 5 pull request's (#97). | Owner, 2026-10-07 |
+| 15 | §2.2, §5.2, §5.4 | **The prices pushed into the listing** — the stage 5 session's proposal (2026-10-07), for the owner's OK with Pricing's spec (#97): `prices()` takes per variant a `ListingPrice` (now, and the old price while lower, without VAT); Catalog keeps them and picks each side's card variant (amendment 14(f)). Open: a company's card whose first variant sells wholesale only. | Stage 5 session, 2026-10-07 — **[PROPOSED P22]** |
+
+### 9.7 Proposed with the screens — built as recommended (amendment 13(j))
+
+Mine — but for P22's price, which is the stage 5 session's — written 2026-10-07 while the owner was
+away; the owner chose to have them **built as recommended** and to review them with the built screens
+("B"). Each says what it costs to change later.
+
+| # | Proposal | Built as | Changing it later |
+|---|---|---|---|
+| P1 | **A description and a warranty's terms are typed as plain text with the products file's own marks** — a blank line starts a paragraph, `- ` a list item, `# ` a heading, `**…**` bold (§1.12) — with the formatted text shown under the box as it is typed. Neither Geist nor shadcn has a text editor; the import already reads these marks (`DescriptionText`) | A shadcn Textarea and a preview | An editor with buttons is a component of our own — the owner's word first (frontend.md §1.11) |
+| P2 | **A shared list is read by anyone holding its job in any store**; its changes need All stores, so for others every button is disabled with that reason | As the menu offers it | One line in each list's read |
+| P3 | **A product's stage**: Draft gray, Ready green, Archived amber — each subtle, in words | Geist's Badge | A colour map |
+| P4 | **The products list shows every product** to a holder of `catalog.product.view` (a product belongs to no store), each store's state only for the stores the reader covers; All Stores first, a store chosen showing its state; newest first, 50 at a time | S8 | The read's filter |
+| P5 | **Photos are uploaded on the screen that uses them** — no picker of the library's files; the same file uploaded twice is one file (Platform) | `UploadCatalogImage` | A picker needs a Platform read of the library |
+| P6 | **A product's Stores tab**: one card per covered store, as the owner described the page (§1.3); a Super Admin also sees off stores, marked Off, as every panel filter does (frontend.md §2.2) | S9 | Which stores the read returns |
+| P7 | **The category tree is the table's rows**, a parent's folding under it — shadcn's Table and Collapsible. Geist's only tree, File Tree, is for "illustrating project layouts", with no columns or actions | S2 | A drawing, not data |
+| P8 | **Orders are set by dragging** — a store's menu among siblings, a variation's attributes, a gallery, the related products — shadcn's `dashboard-01` handles on `@dnd-kit`, as the address formats (mouse, touch, keyboard) | S2, S4, S9 | Per screen |
+| P9 | **Who sees a category** — two switches a row, saving as each flips (Geist: a toggle takes effect at once) | S2 | Per screen |
+| P10 | **Deleting a list item**: a confirm dialog (it is refused while used); **discarding an import and deleting imported products**: Geist's Destructive Action Modal, the file's name typed | S1–S7, S11 | Per dialog |
+| P11 | **Searches that found nothing**: the last 12 months, grouped by words, store and language, most searched first, 50 at a time; All Stores or one; a row opens Add Word Pair with its words | S7 | The read |
+| P12 | **The import's parts are tabs in the address**; while bringing in, the page asks again every few seconds | S11 | Per screen |
+| P13 | **The import's and the store file's pages read in batches**, the import's products 100 at a time, to keep 15 queries | `ViewImport`, `ViewStoreFill` | The reads |
+| P14 | **The shop's filters**: brands, the filter attributes' values present, and Retail or Wholesale for a company or a guest, each with its count, from one read; price with Pricing | §4.5 | The read |
+| P15 | **The shop's sorts**: Best-Selling (newest until Sales ranks) and Newest; price sorts with Pricing | §4.5 | The read |
+| P16 | **Search results**, 48 at a time with Show More (the search gains paging) | §4.5 | The read |
+| P17 | **A product's page says how it is sold** to the viewer — retail, and wholesale for a company or a guest — with the minimums and maximums | §4.5 | The page |
+| P18 | **A link to a product this viewer's account type does not see** shows "Not available now", as anything else not orderable here does (§1.4) | §4.5 | One answer of the read |
+| P19 | **Every shop page carries its canonical address and the other language's** | §4.5 | The frame |
+| P20 | **The shop's menu**: shadcn's Navigation Menu, "All Categories" and the top categories; on a phone a Sheet with the tree; kept in the never-stale cache per store, language and viewer | §4.5 | The frame |
+| P21 | **The budgets are kept**: 8 a shop page, 15 an admin page, each page's count recorded — the shop's menu, and a product's page, kept in the never-stale cache to get there; a page that cannot keep it is brought to the owner with its measured count | §4.4, §4.5 | — |
+| P22 | **The receiving side of `ListingFacts`** — `store_variant_facts`, the listing's price columns, the interface bound — built with the shop's pages so stage 5 has something to call; the contract's final shape is the owner's with Pricing's spec (#97). The price's shape is the stage 5 session's proposal, not mine | §2.2, §5.2, §5.4 | Stage 5's call |
+| P24 | **A sub-category added or moved takes its new parent's switches** for individuals and companies, in every store (found by the review of this spec: "no row means both" would otherwise show it to those its parent is off for) | §1.13 | One rule in the add and move handlers |
+| P25 | **A guest sees what either kind of account sees** — the owner's "everything the individuals and companies products" read literally: a category switched off for both is seen by no one | §1.13 | One condition in the listing's read |
+| P23 | **The steps, each a short branch and one pull request into `main`**: 1 `feat/catalog-lists-screens` (the six shared lists' seven screens, their menu entries, the web glue, Platform's read of many photos); 2 `feat/catalog-products-screens` (S8, S9 but Stores); 3 `feat/catalog-store-screens` (S9's Stores, S10); 4 `feat/catalog-import-screens` (S11); 5 `feat/catalog-shop-audiences` (amendment 14: Platform's and Access's parts, the switches, the listing); 6 `feat/catalog-shop-pages` (§4.5, P22) | §4.4, §4.5 | — |
