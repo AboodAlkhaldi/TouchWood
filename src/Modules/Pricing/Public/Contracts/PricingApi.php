@@ -25,6 +25,9 @@ interface PricingApi
      * prices, never resolved at request time (handoff §10.1) - with the lines that have no price
      * there apart, and the subtotals over the priced ones.
      *
+     * A variant appears once per sale mode: the caller merges a cart's repeated lines first, and two
+     * lines of the same variant and mode are refused (`pricing.duplicate_lines`) rather than guessed at.
+     *
      * @param  list<CartLineDto>  $lines
      */
     public function prices(StoreId $store, array $lines): CartPricesDto;

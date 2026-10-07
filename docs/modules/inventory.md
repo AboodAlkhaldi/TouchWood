@@ -72,7 +72,7 @@ is left as it is. A refusal reaches the caller as `Shared\Domain\Error\DomainErr
 
 | DTO | Fields |
 |---|---|
-| `StockDto` | `variantId` · `countsOnStock` (stock limits ordering here) · `orderable` · `?available` (how many can be ordered now; null where stock does not limit) · `endingSoon` |
+| `StockDto` | `variantId` · `countsOnStock` (stock limits ordering here) · `orderable` · `?available` (how many can be ordered now; null where stock does not limit) · `availableAsGift` (how many can be given as a gift — in stock minus held, always a number, since a gift counts on stock in every store; stage 6's review, 2026-10-07) · `endingSoon` |
 | `HoldLineDto` | `variantId` · `quantity` · `gift` (a gift counts on stock in every store) |
 
 ### 2.3 What Inventory gives Catalog

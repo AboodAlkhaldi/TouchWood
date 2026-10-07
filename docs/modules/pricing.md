@@ -68,9 +68,15 @@ store's currency.
 | `totals(CartPricesDto $prices, Money $couponDiscount, Money $pointsDiscount, Money $shipping): TotalsDto` | Sales | The canonical amounts (handoff §10.2): `goods_total`, `taxable_base`, `vat` (rounded once, half up), `order_total`. **Pure** — no database, no clock; the same input gives the same answer. Refuses prices holding lines with no price, amounts in another currency, a negative amount, and discounts larger than `net_subtotal`. |
 
 `totals` may be called more than once while Sales builds a quote: with the coupon and points first
-(for `goods_total`, which free shipping and points earning bind to), then with the shipping. Its
-refusals reach the caller as `Shared\Domain\Error\DomainError` with a stable `type()` key —
-`pricing.lines_without_price`, `pricing.amounts_invalid` — modules export no error classes.
+(for `goods_total`, which free shipping and points earning bind to), then with the shipping.
+
+**One line per variant and mode** (stage 6's review, 2026-10-07): `prices` expects each pair of
+variant and sale mode once — Sales merges a cart's repeated lines first — and refuses two of the same
+(`pricing.duplicate_lines`) rather than guess.
+
+Refusals reach the caller as `Shared\Domain\Error\DomainError` with a stable `type()` key —
+`pricing.duplicate_lines`, `pricing.lines_without_price`, `pricing.amounts_invalid` — modules export
+no error classes.
 
 ### 2.2 The values
 
