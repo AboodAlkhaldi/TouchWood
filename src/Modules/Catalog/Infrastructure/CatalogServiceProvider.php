@@ -18,6 +18,7 @@ use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Query\ListCategories\ListCategoriesHandler;
 use Modules\Catalog\Application\Query\Lists\CatalogListReads;
+use Modules\Catalog\Application\Query\Products\CatalogProductReads;
 use Modules\Catalog\Application\Query\Shop\ShopReader;
 use Modules\Catalog\Application\Search\SearchLog;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
@@ -33,6 +34,7 @@ use Modules\Catalog\Domain\Repository\WordPairRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseAttributeRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseBrandRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseCatalogListReads;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseCatalogProductReads;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseCategoryRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseImports;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
@@ -80,6 +82,7 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(ShopReader::class, DatabaseShopReader::class);
         // The panel's screens read the shared lists through their own reads (§4.4).
         $this->app->bind(CatalogListReads::class, DatabaseCatalogListReads::class);
+        $this->app->bind(CatalogProductReads::class, DatabaseCatalogProductReads::class);
         $this->app->bind(SearchLog::class, DatabaseSearchLog::class);
         $this->app->bind(Imports::class, DatabaseImports::class);
         $this->app->bind(ImportQueue::class, LaravelImportQueue::class);
