@@ -39,13 +39,21 @@ final readonly class ViewProductHandler
      */
     public function handle(ViewProduct $query): ProductView
     {
-        $this->readers->covered();
+        $this->readers->authorize();
         $product = $this->reads->core($query->productId) ?? throw new ProductNotFound($query->productId);
         $tab = in_array($query->tab, ViewProduct::TABS, true) ? $query->tab : ViewProduct::DETAILS;
 
+        $variants = $tab === ViewProduct::VARIANTS ? $this->reads->variants($product->id) : null;
+        $photos = $product->gallery;
+
+        foreach ($variants ?? [] as $variant) {
+            $photos = [...$photos, ...$variant->photos];
+        }
+
+        // Every photo the page shows, read together: the gallery's, and on the Variants tab theirs.
         $photoStates = [];
 
-        foreach ($this->platform->mediaOf($product->gallery) as $mediaId => $media) {
+        foreach ($this->platform->mediaOf(array_values(array_unique($photos))) as $mediaId => $media) {
             $photoStates[$mediaId] = $media->variantsStatus->value ?? MediaVariantsStatus::Pending->value;
         }
 
@@ -55,14 +63,14 @@ final readonly class ViewProductHandler
         return new ProductView(
             $product,
             $tab,
-            self::missing($product, $photoStates),
+            self::missing($product, array_intersect_key($photoStates, array_flip($product->gallery))),
             $photoStates,
             $this->readers->may(CatalogPermissions::PRODUCT_UPDATE, $product->onIn),
             $stage === ProductStage::Draft && $this->readers->may(CatalogPermissions::PRODUCT_PUBLISH, []),
             $this->readers->may(CatalogPermissions::PRODUCT_ARCHIVE, $product->onIn),
             $stage === ProductStage::Ready && $this->readers->may(CatalogPermissions::VARIANT_CORRECT_CODE, $product->onIn),
             options: $tab === ViewProduct::DETAILS ? $this->reads->options() : null,
-            variants: $tab === ViewProduct::VARIANTS ? $this->reads->variants($product->id) : null,
+            variants: $variants,
             attributes: $tab === ViewProduct::VARIANTS || $tab === ViewProduct::SEARCH ? $this->reads->attributeChoices() : null,
             searchWords: $searchAndFilters['words'] ?? null,
             filterValueIds: $searchAndFilters['valueIds'] ?? null,
@@ -71,7 +79,7 @@ final readonly class ViewProductHandler
     }
 
     /**
-     * @param  array<string, string>  $photoStates
+     * @param  array<string, string>  $photoStates  the gallery's photos' states
      * @return list<string>
      */
     private static function missing(ProductCore $product, array $photoStates): array

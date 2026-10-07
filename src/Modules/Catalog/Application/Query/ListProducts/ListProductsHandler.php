@@ -37,7 +37,7 @@ final readonly class ListProductsHandler
      */
     public function handle(ListProducts $query): ProductList
     {
-        $covered = $this->readers->covered();
+        $covered = $this->readers->authorize();
         $given = $query->filter;
         $storeId = $given->storeId === null ? null : strtolower(trim($given->storeId));
 

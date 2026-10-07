@@ -26,13 +26,14 @@ final readonly class ProductReaders
     ) {}
 
     /**
-     * The stores where the reader reads the products: null for every store.
+     * Named as every Catalog check is: the reader must read products in some store. Answers the stores
+     * where they do - null for every store.
      *
      * @return list<string>|null store ids
      *
      * @throws Unauthorized when the reader reads them nowhere
      */
-    public function covered(): ?array
+    public function authorize(): ?array
     {
         $stores = $this->authorizer->storesWith(CatalogPermissions::PRODUCT_VIEW);
 

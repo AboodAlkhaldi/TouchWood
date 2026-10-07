@@ -8,13 +8,15 @@ use Modules\Catalog\Presentation\Http\Controller\AttributesController;
 use Modules\Catalog\Presentation\Http\Controller\BrandsController;
 use Modules\Catalog\Presentation\Http\Controller\CategoriesController;
 use Modules\Catalog\Presentation\Http\Controller\LabelsController;
+use Modules\Catalog\Presentation\Http\Controller\ProductChangesController;
+use Modules\Catalog\Presentation\Http\Controller\ProductsController;
 use Modules\Catalog\Presentation\Http\Controller\SearchWordsController;
 use Modules\Catalog\Presentation\Http\Controller\VariationsController;
 use Modules\Catalog\Presentation\Http\Controller\WarrantiesController;
 
 /*
 | Catalog's screens in the admin panel (catalog.md §4.4, amendment 13): the six shared lists first
-| (step 1) — brands, categories, attributes and their values, variations, labels, warranties, and the
+| (step 1), then the products (step 2) — brands, categories, attributes and their values, variations, labels, warranties, and the
 | search words with the searches that found nothing.
 |
 | Mounted into the area App\Http\AdminArea names, as Platform's and B2B's screens are. Who may open
@@ -82,4 +84,25 @@ Route::prefix(AdminArea::PREFIX)
         Route::get('search-words', [SearchWordsController::class, 'index'])->name('catalog.admin.search-words');
         Route::post('search-words', [SearchWordsController::class, 'add'])->name('catalog.admin.search-words.add');
         Route::post('search-words/{pair}/delete', [SearchWordsController::class, 'delete'])->name('catalog.admin.search-words.delete');
+
+        // The products (step 2): the list, a new draft, and one product's page with each tab's changes.
+        Route::get('products', [ProductsController::class, 'index'])->name('catalog.admin.products');
+        Route::post('products', [ProductsController::class, 'create'])->name('catalog.admin.products.create');
+        Route::get('products/{product}', [ProductsController::class, 'show'])->name('catalog.admin.products.show');
+        Route::post('products/{product}/details', [ProductChangesController::class, 'details'])->name('catalog.admin.products.details');
+        Route::post('products/{product}/gallery', [ProductChangesController::class, 'gallery'])->name('catalog.admin.products.gallery');
+        Route::post('products/{product}/search-words', [ProductChangesController::class, 'searchWords'])->name('catalog.admin.products.search-words');
+        Route::post('products/{product}/filters', [ProductChangesController::class, 'filters'])->name('catalog.admin.products.filters');
+        Route::post('products/{product}/related/{kind}', [ProductChangesController::class, 'related'])->name('catalog.admin.products.related');
+        Route::post('products/{product}/ready', [ProductChangesController::class, 'ready'])->name('catalog.admin.products.ready');
+        Route::post('products/{product}/archive', [ProductChangesController::class, 'archive'])->name('catalog.admin.products.archive');
+        Route::post('products/{product}/restore', [ProductChangesController::class, 'restore'])->name('catalog.admin.products.restore');
+        Route::post('products/{product}/delete', [ProductChangesController::class, 'delete'])->name('catalog.admin.products.delete');
+        Route::post('products/{product}/variants', [ProductChangesController::class, 'addVariant'])->name('catalog.admin.products.variants.add');
+        Route::post('products/{product}/variants/{variant}', [ProductChangesController::class, 'editVariant'])->name('catalog.admin.products.variants.edit');
+        Route::post('products/{product}/variants/{variant}/code', [ProductChangesController::class, 'correctCode'])->name('catalog.admin.products.variants.code');
+        Route::post('products/{product}/variants/{variant}/photos', [ProductChangesController::class, 'variantPhotos'])->name('catalog.admin.products.variants.photos');
+        Route::post('products/{product}/variants/{variant}/archive', [ProductChangesController::class, 'archiveVariant'])->name('catalog.admin.products.variants.archive');
+        Route::post('products/{product}/variants/{variant}/restore', [ProductChangesController::class, 'restoreVariant'])->name('catalog.admin.products.variants.restore');
+        Route::post('products/{product}/variants/{variant}/delete', [ProductChangesController::class, 'deleteVariant'])->name('catalog.admin.products.variants.delete');
     });

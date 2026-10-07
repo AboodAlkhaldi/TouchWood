@@ -1,3 +1,14 @@
+export type AttributeChoiceData = {
+id: string,
+nameAr: string,
+nameEn: string,
+kind: string,
+unitAr: string | null,
+unitEn: string | null,
+isColour: boolean,
+active: boolean,
+values: ChoiceValueData[],
+};
 export type AttributeData = {
 id: string,
 nameAr: string,
@@ -41,6 +52,12 @@ descriptionAr: string,
 descriptionEn: string,
 products: number,
 };
+export type BrandOptionData = {
+id: string,
+nameAr: string,
+nameEn: string,
+isDefault: boolean,
+};
 export type BrandsPage = {
 brands: BrandData[],
 mayChange: boolean,
@@ -74,6 +91,18 @@ products: number,
 storeRank: number | null,
 baseRank: number | null,
 };
+export type CategoryOptionData = {
+id: string,
+pathAr: string,
+pathEn: string,
+};
+export type ChoiceValueData = {
+id: string,
+nameAr: string,
+nameEn: string,
+swatch: string | null,
+active: boolean,
+};
 export type CountryOptionData = {
 code: string,
 name: string,
@@ -100,12 +129,110 @@ locale: string,
 times: number,
 lastSearchedAt: string,
 };
+export type PhotoData = {
+mediaId: string,
+thumb: string | null,
+state: string,
+};
+export type ProductCountsData = {
+variants: number,
+photos: number,
+searchWords: number,
+filterValues: number,
+related: number,
+goesWith: number,
+};
+export type ProductHeadData = {
+id: string,
+nameAr: string,
+nameEn: string | null,
+slugAr: string | null,
+slugEn: string | null,
+stage: string,
+archivedFrom: string | null,
+brandId: string,
+brandNameAr: string,
+brandNameEn: string,
+categoryId: string | null,
+categoryPathAr: string | null,
+categoryPathEn: string | null,
+warrantyId: string | null,
+attributeSetId: string | null,
+attributeSetNameAr: string | null,
+attributeSetNameEn: string | null,
+setAttributeIds: string[],
+descriptionAr: string,
+descriptionEn: string,
+hiddenByCategory: boolean,
+hiddenByBrand: boolean,
+codes: string[],
+counts: ProductCountsData,
+};
+export type ProductPage = {
+product: ProductHeadData,
+tab: string,
+missing: string[],
+gallery: PhotoData[],
+mayUpdate: boolean,
+mayPublish: boolean,
+mayArchive: boolean,
+mayCorrectCode: boolean,
+brands: BrandOptionData[] | null,
+categories: CategoryOptionData[] | null,
+warranties: WarrantyOptionData[] | null,
+variations: VariationOptionData[] | null,
+variants: VariantData[] | null,
+attributes: AttributeChoiceData[] | null,
+searchWords: string[] | null,
+filterValueIds: string[] | null,
+related: RelatedData[] | null,
+found: ProductRowData[] | null,
+};
+export type ProductRowData = {
+id: string,
+nameAr: string,
+nameEn: string | null,
+codes: string[],
+stage: string,
+brandNameAr: string,
+brandNameEn: string,
+categoryNameAr: string | null,
+categoryNameEn: string | null,
+photo: string | null,
+variants: number,
+onIn: string[],
+storeState: string | null,
+storeVariantsOn: number,
+};
+export type ProductsPage = {
+products: ProductRowData[],
+more: boolean,
+after: string | null,
+search: string | null,
+stage: string | null,
+categoryId: string | null,
+brandId: string | null,
+storeState: string | null,
+storeCode: string | null,
+stores: StoreOptionData[],
+mayCreate: boolean,
+brands: BrandOptionData[],
+categories: CategoryOptionData[],
+};
 export type ReachedProductData = {
 id: string,
 nameAr: string,
 nameEn: string | null,
 stage: string,
 categoryId: string | null,
+};
+export type RelatedData = {
+kind: string,
+productId: string,
+nameAr: string,
+nameEn: string | null,
+codes: string[],
+stage: string,
 };
 export type SearchWordsPage = {
 pairs: WordPairData[],
@@ -132,6 +259,32 @@ active: boolean,
 position: number,
 inUse: boolean,
 };
+export type VariantData = {
+id: string,
+code: string,
+position: number,
+archived: boolean,
+values: VariantValueData[],
+details: VariantDetailData[],
+weightGrams: number | null,
+lengthMm: number | null,
+widthMm: number | null,
+heightMm: number | null,
+photos: PhotoData[],
+};
+export type VariantDetailData = {
+attributeId: string,
+textAr: string | null,
+textEn: string | null,
+number: string | null,
+};
+export type VariantValueData = {
+attributeId: string,
+valueId: string,
+nameAr: string,
+nameEn: string,
+swatch: string | null,
+};
 export type VariationData = {
 id: string,
 nameAr: string,
@@ -140,6 +293,12 @@ active: boolean,
 attributeIds: string[],
 builtOn: boolean,
 products: number,
+};
+export type VariationOptionData = {
+id: string,
+nameAr: string,
+nameEn: string,
+attributeIds: string[],
 };
 export type VariationsPage = {
 variations: VariationData[],
@@ -159,6 +318,12 @@ termsAr: string,
 termsEn: string,
 active: boolean,
 products: number,
+};
+export type WarrantyOptionData = {
+id: string,
+nameAr: string,
+nameEn: string,
+periodMonths: number | null,
 };
 export type WordPairData = {
 id: string,

@@ -19,7 +19,7 @@ final readonly class ProductView
 {
     /**
      * @param  list<string>  $missing  what it lacks to be made ready: `name_en`, `description_ar`, `description_en`, `category`, `variants`, `photos`
-     * @param  array<string, string>  $photoStates  gallery media id => PENDING, READY or FAILED
+     * @param  array<string, string>  $photoStates  media id => PENDING, READY or FAILED: the gallery's, and on the Variants tab its variants'
      * @param  list<VariantView>|null  $variants
      * @param  list<AttributeChoice>|null  $attributes
      * @param  list<string>|null  $searchWords

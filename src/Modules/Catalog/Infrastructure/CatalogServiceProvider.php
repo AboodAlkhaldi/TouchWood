@@ -113,6 +113,7 @@ final class CatalogServiceProvider extends ServiceProvider
         // The panel's menu: the shared lists' screens (catalog.md §4.4), each offered for any of the
         // jobs its screen serves, in any store — the screen decides the rest.
         $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('catalog', 'products', PermissionGroup::Catalog->value, 'catalog.admin.products', CatalogPermissions::PRODUCT_VIEW, 10, icon: 'catalog'),
             new MenuEntryDto('catalog', 'categories', PermissionGroup::Catalog->value, 'catalog.admin.categories', ListCategoriesHandler::JOBS, 20, icon: 'catalog'),
             new MenuEntryDto('catalog', 'brands', PermissionGroup::Catalog->value, 'catalog.admin.brands', CatalogPermissions::BRAND_MANAGE, 30, icon: 'catalog'),
             new MenuEntryDto('catalog', 'attributes', PermissionGroup::Catalog->value, 'catalog.admin.attributes', CatalogPermissions::ATTRIBUTE_MANAGE, 40, icon: 'catalog'),

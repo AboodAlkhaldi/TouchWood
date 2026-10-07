@@ -130,6 +130,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             ->selectRaw("(SELECT sl.slug FROM catalog.product_slugs sl WHERE sl.product_id = p.id AND sl.locale = 'ar' AND sl.is_current) as slug_ar")
             ->selectRaw("(SELECT sl.slug FROM catalog.product_slugs sl WHERE sl.product_id = p.id AND sl.locale = 'en' AND sl.is_current) as slug_en")
             ->selectRaw("(SELECT coalesce(json_agg(c.code ORDER BY c.code), '[]') FROM catalog.product_codes c WHERE c.product_id = p.id) as codes")
+            ->selectRaw("(SELECT coalesce(json_agg(m.attribute_id ORDER BY m.position), '[]') FROM catalog.attribute_set_members m WHERE m.attribute_set_id = p.attribute_set_id) as set_attributes")
             ->selectRaw("(SELECT coalesce(json_agg(ph.media_id ORDER BY ph.position), '[]') FROM catalog.product_photos ph WHERE ph.product_id = p.id) as gallery")
             ->selectRaw("(SELECT coalesce(json_agg(DISTINCT sv.store_id), '[]') FROM catalog.store_variants sv WHERE sv.product_id = p.id AND sv.is_active) as on_in")
             ->selectRaw('EXISTS (SELECT 1 FROM catalog.variants v WHERE v.product_id = p.id AND NOT v.is_archived) as has_variant')
@@ -179,6 +180,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             self::text($row->attribute_set_id),
             self::text($row->set_ar),
             self::text($row->set_en),
+            self::strings($row->set_attributes),
             self::json($row->description_ar),
             self::json($row->description_en),
             (bool) $row->hidden_by_category,
