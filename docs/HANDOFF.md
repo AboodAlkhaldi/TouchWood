@@ -119,6 +119,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-02 | §9.1, §9.2 | **A product-wide stage** (`DRAFT`, `READY`, `ARCHIVED`) **and each store's Active row**: a store chooses whole products or single variants; "Not available now" on a product or a variant, per store; the JSON import lives in Catalog, its prices and stock waiting for Pricing and Inventory | Catalog spec, owner decision |
 | 2026-10-05 | §9.1 | **The JSON import's format and flow agreed** (Catalog amendment 6): a page per uploaded file, decided and accepted product by product, instead of "a preview, then all-or-nothing"; the store file switches existing products on only. The format, a guide and complete examples: `docs/modules/catalog-import/` | Owner, Catalog amendment 6 |
 | 2026-10-02 | §9.3, §9.4, §9.5, §15.2 | **One category per product**, at the end of the tree; empty categories hidden per store; categories and brands deactivated (each product's fate chosen) or deleted when unused; a movable default brand; shared search word pairs and a 12-month search log with no person; custom labels and warranty built with Catalog; a product video left open | Catalog spec, owner decision |
+| 2026-10-07 | §11.5 | **A points balance never goes below 0** ("there is no minus points ever"): what a cancellation or a return cannot take back — from the order's own points first, then the customer's other points — is dropped, and the customer keeps the discount — no negative balance, no checkout warning. Points given back keep their old expiry dates and first cover what is taken back; earned points that expired unused count as taken back. Earned points are usable at once; admins may also add or remove points by hand, with a reason; the points that expire first are spent first. Was: negative balances allowed, never expiring, with a checkout warning | Loyalty spec, owner decision |
 
 ---
 
@@ -1232,16 +1233,22 @@ They are not the same rule and both apply:
 The only loyalty mechanism. **There is no wallet, no store credit, no cashback balance, no
 tier system, no per-product earn rate.** Points are the cashback.
 
-- Earn on **DELIVERED**. Reverse on cancellation or completed return, proportionally on
-  partial return. Only those triggers.
+- Earn on **DELIVERED**, usable at once. Reverse on cancellation or completed return,
+  proportionally on partial return. Besides those, only an admin changes points, by hand, with a
+  reason (owner, 2026-10-07).
 - Per store, isolated — KSA points do not spend in Egypt.
-- FIFO expiry with an admin-defined period.
+- The points that expire first are spent first; each lot expires an admin-defined period after it
+  came in.
 - Earn rate and redeem rate are separate admin values.
 - Minimum redemption threshold.
 - Redemption mode `ALL_OR_NOTHING` or `PARTIAL`, set **separately per audience**.
 - Maximum redemption percentage of an order (see §11.4).
 - Points redeem as a **direct discount at checkout**, never a generated code.
-- Negative balances are allowed, never expire, and show a checkout warning.
+- **A balance never goes below 0** (owner, 2026-10-07: "there is no minus points ever"): what a
+  cancellation or a return cannot take back is dropped, after taking what it can from the order's
+  own points, then the customer's other points. Points given back keep their old expiry dates —
+  unless the order that earned them was returned meanwhile, whose settlement they then undo first
+  (`docs/modules/loyalty.md` §1.3, §1.8). Was: negative balances allowed, with a checkout warning.
 
 ### 11.6 Gifts and free shipping
 
