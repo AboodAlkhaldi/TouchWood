@@ -135,8 +135,9 @@ export default function Show(page: ProductPage) {
                 {product.hiddenByBrand ? <Note variant="warning">{t('catalog::admin_products.hidden.brand')}</Note> : null}
                 {!mayUpdate ? <Note data-test="read-only">{t('catalog::admin_products.read_only')}</Note> : null}
 
-                <Tabs value={open} onValueChange={choose} className="gap-6">
-                    <TabsList variant="line" className="h-10 w-full justify-start overflow-x-auto border-b border-line p-0" aria-label={t('catalog::admin_products.tabs_label')}>
+                {/* min-w-0: five tabs are wider than a phone; their strip scrolls, never the page. */}
+                <Tabs value={open} onValueChange={choose} className="min-w-0 gap-6">
+                    <TabsList variant="line" className="h-10 w-full max-w-full min-w-0 justify-start overflow-x-auto border-b border-line p-0" aria-label={t('catalog::admin_products.tabs_label')}>
                         {TABS.map((tab) => (
                             <TabsTrigger key={tab} value={tab} data-test={`tab-${tab}`} className="flex-none gap-2 px-3 text-label-14">
                                 {t(`catalog::admin_products.tab.${tab}`)}
