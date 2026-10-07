@@ -58,6 +58,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.10, §2.2, §3.3, §3.4, §3.5, §6 | **No store "worked in"**: the sidebar's header is one link to Home; Home's store switcher (All Stores and each store; a Super Admin's off stores marked Off) changes Home's figures only; every store screen has its own store filter (Settings, Company and Document Types, Address Formats, Companies); times in the screen's store, else KSA; View Store opens a menu of the person's stores; Select All per area where actions are ticked. Replaces the store picker of 2026-09-19 | Owner, 2026-10-06 |
 | §1.8 | **IBM Plex Sans Arabic draws Arabic letters**: its Arabic subset is loaded too — only the Latin one was, so every Arabic letter had come from the system's fallback face | Owner, 2026-10-06 |
 | §1.11 | **The logo's image files**: a simpler tab icon that reads at 32 px; the navy square for phones' home screens (iPhone and Android); the cream tile at the top of the emails | Owner, 2026-10-07 |
+| §2.2, §2.3 | **Catalog's screens** (catalog.md §4.4, §4.5, amendment 13): the panel's header search waits for Sales, one search for products and orders; the shop's header gains Catalog's category menu and search box on every shop page, through a small Platform list of the shop frame's parts; shop addresses `/{store}/{locale}/products|categories|brands/{slug}` and `/search` | Owner, 2026-10-07 |
 
 ---
 
@@ -629,7 +630,8 @@ From the design, with the decided rules applied:
   more it opens a short menu (shadcn's DropdownMenu) of the stores the person may view — their own
   stores that are on, and for a Super Admin every store, an off one marked Off (access.md amendment
   64). **[DECIDED 2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a
-  module gives them content: search with Catalog and Sales, the bell with Ops.
+  module gives them content: search with Sales — one search for products and orders; Catalog's
+  products list has its own until then (catalog.md §4.4, owner 2026-10-07) — the bell with Ops.
 - **[REPLACED by the owner, 2026-10-06] No store "worked in":** ~~the store picker remembered on the
   staff account~~. **Every screen that shows one store's data has its own store filter**, as the
   Companies list has had: the address says which store (`?store=<code>`, Companies `?store=<id>`).
@@ -660,8 +662,9 @@ From the design, with the decided rules applied:
   **Stores and System** (platform.md §9.8: stores on and off, failed jobs, storage used — each
   figure only with its own permission). The sales figures the owner asked for — products sold, money
   taken, each store's sales, products about to run out — come as cards of Sales, Catalog and
-  Inventory when those modules exist; the home does not change for them. Numbers are in Latin
-  digits, as everywhere (§1.8).
+  Inventory when those modules exist; the home does not change for them — Catalog's waits for the
+  owner's ideas for the home (catalog.md §4.4, owner 2026-10-07). Numbers are in Latin digits, as
+  everywhere (§1.8).
 
 ### 2.3 Storefront
 
@@ -672,7 +675,9 @@ no storefront design and still holds for anything those files do not show:
 
 - A header with the logo, the country (store) switch and the language switch (`/sa/ar` ↔ `/sa/en`,
   staying on the same page), and "Sign in", or the customer's name opening a menu with My Account
-  and Sign Out (§1.11 #4). Search and the cart come with Catalog and Sales.
+  and Sign Out (§1.11 #4). **Catalog's category menu and search box** sit in it on every shop page,
+  put there through a small Platform list of the frame's parts (catalog.md §4.5, owner 2026-10-07);
+  the cart comes with Sales.
 - A small footer, holding the theme switch (§1.11, 2026-10-02).
 - **The staff view** (2026-10-05; access.md §1.11): while a staff member views the shop from the
   panel, **a line under the header**, in the place and look of the shopper lines (amendment 50 —
