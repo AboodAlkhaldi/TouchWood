@@ -78,12 +78,12 @@ Also:
 
 The owner's **latest word overrides the specs**; when that happens, the spec is amended.
 
-## 4 · Where the work stands (verified 2026-10-06)
+## 4 · Where the work stands (verified 2026-10-07)
 
 | Stage | What | State |
 |---|---|---|
 | 1, 2, 2b | Platform, Access, the frontend foundation | Done, on `main` |
-| — | The Geist/shadcn rebuild (#80) and the owner's fix list P3–P7 (#83–#87) | Done, on `main` |
+| — | The Geist/shadcn rebuild (#80), the owner's fix list P3–P7 (#83–#87), Latin digits (#90), the Arabic font (#93), the panel's store choice (#94) | Done, on `main` |
 | 3 | B2B | Done, on `main` |
 | **4** | **Catalog backend** | Done, on `main`: steps 1–7 (#77–#79, #81, #82, #88, #89) reached `main` in #91 (2026-10-06), then every digit typed saved as 0-9 (catalog.md amendment 12). Start from `main`. |
 | **4** | **Catalog screens** | **Yours. Nothing is built** (§5.2). |
@@ -95,10 +95,11 @@ numbers and dates through `intlLocale` (`resources/js/lib/digits.ts`), never a l
 own; a typed number goes through `toLatinDigits` there; Catalog saves typed Arabic digits as 0-9
 (catalog.md amendment 12). `tests/Architecture/LatinDigitsTest` checks the screens.
 
-**A job that is not yours** but touches what you build (memory, §9): **the panel's store choice**
-(the sidebar's store menu goes; every store screen gets its own store filter, `?store=`, as
-Companies has), being built by another session. Ask the owner how the Catalog screens should meet
-it before you build a store screen (§5.4).
+**The panel's store choice is built** (#94; frontend.md amendment of 2026-10-06, §2.2): the panel
+has no store "worked in". **Every screen that shows one store's data has its own store filter**, the
+address saying which store (`?store=<code>`), as Settings and Companies do; Home's switcher changes
+Home's figures only. Catalog's store screens (a store's listings, its menu order, its price-and-stock
+files) follow that rule.
 
 ## 5 · The job: Catalog's screens
 
@@ -183,8 +184,7 @@ From the specs and the owner — each one cited where it is written:
   tokens; where they conflict, **Geist's rule wins**; where neither has what you need, show the
   owner what you searched and ask before building (frontend.md §1.10–§1.11; memory
   `touchwood-ui-use-geist-shadcn.md`).
-- **Numbers**: 0-9 everywhere, as §4 says. **Store screens**: see the store-choice job in §4 — ask
-  before building one.
+- **Numbers** are 0-9 everywhere, and **a store screen** has its own store filter, both as §4 says.
 
 ### 5.5 The checks the screens need
 
@@ -279,7 +279,7 @@ files yourself:
 | `touchwood-catalog-build.md`, `touchwood-catalog-plan.md` | How the Catalog backend was built, and the owner's answers along the way. |
 | `touchwood-import-format.md` | The agreed import format and its rule. |
 | `touchwood-roles-nest.md` | Super Admin ⊃ admin ⊃ staff, in the owner's words. |
-| `touchwood-latin-digits.md`, `touchwood-panel-store-choice.md` | Latin digits (built) and the store-choice job (§4). |
+| `touchwood-latin-digits.md`, `touchwood-panel-store-choice.md` | Latin digits and the panel's store choice, both built (§4). |
 | `touchwood-owner-fixes-2026-10-04.md` | The owner's fix list after testing the rebuild — what they look for on a screen. |
 | `touchwood-branch-workflow.md`, `touchwood-dev-env.md`, `touchwood-no-ai-attribution.md` | Branches, the Windows environment, the attribution rule. |
 
