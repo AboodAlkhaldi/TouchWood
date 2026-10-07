@@ -41,7 +41,8 @@ allowed but rare, and batched.
 
 **Each step.**
 
-6. A branch per step off the phase branch; the phase branch off `main`. A step is one PR.
+6. A short branch per step off the latest `main`; a step is one PR into `main` (see "Branches and
+   versions" below — there is no phase branch).
 7. Build the whole step: code, tests, translations in both languages, and the doc updates the step
    makes true.
 8. `composer check` must pass — all of it, read, not skimmed. A run that "passes" in seconds passed
@@ -63,6 +64,42 @@ allowed but rare, and batched.
 - Something a guard **cannot** prove, said plainly where the guard is — a claim that overstates a
   check is worse than no check, because the next person trusts it.
 - Anything left open, in the step's doc under **Left open**, with who it waits on.
+
+## Branches and versions
+
+Trunk-based, decided by the owner on 2026-10-07 for all new work. It replaces phase branches with
+step branches under them: they left a tangled history, with no version marking where a stage ended.
+
+1. **`main` is the only long-lived branch**, and it always passes CI. There are no phase or stage
+   branches, no branch off another branch, and no stacked PRs.
+2. **One job is one short branch off the latest `main`, and one PR into `main`.** A job is a step, a
+   spec or a feature. It merges within about one or two days; a step that would take longer is split.
+   An unfinished stage may sit in `main`: nothing is live yet, and a module without screens is
+   invisible.
+3. **A small fix or edit is a commit straight on `main`**, with no branch and no PR (owner: "the
+   small fixes goes right into main as commit not pr"). `composer check` passes first, as for
+   every commit.
+4. **Branch names** are `<type>/<module>-<what>`: `feat/catalog-products-screen`,
+   `fix/browser-navigate-timeout`, `docs/pricing-spec`. The types are feat, fix, docs, test,
+   refactor and chore.
+5. **PRs are squash-merged**: one commit on `main` per PR, titled with the PR's title. Merging
+   `main` into a PR branch to bring it up to date is fine, since the squash flattens it. Nothing is
+   ever force-pushed, and history is never rewritten.
+6. **A branch is deleted the moment it merges**, locally and on GitHub. Each session works in its
+   own worktree under `.claude/worktrees/<name>`, made from a fresh `main`, with its own databases
+   and port. The session's next job starts a new branch from the updated `main`, and the worktree
+   is removed when the session's work ends.
+7. **The `TouchWood` folder stays on `main`** and is only ever updated (`git pull --ff-only`).
+   Nobody works in it: it is the owner's view of the real state.
+8. **Versions follow SemVer, 0.x while building.** A finished stage gets an annotated tag on
+   `main` and a GitHub Release listing its PRs. `v1.0.0` is the first live launch. The past stages
+   are tagged: `v0.1.0` Platform, `v0.2.0` Access, `v0.3.0` the frontend foundation, `v0.4.0` B2B,
+   `v0.5.0` the Geist/shadcn rebuild and the owner's fix list, `v0.6.0` the Catalog backend.
+9. **The owner decides each merge.** If they say "merge" for a PR, the session merges it once CI
+   passes; otherwise it waits for their go.
+10. **GitHub holds the line** (owner, 2026-10-07). The merge button only squashes; GitHub deletes a
+    merged branch itself; the "Protect main" ruleset stops `main` from being force-pushed or
+    deleted; and CI runs once for each PR and on every push to `main` (`.github/workflows/ci.yml`).
 
 ## Layout
 

@@ -1,7 +1,10 @@
 name: CI
 
+# A PR's branch is checked once, by its pull_request run; a push is checked only on main, where small
+# fixes land as commits and every squash merge arrives (docs/CONVENTIONS.md, "Branches and versions").
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
