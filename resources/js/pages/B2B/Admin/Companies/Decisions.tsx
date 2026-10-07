@@ -14,7 +14,7 @@ import { NativeSelectOption } from '@/components/ui/native-select';
 import { useTranslator } from '@/lib/t';
 import type { StaffFileData, StaffTypeChoiceData } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { nameIn, type Locale } from '../shared';
-import { StaffDialog } from '../StaffDialog';
+import { PanelDialog } from '@/components/PanelDialog';
 
 /*
 | The decisions on one company (b2b.md §3.2, §4.6, amendments 21 and 23), on shadcn's Dialog and
@@ -66,7 +66,7 @@ export function ApproveModal({ open, onOpenChange, companyId, typeNote }: Base &
     }
 
     return (
-        <StaffDialog
+        <PanelDialog
             open={open}
             onOpenChange={onOpenChange}
             title={t('b2b::admin_companies.approve.title')}
@@ -89,7 +89,7 @@ export function ApproveModal({ open, onOpenChange, companyId, typeNote }: Base &
                 onChange={(event) => form.setData('note', event.target.value)}
                 data-test="approve-note"
             />
-        </StaffDialog>
+        </PanelDialog>
     );
 }
 
@@ -165,7 +165,7 @@ export function RejectModal({
     const requestsDescribed = ['reject-requests-helper', form.errors.requests ? 'reject-requests-error' : null].filter(Boolean).join(' ');
 
     return (
-        <StaffDialog
+        <PanelDialog
             open={open}
             onOpenChange={onOpenChange}
             destructive
@@ -301,7 +301,7 @@ export function RejectModal({
                     </Button>
                 </div>
             </FieldSet>
-        </StaffDialog>
+        </PanelDialog>
     );
 }
 
@@ -417,7 +417,7 @@ function ReasonDialog({
     }
 
     return (
-        <StaffDialog
+        <PanelDialog
             open={open}
             onOpenChange={onOpenChange}
             title={title}
@@ -444,7 +444,7 @@ function ReasonDialog({
                 onChange={(event) => form.setData('reason', event.target.value)}
                 data-test={`${name}-reason`}
             />
-        </StaffDialog>
+        </PanelDialog>
     );
 }
 
@@ -507,7 +507,7 @@ export function CorrectTypeModal({
     const typeError = (form.errors as Record<string, string | undefined>).type;
 
     return (
-        <StaffDialog
+        <PanelDialog
             open={open}
             returnFocusTo={returnFocusTo}
             onOpenChange={onOpenChange}
@@ -555,6 +555,6 @@ export function CorrectTypeModal({
                     {t('b2b::admin_companies.correct.reactivates')}
                 </Note>
             ) : null}
-        </StaffDialog>
+        </PanelDialog>
     );
 }
