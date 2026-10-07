@@ -111,17 +111,59 @@ describe('the admin sign-in screens', function () {
             ->assertSee('data-campaign="base"', false);
     });
 
-    it('names the logo on its navy tile as the tab\'s icon', function () {
-        // The owner's logo answers of 2026-10-04 (frontend.md §1.11): the shell links it, in place
-        // of the old, empty favicon.ico.
+    it('names the logo\'s icons for the tab and for phones\' home screens', function () {
+        // The owner's files of 2026-10-07 (frontend.md §1.11): the shell links each, in place of
+        // the old, empty favicon.ico.
         (new AdminBrowser('10.2.0.8'))->get('/admin/sign-in')
             ->assertOk()
-            ->assertSee('<link rel="icon" type="image/svg+xml" href="/favicon.svg">', false);
+            ->assertSee('<link rel="icon" type="image/svg+xml" href="/favicon.svg">', false)
+            ->assertSee('<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">', false)
+            ->assertSee('<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">', false)
+            ->assertSee('<link rel="manifest" href="/site.webmanifest">', false);
 
         // The owner's frame, on the navy tile.
-        expect(file_get_contents(public_path('favicon.svg')))
+        expect(strtolower((string) file_get_contents(public_path('favicon.svg'))))
             ->toContain('fill="#02365e"')
-            ->toContain('d="M2210 9617 l0 -1559');
+            ->toContain('d="m2210 9617 l0 -1559');
+    });
+
+    it('serves each icon at its size, a phone\'s with no transparent pixel', function (string $file, int $size, bool $opaque) {
+        $path = public_path($file);
+        [$width, $height] = getimagesize($path) ?: [0, 0];
+
+        expect([$width, $height])->toBe([$size, $size]);
+
+        if ($opaque) {
+            // An iPhone turns a transparent pixel black, and the phone rounds the square itself: the
+            // navy reaches every corner.
+            $image = imagecreatefrompng($path) ?: throw new RuntimeException("{$file} is not a PNG.");
+            foreach ([[0, 0], [$size - 1, 0], [0, $size - 1], [$size - 1, $size - 1]] as [$x, $y]) {
+                $colour = imagecolorat($image, $x, $y);
+
+                expect(($colour >> 24) & 0x7F)->toBe(0)
+                    ->and(sprintf('%06x', $colour & 0xFFFFFF))->toBe('02365e');
+            }
+        }
+    })->with([
+        'the tab, as a PNG' => ['icons/favicon-32.png', 32, false],
+        'an iPhone\'s home screen' => ['icons/apple-touch-icon.png', 180, true],
+        'Android\'s home screen' => ['icons/icon-192.png', 192, true],
+        'Android\'s home screen, large and maskable' => ['icons/icon-512.png', 512, true],
+        'the emails' => ['icons/email-logo.png', 192, false],
+    ]);
+
+    it('lists in the manifest only icons that are there, at the sizes it names', function () {
+        /** @var array{name: string, icons: list<array{src: string, sizes: string, purpose?: string}>} $manifest */
+        $manifest = json_decode((string) file_get_contents(public_path('site.webmanifest')), true, flags: JSON_THROW_ON_ERROR);
+
+        expect($manifest['name'])->toBe('TouchWood')
+            ->and(array_column($manifest['icons'], 'purpose'))->toContain('maskable');
+
+        foreach ($manifest['icons'] as $icon) {
+            [$width, $height] = getimagesize(public_path(ltrim($icon['src'], '/'))) ?: [0, 0];
+
+            expect("{$width}x{$height}")->toBe($icon['sizes']);
+        }
     });
 
     it('sends only the admin routes to an admin page, never the storefront\'s', function () {

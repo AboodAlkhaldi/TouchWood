@@ -57,6 +57,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.8, §6 | **Latin digits everywhere**: every figure, count, date and code on Arabic pages too; typed Arabic-Indic digits accepted and saved as 0–9 in number inputs, address fields, phones and a company's CR and tax numbers, and searched in Latin however typed. Replaces 2026-09-19's Arabic-Indic digits | Owner, 2026-10-06 |
 | §1.10, §2.2, §3.3, §3.4, §3.5, §6 | **No store "worked in"**: the sidebar's header is one link to Home; Home's store switcher (All Stores and each store; a Super Admin's off stores marked Off) changes Home's figures only; every store screen has its own store filter (Settings, Company and Document Types, Address Formats, Companies); times in the screen's store, else KSA; View Store opens a menu of the person's stores; Select All per area where actions are ticked. Replaces the store picker of 2026-09-19 | Owner, 2026-10-06 |
 | §1.8 | **IBM Plex Sans Arabic draws Arabic letters**: its Arabic subset is loaded too — only the Latin one was, so every Arabic letter had come from the system's fallback face | Owner, 2026-10-06 |
+| §1.11 | **The logo's image files**: a simpler tab icon that reads at 32 px; the navy square for phones' home screens (iPhone and Android); the cream tile at the top of the emails | Owner, 2026-10-07 |
 
 ---
 
@@ -556,9 +557,19 @@ and examples. Only when neither has it, show the owner what was searched and ask
     fetched: **a navy tile on dark surfaces** (the sidebar, navy in both themes, and dark mode;
     the phone's home-screen icon, once the PNGs arrive) and **a cream tile on light ones** (the
     shop's header and the sign-in pages in light mode), the frame in our copper, the colours theme
-    tokens (`--tw-logo-*`); the tab's icon is the navy tile as an SVG. The PNG sizes — for older browsers,
-    phones' home screens and emails — are the owner's own exports, added when they arrive. The
-    outlined file is for print and engraving; the glass tile of the pictures is not used.
+    tokens (`--tw-logo-*`). The outlined file is for print and engraving; the glass tile of the
+    pictures is not used.
+    **[DECIDED by the owner, 2026-10-07] The image files** are the owner's, made to a brief in the
+    tokens' exact colours (navy #02365E, copper #DCA071 on navy and #864720 on cream, cream #F6EFE8):
+    - **the tab's icon** (`favicon.svg`) is a simpler mark on the navy tile — the frame thicker, the
+      fingerprint three thick lines — so it reads at 32 px, where the full mark blurs; the same
+      drawn at 32 px (`icons/favicon-32.png`) for a browser without SVG icons;
+    - **a phone's home screen** gets the navy square, edge to edge, with no corners of its own: the
+      phone rounds it (`icons/apple-touch-icon.png`, 180 px, for iPhones; `icons/icon-192.png` and
+      `icons/icon-512.png` in `site.webmanifest` for Android, the 512 also the maskable one, its
+      artwork inside the safe circle). The manifest opens the site in the browser, as a shortcut;
+    - **the emails** carry the cream tile at the top (`icons/email-logo.png`, shown at 96 px), inside
+      the email itself rather than fetched, so every inbox shows it with no public address needed.
 
 ---
 
