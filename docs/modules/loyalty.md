@@ -90,14 +90,18 @@ by other points, or dropped (§1.8) — and each cover is recorded **on the lot*
 back to that lot, from any of its takes, **first undo its covers**: the points that covered from
 another lot go back to that lot, with its date; covers by points that had already expired, and dropped
 points, take their share and go nowhere. Only what is left comes back to the lot itself. So a cancelled
-order cannot revive points whose earning was already taken back, and points that covered are not
-lost — in every sequence of two orders; with more orders settled in between, see the next paragraph. A cover taken from a lot is
+order cannot revive points whose earning was already taken back, and points that covered come back
+when the points they covered do. Which points were live when a reversal ran can still change the end —
+see the next paragraph. A cover taken from a lot is
 itself a take from that lot, and comes back the same way.
 
 **The order of events can change a balance** (owner, 2026-10-07, answer 15): because a reversal takes
 from the customer's other points, what it finds depends on what is live at that moment, which other
 orders' returns and cancellations change. Each settlement is exact on its own; two orders settled in
-different sequences may end with different balances. The owner chose this over never touching other
+different sequences may end with different balances — even two alone, when one is returned in parts:
+A earned 200 into lot E, all spent on B, and the customer has 150 in L2. A returned, then half of B
+returned: L2 covers 150 and 50 are dropped, then B's 100 restore 100 of L2 — **100**. Half of B
+returned first: E gets 100 back, A's return takes those and covers the other 100 from L2 — **50**. The owner chose this over never touching other
 points, which would always end alike but would never recover anything from them.
 
 ### 1.4 Never below 0
