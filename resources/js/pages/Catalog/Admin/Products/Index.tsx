@@ -43,6 +43,8 @@ export default function Index(page: ProductsPage) {
     const opener = useRef<HTMLElement | null>(null);
     const list = useLoadMore<ProductRowData>(products, (row) => row.id);
     const filtered = Object.values(applied).some((value) => value !== '');
+    // Products stay in a brand or category switched off, so the filters offer every one, saying which is off.
+    const off = (name: string, active: boolean) => (active ? name : `${name} (${t('catalog::admin.state.inactive')})`);
 
     // The address the page shows, as asked: the store kept, empty filters left out.
     const asked = (filters: Filters) => {
@@ -117,7 +119,7 @@ export default function Index(page: ProductsPage) {
                             <SearchCombobox
                                 id="product-category"
                                 label={t('catalog::admin_products.filters.category')}
-                                options={[{ value: '', label: t('catalog::admin_products.filters.any') }, ...categories.map((category) => ({ value: category.id, label: locale === 'ar' ? category.pathAr : category.pathEn }))]}
+                                options={[{ value: '', label: t('catalog::admin_products.filters.any') }, ...categories.map((category) => ({ value: category.id, label: off(locale === 'ar' ? category.pathAr : category.pathEn, category.active) }))]}
                                 value={form.category}
                                 onChange={(category) => setForm({ ...form, category })}
                                 words={{ search: t('catalog::admin_products.field.category_search'), none: (query) => t('catalog::admin_products.field.category_none', { query }) }}
@@ -126,7 +128,7 @@ export default function Index(page: ProductsPage) {
                                 <NativeSelectOption value="">{t('catalog::admin_products.filters.any')}</NativeSelectOption>
                                 {brands.map((brand) => (
                                     <NativeSelectOption key={brand.id} value={brand.id}>
-                                        {nameIn(locale, brand.nameAr, brand.nameEn)}
+                                        {off(nameIn(locale, brand.nameAr, brand.nameEn), brand.active)}
                                     </NativeSelectOption>
                                 ))}
                             </SelectField>
@@ -199,7 +201,7 @@ export default function Index(page: ProductsPage) {
                 {more && after !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more('/admin/products', { ...asked(applied), after }, ['products', 'more', 'after'])} /> : null}
             </div>
 
-            {adding ? <AddProductDialog brands={brands} open onOpenChange={(open) => (open ? undefined : setAdding(false))} returnFocusTo={opener} /> : null}
+            {adding ? <AddProductDialog brands={brands.filter((brand) => brand.active)} open onOpenChange={(open) => (open ? undefined : setAdding(false))} returnFocusTo={opener} /> : null}
         </AdminLayout>
     );
 }

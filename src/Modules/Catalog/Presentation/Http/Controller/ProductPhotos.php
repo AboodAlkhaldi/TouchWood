@@ -31,17 +31,17 @@ final class ProductPhotos
 
     /**
      * Uploads them, in order: their media ids. Called inside the change, so Platform's refusal of one
-     * (its type, its size) refuses the form.
+     * (its type, its size) refuses the form. A variant's are for that variant of the product.
      *
      * @return list<string>
      */
-    public static function upload(CatalogFormRequest $request, string $productId, UploadProductPhotoHandler $upload): array
+    public static function upload(CatalogFormRequest $request, string $productId, UploadProductPhotoHandler $upload, ?string $variantId = null): array
     {
         $ids = [];
 
         foreach (self::files($request) as $file) {
             if ($file instanceof UploadedFile) {
-                $ids[] = $upload->handle(new UploadProductPhoto($productId, (string) $file->getRealPath(), $file->getClientOriginalName()));
+                $ids[] = $upload->handle(new UploadProductPhoto($productId, (string) $file->getRealPath(), $file->getClientOriginalName(), $variantId));
             }
         }
 

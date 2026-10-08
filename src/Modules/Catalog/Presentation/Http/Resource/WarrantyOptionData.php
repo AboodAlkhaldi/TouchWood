@@ -8,7 +8,7 @@ use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
- * An active warranty a product may carry (catalog.md §4.4 S9).
+ * A warranty a product may carry (catalog.md §4.4 S9); a new choice takes an active one.
  */
 #[TypeScript]
 final class WarrantyOptionData extends Data
@@ -21,5 +21,6 @@ final class WarrantyOptionData extends Data
         public string $nameAr,
         public string $nameEn,
         public ?int $periodMonths,
+        public bool $active,
     ) {}
 }

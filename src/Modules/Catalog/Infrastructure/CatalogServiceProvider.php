@@ -110,8 +110,8 @@ final class CatalogServiceProvider extends ServiceProvider
         // A photo whose sizes became ready may be a card's photo now (§6.2).
         Event::listen(MediaVariantsReady::class, [RefreshCardPhotos::class, 'handle']);
 
-        // The panel's menu: the shared lists' screens (catalog.md §4.4), each offered for any of the
-        // jobs its screen serves, in any store — the screen decides the rest.
+        // The panel's menu: the products and the shared lists' screens (catalog.md §4.4), each offered
+        // for any of the jobs its screen serves, in any store — the screen decides the rest.
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('catalog', 'products', PermissionGroup::Catalog->value, 'catalog.admin.products', CatalogPermissions::PRODUCT_VIEW, 10, icon: 'catalog'),
             new MenuEntryDto('catalog', 'categories', PermissionGroup::Catalog->value, 'catalog.admin.categories', ListCategoriesHandler::JOBS, 20, icon: 'catalog'),

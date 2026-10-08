@@ -9,6 +9,7 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductInput;
 use Modules\Catalog\Application\Products\ProductReferences;
+use Modules\Catalog\Application\Query\Products\ProductReaders;
 use Modules\Catalog\Domain\Exception\BrandInactive;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
@@ -16,11 +17,9 @@ use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
-use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **Creating a product** (catalog.md §1.1, §3): `catalog.product.create` in **some store that is on**
@@ -34,7 +33,7 @@ final readonly class CreateProductHandler
 
     public function __construct(
         private Authorizer $authorizer,
-        private PlatformApi $platform,
+        private ProductReaders $readers,
         private SharedListChange $change,
         private ProductRepository $products,
         private ProductInput $input,
@@ -48,7 +47,9 @@ final readonly class CreateProductHandler
      */
     public function handle(CreateProduct $command): string
     {
-        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($this->storeThatIsOn()));
+        // The first store that is on where the reader holds the job (ProductReaders, as the list asks it).
+        $store = $this->readers->storeToCreateIn() ?? throw new Unauthorized(self::PERMISSION);
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
 
         [$name, $slugs] = ProductInput::names($command->nameAr, $command->nameEn, $command->slugAr, $command->slugEn);
         $id = $this->products->nextId();
@@ -64,34 +65,5 @@ final readonly class CreateProductHandler
 
             return [$id, [ListAudit::added('product', $id, $product->snapshot())]];
         });
-    }
-
-    /**
-     * The first store that is on where the reader holds the job - with All stores, the first store
-     * that is on.
-     *
-     * @throws Unauthorized when the reader holds the job in no store that is on
-     */
-    private function storeThatIsOn(): StoreId
-    {
-        $held = $this->authorizer->storesWith(self::PERMISSION);
-
-        if ($held === []) {
-            throw new Unauthorized(self::PERMISSION);
-        }
-
-        $holds = [];
-
-        foreach ($held ?? [] as $store) {
-            $holds[$store->value] = true;
-        }
-
-        foreach ($this->platform->stores() as $store) {
-            if ($held === null || isset($holds[strtolower($store->id)])) {
-                return StoreId::fromString($store->id);
-            }
-        }
-
-        throw new Unauthorized(self::PERMISSION);
     }
 }

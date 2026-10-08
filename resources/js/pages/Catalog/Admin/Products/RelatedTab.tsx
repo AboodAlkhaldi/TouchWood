@@ -12,6 +12,8 @@ import type { ProductPage, RelatedData } from '@/types/generated/Modules/Catalog
 import type { SharedProps } from '@/types/page';
 import { nameIn, useLocale } from '../parts';
 import { SortableList } from '../SortableList';
+import { StageBadge } from './parts';
+import { ProductShell } from './shell';
 
 /*
 | A product's related products (catalog.md §1.10, §4.4 S9): two ordered lists - **You May Also Like**
@@ -21,6 +23,8 @@ import { SortableList } from '../SortableList';
 */
 
 const KINDS = ['RELATED', 'GOES_WITH'] as const;
+
+const MAX = 20;
 
 type Kind = (typeof KINDS)[number];
 
@@ -76,6 +80,18 @@ function RelatedList({ kind, rows, reason, busy, onSave, onAdd }: { kind: Kind; 
     const locale = useLocale();
     const ids = rows.map((row) => row.productId);
     const label = (row: RelatedData) => `${nameIn(locale, row.nameAr, row.nameEn)}${row.codes.length > 0 ? ` (${row.codes.join(', ')})` : ''}`;
+    // Its name, its codes as codes are shown everywhere, and Archived when it is: the shop leaves it out.
+    const shown = (row: RelatedData) => (
+        <span className="flex flex-wrap items-center gap-2">
+            <span className="text-copy-14 text-ink">{nameIn(locale, row.nameAr, row.nameEn)}</span>
+            {row.codes.length > 0 ? (
+                <span className="tw-figure font-mono text-copy-12 text-ink-muted" dir="ltr">
+                    {row.codes.join(' · ')}
+                </span>
+            ) : null}
+            {row.stage === 'ARCHIVED' ? <StageBadge stage={row.stage} /> : null}
+        </span>
+    );
 
     return (
         <Card className="material-base border-0" data-test={`related-${kind}`}>
@@ -84,7 +100,13 @@ function RelatedList({ kind, rows, reason, busy, onSave, onAdd }: { kind: Kind; 
                     <CardTitle className="text-heading-16 text-ink">{t(`catalog::admin_products.related.${kind}`)}</CardTitle>
                     <CardDescription className="text-copy-14 text-ink-muted">{t(`catalog::admin_products.related.${kind}_body`)}</CardDescription>
                 </div>
-                <ActionButton type="button" variant="outline" disabledReason={reason} onClick={(event) => onAdd(event.currentTarget)} data-test={`add-related-${kind}`}>
+                <ActionButton
+                    type="button"
+                    variant="outline"
+                    disabledReason={reason ?? (rows.length >= MAX ? t('catalog::admin_products.related.max', { max: MAX }) : undefined)}
+                    onClick={(event) => onAdd(event.currentTarget)}
+                    data-test={`add-related-${kind}`}
+                >
                     {t('catalog::admin_products.related.add')}
                 </ActionButton>
             </CardHeader>
@@ -97,20 +119,28 @@ function RelatedList({ kind, rows, reason, busy, onSave, onAdd }: { kind: Kind; 
                         items={rows.map((row) => ({
                             id: row.productId,
                             label: label(row),
+                            content: shown(row),
                             extra: (
-                                <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => onSave(ids.filter((id) => id !== row.productId))} data-test={`remove-related-${row.productId}`}>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={busy}
+                                    aria-label={t('catalog::admin_products.related.remove_named', { product: label(row) })}
+                                    onClick={() => onSave(ids.filter((id) => id !== row.productId))}
+                                    data-test={`remove-related-${row.productId}`}
+                                >
                                     {t('catalog::admin_products.related.remove')}
                                 </Button>
                             ),
                         }))}
                         onChange={onSave}
+                        disabled={busy}
                     />
                 ) : (
                     <ul className="grid gap-2">
                         {rows.map((row) => (
-                            <li key={row.productId} className="text-copy-14 text-ink">
-                                {label(row)}
-                            </li>
+                            <li key={row.productId}>{shown(row)}</li>
                         ))}
                     </ul>
                 )}
@@ -141,7 +171,9 @@ function FindDialog({
     const locale = useLocale();
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
-    const found = (page.found ?? []).filter((row) => !taken.includes(row.id));
+    const [answeredFor, setAnsweredFor] = useState<string | null>(null);
+    const answered = query.trim() !== '' && answeredFor === query.trim();
+    const found = answered ? (page.found ?? []).filter((row) => !taken.includes(row.id)) : [];
 
     // Asked a moment after the last key, not on each one.
     useEffect(() => {
@@ -150,10 +182,12 @@ function FindDialog({
         }
 
         const wait = window.setTimeout(() => {
+            const sent = query.trim();
+
             router.get(
                 `/admin/products/${page.product.id}`,
-                { tab: 'related', find: query.trim() },
-                { only: ['found'], preserveState: true, preserveScroll: true, preserveUrl: true, onStart: () => setLoading(true), onFinish: () => setLoading(false) },
+                { tab: 'related', find: sent },
+                { only: ['found'], preserveState: true, preserveScroll: true, preserveUrl: true, onStart: () => setLoading(true), onSuccess: () => setAnsweredFor(sent), onFinish: () => setLoading(false) },
             );
         }, 300);
 
@@ -177,7 +211,7 @@ function FindDialog({
                         <Spinner aria-hidden="true" role={undefined} aria-label={undefined} />
                         {t('ui.loading')}
                     </p>
-                ) : query.trim() !== '' && page.found !== null && found.length === 0 ? (
+                ) : answered && found.length === 0 ? (
                     <p className="text-copy-14 text-ink-muted">{t('catalog::admin_products.related.find_none')}</p>
                 ) : (
                     <ul className="grid gap-2" data-test="found">
@@ -198,5 +232,14 @@ function FindDialog({
                 )}
             </div>
         </PanelDialog>
+    );
+}
+
+/** The Related tab's page: this product above its tabs, this one open (ProductShell). */
+export default function RelatedTabPage(page: ProductPage) {
+    return (
+        <ProductShell page={page}>
+            <RelatedTab page={page} />
+        </ProductShell>
     );
 }

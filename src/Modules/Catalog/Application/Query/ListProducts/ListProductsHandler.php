@@ -10,7 +10,6 @@ use Modules\Catalog\Application\Query\Products\ProductFilter;
 use Modules\Catalog\Application\Query\Products\ProductReaders;
 use Modules\Catalog\Application\Query\Products\ProductRow;
 use Modules\Catalog\Public\Enums\ProductStage;
-use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Text\LatinDigits;
 
@@ -18,7 +17,8 @@ use Shared\Domain\Text\LatinDigits;
  * **The products list** (catalog.md §4.4 S8, P4): every product to whoever reads products in some
  * store - a product belongs to no store -, what each store does with it only for the stores the reader
  * covers. One store chosen must be one of those. A filter the screen did not offer (a stage or a
- * store state that is not one) is left out rather than refused: it came from an address.
+ * store state that is not one) is left out rather than refused: it came from an address; so are bytes
+ * that are not text in a search.
  */
 final readonly class ListProductsHandler
 {
@@ -28,7 +28,6 @@ final readonly class ListProductsHandler
 
     public function __construct(
         private ProductReaders $readers,
-        private Authorizer $authorizer,
         private CatalogProductReads $reads,
     ) {}
 
@@ -45,7 +44,7 @@ final readonly class ListProductsHandler
             throw new Unauthorized(self::PERMISSION);
         }
 
-        $search = $given->search === null ? null : trim(LatinDigits::of($given->search));
+        $search = $given->search === null ? null : trim(LatinDigits::of(mb_scrub($given->search, 'UTF-8')));
         $filter = new ProductFilter(
             search: $search === '' ? null : $search,
             stage: ProductStage::tryFrom((string) $given->stage)?->value,
@@ -66,7 +65,7 @@ final readonly class ListProductsHandler
             ), $rows);
         }
 
-        return new ProductList($rows, $more, $storeId, $this->authorizer->storesWith(CatalogPermissions::PRODUCT_CREATE) !== []);
+        return new ProductList($rows, $more, $filter, $this->readers->storeToCreateIn() !== null);
     }
 
     /** An id from the address: lower-cased, or none. Its shape is the read's to check. */

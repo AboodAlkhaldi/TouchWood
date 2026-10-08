@@ -10,6 +10,7 @@ import { NativeSelectOption } from '@/components/ui/native-select';
 import { useTranslator } from '@/lib/t';
 import type { ProductHeadData, ProductPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MarksField, nameIn, useLocale } from '../parts';
+import { ProductShell } from './shell';
 
 /*
 | A product's Details (catalog.md §4.4 S9): both names, the web addresses (folded), the brand, the
@@ -62,14 +63,17 @@ export function DetailsTab({ page }: { page: ProductPage }) {
         form.reset();
     }, [product]);
 
-    const brands = page.brands ?? [];
-    // The product's own brand and category stay choosable even when no longer offered (deactivated).
-    const brandOptions = brands.some((brand) => brand.id === product.brandId) ? brands : [{ id: product.brandId, nameAr: product.brandNameAr, nameEn: product.brandNameEn, isDefault: false }, ...brands];
-    const categories = (page.categories ?? []).map((category) => ({ value: category.id, label: locale === 'ar' ? category.pathAr : category.pathEn }));
+    // A new choice takes an active brand, category or warranty; the product's own stays shown, whatever its state.
+    const brands = (page.brands ?? []).filter((brand) => brand.active || brand.id === product.brandId);
+    const brandOptions = brands.some((brand) => brand.id === product.brandId) ? brands : [{ id: product.brandId, nameAr: product.brandNameAr, nameEn: product.brandNameEn, isDefault: false, active: false }, ...brands];
+    const categories = (page.categories ?? [])
+        .filter((category) => category.active || category.id === product.categoryId)
+        .map((category) => ({ value: category.id, label: locale === 'ar' ? category.pathAr : category.pathEn }));
     const categoryOptions =
         product.categoryId !== null && !categories.some((category) => category.value === product.categoryId)
             ? [{ value: product.categoryId, label: (locale === 'ar' ? product.categoryPathAr : product.categoryPathEn) ?? '' }, ...categories]
             : categories;
+    const warranties = (page.warranties ?? []).filter((warranty) => warranty.active || warranty.id === product.warrantyId);
 
     return (
         <Card className="material-base border-0">
@@ -118,7 +122,7 @@ export function DetailsTab({ page }: { page: ProductPage }) {
                         )}
                         <SelectField id="details-warranty" disabled={off} label={t('catalog::admin_products.field.warranty')} value={form.data.warranty_id} onChange={(event) => form.setData('warranty_id', event.target.value)} data-test="details-warranty">
                             <NativeSelectOption value="">{t('catalog::admin_products.none')}</NativeSelectOption>
-                            {(page.warranties ?? []).map((warranty) => (
+                            {warranties.map((warranty) => (
                                 <NativeSelectOption key={warranty.id} value={warranty.id}>
                                     {nameIn(locale, warranty.nameAr, warranty.nameEn)}
                                 </NativeSelectOption>
@@ -173,5 +177,14 @@ export function DetailsTab({ page }: { page: ProductPage }) {
                 </CardFooter>
             </form>
         </Card>
+    );
+}
+
+/** The Details tab's page: this product above its tabs, this one open (ProductShell). */
+export default function DetailsTabPage(page: ProductPage) {
+    return (
+        <ProductShell page={page}>
+            <DetailsTab page={page} />
+        </ProductShell>
     );
 }

@@ -57,6 +57,7 @@ id: string,
 nameAr: string,
 nameEn: string,
 isDefault: boolean,
+active: boolean,
 };
 export type BrandsPage = {
 brands: BrandData[],
@@ -95,6 +96,7 @@ export type CategoryOptionData = {
 id: string,
 pathAr: string,
 pathEn: string,
+active: boolean,
 };
 export type ChoiceValueData = {
 id: string,
@@ -324,6 +326,7 @@ id: string,
 nameAr: string,
 nameEn: string,
 periodMonths: number | null,
+active: boolean,
 };
 export type WordPairData = {
 id: string,

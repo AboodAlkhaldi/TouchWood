@@ -25,6 +25,13 @@ use stdClass;
  */
 final readonly class DatabaseCatalogProductReads implements CatalogProductReads
 {
+    /**
+     * A product's codes as its variants carry them now, archived ones included. A code it gave up
+     * stays its own (`product_codes`, amendment 3(e)) and still finds it, but is no longer shown as
+     * one of its codes.
+     */
+    private const string CODES = "(SELECT coalesce(json_agg(DISTINCT v.code ORDER BY v.code), '[]') FROM catalog.variants v WHERE v.product_id = p.id) as codes";
+
     public function __construct(
         private ConnectionInterface $db,
     ) {}
@@ -42,7 +49,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                 'p.id', 'p.name_ar', 'p.name_en', 'p.stage', 'p.brand_id', 'b.name_ar as brand_ar', 'b.name_en as brand_en',
                 'p.category_id', 'k.name_ar as category_ar', 'k.name_en as category_en', 'sp.product_id as chosen', 'sp.not_available_now',
             ])
-            ->selectRaw("(SELECT coalesce(json_agg(c.code ORDER BY c.code), '[]') FROM catalog.product_codes c WHERE c.product_id = p.id) as codes")
+            ->selectRaw(self::CODES)
             ->selectRaw('(SELECT ph.media_id FROM catalog.product_photos ph WHERE ph.product_id = p.id ORDER BY ph.position LIMIT 1) as photo')
             ->selectRaw('(SELECT count(*) FROM catalog.variants v WHERE v.product_id = p.id AND NOT v.is_archived) as variants')
             ->selectRaw("(SELECT coalesce(json_agg(DISTINCT sv.store_id), '[]') FROM catalog.store_variants sv WHERE sv.product_id = p.id AND sv.is_active) as on_in")
@@ -129,7 +136,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             ])
             ->selectRaw("(SELECT sl.slug FROM catalog.product_slugs sl WHERE sl.product_id = p.id AND sl.locale = 'ar' AND sl.is_current) as slug_ar")
             ->selectRaw("(SELECT sl.slug FROM catalog.product_slugs sl WHERE sl.product_id = p.id AND sl.locale = 'en' AND sl.is_current) as slug_en")
-            ->selectRaw("(SELECT coalesce(json_agg(c.code ORDER BY c.code), '[]') FROM catalog.product_codes c WHERE c.product_id = p.id) as codes")
+            ->selectRaw(self::CODES)
             ->selectRaw("(SELECT coalesce(json_agg(m.attribute_id ORDER BY m.position), '[]') FROM catalog.attribute_set_members m WHERE m.attribute_set_id = p.attribute_set_id) as set_attributes")
             ->selectRaw("(SELECT coalesce(json_agg(ph.media_id ORDER BY ph.position), '[]') FROM catalog.product_photos ph WHERE ph.product_id = p.id) as gallery")
             ->selectRaw("(SELECT coalesce(json_agg(DISTINCT sv.store_id), '[]') FROM catalog.store_variants sv WHERE sv.product_id = p.id AND sv.is_active) as on_in")
@@ -279,12 +286,12 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
     {
         $row = $this->db->selectOne(<<<'SQL'
             SELECT
-                (SELECT coalesce(json_agg(json_build_object('id', b.id, 'nameAr', b.name_ar, 'nameEn', b.name_en, 'isDefault', b.is_default)
-                    ORDER BY b.position, b.name_en, b.id), '[]') FROM catalog.brands b WHERE b.is_active) as brands,
+                (SELECT coalesce(json_agg(json_build_object('id', b.id, 'nameAr', b.name_ar, 'nameEn', b.name_en, 'isDefault', b.is_default, 'active', b.is_active)
+                    ORDER BY b.position, b.name_en, b.id), '[]') FROM catalog.brands b) as brands,
                 (SELECT coalesce(json_agg(json_build_object('id', c.id, 'parentId', c.parent_id, 'ar', c.name_ar, 'en', c.name_en, 'active', c.is_active)
                     ORDER BY c.name_en, c.id), '[]') FROM catalog.categories c) as categories,
-                (SELECT coalesce(json_agg(json_build_object('id', w.id, 'nameAr', w.name_ar, 'nameEn', w.name_en, 'periodMonths', w.period_months)
-                    ORDER BY w.name_en, w.id), '[]') FROM catalog.warranties w WHERE w.is_active) as warranties,
+                (SELECT coalesce(json_agg(json_build_object('id', w.id, 'nameAr', w.name_ar, 'nameEn', w.name_en, 'periodMonths', w.period_months, 'active', w.is_active)
+                    ORDER BY w.name_en, w.id), '[]') FROM catalog.warranties w) as warranties,
                 (SELECT coalesce(json_agg(json_build_object('id', s.id, 'nameAr', s.name_ar, 'nameEn', s.name_en,
                     'attributeIds', (SELECT coalesce(json_agg(m.attribute_id ORDER BY m.position), '[]') FROM catalog.attribute_set_members m WHERE m.attribute_set_id = s.id))
                     ORDER BY s.name_en, s.id), '[]') FROM catalog.attribute_sets s WHERE s.is_active) as variations
@@ -296,6 +303,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                 'nameAr' => (string) $brand['nameAr'],
                 'nameEn' => (string) $brand['nameEn'],
                 'isDefault' => (bool) ($brand['isDefault'] ?? false),
+                'active' => (bool) ($brand['active'] ?? false),
             ], self::lists($row?->brands)),
             self::lowestCategories(self::lists($row?->categories)),
             array_map(static fn (array $warranty): array => [
@@ -303,6 +311,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                 'nameAr' => (string) $warranty['nameAr'],
                 'nameEn' => (string) $warranty['nameEn'],
                 'periodMonths' => isset($warranty['periodMonths']) ? (int) $warranty['periodMonths'] : null,
+                'active' => (bool) ($warranty['active'] ?? false),
             ], self::lists($row?->warranties)),
             array_map(static fn (array $set): array => [
                 'id' => (string) $set['id'],
@@ -339,7 +348,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             ->join('catalog.products as p', 'p.id', '=', 'r.related_id')
             ->where('r.product_id', strtolower($productId))
             ->select(['r.kind', 'r.related_id', 'p.name_ar', 'p.name_en', 'p.stage'])
-            ->selectRaw("(SELECT coalesce(json_agg(c.code ORDER BY c.code), '[]') FROM catalog.product_codes c WHERE c.product_id = p.id) as codes")
+            ->selectRaw(self::CODES)
             ->orderByRaw("CASE r.kind WHEN 'RELATED' THEN 0 ELSE 1 END")
             ->orderBy('r.position')
             ->get();
@@ -355,11 +364,12 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
     }
 
     /**
-     * The categories a product may sit in - active, with no sub-category of any state, as Readiness
-     * asks - each with its path from the top.
+     * The categories that hold products - those with no sub-category of any state (a category holding
+     * products takes none, amendment 3(i)) - each with its path from the top and whether it is active,
+     * as Readiness asks a product's to be.
      *
      * @param  list<array<string, mixed>>  $categories
-     * @return list<array{id: string, path: list<array{ar: string, en: string}>}>
+     * @return list<array{id: string, path: list<array{ar: string, en: string}>, active: bool}>
      */
     private static function lowestCategories(array $categories): array
     {
@@ -377,7 +387,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
         $lowest = [];
 
         foreach ($byId as $id => $category) {
-            if (! ($category['active'] ?? false) || isset($parents[$id])) {
+            if (isset($parents[$id])) {
                 continue;
             }
 
@@ -390,7 +400,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                 $at = isset($at['parentId']) ? ($byId[(string) $at['parentId']] ?? null) : null;
             }
 
-            $lowest[] = ['id' => $id, 'path' => $path];
+            $lowest[] = ['id' => $id, 'path' => $path, 'active' => (bool) ($category['active'] ?? false)];
         }
 
         return $lowest;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { SelectField, TextField } from '@/components/Fields';
@@ -17,6 +17,7 @@ import { tone } from '@/lib/tones';
 import type { AttributeChoiceData, ProductPage, VariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, nameIn, useLocale } from '../parts';
 import { PhotoGrid } from './photos';
+import { ProductShell } from './shell';
 
 /*
 | A product's variants (catalog.md §4.4 S9): # · code · its values · details · weight and size · photos ·
@@ -27,7 +28,9 @@ import { PhotoGrid } from './photos';
 | or Restore, Delete… (a draft's variant only).
 */
 
-type Dialog = { action: 'add' | 'edit' | 'code' | 'photos' | 'delete'; variant: VariantData | null } | null;
+// The dialog keeps the variant's id only: the variant is read from the page as it is now, so a dialog
+// open across a save shows - and sends - what the server answered, not what it opened with.
+type Dialog = { action: 'add' | 'edit' | 'code' | 'photos' | 'delete'; variantId: string | null } | null;
 
 export function VariantsTab({ page }: { page: ProductPage }) {
     const { product, mayUpdate } = page;
@@ -40,18 +43,28 @@ export function VariantsTab({ page }: { page: ProductPage }) {
     const reason = mayUpdate ? undefined : t('catalog::admin_products.read_only');
     const close = (open: boolean) => (open ? undefined : setDialog(null));
     const nextPosition = variants.reduce((highest, variant) => Math.max(highest, variant.position), 0) + 10;
+    const chosen = dialog?.variantId == null ? null : (variants.find((variant) => variant.id === dialog.variantId) ?? null);
+    // With no variation every variant has the same values - none - so a product has one variant only.
+    const addReason = reason ?? (product.attributeSetId === null && variants.length > 0 ? t('catalog::admin_products.variants.one_only') : undefined);
+
+    useEffect(() => {
+        // A variant gone from the page (deleted) closes its dialog.
+        if (dialog?.variantId != null && chosen === null) {
+            setDialog(null);
+        }
+    }, [dialog, chosen]);
 
     return (
         <Card className="material-base border-0">
             <CardContent className="grid gap-4 pt-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    {product.attributeSetId === null ? <Note data-test="no-variation">{t('catalog::admin_products.variants.no_variation')}</Note> : <span />}
+                    {product.attributeSetId === null && variants.length === 0 ? <Note data-test="no-variation">{t('catalog::admin_products.variants.no_variation')}</Note> : <span />}
                     <ActionButton
                         type="button"
-                        disabledReason={reason}
+                        disabledReason={addReason}
                         onClick={(event) => {
                             opener.current = event.currentTarget;
-                            setDialog({ action: 'add', variant: null });
+                            setDialog({ action: 'add', variantId: null });
                         }}
                         data-test="add-variant"
                     >
@@ -81,6 +94,7 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                                     <TableHead>{t('catalog::admin_products.variants.column.details')}</TableHead>
                                     <TableHead>{t('catalog::admin_products.variants.column.measures')}</TableHead>
                                     <TableHead className="text-end">{t('catalog::admin_products.variants.column.photos')}</TableHead>
+                                    <TableHead>{t('catalog::admin_products.variants.column.archived')}</TableHead>
                                     <TableHead className="w-12">
                                         <span className="sr-only">{t('catalog::admin.column.actions')}</span>
                                     </TableHead>
@@ -96,7 +110,7 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                                         reason={reason}
                                         open={(action, trigger) => {
                                             opener.current = trigger;
-                                            setDialog({ action, variant });
+                                            setDialog({ action, variantId: variant.id });
                                         }}
                                     />
                                 ))}
@@ -106,25 +120,32 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                 )}
             </CardContent>
 
-            {dialog !== null && (dialog.action === 'add' || dialog.action === 'edit') ? (
-                <VariantDialog page={page} variant={dialog.variant} setAttributes={setAttributes} attributes={attributes} nextPosition={nextPosition} open onOpenChange={close} returnFocusTo={opener} />
+            {dialog?.action === 'add' || (dialog?.action === 'edit' && chosen !== null) ? (
+                <VariantDialog page={page} variant={chosen} setAttributes={setAttributes} attributes={attributes} nextPosition={nextPosition} open onOpenChange={close} returnFocusTo={opener} />
             ) : null}
-            {dialog?.action === 'code' && dialog.variant !== null ? <CodeDialog productId={product.id} variant={dialog.variant} open onOpenChange={close} returnFocusTo={opener} /> : null}
-            {dialog?.action === 'photos' && dialog.variant !== null ? (
+            {dialog?.action === 'code' && chosen !== null ? <CodeDialog productId={product.id} variant={chosen} open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {dialog?.action === 'photos' && chosen !== null ? (
                 <PanelDialog
                     wide
                     open
                     onOpenChange={close}
                     returnFocusTo={opener}
-                    title={t('catalog::admin_products.variants.photos_title', { code: dialog.variant.code })}
+                    title={t('catalog::admin_products.variants.photos_title', { code: chosen.code })}
                     description={t('catalog::admin_products.variants.photos_body')}
                     busy={false}
                     confirm={null}
                 >
-                    <PhotoGrid photos={dialog.variant.photos} url={`/admin/products/${product.id}/variants/${dialog.variant.id}/photos`} max={10} reason={reason} testPrefix="variant-photos" />
+                    <PhotoGrid
+                        photos={chosen.photos}
+                        url={`/admin/products/${product.id}/variants/${chosen.id}/photos`}
+                        max={10}
+                        helper={t('catalog::admin_products.photos.variant_helper')}
+                        reason={reason}
+                        testPrefix="variant-photos"
+                    />
                 </PanelDialog>
             ) : null}
-            {dialog?.action === 'delete' && dialog.variant !== null ? <DeleteVariantDialog productId={product.id} variant={dialog.variant} open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {dialog?.action === 'delete' && chosen !== null ? <DeleteVariantDialog productId={product.id} variant={chosen} open onOpenChange={close} returnFocusTo={opener} /> : null}
         </Card>
     );
 }
@@ -150,15 +171,16 @@ function Row({
     const post = (path: string) => router.post(`/admin/products/${page.product.id}/variants/${variant.id}/${path}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
     const attributeNamed = (id: string) => attributes.find((attribute) => attribute.id === id);
     const measures = [variant.lengthMm, variant.widthMm, variant.heightMm].filter((value): value is number => value !== null);
+    const sizes = [
+        measures.length === 0 ? null : t('catalog::admin_products.variants.millimetres', { value: measures.join(' × ') }),
+        variant.weightGrams === null ? null : t('catalog::admin_products.variants.grams', { value: String(variant.weightGrams) }),
+    ].filter((part): part is string => part !== null);
 
     return (
         <TableRow data-test={`variant-${variant.id}`}>
             <TableCell className="tw-figure text-ink-muted">{figure(locale, variant.position)}</TableCell>
             <TableCell className="tw-figure font-mono text-copy-13" dir="ltr">
-                <span className="flex items-center gap-2">
-                    {variant.code}
-                    {variant.archived ? <Badge className={tone('amber-subtle')}>{t('catalog::admin_products.variants.archived')}</Badge> : null}
-                </span>
+                {variant.code}
             </TableCell>
             <TableCell>
                 <span className="flex flex-wrap items-center gap-2">
@@ -184,10 +206,18 @@ function Row({
                           })
                           .join(' · ')}
             </TableCell>
-            <TableCell className="tw-figure text-copy-13" dir="ltr">
-                {measures.length === 0 && variant.weightGrams === null ? '—' : [measures.join(' × '), variant.weightGrams === null ? '' : `${variant.weightGrams} g`].filter(Boolean).join(' · ')}
+            <TableCell className="tw-figure text-copy-13" data-test="variant-sizes">
+                {sizes.length === 0
+                    ? '—'
+                    : sizes.map((part, index) => (
+                          <Fragment key={part}>
+                              {index > 0 ? ' · ' : null}
+                              <bdi>{part}</bdi>
+                          </Fragment>
+                      ))}
             </TableCell>
             <TableCell className="tw-figure text-end">{figure(locale, variant.photos.length)}</TableCell>
+            <TableCell>{variant.archived ? <Badge className={tone('amber-subtle')}>{t('catalog::admin_products.variants.archived')}</Badge> : null}</TableCell>
             <TableCell className="text-end">
                 {reason !== undefined && !page.mayCorrectCode ? (
                     <MoreButtonOff name={variant.code} reason={reason} />
@@ -511,5 +541,14 @@ function DeleteVariantDialog({ productId, variant, open, onOpenChange, returnFoc
         >
             {null}
         </PanelDialog>
+    );
+}
+
+/** The Variants tab's page: this product above its tabs, this one open (ProductShell). */
+export default function VariantsTabPage(page: ProductPage) {
+    return (
+        <ProductShell page={page}>
+            <VariantsTab page={page} />
+        </ProductShell>
     );
 }

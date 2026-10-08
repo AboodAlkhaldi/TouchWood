@@ -122,8 +122,8 @@ it('keeps the tab in the address, and saves the details once something changed',
     $page = catalogProductBrowser([P::PRODUCT_VIEW, P::PRODUCT_UPDATE]);
     $page->navigate("/admin/products/{$product}", BROWSER_PAGE_LOAD);
 
-    // Nothing changed yet: Save Details is out of reach, and says why.
-    expect($page->script('document.querySelector(\'[data-test="save-details"]\').getAttribute("aria-disabled")'))->toBe('true');
+    // Nothing changed yet: Save Details is out of reach, and says why (the tab is fetched as it opens).
+    expect(browserUntil($page, "document.querySelector('[data-test=\"save-details\"]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
 
     $page->type('#details-name-en', "Quiet Drawer {$n}")
         ->click('[data-test="save-details"]');
@@ -142,6 +142,18 @@ it('keeps the tab in the address, and saves the details once something changed',
     $words = catalogProductBrowserSoon($page, fn () => DB::table('catalog.product_search_words')->where('product_id', $product)->pluck('word')->all(), fn ($value): bool => $value !== []);
 
     expect($words)->toBe(["rail{$n}"]);
+
+    // By keyboard: an arrow moves to the next tab without opening it, Enter opens it - a page of its
+    // own - and focus is back on the tab chosen, not at the top of the page.
+    $page->keys('[data-test="tab-search"]', 'ArrowRight');
+
+    expect(browserUntil($page, "document.activeElement?.getAttribute('data-test') === 'tab-related'"))->toBeTrue()
+        ->and($page->script('window.location.search.includes("tab=search")'))->toBeTrue();
+
+    $page->keys('[data-test="tab-related"]', 'Enter');
+
+    expect(browserUntil($page, "window.location.search.includes('tab=related') && document.querySelector('[data-test=\"related-RELATED\"]') !== null"))->toBeTrue()
+        ->and(browserUntil($page, "document.activeElement?.getAttribute('data-test') === 'tab-related'"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 
@@ -169,7 +181,7 @@ it('adds a variant from its dialog, with a value of the product\'s variation', f
     $added = catalogProductBrowserSoon($page, fn () => DB::table('catalog.variants')->where('product_id', $product)->value('code'), fn ($found): bool => $found !== null);
 
     expect($added)->toBe($code)
-        ->and(browserUntil($page, "document.body.innerText.includes('60 cm {$n}')"))->toBeTrue();
+        ->and(browserUntil($page, "[...document.querySelectorAll('tr[data-test^=\"variant-\"]')].some((row) => row.innerText.includes('60 cm {$n}'))"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 
@@ -181,11 +193,14 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
 
     $page->assertSee('التفاصيل');
 
-    expect($page->script('document.documentElement.dir'))->toBe('rtl')
+    // Measured once the tab is in: it is fetched as it opens.
+    expect(browserUntil($page, "document.querySelector('[data-test=\"details-name-ar\"]') !== null"))->toBeTrue()
+        ->and($page->script('document.documentElement.dir'))->toBe('rtl')
         ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
     $page->navigate('/admin/products', BROWSER_PAGE_LOAD);
 
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserUntil($page, "document.querySelector('[data-test=\"product-search\"]') !== null"))->toBeTrue()
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });

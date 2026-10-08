@@ -24,6 +24,20 @@ final readonly class ProductsController
     /** @var list<string> */
     private const array WORDS = ['catalog::admin', 'catalog::admin_products', 'admin'];
 
+    /**
+     * Each tab is a page of its own, the product above it (Products/shell.tsx): the browser loads the
+     * open tab's script only, and the server renders it whole.
+     *
+     * @var array<string, string>
+     */
+    private const array TAB_PAGES = [
+        'details' => 'DetailsTab',
+        'variants' => 'VariantsTab',
+        'photos' => 'PhotosTab',
+        'search' => 'SearchTab',
+        'related' => 'RelatedTab',
+    ];
+
     // What asks who is acting - the pages - is taken by each action, never kept here: a controller is
     // kept on its route, longer than one request.
     public function __construct(
@@ -45,11 +59,9 @@ final readonly class ProductsController
 
     public function show(Request $request, string $product, ProductPages $pages): Response
     {
-        return $this->page->render(
-            'Catalog/Admin/Products/Show',
-            $pages->product($product, self::query($request, 'tab') ?? 'details', self::query($request, 'find'))->toArray(),
-            self::WORDS,
-        );
+        $page = $pages->product($product, self::query($request, 'tab') ?? 'details', self::query($request, 'find'));
+
+        return $this->page->render('Catalog/Admin/Products/'.(self::TAB_PAGES[$page->tab] ?? 'DetailsTab'), $page->toArray(), self::WORDS);
     }
 
     /** A draft, and its page opens (S8): no store is asked (amendment 13(f)). */
@@ -62,7 +74,8 @@ final readonly class ProductsController
                 brandId: $request->optionalText('brand_id'),
             ));
         } catch (DomainError $error) {
-            return CatalogRefusals::back($request, $error, ['name_ar', 'name_en', 'slug_ar', 'slug_en']);
+            // The dialog has the names only: a refusal of a web address made from them is said at its top.
+            return CatalogRefusals::back($request, $error, ['name_ar', 'name_en']);
         }
 
         return redirect()->route('catalog.admin.products.show', ['product' => $id])->with('status', __('catalog::admin_products.toast.created'));

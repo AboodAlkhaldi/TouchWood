@@ -93,7 +93,7 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('products/{product}/gallery', [ProductChangesController::class, 'gallery'])->name('catalog.admin.products.gallery');
         Route::post('products/{product}/search-words', [ProductChangesController::class, 'searchWords'])->name('catalog.admin.products.search-words');
         Route::post('products/{product}/filters', [ProductChangesController::class, 'filters'])->name('catalog.admin.products.filters');
-        Route::post('products/{product}/related/{kind}', [ProductChangesController::class, 'related'])->name('catalog.admin.products.related');
+        Route::post('products/{product}/related/{kind}', [ProductChangesController::class, 'related'])->whereIn('kind', ['related', 'goes_with'])->name('catalog.admin.products.related');
         Route::post('products/{product}/ready', [ProductChangesController::class, 'ready'])->name('catalog.admin.products.ready');
         Route::post('products/{product}/archive', [ProductChangesController::class, 'archive'])->name('catalog.admin.products.archive');
         Route::post('products/{product}/restore', [ProductChangesController::class, 'restore'])->name('catalog.admin.products.restore');

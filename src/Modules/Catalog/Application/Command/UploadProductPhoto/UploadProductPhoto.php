@@ -15,10 +15,12 @@ final readonly class UploadProductPhoto
      * @param  string  $productId  the product the photo is for
      * @param  string  $path  the uploaded file on local disk
      * @param  string  $fileName  the name on the uploader's computer
+     * @param  string|null  $variantId  the variant whose photos it joins, or none for the gallery
      */
     public function __construct(
         public string $productId,
         public string $path,
         public string $fileName,
+        public ?string $variantId = null,
     ) {}
 }

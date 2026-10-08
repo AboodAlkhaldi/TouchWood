@@ -23,11 +23,14 @@ export function SortableList({
     onChange,
     testPrefix = 'sortable',
     layout = 'list',
+    disabled = false,
 }: {
     items: SortableItem[];
     onChange: (ids: string[]) => void;
     testPrefix?: string;
     layout?: 'list' | 'grid';
+    /** While a change is being saved: nothing is picked up, so no order is sent from before it. */
+    disabled?: boolean;
 }) {
     const t = useTranslator();
     const dndId = useId();
@@ -83,7 +86,7 @@ export function SortableList({
             <SortableContext items={items.map((item) => item.id)} strategy={layout === 'list' ? verticalListSortingStrategy : rectSortingStrategy}>
                 <div role="list" className={layout === 'list' ? 'grid gap-2' : 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5'}>
                     {items.map((item, index) => (
-                        <Row key={item.id} item={item} index={index} testPrefix={testPrefix} layout={layout} />
+                        <Row key={item.id} item={item} index={index} testPrefix={testPrefix} layout={layout} disabled={disabled} />
                     ))}
                 </div>
             </SortableContext>
@@ -91,10 +94,11 @@ export function SortableList({
     );
 }
 
-function Row({ item, index, testPrefix, layout }: { item: SortableItem; index: number; testPrefix: string; layout: 'list' | 'grid' }) {
+function Row({ item, index, testPrefix, layout, disabled }: { item: SortableItem; index: number; testPrefix: string; layout: 'list' | 'grid'; disabled: boolean }) {
     const t = useTranslator();
     const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
         id: item.id,
+        disabled,
         // dnd-kit names the handle's role "sortable", in English, on every page.
         attributes: { roleDescription: t('catalog::admin.drag.role') },
     });
@@ -119,6 +123,7 @@ function Row({ item, index, testPrefix, layout }: { item: SortableItem; index: n
                 type="button"
                 variant="ghost"
                 size="icon-sm"
+                disabled={disabled}
                 aria-label={t('catalog::admin.drag.reorder', { item: item.label })}
                 title={t('catalog::admin.drag.reorder', { item: item.label })}
                 className="cursor-grab text-muted-foreground hover:bg-transparent active:cursor-grabbing"

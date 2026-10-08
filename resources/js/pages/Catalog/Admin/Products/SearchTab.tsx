@@ -13,6 +13,7 @@ import { useTranslator } from '@/lib/t';
 import type { ProductPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 import { nameIn, useLocale } from '../parts';
+import { ProductShell } from './shell';
 
 /*
 | A product's Search and Filters (catalog.md §4.4 S9): **search words** as removable badges with an
@@ -20,6 +21,8 @@ import { nameIn, useLocale } from '../parts';
 | 3(f)) - each change saved at once; and its **filters** - for each filter attribute, its values as
 | checkboxes, several allowed (amendment 3(a)) - saved with Save Filters.
 */
+
+const WORDS_MAX = 30;
 
 export function SearchTab({ page }: { page: ProductPage }) {
     const { product, mayUpdate } = page;
@@ -30,6 +33,7 @@ export function SearchTab({ page }: { page: ProductPage }) {
     const [word, setWord] = useState('');
     const [busy, setBusy] = useState(false);
     const reason = mayUpdate ? undefined : t('catalog::admin_products.read_only');
+    const addReason = reason ?? (words.length >= WORDS_MAX ? t('catalog::admin_products.search.words_max', { max: WORDS_MAX }) : undefined);
     const filterAttributes = (page.attributes ?? []).filter(
         (attribute) => attribute.kind === 'FILTERABLE' && (attribute.active || attribute.values.some((value) => (page.filterValueIds ?? []).includes(value.id))),
     );
@@ -91,8 +95,8 @@ export function SearchTab({ page }: { page: ProductPage }) {
                             }
                         }}
                     >
-                        <TextField id="search-word" className="max-w-xs" disabled={reason !== undefined} label={t('catalog::admin_products.search.word')} value={word} onChange={(event) => setWord(event.target.value)} data-test="search-word" />
-                        <ActionButton type="submit" variant="outline" loading={busy} disabledReason={reason} data-test="add-word">
+                        <TextField id="search-word" className="max-w-xs" disabled={addReason !== undefined} label={t('catalog::admin_products.search.word')} value={word} onChange={(event) => setWord(event.target.value)} data-test="search-word" />
+                        <ActionButton type="submit" variant="outline" loading={busy} disabledReason={addReason} data-test="add-word">
                             {t('catalog::admin_products.search.add_word')}
                         </ActionButton>
                     </form>
@@ -149,5 +153,14 @@ export function SearchTab({ page }: { page: ProductPage }) {
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+/** The Search and Filters tab's page: this product above its tabs, this one open (ProductShell). */
+export default function SearchTabPage(page: ProductPage) {
+    return (
+        <ProductShell page={page}>
+            <SearchTab page={page} />
+        </ProductShell>
     );
 }

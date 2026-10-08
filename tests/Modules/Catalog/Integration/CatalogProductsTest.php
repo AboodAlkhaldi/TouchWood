@@ -45,8 +45,8 @@ use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use function Pest\Laravel\seed;
 
 /*
-| Products (catalog.md §1.1, §4.1, amendment 3): created as drafts from a store that is on, with the
-| Arabic name at least; their details edited as the product's shared data; a draft deleted whole,
+| Products (catalog.md §1.1, §4.1, amendment 3): created as drafts by someone holding the job in a
+| store that is on - no store asked (amendment 13(f)) -, with the Arabic name at least; their details edited as the product's shared data; a draft deleted whole,
 | its slugs and codes free again. Each change under the products' lock, audited by value.
 */
 

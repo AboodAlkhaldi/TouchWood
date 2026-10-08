@@ -3,6 +3,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/u
 import { useTranslator } from '@/lib/t';
 import type { ProductPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { PhotoGrid } from './photos';
+import { ProductShell } from './shell';
 
 /*
 | A product's gallery (catalog.md §4.4 S9): at most 20 photos, the first the card's photo, ordered by
@@ -27,11 +28,21 @@ export function PhotosTab({ page }: { page: ProductPage }) {
                     photos={page.gallery}
                     url={`/admin/products/${page.product.id}/gallery`}
                     max={20}
+                    helper={t('catalog::admin_products.photos.helper')}
                     first={t('catalog::admin_products.photos.card')}
                     reason={page.mayUpdate ? undefined : t('catalog::admin_products.read_only')}
                     testPrefix="gallery"
                 />
             </CardContent>
         </Card>
+    );
+}
+
+/** The Photos tab's page: this product above its tabs, this one open (ProductShell). */
+export default function PhotosTabPage(page: ProductPage) {
+    return (
+        <ProductShell page={page}>
+            <PhotosTab page={page} />
+        </ProductShell>
     );
 }

@@ -111,7 +111,7 @@ final readonly class ProductChangesController
     {
         return ProductPhotos::notArrived($request) ?? CatalogRefusals::act($request, fn () => $handler->handle(new SetVariantPhotos(
             $variant,
-            [...$request->texts('media_ids'), ...ProductPhotos::upload($request, $product, $upload)],
+            [...$request->texts('media_ids'), ...ProductPhotos::upload($request, $product, $upload, $variant)],
         )), 'catalog::admin_products.toast.variant_photos', ['photos']);
     }
 

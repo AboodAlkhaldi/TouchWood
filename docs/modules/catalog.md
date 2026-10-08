@@ -638,7 +638,7 @@ once, that prices and stock were not kept.
 | Access | **Declaring Catalog's permissions** in `PermissionCatalog`, in the `Catalog` group | **Done in step 1** (PR #77): `deptrac.yaml` lets Catalog's interior use Access's public surface, and `tests/Architecture/CatalogAccessUseTest.php` holds it to the five permission classes. Access itself is not changed by Catalog (owner, 2026-10-03: "the access is well working so we don't have to mess with it") — **but for one binding**: Access fills Platform's `ShopperType` (below; owner, 2026-10-07, amendment 14(a)), as it fills `StaffNames`; Catalog still uses nothing of Access beyond declaring its permissions |
 | Platform | Stores, settings, the audit log, `MediaUsages` (photos and logos are detachable uses), `uploadMediaFor` (staff upload photos under Catalog's own permission) | Exists |
 | Platform | **Photo addresses for product cards** — `mediaUrls()` reads one media row per call (`DatabaseMediaReader::urls`) | **No Platform change [ACCEPTED 2026-10-02, §9.3 #17]**: Catalog asks `mediaUrls()` when it writes a listing row and keeps the card photo's addresses in that row, refreshed on `MediaVariantsReady`, so a product grid reads no media at all. A change of CDN address is followed by the repair job (§3) |
-| Platform | **Photo addresses for a page of photos at once** — the shop's product page (§4.5) | **A Platform addition** (owner, 2026-10-07, #10): one read answering the addresses of a list of media ids, so a product page reads its gallery in one query, not one per photo (today `mediaUrls()` reads one row a call). Platform's own amendment (`PlatformApi::mediaUrlsOf`), built with the first screens, step 1: the lists' logos and photos are read the same way |
+| Platform | **Photo addresses for a page of photos at once** — the shop's product page (§4.5) | **A Platform addition** (owner, 2026-10-07, #10): one read answering the addresses of a list of media ids, so a product page reads its gallery in one query, not one per photo (today `mediaUrls()` reads one row a call). Platform's own amendment (`PlatformApi::mediaUrlsOf`), built with the first screens, step 1: the lists' logos and photos are read the same way. **With step 2, the same for their state**: `PlatformApi::mediaOf` answers a list of media rows - each photo's sizes Waiting, Ready or Failed - in one read, so a product's page reads its gallery's and its variants' photos together |
 | Platform | **Who is looking in the shop** — a guest, an individual or a company (§1.13) | **A Platform contract, `ShopperType`, that Access fills** from the signed-in customer's account type (owner, 2026-10-07, #2), as Access fills `StaffNames`; Platform's own answer, until Access binds it, is "guest". Platform's and Access's amendments, built with amendment 14 |
 | Platform | **The shop frame's parts** — the category menu and the search box on every shop page (§4.5) | **A small Platform list** a module adds to, shared with every shop page (owner, 2026-10-07, #9), as B2B's shopper lines are added through Access. Platform's amendment, built with the shop's pages |
 | Platform | **Staff names** on the import's pages (§4.4 S11) | **Exists**: `StaffNames::forReader`, which Access binds — a Super Admin named only to another Super Admin (owner, 2026-10-07, Q5) |
@@ -817,7 +817,7 @@ queries, each asking its own job, each **one query or a fixed few, never one per
 | `ListWordPairs`, `ListSearchesWithNoResults` | `catalog.search_word.manage`, any store to read the pairs; **All stores** for the searches (§3) | the pairs; the submitted searches that found nothing, grouped by words, store and language, with how many times and when last (P11) |
 | `ProductsReached` | the deactivating list's job, All stores | the products a brand's or a category's deactivation reaches, with each one's stage and where it sits — for the fates dialog |
 | `ListProducts` | `catalog.product.view`, any store | the products list (S8) |
-| `ViewProduct` | `catalog.product.view`, any store | one product, whole (S9), with each covered store's row and what the reader may do there |
+| `ViewProduct` | `catalog.product.view`, any store | one product above its tabs (S9) and **the open tab's data only** - each tab read when it is opened; each covered store's row with the Stores tab - and what the reader may do |
 | `CatalogActionsForReader` | — (asks the authorizer for the reader) | for each screen, which buttons the reader may press, and why not (as Access's `StaffActionsForReader`) |
 
 **Photos chosen on a screen** — a brand's logo, a category's photo, a product's and a variant's — are
@@ -959,9 +959,12 @@ Inventory, stage 5), no "Import CSV" (the import is its own screen, S11). **[PRO
 #### S9 · A product — `/admin/products/{id}?tab=`
 
 **Tabs, the tab in the address** (owner, 2026-10-07, #11): **Details · Variants · Photos · Search and
-Filters · Related · Stores**. Above them: the name, the stage badge, the codes; **a draft's Note**
-naming what it still lacks to be made ready, in words (`Readiness`: the English name, the description
-in each language, a lowest active category, a variant, a ready photo).
+Filters · Related · Stores**. Above them: the name, the stage badge, the codes - as its variants
+carry them now (a code it gave up stays its own and still finds it, amendment 3(e), but is not shown);
+**a draft's Note** naming what it still lacks to be made ready, in words (`Readiness`: the English
+name, the description in each language, a lowest active category, a variant, a ready photo); a warning
+Note while it is hidden with its category or its brand. Beside each tab's name, how many it holds
+(variants, photos, search words and filters, related products), when any.
 
 - **The main action** follows the stage: **Make Ready** (a draft; disabled, with the missing items,
   until it is complete — `catalog.product.publish`), **Restore** (an archived product,

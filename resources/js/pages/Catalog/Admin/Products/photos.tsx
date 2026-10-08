@@ -26,6 +26,7 @@ export function PhotoGrid({
     photos,
     url,
     max,
+    helper,
     first,
     reason,
     testPrefix,
@@ -34,6 +35,8 @@ export function PhotoGrid({
     /** Where the photos are saved: their ids in order (`media_ids[]`), and new files (`photos[]`). */
     url: string;
     max: number;
+    /** What may be uploaded here, in words. */
+    helper: string;
     /** What the first photo is called, if it is anything (the card's photo). */
     first?: string;
     /** Why the reader may not change them; undefined for whoever may. */
@@ -57,17 +60,30 @@ export function PhotoGrid({
                     <SortableList
                         layout="grid"
                         testPrefix={testPrefix}
-                        items={photos.map((photo, index) => ({
-                            id: photo.mediaId,
-                            label: t('catalog::admin_products.photos.photo', { number: index + 1 }),
-                            content: <PhotoTile photo={photo} caption={index === 0 ? first : undefined} />,
-                            extra: (
-                                <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => save(ids.filter((id) => id !== photo.mediaId))} data-test={`${testPrefix}-remove-${index}`}>
-                                    {t('catalog::admin_products.photos.remove')}
-                                </Button>
-                            ),
-                        }))}
+                        items={photos.map((photo, index) => {
+                            const label = t('catalog::admin_products.photos.photo', { number: index + 1 });
+
+                            return {
+                                id: photo.mediaId,
+                                label,
+                                content: <PhotoTile photo={photo} caption={index === 0 ? first : undefined} />,
+                                extra: (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={busy}
+                                        aria-label={t('catalog::admin_products.photos.remove_named', { photo: label })}
+                                        onClick={() => save(ids.filter((id) => id !== photo.mediaId))}
+                                        data-test={`${testPrefix}-remove-${index}`}
+                                    >
+                                        {t('catalog::admin_products.photos.remove')}
+                                    </Button>
+                                ),
+                            };
+                        })}
                         onChange={(order) => save(order)}
+                        disabled={busy}
                     />
                 ) : (
                     <div role="list" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -87,6 +103,8 @@ export function PhotoGrid({
                     type="file"
                     multiple
                     accept="image/jpeg,image/png,image/webp"
+                    tabIndex={-1}
+                    aria-hidden="true"
                     className="sr-only"
                     onChange={(event) => {
                         const chosen = Array.from(event.target.files ?? []);
@@ -108,7 +126,7 @@ export function PhotoGrid({
                 >
                     {t('catalog::admin_products.photos.add')}
                 </ActionButton>
-                <FieldDescription className="text-copy-13 text-ink-muted">{t('catalog::admin_products.photos.helper')}</FieldDescription>
+                <FieldDescription className="text-copy-13 text-ink-muted">{helper}</FieldDescription>
             </div>
             {errors.photos ? <FieldError>{errors.photos}</FieldError> : null}
         </div>

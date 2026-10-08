@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -11,19 +11,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { ProductPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
-import { MoreButton, nameIn, useLocale } from '../parts';
-import { DetailsTab } from './DetailsTab';
+import { MoreButton, MoreButtonOff, nameIn, useLocale } from '../parts';
 import { StageBadge } from './parts';
-import { PhotosTab } from './PhotosTab';
-import { RelatedTab } from './RelatedTab';
-import { SearchTab } from './SearchTab';
-import { VariantsTab } from './VariantsTab';
 
 /*
 | One product (catalog.md §4.4 S9): its name, stage and codes above **tabs kept in the address**
 | (`?tab=`, owner 2026-10-07, #11) - Details, Variants, Photos, Search and Filters, Related; a store's
-| rows come with the next step. Each tab is read when it is opened, so every one stays within the
-| admin budget. A draft says what it still lacks to be made ready, in words.
+| rows come with the next step. A draft says what it still lacks to be made ready, in words.
+|
+| **Each tab is a page of its own** (DetailsTab, VariantsTab, ...), all of them this one product above
+| it: the server reads the open tab's data only, and the browser loads the open tab's script only, so
+| every one stays within both budgets (frontend.md §5) - and is rendered whole on the server, which a
+| tab loaded later with React.lazy would not be (renderToString cannot wait for it).
 |
 | The main action follows the stage: Make Ready (a draft, out of reach with the reason until it is
 | complete), Restore (an archived product). The ⋯ menu: Archive Product…, and last Delete Draft….
@@ -37,7 +36,10 @@ type Tab = (typeof TABS)[number];
 
 const asTab = (value: string): Tab => (TABS as readonly string[]).includes(value) ? (value as Tab) : 'details';
 
-export default function Show(page: ProductPage) {
+// The tab just chosen: its page is a new one, and focus would fall to the page's top without this.
+let chosenTab: Tab | null = null;
+
+export function ProductShell({ page, children }: { page: ProductPage; children: ReactNode }) {
     const { product, missing, mayPublish, mayArchive, mayUpdate } = page;
     const t = useTranslator();
     const locale = useLocale();
@@ -50,11 +52,20 @@ export default function Show(page: ProductPage) {
 
     useEffect(() => setOpen(asTab(page.tab)), [page.tab]);
 
-    // A tab's data is read when it is opened: the address says which, and Back brings it again.
+    useEffect(() => {
+        if (chosenTab !== null && chosenTab === page.tab) {
+            document.querySelector<HTMLElement>(`[data-test="tab-${chosenTab}"]`)?.focus();
+        }
+
+        chosenTab = null;
+    }, []);
+
+    // A tab is opened by its address: its page, with its data; Back brings the one before.
     function choose(value: string) {
         const tab = asTab(value);
         setOpen(tab);
-        router.get(`/admin/products/${product.id}`, { tab }, { preserveState: true, preserveScroll: true, replace: true, onStart: () => setLoading(true), onFinish: () => setLoading(false) });
+        chosenTab = tab;
+        router.get(`/admin/products/${product.id}`, { tab }, { preserveScroll: true, replace: true, onStart: () => setLoading(true), onFinish: () => setLoading(false) });
     }
 
     const post = (path: string) => router.post(`/admin/products/${product.id}/${path}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
@@ -75,7 +86,7 @@ export default function Show(page: ProductPage) {
                     {product.stage === 'DRAFT' ? (
                         <ActionButton
                             loading={busy}
-                            disabledReason={!mayPublish ? t('catalog::admin_products.read_only') : missing.length > 0 ? t('catalog::admin_products.not_complete') : undefined}
+                            disabledReason={!mayPublish ? t('catalog::admin_products.publish_reason') : missing.length > 0 ? t('catalog::admin_products.not_complete') : undefined}
                             onClick={() => post('ready')}
                             data-test="make-ready"
                         >
@@ -83,10 +94,11 @@ export default function Show(page: ProductPage) {
                         </ActionButton>
                     ) : null}
                     {product.stage === 'ARCHIVED' ? (
-                        <ActionButton loading={busy} disabledReason={mayArchive ? undefined : t('catalog::admin_products.read_only')} onClick={() => post('restore')} data-test="restore-product">
+                        <ActionButton loading={busy} disabledReason={mayArchive ? undefined : t('catalog::admin_products.archive_reason')} onClick={() => post('restore')} data-test="restore-product">
                             {t('catalog::admin_products.restore')}
                         </ActionButton>
                     ) : null}
+                    {product.stage !== 'ARCHIVED' && !mayArchive ? <MoreButtonOff name={name} reason={t('catalog::admin_products.archive_reason')} /> : null}
                     {product.stage !== 'ARCHIVED' && mayArchive ? (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -135,8 +147,9 @@ export default function Show(page: ProductPage) {
                 {product.hiddenByBrand ? <Note variant="warning">{t('catalog::admin_products.hidden.brand')}</Note> : null}
                 {!mayUpdate ? <Note data-test="read-only">{t('catalog::admin_products.read_only')}</Note> : null}
 
-                {/* min-w-0: five tabs are wider than a phone; their strip scrolls, never the page. */}
-                <Tabs value={open} onValueChange={choose} className="min-w-0 gap-6">
+                {/* min-w-0: five tabs are wider than a phone; their strip scrolls, never the page. Each tab is
+                    read from the server, so the arrows move between them and Enter or Space opens one. */}
+                <Tabs value={open} onValueChange={choose} activationMode="manual" className="min-w-0 gap-6">
                     <TabsList variant="line" className="h-10 w-full max-w-full min-w-0 justify-start overflow-x-auto border-b border-line p-0" aria-label={t('catalog::admin_products.tabs_label')}>
                         {TABS.map((tab) => (
                             <TabsTrigger key={tab} value={tab} data-test={`tab-${tab}`} className="flex-none gap-2 px-3 text-label-14">
@@ -152,23 +165,7 @@ export default function Show(page: ProductPage) {
                             {t('ui.loading')}
                         </p>
                     ) : (
-                        <>
-                            <TabsContent value="details">
-                                <DetailsTab page={page} />
-                            </TabsContent>
-                            <TabsContent value="variants">
-                                <VariantsTab page={page} />
-                            </TabsContent>
-                            <TabsContent value="photos">
-                                <PhotosTab page={page} />
-                            </TabsContent>
-                            <TabsContent value="search">
-                                <SearchTab page={page} />
-                            </TabsContent>
-                            <TabsContent value="related">
-                                <RelatedTab page={page} />
-                            </TabsContent>
-                        </>
+                        <TabsContent value={open}>{children}</TabsContent>
                     )}
                 </Tabs>
             </div>

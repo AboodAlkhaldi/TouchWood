@@ -448,31 +448,41 @@ reader's grants from the cache table — and 9 since #108.
 **The products list** (S8, P4): every product to whoever reads products (`catalog.product.view`) in
 some store - a product belongs to no store - newest first by its id (a ULID's byte order is its age,
 compared `COLLATE "C"`), 50 at a time with Show More; a name in either language or a code finds it
-(digits typed in any script read 0-9); the stage, the category, the brand narrow it. **All Stores**
+(digits typed in any script read 0-9; a `%` or `_` is a character, not a pattern) - a code the
+product gave up too, though each row shows the codes its variants carry now; the stage, the category,
+the brand narrow it - any brand or category products are in, an inactive one said so - and the page
+shows the filters as they were applied. **All Stores**
 first, then the stores the reader covers; each row's stores are only those, and one store chosen shows
 its state - On (n of m variants), Off, Not Chosen, Not Available Now - and narrows by it. **Add
-Product** asks no store (amendment 13(f)): `CreateProduct` takes the job in some store that is on, and
-the import makes its drafts the same way.
+Product** asks no store (amendment 13(f)): `CreateProduct` takes the job in some store that is on -
+`ProductReaders::storeToCreateIn`, which the list asks too, so Add Product is offered only to whoever
+it would let in - and the import makes its drafts the same way.
 
 **A product's page** (S9): its name, stage and codes above **tabs kept in the address** (`?tab=`) -
 Details, Variants, Photos, Search and Filters, Related; a store's rows come with step 3. **Each tab is
 read when it is opened** (`ViewProduct` answers the open tab's data only), so every tab keeps the
-budget. What a draft lacks to be made ready is `Readiness`'s rules worked out from the page's own
+query budget - and **each tab is a page of its own**, the product above it (`Products/shell.tsx`), so
+the browser loads the open tab's script only, within the JavaScript budget, and the server renders it
+whole (a tab loaded later with `React.lazy` would reach the server as "Loading…": `renderToString`
+cannot wait for it). A new choice of brand, category or warranty takes an active one; the product's own stays shown
+whatever its state. What a draft lacks to be made ready is `Readiness`'s rules worked out from the page's own
 reads - `CatalogProductReadsTest` holds the two to the same answers. What the reader may do is asked as
 the handlers check it (`ProductReaders::may`): a product's shared data needs the job in every store
 where it is on, a product on nowhere in some store; whoever may not is told once, at the top, and every
 control is out of reach.
 
 **Photos** (P5, P8): uploaded on the page (`UploadProductPhoto`, sent as `photos[]` after the ids kept
-as `media_ids[]`), shown as Attachment tiles with their sizes' state - each read together, one query
+as `media_ids[]`; a variant's only for a variant of that product, else nothing is uploaded), shown as Attachment tiles with their sizes' state - each read together, one query
 for their states (`PlatformApi::mediaOf`, added with this step) and one for their thumbnails
 (`Thumbnails`, shared with step 1's pages) - and put in order by dragging (`SortableList`'s grid);
 each change saved at once. Search words, related products and a gallery save as they change; the
 details and the filters with their own Save, out of reach until something changed.
 
-**The query budget**: each page's own queries are recorded in `CatalogProductScreensTest` - the list 13
-(one store chosen 13), a product's Details 12, Variants 13, Photos 11, Search and Filters 13, Related
-with a search 13 - and the same again with more rows. The panel's frame around them is as step 1 says.
+**The query budget**: each page's own queries are recorded in `CatalogProductScreensTest` - the list 15
+(one store chosen 15: two of them ask Platform which stores are on, so Add Product is offered only to
+whoever it would let in - at the budget, with nothing to spare), a product's Details 12, Variants 13, Photos 11, Search and Filters 13, Related
+with a search 13 (finding one or many) - and the same again with more of every row a page shows:
+products, variants with photos, gallery photos, filters, search words, related products. The panel's frame around them is as step 1 says.
 
 ## Tests
 
@@ -521,9 +531,9 @@ with a search 13 - and the same again with more rows. The panel's frame around t
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema; the store file's job, admin roles only (amendment 6(h)) |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 | `Integration/CatalogListReadsTest` | The list screens' reads: who may read and who may change, refused before anything is read; each list's rows; a fixed number of queries however long the list; a store's places beside the base store's; the searches that found nothing, grouped and paged; the products a deactivation reaches; Platform's photos read together; descriptions' marks both ways |
-| `Integration/CatalogProductReadsTest` | The products screens' reads: every product to a reader in some store, refused before reading to anyone else; where each is on among the stores covered; finding by name, by a code in any digits, by stage, category and brand; one store's state and narrowing by it; pages by keyset in a fixed number of queries; one product above its tabs; what a draft lacks, the same as `Readiness`; each tab's own data; what the reader may do, as the handlers check it |
-| `Feature/CatalogProductScreensTest` | The products screens over HTTP: who opens the list and a product's page; the store filter; finding and the next page; adding a draft with no store; every tab's change, said where the panel says it, read only without the job in every store where the product is on; photos uploaded, ordered, removed and refused; making ready, archiving, restoring, deleting a draft; each page's own queries, recorded |
-| `tests/Browser/CatalogProductScreensTest.php` | The products screens in a real browser: adding a draft opens its page saying what it lacks; tabs in the address; details saved once changed; a search word added; a variant added from its dialog; Arabic at a phone's width |
+| `Integration/CatalogProductReadsTest` | The products screens' reads: every product to a reader in some store, refused before reading to anyone else; where each is on among the stores covered; finding by name, by a code in any digits, by stage, category and brand; one store's state and narrowing by it; pages by keyset in a fixed number of queries; one product above its tabs; what a draft lacks, the same as `Readiness`; each tab's own data - a variant's details, size and photos, the photos' states read together; what the reader may do, as the handlers check it |
+| `Feature/CatalogProductScreensTest` | The products screens over HTTP: who opens the list and a product's page, and the menu; the store filter; finding (any digits, `%` and `_` as characters, bytes that are not text) and the next page; the filters as applied; every brand and category offered, active or not; Add Product offered only with the job in a store that is on, and a draft added with no store; the codes the variants carry; what the reader may do; an archived product; every tab's change, said where the panel says it, refused - nothing uploaded - without the job in every store where the product is on; photos uploaded, ordered, removed and refused, a variant's only for that product's variant; making ready, archiving, restoring, deleting a draft; each page's own queries, recorded |
+| `tests/Browser/CatalogProductScreensTest.php` | The products screens in a real browser: adding a draft opens its page saying what it lacks; tabs in the address, each fetched as it opens; details saved once changed; a search word added; a variant added from its dialog, shown in its row; Arabic at a phone's width |
 | `Feature/CatalogListScreensTest` | The seven screens over HTTP: the menu; who opens each page; the categories' store filter; every form's success and refusal, said beside its field or at the top; a logo and a photo uploaded from their forms; the fates; each page's own queries, recorded |
 | `tests/Browser/CatalogListScreensTest.php` | The screens in a real browser: adding from each dialog, the fates dialog reading the products before its button, a branch of the tree opened, a label's look, a warranty for life, a word pair added and deleted, a page in Arabic at a phone's width |
 

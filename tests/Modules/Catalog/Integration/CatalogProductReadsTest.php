@@ -6,18 +6,25 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\CatalogPermissions as P;
+use Modules\Catalog\Application\Command\AddVariant\AddVariant;
+use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
+use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValues;
+use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValuesHandler;
 use Modules\Catalog\Application\Command\SetRelations\SetRelations;
 use Modules\Catalog\Application\Command\SetRelations\SetRelationsHandler;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWords;
 use Modules\Catalog\Application\Command\SetSearchWords\SetSearchWordsHandler;
+use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotos;
+use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotosHandler;
 use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Application\Query\ListProducts\ListProducts;
 use Modules\Catalog\Application\Query\ListProducts\ListProductsHandler;
 use Modules\Catalog\Application\Query\Products\ProductFilter;
+use Modules\Catalog\Application\Query\Products\ProductReaders;
 use Modules\Catalog\Application\Query\Products\ProductRow;
 use Modules\Catalog\Application\Query\ViewProduct\ViewProduct;
 use Modules\Catalog\Application\Query\ViewProduct\ViewProductHandler;
@@ -203,10 +210,20 @@ describe('one product', function () {
     });
 
     it('reads each tab\'s own data, and only it', function () {
-        ['product' => $product, 'variants' => [$variant]] = Px::ready(['60 cm']);
+        ['product' => $product, 'variants' => [$variant], 'width' => $width] = Px::ready(['60 cm']);
         ['product' => $other] = Px::ready();
+        $material = Px::attribute('Material', 'INFORMATIONAL');
+        $finish = Px::attribute('Finish', 'FILTERABLE');
+        $matte = Px::value($finish, 'Matte');
+        $eighty = Px::value($width, '80 cm');
         Fx::asSystem(fn () => app(SetSearchWordsHandler::class)->handle(new SetSearchWords($product, ['مفصلة', 'hinge'])));
         Fx::asSystem(fn () => app(SetRelationsHandler::class)->handle(new SetRelations($product, 'GOES_WITH', [$other])));
+        Fx::asSystem(fn () => app(SetFilterValuesHandler::class)->handle(new SetFilterValues($product, [$matte])));
+        $measured = Fx::asSystem(fn (): string => app(AddVariantHandler::class)->handle(new AddVariant(
+            $product, '7001', [$width => $eighty], [$material => ['text_ar' => 'خشب', 'text_en' => 'Wood']], 450, 600, 450, 120, 20,
+        )));
+        $variantPhoto = Cx::media();
+        Fx::asSystem(fn () => app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($measured, [$variantPhoto])));
         Cx::actAsStaffWith([P::PRODUCT_VIEW]);
         $read = fn (string $tab) => app(ViewProductHandler::class)->handle(new ViewProduct($product, $tab));
 
@@ -217,12 +234,21 @@ describe('one product', function () {
         $only = $variants->variants ?? [];
         $relation = $related->related ?? [];
 
-        expect($only)->toHaveCount(1)
-            ->and(array_map(fn ($each) => [$each->id, count($each->values)], $only))->toBe([[$variant, 1]])
+        $second = $only[1] ?? throw new LogicException('No second variant.');
+        $galleryPhoto = $variants->product->gallery[0] ?? throw new LogicException('No gallery photo.');
+
+        expect($only)->toHaveCount(2)
+            ->and(array_map(fn ($each) => [$each->id, count($each->values)], $only))->toBe([[$variant, 1], [$measured, 1]])
+            ->and([$second->code, $second->weightGrams, $second->lengthMm, $second->widthMm, $second->heightMm, $second->position])->toBe(['7001', 450, 600, 450, 120, 20])
+            ->and(array_map(fn (array $detail): array => [$detail['attributeId'], $detail['textAr'], $detail['textEn'], $detail['number']], $second->details))->toBe([[$material, 'خشب', 'Wood', null]])
+            // The Variants tab reads the gallery's photos and its variants' together, each with its sizes' state.
+            ->and($second->photos)->toBe([$variantPhoto])
+            ->and([$variants->photoStates[$galleryPhoto] ?? null, $variants->photoStates[$variantPhoto] ?? null])->toBe(['READY', 'READY'])
+            ->and($search->photoStates)->toBe([$galleryPhoto => 'READY'])
             ->and($variants->attributes)->not->toBeEmpty()
             ->and($variants->options)->toBeNull()
             ->and($search->searchWords)->toBe(['مفصلة', 'hinge'])
-            ->and($search->filterValueIds)->toBe([])
+            ->and($search->filterValueIds)->toBe([$matte])
             ->and(array_map(fn ($each) => [$each->productId, $each->kind], $relation))->toBe([[$other, 'GOES_WITH']])
             ->and($read('nonsense')->tab)->toBe(ViewProduct::DETAILS)
             ->and($read(ViewProduct::PHOTOS)->product->counts['goesWith'])->toBe(1);
@@ -244,7 +270,10 @@ describe('one product', function () {
         Cx::actAsStaffWith([P::PRODUCT_VIEW, P::PRODUCT_UPDATE, P::VARIANT_CORRECT_CODE], ['eg']);
         $here = app(ViewProductHandler::class)->handle(new ViewProduct($product));
 
-        expect([$here->mayUpdate, $here->mayCorrectCode, $here->mayArchive])->toBe([true, true, false]);
+        expect([$here->mayUpdate, $here->mayCorrectCode, $here->mayArchive])->toBe([true, true, false])
+            // A store's id is the same id whatever the case it is written in.
+            ->and(app(ProductReaders::class)->may(P::PRODUCT_UPDATE, [strtoupper(Fx::storeId('eg'))]))->toBeTrue()
+            ->and(app(ProductReaders::class)->may(P::PRODUCT_UPDATE, [strtoupper(Fx::storeId('sa'))]))->toBeFalse();
     });
 
     it('answers a product that does not exist as not found, and refuses a reader of no products', function () {

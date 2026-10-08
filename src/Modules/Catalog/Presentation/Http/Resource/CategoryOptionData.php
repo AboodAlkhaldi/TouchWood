@@ -8,8 +8,8 @@ use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
- * A category a product may sit in - active, with no sub-category - named by its path from the top
- * (catalog.md §4.4 S9).
+ * A category that holds products - with no sub-category - named by its path from the top (catalog.md
+ * §4.4 S8, S9); a new choice takes an active one.
  */
 #[TypeScript]
 final class CategoryOptionData extends Data
@@ -21,5 +21,6 @@ final class CategoryOptionData extends Data
         public string $id,
         public string $pathAr,
         public string $pathEn,
+        public bool $active,
     ) {}
 }

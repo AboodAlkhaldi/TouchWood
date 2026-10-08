@@ -8,7 +8,7 @@ use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
- * An active brand a product may carry (catalog.md §4.4 S8, S9).
+ * A brand a product may carry (catalog.md §4.4 S8, S9); a new choice takes an active one.
  */
 #[TypeScript]
 final class BrandOptionData extends Data
@@ -18,5 +18,6 @@ final class BrandOptionData extends Data
         public string $nameAr,
         public string $nameEn,
         public bool $isDefault,
+        public bool $active,
     ) {}
 }

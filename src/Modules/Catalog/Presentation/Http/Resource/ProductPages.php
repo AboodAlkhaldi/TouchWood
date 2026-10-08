@@ -21,6 +21,7 @@ use Modules\Catalog\Application\Query\ViewProduct\ViewProductHandler;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Unauthorized;
+use Shared\Domain\Text\LatinDigits;
 
 /**
  * The products screens' pages, in the shape the screens want (catalog.md §4.4 S8, S9).
@@ -56,16 +57,18 @@ final readonly class ProductPages
         $thumbs = $this->thumbnails->of(array_map(static fn (ProductRow $row): ?string => $row->photoMediaId, $list->products));
         $options = $this->reads->options();
         $last = $list->products === [] ? null : $list->products[count($list->products) - 1]->id;
+        $applied = $list->filter;
 
+        // The filters as the list applied them, so the page shows what it was narrowed by.
         return new ProductsPage(
             array_map(fn (ProductRow $row): ProductRowData => $this->row($row, $thumbs, $codes), $list->products),
             $list->more,
             $list->more ? $last : null,
-            $search,
-            $stage,
-            $categoryId,
-            $brandId,
-            $chosen === null ? null : $storeState,
+            $applied->search,
+            $applied->stage,
+            $applied->categoryId,
+            $applied->brandId,
+            $applied->storeState,
             $chosen?->code,
             array_map(fn (StoreDto $store): StoreOptionData => new StoreOptionData($store->id, $store->code, $store->name->in($this->locale()), $store->isActive), $stores),
             $list->mayCreate,
@@ -94,8 +97,10 @@ final readonly class ProductPages
 
         // A search for a product to relate: the ready ones, read as the list reads them - the page is
         // already the reader's to read (ViewProduct).
-        if ($view->tab === ViewProduct::RELATED && $find !== null && trim($find) !== '') {
-            [$rows] = $this->reads->products(new ProductFilter(search: trim($find), stage: 'READY'), 20);
+        $search = $find === null ? '' : trim(LatinDigits::of(mb_scrub($find, 'UTF-8')));
+
+        if ($view->tab === ViewProduct::RELATED && $search !== '') {
+            [$rows] = $this->reads->products(new ProductFilter(search: $search, stage: 'READY'), 20);
             $found = array_map(fn (ProductRow $row): ProductRowData => $this->row($row, [], []), array_values(array_filter($rows, static fn (ProductRow $row): bool => $row->id !== $core->id)));
         }
 
@@ -174,6 +179,7 @@ final readonly class ProductPages
             $category['id'],
             implode(' › ', array_column($category['path'], 'ar')),
             implode(' › ', array_column($category['path'], 'en')),
+            $category['active'],
         ), $options->categories);
     }
 

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Modules\Catalog\Application\Query\Products;
 
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **Who may read the products, and what they may do to one** (catalog.md §3, §4.4 S8, S9) — the same
@@ -15,7 +17,9 @@ use Shared\Application\Unauthorized;
  *
  * - a product's shared data — its details, variants, photos, words, filters, relations — needs the
  *   job in **every store where the product is on**; a product on nowhere, in some store;
- * - making ready, restoring and deleting a draft reach only products on nowhere: the job in some store.
+ * - making ready, restoring and deleting a draft reach only products on nowhere: the job in some store;
+ * - a product is added from **some store that is on** where the reader holds the job (amendment
+ *   13(f)) - `CreateProduct` asks the same `storeToCreateIn`.
  *
  * One read of each job asked, so a page asks the authorizer once a job (frontend.md §5).
  */
@@ -23,6 +27,7 @@ final readonly class ProductReaders
 {
     public function __construct(
         private Authorizer $authorizer,
+        private PlatformApi $platform,
     ) {}
 
     /**
@@ -75,5 +80,32 @@ final readonly class ProductReaders
         }
 
         return true;
+    }
+
+    /**
+     * The store a new product is added from: the first store that is on where the reader holds
+     * `catalog.product.create` - with All stores, the first store that is on. None: they may not add one.
+     */
+    public function storeToCreateIn(): ?StoreId
+    {
+        $held = $this->authorizer->storesWith(CatalogPermissions::PRODUCT_CREATE);
+
+        if ($held === []) {
+            return null;
+        }
+
+        $holds = [];
+
+        foreach ($held ?? [] as $store) {
+            $holds[$store->value] = true;
+        }
+
+        foreach ($this->platform->stores() as $store) {
+            if ($held === null || isset($holds[strtolower($store->id)])) {
+                return StoreId::fromString($store->id);
+            }
+        }
+
+        return null;
     }
 }
