@@ -242,10 +242,10 @@ module's events — and nothing is ever allowed to depend on Ops in return.
 **A · Synchronous public contracts.** For anything needing an answer now.
 
 ```php
-interface PricingApi
+interface PricingApi   // the agreed shape: docs/modules/pricing.md §2 (2026-10-07)
 {
-    public function quoteCart(QuoteRequest $request): PriceQuote;
-    public function unitPrice(VariantId $v, StoreId $s, Audience $a, Quantity $q): ?Money;
+    public function prices(StoreId $store, array $lines): CartPricesDto;
+    public function totals(CartPricesDto $prices, Money $coupon, Money $points, Money $shipping): TotalsDto;
 }
 ```
 
