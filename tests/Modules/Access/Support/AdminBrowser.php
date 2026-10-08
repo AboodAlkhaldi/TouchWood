@@ -115,6 +115,20 @@ final class AdminBrowser
      */
     private function send(string $method, string $uri, array $data = []): TestResponse
     {
+        // One process serves one request in production, so nothing scoped survives from the request
+        // before: the permissions, the shell, the settings and the stores a request remembers are
+        // its own (access.md amendment 65). A test reuses the application, so it forgets them here -
+        // or a second request would be answered from the first one's memory, and count fewer
+        // queries than production does. An actor bound with Fx::actAs* stays: that is a binding.
+        app()->forgetScopedInstances();
+
+        // Nor does a controller: Laravel keeps each one on its route, with whatever it was built
+        // with - the request before's actor and stores, which once that request is over answer as
+        // the system. A fresh process builds them again, so this does too.
+        foreach (app('router')->getRoutes()->getRoutes() as $route) {
+            $route->flushController();
+        }
+
         // One process serves one request in production, so each request starts with a fresh session
         // store. In a test the application is reused, and without this two browsers would share one
         // store — and one signing out would sign the other out too. Everything that keeps a store

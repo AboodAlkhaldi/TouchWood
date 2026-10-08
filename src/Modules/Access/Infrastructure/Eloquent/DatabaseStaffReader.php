@@ -136,6 +136,36 @@ final readonly class DatabaseStaffReader implements StaffReader
         return $row instanceof stdClass ? $this->toRow($row) : null;
     }
 
+    public function shell(string $staffId): ?array
+    {
+        if (! Ulids::valid($staffId)) {
+            return null;
+        }
+
+        $row = $this->db->selectOne(<<<'SQL'
+            SELECT s.first_name, s.last_name, s.avatar_media_id, s.locale, s.is_super_admin,
+                r.name ->> 'ar' AS role_name_ar, r.name ->> 'en' AS role_name_en
+            FROM access.staff_users s
+            LEFT JOIN access.role_assignments a ON a.staff_user_id = s.id
+            LEFT JOIN access.roles r ON r.id = a.role_id
+            WHERE s.id = ?
+            SQL, [strtolower($staffId)]);
+
+        if (! $row instanceof stdClass) {
+            return null;
+        }
+
+        return [
+            'first_name' => (string) $row->first_name,
+            'last_name' => (string) $row->last_name,
+            'avatar_media_id' => $row->avatar_media_id === null ? null : (string) $row->avatar_media_id,
+            'locale' => (string) $row->locale,
+            'is_super_admin' => (bool) $row->is_super_admin,
+            'role_name_ar' => $row->role_name_ar === null ? null : (string) $row->role_name_ar,
+            'role_name_en' => $row->role_name_en === null ? null : (string) $row->role_name_en,
+        ];
+    }
+
     public function exceptionsFor(string $staffId): array
     {
         if (! Ulids::valid($staffId)) {
