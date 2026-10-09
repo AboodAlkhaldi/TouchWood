@@ -159,7 +159,7 @@ step branches under them: they left a tangled history, with no version marking w
   console, a queued job); never after the request itself changed that data - the change forgets
   it and the rest of the request reads the cache; and never inside a transaction opened after the
   request began, where a check made after its locks must see what was committed meanwhile
-  (amendment 65 (h), to be confirmed). Nothing is kept beyond the request or the job.
+  (amendment 65 (h), kept by the owner, 2026-10-09). Nothing is kept beyond the request or the job.
 - Background jobs run from the `jobs` table: a worker must run (`php artisan queue:work`), and the
   scheduler (`php artisan schedule:work`) for scheduled tasks.
 - Schedule work with `$schedule->job(...)`, never `command()` or `call()`: scheduled work is queued as
