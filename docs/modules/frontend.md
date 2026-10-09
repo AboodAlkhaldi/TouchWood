@@ -59,6 +59,8 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §1.8 | **IBM Plex Sans Arabic draws Arabic letters**: its Arabic subset is loaded too — only the Latin one was, so every Arabic letter had come from the system's fallback face | Owner, 2026-10-06 |
 | §1.11 | **The logo's image files**: a simpler tab icon that reads at 32 px; the navy square for phones' home screens (iPhone and Android); the cream tile at the top of the emails | Owner, 2026-10-07 |
 | §2.2, §2.3 | **Catalog's screens** (catalog.md §4.4, §4.5, amendment 13): the panel's header search waits for Sales, one search for products and orders; the shop's header gains Catalog's category menu and search box on every shop page, through a small Platform list of the shop frame's parts; shop addresses `/{store}/{locale}/products|categories|brands/{slug}` and `/search` | Owner, 2026-10-07 |
+| §1.7, §2.1, §7 | **Every box checks itself as it is typed**, in every form of every module: a number box refuses letters at once, ranges and lengths said under the box while typing, Save out of reach while a box is wrong — the server still checking everything (catalog.md amendment 16(f)); B2B's company page, whose boxes were checked once left (b2b.md amendment 22(a)), too | Owner, 2026-10-09: "we dont wanna wait until request returns red to a numeric value that was entered character, it must be from the moment typed" |
+| §1.1 | **Catalog's ordered lists are ordered by dragging** — `@dnd-kit` under `dashboard-01`'s handles, saved when dropped, with Move to Top and Move to Bottom on the row's menu — no typed place, no "#" column (catalog.md amendment 16(d)); B2B's type lists and Platform's stores keep theirs | Owner, 2026-10-09 |
 
 ---
 
@@ -130,7 +132,7 @@ them here.
 | `radix-ui`, `cn` | 1.6.7, 0.4.0 (installed 2026-10-03) | Under shadcn's components: Radix's primitives, and shadcn's class-merging helper |
 | `cmdk` | 1.1.1 (2026-10-03) | Under shadcn's Command (the combobox's list) |
 | `input-otp` | 1.5.0 (2026-10-03) | Under shadcn's InputOTP, the SMS code boxes (owner, 2026-10-02) |
-| `@dnd-kit/core`, `/sortable`, `/modifiers`, `/utilities` | 6.3.1, 10.0.0, 9.0.0, 3.2.2 (2026-10-03) | Under shadcn's `dashboard-01` drag handles, for the address form's field order - by mouse, touch or keyboard (owner, 2026-10-03) |
+| `@dnd-kit/core`, `/sortable`, `/modifiers`, `/utilities` | 6.3.1, 10.0.0, 9.0.0, 3.2.2 (2026-10-03) | Under shadcn's `dashboard-01` drag handles, for the address form's field order and **every ordered list of Catalog's** (catalog.md amendment 16(d)) - by mouse, touch or keyboard (owner, 2026-10-03) |
 | `sonner` | 2.0.8 (2026-10-03) | Under shadcn's toasts; `next-themes`, which shadcn adds with it, is removed (§1.11 edit 2) |
 | `react-day-picker`, `date-fns` | 10.0.2, 4.4.0 (2026-10-04) | Under shadcn's calendar, the audit log's date range (loaded when the picker first opens) |
 | `tightenco/ziggy` | v2.6.4 | **[DECIDED 2026-09-19]** Links to named routes, with TypeScript types |
@@ -233,6 +235,30 @@ Access's sign-in endpoints, being built now (step 3b, not yet merged), already a
   `errors.form`, translated into the person's language. Access's `FormErrors` does this today.
 - A success message comes back as the flash `status`.
 - A request asking for JSON still gets the RFC 7807 problem document (`app/Http/ProblemDetails.php`).
+
+**Every box checks itself as it is typed** (owner, 2026-10-09: "we dont wanna wait until request
+returns red to a numeric value that was entered character, it must be from the moment typed";
+catalog.md amendment 16(f)) — in every form of every module:
+
+- **Each box declares its rules** — required, a whole number, a range, a length, digits only for a
+  code, an email's or a phone's shape — once, through one shared helper on the form fields, never
+  written again screen by screen.
+- **A rule is said under the box the moment it is broken**, naming the box and the rule (§1.10's
+  "Validation" row): a letter typed in a number box shows "Weight takes numbers only." at once; a
+  range ("Retail minimum is from 1 to 100,000."), a length ("A search word is at most 50
+  characters."), a code's digits — while typing. **"Required" is said once the box was typed in or
+  left, or Save pressed** — never on a fresh, untouched form.
+- **Save is out of reach while a box the person has typed in or left is wrong**, its reason that
+  box. An untouched required box does not lock it: **pressing Save with one sends nothing, says every
+  wrong box's rule and puts the focus on the first** — so a fresh form never opens with Save off.
+- **The words are the module's own**, in the person's language, in Geist's form (§1.10's
+  "Validation" row) — the same words the server answers with, so a box never says one thing and the
+  server another.
+- **Said to a screen reader with the box** (§6): the message is the box's description and announced
+  politely as it changes.
+- **Typed Arabic-Indic digits still become 0-9 as they are typed** (§1.8); the check reads the 0-9.
+- **The server still checks everything** — a Form Request for shape and type, the domain for its
+  rules (handoff §5): the box's check saves a round trip, never replaces one.
 
 How these messages look is in §2.1. *Open (§4):* `FormErrors` is inside Access, and Platform's
 admin screens need the same thing; where the shared version lives is decided with the owner.
@@ -599,7 +625,7 @@ layout of the area they occur in.
 - **[DECIDED 2026-09-19] A business error shows twice:** as a red toast, and as a red message next
   to what it concerns — under the field it names, otherwise at the top of the form. The message
   stays until the person changes the form; the toast fades. Validation errors (§1.7) show under
-  their fields.
+  their fields — **as the box is typed**, from its own rules, and as the server answers.
 
 ### 2.2 Admin
 
@@ -1059,6 +1085,8 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
 - Every page route: who may open it, what its data contains, and 403 or 404 where it must not open.
 - Every form endpoint: validation errors land on their fields; a business error comes back as the
   form's message; success flashes its status and redirects.
+- In a browser, every form's boxes say what is wrong as they are typed — a letter in a number box,
+  out of range, too long, required once touched — with Save out of reach meanwhile (§1.7).
 - The query budgets of §5, warm, per page.
 - The menu contains only what the person may do, and "coming soon" entries appear for a Super Admin
   only.

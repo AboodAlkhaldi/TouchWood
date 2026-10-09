@@ -11,7 +11,9 @@ the owner on 2026-10-05 (amendment 6); **being built** from 2026-10-02 (`src/Mod
 amendments and need the owner's agreement. **The backend is built** (steps 1–7, `main` since #91, and
 amendment 12); **its screens** — the admin's and the shop's — are specified in §4.4 and §4.5
 (amendment 13, 2026-10-07), with the owner's rule on individuals and companies (§1.13, amendment 14),
-and built from 2026-10-07.
+and built from 2026-10-07. **Amendment 16** (2026-10-09) — one code per variant, variants with free
+values and no attribute sets, every list ordered by dragging, Pricing's reads, every box checked as it
+is typed — is written for the owner's review before it is built.
 **Tier:** 1 (commerce core). **Build stage:** 4 (handoff §17).
 **Depends on:** Platform, and Access's public surface for declaring permissions only (§2.4,
 **[DECIDED 2026-10-02]** — a change to handoff §4.4 and `deptrac.yaml`); its screens, from its
@@ -101,12 +103,12 @@ One purchasable configuration of a product: a length, a finish.
 |---|---|
 | `id` | ULID. |
 | `product_id` | Its product; never moves to another. |
-| `code` | The SKU — **for staff and admins only, never shown to customers** (owner, 2026-10-04, amendment 5(d)) — the provider's internal reference (handoff §9.1, §12.2), and the import's key. **Digits only, 1 to 10 of them** (owner, 2026-10-03, amendment 3(j)), kept as text, compared after trimming (owner, 2026-10-03: "they are numbers only", "they will still be numbers only"). **A code belongs to one product: its variants may share it — the same drawer in 60, 80 and 90 cm, as the provider holds them — or have codes of their own; two products never share a code**, and every code a product's variants ever held — a corrected typo included — **stays with that product until the product is deleted**, which only a draft can be (§4.1); then it is free again (owner, 2026-10-03, amendment 3(e), replacing "unique across every variant … never used again" of 2026-10-02). **Staff may correct a mistyped code** under its own permission, audited: the correction changes it on every variant of the product that holds it. **In a draft**, a variant's code is edited, and a variant deleted, with the product's own permission, and a code given up is free again (amendment 3(c)). An order keeps the code it was placed with (Sales snapshots it). |
-| attribute values | One value for each variant-making attribute of the product's attribute set (§1.7), and its informational values. **No two variants of one product have the same combination.** **They stay editable, a `READY` product's too** (owner, 2026-10-03, amendment 3(j)); an order keeps the values it was placed with (Sales snapshots them). |
+| `code` | The SKU — **for staff and admins only, never shown to customers** (owner, 2026-10-04, amendment 5(d)) — the provider's internal reference (handoff §9.1, §12.2), and the import's key. **Digits only, 1 to 10 of them** (owner, 2026-10-03, amendment 3(j)), kept as text, compared after trimming (owner, 2026-10-03: "they are numbers only", "they will still be numbers only"). **Every variant has its own code: two variants never share one** — the drawer in 60, 80 and 90 cm has three codes (owner, 2026-10-09, amendment 16(a): "each variant has its own code … item contains multiple variants and each one may have its own price"). Every code a product's variants ever held — a corrected typo included — **stays with that product until the product is deleted**, which only a draft can be (§4.1), so no other product takes it; one of the product's own variants may take a code back that none of its variants carries now; once the product is deleted the code is free again (owner, 2026-10-03, amendment 3(e), its "variants may share it" replaced by amendment 16(a)). **Staff may correct a mistyped code** under its own permission, audited: the correction changes the one variant. **In a draft**, a variant's code is edited, and a variant deleted, with the product's own permission, and a code given up is free again (amendment 3(c)). An order keeps the code it was placed with (Sales snapshots it). |
+| attribute values | **One value for each of the product's variant attributes** — the variant-making attributes its variants use, chosen in the product's Variants tab, not from an attribute set (owner, 2026-10-09, amendment 16(b), §1.7) — and its informational values. **Every variant of a product uses the same attributes**, and **no two variants of one product have the same combination** — the same size in two colours is two variants. **They stay editable, a `READY` product's too** (owner, 2026-10-03, amendment 3(j)); an order keeps the values it was placed with (Sales snapshots them). |
 | `weight`, `length`, `width`, `height` | **Physical facts, per variant, in Catalog** **[DECIDED 2026-10-02]**, optional now; Shipping reads them and decides later what it requires. **[ACCEPTED 2026-10-02, §9.3 #9]** whole grams and whole millimetres, each 1 to 1,000,000. |
 | photos | **Its own ordered photos**, shown when the variant is chosen, falling back to the product's gallery **[DECIDED 2026-10-02]**. They hang off the variant, not its code, so correcting a code leaves them in place. **[ACCEPTED 2026-10-02, §9.3 #6]** at most 10. |
-| `is_archived` | **A variant can be archived on its own**, product-wide (a discontinued length), and **restored** **[DECIDED 2026-10-02]**. Archiving makes it Inactive in every store. Its code stays taken. |
-| `position` | Its order among the product's variants. |
+| `is_archived` | **A variant can be archived on its own**, product-wide (a discontinued length), and **restored** **[DECIDED 2026-10-02]**. Archiving makes it Inactive in every store. Its code stays its own. |
+| `position` | Its order among the product's variants, **set by dragging** in the Variants tab (amendment 16(d)). |
 
 ### 1.3 Store listing — each store's choice
 
@@ -146,7 +148,7 @@ product import stays Super Admin only, §1.12). **The file holds codes and price
 0 with at most 6 decimal places, a stock a whole number from 0 to 2,147,483,647 (amendment 11(d)). A
 file not in this format is refused whole, every error listed. **Every product must already exist**: the file **never creates or edits a product**. **Its
 page** lists each item with its state: **ready** — its product is ready, and switching it on chooses
-the variants carrying the code in that store; **not ready** — what the product lacks, completed in the
+the variant carrying the code in that store (amendment 16(a)); **not ready** — what the product lacks, completed in the
 product page and then switched on here; **archived**; **already on**; **unknown code** — a typo or a
 miss: **corrected** (checked again) or **removed**. The admin **switches on** the items selected, or
 every ready one. Prices and stock are shown and, until stage 5, not kept. **Nothing goes on sale in a
@@ -188,7 +190,7 @@ name, photo and description, no Add to Cart, hidden from search engines (noindex
 | `name`, `slug` | Arabic and English, as a product's (one slug per language, all stores, history kept, **[DECIDED 2026-10-02]**). **[ACCEPTED 2026-10-02, §9.3 #2]** name at most 100 characters. |
 | `parent_id` | Its parent, or none at the top. Never under itself or anything below it. |
 | `is_active` | Deactivated and activated again (below). |
-| `rank` per store | **The admin-set order, per store** (handoff §9.3), among a category's siblings, set by that store's people. **The person adding a category chooses its place among its siblings**, and that place starts the same in every store; each store's admins change it there afterwards (owner, 2026-10-03, amendment 1(d)). **Moving it** under another parent, the mover chooses its place among the new siblings, written the same way. **A store opened later starts with no order**: its admins set it; a category added after it opened gets its place there too (owner, 2026-10-03, amendment 2(b), (c)). |
+| `rank` per store | **The admin-set order, per store** (handoff §9.3), among a category's siblings, set by that store's people **by dragging** (amendment 16(d)). **A category added goes last among its siblings**, the same in every store; each store's admins drag it into place there afterwards (owner, 2026-10-09, amendment 16(d), replacing amendment 1(d)'s place chosen when adding). **Moving it** under another parent puts it last among the new siblings, written the same way (replacing amendment 2(c)'s place chosen when moving). **A store opened later starts with no order**: its admins set it; a category added after it opened gets its place there too (owner, 2026-10-03, amendment 2(b), (c)). |
 | image | **[ACCEPTED 2026-10-02, §9.3 #11]** an optional public photo, for category cards (the design's homepage shows them). |
 
 - **Products sit at the end** **[DECIDED 2026-10-02]**: only a category with no sub-categories holds
@@ -229,10 +231,11 @@ name, photo and description, no Add to Cart, hidden from search engines (noindex
 Global, one row per brand (handoff §9.4): `slug` (one per language **[DECIDED 2026-10-02]**), `name`
 (Arabic and English), `logo` (a public photo), `description` (Arabic and English), `origin_country`,
 `agency_type` (`HOUSE`, `EXCLUSIVE_AGENT`, `DISTRIBUTOR`), `is_default`, `show_in_default_listings`,
-`position`, `is_active`. **Do not create a table per brand** (handoff §9.4, §16).
+`position` — **the brands' order, set by dragging**, a new brand last (amendment 16(d)) —, `is_active`.
+**Do not create a table per brand** (handoff §9.4, §16).
 
 - **Every brand has a fixed number** (owner, 2026-10-05, amendment 7(b)) — 1, 2, 3 … given when it is
-  added, shown in the panel, never changed while the brand exists — so a products file names a brand by
+  added, shown in the panel as **Brand No.** (amendment 16(d)) — never its place in a list —, never changed while the brand exists — so a products file names a brand by
   its number, without a typo (§1.12). **A deleted brand's number is free again: a new brand takes the
   lowest number no brand holds — no gaps** (owner, 2026-10-06, amendment 10(a)).
 
@@ -260,7 +263,7 @@ Global, one row per brand (handoff §9.4): `slug` (one per language **[DECIDED 2
   Its addresses are freed with it (owner, 2026-10-03, amendment 2(a)).
 - Changed only by someone holding `catalog.brand.manage` with All stores.
 
-### 1.7 Attributes, values, attribute sets, colours
+### 1.7 Attributes, values, colours
 
 **One shared library** **[DECIDED 2026-10-02]**.
 
@@ -270,16 +273,27 @@ Global, one row per brand (handoff §9.4): `slug` (one per language **[DECIDED 2
   languages. **Two values of one attribute never match after trimming, ignoring letter case**:
   "Black" and "black" are one value **[DECIDED 2026-10-02]**.
 - A **colour** attribute's values carry a **swatch** — the design's **Colours** library.
-- An **attribute set** — the design's **Variations**, "attribute sets, measurement and finish, that
-  generate variants" — is a named group of variant-making attributes. A product takes one set; its
-  variants are the combinations of values staff pick from those attributes. **Its attributes stay
-  while any variant is built on it**; its name may still change (amendment 3(k)).
+- **A value's order is set by dragging** on the attribute's page (amendment 16(d)), a new value last:
+  it is the order the shop's pickers show (45 → 60 → 80 cm).
+- **A product's variant attributes** (owner, 2026-10-09, amendment 16(b), replacing the attribute sets
+  — the design's **Variations**): **the variant-making attributes its variants use, chosen in the
+  product's Variants tab** — no set chosen first, no Variations screen. **Every variant of a product
+  uses the same attributes**, in the product's own order (the order of the shop's pickers), and **no
+  two of its variants have the same value of every one** — 45 cm in white and 45 cm in black are two
+  variants. **An attribute added to a product asks each of its variants — archived ones too — for its
+  value**; **one is removed only while its variants, archived ones included, stay different without
+  it**. A product with no variant attribute has
+  one variant; adding an attribute is how it gets more — a ready product's too. **A new value may be
+  made there, by whoever may change the product** (`catalog.product.update`, amendment 16(c)), named in
+  both languages (a colour with its swatch) under the same rules as on the Attributes screen, last in
+  the attribute's order; the attribute must be active.
 - **Price is per combination, never additive**, and **the server resolves the variant** from the values
   a shopper picks; the frontend never does (handoff §9.1).
 - **[ACCEPTED 2026-10-02, §9.3 #13]** informational values: per variant, as text in both languages or a number with the
-  attribute's unit; a product's set cannot change once it has variants.
-- Changed only by someone holding `catalog.attribute.manage` with All stores. **[ACCEPTED 2026-10-02, §9.3 #14]**
-  attributes, values and sets, labels, warranties and word pairs are deactivated and deleted by the
+  attribute's unit.
+- Changed only by someone holding `catalog.attribute.manage` with All stores — but for a value made
+  from a product's Variants tab (above). **[ACCEPTED 2026-10-02, §9.3 #14]**
+  attributes, values, labels, warranties and word pairs are deactivated and deleted by the
   same rule as brands and categories: deactivated (reversible), deleted when nothing uses them.
 
 ### 1.8 Custom label
@@ -296,7 +310,8 @@ show in Egypt **[DECIDED 2026-10-02]**. In Arabic the screens call them **«ال
   screen names each choice by its meaning, never by a bare colour.
 - **A name is one or two words** in each language, at most 30 characters (owner, 2026-10-03,
   amendment 1(f), following Geist: "one word when possible, two max").
-- **Every label attached shows on the product's card**, in the list's order (owner, 2026-10-03,
+- **Every label attached shows on the product's card**, in the list's order — set by dragging on the
+  Labels screen, a new label last (amendment 16(d)) — (owner, 2026-10-03,
   amendment 1(g): "for now … we might change it later"). Geist would show one badge a row; the owner
   chose all, for now.
 
@@ -305,7 +320,8 @@ show in Egypt **[DECIDED 2026-10-02]**. In Arabic the screens call them **«ال
 **In this stage** **[DECIDED 2026-10-02]**. A staff-managed list: a name and terms in both languages,
 and a period in months or "lifetime". A product carries **at most one**, the same in every store.
 **[ACCEPTED 2026-10-02, §9.3 #2]** name at most 100 characters, terms at most 5,000 with simple formatting, a period
-of 1 to 600 months.
+of 1 to 600 months. **The list has an order, set by dragging**, a new warranty last — the order of the
+product form's choice (owner, 2026-10-09, amendment 16(d)).
 
 ### 1.10 Relations
 
@@ -356,7 +372,8 @@ photos as the media library takes them.
 
 **The format** (`touchwood-products/1`) **[ACCEPTED 2026-10-05]** — with a guide to filling it and
 both files as complete examples in [`catalog-import/`](catalog-import/README.md), for a person or another
-AI agent to fill (owner, 2026-10-05):
+AI agent to fill (owner, 2026-10-05) — **the guide and its examples follow amendment 16 with the backend
+that reads them**; until then they still show a set and a shared code:
 
 ```json
 {
@@ -369,11 +386,10 @@ AI agent to fill (owner, 2026-10-05):
       "brand": "TouchWood",
       "category": "Kitchens / Drawers",
       "warranty": "Two years",
-      "attribute_set": "Sizes",
       "variants": [
         { "code": "1304", "values": { "Width": "60 cm" }, "weight_g": 2500,
           "details": { "Material": { "ar": "فولاذ", "en": "Steel" } }, "photos": ["1304/60.jpg"] },
-        { "code": "1304", "values": { "Width": "80 cm" } }
+        { "code": "1314", "values": { "Width": "80 cm" } }
       ],
       "photos": ["1304/front.jpg", "1304/side.jpg"],
       "search_words": ["سحاب", "slide"],
@@ -392,28 +408,28 @@ AI agent to fill (owner, 2026-10-05):
 | `description` | No | Plain text in each language: a blank line starts a paragraph, a line starting `- ` a list item, `# ` a heading, `**…**` bold — kept as the structured text of §1.1 |
 | `brand` | No | The brand's **fixed number** (§1.6) or its name in either language; the default brand when left out (amendment 7(b)) |
 | `category` | No | The path of names from the top, ` / ` between them, ending at a lowest category (§1.5) |
-| `warranty`, `attribute_set` | No | A name in either language; the set is needed when the variants carry values |
-| `variants` | At least one | Each: `code` (digits, §1.2); `values` — attribute name → value name, one for each attribute of the set; `details` — attribute name → text in both languages or a number (§1.7); `weight_g`, `length_mm`, `width_mm`, `height_mm`; its own `photos` (at most 10). **Sizes may share a code**, as the provider holds them (amendment 3(e)) |
+| `warranty` | No | A name in either language |
+| `variants` | At least one | Each: `code` (digits, §1.2) — **its own: two variants never share one** (amendment 16(a)); `values` — attribute name → value name, **every variant of the product naming the same variant-making attributes**, the first variant's order being the product's (§1.7, amendment 16(b)); `details` — attribute name → text in both languages or a number (§1.7); `weight_g`, `length_mm`, `width_mm`, `height_mm`; its own `photos` (at most 10) |
 | `photos` | No | The gallery, in order: paths inside the zip, at most 20 |
 | `search_words` | No | At most 30 (§1.1) |
 | `filters` | No | Filter attribute name → its value names (amendment 3(a)) |
 | `related`, `goes_with` | No | Codes of other products — in the file or already in the catalog (§1.10) |
 
-**Names** — of brands, categories, attributes, values, sets and warranties — are matched as search
+**Names** — of brands, categories, attributes, values and warranties — are matched as search
 compares words (letter case, Arabic marks and letter forms ignored), in either language. **Brands,
 warranties and attributes must be in the catalog before the file is uploaded** (owner, 2026-10-05,
-amendment 7(a)): a name of one the catalog lacks is picked as one it has, or refused. **Values,
-categories and sets may be created on the import's page.** **A name several catalog items answer to**
+amendment 7(a)): a name of one the catalog lacks is picked as one it has, or refused. **Values and
+categories may be created on the import's page.** **A name several catalog items answer to**
 — two warranties both "Two years" — is listed there too, with how many it matches, for the Super
 Admin to pick which (owner, 2026-10-06, amendment 8(d)).
 
 **Checking the file.** A file that is not this format — not JSON, a field of the wrong kind, a
-product with no Arabic name or no variant, a code not digits, **two products sharing a code**, two
-variants of one product with the same values, a photo not in the zip, a number out of range, over the
+product with no Arabic name or no variant, a code not digits, **two products sharing a code**, **two
+variants sharing a code** (amendment 16(a)), two variants of one product with the same values, **variants of
+one product naming different attributes** (amendment 16(b)), a photo not in the zip, a number out of range, over the
 limits — and, read against the catalog (amendment 8(e)), an attribute used for two jobs or for a job
 the catalog's attribute of that name does not have, a category path ending at a category with
-sub-categories, variants whose values do not match the catalog's set or a new set given different
-attributes by two products, a photo that is not JPEG, PNG or WebP or is over the media library's limit
+sub-categories, a photo that is not JPEG, PNG or WebP or is over the media library's limit
 — **is refused whole**, every error listed (`ImportRefused`). A file that passes becomes **an import**
 with its page, and nothing in the catalog has changed yet.
 
@@ -427,10 +443,10 @@ another is picked (part 3 below).
 
 **The import's page** (amendment 6(a), (c)–(f)):
 
-1. **Names the catalog does not have** — a category path, a brand, an attribute, a value, a set, a
+1. **Names the catalog does not have** — a category path, a brand, an attribute, a value, a
    warranty — each listed once with the products using it. For each, the Super Admin decides: **it
-   means one we have** (a typo: pick it), **create it** — a value, a category or a set only (amendment
-   7(a)): its wording corrected first if need be, and its name in the other language given, the lists
+   means one we have** (a typo: pick it), **create it** — a value or a category only (amendment
+   7(a); sets gone with amendment 16(b)): its wording corrected first if need be, and its name in the other language given, the lists
    holding both; a value under an attribute the catalog has or the one picked for it; a category given
    its own web address when the one made from its names is taken (amendment 8(c)) —, or **refuse
    it** — a product then comes in without it where it is optional (a refused brand: the default brand),
@@ -549,10 +565,13 @@ to need, from the handoff:
 | Method | For |
 |---|---|
 | `variant(string $variantId): ?VariantDto` | Pricing, Inventory, Sales, Shipping — the code, the product, the attribute values, weight and dimensions. **The code is never shown to a shopper**, an order's own pages included (amendment 5(d)) |
-| `variantsByCode(string $code): list<VariantDto>` | Sync (the provider's codes), the import's later sections — every variant holding the code, all of one product (amendment 3(e)); telling one size from another by the provider's data is open for stage 5 (§9.2 #6) |
+| `variantByCode(string $code): ?VariantDto` | Sync (the provider's codes), Pricing, Inventory, the import's later sections — **the one variant carrying the code**, archived or not, or none (amendment 16(a), replacing 3(e)'s `variantsByCode`; §9.2 #6 closed). A code a product held once and no variant carries now answers none |
 | `product(string $productId): ?ProductDto` | Sales (snapshot), Feedback, Content |
 | `storeVariant(StoreId $store, string $variantId): ?StoreVariantDto` | Sales: in that store, whether the variant is Active and orderable (§1.3 — never while its product is hidden, amendment 5(j)), "Not available now" (its own or its product's), its selling modes — a variant switched off keeps its own — and its product's minimums and maximums for each mode. Whether the store is on is Platform's to say |
-| `resolveVariant(string $productId, array $valueIds): ?string` | Sales: the variant a shopper's picked values name (handoff §9.1) |
+| `resolveVariant(string $productId, array $valueIds): ?string` | Sales: the variant a shopper's picked values name (handoff §9.1) — one value of each of the product's variant attributes (§1.7) |
+| `productIdsInCategory(string $categoryId): list<string>` | Pricing — a category discount and its preview: **the products in the category and in every category below it**, in any stage (amendment 16(e); pricing.md §2.4, PR #100) |
+| `variantIdsOf(string $productId, bool $includeArchived = false): list<string>` | Pricing — a sale on every size of a product: **the product's variants in their own order** (§1.2), archived ones only when asked (amendment 16(e)) |
+| `switchedOnVariantIds(StoreId $store): list<string>` | Pricing — its "Needs a Price" list — and Inventory: **the variants switched on in the store** (Active there, §1.3), in no particular order (amendment 16(e)) |
 
 ### 2.2 Listing facts — pushed in by the modules above **[DECIDED 2026-10-02]**
 
@@ -563,12 +582,13 @@ inside their own transaction, so a list is never stale and every dependency stil
 | Fact | Pushed by | From |
 |---|---|---|
 | Whether a variant is orderable now in a store | Inventory | Stage 5 |
+| Whether a variant is **ending soon** in a store — "last pieces" (amendment 16(h)) | Inventory | Stage 5 |
 | The price shown, for the price filter and sort | Pricing | Stage 5 |
 | The sales rank, for "best-selling" | Sales | Stage 6 |
 
 `ListingFacts` (a `Public/Contracts` interface Catalog implements) **[ACCEPTED 2026-10-02, §9.3 #16]**:
-`orderable(StoreId, list<variantId>, bool)`, `prices(StoreId, map variantId → Money|null)`,
-`salesRanks(StoreId, map productId → int)`. Until stage 5, orderable follows §1.3. **Step 5 declares
+`orderable(StoreId, list<variantId>, bool)`, `endingSoon(StoreId, list<variantId>, bool)` (amendment
+16(h)), `prices(StoreId, map variantId → Money|null)`, `salesRanks(StoreId, map productId → int)`. Until stage 5, orderable follows §1.3. **Step 5 declares
 the interface only; where these facts are kept, and which price a card shows, come with stage 5,
 which first calls it** (owner, 2026-10-05, amendment 5(i)) — **now proposed below** (amendment 15):
 Catalog keeps them and picks the card's variant, built with the shop's pages (P22). Every change rewrites a product's
@@ -633,8 +653,8 @@ who sees a category, `catalog.category.audience` (amendment 14(c)). **The shared
 | Use case | Permission | Scope |
 |---|---|---|
 | `CreateProduct` — a draft, Active nowhere | `catalog.product.create` | ~~The staff member's working store, which must be on (amendment 3(j))~~ **Some store that is on** — no store is asked: the panel has no store worked in any more (owner, 2026-10-07, Q6, amendment 13(f)) |
-| `UpdateProduct` — names, slugs, description, brand, category, warranty, search words, gallery, relations; `AddVariant`, `UpdateVariant`, `ArchiveVariant`, `RestoreVariant` | `catalog.product.update` | **Every store where the product is Active**; any store when it is Active nowhere |
-| `CorrectVariantCode` | `catalog.variant.correct_code` | As `UpdateProduct` |
+| `UpdateProduct` — names, slugs, description, brand, category, warranty, search words, gallery, relations; `AddVariant`, `UpdateVariant`, `ArchiveVariant`, `RestoreVariant`; **the product's variant attributes** — `AddVariantAttribute` (each variant's value given), `RemoveVariantAttribute` — **the attributes' and the variants' order** (`OrderVariantAttributes`, `OrderVariants`), and **a new value made from the Variants tab** (`AddValueFromProduct`) (amendment 16(b)–(d)) | `catalog.product.update` | **Every store where the product is Active**; any store when it is Active nowhere |
+| `CorrectVariantCode` — the one variant's code (amendment 16(a)) | `catalog.variant.correct_code` | As `UpdateProduct` |
 | `MarkProductReady` | `catalog.product.publish` | Some store: a draft is Active nowhere (amendment 4(l)) |
 | `ArchiveProduct` | `catalog.product.archive` | As `UpdateProduct` |
 | `RestoreProduct` | `catalog.product.archive` | Some store: an archived product is Active nowhere (amendment 4(l)) |
@@ -646,13 +666,13 @@ who sees a category, `catalog.category.audience` (amendment 14(c)). **The shared
 | `RankCategories` | `catalog.category.rank` | That store |
 | `SetCategoryAudiences` — which categories individuals see and which companies see in the store, a parent's switch carried to everything under it (§1.13, amendment 14) | `catalog.category.audience`, **admin roles only** (declared `adminOnly`, as `catalog.listing.fill`) | That store |
 | `UploadCatalogImage` — a photo chosen on a screen, uploaded to Platform's library before the form that uses it is saved (§4.4) | The job of what it is for: a list's job with All stores (a logo, a category's photo); `catalog.product.update` (a product's or a variant's) | A list's: All stores. A product's: Catalog checks the job in every store where the product is Active itself, as `UpdateProduct` does, then gives Platform's `uploadMediaFor` — which takes one scope — one of those stores, or a store where the reader holds the job when it is Active nowhere |
-| The screens' reads (§4.4): `ListBrands`, `ListCategories`, `ListAttributes`, `ViewAttribute`, `ListVariations`, `ListLabels`, `ListWarranties`, `ListWordPairs`, `ProductsReached` | The list's job | Any store; `ProductsReached` All stores |
+| The screens' reads (§4.4): `ListBrands`, `ListCategories`, `ListAttributes`, `ViewAttribute`, `ListLabels`, `ListWarranties`, `ListWordPairs`, `ProductsReached` (`ListVariations` gone with amendment 16(b)) | The list's job | Any store; `ProductsReached` All stores |
 | `ListSearchesWithNoResults` | `catalog.search_word.manage` | All stores |
 | Category tree: add, rename, move, deactivate (with each product's choice), activate, delete | `catalog.category.manage` | All stores |
-| Brands: add, edit, make default, deactivate (with each product's choice), activate, delete | `catalog.brand.manage` | All stores |
-| Attributes, values, attribute sets, colours | `catalog.attribute.manage` | All stores |
-| Labels list | `catalog.label.manage` | All stores |
-| Warranties list | `catalog.warranty.manage` | All stores |
+| Brands: add, edit, make default, deactivate (with each product's choice), activate, delete, **their order** (`OrderBrands`, amendment 16(d)) | `catalog.brand.manage` | All stores |
+| Attributes, values, colours, **their orders** (`OrderAttributes`, `OrderAttributeValues`, amendment 16(d)) — but for a value made from a product's Variants tab, `catalog.product.update` (above) | `catalog.attribute.manage` | All stores |
+| Labels list, **its order** (`OrderLabels`) | `catalog.label.manage` | All stores |
+| Warranties list, **its order** (`OrderWarranties`) | `catalog.warranty.manage` | All stores |
 | Shared word pairs; reading the zero-result list | `catalog.search_word.manage` | All stores |
 | `ListProducts` / `ViewProduct` (admin) — every store's row shown only for the stores the reader covers | `catalog.product.view` | The reader's stores |
 | The import (§1.12, amendments 6, 7, 10) — `UploadImport`, `DecideImportNames`, `DecideImportCodes`, the changes before bringing in (`SetImportedBrand`, `SetImportedWarranty`, `SetImportedCategory`, `SetImportedSearchWords`, `SetImportedFilters`, `SetImportedSlugs`), `BringInImport` (its queued work `BringInImportProducts`, the system's on the Super Admin's behalf), `AcceptImportedProducts`, `ArchiveImportedProducts`, `DeleteImportedProducts`, `DiscardImport` (amendment 10(b)); reading its page and the list of files (`ViewImport`, `ListImports`) | `catalog.import.run` (reserved: Super Admin only, handoff §9.1) | Global |
@@ -720,14 +740,20 @@ is refused where they pressed it.
   its reason. Status badges in words as well as colour: **Active** green-subtle, **Inactive**
   gray-subtle; a product's stage **Draft** gray-subtle, **Ready** green-subtle, **Archived**
   amber-subtle **[PROPOSED P3]**.
+- **Every box checks itself as it is typed** (owner, 2026-10-09, amendment 16(f); frontend.md
+  §1.7): a number box refuses letters at once, a range, a length, a code's digits said under the box
+  while typing, Save out of reach while a box is wrong — the server still checks everything.
 - **Every number in 0-9**, typed Arabic digits turned into 0-9 as they are typed (frontend.md §1.8,
   `toLatinDigits`); **every moment through `Time`**, in the zone of the store the screen shows, else
   the base store's (frontend.md §1.10).
 - **Every store screen has its own store filter** (`?store=<code>`, frontend.md §2.2; `StoreChoices`):
   the stores where the reader holds that screen's job, a Super Admin's off stores marked Off; no
   filter at all for one store.
-- **Names in the page's language first**, the other language beside it; a list's place as a narrow
-  "#" column (as b2b.md amendment 25).
+- **Names in the page's language first**, the other language beside it.
+- **Every ordered list is ordered by dragging** — a handle on each row, by mouse, touch or keyboard,
+  saved when dropped — with **Move to Top** and **Move to Bottom** in each row's ⋯ menu; **no typed
+  place and no "#" column** (owner, 2026-10-09, amendment 16(d), replacing b2b.md amendment 25's "#"
+  for Catalog's lists) **[PROPOSED P8]**.
 - **The words** in `src/Modules/Catalog/Presentation/lang/{ar,en}/admin_*.php` and `menu.php`,
   formal Arabic (frontend.md §1.10); **refusals are §7's**, shown as the built screens show them
   (frontend.md §2.1: under the field they name, else at the top of the form, and as a toast).
@@ -749,16 +775,16 @@ B2B's type lists, b2b.md amendment 23(a)):
 | 20 | Categories · الأقسام | `/admin/categories` | `catalog.category.manage`, `catalog.category.rank`, `catalog.category.audience` (amendment 14) |
 | 30 | Brands · الماركات | `/admin/brands` | `catalog.brand.manage` |
 | 40 | Attributes · الخصائص | `/admin/attributes` | `catalog.attribute.manage` |
-| 50 | Variations · الاختلافات | `/admin/variations` | `catalog.attribute.manage` |
 | 60 | Labels · الشارات | `/admin/labels` | `catalog.label.manage` |
 | 70 | Warranties · الضمانات | `/admin/warranties` | `catalog.warranty.manage` |
 | 80 | Search Words · كلمات البحث | `/admin/search-words` | `catalog.search_word.manage` |
 | 90 | Store Files · ملفات المتاجر | `/admin/store-files` | `catalog.listing.fill` (admin roles only) |
 | 100 | Products Import · استيراد المنتجات | `/admin/imports` | `catalog.import.run` (Super Admin) — the first entry under a reserved permission. The menu offers it, as it asks `storesWith()`, which answers every store for a Super Admin; the entry names its own group, so the permission still needs none. `PermissionGroup`'s note that reserved actions "never appear in the menu" stops being true and is corrected — a comment in Access — with step 4 |
 
-**Attributes and Variations are two screens** — the attributes with their values and colour swatches
-edited inside each, and the attribute sets under the design's own name, "Variations" (owner,
-2026-10-07, amendment 13, #12); there is no separate Colours screen: a colour attribute's values carry
+**Attributes are one screen**, with their values and colour swatches edited inside each; ~~and the
+attribute sets under the design's own name, "Variations" (owner, 2026-10-07, amendment 13, #12)~~ —
+**no Variations screen**: a product's variants pick their attributes in its Variants tab (owner,
+2026-10-09, amendment 16(b)); there is no separate Colours screen: a colour attribute's values carry
 their swatch. **No search in the panel's header yet** — it comes with Sales, one search for products
 and orders; the products list has its own (owner, 2026-10-07, Q8). **No Catalog card on Home** until
 the owner's Home ideas arrive (Q8).
@@ -774,10 +800,10 @@ queries, each asking its own job, each **one query or a fixed few, never one per
 
 | Query | Job | What it answers |
 |---|---|---|
-| `ListBrands` | `catalog.brand.manage`, any store | every brand with its fixed number, logo's address, names, agency, default and default-listings marks, place, state, and how many products carry it |
+| `ListBrands` | `catalog.brand.manage`, any store | every brand, in the brands' order (dragged, amendment 16(d)), with its fixed number, logo's address, names, agency, default and default-listings marks, state, and how many products carry it |
 | `ListCategories` | `.category.manage`, `.rank` or `.audience`, any store | the whole tree in one read, each with its state, photo, how many products sit in it and below it — and, for the store chosen, its place in that store's menu and who sees it there (amendment 14) |
 | `ListAttributes`, `ViewAttribute` | `catalog.attribute.manage`, any store | the attributes with their value counts; one attribute with its values |
-| `ListVariations` | `catalog.attribute.manage`, any store | the sets with their attributes in order, and whether variants are built on each |
+| ~~`ListVariations`~~ | — | **Gone with the attribute sets** (amendment 16(b)) |
 | `ListLabels`, `ListWarranties` | their jobs, any store | the lists, with how many products use each |
 | `ListWordPairs`, `ListSearchesWithNoResults` | `catalog.search_word.manage`, any store to read the pairs; **All stores** for the searches (§3) | the pairs; the submitted searches that found nothing, grouped by words, store and language, with how many times and when last (P11) |
 | `ProductsReached` | the deactivating list's job, All stores | the products a brand's or a category's deactivation reaches, with each one's stage and where it sits — for the fates dialog |
@@ -795,7 +821,8 @@ media ids.
 
 #### S1 · Brands — `/admin/brands`
 
-A table, in the brands' own order: **#** · **No.** (the brand's fixed number, amendment 7(b)) · logo ·
+A table, in the brands' own order — **dragged into it**, with Move to Top and Move to Bottom on the
+row's ⋯ menu (amendment 16(d)): **Brand No.** (the brand's fixed number, amendment 7(b) — not its place) · logo ·
 name · **Agency** (House Brand · Exclusive Agent · Distributor) · **Listings** (Shown everywhere, or
 **Secondary**: reached only through its own category, amendment 5(k)) · **Products** · state, with a
 **Default** badge on the default brand. **Add Brand** is the page's main action.
@@ -804,10 +831,10 @@ name · **Agency** (House Brand · Exclusive Agent · Distributor) · **Listings
   under "Web Addresses" and made from the names when left empty; the agency; "Show this brand's
   products in search, on the home page and in shop-wide lists" (on by default — off makes it
   secondary, and the line says what that means); the origin country (the shared country picker,
-  optional); the place; the description in both languages or neither (5,000 characters, P1); the
-  logo (upload, or remove).
-- **⋯ menu**: Edit…, Make Default (an active brand, not the default), Activate or Deactivate…, Delete…
-  (only a brand no product carries, archived ones included; the default brand neither deactivated nor
+  optional); the description in both languages or neither (5,000 characters, P1); the
+  logo (upload, or remove). A new brand goes last (no place typed, amendment 16(d)).
+- **⋯ menu**: Edit…, Make Default (an active brand, not the default), Move to Top, Move to Bottom,
+  Activate or Deactivate…, Delete… (only a brand no product carries, archived ones included; the default brand neither deactivated nor
   deleted — its items disabled, with the reason).
 - **Deactivate Brand…** (the fates dialog, shared with categories): every product of the brand, in
   any stage (`ProductsReached`), with one choice for all — **Hide** or **Move to** another active
@@ -825,10 +852,13 @@ of the table shows (its menu order, who sees it — amendment 14): the stores wh
 
 - **Add Category** (main action) and, on a row's ⋯ menu, **Add Sub-Category…**: both names (100); the
   parent (none, or an active category holding no products — a category holding products takes no
-  sub-category, `CategoryHoldsProducts`); its place among its siblings, written into every store as it
-  starts (amendment 1(d)); the web addresses (folded, made from the names); the photo.
-- **⋯ menu**: Edit…, Move… (another parent and the place among its new siblings, amendment 2(c)),
-  Activate or Deactivate…, Delete… (only one with no product and no sub-category).
+  sub-category, `CategoryHoldsProducts`); the web addresses (folded, made from the names); the photo —
+  **it goes last among its siblings, in every store** (amendment 16(d), replacing 1(d)'s place typed
+  when adding).
+- **⋯ menu**: Edit…, Move… (another parent; last among its new siblings, amendment 16(d)), Move to
+  Top, Move to Bottom (among its siblings, in the store shown — `catalog.category.rank` in that store,
+  as dragging there), Activate or Deactivate…, Delete… (only
+  one with no product and no sub-category).
 - **Deactivate Category…** — the fates dialog of S1, with three choices: **Hide** (cannot be ordered,
   comes back with the category), **Leave** (stays in the closed category: found by search, its brand
   page and a link, listed in no category page) or **Move to** another active lowest category outside
@@ -836,7 +866,8 @@ of the table shows (its menu order, who sees it — amendment 14): the stores wh
   before asked again (amendment 4(d), (g)); the sub-categories going with it are named.
 - **The store's menu order** (`catalog.category.rank`, that store): the rows of one parent dragged
   into their order — shadcn's `dashboard-01` drag handles on `@dnd-kit`, as the address formats'
-  fields (by mouse, touch or keyboard) — then **Save Order** for that parent **[PROPOSED P8]**. A
+  fields (by mouse, touch or keyboard) — **saved when dropped**, as every ordered list (amendment
+  16(d), replacing **Save Order**) **[PROPOSED P8]**. A
   category the store has not placed shows the base store's place, marked as such (amendment 5(a)).
 - **Who sees it in this store** — two switches a row, **Individuals** and **Companies**
   (`catalog.category.audience`, admin roles only, amendment 14), each saving the moment it flips
@@ -845,41 +876,45 @@ of the table shows (its menu order, who sees it — amendment 14): the stores wh
 
 #### S3 · Attributes — `/admin/attributes`, `/admin/attributes/{id}`
 
-**The list**: # · name · **Kind** (Details Only · Filter · Makes Variants) · unit · **Colour** · values ·
-state; **Add Attribute** (a dialog: both names, the kind, the unit in both languages or neither (20),
-"Colour" for a filter or variant-making attribute, the place). **The whole row opens the attribute.**
+**The list**, dragged into its order (the order of the shop's filters, amendment 16(d)): name ·
+**Kind** (Details Only · Filter · Makes Variants) · unit · **Colour** · values · state; **Add
+Attribute** (a dialog: both names, the kind, the unit in both languages or neither (20), "Colour" for a
+filter or variant-making attribute; it goes last); Move to Top and Move to Bottom on the row's ⋯
+menu. **The whole row opens the attribute.**
 
 **One attribute**: its details as a form — **the kind and Colour locked**, with the reason, once it
-has values or variants carry details of it (amendment 1(i), 3(k)), and kept "Makes Variants" while a
-variation holds it — then **its values**: # · name · swatch (a colour attribute's: `#rrggbb`, chosen
+has values or variants carry details of it (amendment 1(i), 3(k)) — then **its values**, dragged into
+their order (the order of the shop's pickers, amendment 16(d)): name · swatch (a colour attribute's: `#rrggbb`, chosen
 with the browser's colour input beside the hex field) · state · ⋯ (Edit…, Activate or Deactivate,
-Delete… — only one no variant and no product's filters carry). **Add Value** (both names, 100, never
-the same as another value of this attribute in either language ignoring case — `NameTaken`). A "Details
+Move to Top, Move to Bottom, Delete… — only one no variant and no product's filters carry). **Add
+Value** (both names, 100, never the same as another value of this attribute in either language ignoring
+case — `NameTaken`; it goes last) — the same rules as a value made from a product's Variants tab (S9,
+amendment 16(c)). A "Details
 Only" attribute has no values: its row says so. ⋯ on the attribute: Activate or Deactivate, Delete…
-(only one no variation holds and nothing carries; its values go with it).
+(only one nothing carries; its values go with it).
 
-#### S4 · Variations — `/admin/variations`
+#### S4 · Variations — removed
 
-The attribute sets (the design's "Variations": "Attribute sets — measurement, finish — that generate
-variants"): name · its attributes, in order · **In Use** when variants are built on it · state.
-**Add Variation** (a dialog: both names; one to ten "Makes Variants" attributes, picked from the
-active ones and put in order by drag) **[PROPOSED P8]**. Edit…: the name always; the attributes only
-while no variant is built on it (`AttributeSetInUse`, amendment 3(k)) — locked with the reason.
-Activate or Deactivate, Delete… (one no product takes).
+**No longer a screen** (owner, 2026-10-09, amendment 16(b)): attribute sets are gone; a product's
+variants pick their attributes in its Variants tab (S9). The number S4 is kept so the others keep
+theirs.
 
 #### S5 · Labels — `/admin/labels`
 
-«الشارات» (amendment 1(b)): # · **the label as a shopper sees it** (Geist's Badge, in its look) ·
+«الشارات» (amendment 1(b)), dragged into their order — the order on a card (amendment 16(d)):
+**the label as a shopper sees it** (Geist's Badge, in its look) ·
 name in the other language · **Meaning** · products · state. **Add Label**: both names — one or two
 words, 30 characters (amendment 1(f)) —, **the meaning** (Neutral · Information · Healthy · Warning ·
 Error) and **Strong or Subtle** — the Badge's ten looks, named by meaning, never by a bare colour
-(amendment 1(e)) — and the place; a live preview of the badge. Delete only a label no store shows.
+(amendment 1(e)); a live preview of the badge; it goes last. Move to Top, Move to Bottom on the ⋯
+menu. Delete only a label no store shows.
 
 #### S6 · Warranties — `/admin/warranties`
 
-Name · **Period** ("24 months", or "Lifetime") · products · state. **Add Warranty**: both names (100),
-the period — months from 1 to 600, or "Lifetime" — and the terms in both languages (5,000 each, P1).
-Delete only one no product carries.
+Dragged into their order — the order of the product form's choice (amendment 16(d)): name ·
+**Period** ("24 months", or "Lifetime") · products · state. **Add Warranty**: both names (100), the
+period — months from 1 to 600, or "Lifetime" — and the terms in both languages (5,000 each, P1); it
+goes last. Move to Top, Move to Bottom on the ⋯ menu. Delete only one no product carries.
 
 #### S7 · Search Words — `/admin/search-words?store=`
 
@@ -926,17 +961,25 @@ in each language, a lowest active category, a variant, a ready photo).
   addresses free again).
 - **Details** (`catalog.product.update` in every store where it is on, §1.1 — else read only, the
   reason given once at the top): both names (200), the web addresses (folded), the brand, the category
-  (the lowest active ones, each shown with its path), the warranty (or none), the variation (fixed
-  once the product has variants — locked with the reason), the description in both languages
-  (20,000, P1). **Save Details**, out of reach until something changes (Geist's Fieldset).
-- **Variants**: # · **code** · its values · details · weight and size · photos · Archived. **Add
-  Variant…** (a dialog): the code (1–10 digits); one value for each attribute of the variation; the
-  details of each "Details Only" attribute — text in both languages, or a number with its unit —;
-  weight in grams and length, width and height in millimetres (each optional, 1–1,000,000); the
-  place. ⋯ on a row: Edit… (its code only while the product is a draft — once ready a code is
-  **corrected**, amendment 3(c)), **Correct Code…** (`catalog.variant.correct_code`, a ready product;
-  the dialog says every variant holding the code takes the new one), **Photos…** (its own, up to 10),
-  Archive or Restore, and **Delete…** (a draft's variant only).
+  (the lowest active ones, each shown with its path), the warranty (or none), the description in
+  both languages (20,000, P1) — no variation any more: the variants' attributes are the Variants tab's
+  (amendment 16(b)). **Save Details**, out of reach until something changes (Geist's Fieldset).
+- **Variants** (owner, 2026-10-09, amendment 16(b)–(d)): **the product's variant attributes** above
+  the table, in their order — **Add Attribute…** (an active "Makes Variants" attribute, and **each
+  variant's value of it**, archived variants' too, all saved together), **Remove** on one (only while
+  the variants stay different without it), their order by drag, with Move to Top / Move to Bottom. A product with none has one variant; the tab says so
+  and offers Add Attribute… — a ready product's too, so nothing has to be deleted to add a size or a
+  colour. The table, **dragged into the variants' order**: **code** · one column per attribute (a
+  colour's swatch beside its name) · details · weight and size · photos · Archived. **Add Variant…** (a
+  dialog): **its own code** (1–10 digits, never another variant's, amendment 16(a)); **a value for each
+  of the product's attributes** — a combobox of the attribute's active values, with **New value…**
+  when it lacks one: both names (and a colour's swatch), made there under `catalog.product.update`
+  (amendment 16(c)); the details of each "Details Only" attribute — text in both languages, or a number
+  with its unit —; weight in grams and length, width and height in millimetres (each optional,
+  1–1,000,000). It goes last. ⋯ on a row: Edit… (its code only while the product is a draft — once
+  ready a code is **corrected**, amendment 3(c)), **Correct Code…** (`catalog.variant.correct_code`, a
+  ready product; the one variant takes the new code), **Photos…** (its own, up to 10), Move to Top,
+  Move to Bottom, Archive or Restore, and **Delete…** (a draft's variant only).
 - **Photos**: the gallery as tiles (shadcn's `Attachment`, as the media library's grid), **the first
   being the card's photo**, ordered by drag; each tile's size state (Waiting · Ready · Failed — a
   product is shown only with a ready one); **Add Photos** (upload: JPEG, PNG or WebP, the media
@@ -1001,9 +1044,9 @@ address** **[PROPOSED P12]** — its parts 1 and 2, the changes and addresses pa
 part 4 — each tab with how many still wait:
 
 1. **Names** — each name the catalog lacks, once, grouped by kind (category path, brand, attribute,
-   value, set, warranty), with how many products use it and, when several catalog items answer to it,
+   value, warranty — sets gone with amendment 16(b)), with how many products use it and, when several catalog items answer to it,
    how many (amendment 8(d)). Per row, or for the ticked rows: **It Means…** (one of that list, of the
-   right job — a combobox), **Create It** (a value, a category or a set only: its names corrected and
+   right job — a combobox), **Create It** (a value or a category only: its names corrected and
    completed, a category's own web address when its own is taken, amendment 8(c)) or **Refuse It**.
 2. **Codes** — each product of the file whose codes the catalog holds: the catalog's product (a
    link) and whether it is on sale; **Update** · **Replace Whole** · **Skip** · **New Codes…**, and for
@@ -1079,7 +1122,8 @@ account pages carry them too:
 
 **A category's page**: the path to it (breadcrumbs), its name, its sub-categories as links, then the
 products below it — cards of photo, name and labels (every label attached, in the list's order,
-amendment 1(g)) — 24 at a time with **Show More** (keyset, as built). **Filters** **[PROPOSED P14]**:
+amendment 1(g)), and **"Last pieces"** while any of the product's sizes here is ending soon (amendment
+16(h)) — 24 at a time with **Show More** (keyset, as built). **Filters** **[PROPOSED P14]**:
 the brands, the values of the filter attributes present in what is listed, and, for a company or a
 guest, **Retail** or **Wholesale** — each with how many products it would show, all from one read;
 chosen filters as chips with **Clear All**; the address keeps them. **Sort** **[PROPOSED P15]**:
@@ -1091,9 +1135,10 @@ with Show More. A secondary brand keeps its page (§1.6).
 
 **A product's page** — available: the path to its category, the brand (a link to its page), the
 labels, the name; **the gallery** — a large photo and its thumbnails: a chosen variant's own photos,
-falling back to the product's gallery (§1.2); **the choices** — one row per attribute of the variation, its values as buttons, a
+falling back to the product's gallery (§1.2); **the choices** — one row per variant attribute of the product, in its order (amendment 16(b)), its values as buttons, in the attribute's order, a
 colour's with its swatch; values no variant on sale has disabled; the chosen variant's details and
-weight and size in a table; **the description**; **the warranty** — its name, period and terms;
+weight and size in a table; **"Last pieces"** while the chosen size is ending soon here (amendment
+16(h)); **the description**; **the warranty** — its name, period and terms;
 **how it is sold** here, for this viewer — retail, and wholesale for a company or a guest, with the
 minimums and maximums (§1.3) **[PROPOSED P17]**; then **Goes With** and **You May Also Like** as cards
 (§1.10). No code, no price, no Add to Cart. The variant shown is matched in the browser from the list
@@ -1138,13 +1183,14 @@ relations, variants and theirs) are removed with it — which happens only when 
 
 | Table | Columns |
 |---|---|
-| `catalog.products` | `id` PK · `name_ar` `varchar(200)` NOT NULL · `name_en` `varchar(200)` NULL — present while `READY`, CHECK `products_english_when_ready` (amendment 3(g), (l)) · `description_ar`, `description_en` `jsonb` NULL — the structured text (§1.1), each at most 20,000 characters of text, CHECK `jsonb_typeof = 'object'` · `brand_id` FK → `brands` RESTRICT NOT NULL · `category_id` FK → `categories` RESTRICT NULL — CHECK `products_category_when_ready` (present while `READY`: a draft abandoned is archived as it is, §9.3 #19; amendment 3(l)) · `warranty_id` FK → `warranties` RESTRICT NULL · `attribute_set_id` FK → `attribute_sets` RESTRICT NULL · `stage` `varchar(16)` CHECK (`DRAFT`, `READY`, `ARCHIVED`) · `archived_from` `varchar(16)` NULL — the stage it was archived from, `DRAFT` or `READY`, set exactly while `ARCHIVED` (CHECK `products_archived_from`, amendment 3(m)) · `hidden_by_category`, `hidden_by_brand` `boolean` NOT NULL DEFAULT false — set when a deactivation chose "hide" (§1.5, §1.6), cleared when it is undone or the product moves · timestamps |
+| `catalog.products` | `id` PK · `name_ar` `varchar(200)` NOT NULL · `name_en` `varchar(200)` NULL — present while `READY`, CHECK `products_english_when_ready` (amendment 3(g), (l)) · `description_ar`, `description_en` `jsonb` NULL — the structured text (§1.1), each at most 20,000 characters of text, CHECK `jsonb_typeof = 'object'` · `brand_id` FK → `brands` RESTRICT NOT NULL · `category_id` FK → `categories` RESTRICT NULL — CHECK `products_category_when_ready` (present while `READY`: a draft abandoned is archived as it is, §9.3 #19; amendment 3(l)) · `warranty_id` FK → `warranties` RESTRICT NULL · ~~`attribute_set_id`~~ (dropped with amendment 16(b): the product's attributes are `product_attributes`) · `stage` `varchar(16)` CHECK (`DRAFT`, `READY`, `ARCHIVED`) · `archived_from` `varchar(16)` NULL — the stage it was archived from, `DRAFT` or `READY`, set exactly while `ARCHIVED` (CHECK `products_archived_from`, amendment 3(m)) · `hidden_by_category`, `hidden_by_brand` `boolean` NOT NULL DEFAULT false — set when a deactivation chose "hide" (§1.5, §1.6), cleared when it is undone or the product moves · timestamps |
 | `catalog.product_slugs` | (`locale` `char(2)`, `slug` `varchar(200)`) PK — **every slug ever used**, so none is given to another product · `product_id` FK CASCADE · `is_current` — exactly one current per product and locale (partial unique `product_slugs_one_current`) · CHECK the slug's letters: Arabic letters, digits and `-` for `ar`; `a-z`, digits and `-` for `en` |
 | `catalog.product_search_words` | (`product_id` FK CASCADE, `normalized` `varchar(50)`) PK · `word` `varchar(50)` — as typed; at most 30 per product (code rule) |
 | `catalog.product_photos` | (`product_id` FK CASCADE, `media_id` FK → `platform.media` RESTRICT) PK · `position` — at most 20 per product (code rule) |
 | `catalog.product_relations` | (`product_id` FK CASCADE, `related_id` FK → `products` RESTRICT, `kind`) PK — `kind` CHECK (`RELATED`, `GOES_WITH`) · `position` · CHECK `product_id <> related_id` |
-| `catalog.variants` | `id` PK · `product_id` FK CASCADE · `code` `varchar(10)` NOT NULL — digits only, CHECK `variants_code_format`; FK (`product_id`, `code`) → `product_codes` (amendment 3(e)) · `combination` `varchar(600)` — the variant's value ids in attribute order; unique (`product_id`, `combination`) `variants_one_per_combination`, archived ones included · `weight_grams`, `length_mm`, `width_mm`, `height_mm` `integer` NULL, each CHECK 1–1,000,000 · `is_archived` · `position` · timestamps |
-| `catalog.product_codes` | `code` `varchar(10)` PK — **every code the product's variants ever held**, so a code is never given to another product while this one exists (§1.2, amendment 3(e)) · `product_id` FK CASCADE · unique (`product_id`, `code`) for the variants' key |
+| `catalog.variants` | `id` PK · `product_id` FK CASCADE · `code` `varchar(10)` NOT NULL — digits only, CHECK `variants_code_format`; **unique** (`variants_code_unique`): one variant a code (amendment 16(a)); FK (`product_id`, `code`) → `product_codes` (amendment 3(e)) · `combination` `varchar(600)` — the variant's value ids **in the order of their attributes' ids**, so reordering the product's attributes rewrites nothing (P27); unique (`product_id`, `combination`) `variants_one_per_combination`, archived ones included · `weight_grams`, `length_mm`, `width_mm`, `height_mm` `integer` NULL, each CHECK 1–1,000,000 · `is_archived` · `position` — the variants' order, set by dragging (amendment 16(d)) · timestamps |
+| `catalog.product_codes` | `code` `varchar(10)` PK — **every code the product's variants ever held**, so a code is never given to another product while this one exists (§1.2, amendment 3(e)); one variant carries it at a time (amendment 16(a)) · `product_id` FK CASCADE · unique (`product_id`, `code`) for the variants' key |
+| `catalog.product_attributes` | (`product_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `position` — **the product's variant attributes, in their order** (the shop's pickers), variant-making attributes only (code rule) — new with amendment 16(b), replacing a product's attribute set |
 | `catalog.product_filter_values` | (`product_id` FK CASCADE, `value_id` FK → `attribute_values` RESTRICT) PK · `attribute_id` FK RESTRICT — a filter attribute's value (code rule), belonging to that attribute: FK (`attribute_id`, `value_id`) → `attribute_values` (`attribute_id`, `id`) `product_filter_values_value` (amendment 3(a)) |
 | `catalog.variant_values` | (`variant_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `value_id` — FK (`attribute_id`, `value_id`) → `attribute_values` (`attribute_id`, `id`) RESTRICT `variant_values_value`: the value belongs to that attribute |
 | `catalog.variant_details` | (`variant_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `text_ar`, `text_en` `varchar(200)` NULL · `number` `numeric(12,3)` NULL — either both texts or the number (CHECK `variant_details_one_kind`), a text present and on one line (CHECK `variant_details_text_present`) |
@@ -1159,7 +1205,7 @@ relations, variants and theirs) are removed with it — which happens only when 
 | `catalog.store_product_labels` | (`store_id`, `product_id` FK CASCADE, `label_id` FK RESTRICT) PK |
 | `catalog.store_category_ranks` | (`store_id`, `category_id` FK CASCADE) PK · `rank` `integer` |
 | `catalog.store_category_audiences` | (`store_id` FK → `platform.stores` RESTRICT, `category_id` FK CASCADE) PK · `for_individuals`, `for_companies` `boolean` NOT NULL — **no row means both** (amendment 14: a category nobody switched is seen by both), so a new category and a store opened later need no rows · timestamps |
-| `catalog.store_variant_facts` | (`store_id`, `variant_id` FK CASCADE) PK · `orderable` `boolean` NULL — Inventory's (null: §1.3's rule until it pushes) · `price_minor`, `price_before_minor` `bigint` NULL and `currency` `char(3)` NULL — Pricing's `ListingPrice` (amendment 15), the before only with a now, and a currency with either · timestamps. **[PROPOSED P22]** The pushed facts kept where the listing's writer reads them (§2.2). Sales' ranks (stage 6) get their own table when Sales first pushes them |
+| `catalog.store_variant_facts` | (`store_id`, `variant_id` FK CASCADE) PK · `orderable` `boolean` NULL — Inventory's (null: §1.3's rule until it pushes) · `ending_soon` `boolean` NOT NULL DEFAULT false — Inventory's "last pieces" (amendment 16(h)) · `price_minor`, `price_before_minor` `bigint` NULL and `currency` `char(3)` NULL — Pricing's `ListingPrice` (amendment 15), the before only with a now, and a currency with either · timestamps. **[PROPOSED P22]** The pushed facts kept where the listing's writer reads them (§2.2). Sales' ranks (stage 6) get their own table when Sales first pushes them |
 
 **5.3 The lists**
 
@@ -1167,14 +1213,13 @@ relations, variants and theirs) are removed with it — which happens only when 
 |---|---|
 | `catalog.categories` | `id` PK · `parent_id` FK → `categories` RESTRICT NULL · `name_ar`, `name_en` `varchar(100)` · `is_active` · `deactivated_with_parent` — so reactivating a parent brings back only what was active before · `image_media_id` FK → `platform.media` RESTRICT NULL · timestamps. A category is never its own ancestor (code rule: it crosses rows) |
 | `catalog.category_slugs` | As `product_slugs`, for categories |
-| `catalog.brands` | `id` PK · `number` `integer` unique, CHECK > 0 — the brand's fixed number: a new brand takes the lowest one no brand holds, under the brands' lock, so a deleted brand's is free again and a failed add leaves no gap (amendments 7(b), 10(a)) · `name_ar`, `name_en` `varchar(100)` · `description_ar`, `description_en` `jsonb` NULL · `logo_media_id` FK → `platform.media` RESTRICT NULL · `origin_country` `char(2)` NULL · `agency_type` CHECK (`HOUSE`, `EXCLUSIVE_AGENT`, `DISTRIBUTOR`) · `is_default` — partial unique where true (`brands_one_default`), CHECK a default brand is active · `show_in_default_listings` · `position` · `is_active` · timestamps |
+| `catalog.brands` | `id` PK · `number` `integer` unique, CHECK > 0 — the brand's fixed number: a new brand takes the lowest one no brand holds, under the brands' lock, so a deleted brand's is free again and a failed add leaves no gap (amendments 7(b), 10(a)) · `name_ar`, `name_en` `varchar(100)` · `description_ar`, `description_en` `jsonb` NULL · `logo_media_id` FK → `platform.media` RESTRICT NULL · `origin_country` `char(2)` NULL · `agency_type` CHECK (`HOUSE`, `EXCLUSIVE_AGENT`, `DISTRIBUTOR`) · `is_default` — partial unique where true (`brands_one_default`), CHECK a default brand is active · `show_in_default_listings` · `position` — the brands' order, set by dragging (amendment 16(d)) · `is_active` · timestamps |
 | `catalog.brand_slugs` | As `product_slugs`, for brands |
-| `catalog.attributes` | `id` PK · `name_ar`, `name_en` `varchar(100)` · `kind` CHECK (`INFORMATIONAL`, `FILTERABLE`, `VARIANT`) · `unit_ar`, `unit_en` `varchar(20)` NULL · `is_colour` (only a filterable or variant-making attribute) · `is_active` · `position` |
-| `catalog.attribute_values` | `id` PK · `attribute_id` FK RESTRICT · `name_ar`, `name_en` `varchar(100)` — unique per attribute on `lower(name)` in each language, names stored trimmed · `swatch` `char(7)` NULL — `#rrggbb`, only on a colour attribute's values · `is_active` · `position` |
-| `catalog.attribute_sets` | `id` PK · `name_ar`, `name_en` `varchar(100)` · `is_active` |
-| `catalog.attribute_set_members` | (`attribute_set_id` FK CASCADE, `attribute_id` FK RESTRICT) PK · `position` — variant-making attributes only (code rule) |
-| `catalog.labels` | `id` PK · `name_ar`, `name_en` `varchar(30)` — one or two words each (code rule) · `tone` `varchar(16)` CHECK one of Geist Badge's ten: `gray`, `blue`, `green`, `amber`, `red` and each `-subtle` (amendment 1(e)) · `is_active` · `position` — the order on a card |
-| `catalog.warranties` | `id` PK · `name_ar`, `name_en` `varchar(100)` · `terms_ar`, `terms_en` `jsonb` — structured text, at most 5,000 characters each · `period_months` `smallint` NULL — 1–600, NULL meaning lifetime · `is_active` |
+| `catalog.attributes` | `id` PK · `name_ar`, `name_en` `varchar(100)` · `kind` CHECK (`INFORMATIONAL`, `FILTERABLE`, `VARIANT`) · `unit_ar`, `unit_en` `varchar(20)` NULL · `is_colour` (only a filterable or variant-making attribute) · `is_active` · `position` — the attributes' order (the shop's filters), set by dragging (amendment 16(d)) |
+| `catalog.attribute_values` | `id` PK · `attribute_id` FK RESTRICT · `name_ar`, `name_en` `varchar(100)` — unique per attribute on `lower(name)` in each language, names stored trimmed · `swatch` `char(7)` NULL — `#rrggbb`, only on a colour attribute's values · `is_active` · `position` — the values' order (the shop's pickers), set by dragging (amendment 16(d)) |
+| ~~`catalog.attribute_sets`~~, ~~`catalog.attribute_set_members`~~ | **Dropped** with amendment 16(b): each product's set's members, in the set's order, become its `product_attributes` first |
+| `catalog.labels` | `id` PK · `name_ar`, `name_en` `varchar(30)` — one or two words each (code rule) · `tone` `varchar(16)` CHECK one of Geist Badge's ten: `gray`, `blue`, `green`, `amber`, `red` and each `-subtle` (amendment 1(e)) · `is_active` · `position` — the order on a card, set by dragging (amendment 16(d)) |
+| `catalog.warranties` | `id` PK · `name_ar`, `name_en` `varchar(100)` · `terms_ar`, `terms_en` `jsonb` — structured text, at most 5,000 characters each · `period_months` `smallint` NULL — 1–600, NULL meaning lifetime · `is_active` · `position` — the list's order, set by dragging; new with amendment 16(d), the existing ones numbered in name order |
 | `catalog.word_pairs` | `id` PK · `word_a`, `word_b` `varchar(50)` — normalised, stored in order (`word_a < word_b`), unique as a pair |
 
 **5.4 Search and the listing**
@@ -1182,7 +1227,7 @@ relations, variants and theirs) are removed with it — which happens only when 
 | Table | Columns |
 |---|---|
 | `catalog.search_log` | `id` `bigint` identity PK · `store_id` FK RESTRICT · `locale` `char(2)` · `query` `varchar(200)` — normalised · `results` `integer` · `searched_at` `timestamptz` DEFAULT `now()` — **no person** (§1.11). Indexes `(searched_at)` for the nightly removal, `(store_id, results, searched_at)` for the zero-result list |
-| `catalog.listing` | **The listing and search read model** (handoff §5.4): one row per store, language and product that is **listed or reachable by search** there (§1.4). `store_id`, `locale`, `product_id` PK · `name`, `slug` · `brand_id`, `brand_visible_by_default` (copied from the brand, handoff §9.4) · `category_id` and `category_path` (the ids above it, for a parent's page) · `in_category_pages` (false while "left" in an inactive category) · `value_ids`, `label_ids` (for filters and cards) · `card_media_id` FK → `platform.media` RESTRICT and `card_photo` (its addresses, §2.4) · `orderable` · `price_minor` `bigint` NULL and `sales_rank` `integer` NULL (pushed, §2.2) · `search_document` `tsvector`, `search_text` (normalised, for trigrams: the page's name, then the other language's, a line apart — amendment 5(f)). Indexes: `(store_id, locale, brand_visible_by_default, sales_rank)` and `(store_id, locale, brand_id)` (handoff §9.4); GIN on `search_document`, `category_path`, `value_ids`; trigram GIN on `search_text`. **Gains, with the shop's pages** (amendments 14, 15): `for_individuals`, `for_companies` `boolean` — whether each kind of account sees the product here (its own category's switches, and for individuals a variant sold retail, §1.13); `sells_retail`, `sells_wholesale` `boolean` — any variant here, for the shop's Retail and Wholesale filter; `price_before_minor` beside `price_minor` (companies' and guests' card), and `retail_price_minor`, `retail_price_before_minor` (individuals' card) — each from the card's variant for that side (§2.2) |
+| `catalog.listing` | **The listing and search read model** (handoff §5.4): one row per store, language and product that is **listed or reachable by search** there (§1.4). `store_id`, `locale`, `product_id` PK · `name`, `slug` · `brand_id`, `brand_visible_by_default` (copied from the brand, handoff §9.4) · `category_id` and `category_path` (the ids above it, for a parent's page) · `in_category_pages` (false while "left" in an inactive category) · `value_ids`, `label_ids` (for filters and cards) · `card_media_id` FK → `platform.media` RESTRICT and `card_photo` (its addresses, §2.4) · `orderable` · `price_minor` `bigint` NULL and `sales_rank` `integer` NULL (pushed, §2.2) · `search_document` `tsvector`, `search_text` (normalised, for trigrams: the page's name, then the other language's, a line apart — amendment 5(f)). Indexes: `(store_id, locale, brand_visible_by_default, sales_rank)` and `(store_id, locale, brand_id)` (handoff §9.4); GIN on `search_document`, `category_path`, `value_ids`; trigram GIN on `search_text`. **Gains, with the shop's pages** (amendments 14, 15, 16(h)): `ending_soon` `boolean` — **any** of the product's sizes switched on here ending soon (the card's "Last pieces"); `for_individuals`, `for_companies` `boolean` — whether each kind of account sees the product here (its own category's switches, and for individuals a variant sold retail, §1.13); `sells_retail`, `sells_wholesale` `boolean` — any variant here, for the shop's Retail and Wholesale filter; `price_before_minor` beside `price_minor` (companies' and guests' card), and `retail_price_minor`, `retail_price_before_minor` (individuals' card) — each from the card's variant for that side (§2.2) |
 
 **5.5 The import and the store file** **[ACCEPTED 2026-10-05; as built, accepted 2026-10-06]**
 (amendments 6, 8(f)) — the owner accepted the tables as built in step 6, listed column by column.
@@ -1190,7 +1235,7 @@ relations, variants and theirs) are removed with it — which happens only when 
 | Table | Columns |
 |---|---|
 | `catalog.imports` | `id` PK · `kind` CHECK (`PRODUCTS`, `STORE_FILL`) · `store_id` FK → `platform.stores` RESTRICT NULL — the store a store file fills, set exactly for one (CHECK) · `file_name` · `archive` NULL — where a products file's zip waits until its products are brought in, on the disk `config/catalog.php` names (a products file only, CHECK) · `state` CHECK — a products file `DECIDING`, `BRINGING_IN`, `IN`, `FAILED`; a store file `OPEN` · `failure` NULL — set exactly when `FAILED` (CHECK) · `uploaded_by` — the staff member, for the page (an admin record, not product data) · timestamps |
-| `catalog.import_names` | `id` PK · `import_id` FK CASCADE · `kind` CHECK (`CATEGORY`, `BRAND`, `ATTRIBUTE`, `VALUE`, `SET`, `WARRANTY`) · `written` `text` — as the file first wrote it, a category as its whole path (each level the catalog lacks is its own row) · `key` `char(64)` — a SHA-256 of it as names are compared (a value's with its attribute's): a path has no length limit · `attribute` — a value's attribute as written, set exactly for a value (CHECK) · `attribute_kind` — an attribute's job as the file uses it, set exactly for an attribute (CHECK) · `decision` NULL CHECK (`EXISTING`, `CREATE`, `REFUSE`) · `target_id` NULL — the one it means, or the one created; set for `EXISTING`, never for `REFUSE` (CHECK) · `name_ar`, `name_en` — the wording to create, set exactly for `CREATE` (CHECK) · `products` — how many of the file's products use it · `matches` — how many catalog items answer to the name, when several do (amendment 8(d)) · `slug_ar`, `slug_en` NULL — a new category's own address, when the one made from its names is taken (amendment 8(c)) · unique (`import_id`, `kind`, `key`) |
+| `catalog.import_names` | `id` PK · `import_id` FK CASCADE · `kind` CHECK (`CATEGORY`, `BRAND`, `ATTRIBUTE`, `VALUE`, `WARRANTY`) — `SET` gone with amendment 16(b) · `written` `text` — as the file first wrote it, a category as its whole path (each level the catalog lacks is its own row) · `key` `char(64)` — a SHA-256 of it as names are compared (a value's with its attribute's): a path has no length limit · `attribute` — a value's attribute as written, set exactly for a value (CHECK) · `attribute_kind` — an attribute's job as the file uses it, set exactly for an attribute (CHECK) · `decision` NULL CHECK (`EXISTING`, `CREATE`, `REFUSE`) · `target_id` NULL — the one it means, or the one created; set for `EXISTING`, never for `REFUSE` (CHECK) · `name_ar`, `name_en` — the wording to create, set exactly for `CREATE` (CHECK) · `products` — how many of the file's products use it · `matches` — how many catalog items answer to the name, when several do (amendment 8(d)) · `slug_ar`, `slug_en` NULL — a new category's own address, when the one made from its names is taken (amendment 8(c)) · unique (`import_id`, `kind`, `key`) |
 | `catalog.import_products` | `id` PK · `import_id` FK CASCADE · `number` — its place in the file, from 1 · `data` `jsonb` — the product as the file gave it, checked · `edited` `jsonb` NULL — the product as the page's changes left it, before bringing in (amendment 7(c)); where the file gives none, what was asked to fill the empty or to add is kept apart in it and given when the product is brought in, to what it then has (§1.12) · `codes` `text[]` · `conflict_product_id` FK → `products` SET NULL NULL — the product already holding a code · `decision` NULL CHECK (`UPDATE`, `REPLACE`, `SKIP`, `RECODE`) · `new_codes` `jsonb` — each code it gives up → its new one, set exactly for `RECODE` (CHECK) · `sale` NULL CHECK (`KEEP`, `TAKE_OFF`) — for a product updated or replaced that is on sale, set only with `UPDATE` or `REPLACE` (amendment 9(c)) · `product_id` FK → `products` SET NULL NULL — the product it became · `state` CHECK (`WAITING`, `REFUSED`, `IN`, `UPDATED`, `REPLACED`, `SKIPPED`, `HELD`, `ACCEPTED`, `ARCHIVED`, `DELETED`) · `refusal` `text` NULL — why a product of the file was left out at upload, set exactly for `REFUSED` (CHECK; amendment 11(a)) · unique (`import_id`, `number`) |
 | `catalog.store_fill_items` | `id` PK · `import_id` FK CASCADE · `number` · `code` CHECK digits · `price` — as the file wrote it, `stock` NULL — shown, not kept until stage 5 · `state` CHECK (`OPEN`, `ON`, `REMOVED`) — what the admin did with it; whether an open item is ready, not ready, archived, already on or an unknown code is read when the page is, since it changes with the product · unique (`import_id`, `number`) |
 
@@ -1212,7 +1257,7 @@ by job" for the ordinary case, and keeps the job for repairs.
 ### 6.1 Published (ids only, after commit)
 
 **[ACCEPTED 2026-10-02, §9.3 #21]** `ProductMadeReady`, `ProductArchived`, `ProductRestored`, `ProductChanged` (shared
-data), `VariantAdded`, `VariantArchived`, `VariantRestored`, `VariantCodeCorrected` (Sync re-matches),
+data), `VariantAdded`, `VariantArchived`, `VariantRestored`, `VariantCodeCorrected` (Sync re-matches the one variant, amendment 16(a)),
 `StoreListingChanged` (`storeId`, variant ids — Pricing and Inventory learn a store took up a variant
 that needs a price and stock). None is among handoff §4.5's critical outbox events. **Only for a
 product that has been ready** (owner, 2026-10-04, amendment 3(m)): a draft, and a draft archived when
@@ -1237,10 +1282,10 @@ exactly as one that does not exist, as B2B's and Access's do.
 | Error | Category | When |
 |---|---|---|
 | `ProductNotFound`, `VariantNotFound`, `CategoryNotFound`, `BrandNotFound` | NOT_FOUND | Unknown, or not one the reader may see |
-| `ListItemNotFound` | NOT_FOUND | An attribute, value, set, label, warranty or word pair that does not exist |
-| `CodeTaken` | CONFLICT | A code another product holds or once held (§1.2, amendment 3(e)) |
+| `ListItemNotFound` | NOT_FOUND | An attribute, value, label, warranty or word pair that does not exist |
+| `CodeTaken` | CONFLICT | A code another product holds or once held (§1.2, amendment 3(e)), or another variant of the product carries now (amendment 16(a)) |
 | `SlugTaken` | CONFLICT | A slug another product, category or brand holds or once held (§1.1) |
-| `DuplicateCombination` | CONFLICT | A variant with the same values as another of the product, archived ones included |
+| `DuplicateCombination` | CONFLICT | A variant with the same values as another of the product, archived ones included — also when a variant attribute removed would leave two the same (amendment 16(b)) |
 | `ProductNotReady` | INVALID | Marking ready, or editing a ready product, without every §1.1 requirement — it names what is missing |
 | `ProductArchived` | CONFLICT | Making an archived product ready, deleting it, or deleting its variant — it is restored first (amendment 3(m)) |
 | `InvalidStageChange` | CONFLICT | A move §4.1 does not allow |
@@ -1255,8 +1300,7 @@ exactly as one that does not exist, as B2B's and Access's do.
 | `DefaultBrandRequired` | CONFLICT | Deactivating or deleting the default brand (§1.6) |
 | `AttributeKindLocked` | CONFLICT | Changing an attribute's job once it has values (amendment 1(i)) |
 | `NameTaken` | CONFLICT | A value of one attribute, or a word pair, the list already has — matched trimmed, ignoring letter case (§1.7, §1.11); a new value a file would make twice (§1.12) |
-| `AttributeSetLocked` | CONFLICT | Changing a product's attribute set once it has variants (§1.7) |
-| `AttributeSetInUse` | CONFLICT | Changing a set's attributes while variants are built on it (amendment 3(k)) |
+| ~~`AttributeSetLocked`~~, ~~`AttributeSetInUse`~~ | — | **Gone with the attribute sets** (amendment 16(b)): a product's attributes change in its Variants tab, each variant given its value |
 | `TooMany` | CONFLICT | Over a limit: photos, search words, filter values, related products |
 | `InvalidCatalogAttribute` | INVALID | Any other value the domain refuses — a length, a format, a swatch |
 | `ImportRefused` | INVALID | A product or store file not in its format; it lists every error (§1.12, §1.3) |
@@ -1274,13 +1318,15 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 1. A product leaves `DRAFT` only with names, slugs and description in both languages, a brand, a
    lowest active category, a variant with a code and a photo whose sizes are ready; each missing
    item is named. A ready product refuses an edit that removes one.
-2. A code is digits only and belongs to one product — its variants may share it — and no code another
+2. A code is digits only and **one variant's: two variants never share one** (amendment 16(a)) — and no code another
    product holds or held is given to this one, until that product (a draft) is deleted; correcting one
    is its own permission and audited; a code stays with its product — archived or corrected — except
    that a product never ready, a draft archived or not, lets go of a code none of its variants carries
    any more (amendment 3(c), (m)).
-3. Two variants of one product never share a combination; the server resolves the variant from
-   picked values; price is never added up from values.
+3. Two variants of one product never share a combination; **every variant of a product uses the
+   product's variant attributes, each given its value when one is added; one is removed only while the
+   variants stay different** (amendment 16(b)); the server resolves the variant from picked values;
+   price is never added up from values.
 4. A slug is unique per language among products (and among categories, among brands); an old slug
    answers with a redirect to the current one.
 5. Archiving a product makes it Inactive in every store; restoring brings it back to the stage it
@@ -1315,8 +1361,11 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
     left without a brand; the default brand cannot be deactivated or deleted.
 15. A category with products cannot take a sub-category; a product goes only into a lowest
     category; a category never moves under itself; deleting needs it empty.
-16. "Black" and "black" are one value of an attribute; a set holds only variant-making attributes;
-    a product's set is fixed once it has variants.
+16. "Black" and "black" are one value of an attribute; a product's variant attributes are
+    variant-making ones only; **a value made from a product's Variants tab** follows the Attributes
+    screen's rules, under `catalog.product.update` in every store where the product is on (amendment
+    16(c)); **every ordered list keeps the order dragged, an item not sent keeping its place after those
+    sent, a new item last** (amendment 16(d)).
 
 **Search**
 
@@ -1326,7 +1375,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 
 **Contract and architecture**
 
-19. `CatalogApi` answers with DTOs only; the listing facts and the import's sections are accepted
+19. `CatalogApi` answers with DTOs only — `variantByCode` one variant or none, and Pricing's three
+    reads (amendment 16(a), (e)); the listing facts and the import's sections are accepted
     from the modules above — the listing facts' receiving side tested with the shop's pages (amendment
     15, P22), the facts themselves with stage 5, which pushes them; the import's sections with stage 5
     (declared in step 6); a store's rows are
@@ -1351,8 +1401,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
     since (amendment 11(c)); a product left out at upload takes no part (11(a)); a product not a draft
     keeps its codes (11(b)); prices and stock come only with a store's file, not kept until stage 5.
 25. The store file never creates or edits a product: an unknown code waits to be corrected or removed;
-    switching on chooses the variants carrying each code, only for ready products, under the job in
-    that store.
+    switching on chooses the variant carrying each code (amendment 16(a)), only for ready products,
+    under the job in that store.
 26. Brands, warranties and attributes are never created from a file; a brand is named by its fixed
     number or its name; changes made on the page before bringing in reach the catalog only when the
     products are brought in (amendment 7).
@@ -1364,12 +1414,15 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
     the reader's, opens on the first store that is on, and shows no filter for one store.
 28. Every form endpoint: a refusal lands under the field it names or at the top of the form; success
     flashes its toast and redirects; a reader without the job sees the button disabled with its reason,
-    and the handler refuses it anyway.
+    and the handler refuses it anyway. **In a browser, every box says what is wrong as it is typed** —
+    a letter in a number box, out of range, too long — with Save out of reach meanwhile (amendment 16(f)).
 29. Each page's queries, warm, recorded and held: 15 an admin page, 8 a shop page (frontend.md §5); the
     import's and the store file's pages within 15 for a file at its limit.
 30. In a browser (Pest's plugin), in both languages and on a phone: a brand added, edited, made the
-    default, deactivated with its products' fates and deleted; a category tree with a store's order
-    dragged and saved; a product created, completed through its tabs, made ready, switched on in a
+    default, deactivated with its products' fates and deleted, **dragged into a new order and moved to
+    the top** (amendment 16(d)); a category tree with a store's order dragged and saved; a product
+    created, **given a second attribute and a new value from its Variants tab** (amendment 16(b), (c)),
+    completed through its tabs, made ready, switched on in a
     store with its terms and labels; a store file uploaded (through the use case — the plugin's server
     takes no file) and switched on; an import decided, brought in and accepted.
 31. The shop: the menu, a category's page with its filters and Show More, a brand's page, a product's
@@ -1400,7 +1453,7 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 | 4 | How stock and price reach the listings | **Pushed into Catalog** by the modules that own them (§2.2) |
 | 5 | Store choice level | **A whole product or single variants**, in the panel; the import's level goes with its format (§1.3) |
 | 6 | Slugs | **One per language, every store** — handoff §4.1 to be amended (§1.1) |
-| 7 | The code | **Unique across every variant of every product; the only identifier, the SKU; staff may correct one** (§1.2) |
+| 7 | The code | **Unique across every variant of every product; the only identifier, the SKU; staff may correct one** (§1.2) — loosened by amendment 3(e) (sizes sharing a code), **restored by amendment 16(a)** (2026-10-09): one variant a code, a product keeping every code it held |
 | 8 | A variant added later | **Chosen in no store automatically** (§1.3) |
 | 9 | "Not available now" level | **Both, like the choice** — a whole product (later variants included) or one variant (§1.3) |
 | 10 | Status | **A product-wide stage (draft, ready, archived) and each store's Active row**, changed only by people covering that store (§1.1, §1.3) |
@@ -1447,8 +1500,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 | 3 | Product add-ons ("Product apps"), bundles | A later stage (handoff §15.2) |
 | 4 | **Decided 2026-10-04 (amendment 4, §1.3): one by one, or the admins' file of codes, built in step 6.** Asked first as **filling a new store in bulk** (owner, 2026-10-03, amendment 2(b)): when a store is created, its admins may bring in the existing products (and their categories) instead of choosing them one by one; a Super Admin may upload a JSON of the product codes to add; admins may pick products by code in bulk. Prices and stock then come from Odoo where the store is wired, or are entered by hand — "just an option" beside choosing each product | Step 4 (each store's choice) and step 6 (the import): its rules asked then |
 | 5 | **Decided 2026-10-04 (amendment 5(a), §1.5): the base store's place, until the store's admins place it.** Asked as: how a store's menu orders a category it has no place for yet (a store opened later, amendment 2(b)) | — |
-| 6 | **Telling sizes apart in the provider's data**: a code shared by a product's variants cannot say, alone, which size the provider's stock or price is for (amendment 3(e)); the provider's own id for each item is the likely key | Stage 5 (Sync) |
-| 7 | **The owner's product sheet** (2026-10-03, read, not kept: 678 items under 8 groups, Arabic names only, codes of 3–4 digits): rows sharing a code are one product's sizes; **codes shared by different items are mistakes to fix in the source** (owner) — 1002, 1011, 1076, 1098, 1372 (two rows named «فارغ»), 1496, 1596, 1603, 1815; three group headings count more rows than they hold | **Done in step 6**: in the import's format a code belongs to one product, its variants listed under it; two products sharing a code refuse the file (§1.12) |
+| 6 | ~~**Telling sizes apart in the provider's data**: a code shared by a product's variants cannot say, alone, which size the provider's stock or price is for (amendment 3(e)); the provider's own id for each item is the likely key~~ | **Closed by amendment 16(a)** (owner, 2026-10-09): each variant has its own code, which says which size; Pricing's and Inventory's open points on shared codes close with it |
+| 7 | **The owner's product sheet** (2026-10-03, read, not kept: 678 items under 8 groups, Arabic names only, codes of 3–4 digits): rows sharing a code are one product's sizes — **under amendment 16(a) each of those sizes needs a code of its own in the source**; **codes shared by different items are mistakes to fix in the source** (owner) — 1002, 1011, 1076, 1098, 1372 (two rows named «فارغ»), 1496, 1596, 1603, 1815; three group headings count more rows than they hold | **Done in step 6**: in the import's format a code belongs to one product, its variants listed under it; two products sharing a code refuse the file (§1.12) |
 
 ### 9.3 My proposals — accepted by the owner, 2026-10-02, except #10
 
@@ -1473,9 +1526,10 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
     for each mode, per store.
 11. A category may have an optional photo, for category cards.
 12. The default brand cannot be deactivated or deleted until another is made the default.
-13. Informational values per variant (text in both languages, or a number with the unit); a
-    product's attribute set cannot change once it has variants.
-14. Attributes, values, sets, labels and warranties: deactivated (reversible) and deleted only when
+13. Informational values per variant (text in both languages, or a number with the unit); ~~a
+    product's attribute set cannot change once it has variants~~ — no attribute sets since amendment
+    16(b): a product's variant attributes change in its Variants tab.
+14. Attributes, values, ~~sets,~~ labels and warranties: deactivated (reversible) and deleted only when
     unused, like brands and categories. **Word pairs are only added and deleted** — no switch; a
     product turned off or on never touches them (owner, 2026-10-03, amendment 2(d)).
 15. Until stage 5 a store file's page says, once, that its prices and stock were not kept (amendment 6(a)
@@ -1521,7 +1575,8 @@ Every guard below is also mutation-checked (CONVENTIONS, "How a step is done her
 ### 9.6 Amendments during the build
 
 Changes to the spec approved on 2026-10-02, each with the owner's agreement, applied in place in the
-sections named — amendment 15 still waits for it, with Pricing's own spec.
+sections named — amendment 15 still waits for it, with Pricing's own spec; amendment 16's decisions
+are the owner's, its picks (P26–P34) wait for the owner's review of it.
 
 | # | Where | Change | Source |
 |---|---|---|---|
@@ -1540,12 +1595,14 @@ sections named — amendment 15 still waits for it, with Pricing's own spec.
 | 13 | Status, §2.4, §3, §4.4, §4.5, §8, §9.3, §9.7; frontend.md §2.2, §2.3 | **The screens** (owner, 2026-10-07, answering in two batches in the conversation — a first, Q1–Q11, on setup and structure; a second, #1–#12, on the screens and the rule below — "all else approved as recommended", "all else accepted"). (a) Their own worktree, databases and port. (b) **Written into this file**, as B2B's screens are in b2b.md. (c) **Built in this order**: the six shared lists (seven screens — attributes and variations apart), then the products list and a product's page, then each store's rows and the store file, then the import, then the shop. (d) **Catalog may use the shared web glue** (`App\Http`), as B2B does. (e) **The import's pages name their uploader through Platform's `StaffNames`** — Access untouched. (f) **`CreateProduct` asks no store**: the job in some store that is on — the panel has no store worked in any more (frontend.md §2.2, 2026-10-06). (g) **The shop is built now, last, with no price, stock or Add to Cart** until their modules. (h) **No search in the panel's header and no Catalog card on Home yet**; the products list searches by name or code. (i) **Catalog first**: stage 5's and 6's screens later, as their backends land. (j) The owner, asked whether to write every spec before building: "what about writing all specs and then let you work alone till finish?" — then, asked again, **"B": build straight away on the recommendations** (§9.7), the owner reviewing the specs and the built screens together, a change coming as a fix. (k) **Each step's pull request merged by this session once its checks are green** — the full check, the browser suite and an independent review first ("Q1.B": "let you merge then fixes if there"). (l) Shop addresses `/products/`, `/categories/`, `/brands/`, `/search`; the menu and the search box on every shop page through a small Platform list; a product's photos in **one Platform read** ("Q10. as recommened", after asking whether it was the best way); a product's admin page in **tabs, the tab in the address**; **Attributes and Variations** two screens, no Colours screen. If stuck on the backend, ask its builder's session (owner). | Owner, 2026-10-07 |
 | 14 | §1.13, §2.2, §2.4, §3, §4.4, §4.5, §5.2, §5.4, §8 | **Individuals and companies** (owner, 2026-10-07, relayed by the stage 5 session and confirmed here: "you massage the session and tell it with our new rules then it applies the correct fixing of it"). In each store, admins choose which categories individuals see and which companies see; individuals buy retail only, companies retail and wholesale; a pending, rejected or suspended company sees the company side; guests see everything. On the owner's answers: (a) who is looking is asked of **a Platform contract Access fills**; (b) a category nobody switched is **seen by both**; (c) **a new job, admin roles only**; (d) **a parent's switch reaches everything under it, a sub-category may then change alone**; (e) **a product all wholesale-only in a store is not shown to individuals**, a mixed one shows them its retail variants; (f) **a card shows the first variant this viewer can buy**. The handoff's side — one price for everyone, wholesale for companies — is the stage 5 pull request's (#97). | Owner, 2026-10-07 |
 | 15 | §2.2, §5.2, §5.4 | **The prices pushed into the listing** — the stage 5 session's proposal (2026-10-07), for the owner's OK with Pricing's spec (#97): `prices()` takes per variant a `ListingPrice` (now, and the old price while lower, without VAT); Catalog keeps them and picks each side's card variant (amendment 14(f)). Open: a company's card whose first variant sells wholesale only. | Stage 5 session, 2026-10-07 — **[PROPOSED P22]** |
+| 16 | Status, §1.2, §1.3, §1.5–§1.9, §1.12, §2.1, §2.2, §3, §4.4, §4.5, §5.1, §5.3, §5.5, §6.1, §7, §8, §9.1, §9.2, §9.3, §9.7; `catalog-import/` (with the backend); frontend.md §1.7, §1.11, §2.1, §7; b2b.md amendment 31; HANDOFF §5.3, §9.1; AGENT-BRIEF | **Codes, variants and orders — after the owner tested the product page** (owner, 2026-10-09: stuck on "With no variation, a product has one variant only", and on the brands' two number columns; the stage 5 session's two questions answered in the same conversation). (a) **One code per variant**: "each variant has its own code right, but variants share the same product or let's name it item, so item contains multiple variants and each one may have its own price" — two variants never share a code, replacing amendment 3(e)'s "its variants may share it"; a product still keeps every code it ever held, so no other product takes it, and one of its own variants may take one back; a correction changes the one variant; `variantsByCode` becomes `variantByCode`; §9.2 #6 closed, and with it Pricing's and Inventory's open points on shared codes. (b) **No attribute sets**: "just make variants has or not instead of current, so we can select the sizes as we want … we can create new one from this tab" — a product's variants pick their values from any variant-making attribute in its Variants tab; the attribute sets, a product's set and the Variations screen go; kept, as recommended: **every variant of a product uses the same attributes** (the product's own ordered list, `product_attributes`, the shop's pickers in its order) and **no two of its variants have the same value of every one** ("can add two same values but different codes, in case we have X colors from same size"); an attribute added to a product asks each variant for its value, one removed only while the variants stay different. (c) **Whoever may change a product may make a new value** from its Variants tab (`catalog.product.update`), as on the Attributes screen. (d) **Every ordered list is ordered by dragging**, with **Move to Top** and **Move to Bottom** in each row's ⋯ menu — brands, labels, warranties, attributes, attribute values, a product's variant attributes and its variants, a category among its siblings; the typed places and the "#" columns go, a new item last; brands' fixed number shown as **Brand No.** ("we only need one single column for ordering not 2"); warranties gain an order; a store's category order saved when dropped; a category added or moved goes last (replacing amendments 1(d) and 2(c)). **My reading, for the owner to confirm**: the owner listed brands, labels, warranties, values and variants; attributes, a product's variant attributes and categories' places are ordered the same way. Catalog's lists only: B2B's type lists and Platform's stores keep their typed positions until the owner says otherwise. (e) **Pricing's three reads** (the stage 5 session, accepted as named): `productIdsInCategory`, `variantIdsOf`, `switchedOnVariantIds` (§2.1; pricing.md §2.4). (f) **Every form checks its boxes as they are typed, in every module, now** ("we dont wanna wait until request returns red to a numeric value that was entered character, it must be from the moment typed"): frontend.md §1.7 — a number box refuses letters at once, ranges and lengths said under the box while typing, Save out of reach while a box is wrong, the server still checking everything; B2B's company page, whose boxes were checked once left (b2b.md amendment 22(a)), checks them while typing too. (g) **How it is built**: spec first, the owner reviewing it; then the backend (`feat/catalog-free-variants`) — with it the guide `catalog-import/` and its two examples **brought in line with §1.12** (no `attribute_set`, sets gone from its names, every variant its own code — the second runner `1314` —, the new refusals), since the import and its tests read them and a file filled from a changed guide would be refused until then —, the checks as typed (`feat/forms-type-checks`), and the screens reworked; the picks this needed are P26–P34 (§9.7), for the owner's review with this amendment. (h) **"Last pieces" on cards** — the owner's decision of 2026-10-09 in the stage 5 session (inventory.md §1.2, §2.3, PR #102), relayed here, for the owner to confirm in this review: Inventory pushes `ListingFacts::endingSoon(StoreId, list<variantId>, bool)` inside its own transaction whenever a size's state flips, as `orderable`; Catalog keeps it in its own table (`store_variant_facts.ending_soon`) so a listing rewrite never loses it; **a card shows "Last pieces" while any of its product's sizes in that store is ending soon** ("any size", over "the shown size"); a product's page, for the size the shopper picks. **The migration**: each product's set's members, in the set's order, become its variant attributes; the sets' tables dropped; a product whose variants share a code stops the migration, naming it (no shared code is known to exist); warranties numbered in name order. | Owner, 2026-10-09 |
 
 ### 9.7 Proposed with the screens — built as recommended (amendment 13(j))
 
 Mine — but for P22's price, which is the stage 5 session's — written 2026-10-07 while the owner was
 away; the owner chose to have them **built as recommended** and to review them with the built screens
-("B"). Each says what it costs to change later.
+("B"). Each says what it costs to change later. **P26–P34 are amendment 16's (2026-10-09) and wait for
+the owner's review of it before they are built**, unlike the rest.
 
 | # | Proposal | Built as | Changing it later |
 |---|---|---|---|
@@ -1556,7 +1613,7 @@ away; the owner chose to have them **built as recommended** and to review them w
 | P5 | **Photos are uploaded on the screen that uses them** — no picker of the library's files; the same file uploaded twice is one file (Platform) | `UploadCatalogImage` | A picker needs a Platform read of the library |
 | P6 | **A product's Stores tab**: one card per covered store, as the owner described the page (§1.3); a Super Admin also sees off stores, marked Off, as every panel filter does (frontend.md §2.2) | S9 | Which stores the read returns |
 | P7 | **The category tree is the table's rows**, a parent's folding under it — shadcn's Table and Collapsible. Geist's only tree, File Tree, is for "illustrating project layouts", with no columns or actions | S2 | A drawing, not data |
-| P8 | **Orders are set by dragging** — a store's menu among siblings, a variation's attributes, a gallery, the related products — shadcn's `dashboard-01` handles on `@dnd-kit`, as the address formats (mouse, touch, keyboard) | S2, S4, S9 | Per screen |
+| P8 | **Orders are set by dragging** — a store's menu among siblings, ~~a variation's attributes,~~ a gallery, the related products — shadcn's `dashboard-01` handles on `@dnd-kit`, as the address formats (mouse, touch, keyboard); **since amendment 16(d), every ordered list**: brands, labels, warranties, attributes and their values, a product's variant attributes and variants, each saved when dropped, with Move to Top / Move to Bottom on the row's menu | S1–S3, S5, S6, S9 | Per screen |
 | P9 | **Who sees a category** — two switches a row, saving as each flips (Geist: a toggle takes effect at once) | S2 | Per screen |
 | P10 | **Deleting a list item**: a confirm dialog (it is refused while used); **discarding an import and deleting imported products**: Geist's Destructive Action Modal, the file's name typed | S1–S7, S11 | Per dialog |
 | P11 | **Searches that found nothing**: the last 12 months, grouped by words, store and language, most searched first, 50 at a time; All Stores or one; a row opens Add Word Pair with its words | S7 | The read |
@@ -1573,4 +1630,13 @@ away; the owner chose to have them **built as recommended** and to review them w
 | P22 | **The receiving side of `ListingFacts`** — `store_variant_facts`, the listing's price columns, the interface bound — built with the shop's pages so stage 5 has something to call; the contract's final shape is the owner's with Pricing's spec (#97). The price's shape is the stage 5 session's proposal, not mine | §2.2, §5.2, §5.4 | Stage 5's call |
 | P24 | **A sub-category added or moved takes its new parent's switches** for individuals and companies, in every store (found by the review of this spec: "no row means both" would otherwise show it to those its parent is off for) | §1.13 | One rule in the add and move handlers |
 | P25 | **A guest sees what either kind of account sees** — the owner's "everything the individuals and companies products" read literally: a category switched off for both is seen by no one | §1.13 | One condition in the listing's read |
-| P23 | **The steps, each a short branch and one pull request into `main`**: 1 `feat/catalog-lists-screens` (the six shared lists' seven screens, their menu entries, the web glue, Platform's read of many photos); 2 `feat/catalog-products-screens` (S8, S9 but Stores); 3 `feat/catalog-store-screens` (S9's Stores, S10); 4 `feat/catalog-import-screens` (S11); 5 `feat/catalog-shop-audiences` (amendment 14: Platform's and Access's parts, the switches, the listing); 6 `feat/catalog-shop-pages` (§4.5, P22) | §4.4, §4.5 | — |
+| P26 | **A code is carried by one variant in the whole catalog** (a unique index on the variants' codes); `product_codes` stays the product's: a code it held keeps out every other product while it exists, and one of its own variants may take it back once no variant carries it | §1.2, §5.1 | A unique index |
+| P27 | **A product's variant attributes are kept, in order**, in `product_attributes` — the order of the shop's pickers and of the Variants tab's columns; changed by **Add Attribute…** (each variant, archived ones too, given its value in the same dialog, all or nothing), **Remove** (refused with `DuplicateCombination` while two variants would become the same) and **its order dragged** (`OrderVariantAttributes`); a variant's `combination` is kept in its attributes' id order, so a reorder rewrites nothing; a product with none has one variant | §1.7, S9 | A table and three commands |
+| P28 | **A new value from the Variants tab** is made inside Add Variant… / Edit… / Add Attribute… ("New value…": both names, a colour's swatch), active, last in its attribute's order, audited as on the Attributes screen; never under a deactivated attribute | S9 | One command |
+| P29 | **An order is saved as the ids in their new order**, as `RankCategories` saves a store's menu: those not sent keep their order after those sent (two people ordering at once lose nothing), a new item goes last; Move to Top and Move to Bottom send an order from the row's menu; positions written again 1, 2, 3 … on each order, so they never run past amendment 3(m)'s cap | §3, §4.4 | The commands |
+| P30 | **Pricing's reads**: `variantIdsOf(productId, includeArchived = false)` — the variants in their order, archived ones when asked; `productIdsInCategory(categoryId)` — the category and everything below it, any stage; `switchedOnVariantIds(store)` — the variants Active there | §2.1 | The contract |
+| P31 | **Checks as typed**: each box declares its rules (required, whole number, range, length, digits for a code); a letter in a number box is said at once ("Numbers only."); "required" once the box was touched or Save pressed, not on a fresh form; Save out of reach while any box is wrong; the words are the module's own, as the server's; said to a screen reader with the box (frontend.md §1.7) | frontend.md §1.7 | One shared helper |
+| P33 | **The import against a product the catalog has**: its variants are matched **by code** (codes are one variant's now) — a code the product carries updates that variant, a new code adds one; **Update** needs the file to name the product's own attributes, else the product is listed on the import's page to **Replace** whole (taking the file's attributes) or **Skip**; amendment 11(b)'s rule stays — a ready product keeps its codes, a variant of the same values under another code waits for a decision | §1.12 | The import's matching |
+| P34 | **The migration and the imports still being decided**: an import not brought in whose names hold a set, or whose products name a set or share a code, **stops the migration, named** — the Super Admin discards it (amendment 10(b)) or brings it in first; nothing is deleted by the migration | §5.5 | One check in the migration |
+| P32 | **The order of the work**: this amendment reviewed; then the backend, then the checks as typed (every module), then the screens — the Variants tab, the lists' drag, the Variations screen and its menu entry removed — then step 3 (S9's Stores, S10) continued on top | §4.4 | — |
+| P23 | **The steps, each a short branch and one pull request into `main`** (step 1's Variations screen removed again by amendment 16(b)): 1 `feat/catalog-lists-screens` (the six shared lists' seven screens, their menu entries, the web glue, Platform's read of many photos); 2 `feat/catalog-products-screens` (S8, S9 but Stores); 3 `feat/catalog-store-screens` (S9's Stores, S10); 4 `feat/catalog-import-screens` (S11); 5 `feat/catalog-shop-audiences` (amendment 14: Platform's and Access's parts, the switches, the listing); 6 `feat/catalog-shop-pages` (§4.5, P22) | §4.4, §4.5 | — |
