@@ -123,6 +123,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-07 | §10.1, §10.3 | **The lowest applicable price wins** — base, sale, campaign, category discount and, on wholesale lines, the quantity price; nothing stacks. Replaces "priority DESC, first hit wins". Quantity prices apply to wholesale lines only. Category discounts: a percentage or a fixed amount, dated, per store (a fixed amount skips a product it would take to 0 or below). **A price is always above 0.** Prices are kept and shown **without VAT**; VAT is added at checkout and rounded once, on the order, half up | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.1 | **A store with no provider counts every product on its stock**; the stock-dependent switch exists only in a wired store. Stock is **held when an order is placed and taken when it ships**; a cancel frees it. The safety buffer is dropped. The low-stock threshold is per variant per store; "ending soon": an admin's switch per product in a store with no provider, automatic on stock-dependent products in a wired one. Low-stock alerts are shown in the panel until Ops sends them | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.2 | **A wired store's provider key** is kept encrypted in the database, set by a Super Admin, never shown again. One audit entry per pull, the detail in the stock and price histories. The sync report, Retry and Sync Now are per-store permissions. An off store's prices and stock are set by Super Admins (or its file). Whether discounts come from the provider, us or both, and whether the provider calls us on a change, wait for the provider's team | Stage 5 questions, owner decision |
+| 2026-10-09 | §4.1, §13.1, §13.3, §16, §17 | **Feedback's rules** (`docs/modules/feedback.md`): reviews shown only after the writing store's staff approve them; one per product, never edited, a rejected one never written again; a verified purchase is a delivered order and the mark flips to "Returned" once any of that product is returned; no photos; ratings in the shop's lists switchable per store; questions per store; a rejection's reason is sent only when written; **the favourites ranking ban is lifted** — staff see per store how many customers saved each product | Feedback spec, owner decision |
 
 ---
 
@@ -248,7 +249,8 @@ identity, wishlists.
 
 **Store-scoped:** availability, visibility, prices, stock, tax, payment
 configuration, carriers, coupons, promotions, homepage content, loyalty configuration and
-balances, carts, orders, payments, reviews, questions.
+balances, carts, orders, payments, questions. Reviews are global per product (owner, 2026-10-02),
+recording the store they were written in.
 
 Every store-scoped Eloquent model declares a global scope binding it to the current store
 context. An architecture test enforces this — a forgotten `where store_id` is the highest-
@@ -1451,17 +1453,22 @@ external system — do not rebuild invoicing here.
 
 **Reviews.** Rating plus text, tied to a verified purchase, showing the purchased variant.
 **Global per product** (owner, 2026-10-02): a review written in one store shows in every store that
-sells the product, and its rating counts in each. Aggregated rating and count cached on the product. Staff moderation. A translate button
+sells the product, and its rating counts in each. Aggregated rating and count cached on the product. **Staff moderation
+before anything shows**, by the store it was written in; **one review per product, never edited**, a
+rejected one never written again; a verified purchase is a delivered order, and the review's mark
+flips to "Returned" once any of that product is returned; no photos; stars and the rating sort in the
+shop's lists switchable per store by admins (owner, 2026-10-09, `docs/modules/feedback.md`). A translate button
 appears only when the review's language differs from the interface language, and after
-translating it becomes "show original".
+translating it becomes "show original" — **later, when a translation service is chosen** (owner, 2026-10-09).
 
-**Product questions and answers.** Public, product-attached, staff-answered.
+**Product questions and answers.** Public, product-attached, staff-answered — **per store**: asked by
+a signed-in customer in a store, answered by its staff, shown there (owner, 2026-10-09).
 
 ```
 product_questions
-├── product_id, customer_id, body, locale
+├── product_id, store_id, customer_id, body, locale
 ├── status      PENDING | ANSWERED | REJECTED
-├── answer_body, answered_by, answered_at
+├── answer, answered_by, answered_at, reason
 └── created_at
 ```
 
@@ -1474,7 +1481,9 @@ just a link.
 
 **Wishlist.** One list per customer, global, with each item carrying its `store_id` so the
 list is grouped by store in the UI. A product not sold in the current store shows as
-unavailable rather than disappearing. **No favourites ranking or report.**
+unavailable rather than disappearing. Staff see a customer's list and, per store, **how many
+customers saved each product, sortable by count** (owner, 2026-10-09 — was: "no favourites ranking
+or report").
 
 ### 13.2 Content
 
@@ -1523,7 +1532,8 @@ notifications fall out of that. This is a per-module deliverable, not a blocking
 - Product sales — units and value per product and variant
 - Stock levels
 - **Customer searches, including zero-result searches** ← feeds the synonym table
-- Favourites (the feature, not a ranking)
+- Favourites — per store, how many customers saved each product (owner, 2026-10-09; Feedback shows
+  staff the same under "Customers › Favourited products")
 
 **There is no profit report and no cost-of-goods field.** Cost and margin are outside this
 system's scope. Reporting covers revenue — money coming in — and nothing about what the
@@ -1681,9 +1691,9 @@ that is the signal to stop.
 | A boolean out-of-stock flag | Stock movements |
 | Live chat, ticketing, contact channels | Product Q&A + a WhatsApp link |
 | Cost of goods, profit reporting | Revenue reporting only |
-| Favourites ranking report | The wishlist feature alone |
 | A table per brand | One `brand_id` column |
 | A separate Tallsen category tree | One global tree, filtered by brand |
+| ~~Favourites ranking report~~ | **Reversed by the owner, 2026-10-09:** staff see per store how many customers saved each product, sortable by count (§13.1) |
 | ~~Per-store launch lifecycle~~ | **Reversed by the owner, 2026-10-01:** each store has an on/off switch, the base store always on (§1) |
 | Two coupons on one order | One code per order |
 | All-or-nothing coupon rejection on mixed carts | Line-level application |
@@ -1724,7 +1734,9 @@ products come from our own import, and the provider only feeds stock and the bas
 so Catalog may start while B2B finishes, in its own worktree (`docs/AGENT-BRIEF.md`).
 
 Feedback is built with Sales: a review needs a verified purchase (Sales) and a question is
-attached to a product (Catalog), so it cannot be built before both exist.
+attached to a product (Catalog). The owner's stage 6 order (2026-10-07) builds it before Sales, so
+Sales's read and its `ReturnCompleted` event are declared on `main` first, and Feedback is built and
+tested against them (`docs/modules/feedback.md` §2.1).
 
 ---
 
