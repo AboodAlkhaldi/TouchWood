@@ -145,7 +145,7 @@ is left as it is. A refusal reaches the caller as `Shared\Domain\Error\DomainErr
 - **`ListingFacts::endingSoon(StoreId, list<variantId>, bool)`** — new, the same shape as
   orderable: whether each size is "ending soon" there (§1.2). Catalog keeps it in its own table, as
   the contract asks of every pushed fact, and shows "last pieces" on a card when any of the product's
-  sizes is. **Catalog's amendment** (the Catalog-screens session), with the owner's rule of 2026-10-09.
+  sizes is. **Catalog's amendment 16(h)** (PR #103), with the owner's rule of 2026-10-09.
 - An `ImportSection` for the store's file — §1.8.
 
 ### 2.4 What Inventory needs from other modules
@@ -154,8 +154,8 @@ is left as it is. A refusal reaches the caller as `Shared\Domain\Error\DomainErr
 |---|---|---|
 | Access | Declaring **Manage Stock** in the `Catalog` group (accepted 2026-10-09) — no stock group exists; the role editor's groups are the design's | Allowed for that only (owner, 2026-10-07; `deptrac.yaml` since #97) |
 | Platform | The store (on or off), the settings registry (the default threshold), the audit log, `MenuCount`, `HomeCards`, the scheduler | Exists |
-| Catalog | `variant()` — a size's product, kept on its stock row; `switchedOnVariantIds(store)` — the Low Stock list over what a store sells | The first exists; the second accepted by the owner, 2026-10-09 (Catalog's amendment 16, being written), not built yet |
-| Catalog | `ListingFacts` bound, with `endingSoon` added (§2.3) | With the shop's pages (catalog.md amendment 15); `endingSoon` in the Catalog-screens session's next amendment |
+| Catalog | `variant()` — a size's product, kept on its stock row; `switchedOnVariantIds(store)` — the Low Stock list over what a store sells | The first exists; the second, `switchedOnVariantIds(StoreId $store): list<string>`, is Catalog's amendment 16 (PR #103, for the owner's review), not built yet |
+| Catalog | `ListingFacts` bound, with `endingSoon` added (§2.3) | With the shop's pages (catalog.md amendment 15); `endingSoon` is amendment 16(h) (PR #103) — kept in `catalog.store_variant_facts.ending_soon` |
 | Sales | Calls §2.1; shows the "not enough stock" flag from §6.1 | Stage 6 |
 | Sync | The provider's stock in, and a store's wired state — their shape waits for §9.1 | After the provider's answers |
 
@@ -299,7 +299,7 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 1 | Which warehouse / location counts for the online store, and "On hand" or "Available"? | The provider's team (asked 2026-10-09) |
 | 2 | Does the provider call us when stock changes (a webhook), besides our reading every few minutes? | Same |
 | 3 | Returns: does a returned piece go back into stock in a store with no provider, and when? | Sales's spec (stage 6) |
-| 4 | `ListingFacts::endingSoon` (§2.3) | The Catalog-screens session's amendment |
+| 4 | `ListingFacts::endingSoon` (§2.3) | Catalog's amendment 16(h), PR #103 — the owner's review |
 | 5 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |
 
 ### 9.2 Answered (owner, 2026-10-09)
