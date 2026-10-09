@@ -234,9 +234,10 @@ no error classes.
 | Access | **Declaring Pricing's permissions** (§3), in the `Pricing` group ("Pricing and Campaigns") | Allowed for that only (owner, 2026-10-07; `deptrac.yaml` since #97) |
 | Platform | The store (`StoreDto`: currency, its decimals, VAT rate, on or off), the audit log, `MenuCount` for Needs a Price, the scheduler | Exists |
 | Catalog | `storeVariant()` (selling modes, wholesale minimum), `variant()`, `product()` (its category) | Exists |
-| Catalog | **The products in a category and below it** — for a category discount and its preview | **A `CatalogApi` addition**, for the Catalog-screens session's amendment |
-| Catalog | **A product's sizes** (variant ids, in its order) — a sale for every size of a product | **A `CatalogApi` addition**, same |
-| Catalog | **The sizes a store has switched on** — Needs a Price | **A `CatalogApi` addition**, same |
+| Catalog | **The products in a category and below it** — for a category discount and its preview | **`productIdsInCategory(string $categoryId): list<string>`** — accepted by the owner, 2026-10-09; Catalog's amendment 16, not built yet |
+| Catalog | **A product's sizes** (variant ids, in its order) — a sale for every size of a product | **`variantIdsOf(string $productId)`** — archived ones included, their flag's shape settled in amendment 16; same |
+| Catalog | **The sizes a store has switched on** — Needs a Price | **`switchedOnVariantIds(StoreId $store): list<string>`** — same |
+| Catalog | **One code is one size** — the store's file (§1.8) | Accepted by the owner, 2026-10-09; Catalog's amendment 16 |
 | Catalog | `ProductChanged` (a product moved category) | Exists (§6.2) |
 | Catalog | `ListingFacts` bound, `ListingPrice` | Catalog builds it with the shop's pages (amendment 15) |
 
