@@ -1,10 +1,10 @@
 # Inventory — module specification
 
-**Status (2026-10-09): the full spec, for the owner's OK.** §2 — what other modules call — was agreed
-first and is on `main` (#97, "interfaces first", owner 2026-10-07). The rest follows from the owner's
-answers of 2026-10-01 to 2026-10-09. **My own picks, which the owner has not ruled on, are marked
-[PROPOSED] and listed in §9.2.** What waits for the provider's team is §9.1. Handoff §12.1, revised
-2026-10-07, is the source.
+**Status (2026-10-09): the full spec, its questions answered by the owner.** §2 — what other modules
+call — was agreed first and is on `main` (#97, "interfaces first", owner 2026-10-07). The rest follows
+from the owner's answers of 2026-10-01 to 2026-10-09; the last round, my proposals included, is §9.2.
+What waits for the provider's team or another session is §9.1. Handoff §12.1, revised 2026-10-07 and
+2026-10-09, is the source.
 
 ## What Inventory does not own
 
@@ -32,7 +32,7 @@ answers of 2026-10-01 to 2026-10-09. **My own picks, which the owner has not rul
    "reduced in the provider"** (handoff §12.1's worked example). **Gifts** count on stock in every store.
 4. **The low-stock threshold only ever alerts staff; it never changes what can be ordered** (owner,
    2026-10-09). Ordering is limited only by stock running out — in a store with no provider always; in
-   a wired store only for stock-dependent sizes and gifts (and §1.3's open point: the provider's 0).
+   a wired store only for stock-dependent sizes and gifts.
 5. **Available = in stock − held.** The safety buffer is dropped (owner, 2026-10-07).
 6. **A store that is off** has its stock set by Super Admins only — whoever may switch stores — or by
    its file (owner, 2026-10-07).
@@ -43,24 +43,26 @@ answers of 2026-10-01 to 2026-10-09. **My own picks, which the owner has not rul
 |---|---|
 | in stock | A whole number, **never below 0**. In a store with no provider it is ours; in a wired store it is the provider's last number (Sync). |
 | held | The sum of the open holds' lines that count on stock (§1.4). It **may exceed in stock** after a hand removal (§1.5): those orders are flagged. |
-| low-stock threshold | Per size per store (owner, 2026-10-07); empty → **the store's default, 10 pieces** (owner, 2026-10-09; a Platform setting per store, `inventory.low_stock.default` **[PROPOSED name]**). |
-| stock-dependent | **Only in a wired store** (owner, 2026-10-07), off by default. **Switched for a whole product or for a single size** (owner, 2026-10-09: "per both, product or variant"). A size is stock-dependent when its product's switch or its own is on. **A whole product's switch covers sizes added to it later**, as Catalog's "Not available now" does (catalog.md §1.3) **[PROPOSED]**. |
+| low-stock threshold | Per size per store (owner, 2026-10-07); empty → **the store's default, 10 pieces** (owner, 2026-10-09; a Platform setting per store, `inventory.low_stock.default`, accepted 2026-10-09). |
+| stock-dependent | **Only in a wired store** (owner, 2026-10-07), off by default, **per size**: staff pick a product's sizes — all of them, some, or one (owner, 2026-10-09: "so its customized"). **A size added later starts off**; staff pick it (owner, 2026-10-09). |
 
 **"Ending soon" ("last pieces")** for customers (owner, 2026-10-07/09), when a size's available stock
 is at or below its threshold: **in a store with no provider**, where staff switch it on for the
 product; **in a wired store**, automatically on stock-dependent sizes only — other products there
-never show it.
+never show it. **It shows on cards and lists too** (owner, 2026-10-09): a card says "last pieces"
+when **any** of its product's sizes there is ending soon; a product's page says it for the size the
+shopper picks. Inventory pushes it into Catalog's listing, as it does orderable (§2.3).
 
 ### 1.3 Orderable
 
 A size can be ordered now in a store (as far as stock goes; Catalog decides the rest) when its stock
-does not limit ordering there, or its available stock is above 0. Every change of orderability is
-pushed into Catalog's listing (`ListingFacts::orderable`) inside the change's own transaction.
+does not limit ordering there, or its available stock is above 0. Every change of orderability — and
+of "ending soon" — is pushed into Catalog's listing (`ListingFacts::orderable`, `::endingSoon`) inside
+the change's own transaction.
 
-**Open — a wired ordinary product the provider reports at 0** (§9.1 #5). Handoff §9.2 makes it not
-orderable, "automatically" — provisional (owner, 2026-10-02: "let it checked for now"). The owner's
-words of 2026-10-09 say a wired ordinary product's stock never limits ordering. The two disagree;
-until the owner rules, this spec keeps the handoff's provisional rule.
+**A wired ordinary product the provider reports at 0 stays orderable** (owner, 2026-10-09: "since
+its not stock-dependent"); staff mark it "Not available now" (Catalog) when it is really gone. This
+replaces handoff §9.2's provisional "or the provider reports 0 — automatically" (2026-10-02).
 
 ### 1.4 Holds
 
@@ -140,16 +142,20 @@ is left as it is. A refusal reaches the caller as `Shared\Domain\Error\DomainErr
 ### 2.3 What Inventory gives Catalog
 
 - `ListingFacts::orderable(StoreId, list<variantId>, bool)` — §1.3.
+- **`ListingFacts::endingSoon(StoreId, list<variantId>, bool)`** — new, the same shape as
+  orderable: whether each size is "ending soon" there (§1.2). Catalog keeps it in its own table, as
+  the contract asks of every pushed fact, and shows "last pieces" on a card when any of the product's
+  sizes is. **Catalog's amendment** (the Catalog-screens session), with the owner's rule of 2026-10-09.
 - An `ImportSection` for the store's file — §1.8.
 
 ### 2.4 What Inventory needs from other modules
 
 | From | What | State |
 |---|---|---|
-| Access | Declaring **Manage Stock** in the `Catalog` group **[PROPOSED]** — no stock group exists; the role editor's groups are the design's | Allowed for that only (owner, 2026-10-07; `deptrac.yaml` since #97) |
+| Access | Declaring **Manage Stock** in the `Catalog` group (accepted 2026-10-09) — no stock group exists; the role editor's groups are the design's | Allowed for that only (owner, 2026-10-07; `deptrac.yaml` since #97) |
 | Platform | The store (on or off), the settings registry (the default threshold), the audit log, `MenuCount`, `HomeCards`, the scheduler | Exists |
 | Catalog | `variant()` — a size's product, kept on its stock row; `switchedOnVariantIds(store)` — the Low Stock list over what a store sells | The first exists; the second accepted by the owner, 2026-10-09 (Catalog's amendment 16, being written), not built yet |
-| Catalog | `ListingFacts` bound | With the shop's pages (catalog.md amendment 15) |
+| Catalog | `ListingFacts` bound, with `endingSoon` added (§2.3) | With the shop's pages (catalog.md amendment 15); `endingSoon` in the Catalog-screens session's next amendment |
 | Sales | Calls §2.1; shows the "not enough stock" flag from §6.1 | Stage 6 |
 | Sync | The provider's stock in, and a store's wired state — their shape waits for §9.1 | After the provider's answers |
 
@@ -158,7 +164,7 @@ is left as it is. A refusal reaches the caller as `Shared\Domain\Error\DomainErr
 ## 3 · Use cases
 
 **One permission, per store, any role** — **Manage Stock** (owner, 2026-10-09), `inventory.stock.manage`
-**[PROPOSED name]**.
+(the name accepted 2026-10-09).
 
 | Use case | Permission | Scope |
 |---|---|---|
@@ -166,7 +172,7 @@ is left as it is. A refusal reaches the caller as `Shared\Domain\Error\DomainErr
 | `AdjustStock` — add or remove, with a reason; a correction with its note | `inventory.stock.manage` | That store (no provider) |
 | `SetLowStockThreshold` — one size or several; empty for the store's default | `inventory.stock.manage` | That store |
 | `SetEndingSoon` — on or off for a product | `inventory.stock.manage` | That store (no provider) |
-| `SetStockDependent` — on or off for a whole product or a single size | `inventory.stock.manage` | That store (wired) |
+| `SetStockDependent` — on or off for the sizes picked: all of a product's, some, or one | `inventory.stock.manage` | That store (wired) |
 | The store's default threshold | Platform's settings screen, the setting's own permission | That store |
 | The screens' reads: a size's stock and history (`ViewStock`, `StockHistory`), the Low Stock list and its count (`LowStock`) | `inventory.stock.manage` | That store |
 | The store's file — Inventory's section (§1.8) | Catalog's `catalog.listing.fill` (admin roles), checked by Catalog's handler | That store |
@@ -195,8 +201,7 @@ wired store is **NOTED** and never held.
 
 ### 4.2 The stock-dependent switch (wired store)
 
-`OFF` ⇄ `ON`, by hand, off by default — a product's and a size's each. A size is stock-dependent
-while either is on, so a size cannot be switched off alone while its whole product is on.
+`OFF` ⇄ `ON`, per size, by hand; off by default, a size added later too.
 
 ---
 
@@ -207,8 +212,8 @@ column is written so a NULL cannot slip through (lesson 162).
 
 | Table | Columns |
 |---|---|
-| `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK ≥ 0 · `stock_dependent` boolean — the size's own switch · `updated_at` |
-| `inventory.store_products` | (`store_id`, `product_id` FK `catalog.products` CASCADE) PK · `stock_dependent` boolean — the whole product's switch (wired) · `ending_soon` boolean — "last pieces" (no provider) |
+| `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK ≥ 0 · `stock_dependent` boolean (wired) · `ending_soon` boolean — the last value pushed to Catalog · `updated_at` |
+| `inventory.store_products` | (`store_id`, `product_id` FK `catalog.products` CASCADE) PK · `ending_soon` boolean — "last pieces" switched on for the product (no provider) |
 | `inventory.holds` | `id` ULID PK · `store_id` · `order_id` unique · `expires_at` NULL · `created_at` |
 | `inventory.hold_lines` | (`hold_id` FK CASCADE, `variant_id`) PK · `quantity` CHECK ≥ 1 · `gift` boolean · `counts_on_stock` boolean · `shipped` int CHECK ≥ 0 · `ended` CHECK (`OPEN`, `SHIPPED`, `REDUCED`, `RELEASED`, `EXPIRED`) · `ended_at` NULL |
 | `inventory.stock_movements` | `id` bigint PK (handoff §5.3) · `store_id` · `variant_id` · `reason` CHECK (`STOCKTAKE`, `RECEIVED`, `DAMAGED_LOST`, `OFFLINE_SALE`, `CORRECTION`, `SHIPPED`, `FILE`, `PROVIDER`) · `change` int · `before` int · `after` int · `note` NULL (required for `CORRECTION`) · `reference` unique · `actor` · `created_at` — never updated, never deleted |
@@ -221,7 +226,7 @@ column is written so a NULL cannot slip through (lesson 162).
 
 | Event | When | For |
 |---|---|---|
-| `HoldsShort(storeId, variantId, orderIds)` | A hand removal left a size's in stock below its holds: these orders no longer fit (§1.5) | Sales flags them "not enough stock" (owner, 2026-10-09) **[PROPOSED shape]** |
+| `HoldsShort(storeId, variantId, orderIds)` | A hand removal left a size's in stock below its holds: these orders no longer fit (§1.5) | Sales flags them "not enough stock" (owner, 2026-10-09) (its shape accepted 2026-10-09) |
 
 A low-stock event for Ops comes with Ops (stage 8).
 
@@ -264,17 +269,18 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
    step (20 − 2 = 18 … 68), with the provider's numbers arriving in between.
 4. **Cancel and expiry**: frees what is left; the scheduled job frees only expired holds; repeating
    changes nothing.
-5. **Orderable**: per kind of store; the provider's 0 for an ordinary product; pushed into Catalog on
-   every change, nothing pushed by a rolled-back change.
+5. **Orderable**: per kind of store; the provider's 0 for an ordinary product leaves it orderable;
+   pushed into Catalog on every change, nothing pushed by a rolled-back change.
 6. **Hand changes**: a stocktake; add and remove with each reason; a correction's note required; a
    removal below 0 refused; a removal below held allowed and `HoldsShort` naming exactly the orders
    that no longer fit; refused in a wired store and in an off store without the store switch.
 7. **Low stock**: the threshold or the store's default (10); the list and its count; a wired ordinary
    product low by the provider's number, still orderable; only Manage Stock holders see it.
 8. **Ending soon**: a store with no provider — only with the product's switch; a wired store —
-   automatic on stock-dependent sizes, never on ordinary ones.
-9. **Stock-dependent switch**: a whole product, a single size; a size added later to a switched
-   product counts on stock at once; refused in a store with no provider.
+   automatic on stock-dependent sizes, never on ordinary ones; pushed into Catalog when it turns on
+   or off (a hold, a shipment, a cancel, the provider's number, a threshold, a switch), only then.
+9. **Stock-dependent switch**: all of a product's sizes, some, one; a size added later starts off;
+   refused in a store with no provider.
 10. **The store's file**: sets the stock when switched on (a File movement); ignored in a wired store,
     the page saying so.
 11. **The ledger**: append-only (an update or delete refused by the database); a repeated reference
@@ -293,19 +299,18 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 1 | Which warehouse / location counts for the online store, and "On hand" or "Available"? | The provider's team (asked 2026-10-09) |
 | 2 | Does the provider call us when stock changes (a webhook), besides our reading every few minutes? | Same |
 | 3 | Returns: does a returned piece go back into stock in a store with no provider, and when? | Sales's spec (stage 6) |
-| 4 | Should cards and lists show "last pieces" too (a listing fact pushed into Catalog, like orderable), or only a product's page? | The owner |
-| 5 | A wired ordinary product the provider reports at 0: not orderable (handoff §9.2, provisional) or still orderable (the owner's words of 2026-10-09)? §1.3 | The owner |
-| 6 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |
+| 4 | `ListingFacts::endingSoon` (§2.3) | The Catalog-screens session's amendment |
+| 5 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |
 
-### 9.2 My proposals — for the owner's OK
+### 9.2 Answered (owner, 2026-10-09)
 
-1. **The permission's name** `inventory.stock.manage`, declared in the **Catalog** group ("Catalog and
-   variants"), as no stock group exists in the role editor.
-2. **A whole product's stock-dependent switch covers sizes added later**, as Catalog's "Not available
-   now" does: a product that must not be oversold stays that way when it gains a size.
-3. **`HoldsShort(storeId, variantId, orderIds)`**, published after a removal, is how Sales learns which
-   orders to flag.
-4. **A size with no stock row** in a store with no provider counts as 0 — not orderable until stock is
-   set.
-5. **Holds' ends kept on the holds**, the ledger keeping only changes of in stock.
-6. **The setting's name** `inventory.low_stock.default` for the store's default threshold.
+| # | Question | Answer |
+|---|---|---|
+| 1 | A wired ordinary product the provider reports at 0 | **Stays orderable** — "since its not stock-dependent"; staff mark it "Not available now" (§1.3). Replaces handoff §9.2's provisional rule |
+| 2 | The stock-dependent switch's level | **Per size**: all of a product's sizes, some, or one — "customized"; **a size added later starts off** (§1.2) |
+| 3 | "Last pieces" on cards and lists too? | **Yes** — a card shows it when **any** of its sizes is ending soon (§1.2, §2.3) |
+| 4 | The permission's name `inventory.stock.manage`, in the role editor's **Catalog** group ("Catalog and variants"), as no stock group exists | Accepted |
+| 5 | **`HoldsShort(storeId, variantId, orderIds)`**, published after a removal — how Sales learns which orders to flag | Accepted |
+| 6 | **A size with no stock row** in a store with no provider counts as 0 — not orderable until stock is set | Accepted |
+| 7 | **Holds' ends kept on the holds**, the ledger keeping only changes of in stock | Accepted |
+| 8 | **The setting's name** `inventory.low_stock.default` for the store's default threshold | Accepted |

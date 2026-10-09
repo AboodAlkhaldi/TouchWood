@@ -36,7 +36,7 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Feedback | not started | Catalog, Sales — built with Sales (stage 6) |
 | Catalog | [approved](catalog.md) 2026-10-02 — **being built** (from 2026-10-02) in seven steps, backend first; the JSON import's file format was agreed on 2026-10-05 — the format, a guide and examples in [`catalog-import/`](catalog-import/README.md) — and the import is built last. See [its README](../../src/Modules/Catalog/README.md) | — |
 | Pricing | [spec](pricing.md) — its public contract on `main` (#97, 2026-10-07); the full spec accepted and merged (#100, 2026-10-09); built next (stage 5) | Catalog |
-| Inventory | [spec](inventory.md) — its public contract on `main` (#97, 2026-10-07); the full spec for the owner's OK (stage 5) | Catalog |
+| Inventory | [spec](inventory.md) — its public contract on `main` (#97, 2026-10-07); the full spec, its questions answered by the owner 2026-10-09 (stage 5) | Catalog |
 | Sync | not started — waits for the provider's team: API access, a sample, whether discounts come from it, change notifications (pricing.md §9.1) | Pricing, Inventory, the provider's answers |
 | Sales | not started | Catalog, Pricing, Inventory |
 | Promotions | not started | Pricing |
