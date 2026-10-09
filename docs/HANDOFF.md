@@ -123,6 +123,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-07 | §10.1, §10.3 | **The lowest applicable price wins** — base, sale, campaign, category discount and, on wholesale lines, the quantity price; nothing stacks. Replaces "priority DESC, first hit wins". Quantity prices apply to wholesale lines only. Category discounts: a percentage or a fixed amount, dated, per store (a fixed amount skips a product it would take to 0 or below). **A price is always above 0.** Prices are kept and shown **without VAT**; VAT is added at checkout and rounded once, on the order, half up | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.1 | **A store with no provider counts every product on its stock**; the stock-dependent switch exists only in a wired store. Stock is **held when an order is placed and taken when it ships**; a cancel frees it. The safety buffer is dropped. The low-stock threshold is per variant per store; "ending soon": an admin's switch per product in a store with no provider, automatic on stock-dependent products in a wired one. Low-stock alerts are shown in the panel until Ops sends them | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.2 | **A wired store's provider key** is kept encrypted in the database, set by a Super Admin, never shown again. One audit entry per pull, the detail in the stock and price histories. The sync report, Retry and Sync Now are per-store permissions. An off store's prices and stock are set by Super Admins (or its file). Whether discounts come from the provider, us or both, and whether the provider calls us on a change, wait for the provider's team | Stage 5 questions, owner decision |
+| 2026-10-08 | §4.2, §4.4, §11.1–§11.3, §11.6, §15.2 | **Promotions' rules** (`docs/modules/promotions.md`): the automatic promotions are the gift levels alone; a coupon takes a percentage (optional cap) or a fixed amount, skips already-reduced lines unless switched on, may have a total number of uses, and is **refused whole if it would pass the ceiling**; a coupon use **never comes back**, even on a cancellation; segments are per store and count every placed order whatever its state; one gift per order, the highest level reached; **the ceiling starts at 30%**, admin-only; bundles / kits wait for their own job after stage 6 | Promotions spec, owner decision |
 
 ---
 
@@ -363,8 +364,8 @@ legitimately needs price, stock, discount, points, shipping and payment in one f
 
 **Promotions never depends on Sales** (owner, 2026-09-18). Sales passes the cart to Promotions
 and gets the discounts back. Promotions gets the order facts it needs (a coupon used, an order
-placed or cancelled — for per-customer limits and segments) from Sales calling it inside the
-checkout transaction, so a one-time coupon can never be used twice.
+placed — for per-customer limits and segments; a cancellation changes neither, owner 2026-10-08) from
+Sales calling it inside the checkout transaction, so a one-time coupon can never be used twice.
 
 ### 4.5 Communication — three channels
 
@@ -1176,11 +1177,11 @@ in KSA and not in Egypt. That is intended.
 ### 11.2 Assigned coupons and segments
 
 ```
-coupon_assignments(coupon_id, customer_id, assigned_at, notified_at, used_at)
+coupon_assignments(coupon_id, customer_id, assigned_at)      ← uses are counted per order
 ```
 
-Only assigned customers can use an `ASSIGNED` coupon. They are notified, and it appears in
-their account centre.
+Only assigned customers can use an `ASSIGNED` coupon. It appears in their account centre at once;
+a message about it comes with Ops (owner, 2026-10-08).
 
 Assignment is **by segment**, not one customer at a time:
 
@@ -1195,7 +1196,9 @@ customer_segments
 customer_segment_members     ← materialized, nightly + on demand
 ```
 
-In scope: frequent buyers, monthly buyers, no order in 6 months, no order in a year.
+In scope: frequent buyers, monthly buyers (at least one order a month on average), no order in
+6 months, no order in a year. Segments are per store; every placed order counts, whatever happens
+to it (owner, 2026-10-08).
 **Not** in scope: spend-based grouping.
 
 **Assignment snapshots membership at the moment of assigning.** Resolving a segment writes
