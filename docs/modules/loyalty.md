@@ -27,7 +27,7 @@ Three rules of the owner's (2026-10-07) shape everything below:
 |---|---|
 | The order: when it is placed, delivered, cancelled or returned, its public number, its amounts, the return window | Sales — it **calls** Loyalty (§2); Loyalty never depends on Sales (handoff §4.4) |
 | Every order total — `net_subtotal`, `goods_total`, VAT (handoff §10.2) | Pricing computes them (stage 5, owner 2026-10-07); Sales passes Loyalty the ones it needs, and passes Loyalty's points discount to Pricing |
-| The discount ceiling `max_discount_percent` and checking it (handoff §11.3) | Sales, with Promotions' coupon; Loyalty only answers what a redemption would be |
+| The discount ceiling `max_discount_percent` (handoff §11.3) | Promotions owns the number (promotions.md §1.6); Sales applies the check with the room Promotions gives it; Loyalty only answers what a redemption would be |
 | Whether a buyer is `PUBLIC` or `COMPANY` (an approved company) | Sales passes it in (it reads B2B); Loyalty never reads B2B |
 | Telling a customer about their points — earned, expiring | Ops (stage 8) — owner, 2026-10-07: "not now" |
 | Customers, staff, the permission catalog | Access |
@@ -183,7 +183,7 @@ In order:
    points asked for.
 6. The answer: the mode, the most points usable now, the points charged, and the discount.
 
-**The discount ceiling is Sales's**: if the order's whole reduction from list price would pass
+**The discount ceiling is checked by Sales**, with the room Promotions gives it (promotions.md §1.6): if the order's whole reduction from list price would pass
 `max_discount_percent`, Sales does not apply the points at all — **the whole redemption is refused and
 the points stay unused**; a part is never applied (handoff §11.3: "points are evaluated last and
 refused first").
