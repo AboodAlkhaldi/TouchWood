@@ -1,10 +1,10 @@
 # Pricing — module specification
 
-**Status (2026-10-08): the full spec, for the owner's OK.** §2 — what other modules call — was agreed
+**Status (2026-10-09): the full spec, for the owner's OK.** §2 — what other modules call — was agreed
 first and is on `main` (#97, "interfaces first", owner 2026-10-07). The rest follows from the owner's
-answers of 2026-10-07 and 2026-10-08 (the Pricing questions); the parts that wait for the provider's
-team are §9.1. Handoff §10, revised 2026-10-07, is the source; this spec says how Pricing keeps it.
-**My own picks, which the owner has not ruled on, are marked [PROPOSED] and listed in §9.2.**
+answers of 2026-10-07 to 2026-10-09; my proposals of the first draft were accepted on 2026-10-08,
+the timing one replaced on 2026-10-09 (§9.2). What waits for the provider's team is §9.1. Handoff
+§10, revised 2026-10-07, is the source; this spec says how Pricing keeps it.
 
 ## What Pricing does not own
 
@@ -16,7 +16,7 @@ team are §9.1. Handoff §10, revised 2026-10-07, is the source; this spec says 
 | Points | Loyalty (stage 6) |
 | Shipping amounts | Shipping (stage 7) |
 | Quotes and orders, and the snapshot of every price they carry | Sales (stage 6) |
-| The campaign record — its name, banners, theme | Content (stage 8); its prices come here then (§9.1 #5) |
+| The campaign record — its name, banners, theme | Content (stage 8); its prices come here then (§9.1 #4) |
 | The provider's feed | Sync (stage 5, after its answers); it writes through Pricing's public surface |
 | The store's VAT rate, currency and its decimals | Platform (`StoreDto`) |
 
@@ -35,7 +35,8 @@ team are §9.1. Handoff §10, revised 2026-10-07, is the source; this spec says 
 5. **Never rounded silently.** An amount typed with more decimals than the store's currency has is
    refused; an amount computed from a percentage is rounded **half up to the smallest coin** — the
    halala, piastre or fils (owner, 2026-10-08).
-6. **The lowest applicable price wins; nothing stacks** (§1.5).
+6. **The lowest applicable price wins; nothing stacks** (§1.6) — **unless a sale or category
+   discount is marked "always wins"** (§1.3).
 7. **No price, no sale.** A size with no retail price in a store is not on sale there (catalog.md
    §1.3, from stage 5) and is on that store's **Needs a Price** list (§1.9).
 8. **A store that is off** has its prices set by Super Admins only — whoever may switch stores
@@ -60,16 +61,23 @@ A lower price for a size, for a time (owner, 2026-10-08):
   100, worked out on the size's retail price whenever that changes, rounded half up to the coin.
 - **For one size, or for every size of a product at once.** A sale made for every size is kept as one
   sale over those sizes, so it is changed and ended as one; a size added to the product later is not
-  in it **[PROPOSED]**.
+  in it (owner, 2026-10-08).
 - **A start, and an end only if wanted**: without an end it lasts until it is ended. A sale may be
   scheduled ahead. The end is after the start.
 - **Overlapping sales on the same size are allowed**; the lowest wins while both run (owner,
-  2026-10-08).
+  2026-10-08) — **and staff are told** (owner, 2026-10-08/09): saving a sale or a category discount
+  shows a note of **what it affects** — the sizes it reaches — and **every other sale or discount on
+  those sizes in the same dates**, so they may change the dates, or keep both knowing the lowest wins.
+- **"Always wins while on"** (owner, 2026-10-08): a sale or a category discount may be marked so.
+  While it runs it is the price of the sizes it covers **even where another sale or discount is
+  cheaper** — as if those were paused. Two "always wins" on the same size at the same time are
+  **refused** (owner, 2026-10-09). **It never beats a wholesale band**: a wholesale line pays the
+  lower of it and its band (owner, 2026-10-09). Not marked, the lowest wins as above.
 - **A sale price must be below the size's retail price when it is saved** — otherwise it is not a sale
-  **[PROPOSED]**. If the retail price later drops below it, the sale simply stops winning.
+  (owner, 2026-10-08). If the retail price later drops below it, the sale simply stops winning.
 - Its life (§4.1): **scheduled → running → ended**. A scheduled sale may be changed in full or
   removed; a running one may only have its end changed or be ended now; an ended one is history,
-  kept **[PROPOSED]**.
+  kept (owner, 2026-10-08).
 
 ### 1.4 Wholesale prices
 
@@ -81,10 +89,10 @@ per size** (owner, 2026-10-08), in **quantity bands**:
   from 500 = 70" (owner, 2026-10-08).
 - Each band starts higher and costs **less** than the one before; every price is above 0.
 - Saving needs the size to **sell wholesale** in that store (Catalog). If the store stops selling it
-  wholesale, its bands are kept, unused, for the day it sells wholesale again **[PROPOSED]**.
+  wholesale, its bands are kept, unused, for the day it sells wholesale again (owner, 2026-10-08).
 - **If Catalog's wholesale minimum is later lowered** below the first band, a wholesale line under the
-  first band pays the retail prices (§1.5) until the bands are saved again; the panel marks such
-  sizes **[PROPOSED]**.
+  first band pays the retail prices (§1.6) until the bands are saved again; the panel marks such
+  sizes (owner, 2026-10-08).
 - Retail lines never get a wholesale price (owner, 2026-10-08: quantity prices are wholesale only).
 
 ### 1.5 Category discount
@@ -98,7 +106,8 @@ A discount on every product in a category and its sub-categories, in one store (
 - **Applies to retail lines, wholesale lines, or both.** On a wholesale line it competes with the
   wholesale band (lowest wins).
 - **Products can be left out** by name.
-- **A start, and an end only if wanted**, as a sale; the same life (§4.1).
+- **A start, and an end only if wanted**, as a sale; the same life (§4.1); the same note of what it
+  affects and what it overlaps, and the same **"always wins"** choice (§1.3).
 - **A product moving into or out of the category follows at once**: the discount covers what is in
   the category now, not what was when it was made.
 - **Its preview** (owner, 2026-10-07): before it is saved, and on its page after, every product it
@@ -115,18 +124,21 @@ For a line — a size, its sale mode, a quantity — in a store, at a moment:
    running** whose lines include this mode and which does not leave the product out (a fixed amount
    not skipping it); and, **on a wholesale line**, the band with the highest start at or below the
    quantity. Campaign prices join in stage 8.
-3. **The cheapest candidate is the unit price**; its kind is reported. Equal candidates: the dated one
-   first — sale, category discount — then the wholesale band, then the retail price, so the shopper sees
-   why it is cheaper **[PROPOSED]**.
-4. **The list price** — what `gross_subtotal` counts and a card crosses out — is the retail price.
-5. **When it stops applying**: the end of the winning sale or discount, or null.
+3. **An "always wins" sale or discount running on the size** (§1.3) is the unit price, every other
+   sale and discount set aside — on a wholesale line, the lower of it and the band.
+4. **Otherwise the cheapest candidate is the unit price**; its kind is reported. Equal candidates: the
+   dated one first — sale, category discount — then the wholesale band, then the retail price, so the
+   shopper sees why it is cheaper (owner, 2026-10-08).
+5. **The list price** — what `gross_subtotal` counts and a card crosses out — is the retail price.
+6. **When it stops applying**: the end of the winning sale or discount — or the start of an "always
+   wins" one scheduled on the size, which would replace it — or null.
 
 **Materialized, never resolved at request time** (handoff §10.1, §5.4): every change writes the
 size's candidates — store, size, mode, the band's start, the amount, the kind, the window — into one
 table (`pricing.price_candidates`, §5) inside the change's transaction, with every percentage already
 worked out and every category already expanded. `prices()` reads the candidates whose window holds
-the moment and takes the cheapest per line — one indexed read, no category tree, no percentage, no
-rounding at request time **[PROPOSED]**.
+the moment and takes the cheapest per line (an "always wins" one first) — one indexed read, no
+category tree, no percentage, no rounding at request time (owner, 2026-10-08).
 
 ### 1.7 Totals — every amount of an order, in one place
 
@@ -153,9 +165,9 @@ Pricing's `ImportSection` for a store's file:
 - **The file's page** says, per item, the retail price that will be set — or why not: more decimals
   than the store's currency has, or 0 (owner, 2026-10-07: refused, never rounded); in a wired store,
   ignored, the provider being its source (handoff §9.1).
-- **When an item is switched on**, the price becomes the retail price of the sizes it switched on,
-  audited as the file's. A code shared by a product's sizes gives all of them the file's one price
-  **[PROPOSED — until §9.1 #3 is answered]**.
+- **When an item is switched on**, the price becomes the retail price of the size its code names,
+  audited as the file's. **One code is one size** (owner, 2026-10-09: "each variant has its own
+  code"; the shared codes of catalog.md amendment 3(e) go, Catalog's amendment).
 
 ### 1.9 Needs a Price
 
@@ -168,9 +180,11 @@ Pricing gives the list and the count (Platform's `MenuCount`); the frontend sess
 `ListingFacts::prices` (catalog.md §2.2, amendment 15): per size, **the price now** — what one piece
 costs, the lowest retail-line candidate (never a wholesale band) — and **the price before**, the
 retail price, only while the price now is lower. Pushed **inside the change's own transaction** for
-the sizes it changed, and by a **scheduled job every minute** for the sizes whose sale or discount
-opened or closed since its last run **[PROPOSED]**. Catalog keeps them and chooses which size each
-card shows.
+the sizes it changed, and **at the moment a sale or discount starts or ends** (owner, 2026-10-09:
+"alarms + daily check"): saving one sets a **timed task at its start and one at its end**, which
+push the sizes it covers then; a task whose sale was changed or removed meanwhile finds nothing to
+do. **Once a day a safety check** pushes every size whose window opened or closed in the last day,
+in case a task was lost. Catalog keeps the prices and chooses which size each card shows.
 
 ---
 
@@ -236,22 +250,22 @@ no error classes.
 ## 3 · Use cases
 
 **Three permissions, per store, any role** — staff or admin (owner, 2026-10-08); in the `Pricing`
-group. Names are my proposal **[PROPOSED]**.
+group; their names accepted by the owner (2026-10-08).
 
 | Use case | Permission | Scope |
 |---|---|---|
 | `SetRetailPrice` — one size, or several at once | `pricing.price.edit` — **Edit Prices and Sales** | That store |
 | `RemoveRetailPrice` | `pricing.price.edit` | That store |
-| `AddSale` — one size, or every size of a product; a price or a percentage; start, optional end | `pricing.price.edit` | That store |
+| `AddSale` — one size, or every size of a product; a price or a percentage; start, optional end; "always wins" or not — with the note of what it affects and overlaps (§1.3) | `pricing.price.edit` | That store |
 | `ChangeSale` — a scheduled sale in full; a running one, its end | `pricing.price.edit` | That store |
 | `EndSale` (running: ends now) · `RemoveSale` (scheduled only) | `pricing.price.edit` | That store |
 | `SetWholesalePrices` — a size's bands, all at once | `pricing.wholesale.edit` — **Edit Wholesale Prices** | That store |
 | `PreviewCategoryDiscount` — what a discount would do, before saving | `pricing.category_discount.manage` — **Manage Category Discounts** | That store |
 | `AddCategoryDiscount` · `ChangeCategoryDiscount` · `EndCategoryDiscount` · `RemoveCategoryDiscount` | `pricing.category_discount.manage` | That store |
-| The screens' reads: a size's prices (`ViewPrices`), the store's sales and category discounts (`ListSales`, `ListCategoryDiscounts`, `ViewCategoryDiscount` with its preview) | Any of the three, in that store **[PROPOSED]** | That store |
+| The screens' reads: a size's prices (`ViewPrices`), the store's sales and category discounts (`ListSales`, `ListCategoryDiscounts`, `ViewCategoryDiscount` with its preview), the note before saving (`OverlapsFor`) | Any of the three, in that store (owner, 2026-10-08) | That store |
 | `NeedsAPrice` — the list and its count | `pricing.price.edit` (owner, 2026-10-08) | That store |
 | The store's file — Pricing's section (§1.8) | Catalog's `catalog.listing.fill` (admin roles), checked by Catalog's handler | That store |
-| `RebuildPriceCandidates` — a repair job, every size rewritten and compared · `PushPriceWindows` — every minute | System (reserved): `pricing.candidates.rebuild`, `pricing.windows.push` | — |
+| `RebuildPriceCandidates` — a repair job, every size rewritten and compared · `ApplyPriceWindow` — the timed task at a sale's or discount's start and end · `CheckPriceWindows` — the daily safety check (owner, 2026-10-09) | System (reserved): `pricing.candidates.rebuild`, `pricing.windows.apply`, `pricing.windows.check` | — |
 
 **A store that is off**: every change above is refused to anyone who may not switch stores
 (`pricing.store_off`), as `UpdateSetting` does (platform.md §9.10). **A wired store**: setting or
@@ -291,13 +305,15 @@ amendment 4(h)). Money: `bigint` minor units + `char(3)` currency, CHECK the amo
 | Table | Columns |
 |---|---|
 | `pricing.retail_prices` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `amount_minor` bigint CHECK > 0 · `currency_code` · `source` CHECK (`STAFF`, `FILE`, `PROVIDER`) · `updated_at` |
-| `pricing.sales` | `id` ULID PK · `store_id` · `product_id` FK · `percent_bp` int NULL CHECK 1–9999 · `amount_minor` bigint NULL CHECK > 0 · `currency_code` NULL · exactly one of percent and amount · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `source` CHECK (`STAFF`, `PROVIDER`) · `created_at` |
+| `pricing.sales` | `id` ULID PK · `store_id` · `product_id` FK · `percent_bp` int NULL CHECK 1–9999 · `amount_minor` bigint NULL CHECK > 0 · `currency_code` NULL · exactly one of percent and amount · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `source` CHECK (`STAFF`, `PROVIDER`) · `created_at` — two "always wins" on one size at once refused under the store's pricing lock, as nothing in a CHECK can see across rows |
 | `pricing.sale_variants` | (`sale_id` FK CASCADE, `variant_id` FK CASCADE) PK — the sizes it covers (one, or every size of the product when it was made) |
 | `pricing.wholesale_bands` | (`store_id`, `variant_id`, `from_quantity` CHECK ≥ 1) PK · `amount_minor` bigint CHECK > 0 · `currency_code` |
-| `pricing.category_discounts` | `id` ULID PK · `store_id` · `category_id` FK `catalog.categories` RESTRICT · `percent_bp` NULL / `amount_minor` NULL (exactly one) · `currency_code` NULL · `lines` CHECK (`RETAIL`, `WHOLESALE`, `BOTH`) · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `created_at` |
+| `pricing.category_discounts` | `id` ULID PK · `store_id` · `category_id` FK `catalog.categories` RESTRICT · `percent_bp` NULL / `amount_minor` NULL (exactly one) · `currency_code` NULL · `lines` CHECK (`RETAIL`, `WHOLESALE`, `BOTH`) · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `created_at` |
 | `pricing.category_discount_exclusions` | (`discount_id` FK CASCADE, `product_id` FK CASCADE) PK |
-| `pricing.price_candidates` | `id` bigint PK · `store_id` · `variant_id` · `mode` CHECK (`RETAIL`, `WHOLESALE`) · `from_quantity` · `amount_minor` · `currency_code` · `kind` · `source_id` NULL (the sale or discount) · `starts_at` NULL · `ends_at` NULL · index (`store_id`, `variant_id`, `mode`) — **the materialized candidates (§1.6), rewritten per size by every change** |
-| `pricing.window_runs` | the last moment `PushPriceWindows` covered (one row) |
+| `pricing.price_candidates` | `id` bigint PK · `store_id` · `variant_id` · `mode` CHECK (`RETAIL`, `WHOLESALE`) · `from_quantity` · `amount_minor` · `currency_code` · `kind` · `always_wins` boolean · `source_id` NULL (the sale or discount) · `starts_at` NULL · `ends_at` NULL · index (`store_id`, `variant_id`, `mode`) — **the materialized candidates (§1.6), rewritten per size by every change** |
+
+The timed tasks (§1.10) are queued jobs delayed to their moment; they need no table — each reads
+the sale or discount as it is when it runs.
 
 `PriceKind`, the sources and the modes are stored as strings.
 
@@ -307,8 +323,8 @@ amendment 4(h)). Money: `bigint` minor units + `char(3)` currency, CHECK the amo
 
 ### 6.1 Published
 
-**None yet** **[PROPOSED]**: Catalog is told through `ListingFacts`, Sales asks when it prices. An
-event (`PricesChanged`) is added when a consumer appears.
+**None yet** (owner, 2026-10-08): Catalog is told through `ListingFacts`, Sales asks when it prices.
+An event (`PricesChanged`) is added when a consumer appears.
 
 ### 6.2 Consumed
 
@@ -334,6 +350,7 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | `WindowInvalid` | INVALID | an end not after the start; a running one's end set before now |
 | `SaleNotFound`, `CategoryDiscountNotFound` | NOT_FOUND | — |
 | `NotChangeable` | CONFLICT | changing an ended one; removing a running one |
+| `AlwaysWinsOverlap` | CONFLICT | a second "always wins" sale or discount on a size in the same dates (owner, 2026-10-09) |
 | `BandsInvalid` | INVALID | the first band not at the wholesale minimum; a band not higher, or not cheaper, than the one before |
 | `NotSoldWholesale` | CONFLICT | wholesale bands for a size the store does not sell wholesale |
 | `CategoryNotUsable` | INVALID | a category that does not exist or is off |
@@ -351,7 +368,9 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
    retail line never gets a band; a wholesale category discount on a wholesale line; a retail-only
    discount not on a wholesale line; a left-out product; a fixed amount skipping a cheaper size; ties
    by the order in §1.6; no retail price → unpriced; a scheduled sale not yet applying; an ended one
-   no longer.
+   no longer; an "always wins" sale beating a cheaper sale and a cheaper category discount; an
+   "always wins" on a wholesale line losing to a cheaper band; a running sale's `endsAt` cut short by
+   an "always wins" one scheduled on the size.
 2. **Totals** (pure): every §10.2 amount; VAT rounded once, half up, at .5 exactly; refusals —
    unpriced line, another currency, a negative amount, discounts above `net_subtotal`; the same input
    twice gives the same answer.
@@ -363,8 +382,10 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
    ended, removed, bands saved, a discount added and changed, a product moved category — the
    candidates equal what `RebuildPriceCandidates` would write (the repair job compared, as Catalog's
    listing).
-6. **Windows**: `PushPriceWindows` pushes exactly the sizes whose sale or discount opened or closed
-   since its last run, and nothing twice.
+6. **Windows**: saving a sale or discount queues its start and end tasks; each pushes exactly the
+   sizes it covers; a task whose sale was changed or removed meanwhile pushes what is true then;
+   the daily check pushes every size whose window opened or closed in the last day, and a lost task
+   is caught by it.
 7. **Catalog is told**: every change pushes the changed sizes' now/before inside its transaction, and a
    rolled-back change pushes nothing.
 8. **Permissions**: each use case in that store only; a holder in another store is refused; the three
@@ -372,7 +393,9 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
    wired store's retail price refused.
 9. **Sales**: a price and a percentage; for every size of a product; an end before the start
    refused; a scheduled one changed and removed; a running one's end moved, ended now; an ended one
-   unchangeable; a price not below retail refused.
+   unchangeable; a price not below retail refused; a second "always wins" on a size in the same
+   dates refused (a sale against a category discount too); the note lists what it affects and every
+   overlapping sale and discount.
 10. **Wholesale bands**: the first at the minimum; not rising or not falling refused; a size not
     selling wholesale refused; the minimum lowered later → a line under the first band pays retail.
 11. **Category discounts**: the preview lists reached, skipped and left-out products with their old
@@ -393,27 +416,20 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 
 | # | Question | Waits for |
 |---|---|---|
-| 1 | Do the provider's (Odoo's) discounts come to us, do our staff add sales in a wired store, or both? With "lowest wins", both is safe; "two steps by hand" means the provider sends no discount | The owner, with the provider's team |
-| 2 | Does the provider call us when something changes, besides our pull every few minutes? | Same |
-| 3 | A code shared by a product's sizes: which size does the provider's price (and the file's) belong to? | The provider's sample |
-| 4 | What a company's card shows when its first size sells wholesale only (catalog.md amendment 15) — Pricing would push the same one-piece price | The owner, with Catalog's amendment |
-| 5 | Campaign prices | Stage 8 (owner, 2026-10-08) |
-| 6 | Pricing's screens: prices, sales, wholesale bands, category discounts and their preview, Needs a Price | The frontend session, after this spec |
+| 1 | **The discount strategy in a wired store**: (A) discounts made only in the provider (Odoo), sent to us with full details and applied here read-only; or (B) both ways, full details, each discount edited only where it was made, never echoed back — which reverses "we never write to the provider" (handoff §12.2). The provider's sales are an amount off or a percentage off its base price (owner, 2026-10-09) | The owner, with the provider's team (asked 2026-10-09) |
+| 2 | Does the provider call us when something changes (a webhook), besides our reading every few minutes? | Same |
+| 3 | What a company's card shows when its first size sells wholesale only (catalog.md amendment 15) — Pricing would push the same one-piece price | The owner, with Catalog's amendment |
+| 4 | Campaign prices | Stage 8 (owner, 2026-10-08) |
+| 5 | Pricing's screens: prices, sales, wholesale bands, category discounts and their preview, the note before saving, Needs a Price | The frontend session, after this spec |
 
-### 9.2 My proposals — for the owner's OK
+~~A code shared by a product's sizes~~ — closed: one code is one size (owner, 2026-10-09).
 
-1. **Permission names** `pricing.price.edit`, `pricing.wholesale.edit`, `pricing.category_discount.manage`;
-   reading prices with any of the three in that store (§3).
-2. **A sale for every size** is one sale over the sizes the product had when it was made (§1.3).
-3. **A sale price must be below the retail price** when saved (§1.3).
-4. **A running sale or discount** may only have its end changed or be ended now; an ended one is kept
-   as history; only a scheduled one is removed (§1.3, §4.1).
-5. **Wholesale bands kept, unused,** when a store stops selling a size wholesale; **a lowered
-   wholesale minimum** leaves lines under the first band at retail prices until the bands are saved
-   again, the panel marking those sizes (§1.4).
-6. **Ties**: the dated price first (sale, category discount), then the wholesale band, then the retail
-   price (§1.6).
-7. **Materialized candidates** read by `prices()`, and a **job every minute** for windows opening and
-   closing (§1.6, §1.10).
-8. **A shared code in the store's file** gives all its sizes the file's one price, until §9.1 #3 (§1.8).
-9. **No event published** until a consumer needs one (§6.1).
+### 9.2 My proposals — answered
+
+Accepted by the owner (2026-10-08): **1** the permission names, reading with any of the three;
+**2** a sale for every size covers the sizes the product had when it was made; **3** a sale price
+below the retail price when saved; **4** a running one only its end changed, an ended one kept,
+only a scheduled one removed; **5** wholesale bands kept unused, and a lowered minimum leaving lines
+under the first band at retail, marked; **6** ties shown as the offer; **9** no event published yet.
+**7** replaced (2026-10-09): materialized candidates stand; the every-minute job became **timed tasks
+at each start and end, and a daily safety check**. **8** dropped: one code is one size.
