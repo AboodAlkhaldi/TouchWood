@@ -123,6 +123,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-07 | §10.1, §10.3 | **The lowest applicable price wins** — base, sale, campaign, category discount and, on wholesale lines, the quantity price; nothing stacks. Replaces "priority DESC, first hit wins". Quantity prices apply to wholesale lines only. Category discounts: a percentage or a fixed amount, dated, per store (a fixed amount skips a product it would take to 0 or below). **A price is always above 0.** Prices are kept and shown **without VAT**; VAT is added at checkout and rounded once, on the order, half up | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.1 | **A store with no provider counts every product on its stock**; the stock-dependent switch exists only in a wired store. Stock is **held when an order is placed and taken when it ships**; a cancel frees it. The safety buffer is dropped. The low-stock threshold is per variant per store; "ending soon": an admin's switch per product in a store with no provider, automatic on stock-dependent products in a wired one. Low-stock alerts are shown in the panel until Ops sends them | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.2 | **A wired store's provider key** is kept encrypted in the database, set by a Super Admin, never shown again. One audit entry per pull, the detail in the stock and price histories. The sync report, Retry and Sync Now are per-store permissions. An off store's prices and stock are set by Super Admins (or its file). Whether discounts come from the provider, us or both, and whether the provider calls us on a change, wait for the provider's team | Stage 5 questions, owner decision |
+| 2026-10-09 | §10.1, §12.1 | **"Always wins while on"**: a sale or a category discount may be marked so — while it runs it beats cheaper sales and discounts on its sizes; two at once on a size are refused; it never beats a wholesale quantity price. Saving one shows what it affects and what it overlaps. Sales and discounts start and end by timed tasks with a daily safety check. **A wired store's stock is read, never held or reduced.** One code is one size (Catalog's amendment). The details: `docs/modules/pricing.md` | Pricing spec questions, owner decision |
 
 ---
 
@@ -1094,7 +1095,9 @@ are no company prices, and the lowest price wins.
 | ~~Company price~~ | ~~`audience = COMPANY`~~ — none (owner, 2026-10-07) |
 
 **Resolution:** filter by store, variant and active date (and, on a wholesale line, the quantity
-band) → **the lowest price wins**; nothing stacks. ~~order by `priority DESC` → first hit wins.~~
+band) → **the lowest price wins**; nothing stacks — **unless a sale or category discount is marked
+"always wins while on"** (owner, 2026-10-09), which then beats cheaper sales and discounts on its
+sizes, never a wholesale quantity price. ~~order by `priority DESC` → first hit wins.~~
 Prices are kept **without VAT** (§10.2 adds it once, on the order). The module's spec:
 `docs/modules/pricing.md`.
 
