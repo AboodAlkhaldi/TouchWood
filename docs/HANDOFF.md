@@ -124,6 +124,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-07 | §12.1 | **A store with no provider counts every product on its stock**; the stock-dependent switch exists only in a wired store. Stock is **held when an order is placed and taken when it ships**; a cancel frees it. The safety buffer is dropped. The low-stock threshold is per variant per store; "ending soon": an admin's switch per product in a store with no provider, automatic on stock-dependent products in a wired one. Low-stock alerts are shown in the panel until Ops sends them | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.2 | **A wired store's provider key** is kept encrypted in the database, set by a Super Admin, never shown again. One audit entry per pull, the detail in the stock and price histories. The sync report, Retry and Sync Now are per-store permissions. An off store's prices and stock are set by Super Admins (or its file). Whether discounts come from the provider, us or both, and whether the provider calls us on a change, wait for the provider's team | Stage 5 questions, owner decision |
 | 2026-10-09 | §10.1, §12.1 | **"Always wins while on"**: a sale or a category discount may be marked so — while it runs it beats cheaper sales and discounts on its sizes; two at once on a size are refused; it never beats a wholesale quantity price. Saving one shows what it affects and what it overlaps. Sales and discounts start and end by timed tasks with a daily safety check. **A wired store's stock is read, never held or reduced.** One code is one size (Catalog's amendment). The details: `docs/modules/pricing.md` | Pricing spec questions, owner decision |
+| 2026-10-09 | §12.1 | **Inventory**: one permission, **Manage Stock**, per store, any role — stock, hand changes (Received, Damaged / lost, Offline sale, Correction with a note; a stocktake "set to"), thresholds, the switches, the Low Stock list. A variant with no threshold uses the store's default, **10 pieces**; the threshold **only alerts, never limits ordering**. Removing pieces held for orders is allowed, the orders flagged "not enough stock". The stock-dependent switch is **per product or per variant**. The details: `docs/modules/inventory.md` | Inventory spec questions, owner decision |
 
 ---
 
@@ -1281,7 +1282,8 @@ this system's scope.** Do not model warehouses, branches, bins or transfers.
   product's stock does not limit ordering**: placing an order neither reserves nor reduces it, and a
   customer may order more than it shows. Staff reduce stock **in the provider**, by hand, as they ship.
   The product goes out of stock only when the provider reports 0 or staff mark it (§9.2).
-- **Stock-dependent products** — a flag, **off by default, per product per store**, for a wired
+- **Stock-dependent products** — a flag, **off by default, per product per store** — **or per
+  variant** (owner, 2026-10-09) — for a wired
   store's products that must not be oversold. Our figure is **the provider's stock minus the
   quantities of this store's orders not yet ticked "reduced in the provider"** by staff (§12.3).
   Staff tick an order once they have reduced its stock in the provider. Whatever the provider sends
@@ -1301,6 +1303,11 @@ staff**, shown in the panel until Ops sends them (stage 8). Low-stock alerts wor
 store with no provider. **"Ending soon"** for customers: in a store with no provider, where an admin
 switches it on for the product; in a wired store, automatically on stock-dependent products only —
 in both, when a variant's stock is at or below its threshold.
+**[REVISED 2026-10-09]** A variant with no threshold uses **the store's default, 10 pieces**. The
+threshold **only alerts staff — it never changes what can be ordered**. The alerts, the stock, hand
+changes and the switches ("ending soon" included) belong to **one permission, Manage Stock**, per
+store, any role. Removing pieces held for orders is allowed; those orders are flagged "not enough
+stock" for staff. The details: `docs/modules/inventory.md`.
 
 ```
 available_to_sell = on_hand − reserved      (the safety buffer is dropped, owner 2026-10-07)
