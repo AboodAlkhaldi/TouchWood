@@ -319,7 +319,7 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 | Refresh every segment, nightly | `promotions.segment.refresh` (reserved, global: the system only) |
 | `useCoupon`, `recordOrder` | **The caller's** — Sales's placing an order — in the coupon's store (`useCoupon`), the order's store (`recordOrder`) |
 | `updateCouponUse` | The caller's — Sales's editing an order — in the coupon's store |
-| `applyCoupon`, `customerDiscountRoom`, `giftLevels`, `segmentMembers` | **None of their own**: reads for modules inside flows they have authorized |
+| `applyCoupon`, `couponAfterEdit`, `customerDiscountRoom`, `giftLevels`, `segmentMembers` | **None of their own**: reads for modules inside flows they have authorized |
 
 | Read (query) | Permission |
 |---|---|
@@ -378,7 +378,7 @@ composite key on (`id`, `store_id`), so one store's rows never reach another's.
 | `promotions.coupons` | `id`, `store_id`, `code` (stored upper case), `name_ar`, `name_en`, `eligibility`, `discount_kind`, `percent` NULL, `cap_minor` NULL, `amount_minor` NULL, `currency_code`, `minimum_minor` NULL, `starts_at`, `ends_at` NULL, `max_uses_per_customer` NULL, `max_uses_total` NULL, `uses_total`, `allow_with_points`, `on_reduced_lines`, `for_retail`, `for_wholesale`, `for_public`, `for_company`, `active`, `created_at`, `updated_at` | UNIQUE (`store_id`, `code`); UNIQUE (`id`, `store_id`); CHECK `eligibility IN ('PUBLIC', 'ASSIGNED')`, `discount_kind IN ('PERCENT', 'FIXED')`; CHECK `code ~ '^[A-Z0-9-]{3,30}$'`; CHECK `(discount_kind = 'PERCENT' AND percent IS NOT NULL AND percent BETWEEN 1 AND 100 AND amount_minor IS NULL) OR (discount_kind = 'FIXED' AND amount_minor IS NOT NULL AND amount_minor > 0 AND percent IS NULL AND cap_minor IS NULL)`; CHECK `cap_minor IS NULL OR cap_minor > 0`, `minimum_minor IS NULL OR minimum_minor > 0`; CHECK `ends_at IS NULL OR ends_at > starts_at`; CHECK `max_uses_per_customer IS NULL OR max_uses_per_customer > 0`, the same for `max_uses_total`; CHECK `uses_total >= 0 AND (max_uses_total IS NULL OR uses_total <= max_uses_total)`; CHECK `for_retail OR for_wholesale`, `for_public OR for_company` |
 | `promotions.coupon_rules` | `id`, `coupon_id` → coupons CASCADE, `kind`, `product_id` NULL → `catalog.products` RESTRICT, `category_id` NULL → `catalog.categories` RESTRICT, `brand_id` NULL → `catalog.brands` RESTRICT | CHECK `kind IN ('INCLUDE', 'EXCLUDE')`; CHECK exactly one of the three is NOT NULL (`num_nonnulls(product_id, category_id, brand_id) = 1`); UNIQUE (`coupon_id`, `kind`, `product_id`, `category_id`, `brand_id`) NULLS NOT DISTINCT. The Catalog rows are global (slugs and products are, handoff §4.1) |
 | `promotions.coupon_assignments` | `coupon_id`, `store_id`, `customer_id` → `access.customers` RESTRICT, `segment_id` NULL, `assigned_at` | PK (`coupon_id`, `customer_id`); (`coupon_id`, `store_id`) → coupons (`id`, `store_id`) CASCADE (an unused coupon's delete takes them, §1.1); (`segment_id`, `store_id`) → segments (`id`, `store_id`) SET NULL (`segment_id`) — a segment of the same store only |
-| `promotions.coupon_uses` | `id` bigint identity, `coupon_id`, `store_id`, `customer_id` → `access.customers` RESTRICT, `order_id` (Sales's id, text — no foreign key: Promotions never depends on Sales), `order_number` (its public number), `discount_minor`, `used_at` | (`coupon_id`, `store_id`) → coupons (`id`, `store_id`) RESTRICT; UNIQUE (`order_id`) — one coupon per order; CHECK `discount_minor > 0`; never deleted (a use never comes back) |
+| `promotions.coupon_uses` | `id` bigint identity, `coupon_id`, `store_id`, `customer_id` → `access.customers` RESTRICT, `order_id` (Sales's id, text — no foreign key: Promotions never depends on Sales), `order_number` (its public number), `discount_minor`, `last_edit_id` NULL, `used_at` | (`coupon_id`, `store_id`) → coupons (`id`, `store_id`) RESTRICT; UNIQUE (`order_id`) — one coupon per order; CHECK `discount_minor >= 0` (0 once an edit removed it — the use still counts); never deleted (a use never comes back); the discount only ever lowered, by a staff edit (`last_edit_id`, §1.3) |
 | `promotions.order_facts` | `order_id` PK (text), `store_id`, `customer_id` → `access.customers` RESTRICT, `placed_at` | Never changed: a placed order counts whatever happens to it |
 | `promotions.segments` | `id`, `store_id`, `name_ar`, `name_en`, `type`, `audience`, `rule` NULL, `rule_months` NULL, `rule_orders` NULL, `refreshed_at` NULL, `created_at`, `updated_at` | UNIQUE (`id`, `store_id`); CHECK `type IN ('STATIC', 'DYNAMIC')`, `audience IN ('INDIVIDUAL', 'COMPANY')`, `rule IS NULL OR rule IN ('NO_ORDERS_EVER', 'NO_ORDER_FOR', 'AT_LEAST_ORDERS')`; CHECK `(type = 'STATIC' AND rule IS NULL AND rule_months IS NULL AND rule_orders IS NULL) OR (type = 'DYNAMIC' AND rule IS NOT NULL)`; CHECK `rule IS DISTINCT FROM 'NO_ORDERS_EVER' OR (rule_months IS NULL AND rule_orders IS NULL)`; CHECK `rule IS DISTINCT FROM 'NO_ORDER_FOR' OR (rule_months IS NOT NULL AND rule_months BETWEEN 1 AND 120 AND rule_orders IS NULL)`; CHECK `rule IS DISTINCT FROM 'AT_LEAST_ORDERS' OR (rule_months IS NOT NULL AND rule_months BETWEEN 1 AND 120 AND rule_orders IS NOT NULL AND rule_orders BETWEEN 1 AND 1000)` |
 | `promotions.segment_members` | `segment_id` → segments CASCADE, `customer_id` → `access.customers` RESTRICT, `added_at` | PK (`segment_id`, `customer_id`) |
@@ -452,6 +452,9 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
   `CouponChanged`, never the old discount.
 - The same order and coupon twice: one use; the same order with another coupon: refused — in code,
   and by the database as a backstop.
+- After a staff edit: the coupon worked out on the edited lines, never above the placement's; removed
+  under the minimum; trimmed to the room only after the points gave way; its dates, switch, uses and
+  assignment not asked again; the same edit recorded once.
 - `max_uses_total` lowered below the uses made: refused; set to them: the coupon ends.
 - Deleting an unused coupon takes its assignments; a used one cannot be deleted.
 
@@ -526,6 +529,14 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 
 17. What a store's staff see of a segment member registered elsewhere who ordered there: **their name,
     as on that store's orders** — and they may pick them by hand.
+
+**2026-10-10:**
+
+18. **A wholesale band's price is a wholesale line's normal price**, not a reduction (via the stage 5
+    session): "already reduced" means a `unit` below the `listUnit`.
+19. A percentage coupon **rounds half up**, like prices.
+20. After a staff edit the coupon is **checked again; trimmed or removed if it no longer fits — and it
+    can only stay or shrink** (sales.md §1.7).
 
 ### 9.2 Still open
 
