@@ -15,6 +15,7 @@ use Modules\Catalog\Application\Query\Shop\ShopReader;
 use Modules\Catalog\Application\Query\Shop\ShopVariant;
 use Modules\Catalog\Application\Query\Shop\VariantChoice;
 use Modules\Catalog\Application\Search\SearchTerms;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**

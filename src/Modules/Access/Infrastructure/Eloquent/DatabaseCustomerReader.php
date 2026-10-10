@@ -8,6 +8,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Modules\Access\Application\Query\CustomerReader;
 use Shared\Domain\Text\LatinDigits;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseCustomerReader implements CustomerReader

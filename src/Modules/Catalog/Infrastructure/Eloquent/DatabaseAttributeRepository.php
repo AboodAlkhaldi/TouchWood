@@ -13,6 +13,7 @@ use Modules\Catalog\Domain\Model\AttributeValue;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Public\Enums\AttributeKind;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseAttributeRepository implements AttributeRepository

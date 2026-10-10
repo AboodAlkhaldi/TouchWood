@@ -14,6 +14,7 @@ use Modules\Catalog\Domain\ValueObject\ProductName;
 use Modules\Catalog\Domain\ValueObject\ProductSlugs;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Public\Enums\ProductStage;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseProductRepository implements ProductRepository

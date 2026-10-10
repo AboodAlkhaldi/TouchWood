@@ -11,6 +11,7 @@ use Modules\Catalog\Domain\Model\Label;
 use Modules\Catalog\Domain\Repository\LabelRepository;
 use Modules\Catalog\Domain\ValueObject\LabelTone;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseLabelRepository implements LabelRepository

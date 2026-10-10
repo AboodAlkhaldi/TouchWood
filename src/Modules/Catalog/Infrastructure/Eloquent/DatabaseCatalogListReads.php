@@ -18,6 +18,7 @@ use Modules\Catalog\Application\Query\Lists\ValueRow;
 use Modules\Catalog\Application\Query\Lists\VariationRow;
 use Modules\Catalog\Application\Query\Lists\WarrantyRow;
 use Modules\Catalog\Application\Query\Lists\WordPairRow;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**

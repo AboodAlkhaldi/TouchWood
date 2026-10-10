@@ -13,6 +13,7 @@ use Modules\Access\Domain\ValueObject\StoreChoice;
 use Modules\Access\Public\Enums\AccessLevel;
 use Modules\Access\Public\Enums\StaffStatus;
 use Shared\Infrastructure\Cache\VersionedCache;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**

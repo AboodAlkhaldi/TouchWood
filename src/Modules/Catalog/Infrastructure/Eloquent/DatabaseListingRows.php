@@ -10,6 +10,7 @@ use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Search\SearchTerms;
 use Modules\Catalog\Domain\Service\ArabicText;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**

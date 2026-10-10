@@ -163,17 +163,21 @@ What exists today:
 src/Shared/
 ├── Domain/
 │   ├── Error/            DomainError · ErrorCategory
+│   ├── Text/             LatinDigits
 │   └── ValueObject/      Money · MoneyException · StoreId
 ├── Application/          StoreContext · MissingStoreContext · CrossStoreWrite
 │                         Authorizer · PermissionScope · Unauthorized
 │                         ActorContext · Actor · ActorType · CorrelationId
 └── Infrastructure/
-    ├── Persistence/      BelongsToStore · StoreScope
+    ├── Persistence/      BelongsToStore · StoreScope · Ulids
     └── Cache/            VersionedCache
 ```
 
 `VersionedCache` moved here from Platform when Access needed it for staff permissions (owner,
-2026-09-19): every module that caches follows the same never-stale rule. 18 classes.
+2026-09-19): every module that caches follows the same never-stale rule. `Ulids` — whether an id from
+a caller is a ULID, before it reaches a query — moved here when Loyalty became the fourth module to
+need it; Access, B2B and Catalog had each kept a copy (owner, 2026-10-10). **20 classes: the
+ceiling.**
 
 The error renderer (`ProblemDetails`) and the correlation-id middleware are framework glue and live
 in `app/Http` (owner, 2026-09-18); only the correlation id's Context key stays in the kernel.

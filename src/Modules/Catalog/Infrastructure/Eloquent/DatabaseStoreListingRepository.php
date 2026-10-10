@@ -9,6 +9,7 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Catalog\Domain\Model\StoreListing;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\ValueObject\SellingLimits;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseStoreListingRepository implements StoreListingRepository
