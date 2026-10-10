@@ -90,18 +90,14 @@ final readonly class DatabaseVariantRepository implements VariantRepository
             ->exists();
     }
 
-    public function codeInUse(string $productId, string $code, ?string $exceptVariantId = null): bool
+    public function codeInUse(string $productId, string $code): bool
     {
-        return $this->db->table(self::TABLE)
-            ->where('product_id', strtolower($productId))
-            ->where('code', $code)
-            ->when($exceptVariantId !== null, fn ($query) => $query->where('id', '<>', strtolower((string) $exceptVariantId)))
-            ->exists();
+        return $this->db->table(self::TABLE)->where('product_id', strtolower($productId))->where('code', $code)->exists();
     }
 
-    public function renameCode(string $productId, string $from, string $to): void
+    public function carrying(string $code): ?Variant
     {
-        $this->db->table(self::TABLE)->where('product_id', strtolower($productId))->where('code', $from)->update(['code' => $to, 'updated_at' => CarbonImmutable::now()]);
+        return $this->toVariants([$this->db->table(self::TABLE)->where('code', $code)->first()])[0] ?? null;
     }
 
     public function anyWithValue(string $valueId): bool

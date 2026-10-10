@@ -1,8 +1,9 @@
 # Loyalty — Module Specification
 
-**Status:** DRAFT for the owner's review — sections 1–9 written 2026-10-07 from the owner's answers of
-the same day (§9.1), corrected after two independent reviews of the draft (§9.3). Nothing is built
-before the owner accepts it.
+**Status:** **ACCEPTED by the owner, 2026-10-10** (merged as #96) — sections 1–9 written 2026-10-07
+from the owner's answers of the same day (§9.1), corrected after two independent reviews of the draft
+(§9.3), with the changes Sales's spec needed (2026-10-10). The picks marked "my assumption" were
+accepted with it.
 **Tier:** 2. **Stage:** 6 (handoff §17), the first of the stage's four modules to be built (owner,
 2026-10-07: Loyalty → Promotions → Feedback → Sales).
 **Depends on:** Platform, Access (handoff §4.4; `deptrac.yaml` already says so).

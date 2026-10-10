@@ -145,16 +145,18 @@ reach only products Active nowhere.
 |---|---|---|
 | `CreateProduct`, `EditProductDetails` | `product.create`, `product.update` | Arabic name required, English optional in a draft (amendment 3(g)); slugs made from the names, held while the product exists; what it newly points at is active, a category the lowest of its branch; the attribute set fixed once it has a variant |
 | `AddVariant`, `UpdateVariant`, `DeleteDraftVariant` | `product.update` | One active value of every attribute of the set, in the set's order — a combination no other variant of the product has, archived ones included; details and measures; a code changed here only in a draft |
-| `CorrectVariantCode` | `variant.correct_code` | Every variant of the product carrying the code takes the new one |
+| `CorrectVariantCode` | `variant.correct_code` | The one variant takes the new code (amendment 16(a)) |
 | `SetProductGallery`, `SetVariantPhotos`, `SetSearchWords`, `SetFilterValues`, `SetRelations` | `product.update` | Public images in order (20 and 10); search words (30, each once as search reads it); values of filter attributes (amendment 3(a)); related products that are ready, at most 20 (amendment 3(d)) |
 | `MarkProductReady`, `ArchiveProduct`, `RestoreProduct` | `product.publish`, `product.archive` | Ready only with every rule met; restored to the stage it left (`archived_from`) — to ready only the same way (amendment 3(m)) |
 | `ArchiveVariant`, `RestoreVariant` | `product.update` | A variant retired instead of deleted once the product is ready |
 | `DeleteDraftProduct` | `product.archive` | Only a draft is deleted (amendment 3(h)) — whole, its slugs and codes free again (`ProductDeletion`, which the import's page also uses, amendment 11(c)) |
 
-**Codes** (amendment 3(e)). Digits only, 1 to 10, kept as text so a leading zero stays.
+**Codes** (amendments 3(e), 16(a)). Digits only, 1 to 10, kept as text so a leading zero stays.
 `product_codes` holds every code a product ever held, the code its key: a code is never given to
-another product while its holder exists. Sizes of one product may share a code, as the owner's
-sheet does. A code leaves a product only when a draft is deleted, or when a product never ready —
+another product while its holder exists. **Every variant has its own code** — `variants_code_unique`
+behind `VariantInput::freeCode`, which refuses a code another variant carries (`CodeTaken`); one the
+product held before is taken back. The migration that made codes unique stops, naming them, on a
+product whose variants share one and on a products file not brought in whose product does (P34). A code leaves a product only when a draft is deleted, or when a product never ready —
 a draft, archived or not — gives it up (amendment 3(c), (m)); the
 variants' key to `product_codes` is `NO ACTION`, so deleting a draft cascades through both without
 the key refusing midway.
@@ -338,7 +340,10 @@ is a Super Admin's (`catalog.import.run`), from upload to acceptance:
    (`BringInImportProducts` → `ImportBringer`) unpacks the zip's photos first, then is **one transaction
    under the products' lock, then the lists'**: the names decided "create it" made through the lists' handlers, then each product **through
    the product handlers** — created as a draft with its photos (`ImportPhotos`, Platform's
-   `uploadMediaFor` under `import.run`), updated, replaced, skipped, held back when its set or a
+   `uploadMediaFor` under `import.run`), updated or replaced — **its variants matched by code** (P33):
+   a code the product carries updates that variant; a code it does not carry corrects the code of its
+   variant of the same values whose code the file does not name (a draft's; a ready product's waits
+   at the confirm, above); any other code adds a variant —, skipped, held back when its set or a
    variant's value was refused, or made with its new codes. Any refusal rolls everything back, and the
    import is `FAILED` with where and why (`ImportStepFailed`); a fault also stays on the failed jobs
    screen.
@@ -375,7 +380,7 @@ admins only as "System administrator" (access.md amendment 54).
 **The admins' store file** (catalog.md §1.3, amendment 6(g), (h)) is `catalog.listing.fill` in that
 store — declared `adminOnly`, so only an admin role holds it. It never creates or changes a product:
 `UploadStoreFill` keeps its items open; `CorrectStoreFillCode` and `RemoveStoreFillItems` mend the file;
-`SwitchOnStoreFillItems` chooses, in that store, the variants carrying each code of a ready product —
+`SwitchOnStoreFillItems` chooses, in that store, the variant carrying each code of a ready product —
 through `StoreListingChange` and the store's listing, as the store's own choice does, but under the
 file's job. Each open item's standing (ready, not ready, archived, already on, unknown) is read on its
 page, never stored.
@@ -499,7 +504,7 @@ frame around them is as step 1 says.
 | `Integration/CatalogImagesUsageTest` | Deleting a logo or photo's file: detached and audited, or refused with nothing changed |
 | `Integration/CatalogAuditNamesTest` | Every action the code records is named in both languages, and nothing else is |
 | `Integration/CatalogProductsTest` | Creating and editing a product: who may, the job in some store that is on (amendment 13(f)), names and slugs, what it points at, the set fixed once it has a variant, deleting a draft, the database's CHECKs |
-| `Integration/CatalogVariantsTest` | Combinations, details and measures; codes held, shared by sizes, taken, freed by a draft and corrected on every variant carrying them; a name, slug, code and detail typed in Arabic digits saved 0-9 |
+| `Integration/CatalogVariantsTest` | Combinations, details and measures; codes held, one variant's each, taken, taken back, freed by a draft and corrected on the one variant; the migration to a code per variant; a name, slug, code and detail typed in Arabic digits saved 0-9 |
 | `Integration/CatalogListsInUseTest` | A list item a product or variant uses: not deleted, a category's sub-categories, a set's members, an attribute's job |
 | `Integration/CatalogProductPartsTest` | Gallery and variant photos, search words, filter values, relations; a photo's file deleted from the media library |
 | `Integration/CatalogProductStagesTest` | Making ready, archiving and restoring a product and a variant; a ready product keeping every rule; each change's own job; the events; what the audit log keeps |
@@ -522,7 +527,7 @@ frame around them is as step 1 says.
 | `Integration/CatalogImportChangesTest` | The changes before bringing in: each field, replace and fill-empty (and add), the selected or all, the file's own kept, the names list following |
 | `Integration/CatalogImportBringInTest` | The confirm asking again; bringing in: lists made, products created with photos, skipped, held, recoded, updated, replaced; all or nothing with the reason; the locks' order |
 | `Integration/CatalogImportAcceptTest` | Accepting (ready, on sale nowhere new, relations), archiving and deleting only what the import created |
-| `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variants carrying each code of a ready product; mending and removing items |
+| `Integration/CatalogStoreFillTest` | The store file: an admin role's job in that store; switching on the variant carrying each code of a ready product; mending and removing items |
 | `Integration/CatalogImportPagesTest` | The pages' reads: a products file's page and list, a store file's page with each item's standing, and its store's list |
 | `Integration/CatalogImportSaleTest` | Amendment 9: no store in a products file; keep on sale or take off sale, every time, in every store, cleared with its decision, asked again when put on sale after the confirm; codes two catalog products hold; words added to an updated product kept apart; a new category's taken address counted; a job given up on taking the products' lock first |
 | `Integration/CatalogImportConstraintsTest` | The database's named CHECKs of the import's and the listing's tables (steps 5 and 6), each refused by name — those on a nullable column with it left NULL (lesson 35) |

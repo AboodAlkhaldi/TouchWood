@@ -1,8 +1,8 @@
 # Promotions — Module Specification
 
-**Status:** DRAFT for the owner's review — sections 1–9 written 2026-10-08 from the owner's answers of
-2026-10-07 and 2026-10-08 (§9.1). Nothing is built before the owner accepts it; all four of stage 6's
-specs come first (owner, 2026-10-07: "go with the specs all one by one till we finish all specs").
+**Status:** **ACCEPTED by the owner, 2026-10-10** (merged as #101) — sections 1–9 written 2026-10-08
+from the owner's answers of 2026-10-07 to 2026-10-10 (§9.1), with the changes Sales's spec needed. The
+picks marked "my assumption" were accepted with it.
 **Tier:** 2. **Stage:** 6 (handoff §17), the second of the stage's modules to be built (Loyalty →
 Promotions → Feedback → Sales).
 **Depends on:** Platform, Access, Catalog, Pricing (handoff §4.4; `deptrac.yaml` already says so).

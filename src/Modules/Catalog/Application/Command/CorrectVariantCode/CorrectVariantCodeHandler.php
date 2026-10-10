@@ -14,7 +14,6 @@ use Modules\Catalog\Application\Products\VariantInput;
 use Modules\Catalog\Domain\Exception\CodeTaken;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
-use Modules\Catalog\Domain\Model\Variant;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
@@ -23,11 +22,12 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Correcting a mistyped code** (catalog.md §1.2, §3): its own permission,
- * `catalog.variant.correct_code`, as the product's shared data. **Every variant of the product
- * carrying the code takes the new one** (amendment 3(e)); the new code is one the product holds or no
- * other product holds or held. **The mistyped code stays with the product** — a code it ever held is
- * never given to another while it exists — except for a product never ready, a draft archived or
- * not, where a code given up is free again (amendment 3(c), (m)). Each variant renamed is audited.
+ * `catalog.variant.correct_code`, as the product's shared data. **The correction changes the one
+ * variant** — every variant has its own code (amendment 16(a)); the new code is one no variant
+ * carries, and one the product held before or no other product holds or held. **The mistyped code
+ * stays with the product** — a code it ever held is never given to another while it exists — except
+ * for a product never ready, a draft archived or not, where a code given up is free again (amendment
+ * 3(c), (m)). Audited once.
  */
 final readonly class CorrectVariantCodeHandler
 {
@@ -61,26 +61,16 @@ final readonly class CorrectVariantCodeHandler
             }
 
             $this->input->freeCode($product, $code);
-            $renamed = array_values(array_filter(
-                $this->variants->ofProduct($product->id()),
-                static fn (Variant $sibling): bool => $sibling->code()->equals($old),
-            ));
-
+            $variant->changeCode($code);
             $this->products->holdCode($product->id(), $code->value);
-            $this->variants->renameCode($product->id(), $old->value, $code->value);
-
-            foreach ($renamed as $sibling) {
-                $this->events->codeCorrected($product, $sibling->id());
-            }
+            $this->variants->updateRow($variant);
+            $this->events->codeCorrected($product, $variant->id());
 
             if (! $product->hasBeenReady()) {
                 $this->products->releaseCode($product->id(), $old->value);
             }
 
-            return [null, array_values(array_filter(array_map(
-                static fn (Variant $sibling): mixed => ListAudit::changed('variant', 'code_corrected', $sibling->id(), ['code' => $old->value], ['code' => $code->value]),
-                $renamed,
-            )))];
+            return [null, [ListAudit::changed('variant', 'code_corrected', $variant->id(), ['code' => $old->value], ['code' => $code->value]) ?? throw new LogicException('No change to record.')]];
         });
     }
 }
