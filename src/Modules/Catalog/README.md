@@ -57,7 +57,7 @@ import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens
 | `Presentation/admin-routes.php`, `Presentation/Http` | The panel's Catalog screens (`catalog.admin.*`): the controllers, `CatalogFormRequest` (shape only), `CatalogRefusals` (where a refusal is said) and the pages' data (`Resource`: `ListPages` and one `#[TypeScript]` class per page and row) |
 | `Presentation/lang/{ar,en}` | The permissions' names, the errors, the audit log's name for every action, and the queued work's names (`jobs.php`); the panel's menu entries (`menu.php`) and the screens' words (`admin.php`, shared, and one file a screen: `admin_brands.php`, `admin_categories.php`, `admin_attributes.php` — the variations' too —, `admin_labels.php`, `admin_warranties.php`, `admin_search_words.php`) |
 | `resources/js/pages/Catalog/Admin` (outside the module) | The screens themselves: one folder a screen, and what they share — `parts.tsx`, `FatesDialog.tsx`, `SortableList.tsx`, `marks.ts` |
-| `Public/Contracts`, `Public/Dto` | `CatalogApi` and its DTOs (`VariantDto`, `VariantValueDto`, `ProductDto`, `StoreVariantDto`); `ListingFacts`, and `ImportSections` with `ImportSection`, declared for stage 5 |
+| `Public/Contracts`, `Public/Dto`, `Public/Events` | `CatalogApi` and its DTOs (`VariantDto`, `VariantValueDto`, `ProductDto`, `StoreVariantDto`, `ListingPrice`); `ListingFacts` and `ImportSections` with `ImportSection`, bound for stage 5 (amendment 16(i)); the events, `CategoryMoved` among them |
 | `Public/Enums` | `AttributeKind`, `AgencyType`, `ProductStage`, `ProductFate`, `SaleMode` — and so their TypeScript types |
 | `Public/Events` | `ProductMadeReady`, `ProductArchived`, `ProductRestored`, `ProductChanged`, `VariantAdded`, `VariantArchived`, `VariantRestored`, `VariantCodeCorrected`, `StoreListingChanged`: ids only |
 
@@ -278,12 +278,21 @@ months, queued at 01:00 UTC (`PruneSearchLog`, reserved to the system). The resu
 of up to a hundred; paging them comes with the screens.
 
 **The contract** (`CatalogApi`, §2.1): a variant with its code — for staff and the modules above,
-never a shopper — values in both languages and measures; every variant holding a code; a product; a
+never a shopper — values in both languages and measures; the one variant carrying a code; a product; a
 variant in a store (switched on, orderable by §1.3 and never while hidden, "Not available now", its
 modes — kept while it is switched off — and its product's limits there; whether the store is on is
 Platform's); and the variant a shopper's picked values name — the server's answer, never the
-browser's, a product with no attribute set named by no values. `ListingFacts` is declared; stage 5
-implements it and decides which price a card shows (amendment 5(i)).
+browser's, a product with no attribute set named by no values. **For stage 5** (amendment 16(e),
+(i)): a product's variants in its order (`variantIdsOf`), the products in a category and below it
+(`productIdsInCategory`), the variants switched on in a store, and many variants or products in one
+read (`variants`, `products`: `ApiReads`, two queries and one, however many ids). `CategoryMoved` is
+sent when a category moves. **`ListingFacts` is bound** (`DatabaseListingFacts`): orderable, ending
+soon and prices (`ListingPrice`) kept in `store_variant_facts`, only the facts given, a variant not
+Catalog's left out; the cards read them with the shop's pages (P22); Sales' ranks are refused until
+stage 6. **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above
+register into, as Platform's `MediaUsages`): a store file's page shows each section's lines and
+says prices are kept once one is registered; switching an item on gives each section the variant,
+its price and stock, inside the same change.
 
 **The schema.** `catalog`, on `config/database.php`'s search path so `migrate:fresh` wipes it; the
 first migration also creates `pg_trgm`, which the search's nearness ranking needs (catalog.md
@@ -471,6 +480,8 @@ reader's grants from the cache table — and 9 since #108.
 | `Integration/CatalogShopTest` | The menu per store and its order, a secondary brand's own category in it; a category's page by keyset, ties included, every brand, the brand filter, labels in the list's order, slugs moved; a brand's page; a product's page or "Not available now"; suggestions |
 | `Integration/CatalogSearchTest` | The ranking and the total; both languages, the other's name exact; Arabic normalised, a typo near; word pairs only adding; what is found and what never is — a secondary brand's product; the search log and its nightly removal, to the second |
 | `Integration/CatalogApiTest` | `CatalogApi`: variants, codes (one corrected away), products, a variant in a store (switched off, hidden), resolving the variant (a product with no set) |
+| `Integration/CatalogApiReadsTest` | Stage 5's reads: a product's variants in order (archived when asked), a category's products and those below it, a store's switched-on variants, many variants and products in a fixed number of queries; `CategoryMoved` |
+| `Integration/CatalogListingFactsTest` | `ListingFacts` kept, each fact apart, a price cleared, `ListingPrice`'s rule, no ranks yet; `ImportSections`: once each, lines on a store file's page, each item switched on given to the sections |
 | `Unit/CatalogListLocksTest` | A list's lock is refused outside a transaction |
 | `Unit/CatalogListingRowsTest` | The listing is never written outside a transaction |
 | `Unit/CatalogSearchTermsTest` | What was typed, as search reads it; word pairs, a run of words before one |

@@ -598,7 +598,7 @@ inside their own transaction, so a list is never stale and every dependency stil
 
 `ListingFacts` (a `Public/Contracts` interface Catalog implements) **[ACCEPTED 2026-10-02, §9.3 #16]**:
 `orderable(StoreId, list<variantId>, bool)`, `endingSoon(StoreId, list<variantId>, bool)` (amendment
-16(h)), `prices(StoreId, map variantId → ListingPrice|null)` (the shape below; the interface's own signature, still `Money|null` in the code, follows with amendment 16's backend — 16(i)), `salesRanks(StoreId, map productId → int)`. Until stage 5, orderable follows §1.3. **Step 5 declares
+16(h)), `prices(StoreId, map variantId → ListingPrice|null)` (the shape below — the interface's signature since `feat/catalog-api-reads`, 16(i)), `salesRanks(StoreId, map productId → int)`. Until stage 5, orderable follows §1.3. **Step 5 declares
 the interface only; where these facts are kept, and which price a card shows, come with stage 5,
 which first calls it** (owner, 2026-10-05, amendment 5(i)) — **now proposed below** (amendment 15):
 Catalog keeps them and picks the card's variant, built with the shop's pages (P22). Every change rewrites a product's

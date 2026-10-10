@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Public\Contracts;
 
-use Shared\Domain\ValueObject\Money;
+use Modules\Catalog\Public\Dto\ListingPrice;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
  * The facts Catalog's listing needs but does not own, **pushed in by the modules that own them**,
  * inside their own transaction, so a list is never stale (catalog.md §2.2): whether a variant can be
- * ordered now (Inventory, stage 5), the price shown (Pricing, stage 5), the sales rank (Sales,
- * stage 6). **Declared in step 5; Catalog implements it with stage 5**, which first calls it and
- * decides, for one, which price a card shows (owner, 2026-10-05, amendment 5(i)). Until then every
- * listed product is orderable as §1.3 says, with no price and no rank.
+ * ordered now and whether it is ending soon (Inventory, stage 5), the price shown (Pricing, stage 5),
+ * the sales rank (Sales, stage 6). **Bound with amendment 16(i)**: each fact is kept in Catalog's own
+ * table (`store_variant_facts`); the cards read them with the shop's pages (P22). Until then every
+ * listed product is orderable as §1.3 says, with no price and no rank; Sales' ranks are received
+ * from stage 6.
  *
  * **For stage 5:** every change rewrites a product's listing rows from Catalog's own tables
  * (`ListingRows`), the price and the rank with them. A fact pushed here must therefore be kept where
@@ -28,7 +29,15 @@ interface ListingFacts
     public function orderable(StoreId $store, array $variantIds, bool $orderable): void;
 
     /**
-     * @param  array<string, Money|null>  $prices  variant id => its price there, or none
+     * Inventory's "last pieces" (amendment 16(h)): a card shows them while a size its viewer can buy
+     * and order now is ending soon.
+     *
+     * @param  list<string>  $variantIds
+     */
+    public function endingSoon(StoreId $store, array $variantIds, bool $endingSoon): void;
+
+    /**
+     * @param  array<string, ListingPrice|null>  $prices  variant id => its price there, or none (not on sale there)
      */
     public function prices(StoreId $store, array $prices): void;
 

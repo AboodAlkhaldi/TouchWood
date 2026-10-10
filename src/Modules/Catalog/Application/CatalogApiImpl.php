@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application;
 
+use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Model\Variant;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
+use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
@@ -31,6 +33,8 @@ final readonly class CatalogApiImpl implements CatalogApi
         private VariantRepository $variants,
         private AttributeRepository $attributes,
         private StoreListingRepository $listings,
+        private CategoryRepository $categories,
+        private ApiReads $reads,
     ) {}
 
     public function variant(string $variantId): ?VariantDto
@@ -49,6 +53,33 @@ final readonly class CatalogApiImpl implements CatalogApi
         }
 
         return $variant === null ? null : $this->toDto($variant);
+    }
+
+    public function variantIdsOf(string $productId, bool $includeArchived = false): array
+    {
+        return $this->reads->variantIdsOf($productId, $includeArchived);
+    }
+
+    public function productIdsInCategory(string $categoryId): array
+    {
+        $category = $this->categories->find($categoryId);
+
+        return $category === null ? [] : $this->products->idsInCategories([$category->id(), ...$this->categories->idsBelow($category->id())]);
+    }
+
+    public function switchedOnVariantIds(StoreId $store): array
+    {
+        return $this->reads->switchedOnVariantIds($store->value);
+    }
+
+    public function variants(array $variantIds): array
+    {
+        return $this->reads->variants($variantIds);
+    }
+
+    public function products(array $productIds): array
+    {
+        return $this->reads->products($productIds);
     }
 
     public function product(string $productId): ?ProductDto
