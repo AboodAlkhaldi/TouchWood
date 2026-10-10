@@ -153,6 +153,10 @@ describe('the products list', function () {
             ->and(array_map(fn (ProductRow $row): string => $row->id, $second->products))->toBe([$products[0]])
             ->and($second->more)->toBeFalse();
 
+        // Each read as its own request, as production serves it: what a request remembers - the
+        // stores, the permissions - is forgotten, or a read would count fewer queries than a page
+        // pays (access.md amendment 65). The actor stays: that is a binding.
+        app()->forgetScopedInstances();
         $few = Cx::recordQueries();
         app(ListProductsHandler::class)->handle(new ListProducts);
         $fewCount = count($few);
@@ -161,6 +165,7 @@ describe('the products list', function () {
             Px::ready();
         }
 
+        app()->forgetScopedInstances();
         $many = Cx::recordQueries();
         app(ListProductsHandler::class)->handle(new ListProducts);
 
