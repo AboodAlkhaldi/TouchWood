@@ -71,6 +71,10 @@ beforeEach(function () {
  */
 function catalogListReadsQueries(callable $read): int
 {
+    // Each read as its own request, as production serves it: what a request remembers - the stores,
+    // the settings - is forgotten here, or a read would count fewer queries than a page pays
+    // (access.md amendment 65). The actor stays: that is a binding.
+    app()->forgetScopedInstances();
     $queries = Cx::recordQueries();
     $read();
 

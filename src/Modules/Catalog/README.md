@@ -432,12 +432,13 @@ controller on its route; one that kept `ListPages` (and so the request's authori
 second person's request in a test with the first person's rights.
 
 **The query budget** (frontend.md §5, P21): each page's own queries, warm, are recorded in
-`CatalogListScreensTest` — brands 4, categories 13, attributes 3, one attribute 4, variations 5,
-labels 3, warranties 3, search words 14 — and the same again with five more rows of everything.
-**The panel's frame around every admin page measured 89 to
+`CatalogListScreensTest` — brands 2, categories 3, attributes 1, one attribute 2, variations 3,
+labels 1, warranties 1, search words 4 — and the same again with five more rows of everything.
+They fell from 4, 13, 3, 4, 5, 3, 3 and 14 when the panel's frame learned to read the stores and
+settings once a request (#108, access.md amendment 65): the stores the pages ask for are now
+answered from that request's memory. **The panel's frame around every admin page measured 89 to
 100 queries on its own on 2026-10-07** — 52 of them the menu checking 26 jobs, each re-reading the
-reader's grants from the cache table — which is Platform's and Access's, and was brought to the
-owner.
+reader's grants from the cache table — and 9 since #108.
 
 ## Tests
 
