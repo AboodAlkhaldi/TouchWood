@@ -258,6 +258,14 @@ its 200 come back to A's lot: 150 go back to L2 with its date, 50 go nowhere —
 cancelled first, A's lot would have had its 200 back and A's return would have taken them — balance 150
 too. With a third order settled between them, the two sequences can end differently (§1.3).
 
+**A staff edit before shipping** (sales.md §1.7; owner, 2026-10-10: coupon and points "checked again;
+trimmed or removed if they no longer fit"). An edit can only lower what points pay — never charge more
+points. Sales passes the order's new points discount; Loyalty **gives back the points above it, to
+their own lots with their old dates**, exactly as a return gives back its share of the points discount
+(step 1, by running totals: the edit lowers the points discount by the difference). It is recorded like
+a return, keyed by the edit's id, so it counts once. Nothing is taken back: an undelivered order has
+earned nothing.
+
 ### 1.9 Changes by hand
 
 Admins **add or remove points by hand** — a goodwill gift, a correction — **under their own
@@ -315,6 +323,7 @@ not the order's recorded store is refused. The permission must belong to the cal
 | `earn(EarnPoints $change): void` | The order delivered (§1.6) |
 | `orderCancelled(SettleOrder $change): void` | §1.8, everything |
 | `orderReturned(SettleReturn $change): void` | §1.8, a return completed |
+| `orderEdited(SettleEdit $change): void` | §1.8, a staff edit before shipping that lowered the points discount |
 | `balance(string $customerId, string $storeId): PointsBalanceDto` | **Sales only**, inside flows it has already authorized. The screens read through §3's queries, which check the reader |
 
 ### 2.2 DTOs and enums (`Public/Dto`, `Public/Enums`)
@@ -330,6 +339,8 @@ not the order's recorded store is refused. The permission must belong to the cal
 - `SettleOrder`: the order's id, store, the caller's permission.
 - `SettleReturn`: the order's id, store, the return's id, the returned goods' allocated share of
   `goods_total` and the returned allocated share of the points discount (§1.8), the caller's permission.
+- `SettleEdit`: the order's id, store, the edit's id, the order's new points discount (never above the
+  old), the caller's permission.
 - `CallerPermission`: the calling module and its permission — no scope (§2.1).
 - `PointsBalanceDto`: the balance, what it is worth in the store's currency, and the next expiry (date
   and points).
@@ -368,6 +379,7 @@ Every command and query handler authorizes first (`CommandHandlersAuthorizeTest`
 | `Redeem` | **The caller's** — Sales's placing an order — in the order's store | §1.7. Inside Sales's transaction |
 | `Earn` | The caller's — Sales's delivery action — in the order's recorded store | §1.6 |
 | `SettleCancelledOrder` | The caller's — Sales's cancellation (the customer's or staff's) — in the order's recorded store | §1.8 |
+| `SettleEditedOrder` | The caller's — Sales's editing an order — in the order's recorded store | §1.8, a staff edit |
 | `SettleReturnedOrder` | The caller's — Sales's completing a return — in the order's recorded store | §1.8 |
 | `AddPoints`, `DeductPoints` | `loyalty.points.adjust` (per store, **admin-only**) | §1.9. Audited: `loyalty.points.added` / `loyalty.points.deducted`, with the points and the reason |
 | `ExpirePoints` | `loyalty.points.expire` (reserved, global: the system only) | §1.10. Maintenance: not audited, the ledger is its record |
@@ -535,6 +547,8 @@ refuses.
 - An order returned in three parts lands its running totals exactly on the order's points — given back,
   taken back, covered, dropped and counted-expired — and every CHECK holds after each part.
 - A return settled twice, a cancellation settled twice: once each — even when it moved no point.
+- A staff edit that lowers the points discount gives back the points above it, with their old dates,
+  once per edit; a new discount above the old is refused; nothing is taken back.
 - An order with `goods_total` 0 or no points discount settles without dividing by zero.
 
 **By hand**
