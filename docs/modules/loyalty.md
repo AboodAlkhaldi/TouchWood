@@ -266,6 +266,15 @@ their own lots with their old dates**, exactly as a return gives back its share 
 a return, keyed by the edit's id, so it counts once. Nothing is taken back: an undelivered order has
 earned nothing.
 
+**How much the points may still pay** is Loyalty's to say, since the cap is Loyalty's: Sales asks
+`pointsAfterEdit` with the edited order's `net_subtotal` and **the room the coupon left under the
+ceiling** (sales.md §1.7 — the points give way before the coupon, handoff §11.3). The new points
+discount is **the least of the discount now, the cap (§1.5) on the edited `net_subtotal`, and that
+room**; the points still charged are the order's points less those the running totals give back.
+`orderEdited` then settles it and **answers the same two numbers**, which Sales records on the order.
+An edit is the one settlement before delivery: its `returned_discount_minor` grows on an undelivered
+order, its `returned_goods_minor` never does (§5).
+
 ### 1.9 Changes by hand
 
 Admins **add or remove points by hand** — a goodwill gift, a correction — **under their own
@@ -308,7 +317,7 @@ stores.
 
 ### 2.1 `Modules\Loyalty\Public\Contracts\LoyaltyApi`
 
-Ids in, DTOs out (handoff §4.3). The four writes are Sales's, made **inside Sales's own transaction**,
+Ids in, DTOs out (handoff §4.3). The five writes are Sales's, made **inside Sales's own transaction**,
 and each names **the Sales permission that allowed the change** — the precedent of Platform's
 `deleteMediaFor` (`ModuleDeleteDto`), with one difference: **Loyalty builds the scope itself**, from the
 store the change touches — for a settlement or a delivery, **the store recorded on the order** — so a
@@ -323,7 +332,8 @@ not the order's recorded store is refused. The permission must belong to the cal
 | `earn(EarnPoints $change): void` | The order delivered (§1.6) |
 | `orderCancelled(SettleOrder $change): void` | §1.8, everything |
 | `orderReturned(SettleReturn $change): void` | §1.8, a return completed |
-| `orderEdited(SettleEdit $change): void` | §1.8, a staff edit before shipping that lowered the points discount |
+| `pointsAfterEdit(EditedPointsRequest $request): EditedPoints` | Sales, working out a staff edit before shipping (§1.8): the new points discount and the points still charged. Reads only |
+| `orderEdited(SettleEdit $change): EditedPoints` | §1.8, a staff edit before shipping that lowered the points discount; answers the points discount and the points still charged |
 | `balance(string $customerId, string $storeId): PointsBalanceDto` | **Sales only**, inside flows it has already authorized. The screens read through §3's queries, which check the reader |
 
 ### 2.2 DTOs and enums (`Public/Dto`, `Public/Enums`)
@@ -339,6 +349,9 @@ not the order's recorded store is refused. The permission must belong to the cal
 - `SettleOrder`: the order's id, store, the caller's permission.
 - `SettleReturn`: the order's id, store, the return's id, the returned goods' allocated share of
   `goods_total` and the returned allocated share of the points discount (§1.8), the caller's permission.
+- `EditedPointsRequest`: the order's id, store, the edited order's `net_subtotal` and the room the coupon
+  left under the ceiling, both as `Money`.
+- `EditedPoints`: the order's points discount after the edit, as `Money`, and the points still charged.
 - `SettleEdit`: the order's id, store, the edit's id, the order's new points discount (never above the
   old), the caller's permission.
 - `CallerPermission`: the calling module and its permission — no scope (§2.1).
@@ -454,7 +467,7 @@ and every CHECK touching a nullable column is written so that NULL fails it wher
 | Table | Columns | Rules |
 |---|---|---|
 | `loyalty.accounts` | `id` ULID, `customer_id` → `access.customers` RESTRICT, `store_id` → `platform.stores` RESTRICT, `balance`, `created_at`, `updated_at` | UNIQUE (`customer_id`, `store_id`); UNIQUE (`id`, `store_id`); CHECK `balance >= 0` |
-| `loyalty.orders` | `order_id` PK (Sales's id, text — no foreign key: Loyalty never depends on Sales), `order_number` (its public number, e.g. `TW-10428` — never the id, handoff §5.3), `account_id`, `store_id`, `currency_code`, `goods_total_minor` NULL, `discount_minor`, `points_redeemed`, `points_earned`, `delivered_at` NULL, `cancelled_at` NULL, `returned_goods_minor`, `returned_discount_minor`, `points_given_back`, `points_back_through_covers`, `points_reversed`, `points_counted_gone`, `points_covered`, `points_dropped`, `expired_back_unused` | (`account_id`, `store_id`) → accounts (`id`, `store_id`) RESTRICT; UNIQUE (`order_id`, `account_id`); every amount and points column `>= 0`; CHECK `delivered_at IS NULL OR goods_total_minor IS NOT NULL`; CHECK `delivered_at IS NOT NULL OR (points_earned = 0 AND goods_total_minor IS NULL AND returned_goods_minor = 0 AND returned_discount_minor = 0)`; CHECK `NOT (delivered_at IS NOT NULL AND cancelled_at IS NOT NULL)`; CHECK `(points_redeemed = 0) = (discount_minor = 0)`; CHECK `returned_goods_minor <= COALESCE(goods_total_minor, 0)`, `returned_discount_minor <= discount_minor`; CHECK `points_given_back <= points_redeemed`, `points_back_through_covers <= points_given_back`; CHECK `points_reversed + points_counted_gone + points_covered + points_dropped <= points_earned`. **The record of every order fact, written even when no point moves** |
+| `loyalty.orders` | `order_id` PK (Sales's id, text — no foreign key: Loyalty never depends on Sales), `order_number` (its public number, e.g. `SA-10428` — never the id, handoff §5.3), `account_id`, `store_id`, `currency_code`, `goods_total_minor` NULL, `discount_minor`, `points_redeemed`, `points_earned`, `delivered_at` NULL, `cancelled_at` NULL, `returned_goods_minor`, `returned_discount_minor`, `points_given_back`, `points_back_through_covers`, `points_reversed`, `points_counted_gone`, `points_covered`, `points_dropped`, `expired_back_unused` | (`account_id`, `store_id`) → accounts (`id`, `store_id`) RESTRICT; UNIQUE (`order_id`, `account_id`); every amount and points column `>= 0`; CHECK `delivered_at IS NULL OR goods_total_minor IS NOT NULL`; CHECK `delivered_at IS NOT NULL OR (points_earned = 0 AND goods_total_minor IS NULL AND returned_goods_minor = 0)` (a staff edit before delivery may lower the points discount, §1.8); CHECK `NOT (delivered_at IS NOT NULL AND cancelled_at IS NOT NULL)`; CHECK `(points_redeemed = 0) = (discount_minor = 0)`; CHECK `returned_goods_minor <= COALESCE(goods_total_minor, 0)`, `returned_discount_minor <= discount_minor`; CHECK `points_given_back <= points_redeemed`, `points_back_through_covers <= points_given_back`; CHECK `points_reversed + points_counted_gone + points_covered + points_dropped <= points_earned`. **The record of every order fact, written even when no point moves** |
 | `loyalty.order_returns` | `order_id`, `account_id`, `return_id`, `returned_goods_minor`, `returned_discount_minor`, `settled_at` | PK (`order_id`, `return_id`); (`order_id`, `account_id`) → orders RESTRICT; amounts `>= 0`. A return settled once, whatever it moved |
 | `loyalty.entries` | `id` bigint identity, `account_id`, `store_id`, `kind`, `points`, `order_id` NULL, `return_id` NULL, `reason` NULL, `staff_id` NULL → `access.staff_users` RESTRICT, `occurred_at` | (`account_id`, `store_id`) → accounts (`id`, `store_id`) RESTRICT; (`order_id`, `account_id`) → orders (`order_id`, `account_id`) RESTRICT (unchecked while `order_id` is NULL); UNIQUE (`id`, `account_id`); CHECK `kind` is one of §1.2's and `points` has its sign, never 0; CHECK `order_id IS NOT NULL` for `EARNED`, `REDEEMED`, `REDEMPTION_RETURNED`, `EARNING_REVERSED`, and `order_id IS NULL` for `ADDED`, `DEDUCTED` (an `EXPIRED` carries one only when it expires points coming back for that order); CHECK `return_id IS NULL` unless the kind is `REDEMPTION_RETURNED`, `EARNING_REVERSED` or `EXPIRED`; CHECK `ADDED`/`DEDUCTED` have `staff_id IS NOT NULL AND char_length(reason) BETWEEN 1 AND 500`, the others `reason IS NULL AND staff_id IS NULL`; UNIQUE (`order_id`) WHERE `kind = 'EARNED'`, and WHERE `kind = 'REDEEMED'`; UNIQUE (`kind`, `order_id`, `return_id`) **NULLS NOT DISTINCT** WHERE `kind IN ('REDEMPTION_RETURNED', 'EARNING_REVERSED')` (a cancellation's NULL return id counts once; precedent `platform.settings`); **append-only** (trigger, as `platform.audit_entries`) |
 | `loyalty.lots` | `id` bigint identity, `account_id`, `entry_id` (the `EARNED` or `ADDED` that formed it), `order_id` NULL (the order it was earned on), `points`, `points_left`, `expires_at` | (`entry_id`, `account_id`) → entries (`id`, `account_id`) RESTRICT; (`order_id`, `account_id`) → orders RESTRICT; UNIQUE (`entry_id`); UNIQUE (`order_id`) WHERE `order_id IS NOT NULL`; UNIQUE (`id`, `account_id`); CHECK `points > 0 AND points_left >= 0 AND points_left <= points` |
@@ -492,11 +505,11 @@ type string and HTTP status.
 |---|---|---|
 | `PointsProgrammeOff` | CONFLICT | Redeeming in a store whose programme is off |
 | `RedemptionChanged` | CONFLICT | At placement, the redemption no longer works out as quoted — the balance spent elsewhere, the settings changed — so checkout quotes again (§1.7) |
-| `RedemptionRefused` | UNPROCESSABLE | Placing a redemption the rules refuse — the same reasons as `RedemptionRefusal` |
+| `RedemptionRefused` | INVALID | Placing a redemption the rules refuse — the same reasons as `RedemptionRefusal` |
 | `DeductionTooLarge` | CONFLICT | A deduction by hand larger than the balance (§1.4) |
 | `PointsAccountNotFound` | NOT_FOUND | A staff read or change in a store the staff member does not cover, or for a customer with no account there where one is needed — the same answer for both |
 | `OrderNotSettleable` | CONFLICT | A delivery of a cancelled order; a cancellation of a delivered order; a return of an order whose delivery Loyalty never recorded (§1.8). A cancellation of an order Loyalty has no record of — it used no points and was never delivered — settles nothing and is not an error |
-| `InvalidPointsAttribute` | UNPROCESSABLE | A value refused: points not a positive whole number, a reason empty or too long, returned amounts past the order's, a currency that is not the store's, a store that is not the order's recorded store, a caller's permission that is not its own module's |
+| `InvalidPointsAttribute` | INVALID | A value refused: points not a positive whole number, a reason empty or too long, returned amounts past the order's, a currency that is not the store's, a store that is not the order's recorded store, a caller's permission that is not its own module's |
 
 `quoteRedemption` refuses nothing: it answers with a `RedemptionRefusal` the checkout shows. A Global
 permission named by a caller is the caller's programming error, which Access's authorizer already
@@ -549,6 +562,9 @@ refuses.
 - A return settled twice, a cancellation settled twice: once each — even when it moved no point.
 - A staff edit that lowers the points discount gives back the points above it, with their old dates,
   once per edit; a new discount above the old is refused; nothing is taken back.
+- `pointsAfterEdit` answers the least of the discount now, the cap on the edited `net_subtotal` and the
+  room passed; `orderEdited` answers the same discount and points; the `loyalty.orders` CHECKs hold for
+  an edit settled before delivery, and a later full return still lands exactly on the order's points.
 - An order with `goods_total` 0 or no points discount settles without dividing by zero.
 
 **By hand**
