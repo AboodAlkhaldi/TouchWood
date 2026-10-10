@@ -10,7 +10,6 @@ use Modules\Catalog\Application\Import\StoreFills;
 use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
-use Modules\Catalog\Domain\Model\Variant;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
@@ -73,19 +72,18 @@ final readonly class ViewStoreFillHandler
     }
 
     /**
-     * A ready product's item, as switching it on would find it: the variants carrying the code now —
-     * none, when the product held it once (`UNKNOWN`); all archived (`ARCHIVED`); all on there already
-     * (`ALREADY_ON`); or some to switch on (`READY`).
+     * A ready product's item, as switching it on would find it: the variant carrying the code now
+     * (amendment 16(a)) — none, when the product held it once (`UNKNOWN`); archived (`ARCHIVED`); on
+     * there already (`ALREADY_ON`); or to switch on (`READY`).
      */
     private function standing(string $productId, string $code, string $store): string
     {
-        $carrying = array_values(array_filter($this->variants->ofProduct($productId), static fn (Variant $variant): bool => $variant->code()->value === $code));
-        $open = array_map(static fn (Variant $variant): string => $variant->id(), array_filter($carrying, static fn (Variant $variant): bool => ! $variant->isArchived()));
+        $variant = $this->variants->carrying($code);
 
         return match (true) {
-            $carrying === [] => StoreFillItemView::UNKNOWN,
-            $open === [] => StoreFillItemView::ARCHIVED,
-            array_diff($open, $this->listings->of($store, $productId)->activeVariantIds()) === [] => StoreFillItemView::ALREADY_ON,
+            $variant === null => StoreFillItemView::UNKNOWN,
+            $variant->isArchived() => StoreFillItemView::ARCHIVED,
+            in_array($variant->id(), $this->listings->of($store, $productId)->activeVariantIds(), true) => StoreFillItemView::ALREADY_ON,
             default => StoreFillItemView::READY,
         };
     }
