@@ -30,9 +30,9 @@ use Shared\Application\Unauthorized;
  * **Editing a variant** (catalog.md §1.2): `catalog.product.update`, as the product's shared data.
  * **Its values stay editable**, a ready product's too (amendment 3(j)), its combination still its
  * own among the product's variants; a value or detail it already has may stay after it was
- * deactivated. **Its code changes here only in a draft** (amendment 3(c)), and a code no variant of
- * the draft carries any more is let go, free again; once the product is ready, a code is corrected
- * with its own permission (`CorrectVariantCode`).
+ * deactivated. **Its code changes here only in a draft** (amendment 3(c)) — to one no other variant
+ * carries (amendment 16(a)) — and the code it gives up is let go, free again; once the product is
+ * ready, a code is corrected with its own permission (`CorrectVariantCode`).
  */
 final readonly class UpdateVariantHandler
 {
@@ -90,7 +90,8 @@ final readonly class UpdateVariantHandler
             $this->variants->update($variant);
             $this->events->changed($product);
 
-            if (! $code->equals($oldCode) && ! $this->variants->codeInUse($product->id(), $oldCode->value)) {
+            // A draft's code given up is free again: no other variant carries it (amendment 16(a)).
+            if (! $code->equals($oldCode)) {
                 $this->products->releaseCode($product->id(), $oldCode->value);
             }
 

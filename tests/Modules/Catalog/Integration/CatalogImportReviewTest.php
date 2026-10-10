@@ -253,7 +253,7 @@ describe('bringing in', function () {
             app(SetRelationsHandler::class)->handle(new SetRelations($draft, 'RELATED', [$related['product']]));
         });
         $sixty = Px::variant($draft, '4400', [$width => $sixtyValue]);
-        $eighty = Px::variant($draft, '4400', [$width => $eightyValue]);
+        $eighty = Px::variant($draft, '4401', [$width => $eightyValue]);
         DB::table('catalog.product_search_words')->insert(['product_id' => $draft, 'normalized' => 'old', 'word' => 'old', 'position' => 0]);
         $import = Ix::uploadProducts([Ix::product('4400', ['attribute_set' => catalogReviewEnglish('attribute_sets', $set), 'variants' => [['code' => '4400', 'values' => [catalogReviewEnglish('attributes', $width) => '60 cm']]]])]);
         app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'REPLACE']]));
@@ -265,6 +265,31 @@ describe('bringing in', function () {
             ->and(DB::table('catalog.product_relations')->where('product_id', $draft)->count())->toBe(0)
             ->and(DB::table('catalog.product_photos')->where('product_id', $draft)->count())->toBe(0)
             ->and(DB::table('catalog.product_search_words')->where('product_id', $draft)->count())->toBe(0);
+    });
+
+    it('corrects a draft\'s code when the file gives its variant\'s values under a code it does not carry (P33, amendment 11(b))', function () {
+        $width = Px::attribute('Width');
+        [$sixtyValue, $eightyValue] = [Px::value($width, '60 cm'), Px::value($width, '80 cm')];
+        $set = Px::set([$width]);
+        $draft = Px::product();
+        $row = DB::table('catalog.products')->where('id', $draft)->first(['name_ar', 'name_en', 'brand_id']) ?? throw new LogicException('No product.');
+        Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($draft, (string) $row->name_ar, (string) $row->name_en, (string) $row->brand_id, attributeSetId: $set)));
+        $sixty = Px::variant($draft, '4500', [$width => $sixtyValue]);
+        $eighty = Px::variant($draft, '4501', [$width => $eightyValue]);
+        $widthEn = catalogReviewEnglish('attributes', $width);
+        $import = Ix::uploadProducts([Ix::product('4500', ['attribute_set' => catalogReviewEnglish('attribute_sets', $set), 'variants' => [
+            ['code' => '4500', 'values' => [$widthEn => '60 cm']],
+            ['code' => '4502', 'values' => [$widthEn => '80 cm'], 'weight_g' => 80],
+        ]])]);
+        app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE']]));
+
+        Ix::bringIn($import);
+
+        // The 80 cm variant is the same one, its code corrected; the code it gave up is free again.
+        expect(catalogReviewState($import, 1))->toBe('UPDATED')
+            ->and(DB::table('catalog.variants')->where('product_id', $draft)->orderBy('position')->pluck('code', 'id')->all())->toBe([$sixty => '4500', $eighty => '4502'])
+            ->and(DB::table('catalog.variants')->where('id', $eighty)->value('weight_grams'))->toBe(80)
+            ->and(DB::table('catalog.product_codes')->where('code', '4501')->exists())->toBeFalse();
     });
 
     it('updates a product, keeping what the file does not give, and brings back a variant it names', function () {
@@ -516,21 +541,19 @@ describe('the store file', function () {
         ]);
     });
 
-    it('switches on every variant carrying the code, sharing it, and tells the modules above', function () {
+    it('switches on the one variant carrying the code, and tells the modules above', function () {
         Event::fake([StoreListingChanged::class]);
         $ready = Px::ready(['60 cm']);
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
-        $eighty = Fx::asSystem(fn (): string => app(AddVariantHandler::class)->handle(new AddVariant($ready['product'], $code, [$ready['width'] => Px::value($ready['width'], '80 cm')])));
+        Fx::asSystem(fn (): string => app(AddVariantHandler::class)->handle(new AddVariant($ready['product'], '7701', [$ready['width'] => Px::value($ready['width'], '80 cm')])));
         $file = catalogReviewFill([['code' => $code, 'price' => 10]]);
 
         app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($file, null));
 
-        $on = DB::table('catalog.store_variants')->where('store_id', Fx::storeId('sa'))->where('is_active', true)->orderBy('variant_id')->pluck('variant_id')->all();
-        $both = [$ready['variants'][0], $eighty];
-        sort($both);
-        expect($on)->toBe($both)
+        $on = DB::table('catalog.store_variants')->where('store_id', Fx::storeId('sa'))->where('is_active', true)->pluck('variant_id')->all();
+        expect($on)->toBe([$ready['variants'][0]])
             ->and(DB::table('catalog.listing')->where('store_id', Fx::storeId('sa'))->where('product_id', $ready['product'])->exists())->toBeTrue();
-        Event::assertDispatched(StoreListingChanged::class, fn (StoreListingChanged $event): bool => $event->storeId === Fx::storeId('sa') && count($event->variantIds) === 2);
+        Event::assertDispatched(StoreListingChanged::class, fn (StoreListingChanged $event): bool => $event->storeId === Fx::storeId('sa') && $event->variantIds === [$ready['variants'][0]]);
     });
 
     it('shows an item as switching on would find it, and never who uploaded the file', function () {

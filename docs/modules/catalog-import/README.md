@@ -53,22 +53,22 @@ unless this guide says otherwise.
 ### 1.2 A variant
 
 Every product has **at least one** variant. A product with no sizes or finishes has **exactly one**,
-with no `values`.
+with no `values`. **Every variant has its own code** ("Codes" below).
 
 | Field | Required | Type | Rules |
 |---|---|---|---|
-| `code` | **Yes** | text of digits | **1 to 10 digits, written as text**: `"1304"`, never `1304` (a number would lose leading zeros). Arabic digits (`"١٣٠٤"`) are read as `1304`, as every number in the system is saved in 0-9. |
+| `code` | **Yes** | text of digits | **1 to 10 digits, written as text**: `"1304"`, never `1304` (a number would lose leading zeros). Arabic digits (`"١٣٠٤"`) are read as `1304`, as every number in the system is saved in 0-9. **Its own**: no other variant in the file has it. |
 | `values` | When the product has an `attribute_set` | `{attribute: value}` | **One value for each attribute of the set**, by name: `{"Length": "45 cm", "Finish": "Zinc"}`. Two variants of one product never have the same values. |
 | `details` | No | `{attribute: …}` | Information-only attributes. Each is **either** text in both languages `{"ar": "فولاذ", "en": "Steel"}` (each at most 200 characters) **or** a number (`35`, at most 9 digits and 3 decimals, read with the attribute's unit). At most 100. |
 | `weight_g` | No | whole number | Grams, 1 to 1,000,000. |
 | `length_mm`, `width_mm`, `height_mm` | No | whole numbers | Millimetres, 1 to 1,000,000. |
 | `photos` | No | list of text | This variant's own photos, paths inside the zip, at most 10. |
 
-**Codes.** Variants of one product **may share a code** — the same runner in 45 and 50 cm, as the
-supplier holds them. **Two different products never share a code**: a file where they do is
-refused, both listed. (In a spreadsheet, rows with the same code and different sizes are **one
-product** with several variants; the same code on two different items is a mistake to fix in the
-source.)
+**Codes.** **Every variant has its own code** — the runner in 45 cm and in 50 cm has two codes, as
+each size and each colour is its own item in the supplier's system (owner, 2026-10-09). **Two
+variants never share a code**, in one product or in two: a file where they do is refused, both listed.
+(In a spreadsheet, the rows of one item's sizes and colours are **one product** with several variants,
+each row with its own code; the same code on two rows is a mistake to fix in the source.)
 
 ### 1.3 Names in the file
 
@@ -134,7 +134,7 @@ Anything missing can also be completed later in the product page.
 
 The file is refused, **every problem listed**, if: it is not valid JSON or not this format; a field
 has the wrong type; a product has no Arabic name or no variant; a code is not 1–10 digits; two
-products share a code; two variants of one product have the same values; a photo named in the JSON is
+variants share a code (in one product or in two); two variants of one product have the same values; a photo named in the JSON is
 not in the zip (or photos are named in a JSON uploaded alone); a number is out of range; a list is too
 long; the file is over its limits. Nothing is kept from a refused file.
 
@@ -162,9 +162,10 @@ import's page asks about it (§1.3). A name of something switched off in the cat
 bringing in stops at the product using it, naming it, until it is switched on again or another is
 picked.
 
-**A product already in the catalog that is not a draft keeps its codes.** Updating or replacing it
-with a variant of the same values but another code is listed on the import's page: skip that product,
-or upload the file corrected.
+**A product already in the catalog is matched variant by variant, by code**: a code it carries
+updates that variant, a new code adds one. **A product that is not a draft keeps its codes**: updating
+or replacing it with a variant of the same values but another code is listed on the import's page:
+skip that product, or upload the file corrected.
 
 A file that passes changes **nothing** until the Super Admin decides on its page: new names, codes the
 catalog already has (update that product, replace it whole, skip, or give another code). There, all
@@ -199,7 +200,7 @@ them.
 - **Until Pricing and Inventory exist (stage 5) prices and stock are shown but not kept.**
 
 **It never creates or changes a product.** Every code must belong to a product already in the
-catalog. Its page shows each item: ready (switching it on chooses the variants carrying that code),
+catalog. Its page shows each item: ready (switching it on chooses the variant carrying that code),
 not ready (what the product lacks — completed in the product page), archived, already on, or an
 **unknown code** — corrected or removed there. The admin then switches on the items chosen, or every
 ready one.
