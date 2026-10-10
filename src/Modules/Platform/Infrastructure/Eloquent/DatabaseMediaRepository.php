@@ -51,6 +51,23 @@ final readonly class DatabaseMediaRepository implements MediaRepository
         return $row instanceof stdClass ? $this->toMedia($row) : null;
     }
 
+    public function byIds(array $ids): array
+    {
+        $ulids = array_values(array_unique(array_map(
+            strtolower(...),
+            array_filter($ids, static fn (string $id): bool => preg_match(self::ULID_PATTERN, $id) === 1),
+        )));
+
+        if ($ulids === []) {
+            return [];
+        }
+
+        return array_values(array_map(
+            fn (stdClass $row): Media => $this->toMedia($row),
+            $this->db->table(self::TABLE)->whereIn('id', $ulids)->get()->all(),
+        ));
+    }
+
     public function lockById(string $id): ?Media
     {
         if (preg_match(self::ULID_PATTERN, $id) !== 1) {

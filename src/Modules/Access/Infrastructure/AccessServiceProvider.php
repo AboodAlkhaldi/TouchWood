@@ -30,6 +30,7 @@ use Modules\Access\Application\Customer\GuestVisitors;
 use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
+use Modules\Access\Application\Query\AdminShell\AdminShellForStaff;
 use Modules\Access\Application\Query\CustomerReader;
 use Modules\Access\Application\Query\RoleReader;
 use Modules\Access\Application\Query\StaffReader;
@@ -57,7 +58,6 @@ use Modules\Access\Domain\Repository\RoleRepository;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\Repository\StoreAddressFormatRepository;
-use Modules\Access\Infrastructure\Eloquent\CachedGrantsReader;
 use Modules\Access\Infrastructure\Eloquent\CachedStoreAddressFormatRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseAddressRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseCustomerReader;
@@ -70,6 +70,7 @@ use Modules\Access\Infrastructure\Eloquent\DatabaseRoleRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffUserRepository;
+use Modules\Access\Infrastructure\Eloquent\RequestGrantsReader;
 use Modules\Access\Infrastructure\Http\CookieGuestVisitors;
 use Modules\Access\Infrastructure\Http\CustomerSessionHandler;
 use Modules\Access\Infrastructure\Http\DatabaseStaffSessionDirectory;
@@ -181,7 +182,9 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->bind(RoleReader::class, DatabaseRoleReader::class);
         $this->app->bind(CustomerReader::class, DatabaseCustomerReader::class);
         $this->app->bind(StaffReader::class, DatabaseStaffReader::class);
-        $this->app->bind(GrantsReader::class, CachedGrantsReader::class);
+        // Read once per web request (amendment 65). Scoped: what it remembers lasts one request,
+        // and a queued job or the console is never answered from memory.
+        $this->app->scoped(GrantsReader::class, RequestGrantsReader::class);
         $this->app->bind(AccessApi::class, AccessApiImpl::class);
         // How Platform's audit log names its staff actors: the same one place every module's names
         // come from, where a Super Admin reads as "System administrator" to anyone but another
@@ -221,6 +224,9 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->scoped(StaffSessions::class, LaravelStaffSessions::class);
         // The staff view's passes (spec §1.11). Scoped: a request's pass is read once, for it alone.
         $this->app->scoped(StaffViews::class, LaravelStaffViews::class);
+        // Who the panel is shown to, read once per request (amendment 65). Scoped, as it depends on
+        // who is acting.
+        $this->app->scoped(AdminShellForStaff::class);
 
         // The real permission check (spec §2.5). Scoped: it depends on who is acting.
         $this->app->scoped(Authorizer::class, fn (Application $app): Authorizer => new RoleAuthorizer(
