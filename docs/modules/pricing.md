@@ -110,7 +110,9 @@ A discount on every product in a category and its sub-categories, in one store (
 - **A start, and an end only if wanted**, as a sale; the same life (§4.1); the same note of what it
   affects and what it overlaps, and the same **"always wins"** choice (§1.3).
 - **A product moving into or out of the category follows at once**: the discount covers what is in
-  the category now, not what was when it was made.
+  the category now, not what was when it was made — a product moved (`ProductChanged`), a draft made
+  ready after its category changed (`ProductMadeReady`), or a whole category moved under another
+  parent (`CategoryMoved`), §6.2.
 - **Its preview** (owner, 2026-10-07): before it is saved, and on its page after, every product it
   reaches in that store — each size's retail price, its new price, the difference — and the sizes it
   skips (a fixed amount at or above their price) or leaves out.
@@ -265,12 +267,14 @@ no error classes.
 | Access | **Declaring Pricing's permissions** (§3), in the `Pricing` group ("Pricing and Campaigns") | Allowed for that only (owner, 2026-10-07; `deptrac.yaml` since #97) |
 | Platform | The store (`StoreDto`: currency, its decimals, VAT rate, on or off), the audit log, `MenuCount` for Needs a Price, the scheduler | Exists |
 | Catalog | `storeVariant()` (selling modes, wholesale minimum), `variant()`, `product()` (its category) | Exists |
-| Catalog | **The products in a category and below it** — for a category discount and its preview | **`productIdsInCategory(string $categoryId): list<string>`** — products in any stage; accepted by the owner, 2026-10-09; Catalog's amendment 16(e) (PR #103, for the owner's review), not built yet |
+| Catalog | **The products in a category and below it** — for a category discount and its preview | **`productIdsInCategory(string $categoryId): list<string>`** — products in any stage; accepted by the owner, 2026-10-09; Catalog's amendment 16(e) (PR #103), not built yet |
 | Catalog | **A product's sizes** (variant ids, in its order) — a sale for every size of a product | **`variantIdsOf(string $productId, bool $includeArchived = false): list<string>`** — Pricing leaves archived sizes out; same |
 | Catalog | **The sizes a store has switched on** — Needs a Price | **`switchedOnVariantIds(StoreId $store): list<string>`** — same |
 | Catalog | **One code is one size** — the store's file (§1.8); a code's one size, `variantByCode(string $code): ?VariantDto` | Accepted by the owner, 2026-10-09; Catalog's amendment 16(a) (PR #103) |
+| Catalog | **Many sizes and products in one read** — names on the discount's preview and the Needs a Price list, within an admin page's 15 queries (frontend.md §5) | **`variants(list<string> $variantIds): array<string, VariantDto>`**, **`products(list<string> $productIds): array<string, ProductDto>`** — keyed by id, an unknown id left out; Catalog's amendment 16(i) (PR #103, after stage 5's review), not built yet |
 | Catalog | `ProductChanged` (a product moved category) | Exists (§6.2) |
-| Catalog | `ListingFacts` bound, `ListingPrice` | Catalog builds it with the shop's pages (amendment 15) |
+| Catalog | **`CategoryMoved(categoryId)`** — a category put under another parent; **`ProductMadeReady`** — a draft made ready (a draft's own category change sends nothing before) | `ProductMadeReady` exists; `CategoryMoved` is amendment 16 (PR #103), not built yet (§6.2) |
+| Catalog | `ListingFacts` bound; **`prices(StoreId, map variantId → ListingPrice\|null)`** — `ListingPrice{now, ?before}` | Catalog builds it with the shop's pages (amendment 15); the code contract's signature changes with amendment 16's backend (16(i)) |
 
 ### 2.5 Later
 
@@ -363,6 +367,8 @@ An event (`PricesChanged`) is added when a consumer appears.
 | Event | From | Pricing |
 |---|---|---|
 | `ProductChanged` | Catalog | Rewrites the product's candidates: it may have moved into or out of a discounted category |
+| `ProductMadeReady` | Catalog | Rewrites the product's candidates: a draft's category change sends nothing until it is made ready (stage 5's review of amendment 16, 2026-10-10) |
+| `CategoryMoved` | Catalog | Rewrites the candidates of every product now in or under the moved category (`productIdsInCategory`), in every store with a category discount — the products' ancestors changed, and so may their discounts (amendment 16, 2026-10-10) |
 | `VariantArchived`, `ProductArchived`, `VariantRestored`, `ProductRestored` | Catalog | Nothing: prices are kept; an archived size is not on sale anyway (Catalog) |
 | `StoreListingChanged` | Catalog | Nothing to store: Needs a Price is read live |
 | `StoreUpdated` (the VAT rate) | Platform | Nothing: the rate is read when prices are |
@@ -433,7 +439,9 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 10. **Wholesale bands**: the first at the minimum; not rising or not falling refused; a size not
     selling wholesale refused; the minimum lowered later → a line under the first band pays retail.
 11. **Category discounts**: the preview lists reached, skipped and left-out products with their old
-    and new prices; a sub-category's products included; a product moving in or out follows.
+    and new prices; a sub-category's products included; a product moving in or out follows; a draft
+    whose category changed follows when made ready; a category moved under a discounted parent (and
+    out of one) brings its products' candidates with it; the preview's names read in one call.
 12. **The store's file**: the page's lines (set, refused for decimals or 0, ignored in a wired store);
     switching on sets the retail price of the sizes it switched on, audited.
 13. **Needs a Price**: a switched-on size with no retail price is listed and counted; setting a price

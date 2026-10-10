@@ -1,8 +1,8 @@
 # Sales — Module Specification
 
-**Status:** DRAFT for the owner's review — sections 1–9 written 2026-10-10 from the owner's answers of
-2026-10-07 to 2026-10-10 (§9.1), rewritten after two independent reviews and a final check (§9.3). Nothing is built
-before the owner accepts it; all four of stage 6's specs come first (owner, 2026-10-07).
+**Status:** **ACCEPTED by the owner, 2026-10-10** (merged as #110) — sections 1–9 written 2026-10-10
+from the owner's answers of 2026-10-07 to 2026-10-10 (§9.1), rewritten after two independent reviews
+and a final check (§9.3). The picks marked "my assumption" were accepted with it.
 **Tier:** 1. **Stage:** 6 (handoff §17), the last of the stage's modules to be built (Loyalty →
 Promotions → Feedback → Sales).
 **Depends on:** every module above it except Feedback and Sync (handoff §4.4) — Platform, Access, B2B,

@@ -26,8 +26,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Adding a variant** (catalog.md §1.2, §3): `catalog.product.update`, as the product's shared data.
- * Its code is one the product holds, or one no other product holds or held (`CodeTaken`, amendment
- * 3(e)) — the product then holds it; its values are one active value of every attribute of the
+ * Its code is one no other variant carries (amendment 16(a)), and one the product holds or no other
+ * product holds or held (`CodeTaken`, amendment 3(e)) — the product then holds it; its values are one active value of every attribute of the
  * product's set, a combination no other variant of the product has, archived ones included
  * (`DuplicateCombination`). A variant added later is chosen in no store (§1.3). Under the products'
  * lock.

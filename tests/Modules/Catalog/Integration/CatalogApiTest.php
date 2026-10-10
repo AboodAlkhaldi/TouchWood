@@ -65,8 +65,8 @@ function catalogApiStore(string $code = 'sa'): StoreId
 }
 
 /**
- * A ready product whose variants are two finishes of two widths, the two widths of one finish
- * sharing a code, as the provider holds them (amendment 3(e)).
+ * A ready product whose variants are two finishes of two widths, each with its own code (amendment
+ * 16(a)).
  *
  * @return array{product: string, width: string, finish: string, values: array<string, string>, variants: array<string, string>}
  */
@@ -84,7 +84,7 @@ function catalogApiProduct(): array
 
     $variants = [
         '60-black' => Px::variant($id, '1304', [$width => $values['w60'], $finish => $values['black']]),
-        '80-black' => Px::variant($id, '1304', [$width => $values['w80'], $finish => $values['black']]),
+        '80-black' => Px::variant($id, '1307', [$width => $values['w80'], $finish => $values['black']]),
         '60-white' => Px::variant($id, '1305', [$width => $values['w60'], $finish => $values['white']]),
         '80-white' => Px::variant($id, '1306', [$width => $values['w80'], $finish => $values['white']]),
     ];
@@ -120,20 +120,23 @@ describe('variants and products', function () {
             ->and(catalogApi()->variant('not-an-id'))->toBeNull();
     });
 
-    it('answers every variant holding a code, all of one product', function () {
+    it('answers the one variant carrying a code, archived or not', function () {
         $p = catalogApiProduct();
-        $ids = static fn (array $variants): array => array_map(static fn (VariantDto $variant): string => $variant->id, $variants);
 
-        expect($ids(catalogApi()->variantsByCode(' 1304 ')))->toBe([$p['variants']['60-black'], $p['variants']['80-black']])
-            ->and($ids(catalogApi()->variantsByCode('1305')))->toBe([$p['variants']['60-white']])
-            ->and(catalogApi()->variantsByCode('9999'))->toBe([])
-            ->and(catalogApi()->variantsByCode('13a4'))->toBe([]);
+        expect(catalogApi()->variantByCode(' 1304 ')?->id)->toBe($p['variants']['60-black'])
+            ->and(catalogApi()->variantByCode('1307')?->id)->toBe($p['variants']['80-black'])
+            ->and(catalogApi()->variantByCode('9999'))->toBeNull()
+            ->and(catalogApi()->variantByCode('13a4'))->toBeNull();
 
         // A code corrected away stays the product's (amendment 3(e)), but no variant carries it now.
-        Fx::asSystem(fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($p['variants']['80-white'], '1307')));
+        Fx::asSystem(function () use ($p): void {
+            app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($p['variants']['80-white'], '1308'));
+            app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($p['variants']['60-white']));
+        });
 
-        expect(catalogApi()->variantsByCode('1306'))->toBe([])
-            ->and($ids(catalogApi()->variantsByCode('1307')))->toBe([$p['variants']['80-white']]);
+        expect(catalogApi()->variantByCode('1306'))->toBeNull()
+            ->and(catalogApi()->variantByCode('1308')?->id)->toBe($p['variants']['80-white'])
+            ->and(catalogApi()->variantByCode('1305')?->isArchived)->toBeTrue();
     });
 
     it('answers a product, a draft with its Arabic name only included', function () {

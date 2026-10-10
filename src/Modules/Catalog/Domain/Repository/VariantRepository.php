@@ -40,11 +40,11 @@ interface VariantRepository
     /** Whether another variant of the product has this combination, archived ones included (§1.2). */
     public function combinationTaken(string $productId, string $combination, ?string $exceptVariantId = null): bool;
 
-    /** Whether any variant of the product other than this one carries the code. */
-    public function codeInUse(string $productId, string $code, ?string $exceptVariantId = null): bool;
+    /** Whether a variant of the product carries the code now. */
+    public function codeInUse(string $productId, string $code): bool;
 
-    /** Renames a code on every variant of the product carrying it (a correction, amendment 3(e)). */
-    public function renameCode(string $productId, string $from, string $to): void;
+    /** The one variant carrying the code now, archived or not (amendment 16(a)) — or none. */
+    public function carrying(string $code): ?Variant;
 
     public function anyWithValue(string $valueId): bool;
 
