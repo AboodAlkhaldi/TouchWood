@@ -241,7 +241,6 @@ function ValueRow({
                             <DropdownMenuItem onSelect={() => open('edit-value', more.current)} data-test="edit-value">
                                 {t('catalog::admin_attributes.value.edit')}
                             </DropdownMenuItem>
-                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
                             <DropdownMenuItem
                                 disabled={busy}
                                 onSelect={() =>
@@ -251,6 +250,8 @@ function ValueRow({
                             >
                                 {value.active ? t('catalog::admin_attributes.value.deactivate') : t('catalog::admin_attributes.value.activate')}
                             </DropdownMenuItem>
+                            {/* S3: Edit…, Activate or Deactivate, Move to Top, Move to Bottom, Delete…. */}
+                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                                 variant="destructive"

@@ -110,8 +110,9 @@ list's own job with All stores and its lock, as every other change to it: those 
 the order sent, and **every other keeps its order after them** — so two people ordering at once lose
 nothing, Move to Top sends one id, and Move to Bottom every other one first. The positions are
 **written again 1, 2, 3 …** each time (`ListOrder`, one statement through `ListOrders::write`), and each
-item whose place changed is audited (`catalog.{list}.ordered`, from its place to its place); an order
-that moves nothing writes and records nothing. An id sent twice is refused, and one not in the list
+item whose place changed is audited (`catalog.{list}.ordered`, from its position to its position) —
+not one only numbered again where it stands, as a list whose places were typed ten apart is at its
+first order; an order that leaves a list numbered 1, 2, 3 where it was writes and records nothing. An id sent twice is refused, and one not in the list
 — a value of another attribute, too — is not found. **No form takes a place any more: a new item goes
 last** (`ListOrders::afterLast`, read under the list's lock). Positions are a sort key
 (`ListPosition`), and only a list never ordered since its places were typed can reach the cap: then

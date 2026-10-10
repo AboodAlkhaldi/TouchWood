@@ -41,7 +41,8 @@ final readonly class OrderWarrantiesHandler
             $this->orders->write(ListOrders::WARRANTIES, ListOrder::positions($changes));
             $entries = [];
 
-            foreach ($changes as $id => [$was, $now]) {
+            // Each item whose place changed; one only numbered again where it stands is not moved.
+            foreach (ListOrder::moved($changes) as $id => [$was, $now]) {
                 $entries[] = ListAudit::changed('warranty', 'ordered', $id, ['position' => $was], ['position' => $now]);
             }
 

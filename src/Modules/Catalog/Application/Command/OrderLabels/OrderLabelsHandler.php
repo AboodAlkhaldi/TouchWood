@@ -42,7 +42,8 @@ final readonly class OrderLabelsHandler
             $this->orders->write(ListOrders::LABELS, ListOrder::positions($changes));
             $entries = [];
 
-            foreach ($changes as $id => [$was, $now]) {
+            // Each item whose place changed; one only numbered again where it stands is not moved.
+            foreach (ListOrder::moved($changes) as $id => [$was, $now]) {
                 $entries[] = ListAudit::changed('label', 'ordered', $id, ['position' => $was], ['position' => $now]);
             }
 

@@ -20,6 +20,9 @@ use Modules\Catalog\Application\Command\OrderLabels\OrderLabels;
 use Modules\Catalog\Application\Command\OrderLabels\OrderLabelsHandler;
 use Modules\Catalog\Application\Command\OrderWarranties\OrderWarranties;
 use Modules\Catalog\Application\Command\OrderWarranties\OrderWarrantiesHandler;
+use Modules\Catalog\Application\Query\Lists\WarrantyRow;
+use Modules\Catalog\Application\Query\ListWarranties\ListWarranties;
+use Modules\Catalog\Application\Query\ListWarranties\ListWarrantiesHandler;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Model\Warranty;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
@@ -218,6 +221,35 @@ describe('an order', function () {
             ->and(Fx::audits("catalog.{$subject}.ordered"))->toBe(0);
     })->with(catalogOrdersLists());
 
+    it('numbers again where they stand the items of a list whose places were typed, auditing only those it moved', function () {
+        $first = catalogOrdersLabel('First');
+        $second = catalogOrdersLabel('Second');
+        $third = catalogOrdersLabel('Third');
+        // Typed on the old screens, ten apart, and two alike: ordered by name between themselves.
+        DB::table('catalog.labels')->where('id', $first)->update(['position' => 10]);
+        DB::table('catalog.labels')->where('id', $second)->update(['position' => 20]);
+        DB::table('catalog.labels')->where('id', $third)->update(['position' => 20]);
+        Cx::actAsStaffWith([CatalogPermissions::LABEL_MANAGE]);
+
+        // The same order sent again: written 1, 2, 3, but nothing moved, so nothing audited.
+        app(OrderLabelsHandler::class)->handle(new OrderLabels([$first, $second, $third]));
+
+        expect(catalogOrdersOf('catalog.labels'))->toBe([$first, $second, $third])
+            ->and(catalogOrdersPositions('catalog.labels'))->toBe([1, 2, 3])
+            ->and(Fx::audits('catalog.label.ordered'))->toBe(0);
+
+        // Two typed alike, 2 and 2, so ordered by name: Second, then Third. Moved above Second, Third
+        // keeps its number 2 - moved all the same, and audited, as Second, which went down.
+        DB::table('catalog.labels')->where('id', $second)->update(['position' => 2]);
+        DB::table('catalog.labels')->where('id', $third)->update(['position' => 2]);
+        app(OrderLabelsHandler::class)->handle(new OrderLabels([$first, $third]));
+
+        expect(catalogOrdersOf('catalog.labels'))->toBe([$first, $third, $second])
+            ->and(Fx::audits('catalog.label.ordered', $first))->toBe(0)
+            ->and(Fx::audits('catalog.label.ordered', $third))->toBe(1)
+            ->and(Fx::audits('catalog.label.ordered', $second))->toBe(1);
+    });
+
     it('refuses an id sent twice, before anything is read', function () {
         $first = Px::brand('Blum');
         $second = Px::brand('Hettich');
@@ -299,15 +331,21 @@ describe('the warranties\' order (amendment 16(d))', function () {
             ->toBe([$alpha => 1, $mid => 2, $zeta => 3]);
     });
 
-    it('lists them in their order, the product form\'s choice', function () {
+    it('lists them in their order, the product form\'s choice, and the screen reads them so', function () {
+        // Made against their names' order, so a read by name would give them the other way round.
         $first = catalogOrdersWarranty('Zeta');
         $second = catalogOrdersWarranty('Alpha');
-
-        expect(catalogOrdersOf('catalog.warranties'))->toBe([$first, $second]);
-
+        $third = catalogOrdersWarranty('Mid');
         Cx::actAsStaffWith([CatalogPermissions::WARRANTY_MANAGE]);
-        app(OrderWarrantiesHandler::class)->handle(new OrderWarranties([$second]));
+        $repository = static fn (): array => array_map(static fn (Warranty $warranty): string => $warranty->id(), app(WarrantyRepository::class)->all());
+        $screen = static fn (): array => array_map(static fn (WarrantyRow $row): string => $row->id, app(ListWarrantiesHandler::class)->handle(new ListWarranties)->warranties);
 
-        expect(array_map(static fn (Warranty $warranty): string => $warranty->id(), app(WarrantyRepository::class)->all()))->toBe([$second, $first]);
+        expect($repository())->toBe([$first, $second, $third])
+            ->and($screen())->toBe([$first, $second, $third]);
+
+        app(OrderWarrantiesHandler::class)->handle(new OrderWarranties([$third]));
+
+        expect($repository())->toBe([$third, $first, $second])
+            ->and($screen())->toBe([$third, $first, $second]);
     });
 });

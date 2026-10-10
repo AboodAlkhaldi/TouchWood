@@ -198,21 +198,54 @@ export function DragHandle({ handle, label, reason, test }: { handle: RowHandle;
 
 /**
  * Move to Top and Move to Bottom, on a row's ⋯ menu (amendment 16(d)): out of reach where the row
- * already is.
+ * already is, with that reason written under it, as every item that cannot be used.
  */
 export function MoveItems({ first, last, onTop, onBottom }: { first: boolean; last: boolean; onTop: () => void; onBottom: () => void }) {
     const t = useTranslator();
 
     return (
         <>
-            <DropdownMenuItem disabled={first} onSelect={onTop} data-test="move-top">
-                {t('catalog::admin.order.top')}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={last} onSelect={onBottom} data-test="move-bottom">
-                {t('catalog::admin.order.bottom')}
-            </DropdownMenuItem>
+            <MoveItem label={t('catalog::admin.order.top')} reason={first ? t('catalog::admin.order.at_top') : null} onSelect={onTop} test="move-top" />
+            <MoveItem label={t('catalog::admin.order.bottom')} reason={last ? t('catalog::admin.order.at_bottom') : null} onSelect={onBottom} test="move-bottom" />
         </>
     );
+}
+
+function MoveItem({ label, reason, onSelect, test }: { label: string; reason: string | null; onSelect: () => void; test: string }) {
+    return (
+        <DropdownMenuItem
+            aria-disabled={reason !== null || undefined}
+            className={reason !== null ? 'cursor-not-allowed' : undefined}
+            onSelect={(event) => {
+                if (reason !== null) {
+                    event.preventDefault();
+
+                    return;
+                }
+
+                onSelect();
+            }}
+            data-test={test}
+        >
+            <span className="grid gap-0.5">
+                <span className={reason !== null ? 'opacity-60' : undefined}>{label}</span>
+                {reason !== null ? <span className="text-copy-12 text-ink-muted">{reason}</span> : null}
+            </span>
+        </DropdownMenuItem>
+    );
+}
+
+/**
+ * Which save of an order is the latest: only its answer may stop showing the order sent, so an
+ * earlier one answered later never puts back an order the list has already left.
+ */
+export function useLatestSave() {
+    const count = useRef(0);
+
+    return {
+        start: () => ++count.current,
+        finished: (save: number) => save === count.current,
+    };
 }
 
 /**
@@ -227,11 +260,22 @@ export function MoveItems({ first, last, onTop, onBottom }: { first: boolean; la
  */
 export function useSavedOrder(ids: string[], url: string) {
     const [sent, setSent] = useState<string[] | null>(null);
+    const latest = useLatestSave();
     const order = sent ?? ids;
 
     function save(next: string[], post: string[]) {
         setSent(next);
-        router.post(url, { ids: post }, { preserveScroll: true, onFinish: () => setSent(null) });
+        const mine = latest.start();
+        // Async: a second order made before the first is answered never cancels it, so neither is lost.
+        router.post(url, { ids: post }, {
+            async: true,
+            preserveScroll: true,
+            onFinish: () => {
+                if (latest.finished(mine)) {
+                    setSent(null);
+                }
+            },
+        });
     }
 
     return {

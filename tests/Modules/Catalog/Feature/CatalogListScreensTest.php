@@ -488,6 +488,16 @@ describe('the categories', function () {
             ->and($places('sa'))->toBe($saBefore);
     });
 
+    it('says a refused order at the top of the page, which has no place field any more', function () {
+        $kitchens = Px::category('Kitchens');
+        $browser = catalogListScreens([P::CATEGORY_RANK], ['eg']);
+
+        $refused = $browser->post('/admin/categories/order', ['store' => 'eg', 'ranks' => [$kitchens => 'first']]);
+
+        expect(AdminBrowser::formError($refused))->toBe('The place in the menu is not valid.')
+            ->and(catalogListScreensErrors($refused))->not->toHaveKey('rank');
+    });
+
     it('reads the products a category\'s deactivation reaches, in it and under it, only for someone who may deactivate', function () {
         $kitchens = Px::category('Kitchens');
         $drawers = Px::category('Drawers', $kitchens);

@@ -47,7 +47,8 @@ final readonly class OrderAttributeValuesHandler
             $this->orders->write(ListOrders::VALUES, ListOrder::positions($changes));
             $entries = [];
 
-            foreach ($changes as $id => [$was, $now]) {
+            // Each item whose place changed; one only numbered again where it stands is not moved.
+            foreach (ListOrder::moved($changes) as $id => [$was, $now]) {
                 $entries[] = ListAudit::changed('attribute_value', 'ordered', $id, ['position' => $was], ['position' => $now]);
             }
 

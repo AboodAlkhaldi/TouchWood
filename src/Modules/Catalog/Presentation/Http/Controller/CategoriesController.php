@@ -94,14 +94,15 @@ final readonly class CategoriesController
     /**
      * One parent's children in the order dropped, or with one moved to the top or the bottom, written
      * as places 1, 2, 3 … in the store the page shows (amendment 16(d)). A form that names no store, or
-     * one not offered here, is refused — never sent to the first store.
+     * one not offered here, is refused — never sent to the first store. An order has no field of its
+     * own on the page, so a refusal is said at its top and in a toast.
      */
     public function rank(CatalogFormRequest $request, RankCategoriesHandler $handler, StoreChoices $choices): RedirectResponse
     {
         return CatalogRefusals::act($request, fn () => $handler->handle(new RankCategories(
             self::storeId($choices, $request->optionalText('store')),
             self::ranks($request->input('ranks')),
-        )), 'catalog::admin_categories.toast.ranked', ['rank', 'store']);
+        )), 'catalog::admin_categories.toast.ranked');
     }
 
     public function activate(Request $request, string $category, ActivateCategoryHandler $handler): RedirectResponse

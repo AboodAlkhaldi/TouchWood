@@ -20,7 +20,7 @@ import { tone } from '@/lib/tones';
 import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
 import { ImageField, MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale, type Locale } from '../parts';
-import { DragHandle, MoveItems, SortableGroup, SortableRows, useSortableRow } from '../SortableList';
+import { DragHandle, MoveItems, SortableGroup, SortableRows, useLatestSave, useSortableRow } from '../SortableList';
 
 /*
 | The categories screen (catalog.md §1.5, §4.4 S2): **the whole tree** in one table, a parent's
@@ -96,6 +96,7 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
     const locale = useLocale();
     // A group's order just dropped, shown while it is saved: the server's comes back with the page.
     const [sent, setSent] = useState<{ group: string; ids: string[] } | null>(null);
+    const latest = useLatestSave();
     const nodes = useMemo(() => tree(categories, locale, sent), [categories, locale, sent]);
     const groups = useMemo(() => groupsOf(nodes), [nodes]);
     const byId = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
@@ -118,8 +119,22 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
         }
 
         setSent({ group, ids });
+        const mine = latest.start();
         const ranks = Object.fromEntries(ids.map((id, index) => [id, index + 1]));
-        router.post('/admin/categories/order', { store: storeCode, ranks }, { preserveScroll: true, onFinish: () => setSent(null) });
+        // Async: a second order made before the first is answered never cancels it (useSavedOrder).
+        router.post(
+            '/admin/categories/order',
+            { store: storeCode, ranks },
+            {
+                async: true,
+                preserveScroll: true,
+                onFinish: () => {
+                    if (latest.finished(mine)) {
+                        setSent(null);
+                    }
+                },
+            },
+        );
     }
 
     const nodeOf = (id: string): Node | null => {

@@ -60,6 +60,8 @@ return [
         'column' => 'Order',
         'top' => 'Move to Top',
         'bottom' => 'Move to Bottom',
+        'at_top' => 'It is first already.',
+        'at_bottom' => 'It is last already.',
     ],
     'toast' => [
         'ordered' => 'Order saved',

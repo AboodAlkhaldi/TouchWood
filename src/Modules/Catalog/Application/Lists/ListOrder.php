@@ -43,13 +43,16 @@ final class ListOrder
     }
 
     /**
-     * What the order changes: every item whose position moves, from what it was to what it is. An
-     * order that leaves every item where it is changes nothing.
+     * What the order changes: every item whose position number changes, from what it was to what it
+     * is, and whether **its place in the list** changed with it. The two differ for a list never
+     * ordered since its places were typed — 10, 20, 30 — whose items are numbered again 1, 2, 3
+     * where they stand: written, but not moved. An order that leaves every item where it is, already
+     * numbered 1, 2, 3, changes nothing.
      *
      * @param  array<string, int>  $current  each item's id => its position, in the list's order now
      * @param  list<string>  $sent  the ids sent, from sent()
      * @param  Closure(string): CatalogError  $notFound  the refusal for an id not in the list
-     * @return array<string, array{int, int}> an item's id => [its position before, its position now]
+     * @return array<string, array{int, int, bool}> an item's id => [its position before, its position now, whether its place changed]
      *
      * @throws CatalogError|InvalidCatalogAttribute
      */
@@ -66,12 +69,14 @@ final class ListOrder
         }
 
         $isSent = array_flip($sent);
+        $was = array_flip(array_keys($current));
         $rest = array_values(array_filter(array_keys($current), static fn (string $id): bool => ! isset($isSent[$id])));
         $changes = [];
 
         foreach ([...$sent, ...$rest] as $index => $id) {
-            if ($current[$id] !== $index + 1) {
-                $changes[$id] = [$current[$id], $index + 1];
+            // Its place can change while its number does not, out of two typed alike: still moved.
+            if ($current[$id] !== $index + 1 || $was[$id] !== $index) {
+                $changes[$id] = [$current[$id], $index + 1, $was[$id] !== $index];
             }
         }
 
@@ -79,11 +84,39 @@ final class ListOrder
     }
 
     /**
-     * @param  array<string, array{int, int}>  $changes  from changes()
-     * @return array<string, int> an item's id => its new position, to write
+     * @param  array<string, array{int, int, bool}>  $changes  from changes()
+     * @return array<string, int> an item's id => its new position, to write: those whose number changes
      */
     public static function positions(array $changes): array
     {
-        return array_map(static fn (array $change): int => $change[1], $changes);
+        $positions = [];
+
+        foreach ($changes as $id => [$before, $now]) {
+            if ($before !== $now) {
+                $positions[$id] = $now;
+            }
+        }
+
+        return $positions;
+    }
+
+    /**
+     * The items an order moved, for the audit log: each one whose place in the list changed, from
+     * its position to its position — not one only numbered again where it stands.
+     *
+     * @param  array<string, array{int, int, bool}>  $changes  from changes()
+     * @return array<string, array{int, int}> an item's id => [its position before, its position now]
+     */
+    public static function moved(array $changes): array
+    {
+        $moved = [];
+
+        foreach ($changes as $id => [$before, $now, $placeChanged]) {
+            if ($placeChanged) {
+                $moved[$id] = [$before, $now];
+            }
+        }
+
+        return $moved;
     }
 }
