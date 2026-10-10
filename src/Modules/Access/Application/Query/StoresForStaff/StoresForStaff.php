@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Application\Query\StoresForStaff;
 
 use Modules\Access\Application\Authorization\GrantRules;
-use Modules\Access\Domain\Repository\RoleAssignmentRepository;
+use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\ActorContext;
@@ -20,13 +20,16 @@ use Shared\Domain\ValueObject\StoreId;
  * (platform.md §1.6). Anyone else's are the stores their assignment covers - its store row, which
  * every exception lies inside (amendment 59) - that are on: an off store is as if it were never
  * there to them. No store is named here: a store's name comes from its row (handoff §2.2).
+ *
+ * The store row is read from the person's cached permissions, which hold it, not from their
+ * assignment (amendment 65): that was four more queries, with a row lock, on every admin page.
  */
 final readonly class StoresForStaff
 {
     public function __construct(
         private ActorContext $actors,
         private GrantRules $rules,
-        private RoleAssignmentRepository $assignments,
+        private GrantsReader $grants,
         private PlatformApi $platform,
     ) {}
 
@@ -48,7 +51,7 @@ final readonly class StoresForStaff
             return $this->platform->allStores();
         }
 
-        $choice = $this->assignments->byStaff($actor->id)?->staffStores();
+        $choice = $this->grants->forStaff($actor->id)?->stores;
 
         if ($choice === null) {
             return [];

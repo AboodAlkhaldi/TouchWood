@@ -10,10 +10,12 @@ use Modules\Pricing\Public\Enums\PriceKind;
 use Shared\Domain\ValueObject\Money;
 
 /**
- * A priced line (pricing.md §2.2). `listUnit` is the base price of one piece - what `gross_subtotal`
- * counts - and `unit` what one piece costs on this line, the lowest that applies (§1.4); `kind` says
- * which won. `endsAt` is when that price stops applying (the end of its sale, campaign or discount),
- * null when it has no end.
+ * A priced line (pricing.md §2.2). `listUnit` is the line's normal price of one piece - what
+ * `gross_subtotal` counts: the retail price, and on a wholesale line its band where one applies, as a
+ * wholesale price is not a discount (§1.6 step 5, owner 2026-10-10). `unit` is what one piece costs on
+ * this line, the lowest that applies (§1.6); the line is reduced exactly when `unit` is below
+ * `listUnit`. `kind` says which candidate won. `endsAt` is when that price stops applying (the end of
+ * its sale, campaign or discount), null when it has no end.
  */
 final readonly class LinePriceDto
 {

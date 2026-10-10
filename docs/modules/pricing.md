@@ -1,6 +1,7 @@
 # Pricing — module specification
 
-**Status (2026-10-09): the full spec, for the owner's OK.** §2 — what other modules call — was agreed
+**Status (2026-10-10): the full spec, accepted** (#100, 2026-10-09); **amended 2026-10-10** — a
+wholesale line's list price is its band (§1.6 step 5, §9.2). Was: **the full spec, for the owner's OK.** §2 — what other modules call — was agreed
 first and is on `main` (#97, "interfaces first", owner 2026-10-07). The rest follows from the owner's
 answers of 2026-10-07 to 2026-10-09; my proposals of the first draft were accepted on 2026-10-08,
 the timing one replaced on 2026-10-09 (§9.2). What waits for the provider's team is §9.1. Handoff
@@ -129,7 +130,12 @@ For a line — a size, its sale mode, a quantity — in a store, at a moment:
 4. **Otherwise the cheapest candidate is the unit price**; its kind is reported. Equal candidates: the
    dated one first — sale, category discount — then the wholesale band, then the retail price, so the
    shopper sees why it is cheaper (owner, 2026-10-08).
-5. **The list price** — what `gross_subtotal` counts and a card crosses out — is the retail price.
+5. **The list price** — what `gross_subtotal` counts — is the line's normal price: **on a retail line,
+   the retail price; on a wholesale line, its band** where one applies, else the retail price. **A
+   wholesale price is that line's normal price, not a discount** (owner, 2026-10-10): only a sale or a
+   category discount below it reduces a line, so coupons and points reach a band-priced line and the
+   discount ceiling (handoff §11.3) measures real reductions only. A card crosses out the retail price
+   (it shows retail-line prices, §1.10).
 6. **When it stops applying**: the end of the winning sale or discount — or the start of an "always
    wins" one scheduled on the size, which would replace it — or null.
 
@@ -146,7 +152,7 @@ The handoff's canonical amounts (§10.2), computed by `PricingApi::totals` (§2)
 no database, no clock** — from the prices (§1.6) and the amounts Sales hands in:
 
 ```
-gross_subtotal = Σ (retail price × quantity)          over the priced lines
+gross_subtotal = Σ (list price × quantity)            over the priced lines (§1.6 step 5)
 net_subtotal   = Σ (unit price × quantity)
 goods_total    = net_subtotal − coupon_discount − points_discount
 taxable_base   = goods_total + shipping
@@ -186,6 +192,22 @@ push the sizes it covers then; a task whose sale was changed or removed meanwhil
 do. **Once a day a safety check** pushes every size whose window opened or closed in the last day,
 in case a task was lost. Catalog keeps the prices and chooses which size each card shows.
 
+### 1.11 An order edited before it ships
+
+Staff may change an order's lines and quantities before it ships (owner, 2026-10-10, through stage
+6). **Pieces already on the order keep the price they were sold at; added pieces take today's**
+(owner, 2026-10-10):
+
+- **Added pieces** are priced as a cart line is now (§1.6) — **on a wholesale line, by today's band
+  for the line's new total quantity** (the kept pieces and the added ones together), applied **to the
+  added pieces only** (owner, 2026-10-10: "band for the new total"). Example: 100 kept at 78; 400
+  added; the band "from 500 = 70" → the 400 cost 70, the 100 stay at 78.
+- **Pieces taken off** come off a kept part, which keeps its price.
+- **VAT** is the order's rate, from its snapshot, never today's: an edit does not re-tax the order.
+- Sales hands in the kept parts from the order's snapshot and the added lines; Pricing returns prices
+  that `totals` takes as it takes any — **Pricing still does every amount** (§1.7). One order line
+  may so hold parts at two prices, after several edits more.
+
 ---
 
 ## 2 · Public contract
@@ -200,9 +222,17 @@ store's currency. **On `main` since #97.**
 |---|---|---|
 | `prices(StoreId $store, list<CartLineDto> $lines): CartPricesDto` | Sales (cart, quote), Promotions (via Sales) | Each line's price: its unit price (the lowest applicable), the base price it compares with, the kind that won, the line amounts, and when that price stops applying; the lines with no price, apart; `gross_subtotal` and `net_subtotal` over the priced lines; the store's VAT rate. Reads the materialized prices — never resolves at request time (handoff §10.1). |
 | `totals(CartPricesDto $prices, Money $couponDiscount, Money $pointsDiscount, Money $shipping): TotalsDto` | Sales | The canonical amounts (handoff §10.2): `goods_total`, `taxable_base`, `vat` (rounded once, half up), `order_total`. **Pure** — no database, no clock; the same input gives the same answer. Refuses prices holding lines with no price, amounts in another currency, a negative amount, and discounts larger than `net_subtotal`. |
+| `pricesForEdit(StoreId $store, list<KeptPartDto> $kept, list<CartLineDto> $added, int $taxRateBasisPoints): CartPricesDto` **[PROPOSED]** | Sales (staff edited an order before it ships) | §1.11: the kept parts as they are, the added lines priced now (a wholesale one by the band for its new total), the order's VAT rate. A variant and mode may appear more than once among the parts; once among the added lines (`pricing.duplicate_lines`). `validUntil` from the added lines only. |
 
 `totals` may be called more than once while Sales builds a quote: with the coupon and points first
 (for `goods_total`, which free shipping and points earning bind to), then with the shipping.
+
+**The lines come back in the order given** (stage 6's request, 2026-10-10): `prices` returns its
+lines in the order they were passed; `pricesForEdit` the kept parts as passed, then the added lines
+as passed — one `LinePriceDto` each. A line with no price is left out of `lines` and named in
+`unpriced`, so position `i` answers input `i` exactly when `unpriced` is empty — which `totals`
+requires anyway. Callers may match by position (an edited order can hold a variant and mode more
+than once, §1.11).
 
 **One line per variant and mode** (stage 6's review, 2026-10-07): `prices` expects each pair of
 variant and sale mode once — Sales merges a cart's repeated lines first — and refuses two of the same
@@ -217,10 +247,11 @@ no error classes.
 | DTO | Fields |
 |---|---|
 | `CartLineDto` | `variantId` · `mode` (`Catalog\Public\Enums\SaleMode`: `RETAIL`, `WHOLESALE`) · `quantity` (≥ 1) |
-| `LinePriceDto` | `variantId` · `mode` · `quantity` · `listUnit` (the `BASE` price of one piece) · `unit` (what one piece costs on this line) · `kind` (`PriceKind` that won) · `listTotal` (= `listUnit` × quantity) · `total` (= `unit` × quantity) · `?endsAt` (when that price stops applying — the end of its sale, campaign or discount; null for `BASE` and quantity prices without dates) |
+| `LinePriceDto` | `variantId` · `mode` · `quantity` · `listUnit` (the line's normal price of one piece, §1.6 step 5: the retail price; on a wholesale line its band where one applies — a line is reduced exactly when `unit` < `listUnit`) · `unit` (what one piece costs on this line) · `kind` (`PriceKind` that won) · `listTotal` (= `listUnit` × quantity) · `total` (= `unit` × quantity) · `?endsAt` (when that price stops applying — the end of its sale, campaign or discount; null for `BASE` and quantity prices without dates) |
 | `CartPricesDto` | `storeId` · `currencyCode` · `taxRateBasisPoints` · `lines` (list of `LinePriceDto`) · `unpriced` (variant ids with no price there) · `grossSubtotal` (Σ `listTotal`) · `netSubtotal` (Σ `total`) · `pricedAt` · `?validUntil` (the earliest `endsAt`: a quote built on these prices must not outlive it) |
 | `TotalsDto` | `grossSubtotal` · `netSubtotal` · `couponDiscount` · `pointsDiscount` · `goodsTotal` · `shipping` · `taxableBase` · `vat` · `orderTotal` · `taxRateBasisPoints` |
 | `PriceKind` (enum) | `BASE` · `SALE` · `CAMPAIGN` · `CATEGORY` · `QUANTITY` |
+| `KeptPartDto` **[PROPOSED]** | `variantId` · `mode` · `quantity` (as edited: never above what the order held) · `listUnit` · `unit` · `kind` — as the order's snapshot holds them (§1.11) |
 
 ### 2.3 What Pricing gives Catalog
 
@@ -371,7 +402,9 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
    by the order in §1.6; no retail price → unpriced; a scheduled sale not yet applying; an ended one
    no longer; an "always wins" sale beating a cheaper sale and a cheaper category discount; an
    "always wins" on a wholesale line losing to a cheaper band; a running sale's `endsAt` cut short by
-   an "always wins" one scheduled on the size.
+   an "always wins" one scheduled on the size; **the list price** — a retail line's is the retail
+   price, a wholesale line's its band (retail under the first band), so a band-priced line has
+   `unit` = `listUnit` and a sale below the band has `unit` < `listUnit`.
 2. **Totals** (pure): every §10.2 amount; VAT rounded once, half up, at .5 exactly; refusals —
    unpriced line, another currency, a negative amount, discounts above `net_subtotal`; the same input
    twice gives the same answer.
@@ -408,6 +441,12 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 14. **Audit**: every change by value, from and to, both languages.
 15. **The database's own refusals** behind each rule (the constraints test): every CHECK broken once,
     with the nullable column left NULL where it has one.
+16. **An edited order** (§1.11): kept parts unchanged whatever today's prices are; added retail pieces
+    at today's price; added wholesale pieces at the band for the new total (100 kept + 400 added →
+    the "from 500" band), on the added only; a line edited twice holding three parts; the order's VAT
+    rate used, not the store's today; two added lines of one variant and mode refused; an added
+    size with no retail price unpriced; `totals` over the result equal to the same amounts worked by
+    hand.
 
 ---
 
@@ -422,6 +461,7 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | 3 | What a company's card shows when its first size sells wholesale only (catalog.md amendment 15) — Pricing would push the same one-piece price | The owner, with Catalog's amendment |
 | 4 | Campaign prices | Stage 8 (owner, 2026-10-08) |
 | 5 | Pricing's screens: prices, sales, wholesale bands, category discounts and their preview, the note before saving, Needs a Price | The frontend session, after this spec |
+| 6 | `pricesForEdit` and `KeptPartDto` — the shapes for an edited order (§1.11, §2.1) | The owner's review of this amendment |
 
 ~~A code shared by a product's sizes~~ — closed: one code is one size (owner, 2026-10-09).
 
@@ -434,3 +474,9 @@ only a scheduled one removed; **5** wholesale bands kept unused, and a lowered m
 under the first band at retail, marked; **6** ties shown as the offer; **9** no event published yet.
 **7** replaced (2026-10-09): materialized candidates stand; the every-minute job became **timed tasks
 at each start and end, and a daily safety check**. **8** dropped: one code is one size.
+
+**A wholesale line's list price** (2026-10-10, raised by stage 5's cross-check of Promotions): is a
+band a discount? **No — "wholesale is normal"** (owner): a band is the line's normal price (§1.6 step
+5), so coupons and points reach band-priced lines and the ceiling counts only sales and discounts.
+Before, a wholesale line's list price was the retail price, and a 70 band under a 100 retail price
+used up a 30% ceiling on its own.

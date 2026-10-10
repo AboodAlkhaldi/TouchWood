@@ -9,34 +9,47 @@ use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Database\Connection;
 use Modules\Platform\Application\Settings\SettingValues;
 use Modules\Platform\Application\Settings\StoredSetting;
+use Shared\Application\ActorContext;
+use Shared\Application\ActorType;
 use Shared\Infrastructure\Cache\VersionedCache;
 
 /**
  * Every stored setting, loaded in one query and kept in the shared cache until one changes (see
- * VersionedCache). Nothing is memoised in the process, for the same reason as the store
- * directory: long-running workers would keep stale values.
+ * VersionedCache). Nothing outlives a request or a job: bound **scoped**, it reads the snapshot
+ * once per web request (§9.11, owner 2026-10-08) - the panel's frame asked three settings of the
+ * same snapshot, 2 queries each. The system (the console, a queued job) reads the cache every time,
+ * as before, and so does the rest of a request that changed a setting.
  *
  * @phpstan-type Snapshot array<string, array{id: int, value: mixed}>
  */
-final readonly class DatabaseSettings implements SettingValues
+final class DatabaseSettings implements SettingValues
 {
     /** Safety net only: every change replaces the version at once. Lifetime set because settings change more often than stores (owner, 2026-09-18). */
     private const int SNAPSHOT_SECONDS = 3600;
 
-    private VersionedCache $cache;
+    private readonly VersionedCache $cache;
+
+    /** The transaction level the request reads at: 0, or the test's own transaction. */
+    private readonly int $level;
+
+    /** @var Snapshot|null what this request read */
+    private ?array $snapshot = null;
+
+    /** A setting changed in this request: never answered from memory again. */
+    private bool $changed = false;
 
     public function __construct(
         Cache $cache,
-        private Connection $db,
+        private readonly Connection $db,
+        private readonly ActorContext $actors,
     ) {
         $this->cache = new VersionedCache($cache, $db, 'platform:settings', self::SNAPSHOT_SECONDS);
+        $this->level = $db->transactionLevel();
     }
 
     public function find(string $key, ?string $storeId): ?StoredSetting
     {
-        /** @var Snapshot $snapshot */
-        $snapshot = $this->cache->remember(fn (): array => $this->load());
-        $row = $snapshot[self::slot($key, $storeId)] ?? null;
+        $row = $this->snapshot()[self::slot($key, $storeId)] ?? null;
 
         return $row === null ? null : new StoredSetting($row['id'], $row['value']);
     }
@@ -77,6 +90,25 @@ final readonly class DatabaseSettings implements SettingValues
     public function invalidate(): void
     {
         $this->cache->invalidate();
+        $this->changed = true;
+    }
+
+    /**
+     * @return Snapshot
+     */
+    private function snapshot(): array
+    {
+        // Never inside a transaction opened after the request began: a check made there, after its
+        // locks, must see what another process committed meanwhile (access.md amendment 65).
+        if ($this->changed
+            || $this->actors->current()->type === ActorType::System
+            || $this->db->transactionLevel() !== $this->level) {
+            /** @var Snapshot */
+            return $this->cache->remember(fn (): array => $this->load());
+        }
+
+        /** @var Snapshot */
+        return $this->snapshot ??= $this->cache->remember(fn (): array => $this->load());
     }
 
     /**

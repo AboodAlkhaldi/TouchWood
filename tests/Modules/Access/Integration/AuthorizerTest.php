@@ -240,6 +240,9 @@ it('reads only the cache table once a staff member\'s permissions are warm', fun
     $scope = Fx::inStore('sa');
     Fx::allows(PlatformPermissions::STORE_UPDATE, $scope);
 
+    // The next request: within one, the permissions are read only once (amendment 65,
+    // RequestGrantsTest), so a second check in the same request would read nothing at all.
+    app()->forgetScopedInstances();
     DB::flushQueryLog();
     DB::enableQueryLog();
     $allowed = Fx::allows(PlatformPermissions::STORE_UPDATE, $scope);

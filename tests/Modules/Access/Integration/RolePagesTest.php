@@ -79,6 +79,10 @@ describe('what the roles screens are given', function () {
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
         $count = function (): int {
+            // Each measurement is a request of its own: what a request remembers (its reader's
+            // permissions, amendment 65) is read again by the next, as Fx::role() between the
+            // measurements makes happen anyway.
+            app()->forgetScopedInstances();
             $reads = 0;
             DB::listen(function () use (&$reads): void {
                 $reads++;

@@ -483,7 +483,8 @@ page with a tab each, each offered to anyone holding any job on that list in the
 in (23(a)). Built on shadcn's code with Geist's rules (frontend.md §1.11, the rebuild of
 2026-10-04): a Table whose whole row opens the company, with the pager and an Empty state for the
 list; Geist's Description, Notes, Items and shadcn's Collapsible on the company page; one dialog
-frame for every decision (`StaffDialog`: shadcn's Dialog, or its AlertDialog when destructive); a ⋯
+frame for every decision (`PanelDialog` in `resources/js/components`, shared with Catalog's screens
+since 2026-10-07: shadcn's Dialog, or its AlertDialog when destructive); a ⋯
 menu for the page's and each row's other actions. The status badges share one map with the shop
 (`resources/js/pages/B2B/status.ts`, amendment 24(a)): Approved green, Pending and Under Review
 amber, Rejected and Suspended red.
