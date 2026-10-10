@@ -52,8 +52,11 @@ provider's team or another session is §9.1. Handoff §12.1, revised 2026-10-07,
 is at or below its threshold: **in a store with no provider**, where staff switch it on for the
 product; **in a wired store**, automatically on stock-dependent sizes only — other products there
 never show it. **It shows on cards and lists too** (owner, 2026-10-09): a card says "last pieces"
-when **any** of its product's sizes there is ending soon; a product's page says it for the size the
-shopper picks. Inventory pushes it into Catalog's listing, as it does orderable (§2.3).
+when **any of its product's sizes that this viewer can buy and order now** is ending soon (owner,
+2026-10-10) — a size sold only wholesale never lights an individual's card, and a sold-out size
+lights none. **On a product's page, the size options mark the ending-soon size itself**, not the
+other sizes (owner, 2026-10-10). Inventory pushes it per size into Catalog's listing, as it does
+orderable (§2.3); Catalog decides each card per viewer.
 
 ### 1.3 Orderable
 
@@ -189,7 +192,9 @@ provider by the size. A refusal reaches the caller as `Shared\Domain\Error\Domai
 - **`ListingFacts::endingSoon(StoreId, list<variantId>, bool)`** — new, the same shape as
   orderable: whether each size is "ending soon" there (§1.2). Catalog keeps it in its own table, as
   the contract asks of every pushed fact, and shows "last pieces" on a card when any of the product's
-  sizes is. **Catalog's amendment 16(h)** (PR #103), with the owner's rule of 2026-10-09.
+  sizes **this viewer can buy and order now** is (owner, 2026-10-10), and on the ending-soon size
+  among a product page's options. **Catalog's amendment 16(h)** (PR #103), with the owner's rules of
+  2026-10-09 and 2026-10-10.
 - An `ImportSection` for the store's file — §1.8.
 
 ### 2.4 What Inventory needs from other modules
@@ -367,7 +372,7 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 |---|---|---|
 | 1 | A wired ordinary product the provider reports at 0 | **Stays orderable** — "since its not stock-dependent"; staff mark it "Not available now" (§1.3). Replaces handoff §9.2's provisional rule |
 | 2 | The stock-dependent switch's level | **Per size**: all of a product's sizes, some, or one — "customized"; **a size added later starts off** (§1.2) |
-| 3 | "Last pieces" on cards and lists too? | **Yes** — a card shows it when **any** of its sizes is ending soon (§1.2, §2.3) |
+| 3 | "Last pieces" on cards and lists too? | **Yes** — a card shows it when **any** of its sizes is ending soon (§1.2, §2.3); narrowed to the sizes the viewer can buy and order now (#12) |
 | 4 | The permission's name `inventory.stock.manage`, in the role editor's **Catalog** group ("Catalog and variants"), as no stock group exists | Accepted |
 | 5 | **`HoldsShort(storeId, variantId, orderIds)`**, published after a removal — how Sales learns which orders to flag | Accepted |
 | 6 | **A size with no stock row** in a store with no provider counts as 0 — not orderable until stock is set | Accepted |
@@ -376,3 +381,4 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 9 | Returns: does a returned piece go back into stock, and when? (asked in Sales's spec) | **Yes, when staff mark the return received** — in a store with no provider and for a wired store's stock-dependent sizes; a wired ordinary product follows the provider; staff may leave a damaged piece out (owner, 2026-10-09) (§1.9) |
 | 10 | A wired stock-dependent size's returned piece | **Provisional** (owner, 2026-10-10): added on our side at once, dropped when the provider's number next changes (§1.9) |
 | 11 | Staff editing an order before it ships | **Allowed in full** — lines, quantities, address (owner, 2026-10-10, through stage 6); the hold follows (§1.4) |
+| 12 | "Last pieces" on a card: which sizes count? | **The sizes this viewer can buy and order now**; on a product's page the size options mark the ending-soon size itself (owner, 2026-10-10) (§1.2) |
