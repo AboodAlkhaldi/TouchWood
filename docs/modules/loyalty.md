@@ -269,8 +269,9 @@ earned nothing.
 **How much the points may still pay** is Loyalty's to say, since the cap is Loyalty's: Sales asks
 `pointsAfterEdit` with the edited order's `net_subtotal` and **the room the coupon left under the
 ceiling** (sales.md §1.7 — the points give way before the coupon, handoff §11.3). The new points
-discount is **the least of the discount now, the cap (§1.5) on the edited `net_subtotal`, and that
-room**; the points still charged are the order's points less those the running totals give back.
+discount is **the least of the discount now, the cap on the edited `net_subtotal` — by the
+`max_redemption_percent` the order was placed under, recorded when it redeemed (owner, 2026-10-10: an
+edit keeps the order's own rules) — and that room**; the points still charged are the order's points less those the running totals give back.
 `orderEdited` then settles it and **answers the same two numbers**, which Sales records on the order.
 An edit is the one settlement before delivery: its `returned_discount_minor` grows on an undelivered
 order, its `returned_goods_minor` never does (§5).
@@ -467,7 +468,7 @@ and every CHECK touching a nullable column is written so that NULL fails it wher
 | Table | Columns | Rules |
 |---|---|---|
 | `loyalty.accounts` | `id` ULID, `customer_id` → `access.customers` RESTRICT, `store_id` → `platform.stores` RESTRICT, `balance`, `created_at`, `updated_at` | UNIQUE (`customer_id`, `store_id`); UNIQUE (`id`, `store_id`); CHECK `balance >= 0` |
-| `loyalty.orders` | `order_id` PK (Sales's id, text — no foreign key: Loyalty never depends on Sales), `order_number` (its public number, e.g. `SA-10428` — never the id, handoff §5.3), `account_id`, `store_id`, `currency_code`, `goods_total_minor` NULL, `discount_minor`, `points_redeemed`, `points_earned`, `delivered_at` NULL, `cancelled_at` NULL, `returned_goods_minor`, `returned_discount_minor`, `points_given_back`, `points_back_through_covers`, `points_reversed`, `points_counted_gone`, `points_covered`, `points_dropped`, `expired_back_unused` | (`account_id`, `store_id`) → accounts (`id`, `store_id`) RESTRICT; UNIQUE (`order_id`, `account_id`); every amount and points column `>= 0`; CHECK `delivered_at IS NULL OR goods_total_minor IS NOT NULL`; CHECK `delivered_at IS NOT NULL OR (points_earned = 0 AND goods_total_minor IS NULL AND returned_goods_minor = 0)` (a staff edit before delivery may lower the points discount, §1.8); CHECK `NOT (delivered_at IS NOT NULL AND cancelled_at IS NOT NULL)`; CHECK `(points_redeemed = 0) = (discount_minor = 0)`; CHECK `returned_goods_minor <= COALESCE(goods_total_minor, 0)`, `returned_discount_minor <= discount_minor`; CHECK `points_given_back <= points_redeemed`, `points_back_through_covers <= points_given_back`; CHECK `points_reversed + points_counted_gone + points_covered + points_dropped <= points_earned`. **The record of every order fact, written even when no point moves** |
+| `loyalty.orders` | `order_id` PK (Sales's id, text — no foreign key: Loyalty never depends on Sales), `order_number` (its public number, e.g. `SA-10428` — never the id, handoff §5.3), `account_id`, `store_id`, `currency_code`, `goods_total_minor` NULL, `discount_minor`, `points_redeemed`, `points_earned`, `delivered_at` NULL, `cancelled_at` NULL, `returned_goods_minor`, `returned_discount_minor`, `redemption_cap_percent` NULL (the `max_redemption_percent` it redeemed under, §1.8), `points_given_back`, `points_back_through_covers`, `points_reversed`, `points_counted_gone`, `points_covered`, `points_dropped`, `expired_back_unused` | (`account_id`, `store_id`) → accounts (`id`, `store_id`) RESTRICT; UNIQUE (`order_id`, `account_id`); every amount and points column `>= 0`; CHECK `delivered_at IS NULL OR goods_total_minor IS NOT NULL`; CHECK `delivered_at IS NOT NULL OR (points_earned = 0 AND goods_total_minor IS NULL AND returned_goods_minor = 0)` (a staff edit before delivery may lower the points discount, §1.8); CHECK `NOT (delivered_at IS NOT NULL AND cancelled_at IS NOT NULL)`; CHECK `(points_redeemed = 0) = (discount_minor = 0)`; CHECK `(points_redeemed = 0) = (redemption_cap_percent IS NULL)`, `redemption_cap_percent BETWEEN 0 AND 100`; CHECK `returned_goods_minor <= COALESCE(goods_total_minor, 0)`, `returned_discount_minor <= discount_minor`; CHECK `points_given_back <= points_redeemed`, `points_back_through_covers <= points_given_back`; CHECK `points_reversed + points_counted_gone + points_covered + points_dropped <= points_earned`. **The record of every order fact, written even when no point moves** |
 | `loyalty.order_returns` | `order_id`, `account_id`, `return_id`, `returned_goods_minor`, `returned_discount_minor`, `settled_at` | PK (`order_id`, `return_id`); (`order_id`, `account_id`) → orders RESTRICT; amounts `>= 0`. A return settled once, whatever it moved |
 | `loyalty.entries` | `id` bigint identity, `account_id`, `store_id`, `kind`, `points`, `order_id` NULL, `return_id` NULL, `reason` NULL, `staff_id` NULL → `access.staff_users` RESTRICT, `occurred_at` | (`account_id`, `store_id`) → accounts (`id`, `store_id`) RESTRICT; (`order_id`, `account_id`) → orders (`order_id`, `account_id`) RESTRICT (unchecked while `order_id` is NULL); UNIQUE (`id`, `account_id`); CHECK `kind` is one of §1.2's and `points` has its sign, never 0; CHECK `order_id IS NOT NULL` for `EARNED`, `REDEEMED`, `REDEMPTION_RETURNED`, `EARNING_REVERSED`, and `order_id IS NULL` for `ADDED`, `DEDUCTED` (an `EXPIRED` carries one only when it expires points coming back for that order); CHECK `return_id IS NULL` unless the kind is `REDEMPTION_RETURNED`, `EARNING_REVERSED` or `EXPIRED`; CHECK `ADDED`/`DEDUCTED` have `staff_id IS NOT NULL AND char_length(reason) BETWEEN 1 AND 500`, the others `reason IS NULL AND staff_id IS NULL`; UNIQUE (`order_id`) WHERE `kind = 'EARNED'`, and WHERE `kind = 'REDEEMED'`; UNIQUE (`kind`, `order_id`, `return_id`) **NULLS NOT DISTINCT** WHERE `kind IN ('REDEMPTION_RETURNED', 'EARNING_REVERSED')` (a cancellation's NULL return id counts once; precedent `platform.settings`); **append-only** (trigger, as `platform.audit_entries`) |
 | `loyalty.lots` | `id` bigint identity, `account_id`, `entry_id` (the `EARNED` or `ADDED` that formed it), `order_id` NULL (the order it was earned on), `points`, `points_left`, `expires_at` | (`entry_id`, `account_id`) → entries (`id`, `account_id`) RESTRICT; (`order_id`, `account_id`) → orders RESTRICT; UNIQUE (`entry_id`); UNIQUE (`order_id`) WHERE `order_id IS NOT NULL`; UNIQUE (`id`, `account_id`); CHECK `points > 0 AND points_left >= 0 AND points_left <= points` |
@@ -562,8 +563,8 @@ refuses.
 - A return settled twice, a cancellation settled twice: once each — even when it moved no point.
 - A staff edit that lowers the points discount gives back the points above it, with their old dates,
   once per edit; a new discount above the old is refused; nothing is taken back.
-- `pointsAfterEdit` answers the least of the discount now, the cap on the edited `net_subtotal` and the
-  room passed; `orderEdited` answers the same discount and points; the `loyalty.orders` CHECKs hold for
+- `pointsAfterEdit` answers the least of the discount now, the cap on the edited `net_subtotal` (by the
+  order's recorded percent, though the store's changed since) and the room passed; `orderEdited` answers the same discount and points; the `loyalty.orders` CHECKs hold for
   an edit settled before delivery, and a later full return still lands exactly on the order's points.
 - An order with `goods_total` 0 or no points discount settles without dividing by zero.
 
@@ -621,6 +622,8 @@ refuses.
     change a balance (offered against "never touch other points", which always ends alike).
 16. An order returned with its own earned points unspent: **"0: the 200 are taken back"** — expired
     given-back points cover only points spent on other orders.
+17. **A staff edit keeps the rules the order was placed under** — the points cap among them
+    (2026-10-10, asked with Sales).
 
 ### 9.2 Still open
 
