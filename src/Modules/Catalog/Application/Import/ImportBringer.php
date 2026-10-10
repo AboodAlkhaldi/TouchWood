@@ -38,6 +38,7 @@ use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
+use Modules\Catalog\Domain\Model\Variant;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
@@ -328,18 +329,11 @@ final readonly class ImportBringer
             $resolved['set'] ?? ($replace ? null : $existing->attributeSetId()),
         ));
 
-        // A variant of the file is the product's variant of the same values.
-        $current = [];
-
-        foreach ($this->variants->ofProduct($productId) as $variant) {
-            $current[self::combination($variant->combination()->valueIds)] = $variant;
-        }
-
+        $current = $this->variants->ofProduct($productId);
         $named = [];
 
-        foreach ($resolved['variants'] as $position => $variant) {
+        foreach (self::matched($current, $resolved['variants']) as [$position, $variant, $match]) {
             $file = $variant['file'];
-            $match = $current[self::combination($variant['values'])] ?? null;
 
             if ($match === null) {
                 $variantId = $this->addVariant->handle(new AddVariant($productId, $file->code, $variant['values'], $variant['details'], $file->weightGrams, $file->lengthMm, $file->widthMm, $file->heightMm, $position));
@@ -389,6 +383,76 @@ final readonly class ImportBringer
         }
 
         return $productId;
+    }
+
+    /**
+     * The file's variants matched to the product's, in the order they can be written (catalog.md P33,
+     * amendment 16(a)). A file variant is the product's variant **carrying its code** — or, for a code
+     * it does not carry, its variant of the same values whose code the file does not name: the file
+     * corrects that code, as a draft's may be (a ready product's is stopped at the confirm,
+     * `ImportCodeChanges`, amendment 11(b)). Any other code adds a variant.
+     *
+     * Every match is made first, then the updates are ordered so none asks for values another variant
+     * is still leaving — sizes moved from one code to another come in whatever the file's order — and
+     * the new variants come last. Values that only change places (60 and 80 cm swapped) cannot be
+     * written one at a time: they come in the file's order, and the first refusal stops the step,
+     * naming the product.
+     *
+     * @param  list<Variant>  $current
+     * @param  list<array{values: array<string, string>, details: array<string, array<string, string>>, file: FileVariant}>  $variants
+     * @return list<array{int, array{values: array<string, string>, details: array<string, array<string, string>>, file: FileVariant}, Variant|null}> position, the file's variant, the product's it updates
+     */
+    private static function matched(array $current, array $variants): array
+    {
+        $fileCodes = array_map(static fn (array $variant): string => $variant['file']->code, $variants);
+        $byCode = [];
+        $byValues = [];
+        // The values each variant holds as the writing goes: values => variant id.
+        $holding = [];
+
+        foreach ($current as $variant) {
+            $byCode[$variant->code()->value] = $variant;
+            $holding[self::combination($variant->combination()->valueIds)] = $variant->id();
+
+            if (! in_array($variant->code()->value, $fileCodes, true)) {
+                $byValues[self::combination($variant->combination()->valueIds)] = $variant;
+            }
+        }
+
+        $updates = [];
+        $added = [];
+
+        foreach ($variants as $position => $variant) {
+            $match = $byCode[$variant['file']->code] ?? $byValues[self::combination($variant['values'])] ?? null;
+
+            if ($match === null) {
+                $added[] = [$position, $variant, null];
+            } else {
+                $updates[] = [$position, $variant, $match];
+            }
+        }
+
+        $ordered = [];
+
+        while ($updates !== []) {
+            $next = 0;
+
+            foreach ($updates as $index => [, $variant, $match]) {
+                if (($holding[self::combination($variant['values'])] ?? $match->id()) === $match->id()) {
+                    $next = $index;
+
+                    break;
+                }
+            }
+
+            [, $variant, $match] = $updates[$next];
+            unset($holding[self::combination($match->combination()->valueIds)]);
+            $holding[self::combination($variant['values'])] = $match->id();
+            $ordered[] = $updates[$next];
+            array_splice($updates, $next, 1);
+        }
+
+        return [...$ordered, ...$added];
     }
 
     /**

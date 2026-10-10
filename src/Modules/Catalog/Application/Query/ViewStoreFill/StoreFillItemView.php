@@ -6,7 +6,7 @@ namespace Modules\Catalog\Application\Query\ViewStoreFill;
 
 /**
  * One item of a store file (amendment 6(g)). An open item stands as one of:
- * `READY` — switching it on chooses the variants carrying its code —, `NOT_READY` (what the product
+ * `READY` — switching it on chooses the variant carrying its code —, `NOT_READY` (what the product
  * lacks, completed in its page), `ARCHIVED`, `ALREADY_ON`, or `UNKNOWN` — a code no product holds,
  * corrected or removed here.
  */

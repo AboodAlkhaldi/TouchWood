@@ -24,7 +24,7 @@
           "photos": ["photos/1304-45-zinc.jpg"]
         },
         {
-          "code": "1304",
+          "code": "1314",
           "values": { "Length": "50 cm", "Finish": "Zinc" },
           "details": { "Load": 35, "Material": { "ar": "فولاذ", "en": "Steel" } },
           "weight_g": 1600,
