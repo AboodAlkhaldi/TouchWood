@@ -34,6 +34,7 @@ import { toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import { useChecks } from '@/lib/use-checks';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import type {
     AddressBookStore,
@@ -333,16 +334,35 @@ function AddressForm({
         fields: Object.fromEntries(store.fields.map((field) => [field.key, address?.fields[field.key] ?? ''])) as Record<string, string>,
     });
 
+    // Each box as typed (frontend.md §1.7), with the server's rules: a name of up to 50 characters
+    // (Address::LABEL_MAX), a recipient of up to 100 (Address::RECIPIENT_MAX), a phone with its
+    // country code (Access's PhoneNumber), and each of the store's own fields required or not and
+    // as long as its format says (StoreAddressFormat::accept). The format's limit on all its fields
+    // together (StoreAddressFormat::VALUES_MAX) is the server's alone.
+    const checks = useChecks([
+        { id: `label-${store.storeCode}`, label: t('access::account.address_label'), value: form.data.label, rules: { required: true, length: { max: 50 } } },
+        { id: `recipient-${store.storeCode}`, label: t('access::account.recipient_name'), value: form.data.recipient_name, rules: { required: true, length: { max: 100 } } },
+        { id: `phone-${store.storeCode}`, label: t('access::account.address_phone'), value: form.data.phone, rules: { required: true, phone: true } },
+        ...store.fields.map((field) => ({
+            id: `${store.storeCode}-${field.key}`,
+            label: field.label,
+            value: form.data.fields[field.key] ?? '',
+            rules: { required: field.required, length: { max: field.maxLength } },
+        })),
+    ]);
+
     return (
         <Card className="material-base gap-0 border-0 py-0">
             <form
                 aria-labelledby={heading}
                 onSubmit={(event) => {
                     event.preventDefault();
-                    form.post(link('storefront.account.addresses.save'), {
-                        preserveScroll: true,
-                        onSuccess: onDone,
-                    });
+                    checks.submit(() =>
+                        form.post(link('storefront.account.addresses.save'), {
+                            preserveScroll: true,
+                            onSuccess: onDone,
+                        }),
+                    );
                 }}
                 data-test={`address-form-${store.storeCode}`}
             >
@@ -365,7 +385,7 @@ function AddressForm({
                             autoFocus
                             label={t('access::account.address_label')}
                             helper={t('access::account.address_label_hint')}
-                            error={form.errors.label}
+                            check={checks.box(`label-${store.storeCode}`, form.errors.label)}
                             required
                             value={form.data.label}
                             onChange={(event) => form.setData('label', event.target.value)}
@@ -375,7 +395,7 @@ function AddressForm({
                             <TextField
                                 id={`recipient-${store.storeCode}`}
                                 label={t('access::account.recipient_name')}
-                                error={form.errors.recipient_name}
+                                check={checks.box(`recipient-${store.storeCode}`, form.errors.recipient_name)}
                                 required
                                 value={form.data.recipient_name}
                                 onChange={(event) => form.setData('recipient_name', event.target.value)}
@@ -388,7 +408,7 @@ function AddressForm({
                                 type="tel"
                                 label={t('access::account.address_phone')}
                                 helper={t('access::account.address_phone_hint')}
-                                error={form.errors.phone}
+                                check={checks.box(`phone-${store.storeCode}`, form.errors.phone)}
                                 required
                                 dir="ltr"
                                 inputClassName="tw-figure"
@@ -403,9 +423,8 @@ function AddressForm({
                                 id={`${store.storeCode}-${field.key}`}
                                 name={`fields[${field.key}]`}
                                 label={field.label}
-                                error={form.errors[`fields.${field.key}` as keyof typeof form.errors] as string | undefined}
+                                check={checks.box(`${store.storeCode}-${field.key}`, form.errors[`fields.${field.key}` as keyof typeof form.errors] as string | undefined)}
                                 required={field.required}
-                                maxLength={field.maxLength}
                                 value={form.data.fields[field.key] ?? ''}
                                 onChange={(event) =>
                                     form.setData('fields', {
@@ -438,7 +457,7 @@ function AddressForm({
                     <Button type="button" variant="ghost" onClick={onDone} data-test={`cancel-address-${store.storeCode}`}>
                         {t('access::account.cancel')}
                     </Button>
-                    <ActionButton type="submit" loading={form.processing} data-test={`save-address-${store.storeCode}`}>
+                    <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test={`save-address-${store.storeCode}`}>
                         {t('access::account.save')}
                     </ActionButton>
                 </CardFooter>

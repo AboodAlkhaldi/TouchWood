@@ -17,6 +17,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import { useChecks } from '@/lib/use-checks';
 import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
 import { ImageField, MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale, type Locale } from '../parts';
@@ -43,6 +44,21 @@ type Dialog =
     | null;
 
 type Node = { category: CategoryData; children: Node[]; depth: number };
+
+/*
+| A web address as Slug::of takes one typed (catalog.md §1.1, §5.3): at most 200 characters
+| (Slug::MAX), words joined by single hyphens - in English lower-case a-z and digits, in Arabic the
+| Arabic letters (U+0621-U+063F, U+0641-U+064A, U+0671-U+06D3) and digits. Arabic-Indic digits are let
+| through in both, as the server turns them into 0-9 before it reads the shape (CatalogText).
+*/
+const SLUG_EN = { length: { max: 200 }, format: { pattern: /^[a-z0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+(-[a-z0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+)*$/u, key: 'catalog::admin.check.slug_en' } };
+const SLUG_AR = {
+    length: { max: 200 },
+    format: {
+        pattern: /^[\u{0621}-\u{063F}\u{0641}-\u{064A}\u{0671}-\u{06D3}0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+(-[\u{0621}-\u{063F}\u{0641}-\u{064A}\u{0671}-\u{06D3}0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+)*$/u,
+        key: 'catalog::admin.check.slug_ar',
+    },
+};
 
 /** The tree, each parent's children in the store's order, else the base store's, else by name. */
 function tree(categories: CategoryData[], locale: Locale): Node[] {
@@ -440,10 +456,25 @@ function CategoryDialog({
     const title = mode === 'add' ? (parent === null ? t('catalog::admin_categories.add') : t('catalog::admin_categories.add_sub_title')) : mode === 'edit' ? t('catalog::admin_categories.edit_title') : t('catalog::admin_categories.move_title');
     const body = mode === 'add' ? t('catalog::admin_categories.add_body') : mode === 'edit' ? t('catalog::admin_categories.edit_body') : t('catalog::admin_categories.move_body');
 
+    // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 100 characters
+    // (Category::NAME_MAX, LocalizedName), not sent by a move; a place among the siblings from 0 to
+    // 10,000 (ListPosition, CategoryInput::placeEverywhere; the request reads an empty or broken number
+    // as -1, so it is required), not sent by an edit; and the web addresses (Slug, above), not sent by a
+    // move and not checked while folded away.
+    const name = { required: true, length: { max: 100 } };
+    const folded = mode === 'move' || !(addresses || addressRefused);
+    const checks = useChecks([
+        { id: 'category-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name, off: mode === 'move' },
+        { id: 'category-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name, off: mode === 'move' },
+        { id: 'category-rank', label: t('catalog::admin_categories.field.place'), value: form.data.rank, rules: { required: true, number: { min: 0, max: 10000 } }, off: mode === 'edit' },
+        { id: 'category-slug-ar', label: t('catalog::admin.field.slug_ar'), value: form.data.slug_ar, rules: SLUG_AR, off: folded },
+        { id: 'category-slug-en', label: t('catalog::admin.field.slug_en'), value: form.data.slug_en, rules: SLUG_EN, off: folded },
+    ]);
+
     function submit() {
         const target = mode === 'add' ? '/admin/categories' : mode === 'edit' ? `/admin/categories/${category?.id ?? ''}` : `/admin/categories/${category?.id ?? ''}/move`;
         // Sent as multipart only when a photo file is attached (Inertia does that by itself).
-        form.post(target, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post(target, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -456,7 +487,7 @@ function CategoryDialog({
             description={body}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test={`confirm-${mode}-category`}>
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test={`confirm-${mode}-category`}>
                     {mode === 'add' ? title : mode === 'edit' ? t('catalog::admin_categories.save') : t('catalog::admin_categories.move_confirm')}
                 </ActionButton>
             }
@@ -464,8 +495,8 @@ function CategoryDialog({
             <div className="grid gap-4">
                 {mode === 'move' ? null : (
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <TextField id="category-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="category-name-ar" />
-                        <TextField id="category-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="category-name-en" />
+                        <TextField id="category-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} check={checks.box('category-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="category-name-ar" />
+                        <TextField id="category-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} check={checks.box('category-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="category-name-en" />
                     </div>
                 )}
 
@@ -488,7 +519,7 @@ function CategoryDialog({
                             label={t('catalog::admin_categories.field.place')}
                             helper={t('catalog::admin_categories.field.place_helper')}
                             value={form.data.rank}
-                            error={form.errors.rank}
+                            check={checks.box('category-rank', form.errors.rank)}
                             onChange={(event) => form.setData('rank', toLatinDigits(event.target.value))}
                             data-test="category-rank"
                         />
@@ -514,8 +545,8 @@ function CategoryDialog({
                                 </Button>
                             </CollapsibleTrigger>
                             <CollapsibleContent className="grid gap-4 pt-2 sm:grid-cols-2">
-                                <TextField id="category-slug-ar" dir="rtl" label={t('catalog::admin.field.slug_ar')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_ar} error={form.errors.slug_ar} onChange={(event) => form.setData('slug_ar', event.target.value)} />
-                                <TextField id="category-slug-en" dir="ltr" label={t('catalog::admin.field.slug_en')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_en} error={form.errors.slug_en} onChange={(event) => form.setData('slug_en', event.target.value)} />
+                                <TextField id="category-slug-ar" dir="rtl" label={t('catalog::admin.field.slug_ar')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_ar} check={checks.box('category-slug-ar', form.errors.slug_ar)} onChange={(event) => form.setData('slug_ar', event.target.value)} />
+                                <TextField id="category-slug-en" dir="ltr" label={t('catalog::admin.field.slug_en')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_en} check={checks.box('category-slug-en', form.errors.slug_en)} onChange={(event) => form.setData('slug_en', event.target.value)} />
                             </CollapsibleContent>
                         </Collapsible>
                     </>

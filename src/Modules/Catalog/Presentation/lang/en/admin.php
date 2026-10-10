@@ -39,6 +39,11 @@ return [
         'title' => 'Web Addresses',
         'helper' => 'Left empty, it is made from the name.',
     ],
+    // A web address's shape, said under its box as it is typed (frontend.md §1.7; Slug).
+    'check' => [
+        'slug_ar' => ':field takes Arabic letters and digits, joined by single hyphens.',
+        'slug_en' => ':field takes the lower-case letters a to z and the digits 0 to 9, joined by single hyphens.',
+    ],
     'marks' => [
         'helper' => 'A blank line starts a paragraph, "- " a list item, "# " a heading, and **bold** is bold.',
         'preview' => 'Preview',

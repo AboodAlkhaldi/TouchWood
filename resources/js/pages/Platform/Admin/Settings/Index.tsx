@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
+import { describedBy, Messages } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Button } from '@/components/ui/button';
@@ -11,8 +12,10 @@ import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLab
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import type { Rules } from '@/lib/checks';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { SettingRowData, SettingsPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 
 /*
@@ -191,7 +194,19 @@ function Value({ setting, store }: { setting: SettingRowData; store: Store }) {
     const stored = setting.sensitive ? '' : String(setting.value ?? '');
     const form = useForm({ value: stored });
     const changed = form.data.value !== stored;
-    const described = [`${setting.key}-scope`, setting.sensitive ? `${setting.key}-helper` : null, form.errors.value ? `${setting.key}-error` : null].filter(Boolean).join(' ');
+    // The value as typed (frontend.md §1.7), with the bounds the module declared for it (its rules'
+    // min and max, read by SettingDefinitionDto::bounds; checked by InMemorySettingsRegistry). A
+    // number is whole, and required only where its smallest is above 0: an empty box is read as 0
+    // (SettingsController::value). A text is checked for its length alone: whether it may be empty is
+    // the module's to say (mayBeEmpty), and the page is not told.
+    const rules: Rules = isNumber
+        ? { required: setting.min !== null && setting.min > 0, number: { min: setting.min ?? undefined, max: setting.max ?? undefined } }
+        : setting.type === 'TEXT'
+          ? { length: { max: setting.max ?? undefined } }
+          : {};
+    const checks = useChecks([{ id: setting.key, label: setting.label, value: form.data.value, rules }]);
+    const check = checks.box(setting.key, form.errors.value);
+    const helper = setting.sensitive ? t('platform::admin_settings.unchanged') : undefined;
 
     return (
         <form
@@ -202,24 +217,26 @@ function Value({ setting, store }: { setting: SettingRowData; store: Store }) {
                     return;
                 }
 
-                form.transform((data) => sent(setting, store, data.value) as typeof data);
-                form.post(`/admin/settings/${setting.key}`, {
-                    preserveScroll: true,
-                    // Saved: what was typed is now what is stored. A secret goes back to empty, in
-                    // the field too - it is never shown again, not even to whoever typed it.
-                    onSuccess: () => {
-                        if (setting.sensitive) {
-                            form.setData('value', '');
-                        }
+                checks.submit(() => {
+                    form.transform((data) => sent(setting, store, data.value) as typeof data);
+                    form.post(`/admin/settings/${setting.key}`, {
+                        preserveScroll: true,
+                        // Saved: what was typed is now what is stored. A secret goes back to empty, in
+                        // the field too - it is never shown again, not even to whoever typed it.
+                        onSuccess: () => {
+                            if (setting.sensitive) {
+                                form.setData('value', '');
+                            }
 
-                        form.setDefaults({ value: setting.sensitive ? '' : form.data.value });
-                    },
+                            form.setDefaults({ value: setting.sensitive ? '' : form.data.value });
+                        },
+                    });
                 });
             }}
             className="grid gap-3"
         >
             <FieldGroup className="gap-3">
-                <Field orientation="responsive" data-invalid={form.errors.value ? true : undefined}>
+                <Field orientation="responsive" data-invalid={check.message ? true : undefined}>
                     <FieldContent>
                         {/* The key has dots in it, so the field is found by attribute, not "#id". */}
                         <FieldLabel htmlFor={setting.key} className="text-label-14 text-ink">
@@ -241,20 +258,27 @@ function Value({ setting, store }: { setting: SettingRowData; store: Store }) {
                             // the save would refuse.
                             min={setting.min ?? undefined}
                             max={setting.max ?? undefined}
-                            aria-invalid={form.errors.value ? true : undefined}
-                            aria-describedby={described}
+                            // A shadcn Input wired to its check by hand (Fields.tsx's parts): its label and
+                            // scope sit beside it, which the shared TextField does not lay out.
+                            aria-required={check.required ? true : undefined}
+                            aria-invalid={check.message ? true : undefined}
+                            aria-describedby={describedBy(setting.key, helper, check.message, `${setting.key}-scope`)}
                             value={form.data.value}
-                            onChange={(event) => form.setData('value', isNumber ? toLatinDigits(event.target.value) : event.target.value)}
+                            onChange={(event) => {
+                                form.setData('value', isNumber ? toLatinDigits(event.target.value) : event.target.value);
+                                check.onType();
+                            }}
+                            onBlur={check.onLeave}
                         />
                     </div>
                 </Field>
                 {/* An instruction is helper text in Geist, never a placeholder. */}
-                {setting.sensitive ? (
+                {helper === undefined ? null : (
                     <FieldDescription id={`${setting.key}-helper`} className="text-copy-13 text-ink-muted">
-                        {t('platform::admin_settings.unchanged')}
+                        {helper}
                     </FieldDescription>
-                ) : null}
-                {form.errors.value ? <FieldError id={`${setting.key}-error`}>{form.errors.value}</FieldError> : null}
+                )}
+                <Messages id={setting.key} error={check.message} check={check} />
             </FieldGroup>
 
             <div className="flex justify-end gap-2">
@@ -277,7 +301,7 @@ function Value({ setting, store }: { setting: SettingRowData; store: Store }) {
                     type="submit"
                     size="sm"
                     loading={form.processing}
-                    disabledReason={changed ? undefined : t('platform::admin_settings.unchanged_reason')}
+                    disabledReason={changed ? checks.reason : t('platform::admin_settings.unchanged_reason')}
                     data-test={`save-${setting.key}`}
                 >
                     {t('platform::admin_settings.save')}

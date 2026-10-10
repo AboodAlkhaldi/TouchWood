@@ -7,6 +7,7 @@ import { ShopCard } from '@/components/ShopCard';
 import { Field, FieldDescription, FieldGroup } from '@/components/ui/field';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 
 /*
 | F6, the first half - asking for a new password (frontend.md §3.6), on shadcn's `login-01` form
@@ -21,6 +22,9 @@ export default function ForgotPassword() {
     const t = useTranslator();
     const link = useLink();
     const form = useForm({ email: '' });
+    // The box as typed (frontend.md §1.7), with the server's rules: required (EmailRequest), in an
+    // address's shape (EmailAddress, whose own check is the stricter one).
+    const checks = useChecks([{ id: 'email', label: t('access::auth.customer_email'), value: form.data.email, rules: { required: true, email: true } }]);
 
     return (
         <StorefrontLayout title={t('access::auth.forgot_title')}>
@@ -28,7 +32,7 @@ export default function ForgotPassword() {
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
-                        form.post(link('storefront.account.password.forgot'));
+                        checks.submit(() => form.post(link('storefront.account.password.forgot')));
                     }}
                 >
                     <FieldGroup className="gap-5">
@@ -39,7 +43,7 @@ export default function ForgotPassword() {
                             name="email"
                             type="email"
                             label={t('access::auth.customer_email')}
-                            error={form.errors.email}
+                            check={checks.box('email', form.errors.email)}
                             autoComplete="username"
                             required
                             autoFocus
@@ -49,7 +53,7 @@ export default function ForgotPassword() {
                         />
 
                         <Field>
-                            <ActionButton type="submit" loading={form.processing} className="w-full">
+                            <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} className="w-full">
                                 {t('access::auth.send_link')}
                             </ActionButton>
                             <FieldDescription className="text-center">

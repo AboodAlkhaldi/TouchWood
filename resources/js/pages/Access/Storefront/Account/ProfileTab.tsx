@@ -11,6 +11,7 @@ import { NativeSelectOption } from '@/components/ui/native-select';
 import { Separator } from '@/components/ui/separator';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { SharedProps } from '@/types/page';
 import type { CustomerAccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -43,6 +44,14 @@ export function ProfileTab({ account }: Props) {
         locale: account.communicationLocale,
     });
 
+    // Each name as typed (frontend.md §1.7), with the server's rule: required, up to 100 characters
+    // (UpdateCustomerProfileHandler::NAME_MAX). The language is picked from a list.
+    const name = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'first_name', label: t('access::account.first_name'), value: form.data.first_name, rules: name },
+        { id: 'last_name', label: t('access::account.last_name'), value: form.data.last_name, rules: name },
+    ]);
+
     return (
         <div className="grid gap-6">
             {account.mayOrder ? null : <BeforeOrdering account={account} />}
@@ -51,7 +60,7 @@ export function ProfileTab({ account }: Props) {
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
-                        form.post(link('storefront.account.profile'), { preserveScroll: true });
+                        checks.submit(() => form.post(link('storefront.account.profile'), { preserveScroll: true }));
                     }}
                 >
                     <CardHeader className="px-6 pt-5 pb-4">
@@ -69,7 +78,7 @@ export function ProfileTab({ account }: Props) {
                                     id="first_name"
                                     name="first_name"
                                     label={t('access::account.first_name')}
-                                    error={form.errors.first_name}
+                                    check={checks.box('first_name', form.errors.first_name)}
                                     autoComplete="given-name"
                                     required
                                     value={form.data.first_name}
@@ -80,7 +89,7 @@ export function ProfileTab({ account }: Props) {
                                     id="last_name"
                                     name="last_name"
                                     label={t('access::account.last_name')}
-                                    error={form.errors.last_name}
+                                    check={checks.box('last_name', form.errors.last_name)}
                                     autoComplete="family-name"
                                     required
                                     value={form.data.last_name}
@@ -138,7 +147,7 @@ export function ProfileTab({ account }: Props) {
                     </CardContent>
 
                     <CardFooter className="justify-end border-t border-line bg-surface-sunken px-6 py-4 [.border-t]:pt-4">
-                        <ActionButton type="submit" loading={form.processing} data-test="save-profile">
+                        <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test="save-profile">
                             {t('access::account.save')}
                         </ActionButton>
                     </CardFooter>

@@ -6,6 +6,7 @@ import { FormError } from '@/components/FormError';
 import { PasswordInput } from '@/components/PasswordInput';
 import { Field, FieldGroup } from '@/components/ui/field';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 
 /*
 | A1 - Sign in (frontend.md §3.1), on shadcn's `login-02` form as it writes it (§1.11): a
@@ -24,13 +25,20 @@ import { useTranslator } from '@/lib/t';
 export default function SignIn() {
     const t = useTranslator();
     const form = useForm({ email: '', password: '' });
+    // Each box as typed (frontend.md §1.7): both are required (SignInRequest), the address shaped as
+    // every staff address is (EmailAddress), the password with its spaces kept as typed. Whether the
+    // two match an account is the server's alone, and its one refusal never says which was wrong.
+    const checks = useChecks([
+        { id: 'email', label: t('access::auth.email'), value: form.data.email, rules: { required: true, email: true } },
+        { id: 'password', label: t('access::auth.password'), value: form.data.password, rules: { required: true, keepSpaces: true } },
+    ]);
 
     return (
         <SignInLayout title={t('access::auth.sign_in')} subtitle={t('access::auth.sign_in_subtitle')}>
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
-                    form.post('/admin/sign-in');
+                    checks.submit(() => form.post('/admin/sign-in'));
                 }}
             >
                 <FieldGroup className="gap-5">
@@ -41,7 +49,7 @@ export default function SignIn() {
                         name="email"
                         type="email"
                         label={t('access::auth.email')}
-                        error={form.errors.email}
+                        check={checks.box('email', form.errors.email)}
                         autoComplete="username"
                         required
                         autoFocus
@@ -59,7 +67,7 @@ export default function SignIn() {
                                 {t('access::auth.forgot_password')}
                             </Link>
                         }
-                        error={form.errors.password}
+                        check={checks.box('password', form.errors.password)}
                         autoComplete="current-password"
                         required
                         value={form.data.password}
@@ -67,7 +75,7 @@ export default function SignIn() {
                     />
 
                     <Field>
-                        <ActionButton type="submit" loading={form.processing} className="w-full">
+                        <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} className="w-full">
                             {t('access::auth.sign_in')}
                         </ActionButton>
                     </Field>

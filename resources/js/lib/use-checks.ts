@@ -58,15 +58,29 @@ export type Checks = {
     submit: (send: () => void) => void;
 };
 
-export function useChecks(boxes: Box[]): Checks {
+/**
+ * @param fresh  Anything that changes when the form starts again - a dialog that stays on the page
+ *   opening or closing (`open`): the boxes it said were wrong before are forgotten, as on a new form.
+ */
+export function useChecks(boxes: Box[], fresh?: unknown): Checks {
     const t = useTranslator();
     const { locale } = usePage<SharedProps>().props;
     const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set());
-    // The value each refusal was given for: a refusal stands only while that value does.
-    const refused = useRef(new Map<string, { message: string; value: string }>());
+    // What each box held when the form was last sent: the server's refusal is about that value, and
+    // stands only while the box still holds it.
+    const sent = useRef(new Map<string, string>());
     // A box left because Save is being pressed: said once that press has landed, not before.
     const pressing = useRef(false);
     const left = useRef<string[]>([]);
+    const [was, setWas] = useState(() => fresh);
+
+    if (was !== fresh) {
+        // Set while rendering, as React's docs do for state that follows a prop: no frame shows the
+        // boxes of the form before.
+        setWas(() => fresh);
+        setShown(new Set());
+        sent.current = new Map();
+    }
 
     useEffect(() => {
         const down = () => {
@@ -112,17 +126,9 @@ export function useChecks(boxes: Box[]): Checks {
         box: (id, refusal) => {
             const box = boxes.find((each) => each.id === id);
             const own = shown.has(id) ? problems.get(id) : undefined;
-            const value = box?.value ?? '';
-            const kept = refused.current.get(id);
-
-            if (refusal === undefined || refusal === '') {
-                refused.current.delete(id);
-            } else if (kept === undefined || kept.message !== refusal) {
-                refused.current.set(id, { message: refusal, value });
-            }
-
-            const standing = refused.current.get(id);
-            const server = standing !== undefined && standing.value === value ? standing.message : undefined;
+            const held = sent.current.get(id);
+            // A refusal the page arrived with, before anything was sent from it, stands as it is.
+            const server = refusal !== undefined && refusal !== '' && (held === undefined || held === box?.value) ? refusal : undefined;
 
             return {
                 message: own ?? server,
@@ -143,6 +149,10 @@ export function useChecks(boxes: Box[]): Checks {
             const wrong = boxes.filter((box) => problems.has(box.id));
 
             if (wrong.length === 0) {
+                sent.current = new Map(boxes.map((box) => [box.id, box.value]));
+                // Every box passes as it goes, so nothing shown is lost - and a form emptied once it
+                // is saved (a password changed, a number confirmed) starts fresh, not "required".
+                setShown(new Set());
                 send();
 
                 return;

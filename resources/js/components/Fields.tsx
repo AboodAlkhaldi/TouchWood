@@ -67,16 +67,21 @@ export function Messages({ id, helper, error, check }: { id: string; helper?: Re
     );
 }
 
-/** What a control does with its field's check: says it was typed in, or left. */
+/**
+ * What a control does with its field's check: says it was typed in, or left. The browser's own
+ * checks stand aside for it - "required", and an email box's shape, which the browser would
+ * otherwise say in a bubble of its own language when Enter sends the form - the email keyboard kept.
+ */
 export function checked<E extends HTMLElement>(
     check: BoxCheck | undefined,
-    control: { required?: boolean; onChange?: (event: never) => void; onBlur?: (event: FocusEvent<E>) => void },
+    control: { type?: string; required?: boolean; onChange?: (event: never) => void; onBlur?: (event: FocusEvent<E>) => void },
 ) {
     if (check === undefined) {
         return {};
     }
 
     return {
+        ...(control.type === 'email' ? { type: 'text', inputMode: 'email' as const } : {}),
         required: undefined,
         'aria-required': check.required || control.required ? true : undefined,
         onBlur: (event: FocusEvent<E>) => {

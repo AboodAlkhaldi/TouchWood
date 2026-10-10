@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import { tone } from '@/lib/tones';
 import type { AddressRow, CustomerAddressGroup, CustomerDetailsPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
@@ -265,13 +266,17 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
 
     // The confirm waits for a reason, and says so: one is kept with every change (the final review).
     const missing = form.data.reason.trim() === '' ? t('access::customers.reason_missing') : undefined;
+    // The box as typed (frontend.md §1.7), with the rule every action on a customer keeps
+    // (StaffCustomerAction): a reason, trimmed, of at most 500 characters (REASON_MAX). Afresh each
+    // time the dialog opens: Cancel empties the reason, which is not the person's doing.
+    const checks = useChecks([{ id: `reason-${name}`, label: t('access::customers.reason'), value: form.data.reason, rules: { required: true, length: { max: 500 } } }], open);
 
     function send() {
         if (missing !== undefined) {
             return;
         }
 
-        form.post(url, { preserveScroll: true, onSuccess: () => setOpen(false) });
+        checks.submit(() => form.post(url, { preserveScroll: true, onSuccess: () => setOpen(false) }));
     }
 
     const reason = (autoFocus: boolean) => (
@@ -279,7 +284,7 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
             id={`reason-${name}`}
             label={t('access::customers.reason')}
             helper={t('access::customers.reason_hint')}
-            error={form.errors.reason}
+            check={checks.box(`reason-${name}`, form.errors.reason)}
             required
             autoFocus={autoFocus}
             value={form.data.reason}
@@ -321,7 +326,7 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
                             <AlertDialogCancel disabled={form.processing} data-test="modal-cancel">
                                 {t('ui.cancel')}
                             </AlertDialogCancel>
-                            <ActionButton variant="destructive" loading={form.processing} disabledReason={missing} onClick={send} data-test={`confirm-${name}`}>
+                            <ActionButton variant="destructive" loading={form.processing} disabledReason={missing ?? checks.reason} onClick={send} data-test={`confirm-${name}`}>
                                 {title}
                             </ActionButton>
                         </AlertDialogFooter>
@@ -348,7 +353,7 @@ function Action({ name, url, title, body, destructive = false }: { name: string;
                                 <Button type="button" variant="outline" disabled={form.processing} onClick={close} data-test="modal-cancel">
                                     {t('ui.cancel')}
                                 </Button>
-                                <ActionButton type="submit" loading={form.processing} disabledReason={missing} data-test={`confirm-${name}`}>
+                                <ActionButton type="submit" loading={form.processing} disabledReason={missing ?? checks.reason} data-test={`confirm-${name}`}>
                                     {title}
                                 </ActionButton>
                             </DialogFooter>

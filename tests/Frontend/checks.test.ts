@@ -246,6 +246,7 @@ describe('the subject', () => {
         assert.equal(subjectOf('Email Address', 'en'), 'Email address');
         assert.equal(subjectOf('Commercial Registration Number', 'en'), 'Commercial registration number');
         assert.equal(subjectOf('Period', 'en'), 'Period');
+        assert.equal(subjectOf('How Long It Waits (Minutes)', 'en'), 'How long it waits (minutes)');
     });
 
     it('keeps capitals that are not a title case', () => {

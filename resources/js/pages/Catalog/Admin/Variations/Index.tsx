@@ -16,6 +16,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import { useChecks } from '@/lib/use-checks';
 import type { AttributeData, VariationData, VariationsPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { SortableList } from '../SortableList';
@@ -224,9 +225,17 @@ function VariationDialog({
 
     const title = variation === null ? t('catalog::admin_attributes.variations.add') : t('catalog::admin_attributes.variations.edit_title');
     const errors = form.errors as Record<string, string | undefined>;
+    // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 100 characters
+    // (AttributeSet::NAME_MAX, LocalizedName). Its one to ten attributes are picked, never typed, and
+    // left to the server.
+    const name = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'variation-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name },
+        { id: 'variation-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name },
+    ]);
 
     function submit() {
-        form.post(variation === null ? '/admin/variations' : `/admin/variations/${variation.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post(variation === null ? '/admin/variations' : `/admin/variations/${variation.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -239,15 +248,15 @@ function VariationDialog({
             description={t('catalog::admin_attributes.variations.body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-variation">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-variation">
                     {variation === null ? title : t('catalog::admin_attributes.variations.save')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField id="variation-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="variation-name-ar" />
-                    <TextField id="variation-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="variation-name-en" />
+                    <TextField id="variation-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} check={checks.box('variation-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="variation-name-ar" />
+                    <TextField id="variation-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} check={checks.box('variation-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="variation-name-en" />
                 </div>
 
                 <div className="grid gap-2">

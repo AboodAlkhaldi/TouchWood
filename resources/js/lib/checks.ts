@@ -188,7 +188,8 @@ export function subjectOf(label: string, locale: string): string {
         return label;
     }
 
-    return label.replace(/(?<=\S\s+)\p{Lu}\p{Ll}+/gu, (word) => (KEPT.has(word) ? word : word.toLowerCase()));
+    // A later word: after a space, or after a space and an opening bracket - "(Minutes)".
+    return label.replace(/(?<=\S\s+\(?)\p{Lu}\p{Ll}+/gu, (word) => (KEPT.has(word) ? word : word.toLowerCase()));
 }
 
 // Proper names that stay capitalised inside an English sentence.

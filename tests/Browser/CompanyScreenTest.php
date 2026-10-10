@@ -148,13 +148,16 @@ it('takes a company from the line under the header through its application to "u
         ->and($page->script("document.querySelector('[data-test=lifecycle] [aria-current=step]')?.textContent.includes('Form')"))->toBeTrue()
         ->and($page->script("document.querySelector('[data-test=lifecycle-badge]') === null"))->toBeTrue();
 
-    // A value the page would not send turns red once it is left, and stays on the page (amendments 16(a), 22(a)).
-    $page->type('#company-name', 'A')
+    // A value the page would not send turns red as it is typed - before the field is left - and stays
+    // on the page (amendments 16(a), 22(a); amendment 31 replaced "once it is left").
+    $page->type('#company-name', 'A');
+    expect(browserUntil($page, companyScreenLook('#company-name').' === "invalid"'))->toBeTrue();
+    $page->assertSee('Company name needs at least 2 characters.')
         ->keys('#company-name', 'Tab')
-        ->assertSee('Company name needs at least 2 characters.')
-        ->type('#company-cr_number', 'CR#1010')
-        ->keys('#company-cr_number', 'Tab')
-        ->assertSee('Commercial registration number takes only letters, digits, spaces and dashes.');
+        ->type('#company-cr_number', 'CR#1010');
+    expect(browserUntil($page, companyScreenLook('#company-cr_number').' === "invalid"'))->toBeTrue();
+    $page->assertSee('Commercial registration number takes only letters, digits, spaces and dashes.')
+        ->keys('#company-cr_number', 'Tab');
 
     expect(browserUntil($page, companyScreenLook('#company-name').' === "invalid"'))->toBeTrue()
         ->and(browserUntil($page, companyScreenLook('#company-cr_number').' === "invalid"'))->toBeTrue()

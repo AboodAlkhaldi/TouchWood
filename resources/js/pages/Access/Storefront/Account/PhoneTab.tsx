@@ -11,6 +11,7 @@ import { FieldGroup } from '@/components/ui/field';
 import { toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { CustomerAccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -41,6 +42,12 @@ export function PhoneTab({ account }: Props) {
 
     const request = useForm({ phone: '' });
     const confirm = useForm({ code: '' });
+    // The new number as typed (frontend.md §1.7), with the server's rule: required
+    // (CustomerPhoneRequest), with its country code (Access's PhoneNumber, E.164). The code's boxes
+    // keep their own check, below.
+    const checks = useChecks([
+        { id: 'phone', label: t('access::account.new_phone'), value: request.data.phone, rules: { required: true, phone: true }, off: step !== 'number' },
+    ]);
 
     return (
         <Card className="material-base gap-0 border-0 py-0">
@@ -55,11 +62,13 @@ export function PhoneTab({ account }: Props) {
                     event.preventDefault();
 
                     if (step === 'number') {
-                        request.post(link('storefront.account.phone'), {
-                            preserveScroll: true,
-                            preserveState: true,
-                            onSuccess: () => setStep('code'),
-                        });
+                        checks.submit(() =>
+                            request.post(link('storefront.account.phone'), {
+                                preserveScroll: true,
+                                preserveState: true,
+                                onSuccess: () => setStep('code'),
+                            }),
+                        );
 
                         return;
                     }
@@ -125,7 +134,7 @@ export function PhoneTab({ account }: Props) {
                                 type="tel"
                                 label={t('access::account.new_phone')}
                                 helper={t('access::account.new_phone_hint')}
-                                error={request.errors.phone}
+                                check={checks.box('phone', request.errors.phone)}
                                 required
                                 dir="ltr"
                                 autoComplete="tel"
@@ -157,7 +166,7 @@ export function PhoneTab({ account }: Props) {
 
                 <CardFooter className="justify-end gap-2 border-t border-line bg-surface-sunken px-6 py-4 [.border-t]:pt-4">
                     {step === 'number' ? (
-                        <ActionButton type="submit" loading={request.processing} data-test="send-phone-code">
+                        <ActionButton type="submit" loading={request.processing} disabledReason={checks.reason} data-test="send-phone-code">
                             {t('access::account.send_code')}
                         </ActionButton>
                     ) : (

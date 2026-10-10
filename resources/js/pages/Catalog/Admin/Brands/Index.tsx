@@ -18,8 +18,10 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import { useChecks } from '@/lib/use-checks';
 import type { BrandData, BrandsPage, CountryOptionData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
+import { marksLength } from '../marks';
 import { ImageField, MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 
 /*
@@ -35,6 +37,21 @@ import { ImageField, MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads
 */
 
 const AGENCIES = ['HOUSE', 'EXCLUSIVE_AGENT', 'DISTRIBUTOR'] as const;
+
+/*
+| A web address as Slug::of takes one typed (catalog.md §1.1, §5.3): at most 200 characters
+| (Slug::MAX), words joined by single hyphens - in English lower-case a-z and digits, in Arabic the
+| Arabic letters (U+0621-U+063F, U+0641-U+064A, U+0671-U+06D3) and digits. Arabic-Indic digits are let
+| through in both, as the server turns them into 0-9 before it reads the shape (CatalogText).
+*/
+const SLUG_EN = { length: { max: 200 }, format: { pattern: /^[a-z0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+(-[a-z0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+)*$/u, key: 'catalog::admin.check.slug_en' } };
+const SLUG_AR = {
+    length: { max: 200 },
+    format: {
+        pattern: /^[\u{0621}-\u{063F}\u{0641}-\u{064A}\u{0671}-\u{06D3}0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+(-[\u{0621}-\u{063F}\u{0641}-\u{064A}\u{0671}-\u{06D3}0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+)*$/u,
+        key: 'catalog::admin.check.slug_ar',
+    },
+};
 
 type Dialog = { action: 'add' | 'edit' | 'deactivate' | 'delete'; brand: BrandData | null } | null;
 
@@ -299,13 +316,32 @@ function BrandDialog({
     }, [open, brand?.id]);
 
     const title = brand === null ? t('catalog::admin_brands.add') : t('catalog::admin_brands.edit_title');
+    // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 100 characters
+    // (Brand::NAME_MAX, LocalizedName), a position from 0 to 10,000 (ListPosition; the request reads an
+    // empty or broken number as -1, so it is required), descriptions of up to 5,000 characters counted
+    // as StructuredText counts them (Brand::DESCRIPTION_MAX), and the web addresses (Slug, above) -
+    // not checked while folded away. A description's "both languages or neither" is left to the server.
+    const name = { required: true, length: { max: 100 } };
+    const description = { length: { max: 5000, of: marksLength } };
+    const folded = !(addresses || addressRefused);
+    const checks = useChecks([
+        { id: 'brand-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name },
+        { id: 'brand-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name },
+        { id: 'brand-position', label: t('catalog::admin.field.position'), value: form.data.position, rules: { required: true, number: { min: 0, max: 10000 } } },
+        { id: 'brand-description-ar', label: t('catalog::admin_brands.field.description_ar'), value: form.data.description_ar, rules: description },
+        { id: 'brand-description-en', label: t('catalog::admin_brands.field.description_en'), value: form.data.description_en, rules: description },
+        { id: 'brand-slug-ar', label: t('catalog::admin.field.slug_ar'), value: form.data.slug_ar, rules: SLUG_AR, off: folded },
+        { id: 'brand-slug-en', label: t('catalog::admin.field.slug_en'), value: form.data.slug_en, rules: SLUG_EN, off: folded },
+    ]);
 
     function submit() {
         // Sent as multipart only when a logo file is attached (Inertia does that by itself).
-        form.post(brand === null ? '/admin/brands' : `/admin/brands/${brand.id}`, {
-            preserveScroll: true,
-            onSuccess: () => onOpenChange(false),
-        });
+        checks.submit(() =>
+            form.post(brand === null ? '/admin/brands' : `/admin/brands/${brand.id}`, {
+                preserveScroll: true,
+                onSuccess: () => onOpenChange(false),
+            }),
+        );
     }
 
     return (
@@ -318,15 +354,15 @@ function BrandDialog({
             description={brand === null ? t('catalog::admin_brands.add_body') : t('catalog::admin_brands.edit_body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-brand">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-brand">
                     {brand === null ? t('catalog::admin_brands.add') : t('catalog::admin_brands.save')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField id="brand-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="brand-name-ar" />
-                    <TextField id="brand-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="brand-name-en" />
+                    <TextField id="brand-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} check={checks.box('brand-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="brand-name-ar" />
+                    <TextField id="brand-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} check={checks.box('brand-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="brand-name-en" />
                 </div>
 
                 <SelectField id="brand-agency" label={t('catalog::admin_brands.field.agency')} value={form.data.agency_type} error={form.errors.agency_type} onChange={(event) => form.setData('agency_type', event.target.value)} data-test="brand-agency">
@@ -384,7 +420,7 @@ function BrandDialog({
                         label={t('catalog::admin.field.position')}
                         helper={t('catalog::admin.field.position_helper')}
                         value={form.data.position}
-                        error={form.errors.position}
+                        check={checks.box('brand-position', form.errors.position)}
                         onChange={(event) => form.setData('position', toLatinDigits(event.target.value))}
                         data-test="brand-position"
                     />
@@ -401,8 +437,8 @@ function BrandDialog({
                     error={form.errors.logo_media_id}
                 />
 
-                <MarksField id="brand-description-ar" dir="rtl" label={t('catalog::admin_brands.field.description_ar')} value={form.data.description_ar} error={form.errors.description_ar} onChange={(value) => form.setData('description_ar', value)} />
-                <MarksField id="brand-description-en" dir="ltr" label={t('catalog::admin_brands.field.description_en')} value={form.data.description_en} error={form.errors.description_en} onChange={(value) => form.setData('description_en', value)} />
+                <MarksField id="brand-description-ar" dir="rtl" label={t('catalog::admin_brands.field.description_ar')} value={form.data.description_ar} check={checks.box('brand-description-ar', form.errors.description_ar)} onChange={(value) => form.setData('description_ar', value)} />
+                <MarksField id="brand-description-en" dir="ltr" label={t('catalog::admin_brands.field.description_en')} value={form.data.description_en} check={checks.box('brand-description-en', form.errors.description_en)} onChange={(value) => form.setData('description_en', value)} />
 
                 <Collapsible open={addresses || addressRefused} onOpenChange={setAddresses}>
                     <CollapsibleTrigger asChild>
@@ -411,8 +447,8 @@ function BrandDialog({
                         </Button>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="grid gap-4 pt-2 sm:grid-cols-2">
-                        <TextField id="brand-slug-ar" dir="rtl" label={t('catalog::admin.field.slug_ar')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_ar} error={form.errors.slug_ar} onChange={(event) => form.setData('slug_ar', event.target.value)} />
-                        <TextField id="brand-slug-en" dir="ltr" label={t('catalog::admin.field.slug_en')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_en} error={form.errors.slug_en} onChange={(event) => form.setData('slug_en', event.target.value)} />
+                        <TextField id="brand-slug-ar" dir="rtl" label={t('catalog::admin.field.slug_ar')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_ar} check={checks.box('brand-slug-ar', form.errors.slug_ar)} onChange={(event) => form.setData('slug_ar', event.target.value)} />
+                        <TextField id="brand-slug-en" dir="ltr" label={t('catalog::admin.field.slug_en')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_en} check={checks.box('brand-slug-en', form.errors.slug_en)} onChange={(event) => form.setData('slug_en', event.target.value)} />
                     </CollapsibleContent>
                 </Collapsible>
             </div>

@@ -82,6 +82,45 @@ it('adds a field, names it, and the country asks for it afterwards', function ()
 
 });
 
+/*
+| Every box checks itself as it is typed (frontend.md §1.7): a letter in a field's longest allowed
+| length is said under it at once - kept in the box, not dropped - and Save stays out of reach until
+| the box holds a number from 1 to 1,000 (AddressField::LENGTH_MAX). Nothing is saved here: the
+| store's form is shared by the other tests.
+*/
+it('says a letter typed in a field\'s longest length at once, and keeps Save out of reach until it is right', function () {
+    $staffId = Fx::staffWith([AccessPermissions::ADDRESS_FORMAT_UPDATE], ['sa'], RoleLevel::Admin);
+    $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', $email)
+        ->type('#password', ADDRESS_FORMAT_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->navigate('/admin/address-formats');
+
+    $was = (string) $page->script('document.getElementById("length-0").value');
+    expect($was)->toMatch('/^\d+$/');
+
+    $page->clear('#length-0')->typeSlowly('#length-0', '8x', 20);
+
+    expect(browserUntil($page, 'document.getElementById("length-0-error")?.textContent === "Longest allowed takes numbers only."'))->toBeTrue()
+        ->and($page->script('document.getElementById("length-0").value'))->toBe('8x')
+        ->and($page->script('document.querySelector(\'[data-test="save"]\').getAttribute("aria-disabled")'))->toBe('true');
+
+    $page->type('#length-0', '1001');
+    expect(browserUntil($page, 'document.getElementById("length-0-error")?.textContent === "Longest allowed is from 1 to 1,000."'))->toBeTrue();
+
+    $page->type('#length-0', $was);
+    expect(browserUntil($page, 'document.getElementById("length-0-error") === null && document.querySelector(\'[data-test="save"]\').getAttribute("aria-disabled") === null'))->toBeTrue();
+
+    $page->assertNoJavaScriptErrors();
+});
+
 /**
  * The keys of a store's address form, in the order it asks for them.
  *

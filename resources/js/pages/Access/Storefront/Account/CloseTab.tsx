@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { CustomerAccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -49,6 +50,12 @@ export function CloseTab({ account }: Props) {
     const link = useLink();
     const [confirming, setConfirming] = useState(false);
     const form = useForm({ current_password: '' });
+    // The password as typed (frontend.md §1.7), with the server's rule: required
+    // (CurrentPasswordRequest), never trimmed - the handler checks it as typed.
+    const checks = useChecks([
+        { id: 'close_password', label: t('access::account.current_password'), value: form.data.current_password, rules: { required: true, keepSpaces: true } },
+        // Afresh each time the dialog opens: Cancel empties the box, which is not the person's doing.
+    ], confirming);
 
     const openChange = (open: boolean) => {
         if (form.processing) {
@@ -86,7 +93,7 @@ export function CloseTab({ account }: Props) {
                         <form
                             onSubmit={(event) => {
                                 event.preventDefault();
-                                form.post(link('storefront.account.close'));
+                                checks.submit(() => form.post(link('storefront.account.close')));
                             }}
                         >
                             <div className="grid gap-4 p-6">
@@ -104,7 +111,7 @@ export function CloseTab({ account }: Props) {
                                     id="close_password"
                                     name="current_password"
                                     label={t('access::account.current_password')}
-                                    error={form.errors.current_password}
+                                    check={checks.box('close_password', form.errors.current_password)}
                                     autoComplete="current-password"
                                     required
                                     autoFocus
@@ -124,7 +131,7 @@ export function CloseTab({ account }: Props) {
                                     type="submit"
                                     variant="destructive"
                                     loading={form.processing}
-                                    disabledReason={form.data.current_password === '' ? t('access::account.close_account_password_first') : undefined}
+                                    disabledReason={form.data.current_password === '' ? t('access::account.close_account_password_first') : checks.reason}
                                     data-test="confirm-close-account"
                                 >
                                     {t('access::account.close_account_confirm')}

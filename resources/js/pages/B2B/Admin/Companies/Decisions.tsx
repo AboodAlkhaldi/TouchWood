@@ -3,7 +3,7 @@ import { useForm, type InertiaFormProps } from '@inertiajs/react';
 import { Plus, X } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { DestructiveActionDialog } from '@/components/DestructiveActionDialog';
-import { SelectField, TextareaField, TextField } from '@/components/Fields';
+import { Messages, SelectField, TextareaField, TextField, checked, describedBy } from '@/components/Fields';
 import { useFreshRefusal } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegen
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { StaffFileData, StaffTypeChoiceData } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { nameIn, type Locale } from '../shared';
 import { PanelDialog } from '@/components/PanelDialog';
@@ -54,15 +55,19 @@ function TypeNote({ note }: { note: string | null }) {
 export function ApproveModal({ open, onOpenChange, companyId, typeNote }: Base & { typeNote: string | null }) {
     const t = useTranslator();
     const form = useForm({ note: '' });
+    // The note as typed (frontend.md §1.7): optional, at most 1,000 characters (Remark::MAX).
+    const checks = useChecks([{ id: 'approve-note', label: t('b2b::admin_companies.approve.note'), value: form.data.note, rules: { length: { max: 1000 } } }], open);
 
     function submit() {
-        form.post(url(companyId, 'approve'), {
-            preserveScroll: true,
-            onSuccess: () => {
-                onOpenChange(false);
-                form.reset();
-            },
-        });
+        checks.submit(() =>
+            form.post(url(companyId, 'approve'), {
+                preserveScroll: true,
+                onSuccess: () => {
+                    onOpenChange(false);
+                    form.reset();
+                },
+            }),
+        );
     }
 
     return (
@@ -73,7 +78,7 @@ export function ApproveModal({ open, onOpenChange, companyId, typeNote }: Base &
             description={t('b2b::admin_companies.approve.body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-approve">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-approve">
                     {t('b2b::admin_companies.approve.button')}
                 </ActionButton>
             }
@@ -84,7 +89,7 @@ export function ApproveModal({ open, onOpenChange, companyId, typeNote }: Base &
                 rows={3}
                 label={t('b2b::admin_companies.approve.note')}
                 helper={t('b2b::admin_companies.approve.note_helper')}
-                error={form.errors.note}
+                check={checks.box('approve-note', form.errors.note)}
                 value={form.data.note}
                 onChange={(event) => form.setData('note', event.target.value)}
                 data-test="approve-note"
@@ -151,14 +156,29 @@ export function RejectModal({
         );
     }
 
+    // Each box as typed (frontend.md §1.7), with the domain's rules: the reason required, at most 1,000
+    // characters (Remark::MAX); each request's label required, one line of at most 200
+    // (ApplicationRequest::LABEL_MAX).
+    const checks = useChecks([
+        { id: 'reject-reason', label: t('b2b::admin_companies.reason'), value: form.data.reason, rules: { required: true, length: { max: 1000 } } },
+        ...form.data.requests.map((request, index) => ({
+            id: `request-label-${index}`,
+            label: t('b2b::admin_companies.reject.request_label'),
+            value: request.label,
+            rules: { required: true, length: { max: 200 } },
+        })),
+    ], open);
+
     function submit() {
-        form.post(url(companyId, 'reject'), {
-            preserveScroll: true,
-            onSuccess: () => {
-                onOpenChange(false);
-                form.reset();
-            },
-        });
+        checks.submit(() =>
+            form.post(url(companyId, 'reject'), {
+                preserveScroll: true,
+                onSuccess: () => {
+                    onOpenChange(false);
+                    form.reset();
+                },
+            }),
+        );
     }
 
     const flagsDescribed = ['reject-flags-helper', form.errors.flags ? 'reject-flags-error' : null].filter(Boolean).join(' ');
@@ -177,7 +197,7 @@ export function RejectModal({
                 <ActionButton
                     variant="destructive"
                     loading={form.processing}
-                    disabledReason={form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined}
+                    disabledReason={(form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined) ?? checks.reason}
                     onClick={submit}
                     data-test="confirm-reject"
                 >
@@ -200,7 +220,7 @@ export function RejectModal({
                 rows={3}
                 label={t('b2b::admin_companies.reason')}
                 helper={t('b2b::admin_companies.reject.reason_helper')}
-                error={form.errors.reason}
+                check={checks.box('reject-reason', form.errors.reason)}
                 value={form.data.reason}
                 onChange={(event) => form.setData('reason', event.target.value)}
                 data-test="reject-reason"
@@ -253,40 +273,52 @@ export function RejectModal({
                 <FieldDescription id="reject-requests-helper" className="text-copy-13 text-ink-muted">
                     {t('b2b::admin_companies.reject.requests_helper')}
                 </FieldDescription>
-                {form.data.requests.map((request, index) => (
-                    <div key={index} className="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]" data-test={`request-${index}`}>
-                        <SelectField id={`request-kind-${index}`} label={t('b2b::admin_companies.reject.request_kind')} value={request.kind} onChange={(event) => setRequest(index, { kind: event.target.value })}>
-                            <NativeSelectOption value="TEXT">{t('b2b::admin_companies.application.kind.TEXT')}</NativeSelectOption>
-                            <NativeSelectOption value="FILE">{t('b2b::admin_companies.application.kind.FILE')}</NativeSelectOption>
-                        </SelectField>
-                        {/* The row's own remove, inside its label's field (shadcn's form-array). */}
-                        <Field>
-                            <FieldLabel htmlFor={`request-label-${index}`}>{t('b2b::admin_companies.reject.request_label')}</FieldLabel>
-                            <InputGroup>
-                                <InputGroupInput
-                                    id={`request-label-${index}`}
-                                    lang={writeIn}
-                                    dir={writeIn === 'ar' ? 'rtl' : 'ltr'}
-                                    aria-describedby="reject-write-in"
-                                    placeholder={t('b2b::admin_companies.reject.request_label_placeholder')}
-                                    value={request.label}
-                                    onChange={(event) => setRequest(index, { label: event.target.value })}
-                                    data-test={`request-label-${index}`}
-                                />
-                                <InputGroupAddon align="inline-end">
-                                    <InputGroupButton
-                                        size="icon-xs"
-                                        aria-label={t('b2b::admin_companies.reject.remove_request', { number: index + 1 })}
-                                        onClick={() => form.setData('requests', form.data.requests.filter((_, at) => at !== index))}
-                                        data-test={`remove-request-${index}`}
-                                    >
-                                        <X aria-hidden="true" />
-                                    </InputGroupButton>
-                                </InputGroupAddon>
-                            </InputGroup>
-                        </Field>
-                    </div>
-                ))}
+                {form.data.requests.map((request, index) => {
+                    const id = `request-label-${index}`;
+                    // Wired to its check by hand: an InputGroupInput, its remove button beside it.
+                    const check = checks.box(id);
+
+                    return (
+                        <div key={index} className="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]" data-test={`request-${index}`}>
+                            <SelectField id={`request-kind-${index}`} label={t('b2b::admin_companies.reject.request_kind')} value={request.kind} onChange={(event) => setRequest(index, { kind: event.target.value })}>
+                                <NativeSelectOption value="TEXT">{t('b2b::admin_companies.application.kind.TEXT')}</NativeSelectOption>
+                                <NativeSelectOption value="FILE">{t('b2b::admin_companies.application.kind.FILE')}</NativeSelectOption>
+                            </SelectField>
+                            {/* The row's own remove, inside its label's field (shadcn's form-array). */}
+                            <Field>
+                                <FieldLabel htmlFor={id}>{t('b2b::admin_companies.reject.request_label')}</FieldLabel>
+                                <InputGroup>
+                                    <InputGroupInput
+                                        id={id}
+                                        lang={writeIn}
+                                        dir={writeIn === 'ar' ? 'rtl' : 'ltr'}
+                                        {...checked<HTMLInputElement>(check, {})}
+                                        aria-invalid={check.message ? true : undefined}
+                                        aria-describedby={describedBy(id, undefined, check.message, 'reject-write-in')}
+                                        placeholder={t('b2b::admin_companies.reject.request_label_placeholder')}
+                                        value={request.label}
+                                        onChange={(event) => {
+                                            setRequest(index, { label: event.target.value });
+                                            check.onType();
+                                        }}
+                                        data-test={id}
+                                    />
+                                    <InputGroupAddon align="inline-end">
+                                        <InputGroupButton
+                                            size="icon-xs"
+                                            aria-label={t('b2b::admin_companies.reject.remove_request', { number: index + 1 })}
+                                            onClick={() => form.setData('requests', form.data.requests.filter((_, at) => at !== index))}
+                                            data-test={`remove-request-${index}`}
+                                        >
+                                            <X aria-hidden="true" />
+                                        </InputGroupButton>
+                                    </InputGroupAddon>
+                                </InputGroup>
+                                <Messages id={id} error={check.message} check={check} />
+                            </Field>
+                        </div>
+                    );
+                })}
                 {form.errors.requests ? <FieldError id="reject-requests-error">{form.errors.requests}</FieldError> : null}
                 <div>
                     <Button
@@ -313,6 +345,8 @@ export function SuspendModal({ open, onOpenChange, companyId, companyName, retur
     const t = useTranslator();
     const form = useForm({ reason: '' });
     const refusal = useFreshRefusal(open);
+    // The reason as typed (frontend.md §1.7): required, at most 1,000 characters (Remark::MAX).
+    const checks = useChecks([{ id: 'suspend-reason', label: t('b2b::admin_companies.reason'), value: form.data.reason, rules: { required: true, length: { max: 1000 } } }], open);
 
     return (
         <DestructiveActionDialog
@@ -335,27 +369,29 @@ export function SuspendModal({ open, onOpenChange, companyId, companyName, retur
             confirmLabel={t('b2b::admin_companies.suspend.button')}
             loading={form.processing}
             error={refusal}
-            waitingFor={form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined}
+            waitingFor={(form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined) ?? checks.reason}
             body={
                 <TextareaField
                     id="suspend-reason"
                     rows={3}
                     label={t('b2b::admin_companies.reason')}
                     helper={t('b2b::admin_companies.suspend.reason_helper')}
-                    error={form.errors.reason}
+                    check={checks.box('suspend-reason', form.errors.reason)}
                     value={form.data.reason}
                     onChange={(event) => form.setData('reason', event.target.value)}
                     data-test="suspend-reason"
                 />
             }
             onConfirm={() =>
-                form.post(url(companyId, 'suspend'), {
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        onOpenChange(false);
-                        form.reset();
-                    },
-                })
+                checks.submit(() =>
+                    form.post(url(companyId, 'suspend'), {
+                        preserveScroll: true,
+                        onSuccess: () => {
+                            onOpenChange(false);
+                            form.reset();
+                        },
+                    }),
+                )
             }
         />
     );
@@ -405,15 +441,19 @@ function ReasonDialog({
     button: string;
 }) {
     const t = useTranslator();
+    // The reason as typed (frontend.md §1.7): required, at most 1,000 characters (Remark::MAX).
+    const checks = useChecks([{ id: `${name}-reason`, label: t('b2b::admin_companies.reason'), value: form.data.reason, rules: { required: true, length: { max: 1000 } } }], open);
 
     function submit() {
-        form.post(action, {
-            preserveScroll: true,
-            onSuccess: () => {
-                onOpenChange(false);
-                form.reset();
-            },
-        });
+        checks.submit(() =>
+            form.post(action, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    onOpenChange(false);
+                    form.reset();
+                },
+            }),
+        );
     }
 
     return (
@@ -426,7 +466,7 @@ function ReasonDialog({
             confirm={
                 <ActionButton
                     loading={form.processing}
-                    disabledReason={form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined}
+                    disabledReason={(form.data.reason.trim() === '' ? t('b2b::admin_companies.reason_missing') : undefined) ?? checks.reason}
                     onClick={submit}
                     data-test={`confirm-${name}`}
                 >
@@ -439,7 +479,7 @@ function ReasonDialog({
                 rows={3}
                 label={t('b2b::admin_companies.reason')}
                 helper={helper}
-                error={form.errors.reason}
+                check={checks.box(`${name}-reason`, form.errors.reason)}
                 value={form.data.reason}
                 onChange={(event) => form.setData('reason', event.target.value)}
                 data-test={`${name}-reason`}
@@ -493,15 +533,22 @@ export function CorrectTypeModal({
         (choice === OTHER ? form.data.other.trim() === '' || form.data.other.trim() === (currentOther ?? '').trim() : choice === currentTypeId);
     const chosen = choices.find((each) => each.id === choice) ?? null;
     const reactivates = chosen !== null && !chosen.active;
+    // "Other" in words as typed (frontend.md §1.7): required, one line of at most 100 characters
+    // (CompanyTypeChoice::OTHER_MAX) - checked only while Other is chosen, the only time it is sent.
+    const checks = useChecks([
+        { id: 'correct-other', label: t('b2b::admin_companies.correct.other_words'), value: form.data.other, rules: { required: true, length: { max: 100 } }, off: choice !== OTHER },
+    ], open);
 
     function submit() {
         form.transform((data) =>
             choice === OTHER ? { type_id: '', other: data.other, confirm_reactivation: false } : { type_id: choice, other: '', confirm_reactivation: reactivates },
         );
-        form.post(url(companyId, 'type'), {
-            preserveScroll: true,
-            onSuccess: () => onOpenChange(false),
-        });
+        checks.submit(() =>
+            form.post(url(companyId, 'type'), {
+                preserveScroll: true,
+                onSuccess: () => onOpenChange(false),
+            }),
+        );
     }
 
     const typeError = (form.errors as Record<string, string | undefined>).type;
@@ -517,7 +564,7 @@ export function CorrectTypeModal({
             confirm={
                 <ActionButton
                     loading={form.processing}
-                    disabledReason={unchanged ? t('b2b::admin_companies.correct.choose_first') : undefined}
+                    disabledReason={(unchanged ? t('b2b::admin_companies.correct.choose_first') : undefined) ?? checks.reason}
                     onClick={submit}
                     data-test="confirm-correct-type"
                 >
@@ -544,7 +591,7 @@ export function CorrectTypeModal({
                     id="correct-other"
                     label={t('b2b::admin_companies.correct.other_words')}
                     value={form.data.other}
-                    error={form.errors.other}
+                    check={checks.box('correct-other', form.errors.other)}
                     onChange={(event) => form.setData('other', event.target.value)}
                     data-test="correct-type-other"
                 />
