@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
-import { CountryCombobox } from '@/components/CountryCombobox';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { PanelDialog } from '@/components/PanelDialog';
@@ -13,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
+import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure } from '@/lib/digits';
@@ -22,6 +22,10 @@ import type { BrandData, BrandsPage, CountryOptionData } from '@/types/generated
 import { FatesDialog } from '../FatesDialog';
 import { ImageField, MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, MoveItems, SortableGroup, SortableRows, useSavedOrder, useSortableRow } from '../SortableList';
+
+// The country picker, and the command list under it, load when the brand's dialog first opens - not
+// with the page, which the drag handles' code now shares (frontend.md §5, the page budget).
+const CountryCombobox = lazy(() => import('@/components/CountryCombobox').then((module) => ({ default: module.CountryCombobox })));
 
 /*
 | The brands screen (catalog.md §1.6, §4.4 S1), on shadcn's parts with Geist's rules (frontend.md
@@ -397,18 +401,20 @@ function BrandDialog({
                 </Field>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <CountryCombobox
-                        id="brand-country"
-                        label={t('catalog::admin_brands.field.country')}
-                        countries={countries}
-                        value={form.data.origin_country}
-                        onChange={(code) => form.setData('origin_country', code)}
-                        error={form.errors.origin_country}
-                        words={{
-                            search: t('catalog::admin_brands.country.search'),
-                            none: (query) => t('catalog::admin_brands.country.none', { query }),
-                        }}
-                    />
+                    <Suspense fallback={<Spinner className="text-ink-muted" aria-label={t('ui.loading')} />}>
+                        <CountryCombobox
+                            id="brand-country"
+                            label={t('catalog::admin_brands.field.country')}
+                            countries={countries}
+                            value={form.data.origin_country}
+                            onChange={(code) => form.setData('origin_country', code)}
+                            error={form.errors.origin_country}
+                            words={{
+                                search: t('catalog::admin_brands.country.search'),
+                                none: (query) => t('catalog::admin_brands.country.none', { query }),
+                            }}
+                        />
+                    </Suspense>
                     {/* Optional: a country chosen can be taken back (amendment 1(j)). */}
                     {form.data.origin_country !== '' ? (
                         <Button type="button" variant="ghost" size="sm" className="self-end justify-self-start" onClick={() => form.setData('origin_country', '')} data-test="brand-country-clear">

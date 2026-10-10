@@ -98,6 +98,87 @@ function catalogListBrowserBrand(string $n, string $nameEn): string
     return Fx::asSystem(fn (): string => app(AddBrandHandler::class)->handle(new AddBrand("ماركة {$n}", "{$nameEn} {$n}", 'DISTRIBUTOR')));
 }
 
+/**
+ * Every brand's id in the brands' order, as the screen reads it.
+ *
+ * @return list<string>
+ */
+function catalogListBrowserBrandOrder(): array
+{
+    return array_values(array_map('strval', DB::table('catalog.brands')->orderBy('position')->orderBy('name_en')->orderBy('id')->pluck('id')->all()));
+}
+
+/**
+ * Keys pressed on an element one at a time, a moment apart: dnd-kit measures the rows after each
+ * one, and keys sent in the same instant arrive before it has (AddressFormatScreenTest).
+ *
+ * @param  list<string>  $keys
+ */
+function catalogListBrowserKeys(mixed $page, string $selector, array $keys): void
+{
+    foreach ($keys as $key) {
+        $page->keys($selector, [$key]);
+        $page->wait(0.3);
+    }
+}
+
+it('orders the brands by dragging a row by its handle, and moves one to the top from its menu', function () {
+    $alpha = catalogListBrowserBrand(catalogListBrowserFresh(), 'Alpha');
+    $beta = catalogListBrowserBrand(catalogListBrowserFresh(), 'Beta');
+
+    // Each added last: the two end the list, Alpha then Beta.
+    expect(array_slice(catalogListBrowserBrandOrder(), -2))->toBe([$alpha, $beta]);
+
+    $page = catalogListBrowser([P::BRAND_MANAGE]);
+    $page->navigate('/admin/brands', BROWSER_PAGE_LOAD);
+
+    // dnd-kit's keyboard drag on the row's handle: Space picks Beta up, the up arrow moves it one
+    // place, Space puts it down - and the order is saved when dropped, with no Save button.
+    catalogListBrowserKeys($page, "[data-test=\"drag-brand-{$beta}\"]", ['Space', 'ArrowUp', 'Space']);
+
+    $dragged = catalogListBrowserSoon($page, fn (): array => array_slice(catalogListBrowserBrandOrder(), -2), fn (array $ids): bool => $ids === [$beta, $alpha]);
+
+    expect($dragged)->toBe([$beta, $alpha])
+        // The page shows the order saved.
+        ->and(browserUntil($page, "[...document.querySelectorAll('tbody tr')].map((row) => row.dataset.test).slice(-2).join() === 'brand-{$beta},brand-{$alpha}'"))->toBeTrue();
+
+    // Move to Top, from Alpha's ⋯ menu.
+    $page->click("[data-test=\"brand-actions-{$alpha}\"]")
+        ->click('[data-test="move-top"]');
+
+    $first = catalogListBrowserSoon($page, fn (): ?string => catalogListBrowserBrandOrder()[0] ?? null, fn (?string $id): bool => $id === $alpha);
+
+    expect($first)->toBe($alpha)
+        ->and(browserUntil($page, "document.querySelector('tbody tr')?.dataset.test === 'brand-{$alpha}'"))->toBeTrue();
+
+    $page->assertNoJavaScriptErrors();
+});
+
+it('orders a parent\'s sub-categories in the store shown by dragging, saved for that store alone', function () {
+    $n = catalogListBrowserFresh();
+    $top = Fx::asSystem(fn (): string => app(AddCategoryHandler::class)->handle(new AddCategory("خزائن {$n}", "Cabinets {$n}")));
+    $doors = Fx::asSystem(fn (): string => app(AddCategoryHandler::class)->handle(new AddCategory("أبواب {$n}", "Doors {$n}", $top)));
+    $shelves = Fx::asSystem(fn (): string => app(AddCategoryHandler::class)->handle(new AddCategory("رفوف {$n}", "Shelves {$n}", $top)));
+    $place = fn (string $store, string $id): int => (int) DB::table('catalog.store_category_ranks')->where('store_id', Fx::storeId($store))->where('category_id', $id)->value('rank');
+
+    // Each added last among its siblings, in every store.
+    expect([$place('eg', $doors), $place('eg', $shelves)])->toBe([1, 2]);
+
+    $page = catalogListBrowser([P::CATEGORY_RANK]);
+    $page->navigate('/admin/categories?store=eg', BROWSER_PAGE_LOAD);
+
+    // The first level opens with the page: its children are rows, each with its handle.
+    catalogListBrowserKeys($page, "[data-test=\"drag-category-{$shelves}\"]", ['Space', 'ArrowUp', 'Space']);
+
+    $places = catalogListBrowserSoon($page, fn (): array => [$place('eg', $shelves), $place('eg', $doors)], fn (array $now): bool => $now === [1, 2]);
+
+    expect($places)->toBe([1, 2])
+        // Egypt's menu only: the base store keeps its order.
+        ->and([$place('sa', $doors), $place('sa', $shelves)])->toBe([1, 2]);
+
+    $page->assertNoJavaScriptErrors();
+});
+
 it('adds a brand from its dialog, and deactivates another after reading the products it reaches', function () {
     $n = catalogListBrowserFresh();
     // Two brands, each its own number: the first one ever made is the default, which never goes (§1.6).
@@ -113,16 +194,17 @@ it('adds a brand from its dialog, and deactivates another after reading the prod
         ->type('#brand-name-ar', "هيتش {$n}")
         ->type('#brand-name-en', "Hettich {$n}")
         ->select('#brand-agency', 'EXCLUSIVE_AGENT')
-        ->type('#brand-position', '40')
         ->click('[data-test="confirm-brand"]');
 
     $added = catalogListBrowserSoon(
         $page,
-        fn () => DB::table('catalog.brands')->where('name_en', "Hettich {$n}")->first(['agency_type', 'position']),
+        fn () => DB::table('catalog.brands')->where('name_en', "Hettich {$n}")->first(['id', 'agency_type']),
         fn ($row): bool => $row !== null,
     );
 
-    expect($added)->toEqual((object) ['agency_type' => 'EXCLUSIVE_AGENT', 'position' => 40]);
+    // No place typed: it goes last in the brands' order (amendment 16(d)).
+    expect($added?->agency_type)->toBe('EXCLUSIVE_AGENT')
+        ->and(array_slice(catalogListBrowserBrandOrder(), -1))->toBe([$added?->id]);
 
     // The fates dialog reads the brand's products when it opens, and says how many before its button.
     $page->click("[data-test=\"brand-actions-{$brand}\"]")
