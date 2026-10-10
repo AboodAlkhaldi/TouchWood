@@ -884,6 +884,8 @@ see admin roles in the list but cannot open them for editing (amendment 9 and th
   list, listed in §4. Modules built later pick a group for each permission they declare.
   **[DECIDED 2026-09-29]** A **System** area joins them, for the running of the system — first the
   failed jobs (E7) — with its own section in the menu.
+  **[DECIDED 2026-10-07, built 2026-10-10]** A **Points** area joins them for Loyalty's jobs
+  (loyalty.md §3, access.md amendment 66), with its own section in the menu (platform.md §9.4).
   **[DECIDED by the owner, 2026-10-06] Select All per area:** where actions are ticked (D3, C6, the
   invitation's step 2), each area's header carries a checkbox that ticks every action of the area
   the author may give, or clears them. **[DECIDED by the owner, 2026-10-07]** It has shadcn's two

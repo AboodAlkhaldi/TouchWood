@@ -15,6 +15,14 @@ interface MediaReader
 {
     public function media(string $mediaId): ?MediaDto;
 
+    /**
+     * As media(), for several media at once, in one query (PlatformApi::mediaOf).
+     *
+     * @param  list<string>  $mediaIds
+     * @return array<string, MediaDto> keyed by the media id, lower-cased; an unknown id is left out
+     */
+    public function mediaOf(array $mediaIds): array;
+
     public function urls(string $mediaId): ?MediaUrlsDto;
 
     /**

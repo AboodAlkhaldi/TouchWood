@@ -317,6 +317,9 @@ interface PlatformApi
     /** As mediaUrls(), for a page of media in one query; keyed by the lower-cased id, unknown ids left out. */
     public function mediaUrlsOf(array $mediaIds): array;
 
+    /** As media(), for a page of media in one query; keyed as mediaUrlsOf(). */
+    public function mediaOf(array $mediaIds): array;
+
     // Audit — called by other modules inside their own command-handler transaction.
     public function recordAudit(AuditEntryDto $entry): void;
 
@@ -1058,6 +1061,8 @@ in full in that module's specification.
 | 2026-10-02 | Access (Super Admins are invisible) | **[Confirmed by the owner, 2026-10-03]** **`StaffNames`**, a public contract Platform defines and Access binds: the audit log asks it how each staff id on a page — actor, requester, subject — is named to the reader. A Super Admin, to anyone but another Super Admin, is "System administrator", and the entry then shows no id, no IP address, and, for an entry about them, no changes; filtering the log by their id answers no entries. Until a module binds it, nobody is named (`UnnamedStaff`). The audit rows gain `actorName` (filled now), `requestedByName` and `subjectName` | `docs/modules/access.md` amendments 54 and 56 |
 | 2026-10-03 | B2B (the type lists' menu entries), any module | **A menu entry offered for any of several permissions**: `MenuEntryDto` takes a list of permissions, and the entry is offered to whoever holds **any** of them in the store being worked in — **since 2026-10-06 in any store** (§9.10: the panel has no store worked in; the screen chooses one where the job is held). A single permission works as before; none still means a "coming soon" entry, shown to Super Admins only. What is offered is still not protection: the handler behind the screen asserts its own permission | `docs/modules/b2b.md` amendment 23(a) |
 | 2026-10-07 | Catalog (its screens' photos; the shop's product gallery) | **`PlatformApi::mediaUrlsOf(list $mediaIds)`**: the addresses of a page of media **in one query**, as `mediaUrls()` answers one - a public image's sizes once ready, a private file's expiring link - keyed by the lower-cased id; an id that is not a ULID, or names no media, is left out. The caller still checks its viewer may see a private file first. `mediaUrls()` is unchanged; both read the same way inside | `docs/modules/catalog.md` §2.4 (owner, 2026-10-07, #10) |
+| 2026-10-10 | Loyalty (its Points section) | **`points` joins the admin menu's business areas** (`InMemoryAdminMenu::GROUPS`), after Customers and before Staff, as handoff §14's tree has them; the area is Access's `PermissionGroup::Points`. Loyalty registers its entries ("Points settings · Redemptions") with its screens; until then the section is shown to nobody, as every area with no entry is. The role editor lists the areas in `PermissionGroup`'s own order, where Points comes last | loyalty.md §2.3; access.md amendment 66 |
+| 2026-10-10 | Loyalty (its programme's settings), every module | **The settings page reads a number or a yes/no only from text that is one** (owner, 2026-10-10, from Loyalty step 1's review): an emptied number field, or text that is not a whole number, is refused with the setting's message instead of being saved as 0, and a switch takes only "true"/"false" (or "1"/"0") instead of reading anything else as off. Cleared, Loyalty's "most of an order points may pay" had saved 0 — redemption off — while the page said "Saved" | loyalty.md §1.5 |
 
 ### 9.5 The owner's new direction — 2026-10-01 and 2026-10-02
 

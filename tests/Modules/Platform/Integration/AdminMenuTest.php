@@ -52,8 +52,9 @@ function registerTestMenu(): void
         // media and audit are all real entries now, and a module may not claim one key twice - so
         // what is left here is this test's own invention, and is named so.
         new MenuEntryDto('access', 'saved-roles', 'staff_and_permissions', 'test.menu.saved-roles', AccessPermissions::ROLE_MANAGE, 20),
-        // A module not built yet: its permissions do not exist, so it names none (§2.2).
-        new MenuEntryDto('catalog', 'products', 'catalog', 'test.menu.products'),
+        // A screen not built yet: it names no permission (§2.2). Its key is this test's own - the
+        // products screen is real since Catalog's screens step 2.
+        new MenuEntryDto('catalog', 'coming-soon', 'catalog', 'test.menu.coming-soon'),
     );
 }
 
@@ -78,8 +79,9 @@ describe('the admin menu', function () {
         // entry, registered at boot by the module that owns it; the rest are this test's own. The
         // list grows as screens ship, and the order it grows in is the thing being asserted.
         expect(offeredMenu())->toBe([
+            'catalog/coming-soon',
+            // Catalog's products (step 2 of its screens), then its shared lists (step 1).
             'catalog/products',
-            // Catalog's shared lists (catalog.md §4.4, step 1 of its screens).
             'catalog/categories',
             'catalog/brands',
             'catalog/attributes',
@@ -113,7 +115,7 @@ describe('the admin menu', function () {
 
         // Three of this test's own, plus Access's real staff and roles entries, which they may
         // use as well.
-        expect(offeredMenu())->not->toContain('catalog/products')
+        expect(offeredMenu())->not->toContain('catalog/coming-soon')
             ->and(offeredMenu())->toHaveCount(5);
     });
 
@@ -128,7 +130,7 @@ describe('the admin menu', function () {
         $jobs->enter(1, Actor::system(Actor::staff($staffId)));
 
         try {
-            expect(offeredMenu())->not->toContain('catalog/products');
+            expect(offeredMenu())->not->toContain('catalog/coming-soon');
         } finally {
             $jobs->leave(1);
         }

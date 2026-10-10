@@ -135,6 +135,7 @@ export function MarksField({
     check,
     dir,
     rows = 6,
+    disabled = false,
 }: {
     id: string;
     label: string;
@@ -145,6 +146,7 @@ export function MarksField({
     check?: BoxCheck;
     dir: 'rtl' | 'ltr';
     rows?: number;
+    disabled?: boolean;
 }) {
     const t = useTranslator();
     const blocks = readMarks(value);
@@ -160,6 +162,7 @@ export function MarksField({
                 value={value}
                 error={error}
                 check={check}
+                disabled={disabled}
                 onChange={(event) => onChange(event.target.value)}
                 data-test={id}
             />

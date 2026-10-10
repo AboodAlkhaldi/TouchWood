@@ -17,7 +17,7 @@ use Shared\Domain\ValueObject\StoreId;
  *
  * One price for everyone (owner, 2026-10-07): Pricing never asks who is buying. The lowest applicable
  * price wins (pricing.md §1.6); every total of an order is computed here, in one place (§1.7).
- * Refusals arrive as `Shared\Domain\Error\DomainError` with a stable `type()` key (§2.2).
+ * Refusals arrive as `Shared\Domain\Error\DomainError` with a stable `type()` key (§2.1).
  */
 interface PricingApi
 {

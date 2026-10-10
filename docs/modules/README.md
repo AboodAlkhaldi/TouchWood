@@ -35,12 +35,12 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | B2B | [accepted](b2b.md) 2026-09-26, amendments 1–25 — **built and merged** (seven steps, from 2026-09-27; its screens rebuilt on shadcn, amendments 22–25). See [its README](../../src/Modules/B2B/README.md) | — |
 | Feedback | [accepted](feedback.md) 2026-10-10 (#104) — stage 6, built after Promotions | Sales (the verified purchase) — Sales's spec, next |
 | Catalog | [approved](catalog.md) 2026-10-02, amendments 1–15 — **backend built and merged** (seven steps, 2026-10-02 to 2026-10-06; `v0.6.0`); the JSON import's file format, a guide and examples in [`catalog-import/`](catalog-import/README.md). Its screens are specified (amendments 13–15) and built by another session. See [its README](../../src/Modules/Catalog/README.md) | — |
-| Pricing | [spec](pricing.md) — its public contract on `main` (#97, 2026-10-07); the full spec accepted and merged (#100, 2026-10-09); built next (stage 5) | Catalog |
+| Pricing | [spec](pricing.md) — its public contract on `main` (#97, 2026-10-07); the full spec accepted and merged (#100, 2026-10-09; amended #107); **being built** in eight steps from 2026-10-10 (stage 5): step 1, the foundation. See [its README](../../src/Modules/Pricing/README.md) | Catalog |
 | Inventory | [spec](inventory.md) — its public contract on `main` (#97, 2026-10-07); the full spec, its questions answered by the owner 2026-10-09 (stage 5) | Catalog |
 | Sync | not started — waits for the provider's team: API access, a sample, whether discounts come from it, change notifications (pricing.md §9.1) | Pricing, Inventory, the provider's answers |
 | Sales | [accepted](sales.md) 2026-10-10 (#110) — the last of stage 6 to be built | Pricing, Inventory (built in stage 5); Shipping and Payments (stage 7) through the interfaces it defines |
 | Promotions | [accepted](promotions.md) 2026-10-10 (#101) — stage 6, built after Loyalty | — (Platform, Access, Catalog, Pricing — Pricing's interfaces on `main` since #97) |
-| Loyalty | [accepted](loyalty.md) 2026-10-10 (#96) — the first of stage 6 to be built (owner: Loyalty → Promotions → Feedback → Sales) | — (Platform, Access: handoff §4.4; this row had said Pricing) |
+| Loyalty | [accepted](loyalty.md) 2026-10-10 (#96) — **being built** from 2026-10-10 in six steps (step 1, the foundation: schema, permissions, settings, errors), the first of stage 6 (owner: Loyalty → Promotions → Feedback → Sales). See [its README](../../src/Modules/Loyalty/README.md) | — (Platform, Access: handoff §4.4; this row had said Pricing) |
 | Payments | not started | MyFatoorah API docs + sandbox |
 | Shipping | not started | box list + carrier list + rate tables |
 | Content | not started | Catalog |

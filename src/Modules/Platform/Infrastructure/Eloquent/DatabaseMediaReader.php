@@ -88,18 +88,18 @@ final readonly class DatabaseMediaReader implements MediaReader
     {
         $media = $this->media->byId($mediaId);
 
-        return $media === null ? null : new MediaDto(
-            $media->id(),
-            $media->visibility(),
-            $media->mime(),
-            $media->bytes(),
-            $media->width(),
-            $media->height(),
-            $media->originalFilename(),
-            $media->altAr(),
-            $media->altEn(),
-            $media->variantsStatus(),
-        );
+        return $media === null ? null : self::describe($media);
+    }
+
+    public function mediaOf(array $mediaIds): array
+    {
+        $described = [];
+
+        foreach ($this->media->byIds($mediaIds) as $media) {
+            $described[$media->id()] = self::describe($media);
+        }
+
+        return $described;
     }
 
     public function urls(string $mediaId): ?MediaUrlsDto
@@ -118,6 +118,22 @@ final readonly class DatabaseMediaReader implements MediaReader
         }
 
         return $urls;
+    }
+
+    private static function describe(Media $media): MediaDto
+    {
+        return new MediaDto(
+            $media->id(),
+            $media->visibility(),
+            $media->mime(),
+            $media->bytes(),
+            $media->width(),
+            $media->height(),
+            $media->originalFilename(),
+            $media->altAr(),
+            $media->altEn(),
+            $media->variantsStatus(),
+        );
     }
 
     private function urlsFor(Media $media): MediaUrlsDto

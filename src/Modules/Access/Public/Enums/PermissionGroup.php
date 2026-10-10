@@ -32,13 +32,17 @@ enum PermissionGroup: string
     /** Catalog's jobs (catalog.md §3, from 2026-10-02). */
     case Catalog = 'catalog';
 
-    // Nothing declares these yet; they are the groups the modules still to be built will use
-    // (handoff §14 and the design's own grouping).
+    /** Pricing's jobs (pricing.md §3, from 2026-10-10). */
     case Pricing = 'pricing';
 
+    /** For Sales, still to be built (handoff §14 and the design's own grouping). */
     case Orders = 'orders';
 
+    /** B2B's staff jobs (b2b.md amendment 10). */
     case Companies = 'companies';
+
+    /** Loyalty's jobs: the store's points and its programme (loyalty.md §3, access.md amendment 66). */
+    case Points = 'points';
 
     public function labelKey(): string
     {

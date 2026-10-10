@@ -12,7 +12,7 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Who may change a product's shared data (catalog.md §1.1, §3), asked before anything about it is
- * read. Creating one is checked in the creator's working store, by its handler.
+ * read. Creating one is checked in some store that is on, by its handler (amendment 13(f)).
  *
  * - **Its shared data** — details, variants, codes, gallery and the rest — needs the permission **in
  *   every store where the product is Active** (any of its variants switched on there); a product

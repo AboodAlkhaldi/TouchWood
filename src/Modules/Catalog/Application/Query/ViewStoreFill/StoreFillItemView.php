@@ -25,6 +25,7 @@ final readonly class StoreFillItemView
     /**
      * @param  string|null  $standing  for an open item, where it stands now
      * @param  list<string>  $missing  for one not ready, as `Readiness` names them
+     * @param  list<string>  $lines  for an open item, what the import's sections say of its price and stock (§2.3)
      */
     public function __construct(
         public string $id,
@@ -36,5 +37,6 @@ final readonly class StoreFillItemView
         public ?string $standing,
         public ?string $productId,
         public array $missing,
+        public array $lines = [],
     ) {}
 }
