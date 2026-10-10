@@ -291,7 +291,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                 (SELECT coalesce(json_agg(json_build_object('id', c.id, 'parentId', c.parent_id, 'ar', c.name_ar, 'en', c.name_en, 'active', c.is_active)
                     ORDER BY c.name_en, c.id), '[]') FROM catalog.categories c) as categories,
                 (SELECT coalesce(json_agg(json_build_object('id', w.id, 'nameAr', w.name_ar, 'nameEn', w.name_en, 'periodMonths', w.period_months, 'active', w.is_active)
-                    ORDER BY w.name_en, w.id), '[]') FROM catalog.warranties w) as warranties,
+                    ORDER BY w.position, w.name_en, w.id), '[]') FROM catalog.warranties w) as warranties,
                 (SELECT coalesce(json_agg(json_build_object('id', s.id, 'nameAr', s.name_ar, 'nameEn', s.name_en,
                     'attributeIds', (SELECT coalesce(json_agg(m.attribute_id ORDER BY m.position), '[]') FROM catalog.attribute_set_members m WHERE m.attribute_set_id = s.id))
                     ORDER BY s.name_en, s.id), '[]') FROM catalog.attribute_sets s WHERE s.is_active) as variations

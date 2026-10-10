@@ -23,6 +23,7 @@ use Modules\Catalog\Application\Command\OrderWarranties\OrderWarrantiesHandler;
 use Modules\Catalog\Application\Query\Lists\WarrantyRow;
 use Modules\Catalog\Application\Query\ListWarranties\ListWarranties;
 use Modules\Catalog\Application\Query\ListWarranties\ListWarrantiesHandler;
+use Modules\Catalog\Application\Query\Products\CatalogProductReads;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Model\Warranty;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
@@ -346,6 +347,8 @@ describe('the warranties\' order (amendment 16(d))', function () {
         app(OrderWarrantiesHandler::class)->handle(new OrderWarranties([$third]));
 
         expect($repository())->toBe([$third, $first, $second])
-            ->and($screen())->toBe([$third, $first, $second]);
+            ->and($screen())->toBe([$third, $first, $second])
+            // The product form's choice offers them in the same order (amendment 16(d)).
+            ->and(array_map(static fn (array $warranty): string => $warranty['id'], app(CatalogProductReads::class)->options()->warranties))->toBe([$third, $first, $second]);
     });
 });
