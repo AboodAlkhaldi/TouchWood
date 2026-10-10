@@ -14,6 +14,12 @@ jobs:
     services:
       postgres:
         image: postgres:17
+        # Pulled as the owner's Docker Hub account (a read-only token in the repo's secrets): pulled
+        # anonymously, Docker Hub refused it with "toomanyrequests" and every run failed before any
+        # step ran (2026-10-09).
+        credentials:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
         env:
           POSTGRES_USER: touchwood
           POSTGRES_PASSWORD: secret
