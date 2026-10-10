@@ -18,6 +18,14 @@ interface MediaReader
     public function urls(string $mediaId): ?MediaUrlsDto;
 
     /**
+     * As urls(), for several media at once, in one query (PlatformApi::mediaUrlsOf).
+     *
+     * @param  list<string>  $mediaIds
+     * @return array<string, MediaUrlsDto> keyed by the media id, lower-cased; an unknown id is left out
+     */
+    public function urlsOf(array $mediaIds): array;
+
+    /**
      * One page of the library, newest first (frontend.md 3.5, E5).
      *
      * Keyset, over media_created_idx: created_at DESC, id DESC, with the id breaking a tie because

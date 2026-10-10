@@ -674,7 +674,7 @@ who sees a category, `catalog.category.audience` (amendment 14(c)). **The shared
 | The admins' store file (§1.3, amendment 6(g)) — `UploadStoreFill`, `CorrectStoreFillCode`, `RemoveStoreFillItems`, `SwitchOnStoreFillItems`; reading its page and the store's files (`ViewStoreFill`, `ListStoreFills`) | `catalog.listing.fill`, **admin roles only, enforced** (amendment 6(h); access.md amendment 62) | That store |
 | `RankCategories` | `catalog.category.rank` | That store |
 | `SetCategoryAudiences` — which categories individuals see and which companies see in the store, a parent's switch carried to everything under it (§1.13, amendment 14) | `catalog.category.audience`, **admin roles only** (declared `adminOnly`, as `catalog.listing.fill`) | That store |
-| `UploadCatalogImage` — a photo chosen on a screen, uploaded to Platform's library before the form that uses it is saved (§4.4) | The job of what it is for: a list's job with All stores (a logo, a category's photo); `catalog.product.update` (a product's or a variant's) | A list's: All stores. A product's: Catalog checks the job in every store where the product is Active itself, as `UpdateProduct` does, then gives Platform's `uploadMediaFor` — which takes one scope — one of those stores, or a store where the reader holds the job when it is Active nowhere |
+| `UploadBrandLogo`, `UploadCategoryImage` and, with the product screens, a product's or a variant's photo — a photo chosen on a screen, uploaded to Platform's library before the form that uses it is saved (§4.4); one command a job, as every handler names its one permission | The job of what it is for: a list's job with All stores (a logo, a category's photo); `catalog.product.update` (a product's or a variant's) | A list's: All stores. A product's: Catalog checks the job in every store where the product is Active itself, as `UpdateProduct` does, then gives Platform's `uploadMediaFor` — which takes one scope — one of those stores, or a store where the reader holds the job when it is Active nowhere |
 | The screens' reads (§4.4): `ListBrands`, `ListCategories`, `ListAttributes`, `ViewAttribute`, `ListLabels`, `ListWarranties`, `ListWordPairs`, `ProductsReached` (`ListVariations` gone with amendment 16(b)) | The list's job | Any store; `ProductsReached` All stores |
 | `ListSearchesWithNoResults` | `catalog.search_word.manage` | All stores |
 | Category tree: add, rename, move, deactivate (with each product's choice), activate, delete | `catalog.category.manage` | All stores |
@@ -824,8 +824,8 @@ queries, each asking its own job, each **one query or a fixed few, never one per
 **uploaded on that screen** and go to Platform's media library through `uploadMediaFor`, under the
 screen's own job in its scope: there is **no picker of files already in the library** (none exists;
 Platform keeps one copy of an identical public image, so uploading the same file again reuses it)
-**[PROPOSED P5]**. A new Catalog command, `UploadCatalogImage` (the job and scope of what the photo is
-for), uploads and answers the photo's id; the form then saves with it, as every handler already takes
+**[PROPOSED P5]**. A new Catalog command for each — `UploadBrandLogo`, `UploadCategoryImage` (the job and
+scope of what the photo is for) — uploads and answers the photo's id; the form then saves with it, as every handler already takes
 media ids.
 
 #### S1 · Brands — `/admin/brands`
@@ -1626,7 +1626,7 @@ the owner's review of it before they are built**, unlike the rest.
 | P2 | **A shared list is read by anyone holding its job in any store**; its changes need All stores, so for others every button is disabled with that reason | As the menu offers it | One line in each list's read |
 | P3 | **A product's stage**: Draft gray, Ready green, Archived amber — each subtle, in words | Geist's Badge | A colour map |
 | P4 | **The products list shows every product** to a holder of `catalog.product.view` (a product belongs to no store), each store's state only for the stores the reader covers; All Stores first, a store chosen showing its state; newest first, 50 at a time | S8 | The read's filter |
-| P5 | **Photos are uploaded on the screen that uses them** — no picker of the library's files; the same file uploaded twice is one file (Platform) | `UploadCatalogImage` | A picker needs a Platform read of the library |
+| P5 | **Photos are uploaded on the screen that uses them** — no picker of the library's files; the same file uploaded twice is one file (Platform) | `UploadBrandLogo`, `UploadCategoryImage` | A picker needs a Platform read of the library |
 | P6 | **A product's Stores tab**: one card per covered store, as the owner described the page (§1.3); a Super Admin also sees off stores, marked Off, as every panel filter does (frontend.md §2.2) | S9 | Which stores the read returns |
 | P7 | **The category tree is the table's rows**, a parent's folding under it — shadcn's Table and Collapsible. Geist's only tree, File Tree, is for "illustrating project layouts", with no columns or actions | S2 | A drawing, not data |
 | P8 | **Orders are set by dragging** — a store's menu among siblings, ~~a variation's attributes,~~ a gallery, the related products — shadcn's `dashboard-01` handles on `@dnd-kit`, as the address formats (mouse, touch, keyboard); **since amendment 16(d), every ordered list**: brands, labels, warranties, attributes and their values, a product's variant attributes and variants, each saved when dropped, with Move to Top / Move to Bottom on the row's menu | S1–S3, S5, S6, S9 | Per screen |

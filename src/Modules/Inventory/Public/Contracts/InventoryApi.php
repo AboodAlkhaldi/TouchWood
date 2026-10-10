@@ -51,7 +51,8 @@ interface InventoryApi
     public function ship(string $orderId, array $lines): void;
 
     /**
-     * Staff ticked "reduced in the provider" for these lines (a wired store): their holds end. Safe to
+     * Staff ticked "reduced in the provider" for these lines (a wired store): their holds end - a
+     * size's bought line and its gift line both, as staff reduce the provider by the size. Safe to
      * repeat.
      *
      * @param  list<string>  $variantIds
@@ -62,4 +63,25 @@ interface InventoryApi
      * Frees whatever the order still holds - a cancel, or the hold's expiry. Safe to repeat.
      */
     public function release(string $orderId): void;
+
+    /**
+     * Staff edited the order before it ships: its hold becomes exactly these lines, all or nothing
+     * (§1.4). The extra pieces are held as at placement (`inventory.not_enough_stock`), lowered or
+     * removed lines are freed, and the expiry stays. `inventory.no_hold` when the order holds nothing;
+     * `inventory.hold_not_editable` once a line is shipped or ticked. The same edit twice changes
+     * nothing.
+     *
+     * @param  list<HoldLineDto>  $newLines
+     */
+    public function adjustHold(string $orderId, array $newLines): void;
+
+    /**
+     * Staff marked a return received: these pieces go back (§1.9) - in a store with no provider into
+     * stock; in a wired store only for stock-dependent variants and gifts, provisionally on our side
+     * until the provider's number next changes. Only the pieces going back (a damaged one is left
+     * out). The store is the order's. A return id counts once.
+     *
+     * @param  list<HoldLineDto>  $lines
+     */
+    public function returned(string $orderId, string $returnId, array $lines): void;
 }
