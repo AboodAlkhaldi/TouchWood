@@ -39,7 +39,7 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Inventory | [spec](inventory.md) — its public contract on `main` (#97, 2026-10-07); the full spec, its questions answered by the owner 2026-10-09 (stage 5) | Catalog |
 | Sync | not started — waits for the provider's team: API access, a sample, whether discounts come from it, change notifications (pricing.md §9.1) | Pricing, Inventory, the provider's answers |
 | Sales | not started | Catalog, Pricing, Inventory |
-| Promotions | not started | Pricing |
+| Promotions | [draft](promotions.md) 2026-10-08 — **for the owner's review**; stage 6, built after Loyalty | — (Platform, Access, Catalog, Pricing — Pricing's interfaces on `main` since #97) |
 | Loyalty | [draft](loyalty.md) 2026-10-07 — **for the owner's review**; the first of stage 6 to be built (owner: Loyalty → Promotions → Feedback → Sales) | — (Platform, Access: handoff §4.4; this row had said Pricing) |
 | Payments | not started | MyFatoorah API docs + sandbox |
 | Shipping | not started | box list + carrier list + rate tables |

@@ -130,6 +130,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-10 | §12.1, §12.3 | **Returned pieces go back into stock when staff mark the return received** — in a store with no provider, and for a wired store's stock-dependent variants and gifts; a wired ordinary product follows the provider; staff may leave a damaged piece out. A wired store's returned piece is **provisionally** added on our side and dropped when the provider's number next changes — to be discussed again once the provider says whether we may write to it. **Staff may fully edit an order before it ships**; its held stock follows. **"Last pieces" on a card** counts only the sizes the viewer can buy and order now; on a product's page the size options mark the ending-soon size itself. The details: `docs/modules/inventory.md` §1.2, §1.4, §1.9 | Stage 6 and Inventory questions, owner decision |
 | 2026-10-10 | §10.2, §11.3, §12.3 | **A wholesale price is not a discount**: a wholesale line's list price is its band (the retail price under the first band), so `gross_subtotal` counts it, coupons and points reach band-priced lines, and the discount ceiling measures only sales and discounts. Raised by stage 5's cross-check of Promotions. **An order edited before it ships**: pieces already on it keep their price; added pieces take today's — on a wholesale line, the band for the line's new total quantity, on the added pieces only; VAT stays at the order's rate. The details: `docs/modules/pricing.md` §1.6 step 5, §1.11 | Owner decision |
 | 2026-10-07 | §11.5 | **A points balance never goes below 0** ("there is no minus points ever"): what a cancellation or a return cannot take back — from the order's own points first, then the customer's other points — is dropped, and the customer keeps the discount — no negative balance, no checkout warning. Points given back keep their old expiry dates and first cover what is taken back; earned points that expired unused count as taken back. Earned points are usable at once; admins may also add or remove points by hand, with a reason; the points that expire first are spent first. Was: negative balances allowed, never expiring, with a checkout warning | Loyalty spec, owner decision |
+| 2026-10-08 | §4.2, §4.4, §11.1–§11.3, §11.6, §15.2 | **Promotions' rules** (`docs/modules/promotions.md`): the automatic promotions are the gift levels alone; a coupon takes a percentage (optional cap) or a fixed amount, skips already-reduced lines unless switched on, may have a total number of uses, and is **refused whole if it would pass the ceiling**; a coupon use **never comes back**, even on a cancellation; segments are per store and count every placed order whatever its state; one gift per order, the highest level reached; **the ceiling starts at 30%**, admin-only; bundles / kits wait for their own job after stage 6 | Promotions spec, owner decision |
 
 ---
 
@@ -370,8 +371,8 @@ legitimately needs price, stock, discount, points, shipping and payment in one f
 
 **Promotions never depends on Sales** (owner, 2026-09-18). Sales passes the cart to Promotions
 and gets the discounts back. Promotions gets the order facts it needs (a coupon used, an order
-placed or cancelled — for per-customer limits and segments) from Sales calling it inside the
-checkout transaction, so a one-time coupon can never be used twice.
+placed — for per-customer limits and segments; a cancellation changes neither, owner 2026-10-08) from
+Sales calling it inside the checkout transaction, so a one-time coupon can never be used twice.
 
 ### 4.5 Communication — three channels
 
@@ -1188,11 +1189,11 @@ in KSA and not in Egypt. That is intended.
 ### 11.2 Assigned coupons and segments
 
 ```
-coupon_assignments(coupon_id, customer_id, assigned_at, notified_at, used_at)
+coupon_assignments(coupon_id, customer_id, assigned_at)      ← uses are counted per order
 ```
 
-Only assigned customers can use an `ASSIGNED` coupon. They are notified, and it appears in
-their account centre.
+Only assigned customers can use an `ASSIGNED` coupon. It appears in their account centre at once;
+a message about it comes with Ops (owner, 2026-10-08).
 
 Assignment is **by segment**, not one customer at a time:
 
@@ -1207,7 +1208,9 @@ customer_segments
 customer_segment_members     ← materialized, nightly + on demand
 ```
 
-In scope: frequent buyers, monthly buyers, no order in 6 months, no order in a year.
+In scope: frequent buyers, monthly buyers (at least one order a month on average), no order in
+6 months, no order in a year. Segments are per store; every placed order counts, whatever happens
+to it (owner, 2026-10-08).
 **Not** in scope: spend-based grouping.
 
 **Assignment snapshots membership at the moment of assigning.** Resolving a segment writes
