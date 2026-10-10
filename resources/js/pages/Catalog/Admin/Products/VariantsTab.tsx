@@ -14,6 +14,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import { type Box, useChecks } from '@/lib/use-checks';
 import type { AttributeChoiceData, ProductPage, VariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, nameIn, useLocale } from '../parts';
 import { PhotoGrid } from './photos';
@@ -342,6 +343,49 @@ function VariantDialog({
         }
     }, [open, variant?.id]);
 
+    // Each box as typed (frontend.md §1.7), with the domain's rules: a code of 1 to 10 digits
+    // (ProductCode, while it may still change); a value for each of the product's variant attributes;
+    // a detail's number with at most nine digits before the point and three after, or its words of up
+    // to 200 characters in each language (VariantDetail - that a text is given in both languages is
+    // the server's to say); weight and sizes whole numbers from 1 to 1,000,000, each optional
+    // (VariantMeasures); a position from 0 to 10,000 (ListPosition). Catalog's request reads an empty
+    // or broken number as -1, so the position is required.
+    const measure = { number: { min: 1, max: 1_000_000 } };
+    const checks = useChecks(
+        [
+            { id: 'variant-code', label: t('catalog::admin_products.variants.code'), value: form.data.code, rules: { required: true, digits: true, length: { max: 10 } }, off: codeLocked },
+            ...setAttributes.map(
+                (attribute): Box => ({ id: `variant-value-${attribute.id}`, label: nameIn(locale, attribute.nameAr, attribute.nameEn), value: form.data.values[attribute.id] ?? '', rules: { required: true } }),
+            ),
+            ...detailAttributes.flatMap((attribute): Box[] => {
+                const name = nameIn(locale, attribute.nameAr, attribute.nameEn);
+                const detail = form.data.details[attribute.id] ?? { text_ar: '', text_en: '', number: '' };
+                const text = { length: { max: 200 } };
+
+                return attribute.unitEn !== null
+                    ? [
+                          {
+                              id: `variant-detail-${attribute.id}`,
+                              label: `${t('catalog::admin_products.variants.number', { name })} (${locale === 'ar' ? attribute.unitAr : attribute.unitEn})`,
+                              subject: t('catalog::admin_products.variants.number', { name }),
+                              value: detail.number,
+                              rules: { number: { decimals: 3, min: -999_999_999.999, max: 999_999_999.999 } },
+                          },
+                      ]
+                    : [
+                          { id: `variant-detail-ar-${attribute.id}`, label: t('catalog::admin_products.variants.text_ar', { name }), value: detail.text_ar, rules: text },
+                          { id: `variant-detail-en-${attribute.id}`, label: t('catalog::admin_products.variants.text_en', { name }), value: detail.text_en, rules: text },
+                      ];
+            }),
+            { id: 'variant-weight_grams', label: t('catalog::admin_products.variants.weight'), value: form.data.weight_grams, rules: measure },
+            { id: 'variant-length_mm', label: t('catalog::admin_products.variants.length'), value: form.data.length_mm, rules: measure },
+            { id: 'variant-width_mm', label: t('catalog::admin_products.variants.width'), value: form.data.width_mm, rules: measure },
+            { id: 'variant-height_mm', label: t('catalog::admin_products.variants.height'), value: form.data.height_mm, rules: measure },
+            { id: 'variant-position', label: t('catalog::admin_products.variants.position'), value: form.data.position, rules: { required: true, number: { min: 0, max: 10000 } } },
+        ],
+        open,
+    );
+
     function submit() {
         // Only the details given are sent: an attribute left empty is no detail.
         form.transform((data) => ({
@@ -352,7 +396,9 @@ function VariantDialog({
                     .map(([id, detail]) => [id, detail.number.trim() !== '' ? { number: detail.number.trim() } : { text_ar: detail.text_ar, text_en: detail.text_en }]),
             ),
         }));
-        form.post(variant === null ? `/admin/products/${page.product.id}/variants` : `/admin/products/${page.product.id}/variants/${variant.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() =>
+            form.post(variant === null ? `/admin/products/${page.product.id}/variants` : `/admin/products/${page.product.id}/variants/${variant.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }),
+        );
     }
 
     const errors = form.errors as Record<string, string | undefined>;
@@ -365,7 +411,7 @@ function VariantDialog({
             label={label}
             helper={helper}
             value={form.data[field]}
-            error={errors[field]}
+            check={checks.box(`variant-${field}`, errors[field])}
             onChange={(event) => form.setData(field, toLatinDigits(event.target.value))}
         />
     );
@@ -380,7 +426,7 @@ function VariantDialog({
             description={t('catalog::admin_products.variants.empty_body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-variant">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-variant">
                     {variant === null ? t('catalog::admin_products.variants.add_title') : t('catalog::admin_products.variants.save')}
                 </ActionButton>
             }
@@ -396,7 +442,7 @@ function VariantDialog({
                     label={t('catalog::admin_products.variants.code')}
                     helper={codeLocked ? t('catalog::admin_products.variants.code_locked') : t('catalog::admin_products.variants.code_helper')}
                     value={form.data.code}
-                    error={errors.code}
+                    check={checks.box('variant-code', errors.code)}
                     onChange={(event) => form.setData('code', toLatinDigits(event.target.value))}
                     data-test="variant-code"
                 />
@@ -411,6 +457,7 @@ function VariantDialog({
                                     id={`variant-value-${attribute.id}`}
                                     label={nameIn(locale, attribute.nameAr, attribute.nameEn)}
                                     value={form.data.values[attribute.id] ?? ''}
+                                    check={checks.box(`variant-value-${attribute.id}`)}
                                     onChange={(event) => form.setData('values', { ...form.data.values, [attribute.id]: event.target.value })}
                                     data-test={`variant-value-${attribute.id}`}
                                 >
@@ -448,12 +495,13 @@ function VariantDialog({
                                         inputClassName="tw-figure"
                                         label={`${t('catalog::admin_products.variants.number', { name })} (${locale === 'ar' ? attribute.unitAr : attribute.unitEn})`}
                                         value={detail.number}
+                                        check={checks.box(`variant-detail-${attribute.id}`)}
                                         onChange={(event) => set({ number: toLatinDigits(event.target.value) })}
                                     />
                                 ) : (
                                     <div key={attribute.id} className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
-                                        <TextField id={`variant-detail-ar-${attribute.id}`} dir="rtl" label={t('catalog::admin_products.variants.text_ar', { name })} value={detail.text_ar} onChange={(event) => set({ text_ar: event.target.value })} />
-                                        <TextField id={`variant-detail-en-${attribute.id}`} dir="ltr" label={t('catalog::admin_products.variants.text_en', { name })} value={detail.text_en} onChange={(event) => set({ text_en: event.target.value })} />
+                                        <TextField id={`variant-detail-ar-${attribute.id}`} dir="rtl" label={t('catalog::admin_products.variants.text_ar', { name })} value={detail.text_ar} check={checks.box(`variant-detail-ar-${attribute.id}`)} onChange={(event) => set({ text_ar: event.target.value })} />
+                                        <TextField id={`variant-detail-en-${attribute.id}`} dir="ltr" label={t('catalog::admin_products.variants.text_en', { name })} value={detail.text_en} check={checks.box(`variant-detail-en-${attribute.id}`)} onChange={(event) => set({ text_en: event.target.value })} />
                                     </div>
                                 );
                             })}
@@ -483,6 +531,9 @@ function VariantDialog({
 function CodeDialog({ productId, variant, open, onOpenChange, returnFocusTo }: { productId: string; variant: VariantData; open: boolean; onOpenChange: (open: boolean) => void; returnFocusTo?: React.RefObject<HTMLElement | null> }) {
     const t = useTranslator();
     const form = useForm({ code: '' });
+    // The new code as typed (frontend.md §1.7): 1 to 10 digits (ProductCode). Afresh each time the
+    // dialog opens.
+    const checks = useChecks([{ id: 'correct-code', label: t('catalog::admin_products.variants.code'), value: form.data.code, rules: { required: true, digits: true, length: { max: 10 } } }], open);
 
     return (
         <PanelDialog
@@ -493,7 +544,12 @@ function CodeDialog({ productId, variant, open, onOpenChange, returnFocusTo }: {
             description={t('catalog::admin_products.variants.correct_body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={() => form.post(`/admin/products/${productId}/variants/${variant.id}/code`, { preserveScroll: true, onSuccess: () => onOpenChange(false) })} data-test="confirm-code">
+                <ActionButton
+                    loading={form.processing}
+                    disabledReason={checks.reason}
+                    onClick={() => checks.submit(() => form.post(`/admin/products/${productId}/variants/${variant.id}/code`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }))}
+                    data-test="confirm-code"
+                >
                     {t('catalog::admin_products.variants.correct_confirm')}
                 </ActionButton>
             }
@@ -506,7 +562,7 @@ function CodeDialog({ productId, variant, open, onOpenChange, returnFocusTo }: {
                 label={t('catalog::admin_products.variants.code')}
                 helper={t('catalog::admin_products.variants.code_helper')}
                 value={form.data.code}
-                error={form.errors.code}
+                check={checks.box('correct-code', form.errors.code)}
                 onChange={(event) => form.setData('code', toLatinDigits(event.target.value))}
             />
         </PanelDialog>

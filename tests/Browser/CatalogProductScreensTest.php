@@ -185,6 +185,39 @@ it('adds a variant from its dialog, with a value of the product\'s variation', f
     $page->assertNoJavaScriptErrors();
 });
 
+/*
+| Every box checks itself as it is typed (frontend.md §1.7; catalog.md amendment 16(f)): a letter in
+| a variant's code is said under it at once, and so is an eleventh digit (ProductCode: 1 to 10
+| digits); Add Variant stays out of reach until the code is right.
+*/
+it('says a letter typed in a variant\'s code at once, and keeps Add Variant out of reach until the code is right', function () {
+    $n = catalogProductBrowserFresh();
+    $product = catalogProductBrowserDraft($n);
+    $page = catalogProductBrowser([P::PRODUCT_VIEW, P::PRODUCT_UPDATE]);
+    $page->navigate("/admin/products/{$product}?tab=variants", BROWSER_PAGE_LOAD);
+
+    $page->click('[data-test="add-variant"]')
+        ->typeSlowly('#variant-code', '12a', 20);
+
+    expect(browserUntil($page, 'document.getElementById("variant-code-error")?.textContent === "Code takes the digits 0 to 9 only."'))->toBeTrue()
+        ->and($page->script('document.getElementById("variant-code").getAttribute("aria-invalid")'))->toBe('true')
+        ->and($page->script('document.querySelector(\'[data-test="confirm-variant"]\').getAttribute("aria-disabled")'))->toBe('true');
+
+    $page->type('#variant-code', '12345678901');
+    expect(browserUntil($page, 'document.getElementById("variant-code-error")?.textContent === "Code is at most 10 digits."'))->toBeTrue();
+
+    $code = substr($n, -9);
+    $page->type('#variant-code', $code);
+    expect(browserUntil($page, 'document.getElementById("variant-code-error") === null && document.querySelector(\'[data-test="confirm-variant"]\').getAttribute("aria-disabled") === null'))->toBeTrue();
+
+    $page->click('[data-test="confirm-variant"]');
+
+    $added = catalogProductBrowserSoon($page, fn () => DB::table('catalog.variants')->where('product_id', $product)->value('code'), fn ($found): bool => $found !== null);
+
+    expect($added)->toBe($code);
+    $page->assertNoJavaScriptErrors();
+});
+
 it('reads right to left in Arabic, at a phone\'s width, with nothing wider than the screen', function () {
     $product = catalogProductBrowserDraft(catalogProductBrowserFresh());
     $page = catalogProductBrowser([P::PRODUCT_VIEW], 'ar');

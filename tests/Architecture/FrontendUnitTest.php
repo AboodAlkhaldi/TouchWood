@@ -34,7 +34,7 @@ it('passes every unit test of the screens', function () {
 | The words of every rule a box can break, in both languages. lib/checks.ts names a rule, and its
 | sentence is read as `ui.check.{rule}` - a key built from a variable, which TranslationKeysTest can
 | only check as "something under ui.check" - so each rule the file can give is read out of it here
-| and looked up, one by one. A module's own format brings its own key, checked where it is used.
+| and looked up, one by one. A module's own format brings its own key, checked in the next test.
 */
 it('has the words of every rule a box can break, in Arabic and in English', function () {
     $root = dirname(__DIR__, 2);
@@ -60,6 +60,44 @@ it('has the words of every rule a box can break, in Arabic and in English', func
         foreach ($rules as $rule) {
             expect($words[$rule] ?? null)->toBeString("ui.check.{$rule} is missing in {$locale}")
                 ->and((string) $words[$rule])->toContain(':field');
+        }
+    }
+});
+
+/*
+| A module's own format - an address's letters, a colour code, a label's two words - names its
+| sentence by key (`format: { pattern, key }`), not through t(), so TranslationKeysTest cannot see it.
+| Every such key the screens write is read here and looked up in its module's words, both languages.
+*/
+it('has the words of every module format a box checks, in Arabic and in English', function () {
+    $root = dirname(__DIR__, 2);
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root.'/resources/js', FilesystemIterator::SKIP_DOTS));
+    $keys = [];
+
+    foreach ($files as $file) {
+        if (in_array($file->getExtension(), ['ts', 'tsx'], true)) {
+            preg_match_all("/\\bkey: '([a-z0-9_]+)::([a-z0-9_]+)\\.([a-z0-9_.]+)'/", (string) file_get_contents($file->getPathname()), $found, PREG_SET_ORDER);
+            array_push($keys, ...$found);
+        }
+    }
+
+    // The screens check several formats of their own.
+    expect(count($keys))->toBeGreaterThan(3);
+
+    foreach ($keys as [$key, $module, $group, $path]) {
+        $folder = array_values(array_filter(glob($root.'/src/Modules/*', GLOB_ONLYDIR) ?: [], static fn (string $dir): bool => strtolower(basename($dir)) === $module))[0] ?? null;
+
+        expect($folder)->not->toBeNull("{$key}: no module {$module}");
+
+        foreach (['ar', 'en'] as $locale) {
+            $words = (array) require "{$folder}/Presentation/lang/{$locale}/{$group}.php";
+
+            foreach (explode('.', $path) as $part) {
+                $words = is_array($words) ? ($words[$part] ?? null) : null;
+            }
+
+            expect($words)->toBeString("{$key} is missing in {$locale}")
+                ->and((string) $words)->toContain(':field');
         }
     }
 });

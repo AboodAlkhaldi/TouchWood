@@ -22,7 +22,7 @@ import { useChecks } from '@/lib/use-checks';
 import type { BrandData, BrandsPage, CountryOptionData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
 import { marksLength } from '../marks';
-import { ImageField, MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
+import { ImageField, MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, SLUG_RULES, StateBadge, nameIn, slugsWrong, useAllStoresReason, useLocale } from '../parts';
 
 /*
 | The brands screen (catalog.md §1.6, §4.4 S1), on shadcn's parts with Geist's rules (frontend.md
@@ -37,21 +37,6 @@ import { ImageField, MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads
 */
 
 const AGENCIES = ['HOUSE', 'EXCLUSIVE_AGENT', 'DISTRIBUTOR'] as const;
-
-/*
-| A web address as Slug::of takes one typed (catalog.md §1.1, §5.3): at most 200 characters
-| (Slug::MAX), words joined by single hyphens - in English lower-case a-z and digits, in Arabic the
-| Arabic letters (U+0621-U+063F, U+0641-U+064A, U+0671-U+06D3) and digits. Arabic-Indic digits are let
-| through in both, as the server turns them into 0-9 before it reads the shape (CatalogText).
-*/
-const SLUG_EN = { length: { max: 200 }, format: { pattern: /^[a-z0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+(-[a-z0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+)*$/u, key: 'catalog::admin.check.slug_en' } };
-const SLUG_AR = {
-    length: { max: 200 },
-    format: {
-        pattern: /^[\u{0621}-\u{063F}\u{0641}-\u{064A}\u{0671}-\u{06D3}0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+(-[\u{0621}-\u{063F}\u{0641}-\u{064A}\u{0671}-\u{06D3}0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+)*$/u,
-        key: 'catalog::admin.check.slug_ar',
-    },
-};
 
 type Dialog = { action: 'add' | 'edit' | 'deactivate' | 'delete'; brand: BrandData | null } | null;
 
@@ -319,19 +304,19 @@ function BrandDialog({
     // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 100 characters
     // (Brand::NAME_MAX, LocalizedName), a position from 0 to 10,000 (ListPosition; the request reads an
     // empty or broken number as -1, so it is required), descriptions of up to 5,000 characters counted
-    // as StructuredText counts them (Brand::DESCRIPTION_MAX), and the web addresses (Slug, above) -
-    // not checked while folded away. A description's "both languages or neither" is left to the server.
+    // as StructuredText counts them (Brand::DESCRIPTION_MAX), and the web addresses (SLUG_RULES) -
+    // whose section stays open while one is wrong. A description's "both languages or neither" is
+    // left to the server.
     const name = { required: true, length: { max: 100 } };
     const description = { length: { max: 5000, of: marksLength } };
-    const folded = !(addresses || addressRefused);
     const checks = useChecks([
         { id: 'brand-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name },
         { id: 'brand-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name },
         { id: 'brand-position', label: t('catalog::admin.field.position'), value: form.data.position, rules: { required: true, number: { min: 0, max: 10000 } } },
         { id: 'brand-description-ar', label: t('catalog::admin_brands.field.description_ar'), value: form.data.description_ar, rules: description },
         { id: 'brand-description-en', label: t('catalog::admin_brands.field.description_en'), value: form.data.description_en, rules: description },
-        { id: 'brand-slug-ar', label: t('catalog::admin.field.slug_ar'), value: form.data.slug_ar, rules: SLUG_AR, off: folded },
-        { id: 'brand-slug-en', label: t('catalog::admin.field.slug_en'), value: form.data.slug_en, rules: SLUG_EN, off: folded },
+        { id: 'brand-slug-ar', label: t('catalog::admin.field.slug_ar'), value: form.data.slug_ar, rules: SLUG_RULES.ar },
+        { id: 'brand-slug-en', label: t('catalog::admin.field.slug_en'), value: form.data.slug_en, rules: SLUG_RULES.en },
     ]);
 
     function submit() {
@@ -440,7 +425,7 @@ function BrandDialog({
                 <MarksField id="brand-description-ar" dir="rtl" label={t('catalog::admin_brands.field.description_ar')} value={form.data.description_ar} check={checks.box('brand-description-ar', form.errors.description_ar)} onChange={(value) => form.setData('description_ar', value)} />
                 <MarksField id="brand-description-en" dir="ltr" label={t('catalog::admin_brands.field.description_en')} value={form.data.description_en} check={checks.box('brand-description-en', form.errors.description_en)} onChange={(value) => form.setData('description_en', value)} />
 
-                <Collapsible open={addresses || addressRefused} onOpenChange={setAddresses}>
+                <Collapsible open={addresses || addressRefused || slugsWrong(form.data.slug_ar, form.data.slug_en)} onOpenChange={setAddresses}>
                     <CollapsibleTrigger asChild>
                         <Button type="button" variant="ghost" size="sm" className="justify-start px-0" data-test="brand-addresses">
                             {t('catalog::admin.addresses.title')}

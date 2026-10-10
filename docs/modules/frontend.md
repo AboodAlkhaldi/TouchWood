@@ -260,20 +260,25 @@ catalog.md amendment 16(f)) — in every form of every module:
 - **The server still checks everything** — a Form Request for shape and type, the domain for its
   rules (handoff §5): the box's check saves a round trip, never replaces one.
 
-**Built 2026-10-10** (`feat/forms-type-checks`), for every form of Access, Platform, B2B and Catalog on
-`main` then: the rules and their words in `resources/js/lib/checks.ts` and `lang/{ar,en}/ui.php`
+**Built 2026-10-11** (`feat/forms-type-checks`), for every form of Access, Platform, B2B and Catalog on
+`main` then, Catalog's products screens (#111) included: the rules and their words in `resources/js/lib/checks.ts` and `lang/{ar,en}/ui.php`
 ("check"); when each is said, and what it does to Save, in `resources/js/lib/use-checks.ts`; the
 shared fields (`components/Fields.tsx`, `PasswordInput`) take a box's check. Each form declares its
 boxes' rules once, copied from the domain it sends to, the source named beside them; where the page
-and the server could differ, the page is the looser. Unit tests: `tests/Frontend` (Node's own
+and the server could differ, the page is the looser - except where a number box is stricter on
+purpose, each for the owner to confirm: letters refused even where Platform reads them as 0 (a
+store's position, a number setting); a store's tax rate held to two decimals, which the server would
+silently cut, and "15." refused; a number setting held to whole numbers, which the server would cut.
+Unit tests: `tests/Frontend` (Node's own
 runner, run inside the PHP suite by `tests/Architecture/FrontendUnitTest.php`). Left to the server
 alone, not checked on the page: a date of birth's range, a password's breach list, two boxes filled
-together or not at all (a brand's descriptions, an attribute's units), reserved store codes, an
-address's 4,000-character total, a name already taken. *Open, for the owner:* the page's words are
+together or not at all (a brand's descriptions, an attribute's units, a variant's detail in both
+languages), a word pair's two words differing, reserved store codes, an address's 4,000-character
+total, a name already taken. *Open, for the owner:* the page's words are
 the shared `ui.check` sentences; most servers still answer a refused value with their module's
 general "the :attribute isn't valid", so the two do not yet say the same thing — changing the
-servers' words is a backend change this job did not make. Catalog's products and store screens,
-not on `main` then, take the helper with their own branch.
+servers' words is a backend change this job did not make. Catalog's store screens, not on `main`
+then, take the helper with their own branch.
 
 How these messages look is in §2.1. *Open (§4):* `FormErrors` is inside Access, and Platform's
 admin screens need the same thing; where the shared version lives is decided with the owner.

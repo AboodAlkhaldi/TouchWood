@@ -76,34 +76,52 @@ export function useChecks(boxes: Box[], fresh?: unknown): Checks {
 
     if (was !== fresh) {
         // Set while rendering, as React's docs do for state that follows a prop: no frame shows the
-        // boxes of the form before.
+        // boxes of the form before. What was sent is kept: a refusal still belongs to its value.
         setWas(() => fresh);
         setShown(new Set());
-        sent.current = new Map();
     }
 
     useEffect(() => {
+        let late: ReturnType<typeof setTimeout> | undefined;
+        // The boxes left during the press, said now.
+        const said = () => {
+            const ids = left.current;
+            left.current = [];
+            setShown((was) => (ids.every((id) => was.has(id)) ? was : new Set([...was, ...ids])));
+        };
         const down = () => {
+            clearTimeout(late);
             pressing.current = true;
         };
         // Pressing Save takes the focus from the box first, and a box left wrong takes Save out of
         // reach - under the pointer, before the press could land, and Save would then say nothing at
-        // all (found by the browser test). So a box left by a press is said after that press's click.
-        const up = () => {
+        // all (found by the browser test). So a box left by a press is said once its click has run:
+        // after the click's own handlers (this listener runs first, in the capture phase, and waits
+        // its turn). On a touch screen the focus moves after the finger lifts, so the press ends at
+        // the click, not at pointerup.
+        const click = () => {
+            clearTimeout(late);
             pressing.current = false;
-            setTimeout(() => {
-                const ids = left.current;
-                left.current = [];
-                setShown((was) => (ids.every((id) => was.has(id)) ? was : new Set([...was, ...ids])));
-            }, 0);
+            setTimeout(said, 0);
+        };
+        // A press that makes no click - dragged off, or cancelled - ends a moment after it is let go.
+        const up = () => {
+            clearTimeout(late);
+            late = setTimeout(() => {
+                pressing.current = false;
+                said();
+            }, 500);
         };
 
         document.addEventListener('pointerdown', down, true);
+        document.addEventListener('click', click, true);
         document.addEventListener('pointerup', up, true);
         document.addEventListener('pointercancel', up, true);
 
         return () => {
+            clearTimeout(late);
             document.removeEventListener('pointerdown', down, true);
+            document.removeEventListener('click', click, true);
             document.removeEventListener('pointerup', up, true);
             document.removeEventListener('pointercancel', up, true);
         };
@@ -147,6 +165,9 @@ export function useChecks(boxes: Box[], fresh?: unknown): Checks {
         reason: first === undefined ? undefined : problems.get(first.id),
         submit: (send) => {
             const wrong = boxes.filter((box) => problems.has(box.id));
+            // A box left by this very press is not said afterwards: the send settles every box, and
+            // a refusal says all of them anyway.
+            left.current = [];
 
             if (wrong.length === 0) {
                 sent.current = new Map(boxes.map((box) => [box.id, box.value]));

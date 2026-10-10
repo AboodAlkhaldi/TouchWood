@@ -20,7 +20,7 @@ import { tone } from '@/lib/tones';
 import { useChecks } from '@/lib/use-checks';
 import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
-import { ImageField, MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale, type Locale } from '../parts';
+import { ImageField, MoreButton, MoreButtonOff, SLUG_RULES, StateBadge, nameIn, slugsWrong, useAllStoresReason, useLocale, type Locale } from '../parts';
 import { SortableList } from '../SortableList';
 
 /*
@@ -44,21 +44,6 @@ type Dialog =
     | null;
 
 type Node = { category: CategoryData; children: Node[]; depth: number };
-
-/*
-| A web address as Slug::of takes one typed (catalog.md §1.1, §5.3): at most 200 characters
-| (Slug::MAX), words joined by single hyphens - in English lower-case a-z and digits, in Arabic the
-| Arabic letters (U+0621-U+063F, U+0641-U+064A, U+0671-U+06D3) and digits. Arabic-Indic digits are let
-| through in both, as the server turns them into 0-9 before it reads the shape (CatalogText).
-*/
-const SLUG_EN = { length: { max: 200 }, format: { pattern: /^[a-z0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+(-[a-z0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+)*$/u, key: 'catalog::admin.check.slug_en' } };
-const SLUG_AR = {
-    length: { max: 200 },
-    format: {
-        pattern: /^[\u{0621}-\u{063F}\u{0641}-\u{064A}\u{0671}-\u{06D3}0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+(-[\u{0621}-\u{063F}\u{0641}-\u{064A}\u{0671}-\u{06D3}0-9\u{0660}-\u{0669}\u{06F0}-\u{06F9}]+)*$/u,
-        key: 'catalog::admin.check.slug_ar',
-    },
-};
 
 /** The tree, each parent's children in the store's order, else the base store's, else by name. */
 function tree(categories: CategoryData[], locale: Locale): Node[] {
@@ -459,16 +444,15 @@ function CategoryDialog({
     // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 100 characters
     // (Category::NAME_MAX, LocalizedName), not sent by a move; a place among the siblings from 0 to
     // 10,000 (ListPosition, CategoryInput::placeEverywhere; the request reads an empty or broken number
-    // as -1, so it is required), not sent by an edit; and the web addresses (Slug, above), not sent by a
-    // move and not checked while folded away.
+    // as -1, so it is required), not sent by an edit; and the web addresses (SLUG_RULES), not sent by a
+    // move, their section open while one is wrong.
     const name = { required: true, length: { max: 100 } };
-    const folded = mode === 'move' || !(addresses || addressRefused);
     const checks = useChecks([
         { id: 'category-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name, off: mode === 'move' },
         { id: 'category-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name, off: mode === 'move' },
         { id: 'category-rank', label: t('catalog::admin_categories.field.place'), value: form.data.rank, rules: { required: true, number: { min: 0, max: 10000 } }, off: mode === 'edit' },
-        { id: 'category-slug-ar', label: t('catalog::admin.field.slug_ar'), value: form.data.slug_ar, rules: SLUG_AR, off: folded },
-        { id: 'category-slug-en', label: t('catalog::admin.field.slug_en'), value: form.data.slug_en, rules: SLUG_EN, off: folded },
+        { id: 'category-slug-ar', label: t('catalog::admin.field.slug_ar'), value: form.data.slug_ar, rules: SLUG_RULES.ar, off: mode === 'move' },
+        { id: 'category-slug-en', label: t('catalog::admin.field.slug_en'), value: form.data.slug_en, rules: SLUG_RULES.en, off: mode === 'move' },
     ]);
 
     function submit() {
@@ -538,7 +522,7 @@ function CategoryDialog({
                             onRemove={(remove) => form.setData('remove_image', remove)}
                             error={form.errors.image_media_id}
                         />
-                        <Collapsible open={addresses || addressRefused} onOpenChange={setAddresses}>
+                        <Collapsible open={addresses || addressRefused || slugsWrong(form.data.slug_ar, form.data.slug_en)} onOpenChange={setAddresses}>
                             <CollapsibleTrigger asChild>
                                 <Button type="button" variant="ghost" size="sm" className="justify-start px-0" data-test="category-addresses">
                                     {t('catalog::admin.addresses.title')}
