@@ -210,16 +210,19 @@ it('resolves the store from the cache alone once warm: tiny cache reads, never t
     // The cache lives in PostgreSQL (owner, 2026-09-18), so a warm request reads the version and
     // the snapshot from the cache table. It must never fall back to loading stores and currencies.
     //
-    // Two reads each for two askers: ResolveStore, for the store the address names, and
-    // ShareStorefront, for the list behind the header's country switch. The directory memoises
-    // nothing on purpose - a copy held in a queue worker would go stale (CachedStoreDirectory).
+    // Two askers - ResolveStore, for the store the address names, and ShareStorefront, for the list
+    // behind the header's country switch - and one read: the directory keeps its snapshot for the
+    // rest of a web request (platform.md §9.11), never longer, so a queue worker never holds one.
+    // Each request starts as a production process does, with nothing scoped from the one before.
+    app()->forgetScopedInstances();
     get('/sa/ar')->assertOk();
 
+    app()->forgetScopedInstances();
     DB::enableQueryLog();
     get('/sa/ar')->assertOk();
     $queries = array_column(DB::getQueryLog(), 'query');
 
-    expect($queries)->toHaveCount(4);
+    expect($queries)->toHaveCount(2);
 
     foreach ($queries as $query) {
         expect($query)->toContain('"cache"');

@@ -1,0 +1,65 @@
+<?php
+
+declare(strict_types=1);
+
+// The categories screen (catalog.md §1.5, §4.4 S2). Geist's writing rules (frontend.md §1.10).
+return [
+    'title' => 'Categories',
+    'subtitle' => 'One tree for every store; products sit in the categories with no sub-categories.',
+    'subtitle_store' => 'One tree for every store; the order shown is :store\'s menu.',
+    'add' => 'Add Category',
+    'add_body' => 'Its place among its siblings starts the same in every store.',
+    'add_sub' => 'Add Sub-Category…',
+    'add_sub_title' => 'Add Sub-Category',
+    'edit' => 'Edit…',
+    'edit_title' => 'Edit Category',
+    'edit_body' => 'Every store shows the change at once.',
+    'save' => 'Save Category',
+    'move' => 'Move…',
+    'move_title' => 'Move Category',
+    'move_body' => 'Its addresses stay; its place among its new siblings is written into every store.',
+    'move_confirm' => 'Move Category',
+    'activate' => 'Activate Category',
+    'deactivate' => 'Deactivate Category…',
+    'delete' => 'Delete Category…',
+    'delete_title' => 'Delete Category',
+    'delete_body' => ':name is deleted, and its addresses are free again.',
+    'order_top' => 'Change Order…',
+    'order_children' => 'Change Order of Sub-Categories…',
+    'order_title' => 'Order Under :name',
+    'order_top_title' => 'Order of the Menu',
+    'order_body' => 'Drag the categories into the order :store\'s menu shows them.',
+    'order_save' => 'Save Order',
+    'fold' => 'Fold :name',
+    'unfold' => 'Unfold :name',
+    'base_place' => 'Base Store\'s Place',
+    'column' => [
+        'place' => 'Place in Menu',
+    ],
+    'empty' => [
+        'title' => 'No Categories Yet',
+        'body' => 'Add the top categories first, then the ones under them.',
+    ],
+    'reason' => [
+        'children' => 'It has sub-categories: move or delete them first.',
+        'products' => 'Products sit in it or under it: move them first.',
+        'holds_products' => 'Products sit in it: a category with products takes no sub-category.',
+        'inactive' => 'It is inactive: activate it first.',
+    ],
+    'field' => [
+        'parent' => 'Under',
+        'top' => 'The top of the tree',
+        'place' => 'Place Among Siblings',
+        'place_helper' => 'From 0 to 10,000, lowest first.',
+        'image' => 'Photo',
+    ],
+    'toast' => [
+        'added' => 'Category added',
+        'edited' => 'Category saved',
+        'moved' => 'Category moved',
+        'ranked' => 'Order saved',
+        'activated' => 'Category activated',
+        'deactivated' => 'Category deactivated',
+        'deleted' => 'Category deleted',
+    ],
+];

@@ -9,12 +9,15 @@ use Illuminate\Contracts\Filesystem\Factory;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Catalog\Application\CatalogApiImpl;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Import\ImportArchives;
 use Modules\Catalog\Application\Import\ImportQueue;
 use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Listing\ListingRows;
+use Modules\Catalog\Application\Query\ListCategories\ListCategoriesHandler;
+use Modules\Catalog\Application\Query\Lists\CatalogListReads;
 use Modules\Catalog\Application\Query\Shop\ShopReader;
 use Modules\Catalog\Application\Search\SearchLog;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
@@ -29,6 +32,7 @@ use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\Repository\WordPairRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseAttributeRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseBrandRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseCatalogListReads;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseCategoryRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseImports;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
@@ -49,7 +53,9 @@ use Modules\Catalog\Infrastructure\Queue\LaravelImportQueue;
 use Modules\Catalog\Infrastructure\Queue\PruneSearchLogJob;
 use Modules\Catalog\Presentation\Console\RebuildListingCommand;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\MediaVariantsReady;
 
 /**
@@ -72,6 +78,8 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(StoreListingRepository::class, DatabaseStoreListingRepository::class);
         $this->app->bind(ListingRows::class, DatabaseListingRows::class);
         $this->app->bind(ShopReader::class, DatabaseShopReader::class);
+        // The panel's screens read the shared lists through their own reads (§4.4).
+        $this->app->bind(CatalogListReads::class, DatabaseCatalogListReads::class);
         $this->app->bind(SearchLog::class, DatabaseSearchLog::class);
         $this->app->bind(Imports::class, DatabaseImports::class);
         $this->app->bind(ImportQueue::class, LaravelImportQueue::class);
@@ -98,6 +106,22 @@ final class CatalogServiceProvider extends ServiceProvider
 
         // A photo whose sizes became ready may be a card's photo now (§6.2).
         Event::listen(MediaVariantsReady::class, [RefreshCardPhotos::class, 'handle']);
+
+        // The panel's menu: the shared lists' screens (catalog.md §4.4), each offered for any of the
+        // jobs its screen serves, in any store — the screen decides the rest.
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('catalog', 'categories', PermissionGroup::Catalog->value, 'catalog.admin.categories', ListCategoriesHandler::JOBS, 20, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'brands', PermissionGroup::Catalog->value, 'catalog.admin.brands', CatalogPermissions::BRAND_MANAGE, 30, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'attributes', PermissionGroup::Catalog->value, 'catalog.admin.attributes', CatalogPermissions::ATTRIBUTE_MANAGE, 40, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'variations', PermissionGroup::Catalog->value, 'catalog.admin.variations', CatalogPermissions::ATTRIBUTE_MANAGE, 50, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'labels', PermissionGroup::Catalog->value, 'catalog.admin.labels', CatalogPermissions::LABEL_MANAGE, 60, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'warranties', PermissionGroup::Catalog->value, 'catalog.admin.warranties', CatalogPermissions::WARRANTY_MANAGE, 70, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'search_words', PermissionGroup::Catalog->value, 'catalog.admin.search-words', CatalogPermissions::SEARCH_WORD_MANAGE, 80, icon: 'catalog'),
+        );
+
+        if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
+        }
 
         if ($this->app->runningInConsole()) {
             $this->commands([RebuildListingCommand::class]);

@@ -98,6 +98,11 @@ final readonly class PlatformApiImpl implements PlatformApi
         return $this->mediaReader->urls($mediaId);
     }
 
+    public function mediaUrlsOf(array $mediaIds): array
+    {
+        return $this->mediaReader->urlsOf($mediaIds);
+    }
+
     public function recordAudit(AuditEntryDto $entry): void
     {
         $this->auditLog->record($entry);

@@ -211,8 +211,14 @@ change replaces the version:
 Snapshots are also given a lifetime as a safety net: 6 hours for stores and currencies, 1 hour for
 settings. Running migrations invalidates the caches.
 
-Nothing is memoised inside the PHP process. Queue workers run for hours, and an in-memory copy
-would go stale when another process edits a store.
+Nothing outlives a request or a job. Queue workers run for hours, and a copy held for the process
+would go stale when another process edits a store. **Within a web request** the store directory and
+the settings are each read once (§9.11, owner 2026-10-08): both are bound scoped and keep their
+snapshot for the rest of the request - the admin panel's frame asked the settings three times and
+the stores twice, 2 queries each. The system (the console, a queued job) is never answered from
+memory, and a request that invalidates one reads it from the cache from then on; inside a
+transaction opened after the request began every read goes to the cache, as before. A change
+another process commits while the request runs is seen by the next request.
 
 ### Store context travels by itself
 

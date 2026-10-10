@@ -119,7 +119,9 @@ describe('a customer\'s addresses in an off store', function () {
         expect($access->addresses($customerId, $egypt))->toHaveCount(1);
 
         offStoreSwitch('eg', on: false);
+        // The next request: one in flight keeps the stores it read (platform.md §9.11).
         Fx::actAsCustomer($customerId);
+        $access = app(AccessApi::class);
 
         expect($access->address($cairo))->toBeNull()
             ->and($access->addresses($customerId, $egypt))->toBe([])
@@ -130,6 +132,7 @@ describe('a customer\'s addresses in an off store', function () {
 
         offStoreSwitch('eg', on: true);
         Fx::actAsCustomer($customerId);
+        $access = app(AccessApi::class);
 
         expect($access->address($cairo)?->isDefault)->toBeTrue()
             ->and($access->addresses($customerId, $egypt))->toHaveCount(1)

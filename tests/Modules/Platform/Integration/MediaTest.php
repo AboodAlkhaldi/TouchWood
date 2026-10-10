@@ -290,6 +290,11 @@ describe('uploading', function () {
                 return $this->real->byId($id);
             }
 
+            public function byIds(array $ids): array
+            {
+                return $this->real->byIds($ids);
+            }
+
             public function lockById(string $id): ?Media
             {
                 return $this->real->lockById($id);
@@ -679,6 +684,31 @@ describe('reading', function () {
 
         expect($options['ResponseContentDisposition'] ?? null)
             ->toBe("attachment; filename=\"_________.pdf\"; filename*=UTF-8''".rawurlencode('سجل تجاري.pdf'));
+    });
+
+    it('reads a page of media in one query, each as mediaUrls() would, keyed by its lower-cased id', function () {
+        Storage::disk('local')->buildTemporaryUrlsUsing(
+            fn (string $path, DateTimeInterface $expiresAt, array $options): string => 'https://storage.test/'.$path,
+        );
+        $ready = uploadMedia(imageFile(800, 600));
+        runQueuedVariants($ready);
+        $pending = uploadMedia(imageFile(400, 300, 'png'));
+        $private = uploadMedia(pdfFile(), MediaVisibility::Private, 'receipt.pdf');
+
+        DB::enableQueryLog();
+        $urls = app(PlatformApi::class)->mediaUrlsOf([strtoupper($ready), $pending, $private, '01j8z3k4m5n6p7q8r9s0t1v2w3', 'not an id']);
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        expect(array_keys($urls))->toEqualCanonicalizing([$ready, $pending, $private])
+            ->and($urls[$ready]->variants['thumb']['avif'] ?? null)->toEndWith('/thumb.avif')
+            ->and($urls[$ready]->original)->toBeNull()
+            ->and($urls[$pending]->variants)->toBe([])
+            ->and($urls[$private]->variants)->toBe([])
+            ->and($urls[$private]->original)->toStartWith('https://storage.test/')
+            ->and($urls[$private]->expiresAt)->not->toBeNull()
+            ->and($queries)->toHaveCount(1)
+            ->and(app(PlatformApi::class)->mediaUrlsOf([]))->toBe([]);
     });
 
     it('never puts an original or a private file on the public disk', function () {

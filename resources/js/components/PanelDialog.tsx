@@ -15,14 +15,15 @@ import { useTranslator } from '@/lib/t';
 import { useReturnFocus } from '@/lib/use-return-focus';
 
 /*
-| The frame of the dialogs on B2B's staff screens - a decision on a company, a change to a type list
-| (b2b.md §4.6) - all but Suspend, which asks for the company's name typed (DestructiveActionDialog,
-| amendment 23(c)): shadcn's Dialog, or its AlertDialog for a destructive one (focus starting on Cancel),
-| with Geist's Modal rules - a title stating what happens, the primary button repeating it, a refusal
-| said inside the dialog, never behind its backdrop, and the dialog kept open to retry.
+| The frame of the panel's dialogs - a decision on a company, a change to a type list (b2b.md §4.6), a
+| change to one of Catalog's lists (catalog.md §4.4) - all but those that ask for a name typed
+| (DestructiveActionDialog): shadcn's Dialog, or its AlertDialog for a destructive one (focus starting
+| on Cancel), with Geist's Modal rules - a title stating what happens, the primary button repeating it,
+| a refusal said inside the dialog, never behind its backdrop, and the dialog kept open to retry.
+| B2B's staff screens drew it first; Catalog's share it.
 */
 
-export function StaffDialog({
+export function PanelDialog({
     open,
     onOpenChange,
     destructive = false,

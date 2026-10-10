@@ -11,12 +11,12 @@ import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { StaffTypeRowData } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { figure, nameIn, useLocale } from '../shared';
-import { StaffDialog } from '../StaffDialog';
+import { PanelDialog } from '@/components/PanelDialog';
 
 /*
 | The types page's dialogs (b2b.md §1.3, §4.6): adding, renaming and moving a type; deactivating one,
 | with what happens to the companies holding a company type; and moving every company of one active
-| type to another. Each in the staff dialog frame (StaffDialog): a title stating what happens, the
+| type to another. Each in the staff dialog frame (PanelDialog): a title stating what happens, the
 | button repeating it, a refusal said inside it.
 |
 | A type's names and position are checked by the domain, and a refusal comes back beside the field
@@ -88,7 +88,7 @@ export function TypeFormModal({
     }
 
     return (
-        <StaffDialog
+        <PanelDialog
             open={open}
             returnFocusTo={returnFocusTo}
             onOpenChange={onOpenChange}
@@ -162,7 +162,7 @@ export function TypeFormModal({
                     </Field>
                 ) : null}
             </div>
-        </StaffDialog>
+        </PanelDialog>
     );
 }
 
@@ -253,7 +253,7 @@ export function DeactivateModal({
     }
 
     return (
-        <StaffDialog
+        <PanelDialog
             open={open}
             returnFocusTo={returnFocusTo}
             onOpenChange={onOpenChange}
@@ -358,7 +358,7 @@ export function DeactivateModal({
                     </div>
                 ) : null}
             </div>
-        </StaffDialog>
+        </PanelDialog>
     );
 }
 
@@ -382,7 +382,7 @@ export function TransferModal({
     const title = t('b2b::admin_types.list.company.transfer_title');
 
     return (
-        <StaffDialog
+        <PanelDialog
             open={open}
             returnFocusTo={returnFocusTo}
             onOpenChange={onOpenChange}
@@ -421,6 +421,6 @@ export function TransferModal({
                     {t('b2b::admin_types.holders.suspended')}
                 </Note>
             </div>
-        </StaffDialog>
+        </PanelDialog>
     );
 }

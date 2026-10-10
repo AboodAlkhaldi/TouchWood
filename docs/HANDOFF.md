@@ -125,6 +125,8 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-07 | §12.2 | **A wired store's provider key** is kept encrypted in the database, set by a Super Admin, never shown again. One audit entry per pull, the detail in the stock and price histories. The sync report, Retry and Sync Now are per-store permissions. An off store's prices and stock are set by Super Admins (or its file). Whether discounts come from the provider, us or both, and whether the provider calls us on a change, wait for the provider's team | Stage 5 questions, owner decision |
 | 2026-10-09 | §10.1, §12.1 | **"Always wins while on"**: a sale or a category discount may be marked so — while it runs it beats cheaper sales and discounts on its sizes; two at once on a size are refused; it never beats a wholesale quantity price. Saving one shows what it affects and what it overlaps. Sales and discounts start and end by timed tasks with a daily safety check. **A wired store's stock is read, never held or reduced.** One code is one size (Catalog's amendment). The details: `docs/modules/pricing.md` | Pricing spec questions, owner decision |
 | 2026-10-09 | §9.2, §12.1 | **Inventory**: one permission, **Manage Stock**, per store, any role — stock, hand changes (Received, Damaged / lost, Offline sale, Correction with a note; a stocktake "set to"), thresholds, the switches, the Low Stock list. A variant with no threshold uses the store's default, **10 pieces**; the threshold **only alerts, never limits ordering**. Removing pieces held for orders is allowed, the orders flagged "not enough stock". The stock-dependent switch is **per variant** — all of a product's, some or one; a variant added later starts off. **A wired ordinary product the provider reports at 0 stays orderable** (replaces §9.2's provisional rule); staff mark it "Not available now". **"Ending soon" shows on cards too**, when any of the product's variants is. The details: `docs/modules/inventory.md` | Inventory spec questions, owner decision |
+| 2026-10-10 | §12.1, §12.3 | **Returned pieces go back into stock when staff mark the return received** — in a store with no provider, and for a wired store's stock-dependent variants and gifts; a wired ordinary product follows the provider; staff may leave a damaged piece out. A wired store's returned piece is **provisionally** added on our side and dropped when the provider's number next changes — to be discussed again once the provider says whether we may write to it. **Staff may fully edit an order before it ships**; its held stock follows. **"Last pieces" on a card** counts only the sizes the viewer can buy and order now; on a product's page the size options mark the ending-soon size itself. The details: `docs/modules/inventory.md` §1.2, §1.4, §1.9 | Stage 6 and Inventory questions, owner decision |
+| 2026-10-10 | §10.2, §11.3, §12.3 | **A wholesale price is not a discount**: a wholesale line's list price is its band (the retail price under the first band), so `gross_subtotal` counts it, coupons and points reach band-priced lines, and the discount ceiling measures only sales and discounts. Raised by stage 5's cross-check of Promotions. **An order edited before it ships**: pieces already on it keep their price; added pieces take today's — on a wholesale line, the band for the line's new total quantity, on the added pieces only; VAT stays at the order's rate. The details: `docs/modules/pricing.md` §1.6 step 5, §1.11 | Owner decision |
 | 2026-10-10 | §1, §5.3, §7.5, §7.9, §11.3, §12.1, §12.3–§12.5 | **Sales's rules** (`docs/modules/sales.md`): a guest's lines the account may not buy — wholesale for an individual, **a category hidden from its account type, which is not for sale to it** — leave the cart on signing in, with a notice; **individuals pay online or by staff contact, companies by bank transfer (uploading its document) or staff contact, never online**; **a hold has no expiry**: unpaid orders wait until staff cancel them; staff decide per order whether an unpaid order may ship; **one shipment per order**; staff contact the customer before shipping, and nothing is cancelled once shipped; **staff may fully edit an order before it ships** (kept lines keep their price, added pieces today's; the coupon then the points checked again under the order's own rules, the points giving way first and **the coupon only staying or shrinking** — §11.3's one exception; differences settled by hand; the gift staff's call); staff mark an order delivered, which starts the 14-day return window, **or came back**, settled as a whole return; returns asked by the customer with pieces, a reason and photos, the gift included for nothing, staff accept; a refund includes its pieces' share of VAT; order numbers per store (`SA-10428`); an anonymized customer's orders lose the email; an off store's unfinished orders stay with its staff; **a flat shipping fee per store until Shipping (stage 7)**; every message to customers waits for Ops | Sales spec, owner decision |
 
 ---
@@ -1125,7 +1127,7 @@ shipping over 1000", "coupon minimum 500" and "gift over 2000" from quietly mean
 different numbers.
 
 ```
-gross_subtotal  = Σ (list price × qty)
+gross_subtotal  = Σ (list price × qty)        list price: retail; a wholesale line's band (2026-10-10)
 net_subtotal    = Σ (effective unit price × qty)
 coupon_discount
 points_discount
@@ -1217,7 +1219,8 @@ Segments are reusable: newsletters, pop-up targeting, notifications. Not coupon-
 ### 11.3 The discount ceiling
 
 Per store, admin-defined `max_discount_percent` (0–100). Measured against
-`gross_subtotal` — the full reduction from list price.
+`gross_subtotal` — the full reduction from list price. **[REVISED 2026-10-10]** A wholesale line's
+list price is its band: a wholesale price is not a discount, so it never uses up the ceiling.
 
 **It only ever refuses customer-applied discounts. It never blocks an order that breaches
 from merchant pricing alone.** A clearance item at 70% off under a 50% ceiling sells
@@ -1238,8 +1241,8 @@ Points are evaluated last and refused first. Points are all-or-nothing, so a par
 application is never attempted.
 
 **One exception — a staff edit before shipping** (owner, 2026-10-10; `docs/modules/sales.md` §1.7):
-the coupon and points already on the order are checked again on the edited lines and **trimmed or
-removed** if they no longer fit — the points giving way first, the coupon only ever staying or
+the coupon and points already on the order are checked again on the edited lines, **under the
+ceiling and the points cap the order was placed under**, and **trimmed or removed** if they no longer fit — the points giving way first, the coupon only ever staying or
 shrinking. Nothing is added.
 
 ### 11.4 Two guards, different scopes
@@ -1321,6 +1324,12 @@ changes and the switches ("ending soon" included) belong to **one permission, Ma
 store, any role. Removing pieces held for orders is allowed; those orders are flagged "not enough
 stock" for staff. **"Ending soon" shows on cards and lists too**: a card says it when any of its
 product's variants is ending soon. The details: `docs/modules/inventory.md`.
+**[REVISED 2026-10-10]** **Returned pieces go back into stock** when staff mark the return received
+(no provider; a wired store's stock-dependent variants and gifts — there, provisionally, added on our
+side until the provider's number next changes). **An order edited before it ships** moves its held
+stock to the edited lines, all or nothing. **"Last pieces" on a card** counts only the variants the
+viewer can buy and order now; a product page marks the ending-soon size among its options.
+`docs/modules/inventory.md` §1.2, §1.4, §1.9.
 
 ```
 available_to_sell = on_hand − reserved      (the safety buffer is dropped, owner 2026-10-07)
@@ -1464,7 +1473,8 @@ bypasses the engine entirely and flags the order for staff. **No 3D bin packing.
 
 **Returns.** Window is admin-configurable per store — **14 days from delivery** by default, staff
 marking the order delivered (owner, 2026-10-09/10); return shipping is paid by the
-company; refund is manual.
+company; refund is manual. **[ADDED 2026-10-10]** The pieces taken back return to stock when staff
+mark the return received (§12.1); a damaged piece may be left out.
 
 ### 12.6 Invoicing
 

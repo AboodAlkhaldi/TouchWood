@@ -53,6 +53,54 @@ final class DescriptionText
     }
 
     /**
+     * The other way: the structured text written back as the same plain text, for a form to edit
+     * (catalog.md §4.4, P1). Reading the answer again gives the same document — a paragraph on one
+     * line, a list item per line, a heading, bold — so a description saved unchanged stays as it was.
+     *
+     * @param  array<string, mixed>|null  $document
+     */
+    public static function text(?array $document): string
+    {
+        $blocks = is_array($document['blocks'] ?? null) ? $document['blocks'] : [];
+        $written = [];
+
+        foreach ($blocks as $block) {
+            if (! is_array($block)) {
+                continue;
+            }
+
+            $written[] = match ($block['type'] ?? null) {
+                'heading' => '# '.self::line($block['runs'] ?? []),
+                'list' => implode("\n", array_map(
+                    static fn (mixed $item): string => '- '.self::line($item),
+                    is_array($block['items'] ?? null) ? $block['items'] : [],
+                )),
+                default => self::line($block['runs'] ?? []),
+            };
+        }
+
+        return implode("\n\n", $written);
+    }
+
+    /**
+     * One line of runs, bold ones between `**`.
+     */
+    private static function line(mixed $runs): string
+    {
+        $line = '';
+
+        foreach (is_array($runs) ? $runs : [] as $run) {
+            if (! is_array($run) || ! is_string($run['text'] ?? null)) {
+                continue;
+            }
+
+            $line .= ($run['bold'] ?? false) === true ? '**'.$run['text'].'**' : $run['text'];
+        }
+
+        return $line;
+    }
+
+    /**
      * Ends the paragraph or the list being written, if any.
      *
      * @param  list<array<string, mixed>>  $blocks

@@ -19,6 +19,16 @@ interface MediaRepository
     public function byId(string $id): ?Media;
 
     /**
+     * Reads several media at once, without locking anything, in one query — for a screen that shows
+     * a page of photos (catalog.md §2.4, owner 2026-10-07). Ids that are not ULIDs, or that name no
+     * media, are simply left out.
+     *
+     * @param  list<string>  $ids
+     * @return list<Media>
+     */
+    public function byIds(array $ids): array;
+
+    /**
      * Reads the media and locks its row for the rest of the transaction — for changing it.
      */
     public function lockById(string $id): ?Media;

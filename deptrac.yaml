@@ -183,9 +183,11 @@ deptrac:
 
     # Catalog → Platform, Access (owner, 2026-10-02): Access's public surface only to declare its
     # permissions, from the module's interior — never from Catalog's own public surface, so nothing
-    # of Access can leak into what the modules above Catalog read.
+    # of Access can leak into what the modules above Catalog read. Its screens use the framework
+    # glue, as Access's, Platform's and B2B's do (owner, 2026-10-07, catalog.md amendment 13(d));
+    # AppHttpTest keeps that to its Presentation layer.
     CatalogPublic: [Shared, Vendor, PlatformPublic]
-    Catalog: [+CatalogPublic, AccessPublic]
+    Catalog: [+CatalogPublic, AccessPublic, AppHttp]
 
     # Pricing → Platform, Catalog. No B2B: one price for everyone, no company prices (owner,
     # 2026-10-07). Access's public surface only to declare its permissions, from the interior, as
