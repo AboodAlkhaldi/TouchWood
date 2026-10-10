@@ -7,6 +7,8 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
 use Modules\Catalog\Application\Command\CorrectStoreFillCode\CorrectStoreFillCode;
 use Modules\Catalog\Application\Command\CorrectStoreFillCode\CorrectStoreFillCodeHandler;
 use Modules\Catalog\Application\Command\RemoveStoreFillItems\RemoveStoreFillItems;
@@ -27,7 +29,7 @@ use function Pest\Laravel\seed;
 /*
 | The admins' store file (catalog.md §1.3; amendment 6(g), (h)): `catalog.listing.fill` in that store,
 | an admin role's job. Codes and prices, stock optional; it never creates or changes a product. Its
-| items are switched on in the store — the variants carrying each code of a ready product — chosen or
+| items are switched on in the store — the variant carrying each code of a ready product — chosen or
 | every one ready; an unknown code is corrected or removed. Everything audited in the store.
 */
 
@@ -110,7 +112,7 @@ describe('the file', function () {
 });
 
 describe('switching on', function () {
-    it('switches on every ready one: the variants carrying its code, in that store only', function () {
+    it('switches on every ready one: the variant carrying its code, in that store only', function () {
         $ready = Fx::asSystem(fn (): array => Px::ready(['60 cm', '80 cm']));
         [$sixty, $eighty] = $ready['variants'];
         $code = (string) DB::table('catalog.variants')->where('id', $sixty)->value('code');
@@ -124,6 +126,20 @@ describe('switching on', function () {
             ->and(catalogFillOn('eg'))->toBe([])
             ->and(DB::table('platform.audit_entries')->where('action', 'catalog.listing.chosen')->where('subject_id', $ready['product'])->value('store_id'))->toBe(Fx::storeId('sa'))
             ->and(DB::table('catalog.variants')->where('id', $eighty)->exists())->toBeTrue();
+    });
+
+    it('switches on no archived variant of a ready product: every one ready leaves it open, chosen by name it is refused', function () {
+        $ready = Fx::asSystem(fn (): array => Px::ready(['60 cm', '80 cm']));
+        $eighty = $ready['variants'][1];
+        $code = (string) DB::table('catalog.variants')->where('id', $eighty)->value('code');
+        Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($eighty)));
+        $import = catalogFill([['code' => $code, 'price' => 10]]);
+
+        expect(app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, null)))->toBe(0)
+            ->and(catalogFillStates($import))->toBe(['OPEN'])
+            ->and(fn () => app(SwitchOnStoreFillItemsHandler::class)->handle(new SwitchOnStoreFillItems($import, [catalogFillItem($import, 1)])))
+            ->toThrow(InvalidCatalogAttribute::class, 'Invalid item 1: an open item whose code a ready product holds')
+            ->and(catalogFillOn())->toBe([]);
     });
 
     it('names a chosen item that cannot be switched on, and switches on none', function () {

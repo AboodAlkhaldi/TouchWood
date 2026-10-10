@@ -15,10 +15,13 @@ use Modules\Catalog\Domain\Repository\WarrantyRepository;
 /**
  * **A product not a draft keeps its codes** (catalog.md §1.12; owner, 2026-10-06, amendment 11(b)):
  * the products of the file decided "update" or "replace" whose catalog product is ready or archived,
- * giving one of its variants — the same values — another code. Bringing in would change a code that
- * product keeps (`UpdateVariant` refuses it), so the confirm asks first: skip it, or upload the file
- * corrected. Values are read as bringing in reads them; one the page creates is new, so it matches no
- * variant, and one still undecided is asked about as a name.
+ * giving one of its variants another code — exactly the case bringing in would act on
+ * (`ImportBringer::matched`, P33): a file variant whose code the product does not carry, with the
+ * values of one of its variants whose code the file does not name. Bringing in would change a code
+ * that product keeps (`UpdateVariant` refuses it), so the confirm asks first: skip it, or upload the
+ * file corrected. Sizes that only move between codes the product keeps change no code, and are not
+ * asked about. Values are read as bringing in reads them; one the page creates is new, so it matches
+ * no variant, and one still undecided is asked about as a name.
  */
 final readonly class ImportCodeChanges
 {
@@ -60,16 +63,23 @@ final readonly class ImportCodeChanges
                 continue;
             }
 
-            $codes = [];
+            $file = $row->effective()->variants;
+            $fileCodes = array_map(static fn (FileVariant $variant): string => $variant->code, $file);
+            $carried = [];
+            $unnamed = [];
 
             foreach ($this->variants->ofProduct($product->id()) as $variant) {
-                $codes[ImportBringer::combination($variant->combination()->valueIds)] = $variant->code()->value;
+                $carried[$variant->code()->value] = true;
+
+                if (! in_array($variant->code()->value, $fileCodes, true)) {
+                    $unnamed[ImportBringer::combination($variant->combination()->valueIds)] = true;
+                }
             }
 
-            foreach ($row->effective()->variants as $variant) {
-                $key = self::combination($variant, $references);
+            foreach ($file as $variant) {
+                $key = isset($carried[$variant->code]) ? null : self::combination($variant, $references);
 
-                if ($key !== null && isset($codes[$key]) && $codes[$key] !== $variant->code) {
+                if ($key !== null && isset($unnamed[$key])) {
                     $found[] = $row->id;
 
                     break;

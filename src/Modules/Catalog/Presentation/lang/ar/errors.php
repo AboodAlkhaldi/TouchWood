@@ -70,7 +70,7 @@ return [
     ],
     'code_taken' => [
         'title' => 'الرمز مستخدم',
-        'detail' => 'الرمز :code لمنتج آخر.',
+        'detail' => 'الرمز :code مستخدم: يحمله نوع آخر، أو يملكه منتج آخر.',
     ],
     'duplicate_combination' => [
         'title' => 'النوع موجود',

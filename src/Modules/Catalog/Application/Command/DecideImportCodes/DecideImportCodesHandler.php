@@ -152,6 +152,8 @@ final readonly class DecideImportCodesHandler
             }
         }
 
+        // Its codes the catalog does not have stay as they are: a new code is none of them.
+        $kept = array_values(array_diff($product->codes, $held));
         $newCodes = [];
 
         foreach ($given as $code => $new) {
@@ -163,6 +165,11 @@ final readonly class DecideImportCodesHandler
 
             if (isset($taken[$new])) {
                 throw new InvalidCatalogAttribute("{$at}.{$code}", 'a code no other product of the file has');
+            }
+
+            // Every variant its own code (amendment 16(a)).
+            if (in_array($new, $kept, true) || in_array($new, $newCodes, true)) {
+                throw new InvalidCatalogAttribute("{$at}.{$code}", 'a code no other variant of the product has');
             }
 
             $newCodes[(string) $code] = $new;

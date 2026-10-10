@@ -70,7 +70,7 @@ return [
     ],
     'code_taken' => [
         'title' => 'Code already used',
-        'detail' => 'The code :code belongs to another product.',
+        'detail' => 'The code :code is taken: another variant carries it, or another product holds it.',
     ],
     'duplicate_combination' => [
         'title' => 'Variant already there',

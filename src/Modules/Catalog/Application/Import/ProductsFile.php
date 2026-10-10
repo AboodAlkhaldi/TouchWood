@@ -25,8 +25,8 @@ use Shared\Domain\Text\LatinDigits;
  * **A product file, read and checked** (catalog.md §1.12; the guide in docs/modules/catalog-import/):
  * every rule of the guide's §1.7 — the shape, each field's kind and limits, the rules the panel
  * holds a product to (its names, slugs, description, codes, search words, measures and details,
- * through the same value objects), two products never sharing a code, two variants of one product
- * never alike, every photo in the zip. **Every problem is collected**, then the file is refused
+ * through the same value objects), two variants never sharing a code — in one product or in two
+ * (amendment 16(a)) —, two variants of one product never alike, every photo in the zip. **Every problem is collected**, then the file is refused
  * whole with all of them (`ImportRefused`). Names of lists are only checked as text here: whether
  * the catalog has them is the import's page's question.
  */
@@ -120,7 +120,7 @@ final readonly class ProductsFile
 
         foreach ($owners as $code => $numbers) {
             if (count($numbers) > 1) {
-                $problems->add('products '.implode(', ', $numbers), "the code {$code} on two products: two products never share a code");
+                $problems->add('products '.implode(', ', $numbers), "the code {$code} on two products: two variants never share a code");
             }
         }
 
@@ -404,6 +404,7 @@ final readonly class ProductsFile
 
         $variants = [];
         $combinations = [];
+        $codes = [];
         $attributes = null;
 
         foreach ($raw as $index => $item) {
@@ -447,6 +448,12 @@ final readonly class ProductsFile
                 $code = is_string($item['code'] ?? null) ? ProductCode::of($item['code'])->value : throw new InvalidCatalogAttribute('code', 'the code as text: 1 to 10 digits, in quotes');
             } catch (InvalidCatalogAttribute $error) {
                 $problems->add("{$where} › code", $error->reason);
+            }
+
+            if ($code !== null && isset($codes[$code])) {
+                $problems->add("{$where} › code", 'not the code of variant '.$codes[$code].': two variants never share a code');
+            } elseif ($code !== null) {
+                $codes[$code] = $index + 1;
             }
 
             $measures = [];

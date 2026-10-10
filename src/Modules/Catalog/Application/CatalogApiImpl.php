@@ -40,24 +40,15 @@ final readonly class CatalogApiImpl implements CatalogApi
         return $variant === null ? null : $this->toDto($variant);
     }
 
-    public function variantsByCode(string $code): array
+    public function variantByCode(string $code): ?VariantDto
     {
         try {
-            $code = ProductCode::of($code)->value;
+            $variant = $this->variants->carrying(ProductCode::of($code)->value);
         } catch (InvalidCatalogAttribute) {
-            return [];
+            return null;
         }
 
-        $productId = $this->products->codeHolder($code);
-
-        if ($productId === null) {
-            return [];
-        }
-
-        return array_values(array_map(
-            $this->toDto(...),
-            array_filter($this->variants->ofProduct($productId), static fn (Variant $variant): bool => $variant->code()->value === $code),
-        ));
+        return $variant === null ? null : $this->toDto($variant);
     }
 
     public function product(string $productId): ?ProductDto

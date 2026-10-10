@@ -43,8 +43,8 @@ use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use function Pest\Laravel\seed;
 
 /*
-| Variants and their codes (catalog.md §1.2, amendment 3): a code of digits belongs to one product,
-| whose variants may share it, and stays with it until the product — a draft — is deleted; one value
+| Variants and their codes (catalog.md §1.2, amendments 3, 16(a)): a code of digits is one variant's,
+| and stays with its product until the product — a draft — is deleted; one value
 | of every attribute of the product's set, a combination of its own; details as text or a number;
 | in a draft, codes edited and variants deleted freely, a code given up free again.
 */
@@ -129,30 +129,40 @@ describe('codes', function () {
             ->and(app(VariantRepository::class)->find(catalogVariantsAdd($product, ' 1304 '))?->code()->value)->toBe('1304');
     });
 
-    it('lets one product\'s sizes share a code, and never gives it to another product', function () {
+    it('gives every variant its own code, in its product and in every other, and takes back one its product held', function () {
         [$drawer, $width, $sizes] = catalogVariantsSized();
-        catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
-        catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['80 cm']]]);
+        $sixty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
 
-        expect(DB::table('catalog.variants')->where('code', '1304')->count())->toBe(2)
-            ->and(DB::table('catalog.product_codes')->where('code', '1304')->value('product_id'))->toBe($drawer)
-            ->and(fn () => catalogVariantsAdd(Px::product(), '1304'))->toThrow(CodeTaken::class, '1304');
+        // Amendment 16(a): the 80 cm drawer is another item, with a code of its own.
+        expect(fn () => catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['80 cm']]]))->toThrow(CodeTaken::class, '1304')
+            ->and(fn () => catalogVariantsAdd(Px::product(), '1304'))->toThrow(CodeTaken::class, '1304')
+            ->and(DB::table('catalog.variants')->where('code', '1304')->count())->toBe(1)
+            ->and(DB::table('catalog.product_codes')->where('code', '1304')->value('product_id'))->toBe($drawer);
+
+        // Ready, its code corrected: the old one stays with the product, and a variant of its own takes it back.
+        DB::table('catalog.products')->where('id', $drawer)->update(['stage' => 'READY', 'category_id' => Px::category()]);
+        app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($sixty, '1306'));
+        $eighty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['80 cm']]]);
+
+        expect(app(VariantRepository::class)->find($eighty)?->code()->value)->toBe('1304');
     });
 
-    it('corrects a code on every variant holding it, keeps the mistyped one with a ready product, frees it in a draft', function () {
+    it('corrects the one variant\'s code, never to another variant\'s, keeps the mistyped one with a ready product, frees it in a draft', function () {
         [$drawer, $width, $sizes] = catalogVariantsSized();
         $sixty = catalogVariantsAdd($drawer, '1340', ['values' => [$width => $sizes['60 cm']]]);
-        $eighty = catalogVariantsAdd($drawer, '1340', ['values' => [$width => $sizes['80 cm']]]);
+        $eighty = catalogVariantsAdd($drawer, '1341', ['values' => [$width => $sizes['80 cm']]]);
         $other = catalogVariantsAdd($drawer, '1305', ['values' => [$width => $sizes['90 cm']]]);
 
         app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($sixty, '1304'));
+        $code = static fn (string $variant): ?string => app(VariantRepository::class)->find($variant)?->code()->value;
 
-        expect(DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->pluck('code')->unique()->values()->all())->toBe(['1304'])
-            ->and(app(VariantRepository::class)->find($other)?->code()->value)->toBe('1305')
+        expect([$code($sixty), $code($eighty), $code($other)])->toBe(['1304', '1341', '1305'])
             ->and(Fx::audits('catalog.variant.code_corrected', $sixty))->toBe(1)
-            ->and(Fx::audits('catalog.variant.code_corrected', $eighty))->toBe(1)
+            ->and(Fx::audits('catalog.variant.code_corrected', $eighty))->toBe(0)
             // A draft: the mistyped code is free again.
-            ->and(DB::table('catalog.product_codes')->where('code', '1340')->exists())->toBeFalse();
+            ->and(DB::table('catalog.product_codes')->where('code', '1340')->exists())->toBeFalse()
+            ->and(fn () => app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($eighty, '1304')))->toThrow(CodeTaken::class, '1304')
+            ->and($code($eighty))->toBe('1341');
 
         DB::table('catalog.products')->where('id', $drawer)->update(['stage' => 'READY', 'category_id' => Px::category()]);
         app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($other, '1306'));
@@ -197,14 +207,14 @@ describe('values and combinations', function () {
         $black = Px::value($other, 'Black');
         catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
 
-        expect(fn () => catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]))->toThrow(DuplicateCombination::class)
-            ->and(fn () => catalogVariantsAdd($drawer, '1304'))->toThrow(InvalidCatalogAttribute::class, 'values')
-            ->and(fn () => catalogVariantsAdd($drawer, '1304', ['values' => [$width => $black]]))->toThrow(InvalidCatalogAttribute::class, 'values')
-            ->and(fn () => catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['80 cm'], $other => $black]]))->toThrow(InvalidCatalogAttribute::class, 'values');
+        expect(fn () => catalogVariantsAdd($drawer, '1305', ['values' => [$width => $sizes['60 cm']]]))->toThrow(DuplicateCombination::class)
+            ->and(fn () => catalogVariantsAdd($drawer, '1306'))->toThrow(InvalidCatalogAttribute::class, 'values')
+            ->and(fn () => catalogVariantsAdd($drawer, '1306', ['values' => [$width => $black]]))->toThrow(InvalidCatalogAttribute::class, 'values')
+            ->and(fn () => catalogVariantsAdd($drawer, '1306', ['values' => [$width => $sizes['80 cm'], $other => $black]]))->toThrow(InvalidCatalogAttribute::class, 'values');
 
         DB::table('catalog.variants')->where('product_id', $drawer)->update(['is_archived' => true]);
 
-        expect(fn () => catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]))->toThrow(DuplicateCombination::class);
+        expect(fn () => catalogVariantsAdd($drawer, '1306', ['values' => [$width => $sizes['60 cm']]]))->toThrow(DuplicateCombination::class);
     });
 
     it('takes no newly deactivated value, but keeps one a variant has', function () {
@@ -222,7 +232,7 @@ describe('values and combinations', function () {
     it('changes a variant\'s values, its combination still its own, and records nothing for no change', function () {
         [$drawer, $width, $sizes] = catalogVariantsSized();
         $sixty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
-        catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['80 cm']]]);
+        catalogVariantsAdd($drawer, '1305', ['values' => [$width => $sizes['80 cm']]]);
 
         catalogVariantsEdit($sixty);
 
@@ -278,19 +288,16 @@ describe('details and measures', function () {
 });
 
 describe('deleting a draft\'s variant', function () {
-    it('deletes it, frees its code when no other variant carries it, and only in a draft', function () {
+    it('deletes it, frees its code, and only in a draft', function () {
         [$drawer, $width, $sizes] = catalogVariantsSized();
         $sixty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
-        $eighty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['80 cm']]]);
+        catalogVariantsAdd($drawer, '1305', ['values' => [$width => $sizes['80 cm']]]);
 
         app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($sixty));
 
-        expect(DB::table('catalog.product_codes')->where('code', '1304')->exists())->toBeTrue()
+        expect(DB::table('catalog.product_codes')->where('code', '1304')->exists())->toBeFalse()
+            ->and(DB::table('catalog.product_codes')->where('code', '1305')->exists())->toBeTrue()
             ->and(Fx::audits('catalog.variant.deleted', $sixty))->toBe(1);
-
-        app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($eighty));
-
-        expect(DB::table('catalog.product_codes')->where('code', '1304')->exists())->toBeFalse();
 
         $ninety = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['90 cm']]]);
         DB::table('catalog.products')->where('id', $drawer)->update(['stage' => 'READY', 'category_id' => Px::category()]);
@@ -300,14 +307,18 @@ describe('deleting a draft\'s variant', function () {
 });
 
 describe('what the database refuses behind the code', function () {
-    it('refuses a code its product does not hold, letters in a code, and a combination twice', function () {
+    it('refuses a code its product does not hold, a code two variants carry, letters in a code, and a combination twice', function () {
         [$drawer, $width, $sizes] = catalogVariantsSized();
         $variant = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
-        catalogVariantsAdd(Px::product(), '1305');
+        $eighty = catalogVariantsAdd($drawer, '1306', ['values' => [$width => $sizes['80 cm']]]);
+        // Another product holds 1305 - once carried, carried by none of its variants now.
+        DB::table('catalog.product_codes')->insert(['code' => '1305', 'product_id' => Px::product(), 'created_at' => now()]);
         $row = (array) DB::table('catalog.variants')->where('id', $variant)->sole();
 
         expect(fn () => DB::transaction(fn () => DB::table('catalog.variants')->where('id', $variant)->update(['code' => '1305'])))
             ->toThrow(QueryException::class, 'variants_code_held')
+            ->and(fn () => DB::transaction(fn () => DB::table('catalog.variants')->where('id', $eighty)->update(['code' => '1304'])))
+            ->toThrow(QueryException::class, 'variants_code_unique')
             ->and(fn () => DB::transaction(fn () => DB::table('catalog.product_codes')->insert(['code' => '13a4', 'product_id' => $drawer, 'created_at' => now()])))
             ->toThrow(QueryException::class, 'product_codes_digits')
             ->and(fn () => DB::transaction(fn () => DB::table('catalog.variants')->insert([...$row, 'id' => strtolower((string) Str::ulid())])))
@@ -329,17 +340,18 @@ describe('what the database refuses behind the code', function () {
 });
 
 describe('a draft variant\'s code edited', function () {
-    it('refuses another product\'s code, and keeps one another variant still carries', function () {
+    it('refuses another product\'s code and another variant\'s, and lets the one it gave up go', function () {
         [$drawer, $width, $sizes] = catalogVariantsSized();
         $sixty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
-        catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['80 cm']]]);
+        catalogVariantsAdd($drawer, '1306', ['values' => [$width => $sizes['80 cm']]]);
         catalogVariantsAdd(Px::product(), '2001');
 
-        expect(fn () => catalogVariantsEdit($sixty, ['code' => '2001']))->toThrow(CodeTaken::class);
+        expect(fn () => catalogVariantsEdit($sixty, ['code' => '2001']))->toThrow(CodeTaken::class)
+            ->and(fn () => catalogVariantsEdit($sixty, ['code' => '1306']))->toThrow(CodeTaken::class, '1306');
 
         catalogVariantsEdit($sixty, ['code' => '1305']);
 
-        expect(DB::table('catalog.product_codes')->where('product_id', $drawer)->orderBy('code')->pluck('code')->all())->toBe(['1304', '1305']);
+        expect(DB::table('catalog.product_codes')->where('product_id', $drawer)->orderBy('code')->pluck('code')->all())->toBe(['1305', '1306']);
     });
 });
 
@@ -413,5 +425,45 @@ describe('every number in Latin digits (amendment 12)', function () {
             ->and(DB::table('catalog.product_codes')->where('code', '1304')->value('product_id'))->toBe($product)
             ->and(app(VariantRepository::class)->find($variant)?->details()[$load]->number)->toBe('25')
             ->and(fn () => catalogVariantsAdd(Px::product(), '1304'))->toThrow(CodeTaken::class, '1304');
+    });
+});
+
+describe('the migration to a code per variant (amendment 16(a), P34)', function () {
+    it('stops, naming them, on a product whose variants share a code and on a file not brought in whose product does, and otherwise makes codes one variant\'s', function () {
+        $migration = require base_path('src/Modules/Catalog/Infrastructure/Persistence/Migrations/2026_10_10_100000_give_each_catalog_variant_its_own_code.php');
+        [$drawer, $width, $sizes] = catalogVariantsSized();
+        catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
+        $eighty = catalogVariantsAdd($drawer, '1305', ['values' => [$width => $sizes['80 cm']]]);
+
+        // Back to the table as it was, sizes sharing a code as amendment 3(e) allowed.
+        $migration->down();
+        DB::table('catalog.variants')->where('id', $eighty)->update(['code' => '1304']);
+
+        expect(fn () => $migration->up())->toThrow(RuntimeException::class, "product {$drawer}: its variants share the code 1304");
+
+        DB::table('catalog.variants')->where('id', $eighty)->update(['code' => '1305']);
+        $import = strtolower((string) Str::ulid());
+        DB::table('catalog.imports')->insert(['id' => $import, 'kind' => 'PRODUCTS', 'file_name' => 'runners.json', 'state' => 'DECIDING', 'created_at' => now(), 'updated_at' => now()]);
+        $sizesSharing = ['name' => ['ar' => 'مجرى'], 'variants' => [['code' => '7001', 'values' => ['Length' => '45 cm']], ['code' => '7001', 'values' => ['Length' => '50 cm']]]];
+        DB::table('catalog.import_products')->insert(['id' => strtolower((string) Str::ulid()), 'import_id' => $import, 'number' => 3, 'data' => json_encode($sizesSharing, JSON_THROW_ON_ERROR), 'state' => 'WAITING', 'codes' => '{7001}']);
+
+        expect(fn () => $migration->up())->toThrow(RuntimeException::class, "import {$import} (runners.json), product 3: its variants share a code");
+
+        // Brought in already, it is history: no longer in the way.
+        DB::table('catalog.imports')->where('id', $import)->update(['state' => 'IN']);
+
+        // Failed, two codes of its own given one new code by a decision taken before codes were one variant's.
+        $failed = strtolower((string) Str::ulid());
+        DB::table('catalog.imports')->insert(['id' => $failed, 'kind' => 'PRODUCTS', 'file_name' => 'hinges.json', 'state' => 'FAILED', 'failure' => 'Stopped.', 'created_at' => now(), 'updated_at' => now()]);
+        $twoCodes = ['name' => ['ar' => 'مفصلة'], 'variants' => [['code' => '7101', 'values' => ['Angle' => '95']], ['code' => '7102', 'values' => ['Angle' => '110']]]];
+        DB::table('catalog.import_products')->insert(['id' => strtolower((string) Str::ulid()), 'import_id' => $failed, 'number' => 1, 'data' => json_encode($twoCodes, JSON_THROW_ON_ERROR), 'decision' => 'RECODE', 'new_codes' => json_encode(['7101' => '7200', '7102' => '7200'], JSON_THROW_ON_ERROR), 'state' => 'WAITING', 'codes' => '{7101,7102}']);
+
+        expect(fn () => $migration->up())->toThrow(RuntimeException::class, "import {$failed} (hinges.json), product 1: its variants share a code");
+
+        DB::table('catalog.import_products')->where('import_id', $failed)->update(['new_codes' => json_encode(['7101' => '7200', '7102' => '7201'], JSON_THROW_ON_ERROR)]);
+        $migration->up();
+
+        expect(fn () => DB::transaction(fn () => DB::table('catalog.variants')->where('id', $eighty)->update(['code' => '1304'])))
+            ->toThrow(QueryException::class, 'variants_code_unique');
     });
 });

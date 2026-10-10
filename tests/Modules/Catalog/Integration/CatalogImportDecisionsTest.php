@@ -241,6 +241,25 @@ describe('a product whose code the catalog has', function () {
         expect(DB::table('catalog.import_products')->where('id', $product)->value('new_codes'))->toBeNull();
     });
 
+    it('gives no new code another variant of the product has: every variant its own (amendment 16(a))', function () {
+        $ready = Px::ready(['60 cm', '80 cm']);
+        $codes = array_map(static fn (string $variant): string => (string) DB::table('catalog.variants')->where('id', $variant)->value('code'), $ready['variants']);
+        $import = Ix::uploadProducts([Ix::product($codes[0], ['attribute_set' => 'Sizes', 'variants' => [
+            ['code' => $codes[0], 'values' => ['Width' => '60 cm']],
+            ['code' => $codes[1], 'values' => ['Width' => '80 cm']],
+            ['code' => '8810', 'values' => ['Width' => '90 cm']],
+        ]])]);
+        $product = Ix::productId($import, 1);
+        $recode = fn (array $newCodes) => catalogDecideCodes($import, [['product_id' => $product, 'decision' => 'RECODE', 'new_codes' => $newCodes]]);
+
+        expect(fn () => $recode([$codes[0] => '8810', $codes[1] => '8811']))->toThrow(InvalidCatalogAttribute::class, "Invalid decisions.0.new_codes.{$codes[0]}: a code no other variant of the product has")
+            ->and(fn () => $recode([$codes[0] => '8812', $codes[1] => '8812']))->toThrow(InvalidCatalogAttribute::class, "Invalid decisions.0.new_codes.{$codes[1]}: a code no other variant of the product has");
+
+        $recode([$codes[0] => '8812', $codes[1] => '8813']);
+
+        expect(json_decode((string) DB::table('catalog.import_products')->where('id', $product)->value('new_codes'), true))->toBe([(int) $codes[0] => '8812', (int) $codes[1] => '8813']);
+    });
+
     it('refuses a decision for a product whose codes the catalog does not have', function () {
         $import = Ix::uploadProducts([Ix::product('8800')]);
 

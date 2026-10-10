@@ -12,6 +12,7 @@ use Modules\Catalog\Domain\Model\Attribute;
 use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\ValueObject\Combination;
 use Modules\Catalog\Domain\ValueObject\ProductCode;
 use Modules\Catalog\Domain\ValueObject\VariantDetail;
@@ -30,6 +31,7 @@ final readonly class VariantInput
         private ProductReferences $references,
         private AttributeRepository $attributes,
         private ProductRepository $products,
+        private VariantRepository $variants,
     ) {}
 
     /**
@@ -99,8 +101,9 @@ final readonly class VariantInput
     }
 
     /**
-     * The code, free for this product: one it holds already, or one no other product holds — now or
-     * once (amendment 3(e)).
+     * A code free for a variant of this product that does not carry it yet: **one no variant carries
+     * now** (amendment 16(a)), and one no other product holds — now or once (amendment 3(e)); one the
+     * product held before is taken back.
      *
      * @throws CodeTaken
      */
@@ -108,7 +111,7 @@ final readonly class VariantInput
     {
         $holder = $this->products->codeHolder($code->value);
 
-        if ($holder !== null && $holder !== $product->id()) {
+        if ($holder !== null && ($holder !== $product->id() || $this->variants->codeInUse($product->id(), $code->value))) {
             throw new CodeTaken($code->value);
         }
 

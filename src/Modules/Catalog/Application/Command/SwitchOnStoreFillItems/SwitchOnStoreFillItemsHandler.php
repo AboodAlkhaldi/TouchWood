@@ -13,7 +13,6 @@ use Modules\Catalog\Application\Import\StoreFills;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
-use Modules\Catalog\Domain\Model\Variant;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
@@ -23,14 +22,14 @@ use Shared\Application\Unauthorized;
 /**
  * **Switching on a store file's items** (catalog.md §1.3; amendment 6(g), (h)): `catalog.listing.fill`
  * in the file's store — admin roles only. Each open item whose code a **ready** product holds chooses,
- * in that store, **the variants carrying that code**, not archived — as the store's own choice does
+ * in that store, **the variant carrying that code** (amendment 16(a)), not archived — as the store's own choice does
  * (§1.3), first chosen selling retail only; the product itself is never changed. Read under the
  * products' lock, so a product archived meanwhile is never switched on. The variants taken up are
  * sent as `StoreListingChanged`; each product's choice is audited in the store, and the step once.
  *
  * Chosen by name, an item that cannot be switched on — an unknown code, a product not ready or
- * archived — is named and nothing changes; "every one ready" leaves the rest. An item whose variants
- * are on already is marked on.
+ * archived — is named and nothing changes; "every one ready" leaves the rest. An item whose variant
+ * is on already is marked on.
  */
 final readonly class SwitchOnStoreFillItemsHandler
 {
@@ -61,9 +60,9 @@ final readonly class SwitchOnStoreFillItemsHandler
             $on = [];
 
             foreach (StoreFills::chosen($command->itemIds, $items) as $item) {
-                $variantIds = $item->state === StoreFillItem::OPEN ? $this->variantsOf($item->code) : null;
+                $chosen = $item->state === StoreFillItem::OPEN ? $this->variantOf($item->code) : null;
 
-                if ($variantIds === null) {
+                if ($chosen === null) {
                     if ($all) {
                         continue;
                     }
@@ -71,10 +70,10 @@ final readonly class SwitchOnStoreFillItemsHandler
                     throw new InvalidCatalogAttribute("item {$item->number}", 'an open item whose code a ready product holds');
                 }
 
-                [$productId, $ids] = $variantIds;
+                [$productId, $variantId] = $chosen;
                 $listing = $this->listings->of($store, $productId);
                 $wasActive = $listing->activeVariantIds();
-                $listing->choose($ids, true);
+                $listing->choose([$variantId], true);
                 $entry = ListAudit::changed('listing', 'chosen', $productId, $listing->pullChanges(), $listing->snapshot(), $store);
 
                 if ($entry !== null) {
@@ -105,24 +104,15 @@ final readonly class SwitchOnStoreFillItemsHandler
     }
 
     /**
-     * The ready product holding the code, and its variants carrying it that are not archived — or null.
+     * The ready product and its variant carrying the code, not archived — or null.
      *
-     * @return array{string, list<string>}|null
+     * @return array{string, string}|null
      */
-    private function variantsOf(string $code): ?array
+    private function variantOf(string $code): ?array
     {
-        $productId = $this->products->codeHolder($code);
-        $product = $productId === null ? null : $this->products->byId($productId);
+        $variant = $this->variants->carrying($code);
+        $product = $variant === null || $variant->isArchived() ? null : $this->products->byId($variant->productId());
 
-        if ($product === null || $product->stage() !== ProductStage::Ready) {
-            return null;
-        }
-
-        $ids = array_values(array_map(
-            static fn (Variant $variant): string => $variant->id(),
-            array_filter($this->variants->ofProduct($product->id()), static fn (Variant $variant): bool => ! $variant->isArchived() && $variant->code()->value === $code),
-        ));
-
-        return $ids === [] ? null : [$product->id(), $ids];
+        return $variant === null || $product === null || $product->stage() !== ProductStage::Ready ? null : [$product->id(), $variant->id()];
     }
 }

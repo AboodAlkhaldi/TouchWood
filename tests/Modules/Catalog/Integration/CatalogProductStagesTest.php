@@ -349,18 +349,18 @@ describe('archiving and restoring', function () {
 });
 
 describe('the events of everyday changes', function () {
-    it('sends a variant added, a code corrected on every variant holding it, and a product changed', function () {
+    it('sends a variant added, a code corrected on the one variant, and a product changed', function () {
         [$id, $sixty, , $width, $eighty] = catalogStagesWhole();
         app(MarkProductReadyHandler::class)->handle(new MarkProductReady($id));
         Event::fake([VariantAdded::class, VariantCodeCorrected::class, ProductChanged::class]);
 
-        $second = Px::variant($id, '1304', [$width => $eighty]);
+        Px::variant($id, '1305', [$width => $eighty]);
         app(CorrectVariantCodeHandler::class)->handle(new CorrectVariantCode($sixty, '1340'));
         app(SetSearchWordsHandler::class)->handle(new SetSearchWords($id, ['drawer']));
 
         Event::assertDispatchedTimes(VariantAdded::class, 1);
-        Event::assertDispatched(VariantCodeCorrected::class, fn (VariantCodeCorrected $event): bool => $event->variantId === $sixty);
-        Event::assertDispatched(VariantCodeCorrected::class, fn (VariantCodeCorrected $event): bool => $event->variantId === $second);
+        Event::assertDispatchedTimes(VariantCodeCorrected::class, 1);
+        Event::assertDispatched(VariantCodeCorrected::class, fn (VariantCodeCorrected $event): bool => $event->variantId === $sixty && $event->productId === $id);
         Event::assertDispatchedTimes(ProductChanged::class, 1);
     });
 

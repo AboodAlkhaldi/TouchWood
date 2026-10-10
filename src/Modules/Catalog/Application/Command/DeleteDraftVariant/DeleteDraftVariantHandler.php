@@ -21,8 +21,7 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Deleting a draft's variant** (catalog.md amendment 3(c)): a variant added by mistake, while the
- * product was never shown or sold. Its code, if no other variant of the draft carries it, is let go,
- * free again. Once the product is ready, a variant is archived instead (`ArchiveVariant`).
+ * product was never shown or sold. Its code — its own, amendment 16(a) — is let go, free again. Once the product is ready, a variant is archived instead (`ArchiveVariant`).
  */
 final readonly class DeleteDraftVariantHandler
 {
@@ -57,9 +56,8 @@ final readonly class DeleteDraftVariantHandler
             $this->variants->delete($variant->id());
             $this->events->changed($product);
 
-            if (! $this->variants->codeInUse($product->id(), $variant->code()->value)) {
-                $this->products->releaseCode($product->id(), $variant->code()->value);
-            }
+            // Its code was its own (amendment 16(a)): free again.
+            $this->products->releaseCode($product->id(), $variant->code()->value);
 
             return [null, [ListAudit::deleted('variant', $variant->id(), $was)]];
         });

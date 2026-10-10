@@ -380,7 +380,8 @@ photos as the media library takes them.
 **The format** (`touchwood-products/1`) **[ACCEPTED 2026-10-05]** — with a guide to filling it and
 both files as complete examples in [`catalog-import/`](catalog-import/README.md), for a person or another
 AI agent to fill (owner, 2026-10-05) — **the guide and its examples follow amendment 16 with the backend
-that reads them**; until then they still show a set and a shared code:
+that reads them** — every variant its own code since `feat/catalog-codes-per-variant`; until the free
+variants come they still show a set:
 
 ```json
 {

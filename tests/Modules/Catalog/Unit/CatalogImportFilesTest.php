@@ -32,7 +32,8 @@ function catalogImportProduct(string $code = '1304'): array
         'attribute_set' => 'Sizes',
         'variants' => [
             ['code' => $code, 'values' => ['Width' => '60 cm']],
-            ['code' => $code, 'values' => ['Width' => '80 cm']],
+            // Every variant its own code (amendment 16(a)).
+            ['code' => $code.'0', 'values' => ['Width' => '80 cm']],
         ],
         'photos' => ['photos/a.jpg'],
     ];
@@ -65,7 +66,7 @@ describe('the guide\'s examples', function () {
             ->and($runner->descriptionEn['blocks'][0] ?? null)->toBe(['type' => 'heading', 'runs' => [['text' => 'Soft-close drawer runner']]])
             ->and($runner->descriptionEn['blocks'][2]['items'][0] ?? null)->toBe([['text' => 'Holds up to '], ['text' => '35 kg', 'bold' => true]])
             ->and([$runner->brand, $runner->brandNumber, $runner->category, $runner->warranty, $runner->attributeSet])->toBe(['TouchWood', null, ['Kitchens', 'Drawers', 'Runners'], 'Two years', 'Runner sizes'])
-            ->and($runner->codes())->toBe(['1304', '1305'])
+            ->and($runner->codes())->toBe(['1304', '1314', '1305'])
             ->and($runner->variants[0]->values)->toBe(['Length' => '45 cm', 'Finish' => 'Zinc'])
             ->and($runner->variants[0]->details)->toBe(['Load' => '35', 'Material' => ['ar' => 'فولاذ', 'en' => 'Steel']])
             ->and([$runner->variants[0]->weightGrams, $runner->variants[0]->lengthMm, $runner->variants[1]->widthMm])->toBe([1450, 450, null])
@@ -88,8 +89,9 @@ describe('the guide\'s examples', function () {
 
         expect(array_map(static fn ($item): array => [$item->number, $item->code, $item->price, $item->stock], $items))->toBe([
             [1, '1304', '120.5', 40],
-            [2, '1305', '125', null],
-            [3, '2001', '18', 300],
+            [2, '1314', '129.5', 25],
+            [3, '1305', '125', null],
+            [4, '2001', '18', 300],
         ]);
     });
 
@@ -123,11 +125,12 @@ describe('what refuses a product file', function () {
         'no variant' => [fn (array $p) => [...$p, 'variants' => []], 'product 1 › variants', 'at least one'],
         'a code not digits' => [fn (array $p) => [...$p, 'variants' => [['code' => '13a4', 'values' => ['Width' => '60 cm']]]], 'product 1 › variants 1 › code', 'digits'],
         'a code written as a number' => [fn (array $p) => [...$p, 'variants' => [['code' => 1304, 'values' => ['Width' => '60 cm']]]], 'product 1 › variants 1 › code', 'in quotes'],
-        'two variants alike' => [fn (array $p) => [...$p, 'variants' => [['code' => '1304', 'values' => ['Width' => '60 cm']], ['code' => '1304', 'values' => ['width' => '60 CM']]]], 'product 1 › variants 2 › values', 'never alike'],
+        'two variants alike' => [fn (array $p) => [...$p, 'variants' => [['code' => '1304', 'values' => ['Width' => '60 cm']], ['code' => '1305', 'values' => ['width' => '60 CM']]]], 'product 1 › variants 2 › values', 'never alike'],
+        'two variants sharing a code, typed once in Arabic digits' => [fn (array $p) => [...$p, 'variants' => [['code' => '1304', 'values' => ['Width' => '60 cm']], ['code' => '١٣٠٤', 'values' => ['Width' => '80 cm']]]], 'product 1 › variants 2 › code', 'not the code of variant 1: two variants never share a code'],
         'values without a set' => [fn (array $p) => array_diff_key($p, ['attribute_set' => true]), 'product 1 › variants 1 › values', 'attribute_set'],
         'a set without values' => [fn (array $p) => [...$p, 'variants' => [['code' => '1304']]], 'product 1 › variants 1 › values', 'one value for each'],
         'two variants with no set' => [fn (array $p) => [...array_diff_key($p, ['attribute_set' => true]), 'variants' => [['code' => '1'], ['code' => '2']]], 'product 1 › variants', 'one variant'],
-        'variants made of other attributes' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm']], ['code' => '1', 'values' => ['Finish' => 'Zinc']]]], 'product 1 › variants 2 › values', 'same attributes'],
+        'variants made of other attributes' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm']], ['code' => '2', 'values' => ['Finish' => 'Zinc']]]], 'product 1 › variants 2 › values', 'same attributes'],
         'a measure not a whole number' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm'], 'weight_g' => 2.5]]], 'product 1 › variants 1 › weight_g', 'whole number'],
         'a measure out of range' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm'], 'length_mm' => 0]]], 'product 1 › variants 1 › length_mm', 'a whole number from 1 to'],
         'a detail neither text in both languages nor a number' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm'], 'details' => ['Material' => ['ar' => 'فولاذ']]]]], 'product 1 › variants 1 › details › Material', 'both languages'],
@@ -140,8 +143,8 @@ describe('what refuses a product file', function () {
         'more than 20 related products' => [fn (array $p) => [...$p, 'related' => array_map(static fn (int $n): string => (string) (2000 + $n), range(1, 21))], 'product 1 › related', 'at most 20'],
         'a related code not digits' => [fn (array $p) => [...$p, 'goes_with' => ['20x1']], 'product 1 › goes_with', 'digits'],
         'a store named in a products file' => [fn (array $p) => [...$p, 'stores' => ['sa' => ['price' => 1]]], 'product 1 › stores', "not in a products file: each store's own file brings its prices and stock"],
-        'two products sharing a code' => [fn (array $p) => [$p, catalogImportProduct('1304')], 'products 1, 2', 'never share a code'],
-        'two variants alike, their attribute named in digits' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['2' => '60 cm']], ['code' => '1', 'values' => ['2' => '60 CM']]]], 'product 1 › variants 2 › values', 'never alike'],
+        'two products sharing a code' => [fn (array $p) => [$p, catalogImportProduct('1304')], 'products 1, 2', 'the code 1304 on two products: two variants never share a code'],
+        'two variants alike, their attribute named in digits' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['2' => '60 cm']], ['code' => '2', 'values' => ['2' => '60 CM']]]], 'product 1 › variants 2 › values', 'never alike'],
     ]);
 
     it('refuses a file not in the format at all', function (string $json, string $at, string $problem) {
@@ -231,7 +234,7 @@ describe('every number in Latin digits (amendment 12)', function () {
             'description' => ['ar' => 'يحمل **٢٥ كغ**'],
             'variants' => [
                 ['code' => '١٣٠٤', 'values' => ['Width' => '٦٠ cm'], 'details' => ['Load' => '٢٥', 'Material' => ['ar' => 'فولاذ ٣٠٤', 'en' => 'Steel 304']]],
-                ['code' => '1304', 'values' => ['Width' => '80 cm']],
+                ['code' => '1305', 'values' => ['Width' => '80 cm']],
             ],
             'search_words' => ['درج ٦٠'],
             'related' => ['١٣٠٦'],
@@ -240,8 +243,8 @@ describe('every number in Latin digits (amendment 12)', function () {
 
         expect([$drawer->nameAr, $drawer->nameEn, $drawer->slugAr])->toBe(['درج 60', 'Drawer 60', 'درج-60'])
             ->and($drawer->descriptionAr)->toBe(['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'يحمل '], ['text' => '25 كغ', 'bold' => true]]]]])
-            // Typed as ١٣٠٤ and as 1304: one code, the product's.
-            ->and($drawer->codes())->toBe(['1304'])
+            // Typed as ١٣٠٤: the code 1304.
+            ->and($drawer->codes())->toBe(['1304', '1305'])
             ->and($drawer->variants[0]->values)->toBe(['Width' => '60 cm'])
             ->and($drawer->variants[0]->details)->toBe(['Load' => '25', 'Material' => ['ar' => 'فولاذ 304', 'en' => 'Steel 304']])
             ->and([$drawer->searchWords, $drawer->related])->toBe([['درج 60'], ['1306']]);

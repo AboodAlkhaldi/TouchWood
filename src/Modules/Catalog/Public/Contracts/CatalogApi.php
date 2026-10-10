@@ -24,12 +24,11 @@ interface CatalogApi
     public function variant(string $variantId): ?VariantDto;
 
     /**
-     * Every variant holding the code — all of one product (amendment 3(e)) — for Sync and the
-     * import's later sections. A code that is not one finds nothing.
-     *
-     * @return list<VariantDto>
+     * **The one variant carrying the code**, archived or not — every variant has its own (amendment
+     * 16(a), replacing 3(e)'s `variantsByCode`) — for Sync (the provider's codes), Pricing and the
+     * import's later sections. A code that is not one, or one no variant carries now, finds none.
      */
-    public function variantsByCode(string $code): array;
+    public function variantByCode(string $code): ?VariantDto;
 
     /** For Sales's record of an order, Feedback, Content. */
     public function product(string $productId): ?ProductDto;

@@ -120,7 +120,7 @@ describe('a file that passes', function () {
         $id = Ix::upload(Ix::temp(Ix::json([
             Ix::product('1', ['brand' => 'Tallsen', 'category' => 'Kitchens / Drawers', 'warranty' => 'Two years', 'attribute_set' => 'Sizes', 'variants' => [
                 ['code' => '1', 'values' => ['Width' => '60 cm'], 'details' => ['Material' => ['ar' => 'فولاذ', 'en' => 'Steel']]],
-                ['code' => '1', 'values' => ['Width' => '80 cm']],
+                ['code' => '10', 'values' => ['Width' => '80 cm']],
             ], 'filters' => ['Use' => ['Kitchen']]]),
             Ix::product('2', ['brand' => 'TALLSEN', 'category' => 'kitchens / Hinges', 'attribute_set' => 'sizes', 'variants' => [
                 ['code' => '2', 'values' => ['width' => '60 CM']],
@@ -165,7 +165,7 @@ describe('a file that passes', function () {
         $id = Ix::upload(Ix::temp(Ix::json([
             Ix::product('1', ['brand' => mb_strtoupper((string) $brandEn), 'category' => "{$kitchensAr} / ".strtolower((string) $drawersEn), 'attribute_set' => (string) $setEn, 'variants' => [
                 ['code' => '1', 'values' => [strtoupper((string) $widthEn) => '60 CM']],
-                ['code' => '1', 'values' => [(string) $widthEn => '80 cm']],
+                ['code' => '10', 'values' => [(string) $widthEn => '80 cm']],
             ]]),
             Ix::product('2', ['brand' => (string) $brandAr]),
         ])));
