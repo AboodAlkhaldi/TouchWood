@@ -263,9 +263,10 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 
 - `CouponRequest`: store, the code as typed, customer id, `Audience`, and Pricing's `CartPricesDto`
   for the cart (its lines' `kind` and `total`, its `grossSubtotal` and `netSubtotal`).
-- `CouponResult`: the coupon's id and names, the total discount, each eligible line's share (keyed by
-  variant id and sale mode — unique in a cart, pricing.md §2.1), `allowWithPoints`; or a
-  `CouponRefusal`.
+- `CouponResult`: the coupon's id and names, the total discount, **one share per line of the prices
+  passed, in their order** (0 for a line not eligible) — an edited order may hold one variant and mode
+  in several parts (pricing.md §1.11), so a share follows its line's place, not its variant and mode —
+  `allowWithPoints`; or a `CouponRefusal`.
 - `CouponRefusal`: `UNKNOWN_CODE`, `INACTIVE`, `NOT_STARTED`, `ENDED`, `USED_UP`,
   `USED_UP_FOR_YOU`, `NOT_ASSIGNED_TO_YOU`, `BELOW_MINIMUM`, `NOTHING_ELIGIBLE`, `WORTH_NOTHING`,
   `NOT_WITH_POINTS`, `PASSES_CEILING`.
@@ -273,8 +274,10 @@ permission that allowed the change**; Promotions builds the scope itself — as 
   for (the cart's prices, customer, audience), the quoted discount, whether points are used, and the
   caller's permission.
 - `EditedCouponRequest`: the order's id, the coupon's id, the edited order's prices (Pricing's, over
-  its kept and added parts — pricing.md, the addition for edits), the audience, the room left after
-  the points, and the discount at placement (the most it may be).
+  its kept and added parts — `pricesForEdit`, pricing.md §1.11), the audience, **the whole room under
+  the ceiling** (`customerDiscountRoom` for the edited prices — the coupon is trimmed to it only when it
+  alone passes it; Sales then lowers the points into what is left, sales.md §1.7), and the discount at
+  placement (the most it may be).
 - `UpdateCouponUse`: the order's id, the edit's id, the new discount, the caller's permission.
 - `RecordOrder`: the order's id, customer, store, the moment placed, the caller's permission. (Not
   named `OrderPlaced`: that is Sales's integration event, handoff §4.5.)
@@ -412,13 +415,13 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 
 | Error | Status | When |
 |---|---|---|
-| `CouponRefused` | UNPROCESSABLE | `useCoupon` finds the coupon no longer usable — the same reasons as `CouponRefusal` — or the order already used another coupon |
+| `CouponRefused` | INVALID | `useCoupon` finds the coupon no longer usable — the same reasons as `CouponRefusal` — or the order already used another coupon |
 | `CouponChanged` | CONFLICT | `useCoupon` works the discount out again and it is not the one quoted (the coupon was changed meanwhile) — checkout quotes again |
 | `CodeTaken` | CONFLICT | A new coupon's code is another coupon's in the store |
 | `CouponInUse` | CONFLICT | Deleting a coupon already used; removing an assignment already used; lowering `max_uses_total` below the uses made |
 | `GiftLevelClash` | CONFLICT | Two active levels with the same amount, for overlapping audiences and dates (§1.7) |
 | `CouponNotFound`, `SegmentNotFound`, `GiftLevelNotFound` | NOT_FOUND | Unknown, or in a store the staff member does not cover — the same answer for both |
-| `InvalidPromotionAttribute` | UNPROCESSABLE | A value refused: a code's characters or length, a percentage, an amount in another currency, dates in the wrong order, a product that is not ready, an inactive category or brand, an archived gift variant, a rule's numbers, a combination that can never apply (§1.1), a store that is not the coupon's or the order's, a caller's permission not its own module's |
+| `InvalidPromotionAttribute` | INVALID | A value refused: a code's characters or length, a percentage, an amount in another currency, dates in the wrong order, a product that is not ready, an inactive category or brand, an archived gift variant, a rule's numbers, a combination that can never apply (§1.1), a store that is not the coupon's or the order's, a caller's permission not its own module's |
 
 ---
 
