@@ -39,10 +39,7 @@ use Modules\Catalog\Application\Query\ViewAttribute\ViewAttribute;
 use Modules\Catalog\Application\Query\ViewAttribute\ViewAttributeHandler;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\StoreChoices;
-use Modules\Platform\Public\Dto\MediaUrlsDto;
 use Modules\Platform\Public\Dto\StoreDto;
-use Modules\Platform\Public\Enums\ImageFormat;
-use Modules\Platform\Public\Enums\MediaSize;
 use Shared\Application\Unauthorized;
 
 /**
@@ -59,6 +56,7 @@ final readonly class ListPages
     public function __construct(
         private Application $app,
         private PlatformApi $platform,
+        private Thumbnails $thumbnails,
         private StoreChoices $choices,
         private ListBrandsHandler $brands,
         private ListCategoriesHandler $categories,
@@ -78,7 +76,7 @@ final readonly class ListPages
     public function brands(?string $reach): BrandsPage
     {
         $list = $this->brands->handle(new ListBrands);
-        $logos = $this->thumbnails(array_map(static fn (BrandRow $brand): ?string => $brand->logoMediaId, $list->brands));
+        $logos = $this->thumbnails->of(array_map(static fn (BrandRow $brand): ?string => $brand->logoMediaId, $list->brands));
 
         return new BrandsPage(
             array_map(static fn (BrandRow $brand): BrandData => new BrandData(
@@ -108,7 +106,7 @@ final readonly class ListPages
         $offered = $this->choices->forJobs(CatalogPermissions::CATEGORY_RANK);
         $chosen = $storeCode === null ? self::firstOn($offered) : self::storeIn($offered, $storeCode, CatalogPermissions::CATEGORY_RANK);
         $list = $this->categories->handle(new ListCategories($chosen?->id));
-        $images = $this->thumbnails(array_map(static fn (CategoryRow $category): ?string => $category->imageMediaId, $list->categories));
+        $images = $this->thumbnails->of(array_map(static fn (CategoryRow $category): ?string => $category->imageMediaId, $list->categories));
         $below = self::productsBelow($list->categories);
 
         return new CategoriesPage(
@@ -283,45 +281,6 @@ final readonly class ListPages
         }
 
         return $total;
-    }
-
-    /**
-     * Thumbnails for a page of photos, read together (catalog.md §2.4: one query, not one a photo),
-     * each the best format of its "thumb" size, once its sizes are ready.
-     *
-     * @param  list<string|null>  $mediaIds
-     * @return array<string, string> media id => its thumbnail's address
-     */
-    private function thumbnails(array $mediaIds): array
-    {
-        $ids = array_values(array_unique(array_filter($mediaIds, static fn (?string $id): bool => $id !== null && $id !== '')));
-        $thumbs = [];
-
-        foreach ($ids === [] ? [] : $this->platform->mediaUrlsOf($ids) as $id => $urls) {
-            $thumb = self::thumb($urls);
-
-            if ($thumb !== null) {
-                $thumbs[$id] = $thumb;
-            }
-        }
-
-        return $thumbs;
-    }
-
-    private static function thumb(MediaUrlsDto $urls): ?string
-    {
-        $sizes = $urls->variants[MediaSize::Thumb->slug()] ?? [];
-
-        // Best first: a browser that cannot draw one of these is a browser we do not have.
-        foreach ([ImageFormat::Avif, ImageFormat::Webp, ImageFormat::Jpeg] as $format) {
-            $url = $sizes[$format->extension()] ?? null;
-
-            if (is_string($url)) {
-                return $url;
-            }
-        }
-
-        return null;
     }
 
     /**

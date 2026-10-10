@@ -20,6 +20,7 @@ use Modules\Catalog\Application\Import\InMemoryImportSections;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Query\ListCategories\ListCategoriesHandler;
 use Modules\Catalog\Application\Query\Lists\CatalogListReads;
+use Modules\Catalog\Application\Query\Products\CatalogProductReads;
 use Modules\Catalog\Application\Query\Shop\ShopReader;
 use Modules\Catalog\Application\Search\SearchLog;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
@@ -36,6 +37,7 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseApiReads;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseAttributeRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseBrandRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseCatalogListReads;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseCatalogProductReads;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseCategoryRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseImports;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
@@ -86,6 +88,7 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(ShopReader::class, DatabaseShopReader::class);
         // The panel's screens read the shared lists through their own reads (§4.4).
         $this->app->bind(CatalogListReads::class, DatabaseCatalogListReads::class);
+        $this->app->bind(CatalogProductReads::class, DatabaseCatalogProductReads::class);
         $this->app->bind(SearchLog::class, DatabaseSearchLog::class);
         $this->app->bind(Imports::class, DatabaseImports::class);
         $this->app->bind(ImportQueue::class, LaravelImportQueue::class);
@@ -118,9 +121,10 @@ final class CatalogServiceProvider extends ServiceProvider
         // A photo whose sizes became ready may be a card's photo now (§6.2).
         Event::listen(MediaVariantsReady::class, [RefreshCardPhotos::class, 'handle']);
 
-        // The panel's menu: the shared lists' screens (catalog.md §4.4), each offered for any of the
-        // jobs its screen serves, in any store — the screen decides the rest.
+        // The panel's menu: the products and the shared lists' screens (catalog.md §4.4), each offered
+        // for any of the jobs its screen serves, in any store — the screen decides the rest.
         $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('catalog', 'products', PermissionGroup::Catalog->value, 'catalog.admin.products', CatalogPermissions::PRODUCT_VIEW, 10, icon: 'catalog'),
             new MenuEntryDto('catalog', 'categories', PermissionGroup::Catalog->value, 'catalog.admin.categories', ListCategoriesHandler::JOBS, 20, icon: 'catalog'),
             new MenuEntryDto('catalog', 'brands', PermissionGroup::Catalog->value, 'catalog.admin.brands', CatalogPermissions::BRAND_MANAGE, 30, icon: 'catalog'),
             new MenuEntryDto('catalog', 'attributes', PermissionGroup::Catalog->value, 'catalog.admin.attributes', CatalogPermissions::ATTRIBUTE_MANAGE, 40, icon: 'catalog'),

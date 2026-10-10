@@ -20,7 +20,7 @@ come after the Geist foundation. This file grows with each step. **Steps 1 to 7 
 
 **The screens** (from 2026-10-07; catalog.md §4.4, §4.5, amendment 13) come in six steps of their own
 (§9.7 P23): 1 the shared lists' screens · 2 the products · 3 a store's rows and the store file · 4 the
-import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens step 1 is built.**
+import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens steps 1 and 2 are built.**
 
 ---
 
@@ -37,6 +37,8 @@ import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens
 | `Application/Query/ViewImport`, `ListImports`, `ViewStoreFill`, `ListStoreFills` | The import's and the store file's pages and lists (step 6) |
 | `Application/Query/Lists` | What the list screens read (screens step 1, below): `CatalogListReads` (the reads, as an interface) and the rows it answers; `ListReaders` — who may read a shared list and who may change it |
 | `Application/Query/ListBrands`, `ListCategories`, `ListAttributes`, `ViewAttribute`, `ListVariations`, `ListLabels`, `ListWarranties`, `ListWordPairs`, `ListSearchesWithNoResults`, `ProductsReached` | The list screens' queries, each asking its own job (catalog.md §4.4) |
+| `Application/Query/Products`, `ListProducts`, `ViewProduct` | The products screens' reads (screens step 2, below): `CatalogProductReads` (as an interface) and what it answers; `ProductReaders` - who reads the products, and what they may do to one, asked as the handlers check it |
+| `Application/Command/UploadProductPhoto` | A product's or a variant's photo, uploaded from its page under `catalog.product.update`, checked as the product's other changes (P5) |
 | `Application/Command/UploadBrandLogo`, `UploadCategoryImage` | A brand's logo, a category's photo, uploaded from its form into Platform's media library under the list's job with All stores (P5) — one command a job, as every handler names its one `PERMISSION` |
 | `Application/Query/Shop` | What a shopper reads (step 5): `ShopCatalog` (the menu, a category's, a brand's and a product's page, suggestions), `ShopSearch`, `ShopReader` (the reads, as an interface), `Cursor` (a page's keyset), and the cards and pages they answer — never a code |
 | `Application/Search` | `SearchTerms` (what was typed, as search reads it, widened by word pairs) and `SearchLog` |
@@ -48,7 +50,7 @@ import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens
 | `Domain/Service/ArabicText.php` | Arabic as search compares it (handoff §5.2): marks off, alef and yeh forms folded, digits Latin, lower case |
 | `Domain/Exception` | `CatalogError`, the fourteen refusals of step 2, the thirteen of step 3, step 4's two (`NotChosenInStore`, `InvalidSellingTerms`) and step 6's three (`ImportRefused`, `ImportUndecided`, `ImportClosed`), named in both languages in `lang/{ar,en}/errors.php` |
 | `Domain/Repository` | The lists', the products', the variants' and the stores' rows' repositories, and `ListLocks` |
-| `Infrastructure/Eloquent` | The repositories on the query builder; `SlugHistory`; `DatabaseListLocks`; Catalog's own `Ulids` (amendment 1(h)); step 5's `DatabaseListingRows`, `DatabaseShopReader` and `DatabaseSearchLog`; the screens' `DatabaseCatalogListReads` |
+| `Infrastructure/Eloquent` | The repositories on the query builder; `SlugHistory`; `DatabaseListLocks`; Catalog's own `Ulids` (amendment 1(h)); step 5's `DatabaseListingRows`, `DatabaseShopReader` and `DatabaseSearchLog`; the screens' `DatabaseCatalogListReads` and `DatabaseCatalogProductReads` |
 | `Infrastructure/Listener`, `Infrastructure/Queue` | `RefreshCardPhotos` (Platform's `MediaVariantsReady`); `PruneSearchLogJob`, queued nightly; `BringInImportJob` and `LaravelImportQueue` (step 6) |
 | `Infrastructure/Import` | `DiskImportArchives`: a products file's zip kept on the disk `config/catalog.php` names, read from a local copy, its photos unpacked only into temporary files of its own naming |
 | `Infrastructure/Media` | `CatalogImagesUsage`: brand logos and category photos as Platform media; `ProductPhotosUsage`: product and variant photos (below) |
@@ -134,8 +136,9 @@ the products' lock.
 **Who may.** `ProductAccess` asks for the permission in every store where the product is Active
 (catalog.md §1.1): first in some store, before anything is read; then, inside the change once the
 product's row is locked, in each store where any of its variants is switched on (step 4,
-`authorizeFor`). A product Active nowhere needs it in some store only. Creating checks the creator's
-working store, which must be on (amendment 3(j)); deleting a draft, making one ready and restoring
+`authorizeFor`). A product Active nowhere needs it in some store only. Creating asks no store: the
+job in some store that is on (amendment 13(f), replacing 3(j)'s working store); deleting a draft,
+making one ready and restoring
 reach only products Active nowhere.
 
 | Handler | Permission | What it keeps |
@@ -454,6 +457,49 @@ answered from that request's memory. **The panel's frame around every admin page
 100 queries on its own on 2026-10-07** — 52 of them the menu checking 26 jobs, each re-reading the
 reader's grants from the cache table — and 9 since #108.
 
+### The screens: the products (screens step 2)
+
+**The products list** (S8, P4): every product to whoever reads products (`catalog.product.view`) in
+some store - a product belongs to no store - newest first by its id (a ULID's byte order is its age,
+compared `COLLATE "C"`), 50 at a time with Show More; a name in either language or a code finds it
+(digits typed in any script read 0-9; a `%` or `_` is a character, not a pattern) - a code the
+product gave up too, though each row shows the codes its variants carry now; the stage, the category,
+the brand narrow it - any brand or category products are in, an inactive one said so - and the page
+shows the filters as they were applied. **All Stores**
+first, then the stores the reader covers; each row's stores are only those, and one store chosen shows
+its state - On (n of m variants), Off, Not Chosen, Not Available Now - and narrows by it. **Add
+Product** asks no store (amendment 13(f)): `CreateProduct` takes the job in some store that is on -
+`ProductReaders::storeToCreateIn`, which the list asks too, so Add Product is offered only to whoever
+it would let in - and the import makes its drafts the same way.
+
+**A product's page** (S9): its name, stage and codes above **tabs kept in the address** (`?tab=`) -
+Details, Variants, Photos, Search and Filters, Related; a store's rows come with step 3. **Each tab is
+read when it is opened** (`ViewProduct` answers the open tab's data only), so every tab keeps the
+query budget - and **each tab is a page of its own**, the product above it (`Products/shell.tsx`), so
+the browser loads the open tab's script only, within the JavaScript budget, and the server renders it
+whole (a tab loaded later with `React.lazy` would reach the server as "Loading…": `renderToString`
+cannot wait for it). A new choice of brand, category or warranty takes an active one; the product's own stays shown
+whatever its state. What a draft lacks to be made ready is `Readiness`'s rules worked out from the page's own
+reads - `CatalogProductReadsTest` holds the two to the same answers. What the reader may do is asked as
+the handlers check it (`ProductReaders::may`): a product's shared data needs the job in every store
+where it is on, a product on nowhere in some store; whoever may not is told once, at the top, and every
+control is out of reach.
+
+**Photos** (P5, P8): uploaded on the page (`UploadProductPhoto`, sent as `photos[]` after the ids kept
+as `media_ids[]`; a variant's only for a variant of that product, else nothing is uploaded), shown as Attachment tiles with their sizes' state - each read together, one query
+for their states (`PlatformApi::mediaOf`, added with this step) and one for their thumbnails
+(`Thumbnails`, shared with step 1's pages) - and put in order by dragging (`SortableList`'s grid);
+each change saved at once. Search words, related products and a gallery save as they change; the
+details and the filters with their own Save, out of reach until something changed.
+
+**The query budget**: each page's own queries are recorded in `CatalogProductScreensTest` - the list 5
+(one store chosen 5), a product's Details 4, Variants 5, Photos 3, Search and Filters 5, Related with a
+search 5 (finding one or many) - and the same again with more of every row a page shows:
+products, variants with photos, gallery photos, filters, search words, related products. They were
+15, 15, 12, 13, 11, 13 and 13 until #108 made a request read the stores and the reader's permissions
+once (access.md amendment 65); the list was then at the budget, with nothing to spare. The panel's
+frame around them is as step 1 says.
+
 ## Tests
 
 | File | What it covers |
@@ -466,7 +512,7 @@ reader's grants from the cache table — and 9 since #108.
 | `Integration/CatalogSmallListsTest` | Labels, warranties and word pairs, including a pair the database's language order would sort the other way |
 | `Integration/CatalogImagesUsageTest` | Deleting a logo or photo's file: detached and audited, or refused with nothing changed |
 | `Integration/CatalogAuditNamesTest` | Every action the code records is named in both languages, and nothing else is |
-| `Integration/CatalogProductsTest` | Creating and editing a product: who may, the working store on, names and slugs, what it points at, the set fixed once it has a variant, deleting a draft, the database's CHECKs |
+| `Integration/CatalogProductsTest` | Creating and editing a product: who may, the job in some store that is on (amendment 13(f)), names and slugs, what it points at, the set fixed once it has a variant, deleting a draft, the database's CHECKs |
 | `Integration/CatalogVariantsTest` | Combinations, details and measures; codes held, one variant's each, taken, taken back, freed by a draft and corrected on the one variant; the migration to a code per variant; a name, slug, code and detail typed in Arabic digits saved 0-9 |
 | `Integration/CatalogListsInUseTest` | A list item a product or variant uses: not deleted, a category's sub-categories, a set's members, an attribute's job |
 | `Integration/CatalogProductPartsTest` | Gallery and variant photos, search words, filter values, relations; a photo's file deleted from the media library |
@@ -503,6 +549,9 @@ reader's grants from the cache table — and 9 since #108.
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema; the store file's job, admin roles only (amendment 6(h)) |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 | `Integration/CatalogListReadsTest` | The list screens' reads: who may read and who may change, refused before anything is read; each list's rows; a fixed number of queries however long the list; a store's places beside the base store's; the searches that found nothing, grouped and paged; the products a deactivation reaches; Platform's photos read together; descriptions' marks both ways |
+| `Integration/CatalogProductReadsTest` | The products screens' reads: every product to a reader in some store, refused before reading to anyone else; where each is on among the stores covered; finding by name, by a code in any digits, by stage, category and brand; one store's state and narrowing by it; pages by keyset in a fixed number of queries; one product above its tabs; what a draft lacks, the same as `Readiness`; each tab's own data - a variant's details, size and photos, the photos' states read together; what the reader may do, as the handlers check it |
+| `Feature/CatalogProductScreensTest` | The products screens over HTTP: who opens the list and a product's page, and the menu; the store filter; finding (any digits, `%` and `_` as characters, bytes that are not text) and the next page; the filters as applied; every brand and category offered, active or not; Add Product offered only with the job in a store that is on, and a draft added with no store; the codes the variants carry; what the reader may do; an archived product; every tab's change, said where the panel says it, refused - nothing uploaded - without the job in every store where the product is on; photos uploaded, ordered, removed and refused, a variant's only for that product's variant; making ready, archiving, restoring, deleting a draft; each page's own queries, recorded |
+| `tests/Browser/CatalogProductScreensTest.php` | The products screens in a real browser: adding a draft opens its page saying what it lacks; tabs in the address, each fetched as it opens; details saved once changed; a search word added; a variant added from its dialog, shown in its row; Arabic at a phone's width |
 | `Feature/CatalogListScreensTest` | The seven screens over HTTP: the menu; who opens each page; the categories' store filter; every form's success and refusal, said beside its field or at the top; a logo and a photo uploaded from their forms; the fates; each page's own queries, recorded |
 | `tests/Browser/CatalogListScreensTest.php` | The screens in a real browser: adding from each dialog, the fates dialog reading the products before its button, a branch of the tree opened, a label's look, a warranty for life, a word pair added and deleted, a page in Arabic at a phone's width |
 

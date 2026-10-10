@@ -93,7 +93,7 @@ final class CatalogProducts
         $n = self::next();
         $brandId ??= self::brand();
 
-        return Fx::asSystem(fn (): string => app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), "درج {$n}", $nameEn === null ? null : "{$nameEn} {$n}", $brandId)));
+        return Fx::asSystem(fn (): string => app(CreateProductHandler::class)->handle(new CreateProduct("درج {$n}", $nameEn === null ? null : "{$nameEn} {$n}", $brandId)));
     }
 
     /**

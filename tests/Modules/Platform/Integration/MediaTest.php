@@ -711,6 +711,25 @@ describe('reading', function () {
             ->and(app(PlatformApi::class)->mediaUrlsOf([]))->toBe([]);
     });
 
+    it('describes a page of media in one query, each as media() would, keyed by its lower-cased id', function () {
+        $ready = uploadMedia(imageFile(800, 600));
+        runQueuedVariants($ready);
+        $pending = uploadMedia(imageFile(400, 300, 'png'));
+
+        DB::enableQueryLog();
+        $media = app(PlatformApi::class)->mediaOf([strtoupper($ready), $pending, '01j8z3k4m5n6p7q8r9s0t1v2w3', 'not an id']);
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        expect(array_keys($media))->toEqualCanonicalizing([$ready, $pending])
+            ->and($media[$ready]->variantsStatus)->toBe(MediaVariantsStatus::Ready)
+            ->and($media[$pending]->variantsStatus)->toBe(MediaVariantsStatus::Pending)
+            ->and($media[$pending]->mime)->toBe('image/png')
+            ->and($media[$ready])->toEqual(app(PlatformApi::class)->media($ready))
+            ->and($queries)->toHaveCount(1)
+            ->and(app(PlatformApi::class)->mediaOf([]))->toBe([]);
+    });
+
     it('never puts an original or a private file on the public disk', function () {
         uploadMedia(pdfFile(), MediaVisibility::Private, 'receipt.pdf');
         uploadMedia(imageFile(400, 300));
