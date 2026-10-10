@@ -28,6 +28,8 @@ interface PricingApi
      *
      * A variant appears once per sale mode: the caller merges a cart's repeated lines first, and two
      * lines of the same variant and mode are refused (`pricing.duplicate_lines`) rather than guessed at.
+     * The priced lines come back in the order given; one with no price is named in `unpriced`
+     * instead, so positions match the input exactly when nothing is unpriced (pricing.md §2.1).
      *
      * @param  list<CartLineDto>  $lines
      */
@@ -53,6 +55,8 @@ interface PricingApi
      * only. The result carries the order's own VAT rate, not today's, and `totals()` takes it as it
      * takes any prices. A variant and mode may appear more than once - a kept part and an added part,
      * or the parts of earlier edits - but once among the added lines (`pricing.duplicate_lines`).
+     * The lines come back in the order given - the kept parts, then the added lines - so a caller
+     * matches them by position; an added line with no price is named in `unpriced` instead.
      *
      * @param  list<KeptPartDto>  $kept  as the order's snapshot holds them, quantities as edited
      * @param  list<CartLineDto>  $added  the pieces added by this edit

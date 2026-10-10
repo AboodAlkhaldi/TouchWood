@@ -227,6 +227,13 @@ store's currency. **On `main` since #97.**
 `totals` may be called more than once while Sales builds a quote: with the coupon and points first
 (for `goods_total`, which free shipping and points earning bind to), then with the shipping.
 
+**The lines come back in the order given** (stage 6's request, 2026-10-10): `prices` returns its
+lines in the order they were passed; `pricesForEdit` the kept parts as passed, then the added lines
+as passed — one `LinePriceDto` each. A line with no price is left out of `lines` and named in
+`unpriced`, so position `i` answers input `i` exactly when `unpriced` is empty — which `totals`
+requires anyway. Callers may match by position (an edited order can hold a variant and mode more
+than once, §1.11).
+
 **One line per variant and mode** (stage 6's review, 2026-10-07): `prices` expects each pair of
 variant and sale mode once — Sales merges a cart's repeated lines first — and refuses two of the same
 (`pricing.duplicate_lines`) rather than guess.
