@@ -6,6 +6,7 @@ namespace Modules\Catalog\Application\Command\MoveCategory;
 
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Lists\CategoryInput;
 use Modules\Catalog\Application\Lists\SharedListChange;
@@ -26,7 +27,8 @@ use Shared\Application\Unauthorized;
  * anything below it (`CategoryLoop`), and placed among its new siblings in every store. Its slugs do
  * not change — an address names the category, not its path — so its addresses stay as they were.
  * **Its path does**: the listing rows of the products in it and below it are written again (§5.4),
- * under the products' lock, taken first, as every change to them.
+ * under the products' lock, taken first, as every change to them. `CategoryMoved` tells the modules
+ * above (amendment 16(i)): Pricing's category discounts read what is below a category.
  */
 final readonly class MoveCategoryHandler
 {
@@ -38,6 +40,7 @@ final readonly class MoveCategoryHandler
         private CategoryInput $input,
         private ProductRepository $products,
         private ListingRows $listingRows,
+        private ProductEvents $events,
     ) {}
 
     /**
@@ -67,6 +70,7 @@ final readonly class MoveCategoryHandler
             $this->categories->update($category);
             $this->input->placeEverywhere($category->id(), $command->rank);
             $this->listingRows->refresh($this->products->idsInCategories([$category->id(), ...$this->categories->idsBelow($category->id())]));
+            $this->events->categoryMoved($category->id());
 
             // Among its new siblings it had no place before.
             $entry = ListAudit::changed('category', 'moved', $category->id(), [...$changes, 'rank' => null], [...$category->snapshot(), 'rank' => $command->rank]);

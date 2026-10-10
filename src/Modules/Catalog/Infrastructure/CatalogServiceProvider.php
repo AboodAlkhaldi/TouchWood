@@ -10,11 +10,13 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Enums\PermissionGroup;
+use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Application\CatalogApiImpl;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Import\ImportArchives;
 use Modules\Catalog\Application\Import\ImportQueue;
 use Modules\Catalog\Application\Import\Imports;
+use Modules\Catalog\Application\Import\InMemoryImportSections;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Query\ListCategories\ListCategoriesHandler;
 use Modules\Catalog\Application\Query\Lists\CatalogListReads;
@@ -30,12 +32,14 @@ use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\Repository\WordPairRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseApiReads;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseAttributeRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseBrandRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseCatalogListReads;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseCategoryRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseImports;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseListingFacts;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListingRows;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseProductRepository;
@@ -53,6 +57,8 @@ use Modules\Catalog\Infrastructure\Queue\LaravelImportQueue;
 use Modules\Catalog\Infrastructure\Queue\PruneSearchLogJob;
 use Modules\Catalog\Presentation\Console\RebuildListingCommand;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Contracts\ImportSections;
+use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Dto\MenuEntryDto;
@@ -85,9 +91,14 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(ImportQueue::class, LaravelImportQueue::class);
         // A products file's zip waits on the disk config/catalog.php names (amendment 6).
         $this->app->bind(ImportArchives::class, static fn ($app): DiskImportArchives => new DiskImportArchives($app->make(Factory::class), (string) config('catalog.imports.disk'), sys_get_temp_dir()));
-        // What the modules above Catalog may ask it (§2.1). ListingFacts is declared, and bound with
-        // stage 5, which first calls it (amendment 5(i)).
+        // What the modules above Catalog may ask it (§2.1), and what they push into it and add to
+        // its store files (§2.2, §2.3): bound for stage 5, the first to call them (amendment 16(i)).
         $this->app->bind(CatalogApi::class, CatalogApiImpl::class);
+        $this->app->bind(ApiReads::class, DatabaseApiReads::class);
+        $this->app->bind(ListingFacts::class, DatabaseListingFacts::class);
+        // One registry for the whole application: the modules above register from their providers.
+        $this->app->singleton(InMemoryImportSections::class);
+        $this->app->alias(InMemoryImportSections::class, ImportSections::class);
     }
 
     public function boot(): void
