@@ -106,10 +106,22 @@ final readonly class DatabaseMediaReader implements MediaReader
     {
         $media = $this->media->byId($mediaId);
 
-        if ($media === null) {
-            return null;
+        return $media === null ? null : $this->urlsFor($media);
+    }
+
+    public function urlsOf(array $mediaIds): array
+    {
+        $urls = [];
+
+        foreach ($this->media->byIds($mediaIds) as $media) {
+            $urls[$media->id()] = $this->urlsFor($media);
         }
 
+        return $urls;
+    }
+
+    private function urlsFor(Media $media): MediaUrlsDto
+    {
         // Private files never go through the CDN: only an expiring link, and no variants.
         if ($media->visibility() === MediaVisibility::Private) {
             $expiresAt = CarbonImmutable::now()->addMinutes($this->privateLinkMinutes);

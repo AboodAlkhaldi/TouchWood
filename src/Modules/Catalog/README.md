@@ -16,7 +16,11 @@ that, so a change to it changes the guide and both examples too.
 **Being built** (from 2026-10-02), backend first, in seven steps: 1 foundation · 2 the shared lists
 · 3 products and variants · 4 each store's choice · 5 listing, search and the public contract ·
 6 the JSON import · 7 the module's own pass. The admin and storefront screens, with their endpoints,
-come after the Geist foundation. This file grows with each step. **Steps 1 to 6 are built.**
+come after the Geist foundation. This file grows with each step. **Steps 1 to 7 are built.**
+
+**The screens** (from 2026-10-07; catalog.md §4.4, §4.5, amendment 13) come in six steps of their own
+(§9.7 P23): 1 the shared lists' screens · 2 the products · 3 a store's rows and the store file · 4 the
+import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens step 1 is built.**
 
 ---
 
@@ -31,6 +35,9 @@ come after the Geist foundation. This file grows with each step. **Steps 1 to 6 
 | `Application/Listing` | `StoreListingChange` — what a store's changes share: the job in that store, the transaction, the products' lock first, the audit in that store; `ListingRows` — the listing's writer, called inside every change that alters a row (step 5, below); `CardPhotoReady` — a photo's sizes ready, its products' rows written again |
 | `Application/Import` | The import and the store file (step 6, below): reading the files (`ProductsFile`, `StoreFillFile`, `DescriptionText`, `FileProblems`), checking one against the catalog (`CatalogNames`, `CatalogCheck`), the zip (`ImportArchives`), the import's rows (`Imports`), the changes before bringing in (`ImportedProductsChange`), bringing in (`ImportReferences`, `ImportBringer`, `ImportPhotos`), the steps after it (`BroughtInProducts`) and the store file's (`StoreFills`) |
 | `Application/Query/ViewImport`, `ListImports`, `ViewStoreFill`, `ListStoreFills` | The import's and the store file's pages and lists (step 6) |
+| `Application/Query/Lists` | What the list screens read (screens step 1, below): `CatalogListReads` (the reads, as an interface) and the rows it answers; `ListReaders` — who may read a shared list and who may change it |
+| `Application/Query/ListBrands`, `ListCategories`, `ListAttributes`, `ViewAttribute`, `ListVariations`, `ListLabels`, `ListWarranties`, `ListWordPairs`, `ListSearchesWithNoResults`, `ProductsReached` | The list screens' queries, each asking its own job (catalog.md §4.4) |
+| `Application/Command/UploadBrandLogo`, `UploadCategoryImage` | A brand's logo, a category's photo, uploaded from its form into Platform's media library under the list's job with All stores (P5) — one command a job, as every handler names its one `PERMISSION` |
 | `Application/Query/Shop` | What a shopper reads (step 5): `ShopCatalog` (the menu, a category's, a brand's and a product's page, suggestions), `ShopSearch`, `ShopReader` (the reads, as an interface), `Cursor` (a page's keyset), and the cards and pages they answer — never a code |
 | `Application/Search` | `SearchTerms` (what was typed, as search reads it, widened by word pairs) and `SearchLog` |
 | `Application/CatalogApiImpl.php` | `Public/Contracts/CatalogApi`, as plain reads |
@@ -41,13 +48,15 @@ come after the Geist foundation. This file grows with each step. **Steps 1 to 6 
 | `Domain/Service/ArabicText.php` | Arabic as search compares it (handoff §5.2): marks off, alef and yeh forms folded, digits Latin, lower case |
 | `Domain/Exception` | `CatalogError`, the fourteen refusals of step 2, the thirteen of step 3, step 4's two (`NotChosenInStore`, `InvalidSellingTerms`) and step 6's three (`ImportRefused`, `ImportUndecided`, `ImportClosed`), named in both languages in `lang/{ar,en}/errors.php` |
 | `Domain/Repository` | The lists', the products', the variants' and the stores' rows' repositories, and `ListLocks` |
-| `Infrastructure/Eloquent` | The repositories on the query builder; `SlugHistory`; `DatabaseListLocks`; Catalog's own `Ulids` (amendment 1(h)); step 5's `DatabaseListingRows`, `DatabaseShopReader` and `DatabaseSearchLog` |
+| `Infrastructure/Eloquent` | The repositories on the query builder; `SlugHistory`; `DatabaseListLocks`; Catalog's own `Ulids` (amendment 1(h)); step 5's `DatabaseListingRows`, `DatabaseShopReader` and `DatabaseSearchLog`; the screens' `DatabaseCatalogListReads` |
 | `Infrastructure/Listener`, `Infrastructure/Queue` | `RefreshCardPhotos` (Platform's `MediaVariantsReady`); `PruneSearchLogJob`, queued nightly; `BringInImportJob` and `LaravelImportQueue` (step 6) |
 | `Infrastructure/Import` | `DiskImportArchives`: a products file's zip kept on the disk `config/catalog.php` names, read from a local copy, its photos unpacked only into temporary files of its own naming |
 | `Infrastructure/Media` | `CatalogImagesUsage`: brand logos and category photos as Platform media; `ProductPhotosUsage`: product and variant photos (below) |
 | `Infrastructure/Persistence` | `CatalogSchema` (step 1) and the migrations: step 2's lists, step 3's products, variants and their parts, step 4's store rows, step 5's listing and search log — every rule one row can hold backed by a named CHECK, index or key |
 | `Presentation/Console` | `catalog:listing:rebuild` — the listing's repair, run by hand |
-| `Presentation/lang/{ar,en}` | The permissions' names, the errors, the audit log's name for every action, and the queued work's names (`jobs.php`) |
+| `Presentation/admin-routes.php`, `Presentation/Http` | The panel's Catalog screens (`catalog.admin.*`): the controllers, `CatalogFormRequest` (shape only), `CatalogRefusals` (where a refusal is said) and the pages' data (`Resource`: `ListPages` and one `#[TypeScript]` class per page and row) |
+| `Presentation/lang/{ar,en}` | The permissions' names, the errors, the audit log's name for every action, and the queued work's names (`jobs.php`); the panel's menu entries (`menu.php`) and the screens' words (`admin.php`, shared, and one file a screen: `admin_brands.php`, `admin_categories.php`, `admin_attributes.php` — the variations' too —, `admin_labels.php`, `admin_warranties.php`, `admin_search_words.php`) |
+| `resources/js/pages/Catalog/Admin` (outside the module) | The screens themselves: one folder a screen, and what they share — `parts.tsx`, `FatesDialog.tsx`, `SortableList.tsx`, `marks.ts` |
 | `Public/Contracts`, `Public/Dto` | `CatalogApi` and its DTOs (`VariantDto`, `VariantValueDto`, `ProductDto`, `StoreVariantDto`); `ListingFacts`, and `ImportSections` with `ImportSection`, declared for stage 5 |
 | `Public/Enums` | `AttributeKind`, `AgencyType`, `ProductStage`, `ProductFate`, `SaleMode` — and so their TypeScript types |
 | `Public/Events` | `ProductMadeReady`, `ProductArchived`, `ProductRestored`, `ProductChanged`, `VariantAdded`, `VariantArchived`, `VariantRestored`, `VariantCodeCorrected`, `StoreListingChanged`: ids only |
@@ -372,6 +381,64 @@ page, never stored.
 (amendment 9(a)) — and are shown and not kept until stage 5, when Pricing and Inventory register their
 `ImportSection`s (declared in `Public/Contracts`).
 
+### The screens: the shared lists (screens step 1)
+
+Seven panel screens (catalog.md §4.4 S1–S7), under **Catalog** in the panel's menu, each offered to
+whoever holds its job in any store: Brands, Categories, Attributes (and one attribute's page — its
+details as a form, then its values), Variations, Labels, Warranties, Search Words. **S2 is built but for
+its audience switches** (who sees a category in a store, amendment 14), which come with screens step 5
+with their permission, `catalog.category.audience`.
+
+**Reading needs the list's job in any store; changing it, the job with All stores** (P2). A reader
+without All stores sees the list, and every button disabled with that reason ("Changing this list needs
+your job in All Stores."). `ListReaders::authorize` answers both from one read of each job, so a page
+asks the authorizer once a job. On these screens what the reader may do is that one answer a list
+(`mayChange`, the categories' `mayManage` and `mayRank`); each item's own reasons (the default brand,
+an item in use) come from its row. §4.4's `CatalogActionsForReader` comes with the product screens,
+where the answer differs store by store. The searches that found nothing are read only with
+`catalog.search_word.manage` with All stores (§3, P11).
+
+**Every page's reads are Application queries, a fixed few queries each, never one per row.**
+`DatabaseCatalogListReads` reads each list in one query (counts and flags as subselects; the
+variations in two). `ListPages` only shapes what they answer: the products below each category summed
+from the tree (`productsBelow`), the photos of a whole page in one Platform read (`mediaUrlsOf`,
+catalog.md §2.4), a description or warranty's terms written back as the marks typed
+(`DescriptionText::text`, P1). A label's products are counted once each, whatever the stores showing it.
+
+**The categories' store** is the screen's own filter (`?store=`), among the stores where the reader
+orders the menu (`catalog.category.rank`); none asked, the first that is on; another store, or one
+that does not exist, is refused the same. Someone who only manages the tree sees no store. The
+stores are read once a page (`StoreChoices::forJobs`) and the store chosen among them as
+`StoreChoices::chosen()` chooses.
+
+**Deactivating a brand or a category** opens the fates dialog (`FatesDialog.tsx`): it reads the
+products reached (`ProductsReached`) through the page's own address with `?reach=` — an Inertia
+partial reload, the address kept — only for someone who may deactivate, keeps them through a refused
+try, and sends one fate for all with a choice per product over it (§1.5, §1.6). A category's dialog
+names the sub-categories going with it and the category each product sits in (S2).
+
+**A logo or a category's photo is chosen in its own form** and uploaded when the form is sent, through
+`UploadBrandLogo` or `UploadCategoryImage`, before the save (P5). A save refused after the upload leaves that public image
+unused in the media library, where it can be deleted. A file that did not arrive whole — larger than
+the server accepts — is refused beside the photo, never a 500 (`CatalogRefusals::fileNotArrived`). The
+form is sent as multipart only when a file is attached.
+
+**A refusal is said where the panel says it** (`CatalogRefusals`, frontend.md §2.1): beside the field
+the domain names, when the form has it, else at the top of the form and in a toast. A refused web
+address opens the folded "Web Addresses" by itself.
+
+**The controllers take the pages' data per action, never in their constructors.** Laravel keeps a
+controller on its route; one that kept `ListPages` (and so the request's authorizer) answered a
+second person's request in a test with the first person's rights.
+
+**The query budget** (frontend.md §5, P21): each page's own queries, warm, are recorded in
+`CatalogListScreensTest` — brands 4, categories 13, attributes 3, one attribute 4, variations 5,
+labels 3, warranties 3, search words 14 — and the same again with five more rows of everything.
+**The panel's frame around every admin page measured 89 to
+100 queries on its own on 2026-10-07** — 52 of them the menu checking 26 jobs, each re-reading the
+reader's grants from the cache table — which is Platform's and Access's, and was brought to the
+owner.
+
 ## Tests
 
 | File | What it covers |
@@ -418,6 +485,9 @@ page, never stored.
 | `Integration/CatalogImportReviewTest` | After step 6's reviews (amendment 8): ambiguous names and colliding addresses decided on the page; the confirm asking again; holding back, replacing whole, updating and restoring; the page's picks brought in, filling and adding counted against an updated product as it is when brought in; a job given up on; the zip's sizes; linking back on accepting, by any code held; the store file kept to its store |
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema; the store file's job, admin roles only (amendment 6(h)) |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
+| `Integration/CatalogListReadsTest` | The list screens' reads: who may read and who may change, refused before anything is read; each list's rows; a fixed number of queries however long the list; a store's places beside the base store's; the searches that found nothing, grouped and paged; the products a deactivation reaches; Platform's photos read together; descriptions' marks both ways |
+| `Feature/CatalogListScreensTest` | The seven screens over HTTP: the menu; who opens each page; the categories' store filter; every form's success and refusal, said beside its field or at the top; a logo and a photo uploaded from their forms; the fates; each page's own queries, recorded |
+| `tests/Browser/CatalogListScreensTest.php` | The screens in a real browser: adding from each dialog, the fates dialog reading the products before its button, a branch of the tree opened, a label's look, a warranty for life, a word pair added and deleted, a page in Arabic at a phone's width |
 
 `CatalogListGuardsTest` records every query to check each change takes its lock first, inside its
 own transaction (level 2 under `RefreshDatabase`); `CatalogFixtures::lockedTables` reads from the
