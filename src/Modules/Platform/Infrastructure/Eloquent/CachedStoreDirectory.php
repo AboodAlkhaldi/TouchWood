@@ -10,30 +10,47 @@ use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Public\Dto\CurrencyDto;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Platform\Public\Dto\TranslatedTextDto;
+use Shared\Application\ActorContext;
+use Shared\Application\ActorType;
 use Shared\Infrastructure\Cache\VersionedCache;
 
 /**
  * Every store and currency, loaded in two queries and kept in the shared cache until a
- * handler changes one of them (see VersionedCache). Nothing is memoised in the process: queue workers live for
- * hours, and a copy held in memory would go stale when another process updates a store.
+ * handler changes one of them (see VersionedCache). Nothing outlives a request or a job: queue
+ * workers live for hours, and a copy held for the process would go stale when another process
+ * updates a store. Bound **scoped**, it reads the snapshot once per web request (§9.11, owner
+ * 2026-10-08) - the panel's frame asked it twice, 2 queries each. The system (the console, a
+ * queued job) reads the cache every time, as before, and so does the rest of a request that
+ * changed a store or a currency.
  *
  * @phpstan-type Translated array{ar: string, en: string}
  * @phpstan-type CurrencyRow array{code: string, exponent: int, name: Translated, abbreviation: Translated, sign: string|null}
  * @phpstan-type StoreRow array{id: string, code: string, name: Translated, country_code: string, currency_code: string, tax_rate_basis_points: int, timezone: string, position: int, is_active: bool, is_base: bool}
  * @phpstan-type Snapshot array{stores: list<StoreRow>, currencies: array<string, CurrencyRow>}
  */
-final readonly class CachedStoreDirectory implements StoreDirectory
+final class CachedStoreDirectory implements StoreDirectory
 {
     /** Safety net only: every change replaces the version at once. Lifetime set because stores and currencies change rarely (owner, 2026-09-18). */
     private const int SNAPSHOT_SECONDS = 21600;
 
-    private VersionedCache $cache;
+    private readonly VersionedCache $cache;
+
+    /** The transaction level the request reads at: 0, or the test's own transaction. */
+    private readonly int $level;
+
+    /** @var Snapshot|null what this request read */
+    private ?array $snapshot = null;
+
+    /** A store or currency changed in this request: never answered from memory again. */
+    private bool $changed = false;
 
     public function __construct(
         Cache $cache,
-        private Connection $db,
+        private readonly Connection $db,
+        private readonly ActorContext $actors,
     ) {
         $this->cache = new VersionedCache($cache, $db, 'platform:store-directory', self::SNAPSHOT_SECONDS);
+        $this->level = $db->transactionLevel();
     }
 
     public function stores(): array
@@ -86,6 +103,7 @@ final readonly class CachedStoreDirectory implements StoreDirectory
     public function invalidate(): void
     {
         $this->cache->invalidate();
+        $this->changed = true;
     }
 
     /**
@@ -109,8 +127,17 @@ final readonly class CachedStoreDirectory implements StoreDirectory
      */
     private function snapshot(): array
     {
+        // Never inside a transaction opened after the request began: a check made there, after its
+        // locks, must see what another process committed meanwhile (access.md amendment 65).
+        if ($this->changed
+            || $this->actors->current()->type === ActorType::System
+            || $this->db->transactionLevel() !== $this->level) {
+            /** @var Snapshot */
+            return $this->cache->remember(fn (): array => $this->load());
+        }
+
         /** @var Snapshot */
-        return $this->cache->remember(fn (): array => $this->load());
+        return $this->snapshot ??= $this->cache->remember(fn (): array => $this->load());
     }
 
     /**

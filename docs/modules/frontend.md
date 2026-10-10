@@ -979,7 +979,8 @@ is "the single highest-value guard in the project". The owner left these numbers
 | What | Budget | How it is checked |
 |---|---|---|
 | Queries, storefront page | **8** | A feature test per page, counted **warm** (the store already resolved from the cache table, 2 small reads — `docs/STRUCTURE.md`) |
-| Queries, admin list or form | **15** | The same, per page |
+| Queries, admin list or form | **15** | The same, per page. **The page's own** (owner, 2026-10-08: "15 is the page's own"): what the page reads itself, the panel's frame not counted |
+| Queries, the admin panel's frame | **Recorded: 9** | Around every admin page, on a page that reads nothing itself (`AdminFrameQueryBudgetTest`, each part asserted): the session row (2), the person's permissions (2), the settings (2), the stores (2), the person block (1). The same whatever jobs the person holds - the menu asks permissions the request already read - with one more for whoever is shown the failed jobs' count and one more for a picture (access.md amendment 65, platform.md §9.11) |
 | Every page's real count | **Recorded** | The test asserts the recorded number, so a page that grows from 5 to 9 fails even under its ceiling; raising it is a deliberate edit |
 | JavaScript, shared | **200 KB gzipped** | Measured in the build: React, Inertia and everything every page uses, cached once |
 | JavaScript, one page | **60 KB gzipped** | The same. Anything heavy (charts, a rich editor) loads only on the page that needs it |

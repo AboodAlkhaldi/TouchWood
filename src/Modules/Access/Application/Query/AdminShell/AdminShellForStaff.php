@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Query\AdminShell;
 
-use Modules\Access\Domain\Repository\RoleAssignmentRepository;
-use Modules\Access\Domain\Repository\RoleRepository;
-use Modules\Access\Domain\Repository\StaffUserRepository;
+use Modules\Access\Application\Query\StaffReader;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Enums\ImageFormat;
 use Modules\Platform\Public\Enums\MediaSize;
@@ -18,18 +16,25 @@ use Shared\Application\ActorType;
  *
  * It takes no permission of its own: whoever is signed in may see their own name. Nobody signed in
  * means null, and the shell shows the sign-in page instead.
+ *
+ * Read once per request and without a row lock (amendment 65): the shell asks twice - for the
+ * panel's language and for the person block - and this used to load the staff member, their
+ * assignment and their role through the write side's repositories, `for update`, both times. Bound
+ * **scoped**; what it remembers is kept per person, so a request that signs someone in never shows
+ * them the guest's answer.
  */
-final readonly class AdminShellForStaff
+final class AdminShellForStaff
 {
+    /** @var array<string, AdminShellDto|null> staff id => what the panel shows of them */
+    private array $shown = [];
+
     public function __construct(
-        private ActorContext $actors,
-        private StaffUserRepository $staff,
-        private RoleAssignmentRepository $assignments,
-        private RoleRepository $roles,
-        private PlatformApi $platform,
+        private readonly ActorContext $actors,
+        private readonly StaffReader $staff,
+        private readonly PlatformApi $platform,
     ) {}
 
-    public function forCurrentStaff(string $locale): ?AdminShellDto
+    public function forCurrentStaff(): ?AdminShellDto
     {
         $actor = $this->actors->current();
 
@@ -37,43 +42,33 @@ final readonly class AdminShellForStaff
             return null;
         }
 
-        $staff = $this->staff->byId($actor->id);
+        $id = strtolower($actor->id);
 
-        if ($staff === null) {
-            return null;
+        if (! array_key_exists($id, $this->shown)) {
+            $this->shown[$id] = $this->read($id);
         }
 
-        $profile = $staff->profile();
-
-        return new AdminShellDto(
-            id: $staff->id(),
-            name: trim($profile->firstName.' '.$profile->lastName),
-            roleLabel: $this->roleLabel($staff->id(), $locale),
-            avatarUrl: $this->avatarUrl($staff->avatarMediaId()),
-            isSuperAdmin: $staff->isSuperAdmin(),
-            locale: $staff->language()->value,
-        );
+        return $this->shown[$id];
     }
 
-    /**
-     * The role's own name, in the language the panel is being read in. A Super Admin holds no role
-     * at all, and a personal role - one made for this person alone - still has a name.
-     */
-    private function roleLabel(string $staffId, string $locale): ?string
+    private function read(string $staffId): ?AdminShellDto
     {
-        $roleId = $this->assignments->byStaff($staffId)?->roleId();
+        $row = $this->staff->shell($staffId);
 
-        if ($roleId === null) {
+        if ($row === null) {
             return null;
         }
 
-        $name = $this->roles->byId($roleId)?->name();
-
-        if ($name === null) {
-            return null;
-        }
-
-        return $locale === 'en' ? $name->en : $name->ar;
+        return new AdminShellDto(
+            id: $staffId,
+            // Both parts are required and trimmed when saved (StaffProfile).
+            name: $row['first_name'].' '.$row['last_name'],
+            roleNameAr: $row['role_name_ar'],
+            roleNameEn: $row['role_name_en'],
+            avatarUrl: $this->avatarUrl($row['avatar_media_id']),
+            isSuperAdmin: $row['is_super_admin'],
+            locale: $row['locale'],
+        );
     }
 
     /**

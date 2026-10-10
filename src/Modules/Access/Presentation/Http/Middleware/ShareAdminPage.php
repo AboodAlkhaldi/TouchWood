@@ -87,9 +87,8 @@ final readonly class ShareAdminPage
             return $chosen;
         }
 
-        // Asked in Arabic only to read a field off the account; the answer decides the real
-        // language, so the argument here cannot change what comes back.
-        $viewer = $this->shell->forCurrentStaff('ar');
+        // The same answer the person block uses: the shell is read once per request (amendment 65).
+        $viewer = $this->shell->forCurrentStaff();
 
         return $viewer === null ? 'ar' : $viewer->locale;
     }
@@ -99,12 +98,12 @@ final readonly class ShareAdminPage
      */
     private function viewer(string $locale): ?array
     {
-        $viewer = $this->shell->forCurrentStaff($locale);
+        $viewer = $this->shell->forCurrentStaff();
 
         return $viewer === null ? null : [
             'id' => $viewer->id,
             'name' => $viewer->name,
-            'roleLabel' => $viewer->roleLabel,
+            'roleLabel' => $viewer->roleLabel($locale),
             'avatarUrl' => $viewer->avatarUrl,
             'isSuperAdmin' => $viewer->isSuperAdmin,
         ];

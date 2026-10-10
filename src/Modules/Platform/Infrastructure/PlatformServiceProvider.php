@@ -94,8 +94,6 @@ final class PlatformServiceProvider extends ServiceProvider
     public array $singletons = [
         // Holds the definitions every module declares at boot.
         InMemorySettingsRegistry::class => InMemorySettingsRegistry::class,
-        SettingValues::class => DatabaseSettings::class,
-        StoreDirectory::class => CachedStoreDirectory::class,
         AuditReader::class => DatabaseAuditReader::class,
         StoreRepository::class => EloquentStoreRepository::class,
         CurrencyRepository::class => EloquentCurrencyRepository::class,
@@ -168,6 +166,10 @@ final class PlatformServiceProvider extends ServiceProvider
             : new JobAwareActorContext($actors, $app->make(JobActorState::class)));
         // The Authorizer is Access's (Access spec §2.5).
         $this->app->scoped(AuditLog::class, DatabaseAuditLog::class);
+        // Read once per web request (§9.11, owner 2026-10-08): scoped, so what they remember lasts
+        // one request, and the system - the console, a queued job - is never answered from memory.
+        $this->app->scoped(SettingValues::class, DatabaseSettings::class);
+        $this->app->scoped(StoreDirectory::class, CachedStoreDirectory::class);
         $this->app->scoped(PlatformApi::class, PlatformApiImpl::class);
         // A store screen's filter (§9.10): scoped, it reads who is acting.
         $this->app->scoped(StoreChoices::class, AuthorizedStoreChoices::class);

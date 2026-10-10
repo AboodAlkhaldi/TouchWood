@@ -114,6 +114,18 @@ interface PlatformApi
     public function mediaUrls(string $mediaId): ?MediaUrlsDto;
 
     /**
+     * As mediaUrls(), for a page of media at once, **in one query**: a screen showing twenty photos
+     * reads them together, not one at a time (catalog.md §2.4; owner, 2026-10-07). The same rules —
+     * a public image's variants once they are ready, a private file's expiring link — and the same
+     * caution: the calling module checks its viewer may see a private file first.
+     *
+     * @param  list<string>  $mediaIds
+     * @return array<string, MediaUrlsDto> keyed by the media id, lower-cased; an id that is not a
+     *                                     ULID, or names no media, is left out
+     */
+    public function mediaUrlsOf(array $mediaIds): array;
+
+    /**
      * Call inside the transaction of the change being audited, after checking permission. Platform
      * records the actor, the source (web, integration, console or job) and the date itself.
      */
