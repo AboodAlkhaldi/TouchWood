@@ -129,6 +129,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-09 | §9.2, §12.1 | **Inventory**: one permission, **Manage Stock**, per store, any role — stock, hand changes (Received, Damaged / lost, Offline sale, Correction with a note; a stocktake "set to"), thresholds, the switches, the Low Stock list. A variant with no threshold uses the store's default, **10 pieces**; the threshold **only alerts, never limits ordering**. Removing pieces held for orders is allowed, the orders flagged "not enough stock". The stock-dependent switch is **per variant** — all of a product's, some or one; a variant added later starts off. **A wired ordinary product the provider reports at 0 stays orderable** (replaces §9.2's provisional rule); staff mark it "Not available now". **"Ending soon" shows on cards too**, when any of the product's variants is. The details: `docs/modules/inventory.md` | Inventory spec questions, owner decision |
 | 2026-10-10 | §12.1, §12.3 | **Returned pieces go back into stock when staff mark the return received** — in a store with no provider, and for a wired store's stock-dependent variants and gifts; a wired ordinary product follows the provider; staff may leave a damaged piece out. A wired store's returned piece is **provisionally** added on our side and dropped when the provider's number next changes — to be discussed again once the provider says whether we may write to it. **Staff may fully edit an order before it ships**; its held stock follows. **"Last pieces" on a card** counts only the sizes the viewer can buy and order now; on a product's page the size options mark the ending-soon size itself. The details: `docs/modules/inventory.md` §1.2, §1.4, §1.9 | Stage 6 and Inventory questions, owner decision |
 | 2026-10-10 | §10.2, §11.3, §12.3 | **A wholesale price is not a discount**: a wholesale line's list price is its band (the retail price under the first band), so `gross_subtotal` counts it, coupons and points reach band-priced lines, and the discount ceiling measures only sales and discounts. Raised by stage 5's cross-check of Promotions. **An order edited before it ships**: pieces already on it keep their price; added pieces take today's — on a wholesale line, the band for the line's new total quantity, on the added pieces only; VAT stays at the order's rate. The details: `docs/modules/pricing.md` §1.6 step 5, §1.11 | Owner decision |
+| 2026-10-07 | §11.5 | **A points balance never goes below 0** ("there is no minus points ever"): what a cancellation or a return cannot take back — from the order's own points first, then the customer's other points — is dropped, and the customer keeps the discount — no negative balance, no checkout warning. Points given back keep their old expiry dates and first cover what is taken back; earned points that expired unused count as taken back. Earned points are usable at once; admins may also add or remove points by hand, with a reason; the points that expire first are spent first. Was: negative balances allowed, never expiring, with a checkout warning | Loyalty spec, owner decision |
 | 2026-10-08 | §4.2, §4.4, §11.1–§11.3, §11.6, §15.2 | **Promotions' rules** (`docs/modules/promotions.md`): the automatic promotions are the gift levels alone; a coupon takes a percentage (optional cap) or a fixed amount, skips already-reduced lines unless switched on, may have a total number of uses, and is **refused whole if it would pass the ceiling**; a coupon use **never comes back**, even on a cancellation; segments are per store and count every placed order whatever its state; one gift per order, the highest level reached; **the ceiling starts at 30%**, admin-only; bundles / kits wait for their own job after stage 6 | Promotions spec, owner decision |
 
 ---
@@ -1257,16 +1258,22 @@ They are not the same rule and both apply:
 The only loyalty mechanism. **There is no wallet, no store credit, no cashback balance, no
 tier system, no per-product earn rate.** Points are the cashback.
 
-- Earn on **DELIVERED**. Reverse on cancellation or completed return, proportionally on
-  partial return. Only those triggers.
+- Earn on **DELIVERED**, usable at once. Reverse on cancellation or completed return,
+  proportionally on partial return. Besides those, only an admin changes points, by hand, with a
+  reason (owner, 2026-10-07).
 - Per store, isolated — KSA points do not spend in Egypt.
-- FIFO expiry with an admin-defined period.
+- The points that expire first are spent first; each lot expires an admin-defined period after it
+  came in.
 - Earn rate and redeem rate are separate admin values.
 - Minimum redemption threshold.
 - Redemption mode `ALL_OR_NOTHING` or `PARTIAL`, set **separately per audience**.
 - Maximum redemption percentage of an order (see §11.4).
 - Points redeem as a **direct discount at checkout**, never a generated code.
-- Negative balances are allowed, never expire, and show a checkout warning.
+- **A balance never goes below 0** (owner, 2026-10-07: "there is no minus points ever"): what a
+  cancellation or a return cannot take back is dropped, after taking what it can from the order's
+  own points, then the customer's other points. Points given back keep their old expiry dates —
+  unless the order that earned them was returned meanwhile, whose settlement they then undo first
+  (`docs/modules/loyalty.md` §1.3, §1.8). Was: negative balances allowed, with a checkout warning.
 
 ### 11.6 Gifts and free shipping
 
