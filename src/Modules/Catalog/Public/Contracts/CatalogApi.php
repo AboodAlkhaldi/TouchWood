@@ -30,6 +30,48 @@ interface CatalogApi
      */
     public function variantByCode(string $code): ?VariantDto;
 
+    /**
+     * For Pricing and Inventory: **the product's variants in its own order** — archived ones only
+     * when asked (catalog.md §2.1, amendment 16(e)). An unknown product has none.
+     *
+     * @return list<string>
+     */
+    public function variantIdsOf(string $productId, bool $includeArchived = false): array;
+
+    /**
+     * For Pricing's category discounts: **the products in the category and in every category below
+     * it**, any stage (amendment 16(e)). An unknown category holds none. When a category moves,
+     * `CategoryMoved` says so.
+     *
+     * @return list<string>
+     */
+    public function productIdsInCategory(string $categoryId): array;
+
+    /**
+     * For Pricing's "Needs a Price" and Inventory: **the variants switched on in the store** — Active
+     * there (§1.3) — in no particular order (amendment 16(e)).
+     *
+     * @return list<string>
+     */
+    public function switchedOnVariantIds(StoreId $store): array;
+
+    /**
+     * **Many variants in one read**, keyed by id, an unknown id left out (amendment 16(i)): a few
+     * queries however many, so a page of Pricing's or Inventory's keeps its budget.
+     *
+     * @param  list<string>  $variantIds
+     * @return array<string, VariantDto>
+     */
+    public function variants(array $variantIds): array;
+
+    /**
+     * **Many products in one read**, keyed by id, an unknown id left out (amendment 16(i)).
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, ProductDto>
+     */
+    public function products(array $productIds): array;
+
     /** For Sales's record of an order, Feedback, Content. */
     public function product(string $productId): ?ProductDto;
 
