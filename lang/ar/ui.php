@@ -27,4 +27,25 @@ return [
     'show_password' => 'إظهار كلمة المرور',
     'to_confirm' => 'للتأكيد، اكتب «:phrase»',
     'to_confirm_named' => 'للتأكيد، اكتب :label «:phrase»',
+    // What a box says is wrong as it is typed (frontend.md §1.7; resources/js/lib/checks.ts), in
+    // Geist's "Validation" form: the box, then its rule, a period. :field is the box's label.
+    'check' => [
+        'required' => 'الحقل «:field» مطلوب.',
+        'number' => 'لا يقبل الحقل «:field» إلا الأرقام.',
+        'whole' => 'لا يقبل الحقل «:field» إلا الأعداد الصحيحة.',
+        'decimals_one' => 'يقبل الحقل «:field» منزلة عشرية واحدة على الأكثر.',
+        'decimals' => 'يقبل الحقل «:field» :count من المنازل العشرية على الأكثر.',
+        'range' => 'يقبل الحقل «:field» قيمة من :min إلى :max.',
+        'at_least' => 'يقبل الحقل «:field» قيمة لا تقل عن :min.',
+        'at_most' => 'يقبل الحقل «:field» قيمة لا تزيد على :max.',
+        'digits' => 'لا يقبل الحقل «:field» إلا الأرقام من 0 إلى 9.',
+        'min_digits' => 'يحتاج الحقل «:field» إلى :min من الأرقام على الأقل.',
+        'max_digits' => 'يقبل الحقل «:field» :max من الأرقام على الأكثر.',
+        'letters' => 'لا يقبل الحقل «:field» إلا الحروف اللاتينية من A إلى Z.',
+        'min_length' => 'يحتاج الحقل «:field» إلى :min من الأحرف على الأقل.',
+        'max_length' => 'يقبل الحقل «:field» :max من الأحرف على الأكثر.',
+        'max_length_one' => 'يقبل الحقل «:field» حرفًا واحدًا على الأكثر.',
+        'email' => 'يُكتب الحقل «:field» عنوانًا مثل name@example.com.',
+        'phone' => 'يُكتب الحقل «:field» رقمًا برمز بلده، يبدأ بعلامة + أو 00.',
+    ],
 ];

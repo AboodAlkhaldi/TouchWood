@@ -272,6 +272,75 @@ it('adds a warranty for life, with its terms as typed', function () {
     $page->assertNoJavaScriptErrors();
 });
 
+/*
+| Every box checks itself as it is typed (frontend.md §1.7; catalog.md amendment 16(f)): the owner's
+| own case, a letter typed into a number box, is said under it at once, and Save stays out of reach
+| until the box holds a number in its range.
+*/
+it('says a letter typed in the period at once, and keeps Save out of reach until the period is right', function () {
+    $n = catalogListBrowserFresh();
+    $page = catalogListBrowser([P::WARRANTY_MANAGE]);
+    $page->navigate('/admin/warranties', BROWSER_PAGE_LOAD);
+
+    $page->click('[data-test="add-warranty"]')
+        ->type('#warranty-name-ar', "ضمان {$n}")
+        ->type('#warranty-name-en', "Two Years {$n}")
+        ->type('#warranty-terms-ar', 'يشمل المفصلات.')
+        ->type('#warranty-terms-en', 'Covers the hinges.');
+
+    // A fresh box says nothing, and Save is in reach.
+    expect($page->script('document.getElementById("warranty-period-error")'))->toBeNull()
+        ->and($page->script('document.querySelector(\'[data-test="confirm-warranty"]\').getAttribute("aria-disabled")'))->toBeNull();
+
+    $page->typeSlowly('#warranty-period', '2a', 20);
+
+    expect(browserUntil($page, 'document.getElementById("warranty-period-error")?.textContent === "Months takes numbers only."'))->toBeTrue()
+        ->and($page->script('document.getElementById("warranty-period").getAttribute("aria-invalid")'))->toBe('true')
+        ->and($page->script('document.querySelector(\'[data-test="confirm-warranty"]\').getAttribute("aria-disabled")'))->toBe('true');
+
+    // Pressed while out of reach, it sends nothing. (Playwright itself will not press a button marked
+    // disabled, so the press is the page's own click.)
+    $page->script('document.querySelector(\'[data-test="confirm-warranty"]\').click()');
+    $page->wait(0.5);
+    expect(DB::table('catalog.warranties')->where('name_en', "Two Years {$n}")->exists())->toBeFalse();
+
+    // Out of its range, it says the range.
+    $page->type('#warranty-period', '601');
+    expect(browserUntil($page, 'document.getElementById("warranty-period-error")?.textContent === "Months is from 1 to 600."'))->toBeTrue();
+
+    $page->type('#warranty-period', '24');
+    expect(browserUntil($page, 'document.getElementById("warranty-period-error") === null && document.querySelector(\'[data-test="confirm-warranty"]\').getAttribute("aria-disabled") === null'))->toBeTrue();
+
+    $page->click('[data-test="confirm-warranty"]');
+
+    $period = catalogListBrowserSoon(
+        $page,
+        fn () => DB::table('catalog.warranties')->where('name_en', "Two Years {$n}")->value('period_months'),
+        fn ($value): bool => $value !== null,
+    );
+
+    expect($period)->toBe(24);
+    $page->assertNoJavaScriptErrors();
+});
+
+it('sends nothing when Save is pressed with a required box untouched, says every rule and focuses the first', function () {
+    $page = catalogListBrowser([P::WARRANTY_MANAGE]);
+    $page->navigate('/admin/warranties', BROWSER_PAGE_LOAD);
+    $before = DB::table('catalog.warranties')->count();
+
+    $page->click('[data-test="add-warranty"]')
+        ->click('[data-test="confirm-warranty"]');
+
+    expect(browserUntil($page, 'document.getElementById("warranty-name-ar-error")?.textContent === "Arabic name is required."'))->toBeTrue()
+        ->and($page->script('document.getElementById("warranty-name-en-error")?.textContent'))->toBe('English name is required.')
+        ->and($page->script('document.getElementById("warranty-period-error")?.textContent'))->toBe('Months is required.')
+        ->and($page->script('document.activeElement?.id'))->toBe('warranty-name-ar');
+
+    $page->wait(0.5);
+    expect(DB::table('catalog.warranties')->count())->toBe($before);
+    $page->assertNoJavaScriptErrors();
+});
+
 it('adds a word pair and deletes another', function () {
     $n = catalogListBrowserFresh();
     $old = Fx::asSystem(fn (): string => app(AddWordPairHandler::class)->handle(new AddWordPair("rail{$n}", "runner{$n}")));

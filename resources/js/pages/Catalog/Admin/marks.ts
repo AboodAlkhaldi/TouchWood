@@ -55,6 +55,17 @@ export function readMarks(text: string): Block[] {
     return blocks;
 }
 
+/**
+ * How many characters the server counts in what was typed (StructuredText): the text the marks
+ * leave - not the "**", "# ", "- " or blank lines - with the space joining a paragraph's lines, each
+ * character once however JavaScript stores it.
+ */
+export function marksLength(text: string): number {
+    const count = (runs: Run[]) => runs.reduce((sum, run) => sum + [...run.text].length, 0);
+
+    return readMarks(text).reduce((sum, block) => sum + (block.type === 'list' ? block.items.reduce((items, item) => items + count(item), 0) : count(block.runs)), 0);
+}
+
 /** `**…**` marks bold; a `**` left open is the text it is. */
 function runs(line: string): Run[] {
     const parts = line.split('**');
