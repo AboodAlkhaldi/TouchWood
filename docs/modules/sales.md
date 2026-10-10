@@ -229,8 +229,9 @@ their stock is checked by the hold (step 7).
    new total quantity, applied to the added pieces only** (owner, 2026-10-10: "band for the new
    total") — and **the order's own VAT rate**. A raised quantity adds a **part** to the line; **a
    lowered quantity takes the pieces off the newest part first**, and a part left with none goes. The
-   result's lines come back in the order given, kept parts then added lines (asked of the stage 5
-   session, 2026-10-10), so each matches its order line.
+   result's lines come back in the order given, kept parts then added lines (pricing.md §2.1, PR #107),
+   so each matches its order line by place — once Sales has checked that nothing came back `unpriced`
+   (an unpriced line is left out of the lines; an unpriced added line is refused).
 2. **The room** under the ceiling for the edited prices — `PromotionsApi::customerDiscountRoom`.
 3. **The coupon** — `PromotionsApi::couponAfterEdit` with the whole room: never more than at placement,
    0 if the edited order is under its minimum or has no eligible line, **trimmed to the room only when
@@ -408,7 +409,7 @@ A rejection and a parcel that came back publish nothing yet; Ops adds what its m
 
 | From | What | State |
 |---|---|---|
-| Pricing | `prices`, `totals`; **`pricesForEdit`** with `KeptPartDto`; **the result's lines in the order given** | `prices`, `totals` on `main` (#97); `pricesForEdit` in **PR #107 [PROPOSED]**; the lines' order asked of the stage 5 session (2026-10-10) |
+| Pricing | `prices`, `totals`; **`pricesForEdit`** with `KeptPartDto`; **the result's lines in the order given**, an unpriced line left out and named | `prices`, `totals` on `main` (#97); `pricesForEdit` and the lines' order in **PR #107 [PROPOSED]** (2e5e9ef) |
 | Inventory | `stock` (with `availableAsGift`), `hold`, `ship`, `reducedInProvider`, `release`, `HoldsShort`; `adjustHold`, `returned` | Interfaces on `main` (#97); `HoldsShort` specified (#102); **`adjustHold` and `returned` in PR #106 [PROPOSED]** |
 | Promotions | `applyCoupon`, `customerDiscountRoom`, `giftLevels`, `useCoupon`, `recordOrder`, `couponAfterEdit` (with the whole room), `updateCouponUse`; **one share per price line, in the prices' order** | promotions.md (PR #101) — the room and the shares' keys corrected there with this spec |
 | Loyalty | `earningPreview`, `quoteRedemption`, `redeem`, `earn`, `orderCancelled`, `orderReturned`; **`pointsAfterEdit`** (reads) and **`orderEdited` answering the points still used** | loyalty.md (PR #96) — the edit's read and answer added there with this spec |
@@ -712,8 +713,7 @@ refusing anything but one void.
 1. **Shipping and Payments** — stage 7, waiting on the owner's vendor data (handoff §15.1); their
    interfaces are written here (§2.4).
 2. **Pricing's `pricesForEdit` (PR #107)** and **Inventory's `adjustHold` / `returned` (PR #106)** —
-   the stage 5 session's, for the owner's review; Sales is built against them once on `main`. The
-   order of `pricesForEdit`'s lines is asked of that session.
+   the stage 5 session's, for the owner's review; Sales is built against them once on `main`.
 3. **Catalog's additions** — the store's variants in bulk, and whether a product's category is open to
    an account type, in bulk — to agree with the Catalog-screens session.
 4. **Promotions' and Loyalty's corrections** that this spec needs — the edited coupon's whole room and
