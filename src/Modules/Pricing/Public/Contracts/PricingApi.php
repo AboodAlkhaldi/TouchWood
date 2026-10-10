@@ -6,6 +6,7 @@ namespace Modules\Pricing\Public\Contracts;
 
 use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Pricing\Public\Dto\CartPricesDto;
+use Modules\Pricing\Public\Dto\KeptPartDto;
 use Modules\Pricing\Public\Dto\TotalsDto;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -15,7 +16,7 @@ use Shared\Domain\ValueObject\StoreId;
  * here - the calling use case checks its own. Every amount is without VAT, in the store's currency.
  *
  * One price for everyone (owner, 2026-10-07): Pricing never asks who is buying. The lowest applicable
- * price wins (pricing.md §1.4); every total of an order is computed here, in one place (§1.7).
+ * price wins (pricing.md §1.6); every total of an order is computed here, in one place (§1.7).
  * Refusals arrive as `Shared\Domain\Error\DomainError` with a stable `type()` key (§2.2).
  */
 interface PricingApi
@@ -44,4 +45,17 @@ interface PricingApi
      * subtotal.
      */
     public function totals(CartPricesDto $prices, Money $couponDiscount, Money $pointsDiscount, Money $shipping): TotalsDto;
+
+    /**
+     * An order staff edited before it ships (pricing.md §1.11, owner 2026-10-10): the parts already on
+     * it keep the prices they were sold at, and the added pieces take today's - on a wholesale line,
+     * today's band for the line's new total quantity (kept and added together), on the added pieces
+     * only. The result carries the order's own VAT rate, not today's, and `totals()` takes it as it
+     * takes any prices. A variant and mode may appear more than once - a kept part and an added part,
+     * or the parts of earlier edits - but once among the added lines (`pricing.duplicate_lines`).
+     *
+     * @param  list<KeptPartDto>  $kept  as the order's snapshot holds them, quantities as edited
+     * @param  list<CartLineDto>  $added  the pieces added by this edit
+     */
+    public function pricesForEdit(StoreId $store, array $kept, array $added, int $taxRateBasisPoints): CartPricesDto;
 }

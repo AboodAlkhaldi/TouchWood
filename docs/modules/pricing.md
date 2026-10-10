@@ -192,6 +192,22 @@ push the sizes it covers then; a task whose sale was changed or removed meanwhil
 do. **Once a day a safety check** pushes every size whose window opened or closed in the last day,
 in case a task was lost. Catalog keeps the prices and chooses which size each card shows.
 
+### 1.11 An order edited before it ships
+
+Staff may change an order's lines and quantities before it ships (owner, 2026-10-10, through stage
+6). **Pieces already on the order keep the price they were sold at; added pieces take today's**
+(owner, 2026-10-10):
+
+- **Added pieces** are priced as a cart line is now (§1.6) — **on a wholesale line, by today's band
+  for the line's new total quantity** (the kept pieces and the added ones together), applied **to the
+  added pieces only** (owner, 2026-10-10: "band for the new total"). Example: 100 kept at 78; 400
+  added; the band "from 500 = 70" → the 400 cost 70, the 100 stay at 78.
+- **Pieces taken off** come off a kept part, which keeps its price.
+- **VAT** is the order's rate, from its snapshot, never today's: an edit does not re-tax the order.
+- Sales hands in the kept parts from the order's snapshot and the added lines; Pricing returns prices
+  that `totals` takes as it takes any — **Pricing still does every amount** (§1.7). One order line
+  may so hold parts at two prices, after several edits more.
+
 ---
 
 ## 2 · Public contract
@@ -206,6 +222,7 @@ store's currency. **On `main` since #97.**
 |---|---|---|
 | `prices(StoreId $store, list<CartLineDto> $lines): CartPricesDto` | Sales (cart, quote), Promotions (via Sales) | Each line's price: its unit price (the lowest applicable), the base price it compares with, the kind that won, the line amounts, and when that price stops applying; the lines with no price, apart; `gross_subtotal` and `net_subtotal` over the priced lines; the store's VAT rate. Reads the materialized prices — never resolves at request time (handoff §10.1). |
 | `totals(CartPricesDto $prices, Money $couponDiscount, Money $pointsDiscount, Money $shipping): TotalsDto` | Sales | The canonical amounts (handoff §10.2): `goods_total`, `taxable_base`, `vat` (rounded once, half up), `order_total`. **Pure** — no database, no clock; the same input gives the same answer. Refuses prices holding lines with no price, amounts in another currency, a negative amount, and discounts larger than `net_subtotal`. |
+| `pricesForEdit(StoreId $store, list<KeptPartDto> $kept, list<CartLineDto> $added, int $taxRateBasisPoints): CartPricesDto` **[PROPOSED]** | Sales (staff edited an order before it ships) | §1.11: the kept parts as they are, the added lines priced now (a wholesale one by the band for its new total), the order's VAT rate. A variant and mode may appear more than once among the parts; once among the added lines (`pricing.duplicate_lines`). `validUntil` from the added lines only. |
 
 `totals` may be called more than once while Sales builds a quote: with the coupon and points first
 (for `goods_total`, which free shipping and points earning bind to), then with the shipping.
@@ -227,6 +244,7 @@ no error classes.
 | `CartPricesDto` | `storeId` · `currencyCode` · `taxRateBasisPoints` · `lines` (list of `LinePriceDto`) · `unpriced` (variant ids with no price there) · `grossSubtotal` (Σ `listTotal`) · `netSubtotal` (Σ `total`) · `pricedAt` · `?validUntil` (the earliest `endsAt`: a quote built on these prices must not outlive it) |
 | `TotalsDto` | `grossSubtotal` · `netSubtotal` · `couponDiscount` · `pointsDiscount` · `goodsTotal` · `shipping` · `taxableBase` · `vat` · `orderTotal` · `taxRateBasisPoints` |
 | `PriceKind` (enum) | `BASE` · `SALE` · `CAMPAIGN` · `CATEGORY` · `QUANTITY` |
+| `KeptPartDto` **[PROPOSED]** | `variantId` · `mode` · `quantity` (as edited: never above what the order held) · `listUnit` · `unit` · `kind` — as the order's snapshot holds them (§1.11) |
 
 ### 2.3 What Pricing gives Catalog
 
@@ -416,6 +434,12 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 14. **Audit**: every change by value, from and to, both languages.
 15. **The database's own refusals** behind each rule (the constraints test): every CHECK broken once,
     with the nullable column left NULL where it has one.
+16. **An edited order** (§1.11): kept parts unchanged whatever today's prices are; added retail pieces
+    at today's price; added wholesale pieces at the band for the new total (100 kept + 400 added →
+    the "from 500" band), on the added only; a line edited twice holding three parts; the order's VAT
+    rate used, not the store's today; two added lines of one variant and mode refused; an added
+    size with no retail price unpriced; `totals` over the result equal to the same amounts worked by
+    hand.
 
 ---
 
@@ -430,6 +454,7 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | 3 | What a company's card shows when its first size sells wholesale only (catalog.md amendment 15) — Pricing would push the same one-piece price | The owner, with Catalog's amendment |
 | 4 | Campaign prices | Stage 8 (owner, 2026-10-08) |
 | 5 | Pricing's screens: prices, sales, wholesale bands, category discounts and their preview, the note before saving, Needs a Price | The frontend session, after this spec |
+| 6 | `pricesForEdit` and `KeptPartDto` — the shapes for an edited order (§1.11, §2.1) | The owner's review of this amendment |
 
 ~~A code shared by a product's sizes~~ — closed: one code is one size (owner, 2026-10-09).
 
