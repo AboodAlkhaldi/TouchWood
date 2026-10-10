@@ -195,8 +195,7 @@ order cannot be marked shipped until what it holds covers what is due — `PAID`
   damaged one may be left out). `InventoryApi::release` first frees what the order still holds (a wired
   store's lines not yet ticked); then `InventoryApi::returned(orderId, cameBackId, lines)` gets only the
   pieces put back **whose stock was taken** — every piece in a store with no provider, the ticked ones in
-  a wired store — so nothing is counted back twice (`returned` for a parcel that came back, and
-  `release` after shipping, asked of the stage 5 session as an Inventory amendment, 2026-10-10). It is settled **as a whole return of an order
+  a wired store — so nothing is counted back twice (inventory.md §2.1, the came-back callers in PR #109 [PROPOSED]). It is settled **as a whole return of an order
   never delivered**: what is due becomes 0, so everything paid, shipping included, is a refund due,
   settled by hand (§1.9); `LoyaltyApi::orderCancelled` gives the points used back (nothing was earned);
   the coupon's use stays counted (promotions.md §2.1). The order is `UNDELIVERED`; the customer sees
@@ -425,7 +424,7 @@ A rejection and a parcel that came back publish nothing yet; Ops adds what its m
 | From | What | State |
 |---|---|---|
 | Pricing | `prices`, `totals`; **`pricesForEdit`** with `KeptPartDto`; **the result's lines in the order given**, an unpriced line left out and named | `prices`, `totals` on `main` (#97); `pricesForEdit` and the lines' order on `main` (#107, `89c07e9`) |
-| Inventory | `stock` (with `availableAsGift`), `hold`, `ship`, `reducedInProvider`, `release`, `HoldsShort`; `adjustHold`, `returned` | Interfaces on `main` (#97); `HoldsShort` specified (#102); `adjustHold` and `returned` on `main` (#106, `4cca6fc`); **`returned` for a parcel that came back and `release` after shipping asked of the stage 5 session** (2026-10-10) |
+| Inventory | `stock` (with `availableAsGift`), `hold`, `ship`, `reducedInProvider`, `release`, `HoldsShort`; `adjustHold`, `returned` | Interfaces on `main` (#97); `HoldsShort` specified (#102); `adjustHold` and `returned` on `main` (#106, `4cca6fc`); **`release` and `returned` for a parcel that came back in PR #109** [PROPOSED] |
 | Promotions | `applyCoupon`, `customerDiscountRoom`, `giftLevels`, `useCoupon`, `recordOrder`; for edits `orderDiscountRoom` (the order's own ceiling), `couponAfterEdit` (with the whole room, never above the discount now), `updateCouponUse`; **one share per price line, in the prices' order** | promotions.md (PR #101) — corrected there with this spec |
 | Loyalty | `earningPreview`, `quoteRedemption`, `redeem`, `earn`, `orderCancelled`, `orderReturned`; **`pointsAfterEdit`** (reads, by the cap the order redeemed under) and **`orderEdited` answering the points still used** | loyalty.md (PR #96) — added there with this spec |
 | Catalog | **the store's variants in bulk** (`storeVariant` reads one, `CatalogApi`); `variant`, `product` and the bulk reads Feedback adds (snapshots); **whether a product's category is open to an account type in a store**, in bulk; `ListingFacts::salesRanks`; the usage check (a variant on an order is never deleted, promotions.md §1.2) | `storeVariant`, `variant`, `product`, `ListingFacts` exist; **the bulk store-variant read and the category read are Catalog additions** — to agree with the Catalog-screens session, who own §1.13 |
@@ -742,8 +741,8 @@ refusing anything but one void.
    cap at the discount now, `orderDiscountRoom` with the order's recorded ceiling and the shares by
    price line (promotions.md); `pointsAfterEdit` by the recorded cap, `orderEdited`'s answer and an edit
    before delivery in Loyalty's table rules (loyalty.md) — made on those specs' branches with this one.
-   **Inventory's** `returned` for a parcel that came back and `release` after shipping — asked of the
-   stage 5 session as an amendment.
+   **Inventory's** `release` then `returned` for a parcel that came back — PR #109, the stage 5
+   session's.
 5. **Sales's screens** — the frontend session's, to confirm.
 6. **Every assumption marked above** — merging carts by adding quantities; 90-day carts; order numbers
    from a sequence that may leave gaps; a tracking number optional; shipping refunded with the last
@@ -798,7 +797,7 @@ the use cases with their permissions; the email asked (answer 27).
 re-added (every piece's shares plus shipping and its VAT = `order_total`), every citation real. Fixed
 from it: the coupon after a second edit capped by its discount now, not at placement (Promotions only
 lowers a use); a parcel that came back freeing what is still held before restocking only taken stock
-(Inventory asked to name both callers); shipping allowed whenever what is held covers what is due;
+(Inventory names both callers, PR #109); shipping allowed whenever what is held covers what is due;
 the cancellation and rejection CHECKs needing their reasons, and a staff cancellation's reason; transfer
 documents while something is owed; **an edit keeping the order's own ceiling, points cap and shipping
 rule** (the owner's answer 30 — Promotions' `orderDiscountRoom` and Loyalty's recorded cap); and the
