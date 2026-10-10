@@ -19,7 +19,7 @@ ceiling; it records each coupon use and each placed order's fact, inside Sales's
 
 | Concern | Owner |
 |---|---|
-| Prices, sales, campaign prices, category discounts, quantity prices — every price cut **without a code** | Pricing (the lowest applicable price wins, nothing stacks — handoff §10.1, amended 2026-10-07) |
+| Prices, sales, campaign prices, category discounts, wholesale bands — every price **without a code** | Pricing (the lowest applicable price wins, nothing stacks, except a sale or discount marked "always wins while on" — handoff §10.1, amended 2026-10-07 and 2026-10-09) |
 | Campaigns' themes, pop-up offers, alert banners, the smart bar | Content (stage 8) |
 | Free shipping above an amount, per store per carrier | Shipping (stage 7; handoff §12.5) |
 | Points | Loyalty |
@@ -61,8 +61,10 @@ A coupon belongs to **one store** — the same person can use a coupon in KSA an
   binds `net_subtotal`).
 - **`allow_with_points`** — whether the order may also use points (handoff §11.1, per coupon).
 - **On reduced lines** — off by default: **a coupon skips a line already reduced** (a sale, campaign,
-  category discount or quantity price — any `PriceKind` but `BASE`); the admin may switch it on per
-  coupon (owner, 2026-10-08).
+  category discount — a line whose `unit` is below its `listUnit`); the admin may switch it on per
+  coupon (owner, 2026-10-08). **A wholesale band's price is a wholesale line's normal price, not a
+  reduction** (owner, 2026-10-10): Pricing makes it the line's `listUnit`, so only a sale or discount
+  below the band counts as reduced.
 - **What it covers** — the rules of §1.2.
 - **Active**, a switch: a deactivated coupon cannot be used and can be switched on again.
 
@@ -104,7 +106,8 @@ covers. (A Catalog addition, §2.3.)
 In the store currency's smallest unit (handoff §5.1), on the eligible lines' `total` (Pricing's
 `LinePriceDto::$total`, without VAT):
 
-- **A percentage**: `floor(eligible total × percent ÷ 100)`, then at most the cap.
+- **A percentage**: `eligible total × percent ÷ 100`, **rounded half up** to the smallest unit, as
+  prices are (owner, 2026-10-10), then at most the cap.
 - **A fixed amount**: the amount, at most the eligible total.
 - **Spread over the eligible lines** in proportion to their totals with `Money::allocate` — no unit
   lost (handoff §5.1) — so each line knows its share for returns (Sales).
@@ -116,9 +119,25 @@ area"), with a message the checkout shows, when:
   this customer;
 - the order's `net_subtotal` is under its minimum;
 - no line is eligible;
-- it is worth nothing (a percentage of a small total that rounds down to 0);
-- the order also uses points and the coupon does not allow it (`allow_with_points`);
+- it is worth nothing (a percentage of a small total that rounds to 0);
+- the order also uses points and the coupon does not allow it (`allow_with_points`) — at checkout
+  the coupon is decided first, so a coupon that does not allow points means the order uses none
+  (Sales skips the points and says why);
 - **it would pass the store's discount ceiling** (§1.6).
+
+**After a staff edit — the one exception** (sales.md §1.7; owner, 2026-10-10: the coupon is "checked
+again; trimmed or removed if [it] no longer fit[s]", and it "can only stay or shrink"). The order's
+coupon is worked out again on the edited lines, by the same coupon as it is now — **ignoring its dates,
+its switch, its uses and the assignment**, which were settled at placement and whose use already
+counts:
+
+- **never more than at placement**;
+- **removed** (0) if the edited order is under its minimum or no line is eligible any more;
+- **trimmed to the room** under the ceiling (§1.6) — after the points have given way first (handoff
+  §11.3: "points are evaluated last and refused first"): Sales lowers the points to fit what is left,
+  and only if the coupon alone passes the room is the coupon trimmed to it.
+
+The use stays counted, with its new discount recorded (`updateCouponUse`).
 
 **A guest** has no account and no orders; whether a guest may try a code in the cart is Sales's
 question (their cart, handoff §7.5), asked with its spec. Using a coupon always needs an account.
@@ -216,7 +235,7 @@ by composite keys (§5), so nothing of one store reaches another's.
 
 **A store switched off** has its coupons, segments and gift levels set by Super Admins only — the
 panel offers off stores to Super Admins alone (platform.md §9.10) — as its prices and stock are
-(pricing.md rule 10, inventory.md rule 11). My assumption, stated for the owner to reject.
+(pricing.md §1.1 rule 8, inventory.md §1.1 rule 6). My assumption, stated for the owner to reject.
 
 ---
 
@@ -235,6 +254,8 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 | `customerDiscountRoom(StoreId $store, Money $grossSubtotal, Money $netSubtotal): Money` | Sales: the room left under the ceiling (§1.6), against which it checks the coupon, then the points |
 | `giftLevels(StoreId $store, Audience $audience, Money $goodsTotal): list<GiftOfferDto>` | Sales: the levels the order reaches, highest first (§1.7) |
 | `useCoupon(UseCoupon $change): void` | Placing the order: **every check of §1.3 again, as the coupon is now** — dates, switch, uses for everyone and for this customer, the assignment, the minimum, the rules, the points, the ceiling — under a lock on the coupon so two orders never take its last use; **recomputes the discount and refuses (`CouponChanged`) if it is not the one quoted**, so checkout quotes again; then records the use. The same order with the same coupon again does nothing; the same order with another coupon is refused. **A use never comes back**, not even when the order is cancelled (owner, 2026-10-08) |
+| `couponAfterEdit(EditedCouponRequest $request): CouponResult` | Sales, after a staff edit (§1.3, the exception): the coupon's discount on the edited lines, never more than at placement, 0 if it no longer applies. Reads only |
+| `updateCouponUse(UpdateCouponUse $change): void` | Sales, after a staff edit: records the use's new discount (never higher). Idempotent by the edit's id |
 | `recordOrder(RecordOrder $change): void` | Placing the order, with or without a coupon: the fact segments count (§1.5). The same order again does nothing |
 | `segmentMembers(string $segmentId, ?string $after, int $limit): list<string>` | Ops later: a segment's customer ids, keyset-paged (handoff §5.4) |
 
@@ -251,6 +272,10 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 - `UseCoupon`: the order's id and public number, the coupon's id, the `CouponRequest` it was quoted
   for (the cart's prices, customer, audience), the quoted discount, whether points are used, and the
   caller's permission.
+- `EditedCouponRequest`: the order's id, the coupon's id, the edited order's prices (Pricing's, over
+  its kept and added parts — pricing.md, the addition for edits), the audience, the room left after
+  the points, and the discount at placement (the most it may be).
+- `UpdateCouponUse`: the order's id, the edit's id, the new discount, the caller's permission.
 - `RecordOrder`: the order's id, customer, store, the moment placed, the caller's permission. (Not
   named `OrderPlaced`: that is Sales's integration event, handoff §4.5.)
 - `GiftOfferDto`: the level's id, amount, the gift's variant id.
@@ -293,6 +318,7 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 | Change the store's discount ceiling | `promotions.settings.update` (per store, **admin-only**) — Platform's `UpdateSetting` |
 | Refresh every segment, nightly | `promotions.segment.refresh` (reserved, global: the system only) |
 | `useCoupon`, `recordOrder` | **The caller's** — Sales's placing an order — in the coupon's store (`useCoupon`), the order's store (`recordOrder`) |
+| `updateCouponUse` | The caller's — Sales's editing an order — in the coupon's store |
 | `applyCoupon`, `customerDiscountRoom`, `giftLevels`, `segmentMembers` | **None of their own**: reads for modules inside flows they have authorized |
 
 | Read (query) | Permission |
@@ -404,7 +430,9 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 - A mixed cart: the coupon lands on the eligible lines and leaves the rest, never refusing the cart.
 - Include by category reaches its sub-categories; an excluded brand inside an included category is
   skipped — exclusions win.
-- Reduced lines (each `PriceKind` but `BASE`) skipped by default, covered when the coupon allows it.
+- Reduced lines (`unit` below `listUnit`) skipped by default, covered when the coupon allows it; a
+  wholesale line at its band price is not reduced.
+- 15% of 10.03 SAR is 1.50; 15% of 10.10 SAR (1.515) is 1.52 — half up.
 - Sale mode and audience lists respected; a company's wholesale line covered only by a coupon that
   allows wholesale.
 
