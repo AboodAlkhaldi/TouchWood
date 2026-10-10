@@ -100,6 +100,8 @@ step branches under them: they left a tangled history, with no version marking w
 10. **GitHub holds the line** (owner, 2026-10-07). The merge button only squashes; GitHub deletes a
     merged branch itself; the "Protect main" ruleset stops `main` from being force-pushed or
     deleted; and CI runs once for each PR and on every push to `main` (`.github/workflows/ci.yml`).
+    CI pulls its database image from Docker Hub as the owner's account (owner, 2026-10-09), with two
+    repository secrets: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a read-only access token).
 
 ## Layout
 
