@@ -823,13 +823,13 @@ describe('the query budget (frontend.md §5, P21)', function () {
 
         expect(catalogListScreensOwnQueries($browser, $uri))->toBe($recorded);
     })->with([
-        'brands' => ['/admin/brands', 4],
-        'categories' => ['/admin/categories', 13],
-        'attributes' => ['/admin/attributes', 3],
-        'one attribute' => ['/admin/attributes/{width}', 4],
-        'variations' => ['/admin/variations', 5],
-        'labels' => ['/admin/labels', 3],
-        'warranties' => ['/admin/warranties', 3],
-        'search words' => ['/admin/search-words', 14],
+        'brands' => ['/admin/brands', 2],
+        'categories' => ['/admin/categories', 3],
+        'attributes' => ['/admin/attributes', 1],
+        'one attribute' => ['/admin/attributes/{width}', 2],
+        'variations' => ['/admin/variations', 3],
+        'labels' => ['/admin/labels', 1],
+        'warranties' => ['/admin/warranties', 1],
+        'search words' => ['/admin/search-words', 4],
     ]);
 });
