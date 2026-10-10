@@ -12,6 +12,7 @@
     "generated\\Modules\\Catalog\\Public\\Enums\\index.ts": "4c6ec843fe6b1fc4960fda3e660cd384",
     "generated\\Modules\\Platform\\Presentation\\Http\\Resource\\index.ts": "e2b4eee6a37df32099510a7740ec4dc6",
     "generated\\Modules\\Platform\\Public\\Enums\\index.ts": "7cf23bf1d8973abb50116d457e3cf115",
+    "generated\\Modules\\Pricing\\Public\\Enums\\index.ts": "06df20fe8d7764b35be867cc31109bfb",
     "generated\\Shared\\Application\\index.ts": "98233a3c81f7fda28a0e0e1e91802372",
     "generated\\Shared\\Domain\\Error\\index.ts": "30f1ec768e42620cd0674bc9195db687"
 }

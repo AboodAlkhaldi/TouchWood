@@ -189,13 +189,15 @@ deptrac:
     CatalogPublic: [Shared, Vendor, PlatformPublic]
     Catalog: [+CatalogPublic, AccessPublic, AppHttp]
 
-    # Pricing → Platform, Catalog, B2B (company approval status)
-    PricingPublic: [Shared, Vendor, PlatformPublic, CatalogPublic, B2BPublic]
-    Pricing: [+PricingPublic]
+    # Pricing → Platform, Catalog. No B2B: one price for everyone, no company prices (owner,
+    # 2026-10-07). Access's public surface only to declare its permissions, from the interior, as
+    # Catalog (owner, 2026-10-07).
+    PricingPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]
+    Pricing: [+PricingPublic, AccessPublic]
 
-    # Inventory → Platform, Catalog
+    # Inventory → Platform, Catalog; Access only to declare its permissions (owner, 2026-10-07).
     InventoryPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]
-    Inventory: [+InventoryPublic]
+    Inventory: [+InventoryPublic, AccessPublic]
 
     # Promotions → Platform, Access, Catalog, Pricing. Never Sales: Sales passes it the cart and
     # the order facts it needs (owner, 2026-09-18).
@@ -218,9 +220,10 @@ deptrac:
     FeedbackPublic: [Shared, Vendor, PlatformPublic, AccessPublic, CatalogPublic, SalesPublic]
     Feedback: [+FeedbackPublic]
 
-    # Sync → Platform, Catalog, Pricing, Inventory
+    # Sync → Platform, Catalog, Pricing, Inventory; Access only to declare its permissions (owner,
+    # 2026-10-07).
     SyncPublic: [Shared, Vendor, PlatformPublic, CatalogPublic, PricingPublic, InventoryPublic]
-    Sync: [+SyncPublic]
+    Sync: [+SyncPublic, AccessPublic]
 
     # Sales → the transaction. The widest surface in the system, by design.
     SalesPublic:

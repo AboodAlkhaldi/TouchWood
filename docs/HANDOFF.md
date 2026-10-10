@@ -119,6 +119,12 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-02 | §9.1, §9.2 | **A product-wide stage** (`DRAFT`, `READY`, `ARCHIVED`) **and each store's Active row**: a store chooses whole products or single variants; "Not available now" on a product or a variant, per store; the JSON import lives in Catalog, its prices and stock waiting for Pricing and Inventory | Catalog spec, owner decision |
 | 2026-10-05 | §9.1 | **The JSON import's format and flow agreed** (Catalog amendment 6): a page per uploaded file, decided and accepted product by product, instead of "a preview, then all-or-nothing"; the store file switches existing products on only. The format, a guide and complete examples: `docs/modules/catalog-import/` | Owner, Catalog amendment 6 |
 | 2026-10-02 | §9.3, §9.4, §9.5, §15.2 | **One category per product**, at the end of the tree; empty categories hidden per store; categories and brands deactivated (each product's fate chosen) or deleted when unused; a movable default brand; shared search word pairs and a 12-month search log with no person; custom labels and warranty built with Catalog; a product video left open | Catalog spec, owner decision |
+| 2026-10-07 | §6, §8.2, §16 | **Wholesale is for companies only; one price for everyone.** An individual buys retail only; a company account buys retail and wholesale — an unapproved, rejected or suspended one sees the company side but orders only once that store approves it. **There are no company prices**: every customer sees the same prices. In each store, admins choose which categories individuals see and which companies see; guests see everything until they sign in. Reverses "wholesale is public, gated by MOQ" and company prices | Owner (client's rule) |
+| 2026-10-07 | §10.1, §10.3 | **The lowest applicable price wins** — base, sale, campaign, category discount and, on wholesale lines, the quantity price; nothing stacks. Replaces "priority DESC, first hit wins". Quantity prices apply to wholesale lines only. Category discounts: a percentage or a fixed amount, dated, per store (a fixed amount skips a product it would take to 0 or below). **A price is always above 0.** Prices are kept and shown **without VAT**; VAT is added at checkout and rounded once, on the order, half up | Stage 5 questions, owner decision |
+| 2026-10-07 | §12.1 | **A store with no provider counts every product on its stock**; the stock-dependent switch exists only in a wired store. Stock is **held when an order is placed and taken when it ships**; a cancel frees it. The safety buffer is dropped. The low-stock threshold is per variant per store; "ending soon": an admin's switch per product in a store with no provider, automatic on stock-dependent products in a wired one. Low-stock alerts are shown in the panel until Ops sends them | Stage 5 questions, owner decision |
+| 2026-10-07 | §12.2 | **A wired store's provider key** is kept encrypted in the database, set by a Super Admin, never shown again. One audit entry per pull, the detail in the stock and price histories. The sync report, Retry and Sync Now are per-store permissions. An off store's prices and stock are set by Super Admins (or its file). Whether discounts come from the provider, us or both, and whether the provider calls us on a change, wait for the provider's team | Stage 5 questions, owner decision |
+| 2026-10-09 | §10.1, §12.1 | **"Always wins while on"**: a sale or a category discount may be marked so — while it runs it beats cheaper sales and discounts on its sizes; two at once on a size are refused; it never beats a wholesale quantity price. Saving one shows what it affects and what it overlaps. Sales and discounts start and end by timed tasks with a daily safety check. **A wired store's stock is read, never held or reduced.** One code is one size (Catalog's amendment). The details: `docs/modules/pricing.md` | Pricing spec questions, owner decision |
+| 2026-10-09 | §9.2, §12.1 | **Inventory**: one permission, **Manage Stock**, per store, any role — stock, hand changes (Received, Damaged / lost, Offline sale, Correction with a note; a stocktake "set to"), thresholds, the switches, the Low Stock list. A variant with no threshold uses the store's default, **10 pieces**; the threshold **only alerts, never limits ordering**. Removing pieces held for orders is allowed, the orders flagged "not enough stock". The stock-dependent switch is **per variant** — all of a product's, some or one; a variant added later starts off. **A wired ordinary product the provider reports at 0 stays orderable** (replaces §9.2's provisional rule); staff mark it "Not available now". **"Ending soon" shows on cards too**, when any of the product's variants is. The details: `docs/modules/inventory.md` | Inventory spec questions, owner decision |
 
 ---
 
@@ -334,14 +340,14 @@ Platform   → (nothing)
 Access     → Platform
 B2B        → Platform, Access
 Catalog    → Platform, Access   (Access only to declare its permissions)
-Pricing    → Platform, Catalog, B2B
-Inventory  → Platform, Catalog
+Pricing    → Platform, Catalog, Access   (Access only to declare its permissions; no B2B: one price for everyone, 2026-10-07)
+Inventory  → Platform, Catalog, Access   (Access only to declare its permissions)
 Promotions → Platform, Access, Catalog, Pricing
 Loyalty    → Platform, Access
 Shipping   → Platform, Catalog
 Payments   → Platform
 Feedback   → Platform, Access, Catalog, Sales
-Sync       → Platform, Catalog, Pricing, Inventory
+Sync       → Platform, Catalog, Pricing, Inventory, Access   (Access only to declare its permissions)
 Sales      → everything above except Feedback and Sync
 Content    → Platform, Catalog, Pricing
 Ops        → every Public surface
@@ -350,7 +356,8 @@ Ops        → every Public surface
 **Catalog → Access** (owner, 2026-10-02): every permission is declared in Access's
 `PermissionCatalog`, which Catalog could not reach. The arrow points down a tier and Access never
 needs Catalog, so no cycle can form; Catalog uses Access's public surface for that alone, and any
-other use goes to the owner first (`docs/modules/catalog.md` §2.4).
+other use goes to the owner first (`docs/modules/catalog.md` §2.4). **Pricing, Inventory and Sync
+too** (owner, 2026-10-07), on the same terms.
 
 Two modules have a wide fan-in for opposite reasons. **Sales** is the transaction and
 legitimately needs price, stock, discount, points, shipping and payment in one flow.
@@ -366,10 +373,10 @@ checkout transaction, so a one-time coupon can never be used twice.
 **A. Synchronous public contracts** for anything needing an answer now.
 
 ```php
-interface PricingApi
+interface PricingApi   // the agreed shape: docs/modules/pricing.md §2 (2026-10-07)
 {
-    public function quoteCart(QuoteRequest $request): PriceQuote;
-    public function unitPrice(VariantId $v, StoreId $s, Audience $a, Quantity $q): ?Money;
+    public function prices(StoreId $store, array $lines): CartPricesDto;
+    public function totals(CartPricesDto $prices, Money $coupon, Money $points, Money $shipping): TotalsDto;
 }
 ```
 
@@ -536,18 +543,19 @@ by accident. They are **independent**.
 | **`audience`** | `PUBLIC` / `COMPANY` | Who is buying | Price lists, coupons, promotions, gift rules, homepage config, loyalty redemption mode |
 | **`sale_mode`** | `RETAIL` / `WHOLESALE` | How it is being sold | Product enablement per store, quantity rules and MOQ, cart lines, order lines, wholesale page |
 
-They combine freely:
+**[REVISED by the owner, 2026-10-07]** ~~They combine freely: a private customer buying at MOQ →
+`PUBLIC` + `WHOLESALE`; an approved company buying one piece → `COMPANY` + `RETAIL`. Prices follow
+the account type, so every company account sees company prices. **Wholesale is public**: any
+customer can buy a wholesale-only product at its MOQ.~~ Now:
 
-- A private customer buying at MOQ → `PUBLIC` + `WHOLESALE`
-- An approved company buying one piece → `COMPANY` + `RETAIL`
-
-`COMPANY` means `company.status == APPROVED`. Everyone else — guests, individuals,
-pending, rejected and suspended companies — is `PUBLIC` for pricing eligibility, with one
-exception noted in §8.2: **the prices shown follow the account type**, so every company
-account sees company prices whatever its company's status.
-
-**Wholesale is public.** Any customer can buy a wholesale-only product if they meet the
-minimum order quantity. Wholesale is a quantity concept, not a permission.
+- **One price for everyone.** There are no company prices; `audience` is no longer on price lists
+  (it stays on coupons, promotions, gift rules, homepage config and loyalty).
+- **Wholesale is for companies only.** An individual buys `RETAIL` only; a company account buys
+  `RETAIL` and `WHOLESALE` — a pending, rejected or suspended company too sees the company side,
+  but orders only once that store approves it (§8.2). The account type is Access's and never changes.
+- **What each account type sees**: in each store, admins choose which categories individuals see and
+  which companies see (a category brings everything under it). Guests see everything until they sign
+  in; then their account type limits them.
 
 **Nothing in the schema is named `b2c` or `b2b`.** Those are UI words only.
 
@@ -975,8 +983,9 @@ A product is out of stock in a store when:
 - the store is **wired** (§12.2) and the product is **stock-dependent**: its stock, as §12.1 counts
   it, is used up;
 - the store is wired and the product is **not** stock-dependent: staff mark it so
-  (`force_unavailable`), **or the provider reports 0** — automatically. This last rule is
-  provisional (owner, 2026-10-02: "let it checked for now"); the owner may change it.
+  (`force_unavailable`) — **only then**. ~~or the provider reports 0 — automatically (provisional,
+  2026-10-02)~~ **[REVISED 2026-10-09]** The provider's 0 does not stop it: its stock never limits
+  ordering, "since its not stock-dependent" (owner).
 
 In every store, a product staff mark "Not available now" (`force_unavailable`) is hidden the same way.
 
@@ -1074,19 +1083,25 @@ best-selling. Grid view and a technical list view with finish columns — no SKU
 
 ### 10.1 One mechanism for everything
 
-Everything is a price list. They differ only by `audience`, `kind`, `priority` and date
-window.
+Everything is a price list. **[REVISED by the owner, 2026-10-07]** They differ by `kind`, date
+window and — for quantity prices — the quantity band; ~~`audience` and `priority`~~ are gone: there
+are no company prices, and the lowest price wins.
 
 | Concept | Expressed as |
 |---|---|
-| Retail base price | `PUBLIC`, priority 0, min_qty 1, no dates |
-| Sale price | `PUBLIC`, priority 10, dated |
-| Wholesale tiers | One row per quantity band |
-| Seasonal campaign | `kind = CAMPAIGN`, higher priority, dated |
-| Company price | `audience = COMPANY` |
+| Retail base price | `kind = BASE`, from 1 piece, no dates — **above 0** |
+| Sale price | `kind = SALE`, dated |
+| Quantity prices | `kind = QUANTITY`, one row per quantity band — **wholesale lines only** |
+| Seasonal campaign | `kind = CAMPAIGN`, dated |
+| Category discount | `kind = CATEGORY`, a percentage or a fixed amount off the base price, dated, for every product in a category and below it; a fixed amount skips a product it would take to 0 or below |
+| ~~Company price~~ | ~~`audience = COMPANY`~~ — none (owner, 2026-10-07) |
 
-**Resolution:** filter by store, audience eligibility and active date → order by
-`priority DESC` → match the quantity band → first hit wins.
+**Resolution:** filter by store, variant and active date (and, on a wholesale line, the quantity
+band) → **the lowest price wins**; nothing stacks — **unless a sale or category discount is marked
+"always wins while on"** (owner, 2026-10-09), which then beats cheaper sales and discounts on its
+sizes, never a wholesale quantity price. ~~order by `priority DESC` → first hit wins.~~
+Prices are kept **without VAT** (§10.2 adds it once, on the order). The module's spec:
+`docs/modules/pricing.md`.
 
 Materialized into **`effective_prices`** so resolution never runs at request time.
 
@@ -1267,8 +1282,11 @@ this system's scope.** Do not model warehouses, branches, bins or transfers.
 - **Wired to a provider** (§12.2) — the provider's stock is read in, by product code. **An ordinary
   product's stock does not limit ordering**: placing an order neither reserves nor reduces it, and a
   customer may order more than it shows. Staff reduce stock **in the provider**, by hand, as they ship.
-  The product goes out of stock only when the provider reports 0 or staff mark it (§9.2).
-- **Stock-dependent products** — a flag, **off by default, per product per store**, for a wired
+  The product goes out of stock only when staff mark it (§9.2) ~~or the provider reports 0~~
+  (revised 2026-10-09).
+- **Stock-dependent products** — a flag, **off by default**, ~~per product~~ **per variant** per
+  store — staff pick all of a product's variants, some or one, and a variant added later starts off
+  (owner, 2026-10-09) — for a wired
   store's products that must not be oversold. Our figure is **the provider's stock minus the
   quantities of this store's orders not yet ticked "reduced in the provider"** by staff (§12.3).
   Staff tick an order once they have reduced its stock in the provider. Whatever the provider sends
@@ -1277,14 +1295,26 @@ this system's scope.** Do not model warehouses, branches, bins or transfers.
   tick one: 19 − 1 = 18. A refill to 69: 69 − 1 = 68. The second reduced to 68 and ticked: 68. A
   stock-dependent product cannot be ordered beyond that figure.
 - **Gift products** (§11.6) count on stock in every store.
+- **[DECIDED by the owner, 2026-10-07]** The stock-dependent switch exists **only in a wired store**:
+  in a store with no provider every product counts on its stock, always. **Stock is held when an
+  order is placed and taken off when it ships**; a cancelled order frees what it held. In a wired
+  store a stock-dependent product's hold ends when staff tick "reduced in the provider".
 
-**What stock still does for an ordinary product of a wired store:** an **"ending soon"** label for
-customers, only where an admin turns it on; gifts; and **low-stock alerts** — a threshold per product
-per store — to that store's **admins and staff**. Low-stock alerts work the same way in a store with
-no provider.
+**What stock still does for an ordinary product of a wired store:** gifts, and **low-stock alerts**
+— **[REVISED 2026-10-07]** a threshold **per variant per store** — to that store's **admins and
+staff**, shown in the panel until Ops sends them (stage 8). Low-stock alerts work the same way in a
+store with no provider. **"Ending soon"** for customers: in a store with no provider, where an admin
+switches it on for the product; in a wired store, automatically on stock-dependent products only —
+in both, when a variant's stock is at or below its threshold.
+**[REVISED 2026-10-09]** A variant with no threshold uses **the store's default, 10 pieces**. The
+threshold **only alerts staff — it never changes what can be ordered**. The alerts, the stock, hand
+changes and the switches ("ending soon" included) belong to **one permission, Manage Stock**, per
+store, any role. Removing pieces held for orders is allowed; those orders are flagged "not enough
+stock" for staff. **"Ending soon" shows on cards and lists too**: a card says it when any of its
+product's variants is ending soon. The details: `docs/modules/inventory.md`.
 
 ```
-available_to_sell = on_hand − reserved − safety_buffer
+available_to_sell = on_hand − reserved      (the safety buffer is dropped, owner 2026-10-07)
 ```
 
 Reservation is an **atomic conditional UPDATE** — zero affected rows means insufficient
@@ -1658,7 +1688,7 @@ that is the signal to stop.
 | B2C ↔ B2B account switching | Account type is immutable |
 | Company online payment, credit, Net 30 | Bank transfer only, always |
 | Cash on delivery | Not offered |
-| Company-restricted wholesale | Wholesale is public, gated by MOQ |
+| ~~Company-restricted wholesale~~ | **Reversed by the owner, 2026-10-07:** wholesale is for companies only; individuals buy retail (§6) |
 | Warehouses, branches, stock locations | One pool per store |
 | Per-product tax classes, zero-rating | Fixed percentage per store |
 | Pre-order / backorder / incoming stock | Cannot order what is unavailable — **except** an ordinary product of a store wired to a provider, whose stock does not limit ordering (owner, 2026-10-01, §12.1) |
