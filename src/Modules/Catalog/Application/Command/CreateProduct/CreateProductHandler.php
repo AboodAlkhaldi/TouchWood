@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application\Command\CreateProduct;
 
-use InvalidArgumentException;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductInput;
 use Modules\Catalog\Application\Products\ProductReferences;
+use Modules\Catalog\Application\Query\Products\ProductReaders;
 use Modules\Catalog\Domain\Exception\BrandInactive;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
@@ -17,16 +17,15 @@ use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
-use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
- * **Creating a product** (catalog.md §1.1, §3): `catalog.product.create` in the staff member's
- * working store, which must be on (amendment 3(j)). A draft, Active nowhere, on an active brand;
- * its slugs free among products, now and ever. Under the products' lock.
+ * **Creating a product** (catalog.md §1.1, §3): `catalog.product.create` in **some store that is on**
+ * - no store is asked, the panel having no store worked in (amendment 13(f), replacing 3(j)'s working
+ * store). A draft, Active nowhere, on an active brand; its slugs free among products, now and ever.
+ * Under the products' lock.
  */
 final readonly class CreateProductHandler
 {
@@ -34,7 +33,7 @@ final readonly class CreateProductHandler
 
     public function __construct(
         private Authorizer $authorizer,
-        private PlatformApi $platform,
+        private ProductReaders $readers,
         private SharedListChange $change,
         private ProductRepository $products,
         private ProductInput $input,
@@ -48,17 +47,9 @@ final readonly class CreateProductHandler
      */
     public function handle(CreateProduct $command): string
     {
-        try {
-            $store = StoreId::fromString($command->storeId);
-        } catch (InvalidArgumentException) {
-            throw new Unauthorized(self::PERMISSION);
-        }
-
+        // The first store that is on where the reader holds the job (ProductReaders, as the list asks it).
+        $store = $this->readers->storeToCreateIn() ?? throw new Unauthorized(self::PERMISSION);
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
-
-        if ($this->platform->store($store)?->isActive !== true) {
-            throw new InvalidCatalogAttribute('store', 'a store that is on');
-        }
 
         [$name, $slugs] = ProductInput::names($command->nameAr, $command->nameEn, $command->slugAr, $command->slugEn);
         $id = $this->products->nextId();

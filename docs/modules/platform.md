@@ -317,6 +317,9 @@ interface PlatformApi
     /** As mediaUrls(), for a page of media in one query; keyed by the lower-cased id, unknown ids left out. */
     public function mediaUrlsOf(array $mediaIds): array;
 
+    /** As media(), for a page of media in one query; keyed as mediaUrlsOf(). */
+    public function mediaOf(array $mediaIds): array;
+
     // Audit — called by other modules inside their own command-handler transaction.
     public function recordAudit(AuditEntryDto $entry): void;
 
