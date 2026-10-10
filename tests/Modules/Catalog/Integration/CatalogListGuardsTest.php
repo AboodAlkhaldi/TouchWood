@@ -272,7 +272,7 @@ function catalogGuardsProduct(?string $brandId = null): string
     $brandId ??= catalogGuardsBrand();
     $n = catalogGuardsNext();
 
-    return app(CreateProductHandler::class)->handle(new CreateProduct(Fx::storeId('sa'), "منتج {$n}", "Product {$n}", $brandId));
+    return app(CreateProductHandler::class)->handle(new CreateProduct("منتج {$n}", "Product {$n}", $brandId));
 }
 
 /** A draft with everything a ready product needs. */

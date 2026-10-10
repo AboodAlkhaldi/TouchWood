@@ -14,7 +14,7 @@ import {
     type UniqueIdentifier,
 } from '@dnd-kit/core';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
@@ -30,10 +30,15 @@ import { useTranslator } from '@/lib/t';
 | `SortableRows` holds one or more groups - a list's rows, or each parent's children in the category
 | tree - and a row moves only among its own group: a drop elsewhere, by pointer or by keys, is never
 | offered. `SortableGroup` names one group's rows; `useSortableRow` and `DragHandle` make a table row
-| one of them. `SortableList` is a short list of its own, as a dialog shows one.
+| one of them. `SortableList` is a short list of its own - a store's menu in a dialog, a variation's
+| attributes, a product's related products - or, laid out as a grid of tiles, a gallery.
 */
 
-export type SortableItem = { id: string; label: string; extra?: ReactNode };
+/** `label` names it aloud; `content`, when given, is drawn in its place (a photo's tile). */
+export type SortableItem = { id: string; label: string; content?: ReactNode; extra?: ReactNode };
+
+/** A list moves up and down; a grid of tiles in both directions. */
+type Layout = 'list' | 'grid';
 
 type SortableData = { sortable?: { containerId?: UniqueIdentifier } } | undefined;
 
@@ -63,6 +68,7 @@ export function SortableRows({
     groups,
     labelOf,
     onMove,
+    layout = 'list',
     children,
 }: {
     /** Each group's ids, in their order now. */
@@ -70,6 +76,7 @@ export function SortableRows({
     labelOf: (id: string) => string;
     /** A group's ids in the order dropped. */
     onMove: (group: string, ids: string[]) => void;
+    layout?: Layout;
     children: ReactNode;
 }) {
     const t = useTranslator();
@@ -105,7 +112,7 @@ export function SortableRows({
             id={dndId}
             sensors={sensors}
             collisionDetection={sameGroup}
-            modifiers={[restrictToVerticalAxis]}
+            modifiers={layout === 'list' ? [restrictToVerticalAxis] : []}
             onDragEnd={onDragEnd}
             accessibility={{
                 screenReaderInstructions: { draggable: t('catalog::admin.drag.instructions') },
@@ -133,9 +140,9 @@ export function SortableRows({
 }
 
 /** One group's rows, in their order. It draws nothing: its rows may sit anywhere under it. */
-export function SortableGroup({ id, ids, children }: { id: string; ids: string[]; children: ReactNode }) {
+export function SortableGroup({ id, ids, layout = 'list', children }: { id: string; ids: string[]; layout?: Layout; children: ReactNode }) {
     return (
-        <SortableContext id={id} items={ids} strategy={verticalListSortingStrategy}>
+        <SortableContext id={id} items={ids} strategy={layout === 'list' ? verticalListSortingStrategy : rectSortingStrategy}>
             {children}
         </SortableContext>
     );
@@ -164,9 +171,9 @@ export function useSortableRow(id: string, disabled = false) {
 
 /**
  * A row's drag handle. For a reader who may not change the order it stays in sight, out of reach,
- * with the reason (P2).
+ * with the reason (P2); while a change is being saved (`disabled`), it picks nothing up.
  */
-export function DragHandle({ handle, label, reason, test }: { handle: RowHandle; label: string; reason?: string; test?: string }) {
+export function DragHandle({ handle, label, reason, disabled = false, test }: { handle: RowHandle; label: string; reason?: string; disabled?: boolean; test?: string }) {
     const t = useTranslator();
     const name = t('catalog::admin.drag.reorder', { item: label });
 
@@ -186,6 +193,7 @@ export function DragHandle({ handle, label, reason, test }: { handle: RowHandle;
             type="button"
             variant="ghost"
             size="icon-sm"
+            disabled={disabled}
             aria-label={name}
             title={name}
             className="cursor-grab text-muted-foreground hover:bg-transparent active:cursor-grabbing"
@@ -289,15 +297,28 @@ export function useSavedOrder(ids: string[], url: string) {
     };
 }
 
-export function SortableList({ items, onChange, testPrefix = 'sortable' }: { items: SortableItem[]; onChange: (ids: string[]) => void; testPrefix?: string }) {
+export function SortableList({
+    items,
+    onChange,
+    testPrefix = 'sortable',
+    layout = 'list',
+    disabled = false,
+}: {
+    items: SortableItem[];
+    onChange: (ids: string[]) => void;
+    testPrefix?: string;
+    layout?: Layout;
+    /** While a change is being saved: nothing is picked up, so no order is sent from before it. */
+    disabled?: boolean;
+}) {
     const ids = items.map((item) => item.id);
 
     return (
-        <SortableRows groups={{ [testPrefix]: ids }} labelOf={(id) => items.find((item) => item.id === id)?.label ?? ''} onMove={(_, next) => onChange(next)}>
-            <SortableGroup id={testPrefix} ids={ids}>
-                <div role="list" className="grid gap-2">
+        <SortableRows groups={{ [testPrefix]: ids }} labelOf={(id) => items.find((item) => item.id === id)?.label ?? ''} onMove={(_, next) => onChange(next)} layout={layout}>
+            <SortableGroup id={testPrefix} ids={ids} layout={layout}>
+                <div role="list" className={layout === 'list' ? 'grid gap-2' : 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5'}>
                     {items.map((item, index) => (
-                        <Row key={item.id} item={item} index={index} testPrefix={testPrefix} />
+                        <Row key={item.id} item={item} index={index} testPrefix={testPrefix} layout={layout} disabled={disabled} />
                     ))}
                 </div>
             </SortableGroup>
@@ -305,8 +326,8 @@ export function SortableList({ items, onChange, testPrefix = 'sortable' }: { ite
     );
 }
 
-function Row({ item, index, testPrefix }: { item: SortableItem; index: number; testPrefix: string }) {
-    const row = useSortableRow(item.id);
+function Row({ item, index, testPrefix, layout, disabled }: { item: SortableItem; index: number; testPrefix: string; layout: Layout; disabled: boolean }) {
+    const row = useSortableRow(item.id, disabled);
 
     return (
         <div
@@ -314,12 +335,16 @@ function Row({ item, index, testPrefix }: { item: SortableItem; index: number; t
             role="listitem"
             data-test={`${testPrefix}-${index}`}
             data-dragging={row.dragging || undefined}
-            className="material-small relative z-0 flex items-center gap-2 px-2 py-1.5 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+            className={
+                layout === 'list'
+                    ? 'material-small relative z-0 flex items-center gap-2 px-2 py-1.5 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80'
+                    : 'material-small relative z-0 grid gap-2 p-2 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80'
+            }
             style={row.style}
         >
-            <DragHandle handle={row.handle} label={item.label} test={`${testPrefix}-drag-${index}`} />
-            <span className="text-copy-14 text-ink">{item.label}</span>
-            {item.extra ? <span className="ms-auto">{item.extra}</span> : null}
+            <DragHandle handle={row.handle} label={item.label} disabled={disabled} test={`${testPrefix}-drag-${index}`} />
+            {item.content ?? <span className="text-copy-14 text-ink">{item.label}</span>}
+            {item.extra ? <span className={layout === 'list' ? 'ms-auto' : undefined}>{item.extra}</span> : null}
         </div>
     );
 }

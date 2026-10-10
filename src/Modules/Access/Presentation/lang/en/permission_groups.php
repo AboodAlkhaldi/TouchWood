@@ -16,4 +16,5 @@ return [
     'pricing' => 'Pricing and Campaigns',
     'orders' => 'Orders and Fulfilment',
     'companies' => 'Company Approvals',
+    'points' => 'Points',
 ];

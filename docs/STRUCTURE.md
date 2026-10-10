@@ -69,8 +69,8 @@ src/Modules/
 ├── Catalog/      Products, variants, categories, brands, attributes,
 │                 per-store availability, search read model, synonyms,
 │                 search query log, product relations
-├── Pricing/      Price lists, tiers, company prices, campaign prices,
-│                 resolution engine, tax application
+├── Pricing/      Retail prices, sales, wholesale bands, category discounts,
+│                 resolution, totals and VAT (one price for everyone, 2026-10-07)
 ├── Inventory/    Stock, reservations, movement ledger, display bands
 └── Sales/        Cart, quote, order, cancellation, return
 ```
@@ -212,8 +212,8 @@ Access    →  Platform
 B2B       →  Platform, Access
 
 Catalog   →  Platform, Access                ← Access only to declare its permissions
-Pricing   →  Platform, Catalog, B2B          ← B2B for company approval status
-Inventory →  Platform, Catalog
+Pricing   →  Platform, Catalog, Access        ← Access only to declare its permissions (2026-10-07)
+Inventory →  Platform, Catalog, Access        ← the same
 
 Promotions→  Platform, Access, Catalog, Pricing   ← Sales passes it the cart and the order facts
 Loyalty   →  Platform, Access

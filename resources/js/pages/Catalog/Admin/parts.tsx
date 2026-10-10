@@ -133,6 +133,7 @@ export function MarksField({
     error,
     dir,
     rows = 6,
+    disabled = false,
 }: {
     id: string;
     label: string;
@@ -141,6 +142,7 @@ export function MarksField({
     error?: string;
     dir: 'rtl' | 'ltr';
     rows?: number;
+    disabled?: boolean;
 }) {
     const t = useTranslator();
     const blocks = readMarks(value);
@@ -155,6 +157,7 @@ export function MarksField({
                 helper={t('catalog::admin.marks.helper')}
                 value={value}
                 error={error}
+                disabled={disabled}
                 onChange={(event) => onChange(event.target.value)}
                 data-test={id}
             />

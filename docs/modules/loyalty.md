@@ -373,9 +373,9 @@ not the order's recorded store is refused. The permission must belong to the cal
 | Platform | The store's currency code and exponent | Exists (`PlatformApi::store` → `StoreDto`) |
 | Platform | The audit log (§3) | Exists (`PlatformApi::recordAudit`) |
 | Platform | Staff names as the reader may see them — a Super Admin reads as "System administrator" (handoff §14) | Exists (`StaffNames::forReader`) |
-| Platform | **A "Points" section in the admin menu** (owner, 2026-10-07; handoff §14: Points settings · Redemptions) | **A Platform addition, built with Loyalty**: `points` joins the menu's groups (`InMemoryAdminMenu::GROUPS`), as Platform's amendment numbered when it lands |
+| Platform | **A "Points" section in the admin menu** (owner, 2026-10-07; handoff §14: Points settings · Redemptions) | **A Platform addition, built with Loyalty**: `points` joins the menu's groups (`InMemoryAdminMenu::GROUPS`) — built with step 1, platform.md §9.4 |
 | Access | The permission catalog | Exists (`PermissionCatalog::declare`) |
-| Access | **A `Points` permission group**, so the role editor and the menu show the points permissions together (owner, 2026-10-07) | **An Access addition, built with Loyalty**: `PermissionGroup::Points`, as Access's amendment numbered when it lands (the next free number on `main` then — another branch may take one first) |
+| Access | **A `Points` permission group**, so the role editor and the menu show the points permissions together (owner, 2026-10-07) | **An Access addition, built with Loyalty**: `PermissionGroup::Points` — built with step 1, access.md amendment 66 |
 | Access | A customer exists, for a change by hand | Exists (`AccessApi::customer`) |
 
 ### 2.4 What Loyalty gives others
@@ -638,7 +638,7 @@ refuses.
    page, the staff's view of a customer's points, the redemptions list and the change-by-hand dialog
    are to build. The owner gave the frontend to the screens session (stage 5 memory, 2026-10-07); to
    confirm that Loyalty's screens go there too.
-3. **Every assumption marked above** — the defaults and ranges, the programme read at delivery, the
+3. **Every assumption marked above** — accepted with the spec (owner, 2026-10-10) — the defaults and ranges, the programme read at delivery, the
    minimum measured on points charged, giving back in the order spent, deducted points counting as
    taken back, a lot's covers undone lot covers first and oldest first, an undone expired-point cover
    not used again, changes by hand while off, nothing on anonymizing, staff seeing points by the

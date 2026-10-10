@@ -25,8 +25,9 @@ use Shared\Application\Authorizer;
 final class InMemoryAdminMenu implements AdminMenu
 {
     /**
-     * The order the groups appear in. It is the role editor's list (stage 2b, P2), so the menu and
-     * the editor never disagree; a group nothing registers under simply never appears.
+     * The order the groups appear in the menu, handoff §14's tree. The role editor lists the same
+     * areas in `PermissionGroup`'s own order (stage 2b, P2), which differs. A group nothing registers
+     * under simply never appears.
      */
     private const array GROUPS = [
         'catalog',
@@ -34,6 +35,8 @@ final class InMemoryAdminMenu implements AdminMenu
         'orders',
         'companies',
         'customers',
+        // Handoff §14 places Points after Customers and before Staff (platform.md §9.4).
+        'points',
         'staff_and_permissions',
         'store_settings',
         'media',

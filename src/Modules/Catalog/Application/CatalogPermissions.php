@@ -24,7 +24,7 @@ use Modules\Access\Public\Enums\PermissionKind;
  */
 final class CatalogPermissions
 {
-    /** Create a product: a draft, Active nowhere, in the staff member's working store. */
+    /** Create a product: a draft, Active nowhere - the job held in some store that is on (amendment 13(f)). */
     public const string PRODUCT_CREATE = 'catalog.product.create';
 
     /** Change a product's shared data, its variants, gallery, relations and search words. */

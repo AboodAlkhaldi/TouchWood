@@ -126,6 +126,16 @@ interface PlatformApi
     public function mediaUrlsOf(array $mediaIds): array;
 
     /**
+     * As media(), for a page of media at once, **in one query**: a screen showing a gallery reads each
+     * photo's state together (catalog.md §2.4, S9; owner, 2026-10-07, #10).
+     *
+     * @param  list<string>  $mediaIds
+     * @return array<string, MediaDto> keyed by the media id, lower-cased; an id that is not a ULID, or
+     *                                 names no media, is left out
+     */
+    public function mediaOf(array $mediaIds): array;
+
+    /**
      * Call inside the transaction of the change being audited, after checking permission. Platform
      * records the actor, the source (web, integration, console or job) and the date itself.
      */
