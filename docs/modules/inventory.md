@@ -1,10 +1,11 @@
 # Inventory — module specification
 
-**Status (2026-10-09): the full spec, its questions answered by the owner.** §2 — what other modules
-call — was agreed first and is on `main` (#97, "interfaces first", owner 2026-10-07). The rest follows
-from the owner's answers of 2026-10-01 to 2026-10-09; the last round, my proposals included, is §9.2.
-What waits for the provider's team or another session is §9.1. Handoff §12.1, revised 2026-10-07 and
-2026-10-09, is the source.
+**Status (2026-10-10): the full spec, accepted** (#102, 2026-10-10); **returns (§1.9) and order edits
+(§1.4, `adjustHold`) added, for the owner's review** — the two new calls marked [PROPOSED]. §2 — what
+other modules call — was agreed first and is on `main` (#97, "interfaces first", owner 2026-10-07). The
+rest follows from the owner's answers of 2026-10-01 to 2026-10-10 (§9.2). What waits for the
+provider's team or another session is §9.1. Handoff §12.1, revised 2026-10-07, 2026-10-09 and
+2026-10-10, is the source.
 
 ## What Inventory does not own
 
@@ -29,7 +30,8 @@ What waits for the provider's team or another session is §9.1. Handoff §12.1, 
 3. **A store wired to a provider** (Sync, KSA to be): the provider's stock is **read, never held or
    reduced** (owner, 2026-10-09). An **ordinary** product's stock **does not limit ordering**. A
    **stock-dependent** size counts on **the provider's stock minus this store's holds not yet ticked
-   "reduced in the provider"** (handoff §12.1's worked example). **Gifts** count on stock in every store.
+   "reduced in the provider"** (handoff §12.1's worked example) — plus, provisionally, pieces returned
+   and not yet in the provider's number (§1.9). **Gifts** count on stock in every store.
 4. **The low-stock threshold only ever alerts staff; it never changes what can be ordered** (owner,
    2026-10-09). Ordering is limited only by stock running out — in a store with no provider always; in
    a wired store only for stock-dependent sizes and gifts.
@@ -75,7 +77,12 @@ replaces handoff §9.2's provisional "or the provider reports 0 — automaticall
   line's hold; the provider's own number then shows it.
 - **A cancel frees** whatever the order still holds. A hold may carry an **expiry** (an unpaid order,
   a bank transfer being verified — Sales sets it); a scheduled job frees expired holds.
-- Shipping, ticking and freeing are safe to repeat.
+- **Staff edit an order before it ships** (owner, 2026-10-10, through stage 6): lines added, removed,
+  quantities changed. The hold **moves to exactly the edited lines, all or nothing** — the extra
+  pieces held as at placement (one line short and nothing changes, `inventory.not_enough_stock`), the
+  fewer freed; the same rules decide which lines count on stock; the expiry stays. A line already
+  shipped or ticked is not editable (`inventory.hold_not_editable`).
+- Shipping, ticking, freeing and editing are safe to repeat.
 
 ### 1.5 Hand changes — a store with no provider
 
@@ -92,7 +99,7 @@ Under **Manage Stock** in that store (owner, 2026-10-09):
 ### 1.6 The ledger
 
 `inventory.stock_movements` is **append-only**: every change of in stock — a stocktake, an addition or
-removal with its reason, a shipment, the store's file, the provider's number — with its before and
+removal with its reason, a shipment, a return, the store's file, the provider's number — with its before and
 after, who or what made it, and a unique reference, so a repeated message is never counted twice
 (handoff §12.1). Holds and their ends are kept on the holds themselves (§5).
 
@@ -111,6 +118,30 @@ is ignored in a wired store, the provider being its source. **When an item is sw
 **sets** the size's in stock (a "set to" movement, reason **File**), audited as the file's. **One code is
 one size** (owner, 2026-10-09; Catalog's amendment 16).
 
+### 1.9 Returns
+
+**Returned pieces go back into stock when staff mark the return received** (owner, 2026-10-09,
+through stage 6: "1 yes"). Sales passes only the pieces going back — **staff may leave a damaged piece
+out** — and each return once (its id makes it safe to repeat).
+
+| Store, size | What happens |
+|---|---|
+| A store with no provider | **In stock rises** — a movement, reason **Returned** |
+| A wired store, an ordinary product | **Nothing**: the provider's number rules ("otherwise it depends on odoo") |
+| A wired store, a **stock-dependent** size, or a **gift** (a gift counts on stock in every store) | **PROVISIONAL** (owner, 2026-10-10) — see below |
+
+**The provisional rule** — to be discussed again when the provider's team says whether we may write
+to it (owner, 2026-10-10: "keep it in mind that we're gonna rediscuss this again"). Until then we
+assume we may not: the returned pieces are **added on our side at once** — the size's **returned
+extra** — so the size's figure is **the provider's number + returned extra − held**. **The next time
+the provider's number changes, we follow the provider**: the returned extra goes back to 0. A reading
+with the same number changes nothing. If staff add the piece in the provider, its number changes and
+nothing is counted twice; if the number changes for another reason first, the piece is undercounted
+until staff add it there. **The one way to overcount**: the piece is added in the provider and another
+taken there between two of our readings, so the number comes back the same — then one piece too many
+shows until the provider's number next changes. A known limit of the provisional rule, for the
+discussion.
+
 ---
 
 ## 2 · Public contract
@@ -127,9 +158,11 @@ Quantities are whole pieces (≥ 1). **On `main` since #97.**
 | `ship(string $orderId, list<HoldLineDto> $lines): void` | Sales (an order or part of it shipped) | Takes the shipped pieces off the stock and off the hold — in a store with no provider. In a wired store nothing is taken: the provider is the source; a stock-dependent line's hold waits for the tick. |
 | `reducedInProvider(string $orderId, list<string> $variantIds): void` | Sales (staff ticked "reduced in the provider") | Ends those lines' holds in a wired store. |
 | `release(string $orderId): void` | Sales (a cancel), Inventory's own expiry job | Frees whatever the order still holds. |
+| `adjustHold(string $orderId, list<HoldLineDto> $newLines): void` | Sales (staff edited an order before it ships) | Moves the order's hold to exactly `newLines`, all or nothing (§1.4): the extra held, refused with `inventory.not_enough_stock` as at placement; lowered or removed lines freed; the expiry kept. No hold for the order: `inventory.no_hold`; a line already shipped or ticked: `inventory.hold_not_editable`. **[PROPOSED** — stage 6's shape, 2026-10-10**]** |
+| `returned(string $orderId, string $returnId, list<HoldLineDto> $lines): void` | Sales (staff marked a return received) | Puts the lines' pieces back as §1.9 says, by kind of store and size; a gift line on gift rules. Only the pieces going back. The store is the order's (its hold). **[PROPOSED** — agreed with stage 6, 2026-10-10**]** |
 
-`ship`, `reducedInProvider` and `release` are safe to repeat: a line already shipped, ticked or freed
-is left as it is. A refusal reaches the caller as `Shared\Domain\Error\DomainError` with a stable
+`ship`, `reducedInProvider`, `release`, `adjustHold` and `returned` are safe to repeat: a line already
+shipped, ticked or freed is left as it is; the same edit twice changes nothing; a return id counts once. A refusal reaches the caller as `Shared\Domain\Error\DomainError` with a stable
 `type()` key and its `context()` — modules export no error classes.
 
 ### 2.2 The values
@@ -197,7 +230,9 @@ HELD ──ship (no provider)──────────────► SHIPP
 ```
 
 A line may be shipped in parts; each part takes its pieces off. A line of an ordinary product in a
-wired store is **NOTED** and never held.
+wired store is **NOTED** and never held. **While HELD and nothing shipped or ticked**, an edit
+(`adjustHold`) may change its quantity, or end it as **RELEASED** when the line is removed; a line the
+edit adds starts HELD (or NOTED).
 
 ### 4.2 The stock-dependent switch (wired store)
 
@@ -212,11 +247,12 @@ column is written so a NULL cannot slip through (lesson 162).
 
 | Table | Columns |
 |---|---|
-| `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK ≥ 0 · `stock_dependent` boolean (wired) · `ending_soon` boolean — the last value pushed to Catalog · `updated_at` |
+| `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK ≥ 0 · `stock_dependent` boolean (wired) · `returned_extra` int NOT NULL DEFAULT 0 CHECK ≥ 0 — pieces returned in a wired store, not yet in the provider's number (§1.9, provisional) · `ending_soon` boolean — the last value pushed to Catalog · `updated_at` |
 | `inventory.store_products` | (`store_id`, `product_id` FK `catalog.products` CASCADE) PK · `ending_soon` boolean — "last pieces" switched on for the product (no provider) |
 | `inventory.holds` | `id` ULID PK · `store_id` · `order_id` unique · `expires_at` NULL · `created_at` |
 | `inventory.hold_lines` | (`hold_id` FK CASCADE, `variant_id`) PK · `quantity` CHECK ≥ 1 · `gift` boolean · `counts_on_stock` boolean · `shipped` int CHECK ≥ 0 · `ended` CHECK (`OPEN`, `SHIPPED`, `REDUCED`, `RELEASED`, `EXPIRED`) · `ended_at` NULL |
-| `inventory.stock_movements` | `id` bigint PK (handoff §5.3) · `store_id` · `variant_id` · `reason` CHECK (`STOCKTAKE`, `RECEIVED`, `DAMAGED_LOST`, `OFFLINE_SALE`, `CORRECTION`, `SHIPPED`, `FILE`, `PROVIDER`) · `change` int · `before` int · `after` int · `note` NULL (required for `CORRECTION`) · `reference` unique · `actor` · `created_at` — never updated, never deleted |
+| `inventory.stock_movements` | `id` bigint PK (handoff §5.3) · `store_id` · `variant_id` · `reason` CHECK (`STOCKTAKE`, `RECEIVED`, `DAMAGED_LOST`, `OFFLINE_SALE`, `CORRECTION`, `SHIPPED`, `RETURNED`, `FILE`, `PROVIDER`) · `change` int · `before` int · `after` int · `note` NULL (required for `CORRECTION`) · `reference` unique · `actor` · `created_at` — never updated, never deleted |
+| `inventory.return_lines` | (`return_id`, `variant_id`) PK · `store_id` · `order_id` · `quantity` CHECK ≥ 1 · `gift` boolean · `created_at` — each return counted once, and its history |
 
 ---
 
@@ -255,6 +291,8 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | `NotWired` | CONFLICT | the stock-dependent switch in a store with no provider |
 | `ThresholdInvalid` | INVALID | a threshold below 0 |
 | `StoreOff` | FORBIDDEN | changing an off store's stock without the store switch |
+| `NoHold` | NOT_FOUND | editing or returning for an order with no hold |
+| `HoldNotEditable` | CONFLICT | editing a hold whose line is already shipped or ticked |
 
 ---
 
@@ -287,6 +325,14 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
     counted once.
 12. **Permissions and audit**: Manage Stock in that store only; every change by value, both languages.
 13. **The database's own refusals**: every CHECK broken once, nullable columns left NULL.
+14. **Editing an order's hold**: a quantity raised — all or nothing, one line short and nothing
+    changes; lowered and removed lines freed; a line added; the same edit twice changes nothing; the
+    expiry kept; a wired ordinary line noted; refused after a shipment or a tick; no hold refused.
+15. **Returns**: a store with no provider — in stock rises, a Returned movement; a wired ordinary
+    product — nothing; a wired stock-dependent size and a gift — the returned extra rises, the figure
+    is the provider's number + extra − held, a differing provider number sets the extra to 0, an equal
+    one keeps it; a damaged piece not passed is not counted; the same return id twice counted once;
+    "ending soon" and orderable pushed when they flip.
 
 ---
 
@@ -298,11 +344,12 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 |---|---|---|
 | 1 | Which warehouse / location counts for the online store, and "On hand" or "Available"? | The provider's team (asked 2026-10-09) |
 | 2 | Does the provider call us when stock changes (a webhook), besides our reading every few minutes? | Same |
-| 3 | Returns: does a returned piece go back into stock in a store with no provider, and when? | Sales's spec (stage 6) |
+| 3 | **Returns in a wired store** (§1.9): the provisional rule stands until the provider's team says whether we may write to it — then the owner and I discuss it again | The provider's team (owner, 2026-10-10) |
 | 4 | `ListingFacts::endingSoon` (§2.3) | Catalog's amendment 16(h), PR #103 — the owner's review |
 | 5 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |
+| 6 | `adjustHold` and `returned` — the shapes in §2.1 | The owner's review of this amendment |
 
-### 9.2 Answered (owner, 2026-10-09)
+### 9.2 Answered (owner, 2026-10-09 and 2026-10-10)
 
 | # | Question | Answer |
 |---|---|---|
@@ -314,3 +361,6 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 6 | **A size with no stock row** in a store with no provider counts as 0 — not orderable until stock is set | Accepted |
 | 7 | **Holds' ends kept on the holds**, the ledger keeping only changes of in stock | Accepted |
 | 8 | **The setting's name** `inventory.low_stock.default` for the store's default threshold | Accepted |
+| 9 | Returns: does a returned piece go back into stock, and when? (asked in Sales's spec) | **Yes, when staff mark the return received** — in a store with no provider and for a wired store's stock-dependent sizes; a wired ordinary product follows the provider; staff may leave a damaged piece out (owner, 2026-10-09) (§1.9) |
+| 10 | A wired stock-dependent size's returned piece | **Provisional** (owner, 2026-10-10): added on our side at once, dropped when the provider's number next changes (§1.9) |
+| 11 | Staff editing an order before it ships | **Allowed in full** — lines, quantities, address (owner, 2026-10-10, through stage 6); the hold follows (§1.4) |
