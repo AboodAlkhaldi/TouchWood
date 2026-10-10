@@ -1,7 +1,7 @@
 # Sales — Module Specification
 
 **Status:** DRAFT for the owner's review — sections 1–9 written 2026-10-10 from the owner's answers of
-2026-10-07 to 2026-10-10 (§9.1), rewritten after two independent reviews (§9.3). Nothing is built
+2026-10-07 to 2026-10-10 (§9.1), rewritten after two independent reviews and a final check (§9.3). Nothing is built
 before the owner accepts it; all four of stage 6's specs come first (owner, 2026-10-07).
 **Tier:** 1. **Stage:** 6 (handoff §17), the last of the stage's modules to be built (Loyalty →
 Promotions → Feedback → Sales).
@@ -10,8 +10,8 @@ Catalog, Pricing, Inventory, Promotions, Loyalty, Shipping, Payments. **Shipping
 stage 7** and wait for the owner's vendor data (handoff §15.1): Sales states exactly what it needs from
 them and works without them until then (owner, 2026-10-07: "interfaces now, stage 7 fills them").
 **Source:** `docs/HANDOFF.md` §1, §2, §4.4, §4.5, §5.1–§5.5, §6, §7.4, §7.5, §7.8, §7.9, §10.2,
-§11.3, §12.1–§12.6, §14, §16 and its amendments to 2026-10-10; `docs/modules/pricing.md` (and PR #107),
-`inventory.md` (and PR #106), `catalog.md` §1.13, §2.2, `b2b.md` §9, `platform.md` §5.6, §9.10,
+§11.3, §12.1–§12.6, §14, §16 and its amendments to 2026-10-10; `docs/modules/pricing.md` (with #107, merged),
+`inventory.md` (with #106, merged), `catalog.md` §1.13, §2.2, `b2b.md` §9, `platform.md` §5.6, §9.10,
 `promotions.md`, `loyalty.md`, `feedback.md`; the owner's answers (§9.1); the merged code as of
 `4f8fccc`.
 
@@ -109,7 +109,7 @@ Built in this fixed order (handoff §10.2, §11.3):
 `PlaceOrder(quoteId)` — a quote of this buyer, not expired. **One transaction**, in this order:
 
 1. **The quote is locked** (`SELECT … FOR UPDATE`) and **an order already placed from it is answered
-   as it is** — placing twice is placing once, however often the button is pressed (b2b.md §9 #7).
+   as it is** — before the quote's expiry is checked, so a retry after 15 minutes still gets its order — placing twice is placing once, however often the button is pressed (b2b.md §9 #7).
    The order keeps its quote's id (unique), the backstop.
 2. **The order's public number** — the store's code in capitals and the store's own sequence,
    **`SA-10428`** (owner, 2026-10-09; the KSA store's code is `sa`, platform.md §5.2) — taken first,
@@ -170,14 +170,16 @@ money back (`REFUNDED`).
 
 **Shipping unpaid orders**: staff may approve an unpaid order; **whether it may ship before it is paid is
 decided by staff per order** (owner, 2026-10-10) — an explicit, audited "may ship unpaid". Without it, an
-order not `PAID` cannot be marked shipped.
+order cannot be marked shipped until what it holds covers what is due — `PAID`, `REFUND_DUE` or
+`NOTHING_DUE`.
 
 ### 1.5 Shipping, delivery, and a parcel that comes back
 
-- **Marking shipped**: the carrier and a tracking number (free text until stage 7);
+- **Marking shipped**: the carrier, and a tracking number when there is one (free text until stage 7;
+  the number optional — my assumption, stated for the owner to reject);
   `InventoryApi::ship` takes the stock off (in a store with no provider; a wired store's provider is the
-  source); refused (`NotShippable`) if the order is flagged "not enough stock" (§1.11), or not `PAID`
-  without "may ship unpaid".
+  source); refused (`NotShippable`) if the order is flagged "not enough stock" (§1.11), or holds less
+  than is due without "may ship unpaid".
 - **"Reduced in the provider"**, in a wired store: per variant, for stock-dependent variants and for
   the gift, staff tick once they have reduced its stock in the provider (handoff §12.3) —
   `InventoryApi::reducedInProvider`, which ends that variant's hold lines.
@@ -189,8 +191,12 @@ order not `PAID` cannot be marked shipped.
   - writes `OrderDelivered` to the outbox (§6).
 - **The parcel came back** — refused at the door, a wrong address, lost and returned (owner,
   2026-10-10: staff mark it by hand). Staff mark a shipped order **came back** once it is at the
-  warehouse, choosing which pieces go back into stock — a damaged one may be left out —
-  `InventoryApi::returned(orderId, cameBackId, lines)`. It is settled **as a whole return of an order
+  warehouse — or lost for good, with nothing to put back — choosing which pieces go back into stock (a
+  damaged one may be left out). `InventoryApi::release` first frees what the order still holds (a wired
+  store's lines not yet ticked); then `InventoryApi::returned(orderId, cameBackId, lines)` gets only the
+  pieces put back **whose stock was taken** — every piece in a store with no provider, the ticked ones in
+  a wired store — so nothing is counted back twice (`returned` for a parcel that came back, and
+  `release` after shipping, asked of the stage 5 session as an Inventory amendment, 2026-10-10). It is settled **as a whole return of an order
   never delivered**: what is due becomes 0, so everything paid, shipping included, is a refund due,
   settled by hand (§1.9); `LoyaltyApi::orderCancelled` gives the points used back (nothing was earned);
   the coupon's use stays counted (promotions.md §2.1). The order is `UNDELIVERED`; the customer sees
@@ -219,35 +225,38 @@ ticked "reduced in the provider"** (Inventory then refuses, `inventory.hold_not_
 has its own id and a reason, and is audited. **Staff first see the edit worked out** (steps 1–6, reads
 only), then confirm it; confirming works it out again in one transaction, under the order's lock.
 
+**An edit keeps the rules the order was placed under** (owner, 2026-10-10): the discount ceiling, the
+points cap and the shipping rule — so changing only the address never trims a coupon or points.
+
 **Added lines follow checkout's rules** (§1.2 step 2): orderable here in their mode, within their
 minimum and maximum, wholesale only for a company, their category open to the account type, priced;
 their stock is checked by the hold (step 7).
 
-1. **Prices** — `PricingApi::pricesForEdit` (pricing.md §1.11, PR #107 [PROPOSED]): **the kept parts as
+1. **Prices** — `PricingApi::pricesForEdit` (pricing.md §1.11, #107 merged as `89c07e9`): **the kept parts as
    they were sold** (`KeptPartDto` from the order's lines: variant, mode, quantity as edited, list unit,
    unit, price kind), **the added lines priced now** — a wholesale one by **today's band for the line's
    new total quantity, applied to the added pieces only** (owner, 2026-10-10: "band for the new
    total") — and **the order's own VAT rate**. A raised quantity adds a **part** to the line; **a
    lowered quantity takes the pieces off the newest part first**, and a part left with none goes. The
-   result's lines come back in the order given, kept parts then added lines (pricing.md §2.1, PR #107),
+   result's lines come back in the order given, kept parts then added lines (pricing.md §2.1),
    so each matches its order line by place — once Sales has checked that nothing came back `unpriced`
    (an unpriced line is left out of the lines; an unpriced added line is refused).
-2. **The room** under the ceiling for the edited prices — `PromotionsApi::customerDiscountRoom`.
-3. **The coupon** — `PromotionsApi::couponAfterEdit` with the whole room: never more than at placement,
+2. **The room** under **the ceiling the order was placed under**, for the edited prices —
+   `PromotionsApi::orderDiscountRoom` (promotions.md §1.6).
+3. **The coupon** — `PromotionsApi::couponAfterEdit` with the whole room: never more than it is now (after an
+   earlier edit, that edit's),
    0 if the edited order is under its minimum or has no eligible line, **trimmed to the room only when
    the coupon alone passes it** (owner, 2026-10-10: it "can only stay or shrink"; promotions.md §1.3).
 4. **The points** — `LoyaltyApi::pointsAfterEdit` (a Loyalty addition, §2.3) with the edited
    `net_subtotal` and the room the coupon left: the points discount becomes the least of what it was,
-   Loyalty's cap on the edited `net_subtotal`, and that room — **the points give way before the coupon**
+   Loyalty's cap on the edited `net_subtotal` (by the percent the order redeemed under), and that room — **the points give way before the coupon**
    (handoff §11.3: "points are evaluated last and refused first").
-5. **Shipping** — worked out again by the order's own snapshotted fee and free-above amount, so an edit
-   never changes the store's rule for an order already placed. My assumption, stated for the owner to
-   reject.
+5. **Shipping** — worked out again by the order's own snapshotted fee and free-above amount.
 6. **The totals** — `PricingApi::totals` over the edited prices, the coupon, the points and the
    shipping. **The gift — staff decide** (owner, 2026-10-10): keep it, swap it for the gift of the level
    the edited order now reaches (up or down, stock permitting), or remove it.
-7. **On confirming**: `InventoryApi::adjustHold(orderId, newLines)`, all or nothing (PR #106
-   [PROPOSED]); `LoyaltyApi::orderEdited` gives back the points above the new points discount with
+7. **On confirming**: `InventoryApi::adjustHold(orderId, newLines)`, all or nothing (inventory.md §1.4,
+   #106 merged as `4cca6fc`); `LoyaltyApi::orderEdited` gives back the points above the new points discount with
    their old dates and answers the points still used; `PromotionsApi::updateCouponUse` records the
    coupon's new discount (the use still counts). Every line's shares are allocated again (§1.8), so
    returns settle on the edited order.
@@ -264,13 +273,14 @@ An edit does not clear the "not enough stock" flag by itself (§1.11).
   "Other"** (damaged, wrong item, not as described, changed my mind, other), and **up to 3 photos**,
   kept private for staff (owner, 2026-10-10; Platform's `uploadMediaFor`, registered as a media use
   that blocks deleting, handoff §5.5). **The gift may be returned too, and refunds nothing** (owner,
-  2026-10-10). A request counts the pieces of every return not refused, withdrawn or closed, so two
-  requests can never claim the same piece. The customer may withdraw a request until staff decide.
+  2026-10-10). A request counts the pieces asked in every return requested or accepted, and the pieces
+  received in every return received or completed — refused, withdrawn and closed ones count none — so
+  two requests never claim one piece, and a piece that never came may be asked again. The customer may withdraw a request until staff decide.
 - **Staff accept or refuse** it — a refusal with a reason the customer sees (my assumption, stated for
   the owner to reject). Return shipping is paid by the company (handoff §12.5); the refund is manual
   (handoff §12.4). An accepted return whose pieces never arrive may be **closed**.
 - **Staff mark the pieces received** — how many of each came, and which go back into stock (a damaged
-  piece may be left out) — `InventoryApi::returned(orderId, returnId, lines)` (PR #106): restocked in a
+  piece may be left out) — `InventoryApi::returned(orderId, returnId, lines)` (inventory.md §2.1): restocked in a
   store with no provider and for a wired store's stock-dependent variants; a wired store's ordinary
   products follow the provider (owner, 2026-10-09); a gift on gift rules.
 - **Completing it** refunds what was received:
@@ -286,7 +296,8 @@ An edit does not clear the "not enough stock" flag by itself (§1.11).
 **The shares** — fixed at placement and after every edit, so returning everything refunds exactly
 `order_total`, no halala lost (handoff §5.1):
 
-1. **The coupon's** — Promotions' answer, one share per eligible line (promotions.md §2.2).
+1. **The coupon's** — Promotions' answer, one share per line of the prices, in their order, 0 where a
+   line is not eligible (promotions.md §2.2).
 2. **The points'** — the points discount spread with `Money::allocate` over the lines by **their total
    less their coupon share**, so no line's goods share goes below 0. None when the points discount is
    0 (Pricing refuses discounts above `net_subtotal`, pricing.md §1.7, so a points discount above 0
@@ -320,7 +331,8 @@ The sum over every piece, plus the shipping and its VAT share, is `goods_total` 
 - **Bank transfer — and its document** (b2b.md §9 #2, amendment 12(c): the owner put it in Sales,
   stage 6): the company is shown the store's account, transfers, and **uploads the transfer's
   document** on its order — **up to 3 files**, PDF, JPEG or PNG, private (handoff §5.5; my assumption,
-  stated for the owner to reject, for the number), until staff record the payment. Staff open them
+  stated for the owner to reject, for the number), while the order holds less than is due — a balance
+  after an edit included. Staff open them
   from the order and record the payment. A target time to check transfers is Payments' (stage 7,
   handoff §12.4).
 - **Until stage 7** there is no online payment: individuals see "staff will contact you"; **staff record
@@ -356,7 +368,7 @@ Inventory may let staff remove stock that is held for orders, and then publishes
 variantId, orderIds)` (inventory.md §6.1). **Sales flags those orders "not enough stock"** for staff — who
 contact the customer and edit (§1.7), cancel, or wait for stock. A flagged order cannot be marked
 shipped. **Staff clear the flag by hand** once it is settled: Inventory's hold moves only the pieces an
-edit adds or frees (inventory.md §1.4, PR #106), so a successful edit does not show that the shortage is gone.
+edit adds or frees (inventory.md §1.4), so a successful edit does not show that the shortage is gone.
 
 ### 1.12 A deleted customer, an off store, each store's rows
 
@@ -365,7 +377,10 @@ edit adds or frees (inventory.md §1.4, PR #106), so a successful edit does not 
   account's carts are deleted.
 - **An off store's unfinished orders stay with its staff to finish** (handoff §1; owner, 2026-10-10):
   **Sales's order and return screens list an off store to its own staff while it has unfinished
-  orders** — an exception to platform.md §9.10 #4, for these screens only. Unfinished: an order not
+  orders** — an exception to platform.md §9.10 #4, for these screens only. Sales builds that store filter
+  itself, from `PlatformApi::allStores` and the stores where the reader holds the permission: Access
+  keeps an off store a staff member holds (inferred from `GrantRules::requireKnownStores`, access.md
+  amendment 58(b); checked again at build). Unfinished: an order not
   yet completed, cancelled, rejected or undelivered, one with a return not yet completed, refused,
   withdrawn or closed, or one whose payment is `UNPAID`, `PARTLY_PAID` or `REFUND_DUE` — my reading,
   stated for the owner to reject. Its shop and new orders are gone with it.
@@ -376,7 +391,7 @@ edit adds or frees (inventory.md §1.4, PR #106), so a successful edit does not 
 ### 1.13 Best-selling
 
 Catalog's "Best-Selling" sort waits for Sales (catalog.md §2.2: `ListingFacts::salesRanks`). **A nightly
-job ranks each store's products by the pieces sold in that store's orders not cancelled over the last
+job ranks each store's products by the pieces sold in that store's orders not cancelled, rejected or undelivered over the last
 90 days**, and pushes the ranks. My assumption for the measure and the window, stated for the owner to
 reject.
 
@@ -409,14 +424,14 @@ A rejection and a parcel that came back publish nothing yet; Ops adds what its m
 
 | From | What | State |
 |---|---|---|
-| Pricing | `prices`, `totals`; **`pricesForEdit`** with `KeptPartDto`; **the result's lines in the order given**, an unpriced line left out and named | `prices`, `totals` on `main` (#97); `pricesForEdit` and the lines' order in **PR #107 [PROPOSED]** (2e5e9ef) |
-| Inventory | `stock` (with `availableAsGift`), `hold`, `ship`, `reducedInProvider`, `release`, `HoldsShort`; `adjustHold`, `returned` | Interfaces on `main` (#97); `HoldsShort` specified (#102); **`adjustHold` and `returned` in PR #106 [PROPOSED]** |
-| Promotions | `applyCoupon`, `customerDiscountRoom`, `giftLevels`, `useCoupon`, `recordOrder`, `couponAfterEdit` (with the whole room), `updateCouponUse`; **one share per price line, in the prices' order** | promotions.md (PR #101) — the room and the shares' keys corrected there with this spec |
-| Loyalty | `earningPreview`, `quoteRedemption`, `redeem`, `earn`, `orderCancelled`, `orderReturned`; **`pointsAfterEdit`** (reads) and **`orderEdited` answering the points still used** | loyalty.md (PR #96) — the edit's read and answer added there with this spec |
+| Pricing | `prices`, `totals`; **`pricesForEdit`** with `KeptPartDto`; **the result's lines in the order given**, an unpriced line left out and named | `prices`, `totals` on `main` (#97); `pricesForEdit` and the lines' order on `main` (#107, `89c07e9`) |
+| Inventory | `stock` (with `availableAsGift`), `hold`, `ship`, `reducedInProvider`, `release`, `HoldsShort`; `adjustHold`, `returned` | Interfaces on `main` (#97); `HoldsShort` specified (#102); `adjustHold` and `returned` on `main` (#106, `4cca6fc`); **`returned` for a parcel that came back and `release` after shipping asked of the stage 5 session** (2026-10-10) |
+| Promotions | `applyCoupon`, `customerDiscountRoom`, `giftLevels`, `useCoupon`, `recordOrder`; for edits `orderDiscountRoom` (the order's own ceiling), `couponAfterEdit` (with the whole room, never above the discount now), `updateCouponUse`; **one share per price line, in the prices' order** | promotions.md (PR #101) — corrected there with this spec |
+| Loyalty | `earningPreview`, `quoteRedemption`, `redeem`, `earn`, `orderCancelled`, `orderReturned`; **`pointsAfterEdit`** (reads, by the cap the order redeemed under) and **`orderEdited` answering the points still used** | loyalty.md (PR #96) — added there with this spec |
 | Catalog | **the store's variants in bulk** (`storeVariant` reads one, `CatalogApi`); `variant`, `product` and the bulk reads Feedback adds (snapshots); **whether a product's category is open to an account type in a store**, in bulk; `ListingFacts::salesRanks`; the usage check (a variant on an order is never deleted, promotions.md §1.2) | `storeVariant`, `variant`, `product`, `ListingFacts` exist; **the bulk store-variant read and the category read are Catalog additions** — to agree with the Catalog-screens session, who own §1.13 |
 | Access | `customerMayOrder`, `customer`, `addresses`, `address`, `GuestBecameCustomer`, `CustomerAnonymized` | Exist |
 | B2B | `isApproved`, `bankAccount` | Exist |
-| Platform | `store` (`isActive`), `StoreCreated`, settings, the audit log, `uploadMediaFor` and media uses (return photos, transfer documents), staff names | Exist |
+| Platform | `store` (`isActive`), `allStores`, `StoreCreated`, settings, the audit log, `uploadMediaFor` and media uses (return photos, transfer documents), staff names | Exist |
 | Shared | **`outbox_messages` and `processed_events`, in the `public` schema** (platform.md §5.6), and the outbox's relay | **Built with Sales** — the first module to publish through the outbox |
 
 **Other modules' refusals** reach Sales as `DomainError` with a stable `type()` (pricing.md §2.1:
@@ -499,7 +514,7 @@ ORDER      PENDING_APPROVAL ─▶ APPROVED ─▶ COMPLETED            (deliver
 
 SHIPMENT   NOT_SHIPPED ─▶ SHIPPED ─▶ DELIVERED | CAME_BACK        (one per order; shipped only
                                                                    APPROVED, not flagged short,
-                                                                   PAID or "may ship unpaid")
+                                                                   held ≥ due or "may ship unpaid")
 
 PAYMENT    derived: NOTHING_DUE · UNPAID · PARTLY_PAID · PAID · REFUND_DUE · REFUNDED
 
@@ -526,13 +541,13 @@ and the rows of one order carry its store through composite keys.
 | `sales.carts` | `id`, `store_id`, `customer_id` NULL → `access.customers` CASCADE, `guest_id` NULL, `coupon_code` NULL, `notice` NULL (the lines removed at sign-in), `created_at`, `updated_at` | CHECK `num_nonnulls(customer_id, guest_id) = 1`; CHECK `customer_id IS NOT NULL OR coupon_code IS NULL`; UNIQUE (`store_id`, `customer_id`), UNIQUE (`store_id`, `guest_id`) |
 | `sales.cart_lines` | `cart_id` → carts CASCADE, `variant_id` → `catalog.variants` CASCADE, `sale_mode`, `quantity`, `added_at` | PK (`cart_id`, `variant_id`, `sale_mode`); CHECK `sale_mode IN ('RETAIL','WHOLESALE')`, `quantity BETWEEN 1 AND 1000000` |
 | `sales.quotes` | `id`, `store_id`, `customer_id` → `access.customers` CASCADE, `address_id`, `coupon_code` NULL, `points_asked` NULL, `way_to_pay`, `result` jsonb (the itemised §1.2), `expires_at`, `created_at` | CHECK `way_to_pay IN ('ONLINE','BANK_TRANSFER','STAFF_CONTACT')`; deleted nightly once expired and not placed |
-| `sales.orders` | `id`, `store_id`, `number`, `quote_id`, `customer_id` → `access.customers` RESTRICT, `audience`, `locale`, `currency_code` → `platform.currencies`; the snapshot: `customer_name`, `customer_email` NULL (cleared on anonymizing), `customer_phone`, `address` jsonb; `status`, `shipment_status`, `way_to_pay`, `coupon_id` NULL, `coupon_code` NULL, `coupon_discount_minor`, `points_used`, `points_discount_minor`, `gross_subtotal_minor`, `net_subtotal_minor`, `goods_total_minor`, `shipping_fee_minor`, `shipping_rule_fee_minor`, `shipping_rule_free_above_minor`, `taxable_base_minor`, `vat_minor`, `vat_rate_basis_points`, `order_total_minor`, `due_minor`, `paid_minor`, `refunded_minor`, `may_ship_unpaid`, `short_of_stock_at` NULL, `gift_level_id` NULL, `placed_at`, `decided_by` NULL → `access.staff_users`, `decided_at` NULL, `decision_reason` NULL, `cancel_reason` NULL, `cancel_other` NULL, `cancelled_by` NULL, `cancelled_at` NULL, `carrier` NULL, `tracking_number` NULL, `shipped_at` NULL, `delivered_at` NULL, `came_back_id` NULL, `came_back_at` NULL | UNIQUE (`store_id`, `number`); UNIQUE (`quote_id`); UNIQUE (`id`, `store_id`); UNIQUE (`id`, `store_id`, `currency_code`); CHECK `audience IN ('PUBLIC','COMPANY')`, `status IN ('PENDING_APPROVAL','APPROVED','REJECTED','CANCELLED','COMPLETED','UNDELIVERED')`, `shipment_status IN ('NOT_SHIPPED','SHIPPED','DELIVERED','CAME_BACK')`, `way_to_pay IN ('ONLINE','BANK_TRANSFER','STAFF_CONTACT')`, `cancel_reason IN (…)`; **the decision**: CHECK `(status = 'PENDING_APPROVAL' AND decided_at IS NULL) OR (status IN ('APPROVED','REJECTED','COMPLETED','UNDELIVERED') AND decided_at IS NOT NULL) OR status = 'CANCELLED'` — a cancelled order was cancelled waiting or after approval; **the cancellation**: CHECK `(status = 'CANCELLED') = (cancelled_at IS NOT NULL)`, `status <> 'CANCELLED' OR shipment_status = 'NOT_SHIPPED'`, `(cancel_reason = 'OTHER') = (cancel_other IS NOT NULL)` with both NULL unless cancelled; **the shipment**: CHECK `(shipment_status = 'NOT_SHIPPED') = (shipped_at IS NULL)`, `(shipment_status = 'DELIVERED') = (delivered_at IS NOT NULL)`, `(shipment_status = 'CAME_BACK') = (came_back_at IS NOT NULL AND came_back_id IS NOT NULL)`, `(status = 'COMPLETED') = (shipment_status = 'DELIVERED')`, `(status = 'UNDELIVERED') = (shipment_status = 'CAME_BACK')`, `shipment_status = 'NOT_SHIPPED' OR status IN ('APPROVED','COMPLETED','UNDELIVERED')`; **the coupon**: CHECK `(coupon_id IS NULL) = (coupon_code IS NULL)`, `coupon_id IS NOT NULL OR coupon_discount_minor = 0` (an edit may leave a coupon at 0); **the points**: CHECK `(points_used = 0) = (points_discount_minor = 0)`; CHECK every amount `>= 0`, `due_minor <= order_total_minor`, `refunded_minor <= paid_minor` |
-| `sales.order_lines` | `id`, `order_id`, `store_id`, `product_id` → `catalog.products` RESTRICT, `variant_id` → `catalog.variants` RESTRICT, `edit_id` NULL (the part an edit added), `is_gift`, the snapshot (`name_ar`, `name_en`, `variant_values` jsonb, `code`), `sale_mode`, `price_kind` NULL (none for the gift), `quantity`, `unit_minor`, `list_unit_minor`, `total_minor`, `coupon_share_minor`, `points_share_minor`, `vat_share_minor` | (`order_id`, `store_id`) → orders (`id`, `store_id`) RESTRICT; (`edit_id`, `order_id`) → order_edits (`id`, `order_id`) RESTRICT; UNIQUE (`id`, `order_id`); CHECK `sale_mode IN ('RETAIL','WHOLESALE')`, `(price_kind IS NULL) = is_gift`, `price_kind IN ('BASE','SALE','CAMPAIGN','CATEGORY','QUANTITY')`, `quantity >= 1`; CHECK every share `>= 0` and `coupon_share_minor + points_share_minor <= total_minor`; CHECK a gift line has `unit_minor = 0`, `list_unit_minor = 0`, `total_minor = 0` and every share 0; one gift line per order (UNIQUE (`order_id`) WHERE `is_gift`). Rows change only before shipping (edits) |
+| `sales.orders` | `id`, `store_id`, `number`, `quote_id`, `customer_id` → `access.customers` RESTRICT, `audience`, `locale`, `currency_code` → `platform.currencies`; the snapshot: `customer_name`, `customer_email` NULL (cleared on anonymizing), `customer_phone`, `address` jsonb; `status`, `shipment_status`, `way_to_pay`, `coupon_id` NULL, `coupon_code` NULL, `coupon_discount_minor`, `points_used`, `points_discount_minor`, `gross_subtotal_minor`, `net_subtotal_minor`, `goods_total_minor`, `shipping_fee_minor`, `shipping_rule_fee_minor`, `shipping_rule_free_above_minor`, `taxable_base_minor`, `vat_minor`, `vat_rate_basis_points`, `order_total_minor`, `due_minor`, `paid_minor`, `refunded_minor`, `may_ship_unpaid`, `short_of_stock_at` NULL, `gift_level_id` NULL, `placed_at`, `decided_by` NULL → `access.staff_users`, `decided_at` NULL, `decision_reason` NULL, `cancel_reason` NULL, `cancel_other` NULL, `cancelled_by` NULL, `cancelled_at` NULL, `carrier` NULL, `tracking_number` NULL, `shipped_at` NULL, `delivered_at` NULL, `came_back_id` NULL, `came_back_at` NULL | UNIQUE (`store_id`, `number`); UNIQUE (`quote_id`); UNIQUE (`id`, `store_id`); UNIQUE (`id`, `store_id`, `currency_code`); CHECK `audience IN ('PUBLIC','COMPANY')`, `status IN ('PENDING_APPROVAL','APPROVED','REJECTED','CANCELLED','COMPLETED','UNDELIVERED')`, `shipment_status IN ('NOT_SHIPPED','SHIPPED','DELIVERED','CAME_BACK')`, `way_to_pay IN ('ONLINE','BANK_TRANSFER','STAFF_CONTACT')`, `cancel_reason IN ('CHANGED_MIND','ORDERED_BY_MISTAKE','FOUND_CHEAPER','TOO_SLOW','OTHER','BY_STAFF')`; **the decision**: CHECK `(status = 'PENDING_APPROVAL' AND decided_at IS NULL) OR (status IN ('APPROVED','REJECTED','COMPLETED','UNDELIVERED') AND decided_at IS NOT NULL) OR status = 'CANCELLED'` — a cancelled order was cancelled waiting or after approval; CHECK `(decided_by IS NULL) = (decided_at IS NULL)`, `status <> 'REJECTED' OR decision_reason IS NOT NULL`; **the cancellation**: CHECK `(status = 'CANCELLED') = (cancelled_at IS NOT NULL)`, `(status = 'CANCELLED') = (cancel_reason IS NOT NULL)`, `status <> 'CANCELLED' OR shipment_status = 'NOT_SHIPPED'`, `COALESCE(cancel_reason IN ('OTHER','BY_STAFF'), false) = (cancel_other IS NOT NULL)`, `(cancel_reason IS NOT DISTINCT FROM 'BY_STAFF') = (cancelled_by IS NOT NULL)` — a customer's cancellation names a reason from the list, a staff member's is `BY_STAFF` with their words in `cancel_other`; **the shipment**: CHECK `(shipment_status = 'NOT_SHIPPED') = (shipped_at IS NULL)`, `(shipment_status = 'DELIVERED') = (delivered_at IS NOT NULL)`, `num_nonnulls(came_back_at, came_back_id) IN (0, 2)`, `(shipment_status = 'CAME_BACK') = (came_back_at IS NOT NULL)`, `(shipment_status = 'NOT_SHIPPED') = (carrier IS NULL)`, `carrier IS NOT NULL OR tracking_number IS NULL`, `(status = 'COMPLETED') = (shipment_status = 'DELIVERED')`, `(status = 'UNDELIVERED') = (shipment_status = 'CAME_BACK')`, `shipment_status = 'NOT_SHIPPED' OR status IN ('APPROVED','COMPLETED','UNDELIVERED')`; **the coupon**: CHECK `(coupon_id IS NULL) = (coupon_code IS NULL)`, `coupon_id IS NOT NULL OR coupon_discount_minor = 0` (an edit may leave a coupon at 0); **the points**: CHECK `(points_used = 0) = (points_discount_minor = 0)`; CHECK every amount `>= 0`, `due_minor <= order_total_minor`, `refunded_minor <= paid_minor` |
+| `sales.order_lines` | `id`, `order_id`, `store_id`, `product_id` → `catalog.products` RESTRICT, `variant_id` → `catalog.variants` RESTRICT, `edit_id` NULL (the part an edit added), `is_gift`, the snapshot (`name_ar`, `name_en`, `variant_values` jsonb, `code`), `sale_mode`, `price_kind` NULL (none for the gift), `quantity`, `unit_minor`, `list_unit_minor`, `total_minor`, `coupon_share_minor`, `points_share_minor`, `vat_share_minor` | (`order_id`, `store_id`) → orders (`id`, `store_id`) RESTRICT; (`edit_id`, `order_id`) → order_edits (`id`, `order_id`) RESTRICT; UNIQUE (`id`, `order_id`); CHECK `sale_mode IN ('RETAIL','WHOLESALE')`, `(price_kind IS NULL) = is_gift`, `price_kind IN ('BASE','SALE','CAMPAIGN','CATEGORY','QUANTITY')`, `quantity >= 1`; CHECK every share `>= 0` and `coupon_share_minor + points_share_minor <= total_minor`; CHECK a gift line has `sale_mode = 'RETAIL'`, `unit_minor = 0`, `list_unit_minor = 0`, `total_minor = 0` and every share 0; one gift line per order (UNIQUE (`order_id`) WHERE `is_gift`). Rows change only before shipping (edits) |
 | `sales.order_ticks` | `order_id`, `store_id`, `variant_id`, `ticked_by` → `access.staff_users`, `ticked_at` | PK (`order_id`, `variant_id`); (`order_id`, `store_id`) → orders RESTRICT — "reduced in the provider" |
 | `sales.order_edits` | `id`, `order_id`, `store_id`, `reason`, `by` → `access.staff_users`, `at`, `before` jsonb, `after` jsonb | (`order_id`, `store_id`) → orders RESTRICT; UNIQUE (`id`, `order_id`); CHECK `char_length(reason) BETWEEN 1 AND 500`; append-only (trigger); the edit's id is Loyalty's and Promotions' idempotency key |
 | `sales.payments`, `sales.refunds` | `id`, `order_id`, `store_id`, `currency_code`, `amount_minor`, `way`, `reference` NULL, `note` NULL, `request_id` uuid, `recorded_by` NULL → `access.staff_users`, `recorded_at`, `voided_by` NULL, `voided_at` NULL, `void_reason` NULL | (`order_id`, `store_id`, `currency_code`) → orders (`id`, `store_id`, `currency_code`) RESTRICT — the order's currency only; UNIQUE (`request_id`); UNIQUE (`way`, `reference`) WHERE `way = 'ONLINE'` (stage 7's gateway references); CHECK `amount_minor > 0`, `way IN ('BANK_TRANSFER','ONLINE','OTHER')`, `way <> 'OTHER' OR note IS NOT NULL`; CHECK `num_nonnulls(voided_by, voided_at, void_reason) IN (0, 3)`; a trigger refuses DELETE and any UPDATE but setting the three void columns once |
 | `sales.transfer_documents` | `order_id`, `store_id`, `media_id` → `platform.media` RESTRICT, `position`, `uploaded_at` | PK (`order_id`, `position`); (`order_id`, `store_id`) → orders RESTRICT; CHECK `position BETWEEN 1 AND 3` |
-| `sales.returns` | `id`, `order_id`, `store_id`, `status`, `reason`, `reason_other` NULL, `staff_reason` NULL, `requested_at`, `decided_by` NULL → `access.staff_users`, `decided_at` NULL, `withdrawn_at` NULL, `received_at` NULL, `closed_at` NULL, `completed_at` NULL, `refund_due_minor` NULL, `shipping_refunded` | (`order_id`, `store_id`) → orders RESTRICT; UNIQUE (`id`, `order_id`); CHECK `status IN ('REQUESTED','ACCEPTED','REFUSED','WITHDRAWN','RECEIVED','COMPLETED','CLOSED')`, `reason IN ('DAMAGED','WRONG_ITEM','NOT_AS_DESCRIBED','CHANGED_MIND','OTHER')`, `(reason = 'OTHER') = (reason_other IS NOT NULL)`; CHECK `(decided_at IS NOT NULL) = (status IN ('ACCEPTED','REFUSED','RECEIVED','COMPLETED','CLOSED'))`, `(withdrawn_at IS NOT NULL) = (status = 'WITHDRAWN')`, `(received_at IS NOT NULL) = (status IN ('RECEIVED','COMPLETED'))`, `(closed_at IS NOT NULL) = (status = 'CLOSED')`, `(completed_at IS NOT NULL) = (status = 'COMPLETED')`, `(refund_due_minor IS NOT NULL) = (status = 'COMPLETED')`; CHECK `status <> 'REFUSED' OR staff_reason IS NOT NULL`; CHECK `refund_due_minor >= 0` |
+| `sales.returns` | `id`, `order_id`, `store_id`, `status`, `reason`, `reason_other` NULL, `staff_reason` NULL, `requested_at`, `decided_by` NULL → `access.staff_users`, `decided_at` NULL, `withdrawn_at` NULL, `received_at` NULL, `closed_at` NULL, `completed_at` NULL, `refund_due_minor` NULL, `shipping_refunded` | (`order_id`, `store_id`) → orders RESTRICT; UNIQUE (`id`, `order_id`); CHECK `status IN ('REQUESTED','ACCEPTED','REFUSED','WITHDRAWN','RECEIVED','COMPLETED','CLOSED')`, `reason IN ('DAMAGED','WRONG_ITEM','NOT_AS_DESCRIBED','CHANGED_MIND','OTHER')`, `(reason = 'OTHER') = (reason_other IS NOT NULL)`; CHECK `(decided_at IS NOT NULL) = (status IN ('ACCEPTED','REFUSED','RECEIVED','COMPLETED','CLOSED'))`, `(withdrawn_at IS NOT NULL) = (status = 'WITHDRAWN')`, `(received_at IS NOT NULL) = (status IN ('RECEIVED','COMPLETED'))`, `(closed_at IS NOT NULL) = (status = 'CLOSED')`, `(completed_at IS NOT NULL) = (status = 'COMPLETED')`, `(refund_due_minor IS NOT NULL) = (status = 'COMPLETED')`; CHECK `(decided_by IS NULL) = (decided_at IS NULL)`; CHECK `status <> 'REFUSED' OR staff_reason IS NOT NULL`; CHECK `refund_due_minor >= 0`; CHECK `NOT shipping_refunded OR status = 'COMPLETED'`, and one per order (UNIQUE (`order_id`) WHERE `shipping_refunded`) |
 | `sales.return_lines` | `return_id`, `order_id`, `order_line_id`, `quantity` (asked), `received_quantity` NULL, `restocked_quantity` NULL | PK (`return_id`, `order_line_id`); (`return_id`, `order_id`) → returns (`id`, `order_id`) CASCADE; (`order_line_id`, `order_id`) → order_lines (`id`, `order_id`) RESTRICT; CHECK `quantity >= 1`, `(received_quantity IS NULL) = (restocked_quantity IS NULL)`, `received_quantity BETWEEN 0 AND quantity`, `restocked_quantity BETWEEN 0 AND received_quantity` |
 | `sales.return_photos` | `return_id`, `media_id` → `platform.media` RESTRICT, `position` | PK (`return_id`, `position`); `return_id` → returns CASCADE; CHECK `position BETWEEN 1 AND 3` |
 | `sales.order_history` | `id` bigint identity, `order_id`, `store_id`, `kind`, `edit_id` NULL, `by` NULL, `at`, `detail` jsonb | (`order_id`, `store_id`) → orders RESTRICT; CHECK `kind IN (…)` (each change of §3's commands); append-only (trigger) — every state change, edit and money record |
@@ -593,9 +608,9 @@ Each extends `SalesError`, which extends `Shared\Domain\Error\DomainError`, with
 | `QuoteChanged` | CONFLICT | Anything of §1.3 steps 3–5 no longer as quoted |
 | `NotCancellable` | CONFLICT | Shipped, or already cancelled, rejected or finished |
 | `NotEditable` | CONFLICT | Shipped; cancelled, rejected or finished; a line ticked "reduced in the provider" |
-| `NotShippable` | CONFLICT | Not approved; flagged "not enough stock"; not `PAID` without "may ship unpaid" |
+| `NotShippable` | CONFLICT | Not approved; flagged "not enough stock"; holding less than is due without "may ship unpaid" |
 | `ReturnNotAllowed` | CONFLICT | Outside the window; more pieces than delivered and not already in a return; more than 3 photos |
-| `TooManyFiles` | CONFLICT | A fourth transfer document; a document once the payment is recorded |
+| `TooManyFiles` | CONFLICT | A fourth transfer document; a document while nothing is owed |
 | `RefundTooLarge` | CONFLICT | A refund above what the order holds |
 | `InvalidOrderChange` | CONFLICT | A change its state does not allow |
 | `OrderNotFound`, `ReturnNotFound` | NOT_FOUND | Unknown, or of a store the reader does not cover |
@@ -617,7 +632,8 @@ bank transfer hidden without an account; 15 minutes and Pricing's `validUntil`.
 
 **Placing** — the store switched off, a company suspended, a variant archived or "Not available now",
 an address removed, a category hidden, the bank account emptied, the coupon changed, points spent
-elsewhere, stock gone — each refuses and nothing is held, used, recorded or numbered; a retail and a
+elsewhere, stock gone — each refuses and nothing is held, used or recorded (the number taken is
+skipped); a retry after 15 minutes answering its order; a retail and a
 wholesale line of one variant held as one line, the gift as its own, with no expiry; **two `PlaceOrder`
 at once on one quote answer one order**; numbers per store, `SA-…`, a store opened later getting its
 sequence; the snapshot unchanged when the catalog changes.
@@ -625,8 +641,11 @@ sequence; the snapshot unchanged when the catalog changes.
 **Orders and shipping** — approval; a rejection never recorded as a cancellation; an approved order
 cancelled keeps its decision; unpaid orders wait and do not ship without "may ship unpaid"; `ship`
 called on shipping; "reduced in the provider" per variant, the gift included; delivered by staff earns
-points, starts the window and makes the products reviewable; a parcel that came back: stock back as
-staff choose, nothing due, points back, the coupon still counted, Cancelled then Refunded;
+points, starts the window and makes the products reviewable; a parcel that came back: a wired store's
+unticked holds freed, only taken stock put back as staff choose, a lost one with nothing put back,
+nothing due, points back, the coupon still counted, Cancelled then Refunded; a `REFUND_DUE` or
+`NOTHING_DUE` order shipping without "may ship unpaid"; a staff cancellation and a rejection needing
+their reason;
 `HoldsShort` flags, a flagged order cannot ship, only staff clear the flag; an off store's unfinished
 orders listed to its staff, and no longer once finished.
 
@@ -636,18 +655,19 @@ the coupon use kept, nothing due and a refund due shown.
 **Edits** — each kind, waiting for approval or approved; refused once shipped, cancelled, finished or
 a line ticked; an added wholesale line for an individual, an added hidden category, an added unpriced
 line refused; kept parts at their price, added pieces at today's with the band for the new total; a
-lowered quantity taking the newest part first; Pricing's totals at the order's VAT rate; points giving
-way before the coupon; the coupon never growing, removed under its minimum, trimmed only when alone it
+lowered quantity taking the newest part first; Pricing's totals at the order's VAT rate; the order's own ceiling,
+points cap and shipping rule though the store's changed, an address-only edit trimming nothing; points giving
+way before the coupon; the coupon never growing — a second edit capped by the first's trim — removed under its minimum, trimmed only when alone it
 passes the room; stock adjusted all or nothing; the gift kept, swapped or removed by staff; shares
 allocated again; refund due and balance due recorded; the flag left for staff.
 
 **Returns and money** — within 14 days of delivery; pieces, a reason, up to 3 private photos; the gift
-returned for nothing; two requests never claiming one piece; withdraw; accept, refuse with a reason,
+returned for nothing; two requests never claiming one piece, and a piece that never came asked again; withdraw; accept, refuse with a reason,
 close; received with fewer pieces than asked and damaged pieces left out of stock; **a full return,
 in one or several parts, refunding exactly `order_total`** — with a coupon taking a line to 0, points
 on the rest, a VAT of 0, shipping free and not; shipping refunded with the last bought piece; points
-settled by running totals; `ReturnCompleted` flips Feedback's reviews; transfer documents up to 3 and
-none after the payment is recorded; payments and refunds recorded once per request, voided not
+settled by running totals; `ReturnCompleted` flips Feedback's reviews; transfer documents up to 3, while
+something is owed — a balance after an edit included; payments and refunds recorded once per request, voided not
 changed, a refund above the held amount refused, another currency refused; the payment state through
 `NOTHING_DUE`, `UNPAID`, `PARTLY_PAID`, `PAID`, `REFUND_DUE`, `REFUNDED`.
 
@@ -707,28 +727,36 @@ refusing anything but one void.
 29. Recorded earlier, for B2B: **a company paying by bank transfer uploads the transfer's document — in
     Sales, stage 6** (2026-09-26, 2026-09-29; b2b.md §9 #2, amendment 12(c)), and **pressing pay twice
     pays once** (b2b.md §9 #7).
+30. **An edit keeps the rules the order was placed under** — the discount ceiling, the points cap, the
+    shipping rule (2026-10-10).
 
 ### 9.2 Still open
 
 1. **Shipping and Payments** — stage 7, waiting on the owner's vendor data (handoff §15.1); their
    interfaces are written here (§2.4).
-2. **Pricing's `pricesForEdit` (PR #107)** and **Inventory's `adjustHold` / `returned` (PR #106)** —
-   the stage 5 session's, for the owner's review; Sales is built against them once on `main`.
+2. **Pricing's `pricesForEdit`** and **Inventory's `adjustHold` / `returned`** — on `main` since #107
+   and #106 (2026-10-10), the stage 5 session's.
 3. **Catalog's additions** — the store's variants in bulk, and whether a product's category is open to
    an account type, in bulk — to agree with the Catalog-screens session.
-4. **Promotions' and Loyalty's corrections** that this spec needs — the edited coupon's whole room and
-   its shares by price line (promotions.md); `pointsAfterEdit`, `orderEdited`'s answer and an edit
+4. **Promotions' and Loyalty's corrections** that this spec needs — the edited coupon's whole room, its
+   cap at the discount now, `orderDiscountRoom` with the order's recorded ceiling and the shares by
+   price line (promotions.md); `pointsAfterEdit` by the recorded cap, `orderEdited`'s answer and an edit
    before delivery in Loyalty's table rules (loyalty.md) — made on those specs' branches with this one.
+   **Inventory's** `returned` for a parcel that came back and `release` after shipping — asked of the
+   stage 5 session as an amendment.
 5. **Sales's screens** — the frontend session's, to confirm.
 6. **Every assumption marked above** — merging carts by adding quantities; 90-day carts; order numbers
-   from a sequence that may leave gaps; an edit keeping the order's own shipping rule; shipping
-   refunded with the last bought piece; a refusal's reason required; up to 3 transfer documents; the
+   from a sequence that may leave gaps; a tracking number optional; shipping refunded with the last
+   bought piece; a refusal's reason required; up to 3 transfer documents; the
    ways recorded (`BANK_TRANSFER`, `ONLINE`, `OTHER`); what counts as an unfinished order; the
    settings' defaults and admin-only permission; best-selling as pieces sold in 90 days.
 7. **Handoff §12.4's "hold stock while verifying" setting** (bank transfers, stage 7): stock is now
    held for every order from placement until it ships or is cancelled (handoff §12.1, owner
    2026-10-07), so the setting has nothing left to switch — for the owner to confirm it goes, with
    Payments.
+8. **An off store's unfinished orders in the other modules** — whether Inventory's, Promotions' and
+   Loyalty's calls accept an order of a store that is off (Sales's edits, returns, cancellations):
+   unverified, checked at build.
 
 ### 9.3 The independent reviews of the draft (2026-10-10)
 
@@ -765,3 +793,15 @@ Loyalty's edit before delivery; a parcel that came back (answer 26); edits' adde
 capitals and new stores' sequences; the outbox's retry columns and the relay as Shared; the coupon
 CHECK and the unpaid index; Catalog's bulk read; other modules' error keys; per-piece running totals;
 the use cases with their permissions; the email asked (answer 27).
+
+**The final check** (of `5203d65`): no blocker; most of the second review confirmed fixed, the money
+re-added (every piece's shares plus shipping and its VAT = `order_total`), every citation real. Fixed
+from it: the coupon after a second edit capped by its discount now, not at placement (Promotions only
+lowers a use); a parcel that came back freeing what is still held before restocking only taken stock
+(Inventory asked to name both callers); shipping allowed whenever what is held covers what is due;
+the cancellation and rejection CHECKs needing their reasons, and a staff cancellation's reason; transfer
+documents while something is owed; **an edit keeping the order's own ceiling, points cap and shipping
+rule** (the owner's answer 30 — Promotions' `orderDiscountRoom` and Loyalty's recorded cap); and the
+minor points — the coupon's shares' wording, best-selling without rejected or undelivered orders,
+completed returns counting the pieces received, the paired and shipping CHECKs, a retry after 15
+minutes, the off store's filter, the handoff row's order, a lost parcel, the merged PRs cited.
