@@ -42,7 +42,9 @@ use function Pest\Laravel\seed;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    config(['session.driver' => 'database']);
+    // The sweep of old sessions runs on 2 requests in 100 (config/session.php's lottery) and adds a
+    // DELETE that lands in "session row": switched off, so a count never depends on a dice roll.
+    config(['session.driver' => 'database', 'session.lottery' => [0, 100]]);
     seed(PlatformSeeder::class);
     FakeBreachList::install();
     RecordingSecurityMessages::install();
