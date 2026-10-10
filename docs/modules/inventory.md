@@ -165,9 +165,9 @@ Quantities are whole pieces (≥ 1). **On `main` since #97.**
 | `hold(StoreId $store, string $orderId, list<HoldLineDto> $lines, ?DateTimeImmutable $expiresAt): void` | Sales (placing an order) | Holds every line that counts on stock — **all or nothing**: one line short and nothing is held (`inventory.not_enough_stock`, its context naming the variants and what is available). Lines whose stock does not limit ordering are noted, not held. One hold per order (`inventory.already_held`). |
 | `ship(string $orderId, list<HoldLineDto> $lines): void` | Sales (an order or part of it shipped) | Takes the shipped pieces off the stock and off the hold — in a store with no provider. In a wired store nothing is taken: the provider is the source; a stock-dependent line's hold waits for the tick. |
 | `reducedInProvider(string $orderId, list<string> $variantIds): void` | Sales (staff ticked "reduced in the provider") | Ends those lines' holds in a wired store. |
-| `release(string $orderId): void` | Sales (a cancel), Inventory's own expiry job | Frees whatever the order still holds. |
+| `release(string $orderId): void` | Sales (a cancel; a shipped parcel that came back, sales.md §1.5), Inventory's own expiry job | Frees whatever the order still holds — and only that: after a shipment, what was shipped or ticked is not held any more and is left alone (in a store with no provider a fully shipped order frees nothing; in a wired store, the stock-dependent and gift lines not yet ticked). |
 | `adjustHold(string $orderId, list<HoldLineDto> $newLines): void` | Sales (staff edited an order before it ships) | Moves the order's hold to exactly `newLines`, all or nothing (§1.4): the extra held, refused with `inventory.not_enough_stock` as at placement; lowered or removed lines freed; the expiry kept. No hold for the order: `inventory.no_hold`; a line already shipped or ticked: `inventory.hold_not_editable`. **[PROPOSED** — stage 6's shape, 2026-10-10**]** |
-| `returned(string $orderId, string $returnId, list<HoldLineDto> $lines): void` | Sales (staff marked a return received) | Puts the lines' pieces back as §1.9 says, by kind of store and size; a gift line on gift rules. Only the pieces going back. The store is the order's (its hold). **[PROPOSED** — agreed with stage 6, 2026-10-10**]** |
+| `returned(string $orderId, string $returnId, list<HoldLineDto> $lines): void` | Sales (staff marked a return received; a shipped parcel marked "came back", settled as a whole return — sales.md §1.5, owner 2026-10-10 — after `release`, with its own id in `returnId`) | Puts the lines' pieces back as §1.9 says, by kind of store and size; a gift line on gift rules. Only the pieces going back — for a parcel that came back, those whose stock was taken: every shipped piece in a store with no provider, the ticked lines in a wired store. The store is the order's (its hold). **[PROPOSED** — agreed with stage 6, 2026-10-10**]** |
 
 `ship`, `reducedInProvider`, `release`, `adjustHold` and `returned` are safe to repeat: a line already
 shipped, ticked or freed is left as it is; the same edit twice changes nothing; a return id counts once.
@@ -204,6 +204,7 @@ provider by the size. A refusal reaches the caller as `Shared\Domain\Error\Domai
 | Access | Declaring **Manage Stock** in the `Catalog` group (accepted 2026-10-09) — no stock group exists; the role editor's groups are the design's | Allowed for that only (owner, 2026-10-07; `deptrac.yaml` since #97) |
 | Platform | The store (on or off), the settings registry (the default threshold), the audit log, `MenuCount`, `HomeCards`, the scheduler | Exists |
 | Catalog | `variant()` — a size's product, kept on its stock row; `switchedOnVariantIds(store)` — the Low Stock list over what a store sells | The first exists; the second, `switchedOnVariantIds(StoreId $store): list<string>`, is Catalog's amendment 16 (PR #103, for the owner's review), not built yet |
+| Catalog | **Many sizes and products in one read** — the Low Stock list's and the stock screens' names, within an admin page's 15 queries (frontend.md §5): `variants(list<string> $variantIds)`, `products(list<string> $productIds)`, keyed by id | Catalog's amendment 16(i) (PR #103, after stage 5's review, 2026-10-10), not built yet |
 | Catalog | `ListingFacts` bound, with `endingSoon` added (§2.3) | With the shop's pages (catalog.md amendment 15); `endingSoon` is amendment 16(h) (PR #103) — kept in `catalog.store_variant_facts.ending_soon` |
 | Sales | Calls §2.1; shows the "not enough stock" flag from §6.1 | Stage 6 |
 | Sync | The provider's stock in, and a store's wired state — their shape waits for §9.1 | After the provider's answers |
@@ -323,7 +324,9 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 3. **The tick**: a wired stock-dependent line's hold ends; the worked example of handoff §12.1, step by
    step (20 − 2 = 18 … 68), with the provider's numbers arriving in between.
 4. **Cancel and expiry**: frees what is left; the scheduled job frees only expired holds; repeating
-   changes nothing.
+   changes nothing; after a shipment it leaves shipped and ticked lines alone. **A parcel that came
+   back**: `release` then `returned` — a store with no provider puts every shipped piece back; a wired
+   store frees its unticked stock-dependent and gift lines and puts back the ticked ones (§1.9).
 5. **Orderable**: per kind of store; the provider's 0 for an ordinary product leaves it orderable;
    pushed into Catalog on every change, nothing pushed by a rolled-back change.
 6. **Hand changes**: a stocktake; add and remove with each reason; a correction's note required; a
