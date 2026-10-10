@@ -21,7 +21,6 @@ final class LabelData extends Data
         /** gray, blue, green, amber, red, or one of them with -subtle (amendment 1(e)). */
         public string $tone,
         public bool $active,
-        public int $position,
         public int $products,
     ) {}
 }

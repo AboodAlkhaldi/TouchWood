@@ -40,7 +40,6 @@ return [
     'preview' => 'As shoppers see it:',
     'preview_empty' => 'Label',
     'name_helper' => 'One or two words, up to 30 characters.',
-    'position_helper' => 'Its place on a product\'s card, lowest first.',
     'reason' => [
         'in_use' => 'A store shows it on products: take it off them first.',
     ],

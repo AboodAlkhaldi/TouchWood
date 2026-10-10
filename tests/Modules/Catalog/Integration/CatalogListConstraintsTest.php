@@ -115,6 +115,14 @@ it('refuses what the code would never write', function (Closure $write, string $
         $id = app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'New', 'blue'));
         DB::table('catalog.labels')->where('id', $id)->update(['position' => 10001]);
     }, 'labels_position_range'],
+    'a warranty position past the range' => [function () {
+        $id = app(AddWarrantyHandler::class)->handle(new AddWarranty('سنة', 'One year', catalogConstraintsTerms(), catalogConstraintsTerms(), 12));
+        DB::table('catalog.warranties')->where('id', $id)->update(['position' => 10001]);
+    }, 'warranties_position_range'],
+    'a warranty position left out' => [function () {
+        $id = app(AddWarrantyHandler::class)->handle(new AddWarranty('سنة', 'One year', catalogConstraintsTerms(), catalogConstraintsTerms(), 12));
+        DB::table('catalog.warranties')->where('id', $id)->update(['position' => null]);
+    }, 'position'],
     'warranty terms that are not an object' => [function () {
         $id = app(AddWarrantyHandler::class)->handle(new AddWarranty('سنة', 'One year', catalogConstraintsTerms(), catalogConstraintsTerms(), 12));
         DB::table('catalog.warranties')->where('id', $id)->update(['terms_ar' => '"terms"']);

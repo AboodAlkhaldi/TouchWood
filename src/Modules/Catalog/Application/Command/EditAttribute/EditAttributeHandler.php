@@ -53,7 +53,7 @@ final readonly class EditAttributeHandler
 
             // Its job stays once it has values (amendment 1(i)), or variants carry details of it (3(k)).
             $used = $this->attributes->hasValues($attribute->id()) || $this->variants->anyWithAttribute($attribute->id());
-            $attribute->edit($name, $kind, $command->unitAr, $command->unitEn, $command->isColour, $command->position, $used);
+            $attribute->edit($name, $kind, $command->unitAr, $command->unitEn, $command->isColour, $used);
             $entry = ListAudit::changed('attribute', 'edited', $attribute->id(), $attribute->pullChanges(), $attribute->snapshot());
 
             if ($entry === null) {

@@ -14,11 +14,14 @@ import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { WarrantiesPage, WarrantyData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
+import { DragHandle, MoveItems, SortableGroup, SortableRows, useSavedOrder, useSortableRow } from '../SortableList';
 
 /*
 | The warranties screen (catalog.md §1.9, §4.4 S6): a list a product carries at most one of - each
 | named in both languages, with a period of 1 to 600 months or for life, and its terms in both
-| languages, typed with the products file's marks (P1). One a product carries is not deleted.
+| languages, typed with the products file's marks (P1). One a product carries is not deleted. The
+| list's order is the order of the product form's choice: dragged, saved when dropped, or a warranty
+| moved to the top or the bottom from its ⋯ menu; a new warranty goes last (amendment 16(d)).
 */
 
 type Dialog = { action: 'add' | 'edit' | 'delete'; warranty: WarrantyData | null } | null;
@@ -31,6 +34,12 @@ export default function Index({ warranties, mayChange }: WarrantiesPage) {
     const opener = useRef<HTMLElement | null>(null);
     const close = (open: boolean) => (open ? undefined : setDialog(null));
     const add = () => setDialog({ action: 'add', warranty: null });
+    const { order, move, toTop, toBottom } = useSavedOrder(
+        warranties.map((warranty) => warranty.id),
+        '/admin/warranties/order',
+    );
+    const byId = new Map(warranties.map((warranty) => [warranty.id, warranty]));
+    const rows = order.flatMap((id) => byId.get(id) ?? []);
 
     return (
         <AdminLayout
@@ -57,35 +66,46 @@ export default function Index({ warranties, mayChange }: WarrantiesPage) {
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <div className="material-base overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t('catalog::admin_warranties.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <NameHeads locale={locale} />
-                                    <TableHead>{t('catalog::admin_warranties.column.period')}</TableHead>
-                                    <TableHead className="text-end">{t('catalog::admin.column.products')}</TableHead>
-                                    <TableHead>{t('catalog::admin.column.state')}</TableHead>
-                                    <TableHead className="w-12">
-                                        <span className="sr-only">{t('catalog::admin.column.actions')}</span>
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {warranties.map((warranty) => (
-                                    <Row
-                                        key={warranty.id}
-                                        warranty={warranty}
-                                        reason={reason}
-                                        open={(action, trigger) => {
-                                            opener.current = trigger;
-                                            setDialog({ action, warranty });
-                                        }}
-                                    />
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    <SortableRows groups={{ warranties: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
+                        <div className="material-base overflow-x-auto">
+                            <Table>
+                                <TableCaption className="sr-only">{t('catalog::admin_warranties.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead className="w-10">
+                                            <span className="sr-only">{t('catalog::admin.order.column')}</span>
+                                        </TableHead>
+                                        <NameHeads locale={locale} />
+                                        <TableHead>{t('catalog::admin_warranties.column.period')}</TableHead>
+                                        <TableHead className="text-end">{t('catalog::admin.column.products')}</TableHead>
+                                        <TableHead>{t('catalog::admin.column.state')}</TableHead>
+                                        <TableHead className="w-12">
+                                            <span className="sr-only">{t('catalog::admin.column.actions')}</span>
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <SortableGroup id="warranties" ids={order}>
+                                        {rows.map((warranty, index) => (
+                                            <Row
+                                                key={warranty.id}
+                                                warranty={warranty}
+                                                reason={reason}
+                                                first={index === 0}
+                                                last={index === rows.length - 1}
+                                                toTop={() => toTop(warranty.id)}
+                                                toBottom={() => toBottom(warranty.id)}
+                                                open={(action, trigger) => {
+                                                    opener.current = trigger;
+                                                    setDialog({ action, warranty });
+                                                }}
+                                            />
+                                        ))}
+                                    </SortableGroup>
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </SortableRows>
                 )}
             </div>
 
@@ -95,15 +115,41 @@ export default function Index({ warranties, mayChange }: WarrantiesPage) {
     );
 }
 
-function Row({ warranty, reason, open }: { warranty: WarrantyData; reason: string | undefined; open: (action: 'edit' | 'delete', trigger: HTMLElement | null) => void }) {
+function Row({
+    warranty,
+    reason,
+    first,
+    last,
+    toTop,
+    toBottom,
+    open,
+}: {
+    warranty: WarrantyData;
+    reason: string | undefined;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
+    open: (action: 'edit' | 'delete', trigger: HTMLElement | null) => void;
+}) {
     const t = useTranslator();
     const locale = useLocale();
     const [busy, setBusy] = useState(false);
     const more = useRef<HTMLButtonElement>(null);
     const deleteReason = warranty.products > 0 ? t('catalog::admin_warranties.reason.in_use') : null;
+    const row = useSortableRow(warranty.id, reason !== undefined);
 
     return (
-        <TableRow data-test={`warranty-${warranty.id}`}>
+        <TableRow
+            ref={row.ref}
+            style={row.style}
+            data-dragging={row.dragging || undefined}
+            className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+            data-test={`warranty-${warranty.id}`}
+        >
+            <TableCell>
+                <DragHandle handle={row.handle} label={nameIn(locale, warranty.nameAr, warranty.nameEn)} reason={reason} test={`drag-warranty-${warranty.id}`} />
+            </TableCell>
             <NameCells locale={locale} ar={warranty.nameAr} en={warranty.nameEn} />
             <TableCell data-test="warranty-period">{warranty.periodMonths === null ? t('catalog::admin_warranties.lifetime') : t(`catalog::admin_warranties.months.${new Intl.PluralRules(locale).select(warranty.periodMonths)}`, { count: figure(locale, warranty.periodMonths) })}</TableCell>
             <TableCell className="tw-figure text-end">{figure(locale, warranty.products)}</TableCell>
@@ -122,6 +168,7 @@ function Row({ warranty, reason, open }: { warranty: WarrantyData; reason: strin
                             <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-warranty">
                                 {t('catalog::admin_warranties.edit')}
                             </DropdownMenuItem>
+                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
                             <DropdownMenuItem
                                 disabled={busy}
                                 onSelect={() =>

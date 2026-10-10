@@ -110,6 +110,16 @@ use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
+use Modules\Catalog\Application\Command\OrderAttributes\OrderAttributes;
+use Modules\Catalog\Application\Command\OrderAttributes\OrderAttributesHandler;
+use Modules\Catalog\Application\Command\OrderAttributeValues\OrderAttributeValues;
+use Modules\Catalog\Application\Command\OrderAttributeValues\OrderAttributeValuesHandler;
+use Modules\Catalog\Application\Command\OrderBrands\OrderBrands;
+use Modules\Catalog\Application\Command\OrderBrands\OrderBrandsHandler;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabels;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabelsHandler;
+use Modules\Catalog\Application\Command\OrderWarranties\OrderWarranties;
+use Modules\Catalog\Application\Command\OrderWarranties\OrderWarrantiesHandler;
 use Modules\Catalog\Application\Command\RankCategories\RankCategories;
 use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProduct;
@@ -316,7 +326,7 @@ function catalogGuardsChanges(): array
         'edit a brand' => ['products,brands', function () {
             $id = catalogGuardsBrand();
 
-            return fn () => app(EditBrandHandler::class)->handle(new EditBrand($id, 'ماركة معدلة', 'Edited brand', 'DISTRIBUTOR', true, 0));
+            return fn () => app(EditBrandHandler::class)->handle(new EditBrand($id, 'ماركة معدلة', 'Edited brand', 'DISTRIBUTOR', true));
         }],
         'make a brand the default' => ['brands', function () {
             $id = catalogGuardsOtherBrand();
@@ -349,7 +359,7 @@ function catalogGuardsChanges(): array
             $parent = catalogGuardsCategory();
             $id = catalogGuardsCategory();
 
-            return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($id, $parent, 1));
+            return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($id, $parent));
         }],
         'deactivate a category' => ['products,categories', function () {
             $id = catalogGuardsCategory();
@@ -491,6 +501,38 @@ function catalogGuardsChanges(): array
             $id = catalogGuardsWarranty();
 
             return fn () => app(DeleteWarrantyHandler::class)->handle(new DeleteWarranty($id));
+        }],
+        // Every ordered list's order (amendment 16(d)): under its list's lock, as every other change.
+        'order the brands' => ['brands', function () {
+            catalogGuardsBrand();
+            $last = catalogGuardsBrand();
+
+            return fn () => app(OrderBrandsHandler::class)->handle(new OrderBrands([$last]));
+        }],
+        'order the labels' => ['labels', function () {
+            catalogGuardsLabel();
+            $last = catalogGuardsLabel();
+
+            return fn () => app(OrderLabelsHandler::class)->handle(new OrderLabels([$last]));
+        }],
+        'order the warranties' => ['warranties', function () {
+            catalogGuardsWarranty();
+            $last = catalogGuardsWarranty();
+
+            return fn () => app(OrderWarrantiesHandler::class)->handle(new OrderWarranties([$last]));
+        }],
+        'order the attributes' => ['attributes', function () {
+            catalogGuardsAttribute();
+            $last = catalogGuardsAttribute();
+
+            return fn () => app(OrderAttributesHandler::class)->handle(new OrderAttributes([$last]));
+        }],
+        'order an attribute\'s values' => ['attributes', function () {
+            $attribute = catalogGuardsAttribute();
+            catalogGuardsValue($attribute);
+            $last = catalogGuardsValue($attribute);
+
+            return fn () => app(OrderAttributeValuesHandler::class)->handle(new OrderAttributeValues($attribute, [$last]));
         }],
         'create a product' => ['products', function () {
             $brand = catalogGuardsBrand();
@@ -656,7 +698,7 @@ describe('an id that is not in its list', function () {
     it('is answered as not found', function (string $error, Closure $change) {
         expect($change)->toThrow($error);
     })->with([
-        'edit a brand' => [BrandNotFound::class, fn () => app(EditBrandHandler::class)->handle(new EditBrand(CATALOG_GUARDS_UNKNOWN, 'ماركة', 'Brand', 'DISTRIBUTOR', true, 0))],
+        'edit a brand' => [BrandNotFound::class, fn () => app(EditBrandHandler::class)->handle(new EditBrand(CATALOG_GUARDS_UNKNOWN, 'ماركة', 'Brand', 'DISTRIBUTOR', true))],
         'make a brand the default' => [BrandNotFound::class, fn () => app(MakeBrandDefaultHandler::class)->handle(new MakeBrandDefault(CATALOG_GUARDS_UNKNOWN))],
         'deactivate a brand' => [BrandNotFound::class, fn () => app(DeactivateBrandHandler::class)->handle(new DeactivateBrand(CATALOG_GUARDS_UNKNOWN))],
         'activate a brand' => [BrandNotFound::class, fn () => app(ActivateBrandHandler::class)->handle(new ActivateBrand(CATALOG_GUARDS_UNKNOWN))],
@@ -692,6 +734,13 @@ describe('an id that is not in its list', function () {
         'activate a warranty' => [ListItemNotFound::class, fn () => app(ActivateWarrantyHandler::class)->handle(new ActivateWarranty(CATALOG_GUARDS_UNKNOWN))],
         'delete a warranty' => [ListItemNotFound::class, fn () => app(DeleteWarrantyHandler::class)->handle(new DeleteWarranty(CATALOG_GUARDS_UNKNOWN))],
         'delete a word pair' => [ListItemNotFound::class, fn () => app(DeleteWordPairHandler::class)->handle(new DeleteWordPair(CATALOG_GUARDS_UNKNOWN))],
+        'order the brands' => [BrandNotFound::class, fn () => app(OrderBrandsHandler::class)->handle(new OrderBrands([catalogGuardsBrand(), CATALOG_GUARDS_UNKNOWN]))],
+        'order the labels' => [ListItemNotFound::class, fn () => app(OrderLabelsHandler::class)->handle(new OrderLabels([CATALOG_GUARDS_UNKNOWN]))],
+        'order the warranties' => [ListItemNotFound::class, fn () => app(OrderWarrantiesHandler::class)->handle(new OrderWarranties(['not-an-id']))],
+        'order the attributes' => [ListItemNotFound::class, fn () => app(OrderAttributesHandler::class)->handle(new OrderAttributes([CATALOG_GUARDS_UNKNOWN]))],
+        'order the values of an unknown attribute' => [ListItemNotFound::class, fn () => app(OrderAttributeValuesHandler::class)->handle(new OrderAttributeValues(CATALOG_GUARDS_UNKNOWN, []))],
+        // A value of another attribute is not one of this attribute's values.
+        'order another attribute\'s value' => [ListItemNotFound::class, fn () => app(OrderAttributeValuesHandler::class)->handle(new OrderAttributeValues(catalogGuardsAttribute(), [catalogGuardsValue(catalogGuardsAttribute())]))],
         'edit a product' => [ProductNotFound::class, fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails(CATALOG_GUARDS_UNKNOWN, 'منتج', 'Product', catalogGuardsBrand()))],
         'delete a draft product' => [ProductNotFound::class, fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct(CATALOG_GUARDS_UNKNOWN))],
         'add a variant to an unknown product' => [ProductNotFound::class, fn () => app(AddVariantHandler::class)->handle(new AddVariant(CATALOG_GUARDS_UNKNOWN, '1001'))],
@@ -749,12 +798,12 @@ describe('a change that changes nothing', function () {
             $parent = catalogGuardsCategory();
             $id = catalogGuardsCategory($parent);
 
-            return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($id, $parent, 5));
+            return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($id, $parent));
         }],
         'rank a category where it is' => [function () {
             $id = catalogGuardsCategory();
 
-            return fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('eg'), [$id => 0]));
+            return fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('eg'), [$id => 1]));
         }],
         'deactivate an attribute again' => [function () {
             $id = catalogGuardsAttribute();
@@ -823,6 +872,34 @@ describe('a change that changes nothing', function () {
             $id = catalogGuardsWarranty();
 
             return fn () => app(ActivateWarrantyHandler::class)->handle(new ActivateWarranty($id));
+        }],
+        // Each added last, so 1, 2 already: the same order sent again moves nothing.
+        'order the brands as they are' => [function () {
+            $ids = [catalogGuardsBrand(), catalogGuardsBrand()];
+
+            return fn () => app(OrderBrandsHandler::class)->handle(new OrderBrands($ids));
+        }],
+        'order the labels as they are' => [function () {
+            $ids = [catalogGuardsLabel(), catalogGuardsLabel()];
+
+            return fn () => app(OrderLabelsHandler::class)->handle(new OrderLabels($ids));
+        }],
+        'order the warranties as they are' => [function () {
+            $ids = [catalogGuardsWarranty(), catalogGuardsWarranty()];
+
+            return fn () => app(OrderWarrantiesHandler::class)->handle(new OrderWarranties($ids));
+        }],
+        'order the attributes as they are, the first alone' => [function () {
+            $first = catalogGuardsAttribute();
+            catalogGuardsAttribute();
+
+            return fn () => app(OrderAttributesHandler::class)->handle(new OrderAttributes([$first]));
+        }],
+        'order an attribute\'s values as they are' => [function () {
+            $attribute = catalogGuardsAttribute();
+            $ids = [catalogGuardsValue($attribute), catalogGuardsValue($attribute)];
+
+            return fn () => app(OrderAttributeValuesHandler::class)->handle(new OrderAttributeValues($attribute, $ids));
         }],
         'edit a product to what it is' => [function () {
             $id = catalogGuardsProduct();
@@ -945,7 +1022,7 @@ describe('what the audit log keeps', function () {
         expect(catalogGuardsAuditOf('catalog.brand.default_moved', $first))->toBe(['is_default' => [true, false]])
             ->and(catalogGuardsAuditOf('catalog.brand.made_default', $second))->toBe(['is_default' => [false, true]])
             ->and(catalogGuardsAuditOf('catalog.label.deactivated', $label))->toBe(['is_active' => [true, false]])
-            ->and(catalogGuardsAuditOf('catalog.category.ranked', $category))->toBe(['rank' => [0, 3]])
+            ->and(catalogGuardsAuditOf('catalog.category.ranked', $category))->toBe(['rank' => [1, 3]])
             ->and(DB::table('platform.audit_entries')->where('action', 'catalog.category.ranked')->value('store_id'))->toBe($eg)
             ->and(catalogGuardsAuditOf('catalog.warranty.deleted', $warranty))->toMatchArray(['name_en' => [$name, null], 'period_months' => [12, null]]);
     });

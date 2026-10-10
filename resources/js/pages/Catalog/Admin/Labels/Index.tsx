@@ -12,11 +12,12 @@ import { FieldError, FieldLegend, FieldSet } from '@/components/ui/field';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { figure, toLatinDigits } from '@/lib/digits';
+import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
 import type { LabelData, LabelsPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
+import { DragHandle, MoveItems, SortableGroup, SortableRows, useSavedOrder, useSortableRow } from '../SortableList';
 
 /*
 | The labels screen (catalog.md §1.8, §4.4 S5): «الشارات» (amendment 1(b)), each shown as a shopper
@@ -24,7 +25,8 @@ import { MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useL
 | products the stores show it, its state. A label's colour follows Geist's meanings, never a bare
 | colour: Neutral, Information, Healthy, Warning or Error, Strong or Subtle - the Badge's ten
 | (amendment 1(e)); its name one or two words, 30 characters (1(f)). One still shown on a product is
-| not deleted.
+| not deleted. The list's order is the order on a card: dragged, saved when dropped, or a label moved
+| to the top or the bottom from its ⋯ menu; a new label goes last (amendment 16(d)).
 */
 
 const MEANINGS = [
@@ -59,8 +61,13 @@ export default function Index({ labels, mayChange }: LabelsPage) {
     const [dialog, setDialog] = useState<Dialog>(null);
     const opener = useRef<HTMLElement | null>(null);
     const close = (open: boolean) => (open ? undefined : setDialog(null));
-    const nextPosition = labels.reduce((highest, label) => Math.max(highest, label.position), 0) + 10;
     const add = () => setDialog({ action: 'add', label: null });
+    const { order, move, toTop, toBottom } = useSavedOrder(
+        labels.map((label) => label.id),
+        '/admin/labels/order',
+    );
+    const byId = new Map(labels.map((label) => [label.id, label]));
+    const rows = order.flatMap((id) => byId.get(id) ?? []);
 
     return (
         <AdminLayout
@@ -87,50 +94,73 @@ export default function Index({ labels, mayChange }: LabelsPage) {
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <div className="material-base overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t('catalog::admin_labels.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead className="w-12">
-                                        <span aria-hidden="true">#</span>
-                                        <span className="sr-only">{t('catalog::admin.column.position')}</span>
-                                    </TableHead>
-                                    <TableHead>{t('catalog::admin_labels.column.label')}</TableHead>
-                                    <TableHead>{t('catalog::admin_labels.column.other')}</TableHead>
-                                    <TableHead>{t('catalog::admin_labels.column.meaning')}</TableHead>
-                                    <TableHead className="text-end">{t('catalog::admin.column.products')}</TableHead>
-                                    <TableHead>{t('catalog::admin.column.state')}</TableHead>
-                                    <TableHead className="w-12">
-                                        <span className="sr-only">{t('catalog::admin.column.actions')}</span>
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {labels.map((label) => (
-                                    <Row
-                                        key={label.id}
-                                        label={label}
-                                        reason={reason}
-                                        open={(action, trigger) => {
-                                            opener.current = trigger;
-                                            setDialog({ action, label });
-                                        }}
-                                    />
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    <SortableRows groups={{ labels: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
+                        <div className="material-base overflow-x-auto">
+                            <Table>
+                                <TableCaption className="sr-only">{t('catalog::admin_labels.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead className="w-10">
+                                            <span className="sr-only">{t('catalog::admin.order.column')}</span>
+                                        </TableHead>
+                                        <TableHead>{t('catalog::admin_labels.column.label')}</TableHead>
+                                        <TableHead>{t('catalog::admin_labels.column.other')}</TableHead>
+                                        <TableHead>{t('catalog::admin_labels.column.meaning')}</TableHead>
+                                        <TableHead className="text-end">{t('catalog::admin.column.products')}</TableHead>
+                                        <TableHead>{t('catalog::admin.column.state')}</TableHead>
+                                        <TableHead className="w-12">
+                                            <span className="sr-only">{t('catalog::admin.column.actions')}</span>
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <SortableGroup id="labels" ids={order}>
+                                        {rows.map((label, index) => (
+                                            <Row
+                                                key={label.id}
+                                                label={label}
+                                                reason={reason}
+                                                first={index === 0}
+                                                last={index === rows.length - 1}
+                                                toTop={() => toTop(label.id)}
+                                                toBottom={() => toBottom(label.id)}
+                                                open={(action, trigger) => {
+                                                    opener.current = trigger;
+                                                    setDialog({ action, label });
+                                                }}
+                                            />
+                                        ))}
+                                    </SortableGroup>
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </SortableRows>
                 )}
             </div>
 
-            {dialog !== null && (dialog.action === 'add' || dialog.action === 'edit') ? <LabelDialog label={dialog.label} nextPosition={nextPosition} open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {dialog !== null && (dialog.action === 'add' || dialog.action === 'edit') ? <LabelDialog label={dialog.label} open onOpenChange={close} returnFocusTo={opener} /> : null}
             {dialog !== null && dialog.action === 'delete' && dialog.label !== null ? <DeleteLabelDialog label={dialog.label} open onOpenChange={close} returnFocusTo={opener} /> : null}
         </AdminLayout>
     );
 }
 
-function Row({ label, reason, open }: { label: LabelData; reason: string | undefined; open: (action: 'edit' | 'delete', trigger: HTMLElement | null) => void }) {
+function Row({
+    label,
+    reason,
+    first,
+    last,
+    toTop,
+    toBottom,
+    open,
+}: {
+    label: LabelData;
+    reason: string | undefined;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
+    open: (action: 'edit' | 'delete', trigger: HTMLElement | null) => void;
+}) {
     const t = useTranslator();
     const locale = useLocale();
     const [busy, setBusy] = useState(false);
@@ -138,10 +168,19 @@ function Row({ label, reason, open }: { label: LabelData; reason: string | undef
     const { meaning, subtle } = meaningOf(label.tone);
     const name = nameIn(locale, label.nameAr, label.nameEn);
     const deleteReason = label.products > 0 ? t('catalog::admin_labels.reason.in_use') : null;
+    const row = useSortableRow(label.id, reason !== undefined);
 
     return (
-        <TableRow data-test={`label-${label.id}`}>
-            <TableCell className="tw-figure text-ink-muted">{figure(locale, label.position)}</TableCell>
+        <TableRow
+            ref={row.ref}
+            style={row.style}
+            data-dragging={row.dragging || undefined}
+            className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+            data-test={`label-${label.id}`}
+        >
+            <TableCell>
+                <DragHandle handle={row.handle} label={name} reason={reason} test={`drag-label-${label.id}`} />
+            </TableCell>
             <TableCell>
                 <Badge className={tone(label.tone as Tone)} data-test="label-badge">
                     {name}
@@ -167,6 +206,7 @@ function Row({ label, reason, open }: { label: LabelData; reason: string | undef
                             <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-label">
                                 {t('catalog::admin_labels.edit')}
                             </DropdownMenuItem>
+                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
                             <DropdownMenuItem
                                 disabled={busy}
                                 onSelect={() => router.post(`/admin/labels/${label.id}/${label.active ? 'deactivate' : 'activate'}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })}
@@ -203,17 +243,15 @@ function Row({ label, reason, open }: { label: LabelData; reason: string | undef
     );
 }
 
-type LabelForm = { name_ar: string; name_en: string; meaning: Meaning; subtle: boolean; position: string };
+type LabelForm = { name_ar: string; name_en: string; meaning: Meaning; subtle: boolean };
 
 function LabelDialog({
     label,
-    nextPosition,
     open,
     onOpenChange,
     returnFocusTo,
 }: {
     label: LabelData | null;
-    nextPosition: number;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     returnFocusTo?: RefObject<HTMLElement | null>;
@@ -223,7 +261,7 @@ function LabelDialog({
     const initial = (): LabelForm => {
         const look = meaningOf(label?.tone ?? 'gray');
 
-        return { name_ar: label?.nameAr ?? '', name_en: label?.nameEn ?? '', meaning: look.meaning, subtle: label === null ? true : look.subtle, position: String(label?.position ?? nextPosition) };
+        return { name_ar: label?.nameAr ?? '', name_en: label?.nameEn ?? '', meaning: look.meaning, subtle: label === null ? true : look.subtle };
     };
     const form = useForm<LabelForm>(initial());
     const errors = form.errors as Record<string, string | undefined>;
@@ -240,7 +278,7 @@ function LabelDialog({
     const preview = nameIn(locale, form.data.name_ar, form.data.name_en) || t('catalog::admin_labels.preview_empty');
 
     function submit() {
-        form.transform((data) => ({ name_ar: data.name_ar, name_en: data.name_en, tone: toneOf(data.meaning, data.subtle), position: data.position }));
+        form.transform((data) => ({ name_ar: data.name_ar, name_en: data.name_en, tone: toneOf(data.meaning, data.subtle) }));
         form.post(label === null ? '/admin/labels' : `/admin/labels/${label.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
     }
 
@@ -297,19 +335,6 @@ function LabelDialog({
                         {preview}
                     </Badge>
                 </p>
-
-                <TextField
-                    id="label-position"
-                    dir="ltr"
-                    inputMode="numeric"
-                    className="max-w-40"
-                    inputClassName="tw-figure"
-                    label={t('catalog::admin.field.position')}
-                    helper={t('catalog::admin_labels.position_helper')}
-                    value={form.data.position}
-                    error={form.errors.position}
-                    onChange={(event) => form.setData('position', toLatinDigits(event.target.value))}
-                />
             </div>
         </PanelDialog>
     );

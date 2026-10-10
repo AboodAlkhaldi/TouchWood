@@ -93,7 +93,6 @@ function catalogAttributesEdit(string $attributeId, array $changes = []): void
         'unitAr' => $attribute->unitAr(),
         'unitEn' => $attribute->unitEn(),
         'isColour' => $attribute->isColour(),
-        'position' => $attribute->position(),
         ...$changes,
     ]));
 }
@@ -153,7 +152,7 @@ describe('attributes', function () {
 
     it('adds an attribute with its job and unit, audited by value under the attributes\' lock', function () {
         $locks = Cx::recordLocks();
-        $id = catalogAttributesAdd('Width', 'FILTERABLE', ['unitAr' => 'مم', 'unitEn' => 'mm', 'position' => 2]);
+        $id = catalogAttributesAdd('Width', 'FILTERABLE', ['unitAr' => 'مم', 'unitEn' => 'mm']);
         $attribute = app(AttributeRepository::class)->find($id);
 
         expect($attribute?->kind()->value)->toBe('FILTERABLE')
@@ -180,8 +179,8 @@ describe('attributes', function () {
         expect(fn () => catalogAttributesEdit($finish, ['kind' => 'FILTERABLE']))->toThrow(AttributeKindLocked::class)
             ->and(fn () => catalogAttributesEdit($finish, ['isColour' => false]))->toThrow(AttributeKindLocked::class);
 
-        // Its name, unit and place still change.
-        catalogAttributesEdit($finish, ['nameEn' => 'Colour', 'position' => 3]);
+        // Its name and unit still change.
+        catalogAttributesEdit($finish, ['nameEn' => 'Colour']);
 
         expect(app(AttributeRepository::class)->find($finish)?->name()->en)->toBe('Colour')
             ->and(Fx::audits('catalog.attribute.edited', $finish))->toBe(2);
@@ -250,7 +249,7 @@ describe('values', function () {
 
     it('adds values to a filter or a variant-making attribute, and none to one shown in the details only', function () {
         $width = catalogAttributesAdd('Width', 'FILTERABLE');
-        $id = catalogAttributesValue($width, '300 mm', ['position' => 1]);
+        $id = catalogAttributesValue($width, '300 mm');
         $material = catalogAttributesAdd('Material', 'INFORMATIONAL');
 
         expect(app(AttributeRepository::class)->findValue($id)?->attributeId())->toBe($width)

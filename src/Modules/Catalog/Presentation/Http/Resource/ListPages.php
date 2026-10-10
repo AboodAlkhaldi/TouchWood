@@ -83,7 +83,7 @@ final readonly class ListPages
         return new BrandsPage(
             array_map(static fn (BrandRow $brand): BrandData => new BrandData(
                 $brand->id, $brand->number, $brand->nameAr, $brand->nameEn, $brand->slugAr, $brand->slugEn,
-                $brand->agencyType, $brand->showInDefaultListings, $brand->isDefault, $brand->active, $brand->position,
+                $brand->agencyType, $brand->showInDefaultListings, $brand->isDefault, $brand->active,
                 $brand->originCountry, $brand->logoMediaId, $logos[$brand->logoMediaId ?? ''] ?? null,
                 DescriptionText::text($brand->descriptionAr), DescriptionText::text($brand->descriptionEn), $brand->products,
             ), $list->brands),
@@ -143,7 +143,7 @@ final readonly class ListPages
         return new AttributePage(
             self::attributeData($view->attribute),
             array_map(static fn (ValueRow $value): ValueData => new ValueData(
-                $value->id, $value->nameAr, $value->nameEn, $value->swatch, $value->active, $value->position, $value->inUse,
+                $value->id, $value->nameAr, $value->nameEn, $value->swatch, $value->active, $value->inUse,
             ), $view->values),
             $view->mayChange,
         );
@@ -167,7 +167,7 @@ final readonly class ListPages
         $list = $this->labels->handle(new ListLabels);
 
         return new LabelsPage(array_map(static fn (LabelRow $label): LabelData => new LabelData(
-            $label->id, $label->nameAr, $label->nameEn, $label->tone, $label->active, $label->position, $label->products,
+            $label->id, $label->nameAr, $label->nameEn, $label->tone, $label->active, $label->products,
         ), $list->labels), $list->mayChange);
     }
 
@@ -241,7 +241,7 @@ final readonly class ListPages
     {
         return new AttributeData(
             $attribute->id, $attribute->nameAr, $attribute->nameEn, $attribute->kind, $attribute->unitAr, $attribute->unitEn,
-            $attribute->isColour, $attribute->active, $attribute->position, $attribute->values, $attribute->kindLocked,
+            $attribute->isColour, $attribute->active, $attribute->values, $attribute->kindLocked,
             $attribute->inVariation, $attribute->inUse,
         );
     }

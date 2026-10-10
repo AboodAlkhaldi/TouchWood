@@ -7,26 +7,27 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
-import { figure, toLatinDigits } from '@/lib/digits';
+import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { AttributeData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, nameIn, useLocale } from '../parts';
+import { MoveItems } from '../SortableList';
 
 /*
 | An attribute's form (catalog.md §1.7, §4.4 S3): both names, its job - details only, a filter, or
-| making variants - its unit in both languages or neither, whether it is a colour (a filter or
-| variant-making attribute only), and its place. Its job and colour are locked, with the reason, once
-| it has values or variants carry details of it (amendments 1(i), 3(k)); its job kept "Makes
-| Variants" while a variation holds it. Added in a dialog from the list; edited on the attribute's
-| own page, where its details are this form (S3).
+| making variants - its unit in both languages or neither, and whether it is a colour (a filter or
+| variant-making attribute only). Its job and colour are locked, with the reason, once it has values
+| or variants carry details of it (amendments 1(i), 3(k)); its job kept "Makes Variants" while a
+| variation holds it. Added in a dialog from the list, last in its order (amendment 16(d)); edited on
+| the attribute's own page, where its details are this form (S3).
 */
 
 export const KINDS = ['INFORMATIONAL', 'FILTERABLE', 'VARIANT'] as const;
 
-type AttributeForm = { name_ar: string; name_en: string; kind: string; unit_ar: string; unit_en: string; is_colour: boolean; position: string };
+type AttributeForm = { name_ar: string; name_en: string; kind: string; unit_ar: string; unit_en: string; is_colour: boolean };
 
 /** The form of a new attribute, or of this one as it is. */
-export function attributeForm(attribute: AttributeData | null, nextPosition: number): AttributeForm {
+export function attributeForm(attribute: AttributeData | null): AttributeForm {
     return {
         name_ar: attribute?.nameAr ?? '',
         name_en: attribute?.nameEn ?? '',
@@ -34,28 +35,25 @@ export function attributeForm(attribute: AttributeData | null, nextPosition: num
         unit_ar: attribute?.unitAr ?? '',
         unit_en: attribute?.unitEn ?? '',
         is_colour: attribute?.isColour ?? false,
-        position: String(attribute?.position ?? nextPosition),
     };
 }
 
 /** Add an attribute, from the list. */
 export function AttributeDialog({
-    nextPosition,
     open,
     onOpenChange,
     returnFocusTo,
 }: {
-    nextPosition: number;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     returnFocusTo?: RefObject<HTMLElement | null>;
 }) {
     const t = useTranslator();
-    const form = useForm<AttributeForm>(attributeForm(null, nextPosition));
+    const form = useForm<AttributeForm>(attributeForm(null));
 
     useEffect(() => {
         if (open) {
-            form.setDefaults(attributeForm(null, nextPosition));
+            form.setDefaults(attributeForm(null));
             form.reset();
             form.clearErrors();
         }
@@ -140,25 +138,25 @@ export function AttributeFields({ form, attribute, off = false }: { form: Inerti
                         />
                     </Field>
                 )}
-                <TextField
-                    id="attribute-position"
-                    dir="ltr"
-                    inputMode="numeric"
-                    className="max-w-40"
-                    inputClassName="tw-figure"
-                    disabled={off}
-                    label={t('catalog::admin.field.position')}
-                    helper={t('catalog::admin.field.position_helper')}
-                    value={form.data.position}
-                    error={form.errors.position}
-                    onChange={(event) => form.setData('position', toLatinDigits(event.target.value))}
-                />
             </div>
     );
 }
 
-/** An attribute's ⋯ menu (S3): Activate or Deactivate, Delete - its details are edited on its own page. */
-export function AttributeMenu({ attribute, name, open }: { attribute: AttributeData; name: string; open: (action: 'delete', trigger: HTMLElement | null) => void }) {
+/**
+ * An attribute's ⋯ menu (S3): on the list, Move to Top and Move to Bottom (amendment 16(d)); then
+ * Activate or Deactivate, Delete - its details are edited on its own page.
+ */
+export function AttributeMenu({
+    attribute,
+    name,
+    open,
+    order,
+}: {
+    attribute: AttributeData;
+    name: string;
+    open: (action: 'delete', trigger: HTMLElement | null) => void;
+    order?: { first: boolean; last: boolean; toTop: () => void; toBottom: () => void };
+}) {
     const t = useTranslator();
     const [busy, setBusy] = useState(false);
     const more = useRef<HTMLButtonElement>(null);
@@ -171,6 +169,7 @@ export function AttributeMenu({ attribute, name, open }: { attribute: AttributeD
                 <MoreButton ref={more} name={name} busy={busy} data-test={`attribute-actions-${attribute.id}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-56">
+                {order !== undefined ? <MoveItems first={order.first} last={order.last} onTop={order.toTop} onBottom={order.toBottom} /> : null}
                 <DropdownMenuItem disabled={busy} onSelect={() => post(attribute.active ? 'deactivate' : 'activate')} data-test={attribute.active ? 'deactivate-attribute' : 'activate-attribute'}>
                     {attribute.active ? t('catalog::admin_attributes.deactivate') : t('catalog::admin_attributes.activate')}
                 </DropdownMenuItem>

@@ -24,7 +24,6 @@ final class AttributeData extends Data
         public ?string $unitEn,
         public bool $isColour,
         public bool $active,
-        public int $position,
         public int $values,
         /** Its job and colour stay as they are: it has values, or variants carry details of it. */
         public bool $kindLocked,

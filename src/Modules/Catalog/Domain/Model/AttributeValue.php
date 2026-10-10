@@ -17,6 +17,9 @@ use Modules\Catalog\Domain\ValueObject\LocalizedName;
  *
  * **A colour attribute's values carry a swatch**, `#rrggbb` — the design's Colours library — and
  * only theirs do.
+ *
+ * Its position is its attribute's order of values — the order of the shop's pickers — given when it
+ * is added, last, and changed only by ordering them (amendment 16(d)), never by its form.
  */
 final class AttributeValue
 {
@@ -57,12 +60,11 @@ final class AttributeValue
     /**
      * @throws InvalidCatalogAttribute
      */
-    public function edit(Attribute $attribute, LocalizedName $name, ?string $swatch, int $position): void
+    public function edit(Attribute $attribute, LocalizedName $name, ?string $swatch): void
     {
         $before = $this->snapshot();
         $this->name = $name;
         $this->swatch = self::checkedSwatch($attribute, $swatch);
-        $this->position = ListPosition::check($position);
 
         foreach ($this->snapshot() as $column => $now) {
             $this->changes->record($column, $before[$column], $now);

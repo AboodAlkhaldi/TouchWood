@@ -19,7 +19,6 @@ final class ValueData extends Data
         public string $nameEn,
         public ?string $swatch,
         public bool $active,
-        public int $position,
         public bool $inUse,
     ) {}
 }

@@ -9,6 +9,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Catalog\Domain\Model\Category;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
+use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Domain\ValueObject\Slugs;
 use stdClass;
@@ -117,6 +118,31 @@ final readonly class DatabaseCategoryRepository implements CategoryRepository
         }
     }
 
+    public function placeLast(string $categoryId, ?string $parentId, array $storeIds, ?string $baseStoreId): void
+    {
+        $categoryId = strtolower($categoryId);
+
+        foreach ($storeIds as $storeId) {
+            $siblings = $this->siblingsIn(strtolower($storeId), $baseStoreId === null ? null : strtolower($baseStoreId), $parentId === null ? null : strtolower($parentId), $categoryId);
+            $places = array_values(array_filter($siblings, static fn (?int $place): bool => $place !== null));
+            $rank = ($places === [] ? 0 : max($places)) + 1;
+
+            // Only siblings placed by hand near the cap reach it: numbered again in the order the
+            // menu shows them, every one keeps its place among the others.
+            if ($rank > ListPosition::MAX) {
+                $at = 0;
+
+                foreach (array_keys($siblings) as $sibling) {
+                    $this->placeIn((string) $sibling, [$storeId], ++$at);
+                }
+
+                $rank = ListPosition::check($at + 1, 'rank');
+            }
+
+            $this->placeIn($categoryId, [$storeId], $rank);
+        }
+    }
+
     public function rankIn(string $storeId, string $categoryId): ?int
     {
         if (! Ulids::valid($storeId) || ! Ulids::valid($categoryId)) {
@@ -126,6 +152,33 @@ final readonly class DatabaseCategoryRepository implements CategoryRepository
         $rank = $this->db->table(self::RANKS)->where('store_id', strtolower($storeId))->where('category_id', strtolower($categoryId))->value('rank');
 
         return $rank === null ? null : (int) $rank;
+    }
+
+    /**
+     * The other categories under this parent, in the order one store's menu shows them — its own
+     * place, else the base store's (amendment 5(a)), then the English name — with that place.
+     *
+     * @return array<string, int|null> a sibling's id => its place there
+     */
+    private function siblingsIn(string $storeId, ?string $baseStoreId, ?string $parentId, string $categoryId): array
+    {
+        $rows = $this->db->select(
+            'SELECT c.id, COALESCE(r.rank, b.rank) AS place FROM '.self::TABLE.' c'
+            .' LEFT JOIN '.self::RANKS.' r ON r.store_id = ? AND r.category_id = c.id'
+            .' LEFT JOIN '.self::RANKS.' b ON b.store_id = ? AND b.category_id = c.id'
+            .' WHERE '.($parentId === null ? 'c.parent_id IS NULL' : 'c.parent_id = ?').' AND c.id <> ?'
+            .' ORDER BY place NULLS LAST, c.name_en, c.id',
+            [$storeId, $baseStoreId ?? $storeId, ...($parentId === null ? [] : [$parentId]), $categoryId],
+        );
+        $siblings = [];
+
+        foreach ($rows as $row) {
+            if ($row instanceof stdClass) {
+                $siblings[(string) $row->id] = $row->place === null ? null : (int) $row->place;
+            }
+        }
+
+        return $siblings;
     }
 
     private function read(string $categoryId, bool $lock): ?Category

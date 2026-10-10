@@ -184,7 +184,7 @@ describe('the ranking', function () {
         Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'LEAVE')));
         $brand = Px::brand('Tallsen');
         $row = DB::table('catalog.brands')->where('id', $brand)->first() ?? throw new LogicException('No brand.');
-        Fx::asSystem(fn () => app(EditBrandHandler::class)->handle(new EditBrand($brand, (string) $row->name_ar, (string) $row->name_en, (string) $row->agency_type, false, (int) $row->position)));
+        Fx::asSystem(fn () => app(EditBrandHandler::class)->handle(new EditBrand($brand, (string) $row->name_ar, (string) $row->name_en, (string) $row->agency_type, false)));
         $hidden = catalogSearchProduct('Corner hinge', 'مفصلة زاوية', brandId: $brand);
         $notHere = catalogSearchProduct('Door hinge', 'مفصلة باب', stores: ['eg']);
         $unavailable = catalogSearchProduct('Glass hinge', 'مفصلة زجاج');

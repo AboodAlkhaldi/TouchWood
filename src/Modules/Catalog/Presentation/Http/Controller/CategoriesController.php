@@ -41,7 +41,7 @@ final readonly class CategoriesController
     /** @var list<string> */
     private const array WORDS = ['catalog::admin', 'catalog::admin_categories', 'admin'];
 
-    private const array FIELDS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'parent_id', 'rank', 'image_media_id'];
+    private const array FIELDS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'parent_id', 'image_media_id'];
 
     // What asks who is acting - the pages, the store choices - is taken by each action, never kept here:
     // a controller is kept on its route, longer than one request.
@@ -64,7 +64,6 @@ final readonly class CategoriesController
             nameAr: $request->text('name_ar'),
             nameEn: $request->text('name_en'),
             parentId: $request->optionalText('parent_id'),
-            rank: $request->number('rank'),
             slugAr: $request->optionalText('slug_ar'),
             slugEn: $request->optionalText('slug_en'),
             imageMediaId: self::image($request, $upload),
@@ -83,20 +82,19 @@ final readonly class CategoriesController
         )), 'catalog::admin_categories.toast.edited', self::FIELDS);
     }
 
-    /** Another parent, or the top, and its place among the new siblings (amendment 2(c)). */
+    /** Another parent, or the top: last among its new siblings in every store (amendment 16(d)). */
     public function move(CatalogFormRequest $request, string $category, MoveCategoryHandler $handler): RedirectResponse
     {
         return CatalogRefusals::act($request, fn () => $handler->handle(new MoveCategory(
             $category,
             $request->optionalText('parent_id'),
-            $request->number('rank'),
         )), 'catalog::admin_categories.toast.moved', self::FIELDS);
     }
 
     /**
-     * One parent's children in the order dragged, written as places in the store the page shows
-     * (amendment 1(d)). A form that names no store, or one not offered here, is refused — never sent
-     * to the first store.
+     * One parent's children in the order dropped, or with one moved to the top or the bottom, written
+     * as places 1, 2, 3 … in the store the page shows (amendment 16(d)). A form that names no store, or
+     * one not offered here, is refused — never sent to the first store.
      */
     public function rank(CatalogFormRequest $request, RankCategoriesHandler $handler, StoreChoices $choices): RedirectResponse
     {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Domain\Repository;
 
+use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Model\Category;
 
 interface CategoryRepository
@@ -46,11 +47,24 @@ interface CategoryRepository
     public function withImage(string $mediaId): array;
 
     /**
-     * Its place among its siblings in each of these stores (catalog.md §1.5, amendment 1(d)).
+     * Its place among its siblings in each of these stores (catalog.md §1.5): a store's own order.
      *
      * @param  list<string>  $storeIds
      */
     public function placeIn(string $categoryId, array $storeIds, int $rank): void;
+
+    /**
+     * Puts it **last among its siblings** — the categories under this parent, itself left out — in
+     * each of these stores (catalog.md §1.5, amendment 16(d)): after the place each sibling shows
+     * there, its own or, until the store's admins place it, the base store's (amendment 5(a)).
+     * Should that pass the cap, the siblings are numbered again 1, 2, 3 … in that store first, each
+     * keeping its place among the others.
+     *
+     * @param  list<string>  $storeIds
+     *
+     * @throws InvalidCatalogAttribute when the parent already holds as many categories as places go
+     */
+    public function placeLast(string $categoryId, ?string $parentId, array $storeIds, ?string $baseStoreId): void;
 
     /** Its place in one store's menu; null when it has none there yet. */
     public function rankIn(string $storeId, string $categoryId): ?int;

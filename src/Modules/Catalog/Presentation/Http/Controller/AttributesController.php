@@ -28,6 +28,10 @@ use Modules\Catalog\Application\Command\EditAttribute\EditAttribute;
 use Modules\Catalog\Application\Command\EditAttribute\EditAttributeHandler;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValue;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValueHandler;
+use Modules\Catalog\Application\Command\OrderAttributes\OrderAttributes;
+use Modules\Catalog\Application\Command\OrderAttributes\OrderAttributesHandler;
+use Modules\Catalog\Application\Command\OrderAttributeValues\OrderAttributeValues;
+use Modules\Catalog\Application\Command\OrderAttributeValues\OrderAttributeValuesHandler;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
 use Modules\Catalog\Presentation\Http\Resource\ListPages;
 use Shared\Domain\Error\DomainError;
@@ -41,9 +45,9 @@ final readonly class AttributesController
     /** @var list<string> */
     private const array WORDS = ['catalog::admin', 'catalog::admin_attributes', 'admin'];
 
-    private const array FIELDS = ['name_ar', 'name_en', 'kind', 'unit_ar', 'unit_en', 'is_colour', 'position'];
+    private const array FIELDS = ['name_ar', 'name_en', 'kind', 'unit_ar', 'unit_en', 'is_colour'];
 
-    private const array VALUE_FIELDS = ['name_ar', 'name_en', 'swatch', 'position'];
+    private const array VALUE_FIELDS = ['name_ar', 'name_en', 'swatch'];
 
     // What asks who is acting - the pages, the store choices - is taken by each action, never kept here:
     // a controller is kept on its route, longer than one request.
@@ -70,7 +74,6 @@ final readonly class AttributesController
             $request->optionalText('unit_ar'),
             $request->optionalText('unit_en'),
             $request->boolean('is_colour'),
-            $request->number('position'),
         )), 'catalog::admin_attributes.toast.added', self::FIELDS);
     }
 
@@ -84,8 +87,25 @@ final readonly class AttributesController
             $request->optionalText('unit_ar'),
             $request->optionalText('unit_en'),
             $request->boolean('is_colour'),
-            $request->number('position'),
         )), 'catalog::admin_attributes.toast.edited', self::FIELDS);
+    }
+
+    /**
+     * The attributes' order — the order of the shop's filters — as dragged, or with one moved to the
+     * top or the bottom (amendment 16(d)): the ids in their new order, the rest after (P29).
+     */
+    public function order(CatalogFormRequest $request, OrderAttributesHandler $handler): RedirectResponse
+    {
+        return CatalogRefusals::act($request, fn () => $handler->handle(new OrderAttributes($request->texts('ids'))), 'catalog::admin.toast.ordered');
+    }
+
+    /**
+     * One attribute's values in their order — the order of the shop's pickers — as dragged, or with
+     * one moved to the top or the bottom (amendment 16(d)): the ids in their new order, the rest after.
+     */
+    public function orderValues(CatalogFormRequest $request, string $attribute, OrderAttributeValuesHandler $handler): RedirectResponse
+    {
+        return CatalogRefusals::act($request, fn () => $handler->handle(new OrderAttributeValues($attribute, $request->texts('ids'))), 'catalog::admin.toast.ordered');
     }
 
     public function activate(Request $request, string $attribute, ActivateAttributeHandler $handler): RedirectResponse
@@ -118,7 +138,6 @@ final readonly class AttributesController
             $request->text('name_ar'),
             $request->text('name_en'),
             $request->optionalText('swatch'),
-            $request->number('position'),
         )), 'catalog::admin_attributes.toast.value_added', self::VALUE_FIELDS);
     }
 
@@ -129,7 +148,6 @@ final readonly class AttributesController
             $request->text('name_ar'),
             $request->text('name_en'),
             $request->optionalText('swatch'),
-            $request->number('position'),
         )), 'catalog::admin_attributes.toast.value_edited', self::VALUE_FIELDS);
     }
 

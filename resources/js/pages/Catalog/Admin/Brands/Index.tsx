@@ -15,18 +15,23 @@ import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { figure, toLatinDigits } from '@/lib/digits';
+import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { BrandData, BrandsPage, CountryOptionData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
 import { ImageField, MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
+import { DragHandle, MoveItems, SortableGroup, SortableRows, useSavedOrder, useSortableRow } from '../SortableList';
 
 /*
 | The brands screen (catalog.md §1.6, §4.4 S1), on shadcn's parts with Geist's rules (frontend.md
-| §1.11): every brand in the list's order with its fixed number (amendment 7(b)), its agency, whether
-| its products show in search and shop-wide lists or only through its own category (a secondary
-| brand, amendment 5(k)), how many products carry it, its state and the default mark.
+| §1.11): every brand in the list's order with its fixed number, Brand No. (amendment 7(b)) - never
+| its place - its agency, whether its products show in search and shop-wide lists or only through its
+| own category (a secondary brand, amendment 5(k)), how many products carry it, its state and the
+| default mark.
+|
+| The order is dragged by each row's handle and saved when dropped, or a brand moved to the top or the
+| bottom from its ⋯ menu (amendment 16(d)); a new brand goes last, with no place typed.
 |
 | Every change needs `catalog.brand.manage` with All stores (§3): for anyone else every button stays
 | in sight, out of reach, with that reason (P2). Deactivating gives each product its fate (FatesDialog); the default brand is
@@ -45,8 +50,13 @@ export default function Index({ brands, mayChange, reached, reachedFor, countrie
     const opener = useRef<HTMLElement | null>(null);
     const close = (open: boolean) => (open ? undefined : setDialog(null));
     const add = () => setDialog({ action: 'add', brand: null });
-    const nextPosition = brands.reduce((highest, brand) => Math.max(highest, brand.position), 0) + 10;
     const reason = useAllStoresReason(mayChange);
+    const { order, move, toTop, toBottom } = useSavedOrder(
+        brands.map((brand) => brand.id),
+        '/admin/brands/order',
+    );
+    const byId = new Map(brands.map((brand) => [brand.id, brand]));
+    const rows = order.flatMap((id) => byId.get(id) ?? []);
 
     return (
         <AdminLayout
@@ -74,46 +84,53 @@ export default function Index({ brands, mayChange, reached, reachedFor, countrie
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <div className="material-base overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t('catalog::admin_brands.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead className="w-12">
-                                        <span aria-hidden="true">#</span>
-                                        <span className="sr-only">{t('catalog::admin.column.position')}</span>
-                                    </TableHead>
-                                    <TableHead className="w-16">{t('catalog::admin_brands.column.number')}</TableHead>
-                                    <NameHeads locale={locale} />
-                                    <TableHead>{t('catalog::admin_brands.column.agency')}</TableHead>
-                                    <TableHead>{t('catalog::admin_brands.column.listings')}</TableHead>
-                                    <TableHead className="text-end">{t('catalog::admin.column.products')}</TableHead>
-                                    <TableHead>{t('catalog::admin.column.state')}</TableHead>
-                                    <TableHead className="w-12">
-                                        <span className="sr-only">{t('catalog::admin.column.actions')}</span>
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {brands.map((brand) => (
-                                    <Row
-                                        key={brand.id}
-                                        brand={brand}
-                                        reason={reason}
-                                        open={(action, trigger) => {
-                                            opener.current = trigger;
-                                            setDialog({ action, brand });
-                                        }}
-                                    />
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    <SortableRows groups={{ brands: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
+                        <div className="material-base overflow-x-auto">
+                            <Table>
+                                <TableCaption className="sr-only">{t('catalog::admin_brands.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead className="w-10">
+                                            <span className="sr-only">{t('catalog::admin.order.column')}</span>
+                                        </TableHead>
+                                        <TableHead className="w-24">{t('catalog::admin_brands.column.number')}</TableHead>
+                                        <NameHeads locale={locale} />
+                                        <TableHead>{t('catalog::admin_brands.column.agency')}</TableHead>
+                                        <TableHead>{t('catalog::admin_brands.column.listings')}</TableHead>
+                                        <TableHead className="text-end">{t('catalog::admin.column.products')}</TableHead>
+                                        <TableHead>{t('catalog::admin.column.state')}</TableHead>
+                                        <TableHead className="w-12">
+                                            <span className="sr-only">{t('catalog::admin.column.actions')}</span>
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <SortableGroup id="brands" ids={order}>
+                                        {rows.map((brand, index) => (
+                                            <Row
+                                                key={brand.id}
+                                                brand={brand}
+                                                reason={reason}
+                                                first={index === 0}
+                                                last={index === rows.length - 1}
+                                                toTop={() => toTop(brand.id)}
+                                                toBottom={() => toBottom(brand.id)}
+                                                open={(action, trigger) => {
+                                                    opener.current = trigger;
+                                                    setDialog({ action, brand });
+                                                }}
+                                            />
+                                        ))}
+                                    </SortableGroup>
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </SortableRows>
                 )}
             </div>
 
             {dialog !== null && (dialog.action === 'add' || dialog.action === 'edit') ? (
-                <BrandDialog brand={dialog.brand} nextPosition={nextPosition} countries={countries} open onOpenChange={close} returnFocusTo={opener} />
+                <BrandDialog brand={dialog.brand} countries={countries} open onOpenChange={close} returnFocusTo={opener} />
             ) : null}
             {dialog !== null && dialog.action === 'deactivate' && dialog.brand !== null ? (
                 <FatesDialog
@@ -135,20 +152,45 @@ export default function Index({ brands, mayChange, reached, reachedFor, countrie
     );
 }
 
-function Row({ brand, reason, open }: { brand: BrandData; reason: string | undefined; open: (action: 'edit' | 'deactivate' | 'delete', trigger: HTMLElement | null) => void }) {
+function Row({
+    brand,
+    reason,
+    first,
+    last,
+    toTop,
+    toBottom,
+    open,
+}: {
+    brand: BrandData;
+    reason: string | undefined;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
+    open: (action: 'edit' | 'deactivate' | 'delete', trigger: HTMLElement | null) => void;
+}) {
     const t = useTranslator();
     const locale = useLocale();
     const [busy, setBusy] = useState(false);
     const more = useRef<HTMLButtonElement>(null);
     const name = nameIn(locale, brand.nameAr, brand.nameEn);
+    const row = useSortableRow(brand.id, reason !== undefined);
     const post = (path: string) => router.post(`/admin/brands/${brand.id}/${path}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
     // Why an item cannot be used, written under it: the default brand stays, a used brand stays.
     const deactivateReason = brand.isDefault ? t('catalog::admin_brands.reason.default') : null;
     const deleteReason = brand.isDefault ? t('catalog::admin_brands.reason.default') : brand.products > 0 ? t('catalog::admin_brands.reason.in_use') : null;
 
     return (
-        <TableRow data-test={`brand-${brand.id}`}>
-            <TableCell className="tw-figure text-ink-muted">{figure(locale, brand.position)}</TableCell>
+        <TableRow
+            ref={row.ref}
+            style={row.style}
+            data-dragging={row.dragging || undefined}
+            className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+            data-test={`brand-${brand.id}`}
+        >
+            <TableCell>
+                <DragHandle handle={row.handle} label={name} reason={reason} test={`drag-brand-${brand.id}`} />
+            </TableCell>
             <TableCell className="tw-figure" data-test="brand-number">
                 {figure(locale, brand.number)}
             </TableCell>
@@ -190,6 +232,7 @@ function Row({ brand, reason, open }: { brand: BrandData; reason: string | undef
                                     {t('catalog::admin_brands.make_default')}
                                 </DropdownMenuItem>
                             ) : null}
+                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
                             {!brand.active ? (
                                 <DropdownMenuItem disabled={busy} onSelect={() => post('activate')} data-test="activate-brand">
                                     {t('catalog::admin_brands.activate')}
@@ -240,7 +283,6 @@ type BrandForm = {
     slug_en: string;
     agency_type: string;
     show_in_default_listings: boolean;
-    position: string;
     origin_country: string;
     description_ar: string;
     description_en: string;
@@ -249,7 +291,7 @@ type BrandForm = {
     remove_logo: boolean;
 };
 
-function initial(brand: BrandData | null, nextPosition: number): BrandForm {
+function initial(brand: BrandData | null): BrandForm {
     return {
         name_ar: brand?.nameAr ?? '',
         name_en: brand?.nameEn ?? '',
@@ -257,7 +299,6 @@ function initial(brand: BrandData | null, nextPosition: number): BrandForm {
         slug_en: brand?.slugEn ?? '',
         agency_type: brand?.agencyType ?? 'DISTRIBUTOR',
         show_in_default_listings: brand?.showInDefaultListings ?? true,
-        position: String(brand?.position ?? nextPosition),
         origin_country: brand?.originCountry ?? '',
         description_ar: brand?.descriptionAr ?? '',
         description_en: brand?.descriptionEn ?? '',
@@ -270,28 +311,26 @@ function initial(brand: BrandData | null, nextPosition: number): BrandForm {
 /** Add a brand, or edit one: the whole form, as the handler takes it. */
 function BrandDialog({
     brand,
-    nextPosition,
     countries,
     open,
     onOpenChange,
     returnFocusTo,
 }: {
     brand: BrandData | null;
-    nextPosition: number;
     countries: CountryOptionData[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
     returnFocusTo?: React.RefObject<HTMLElement | null>;
 }) {
     const t = useTranslator();
-    const form = useForm<BrandForm>(initial(brand, nextPosition));
+    const form = useForm<BrandForm>(initial(brand));
     const [addresses, setAddresses] = useState(false);
     // A refused address is never left folded away out of sight.
     const addressRefused = form.errors.slug_ar !== undefined || form.errors.slug_en !== undefined;
 
     useEffect(() => {
         if (open) {
-            form.setDefaults(initial(brand, nextPosition));
+            form.setDefaults(initial(brand));
             form.reset();
             form.clearErrors();
             setAddresses(false);
@@ -376,18 +415,6 @@ function BrandDialog({
                             {t('catalog::admin_brands.country.clear')}
                         </Button>
                     ) : null}
-                    <TextField
-                        id="brand-position"
-                        dir="ltr"
-                        inputMode="numeric"
-                        inputClassName="tw-figure"
-                        label={t('catalog::admin.field.position')}
-                        helper={t('catalog::admin.field.position_helper')}
-                        value={form.data.position}
-                        error={form.errors.position}
-                        onChange={(event) => form.setData('position', toLatinDigits(event.target.value))}
-                        data-test="brand-position"
-                    />
                 </div>
 
                 <ImageField

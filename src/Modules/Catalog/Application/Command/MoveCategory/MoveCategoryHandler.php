@@ -17,13 +17,13 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
-use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Shared\Application\Unauthorized;
 
 /**
  * **Moving a category** (catalog.md §1.5): under another active category that holds no product,
  * never under itself or
- * anything below it (`CategoryLoop`), and placed among its new siblings in every store. Its slugs do
+ * anything below it (`CategoryLoop`), and placed **last among its new siblings in every store**
+ * (amendment 16(d)), each store's admins dragging it into place there afterwards. Its slugs do
  * not change — an address names the category, not its path — so its addresses stay as they were.
  * **Its path does**: the listing rows of the products in it and below it are written again (§5.4),
  * under the products' lock, taken first, as every change to them.
@@ -46,7 +46,6 @@ final readonly class MoveCategoryHandler
     public function handle(MoveCategory $command): void
     {
         $this->change->authorize(self::PERMISSION);
-        ListPosition::check($command->rank, 'rank');
 
         $this->change->runAfterProducts(ListLocks::CATEGORIES, function () use ($command): array {
             $category = $this->categories->byId($command->categoryId) ?? throw new CategoryNotFound($command->categoryId);
@@ -65,11 +64,10 @@ final readonly class MoveCategoryHandler
             }
 
             $this->categories->update($category);
-            $this->input->placeEverywhere($category->id(), $command->rank);
+            $this->input->placeLast($category->id(), $parentId);
             $this->listingRows->refresh($this->products->idsInCategories([$category->id(), ...$this->categories->idsBelow($category->id())]));
 
-            // Among its new siblings it had no place before.
-            $entry = ListAudit::changed('category', 'moved', $category->id(), [...$changes, 'rank' => null], [...$category->snapshot(), 'rank' => $command->rank]);
+            $entry = ListAudit::changed('category', 'moved', $category->id(), $changes, $category->snapshot());
 
             return [null, $entry === null ? [] : [$entry]];
         });

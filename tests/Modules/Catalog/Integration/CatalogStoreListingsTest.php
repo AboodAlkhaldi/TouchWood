@@ -34,6 +34,8 @@ use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabels;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabelsHandler;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProduct;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProductHandler;
 use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
@@ -114,9 +116,9 @@ function catalogListingChoose(string $store, string $productId, bool $active = t
     app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $productId, $active, $variantIds));
 }
 
-function catalogListingLabel(string $nameEn, int $position = 0): string
+function catalogListingLabel(string $nameEn): string
 {
-    return Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('عرض', $nameEn, 'green', $position)));
+    return Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('عرض', $nameEn, 'green')));
 }
 
 describe('choosing', function () {
@@ -323,8 +325,9 @@ describe('labels', function () {
         $ready = Px::ready();
         $sa = Fx::storeId('sa');
         catalogListingChoose('sa', $ready['product']);
-        // Placed in the list against the order they were made in.
-        [$sale, $new, $last] = [catalogListingLabel('Sale', 2), catalogListingLabel('New', 1), catalogListingLabel('Last pieces', 3)];
+        // Placed in the list against the order they were made in (amendment 16(d)).
+        [$sale, $new, $last] = [catalogListingLabel('Sale'), catalogListingLabel('New'), catalogListingLabel('Last pieces')];
+        Fx::asSystem(fn () => app(OrderLabelsHandler::class)->handle(new OrderLabels([$new, $sale, $last])));
 
         app(AttachLabelsHandler::class)->handle(new AttachLabels($sa, $ready['product'], [$new, $sale]));
         Fx::asSystem(fn () => app(DeactivateLabelHandler::class)->handle(new DeactivateLabel($sale)));

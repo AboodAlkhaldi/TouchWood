@@ -17,13 +17,13 @@ use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Model\Category;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
-use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Shared\Application\Unauthorized;
 
 /**
  * **Adding a category** (catalog.md §1.5), under `catalog.category.manage` with All stores: the tree
  * is every store's. Its parent must be active, and **hold no product**: products sit at the end of
- * the tree (`CategoryHoldsProducts`).
+ * the tree (`CategoryHoldsProducts`). **It goes last among its siblings in every store**, read under
+ * the categories' lock; each store's admins drag it into place there (amendment 16(d)).
  */
 final readonly class AddCategoryHandler
 {
@@ -45,7 +45,6 @@ final readonly class AddCategoryHandler
     {
         $this->change->authorize(self::PERMISSION);
         [$name, $slugs] = $this->input->names($command->nameAr, $command->nameEn, $command->slugAr, $command->slugEn);
-        ListPosition::check($command->rank, 'rank');
         $id = $this->categories->nextId();
 
         return $this->change->run(ListLocks::CATEGORIES, function () use ($id, $name, $slugs, $command): array {
@@ -57,9 +56,9 @@ final readonly class AddCategoryHandler
 
             $category = Category::add($id, $parentId, $name, $slugs, $image);
             $this->categories->add($category);
-            $this->input->placeEverywhere($id, $command->rank);
+            $this->input->placeLast($id, $parentId);
 
-            return [$id, [ListAudit::added('category', $id, [...$category->snapshot(), 'rank' => $command->rank])]];
+            return [$id, [ListAudit::added('category', $id, $category->snapshot())]];
         });
     }
 }

@@ -183,10 +183,11 @@ describe('the categories', function () {
         $topRow = collect($list->categories)->firstOrFail(fn (CategoryRow $row): bool => $row->id === $top);
         $lowRow = collect($list->categories)->firstOrFail(fn (CategoryRow $row): bool => $row->id === $low);
 
+        // Each added first among its siblings: place 1 in every store (amendment 16(d)).
         expect($topRow->storeRank)->toBe(7)
-            ->and($topRow->baseRank)->toBe(0)
+            ->and($topRow->baseRank)->toBe(1)
             ->and($lowRow->parentId)->toBe($top)
-            ->and($lowRow->storeRank)->toBe(0)
+            ->and($lowRow->storeRank)->toBe(1)
             ->and($list->mayRank)->toBeTrue()
             ->and($list->mayManage)->toBeFalse();
     });
@@ -273,8 +274,8 @@ describe('the variations, labels, warranties and word pairs', function () {
         $warranty = Px::warranty();
         $unused = Px::warranty();
         ['product' => $product] = Px::ready();
-        $label = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'New', 'green', 10)));
-        $idle = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('عرض', 'Offer', 'amber', 20)));
+        $label = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'New', 'green')));
+        $idle = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('عرض', 'Offer', 'amber')));
 
         // One product carrying the label in two stores is one product using it.
         foreach (['sa', 'eg'] as $store) {

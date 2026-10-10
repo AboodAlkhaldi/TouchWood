@@ -24,6 +24,8 @@ use Modules\Catalog\Public\Enums\AgencyType;
  * - A description is optional, but **in both languages or in neither**: a page half in one language
  *   is worse than none (handoff §5.2).
  * - The origin country is optional (amendment 1(j)): when given, two capital letters.
+ * - Its position is the brands' order, given when it is added — last — and changed only by ordering
+ *   the list (amendment 16(d)); its fixed number (amendment 7(b)) is another thing, kept apart.
  */
 final class Brand
 {
@@ -101,7 +103,6 @@ final class Brand
         ?string $originCountry,
         AgencyType $agencyType,
         bool $showInDefaultListings,
-        int $position,
     ): void {
         self::checkDescription($descriptionAr, $descriptionEn);
         $before = $this->snapshot();
@@ -114,7 +115,6 @@ final class Brand
         $this->originCountry = self::country($originCountry);
         $this->agencyType = $agencyType;
         $this->showInDefaultListings = $showInDefaultListings;
-        $this->position = ListPosition::check($position);
 
         $this->recordAgainst($before);
     }

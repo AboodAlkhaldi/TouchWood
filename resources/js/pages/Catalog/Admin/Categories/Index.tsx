@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
@@ -14,13 +14,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { figure, toLatinDigits } from '@/lib/digits';
+import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
 import { ImageField, MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale, type Locale } from '../parts';
-import { SortableList } from '../SortableList';
+import { DragHandle, MoveItems, SortableGroup, SortableRows, useSortableRow } from '../SortableList';
 
 /*
 | The categories screen (catalog.md §1.5, §4.4 S2): **the whole tree** in one table, a parent's
@@ -31,35 +31,59 @@ import { SortableList } from '../SortableList';
 | **The store filter** (`?store=`, frontend.md §2.2) chooses whose menu order the page shows and
 | orders: the stores where the reader orders the menu (`catalog.category.rank`), a Super Admin's off
 | ones marked Off. A category the store has not placed shows the base store's place, marked so
-| (amendment 5(a)). Ordering one parent's children is a drag in a dialog (P8), saved for that store.
+| (amendment 5(a)). **The rows of one parent are dragged into their order** by each row's handle,
+| saved for that store when dropped, or moved to the top or the bottom among their siblings from the
+| row's ⋯ menu (amendment 16(d), P8): a row moves among its own siblings only. A category added or
+| moved goes last among its siblings, in every store - no place is typed.
 |
 | The tree itself changes only with `catalog.category.manage` and All stores (§3); for anyone else its
 | buttons stay in sight, out of reach, with that reason (P2).
 */
 
-type Dialog =
-    | { action: 'add' | 'edit' | 'move' | 'deactivate' | 'delete'; category: CategoryData | null; parent?: string | null }
-    | { action: 'order'; category: CategoryData | null }
-    | null;
+type Dialog = { action: 'add' | 'edit' | 'move' | 'deactivate' | 'delete'; category: CategoryData | null; parent?: string | null } | null;
 
 type Node = { category: CategoryData; children: Node[]; depth: number };
 
-/** The tree, each parent's children in the store's order, else the base store's, else by name. */
-function tree(categories: CategoryData[], locale: Locale): Node[] {
+/** The drag group of the top categories; every other group is named by its parent's id. */
+const TOP = 'top';
+
+/**
+ * The tree, each parent's children in the store's order, else the base store's, else by name - or,
+ * for the group whose order was just dropped, that order while it is saved.
+ */
+function tree(categories: CategoryData[], locale: Locale, sent: { group: string; ids: string[] } | null): Node[] {
     const byParent = new Map<string, CategoryData[]>();
 
     for (const category of categories) {
-        const key = category.parentId ?? '';
+        const key = category.parentId ?? TOP;
         byParent.set(key, [...(byParent.get(key) ?? []), category]);
     }
 
     const place = (category: CategoryData) => category.storeRank ?? category.baseRank ?? Number.MAX_SAFE_INTEGER;
+    const sorted = (parent: string, list: CategoryData[]) =>
+        sent !== null && sent.group === parent
+            ? [...list].sort((a, b) => sent.ids.indexOf(a.id) - sent.ids.indexOf(b.id))
+            : [...list].sort((a, b) => place(a) - place(b) || nameIn(locale, a.nameAr, a.nameEn).localeCompare(nameIn(locale, b.nameAr, b.nameEn)));
     const branch = (parent: string, depth: number): Node[] =>
-        [...(byParent.get(parent) ?? [])]
-            .sort((a, b) => place(a) - place(b) || nameIn(locale, a.nameAr, a.nameEn).localeCompare(nameIn(locale, b.nameAr, b.nameEn)))
-            .map((category) => ({ category, depth, children: branch(category.id, depth + 1) }));
+        sorted(parent, byParent.get(parent) ?? []).map((category) => ({ category, depth, children: branch(category.id, depth + 1) }));
 
-    return branch('', 0);
+    return branch(TOP, 0);
+}
+
+/** Every group's ids in their order: the top categories, and each parent's children. */
+function groupsOf(nodes: Node[]): Record<string, string[]> {
+    const groups: Record<string, string[]> = { [TOP]: nodes.map((node) => node.category.id) };
+    const walk = (list: Node[]) => {
+        for (const node of list) {
+            if (node.children.length > 0) {
+                groups[node.category.id] = node.children.map((child) => child.category.id);
+                walk(node.children);
+            }
+        }
+    };
+    walk(nodes);
+
+    return groups;
 }
 
 /** Every id under a category, itself included. */
@@ -70,17 +94,33 @@ function below(node: Node): string[] {
 export default function Index({ categories, storeCode, storeName, stores, mayManage, mayRank, reached, reachedFor }: CategoriesPage) {
     const t = useTranslator();
     const locale = useLocale();
-    const nodes = useMemo(() => tree(categories, locale), [categories, locale]);
+    // A group's order just dropped, shown while it is saved: the server's comes back with the page.
+    const [sent, setSent] = useState<{ group: string; ids: string[] } | null>(null);
+    const nodes = useMemo(() => tree(categories, locale, sent), [categories, locale, sent]);
+    const groups = useMemo(() => groupsOf(nodes), [nodes]);
     const byId = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
     const [open, setOpen] = useState<Set<string>>(() => new Set(nodes.map((node) => node.category.id)));
     const [dialog, setDialog] = useState<Dialog>(null);
     const opener = useRef<HTMLElement | null>(null);
     const manageReason = useAllStoresReason(mayManage);
+    // The store's menu is ordered here only when a store is shown, by someone who orders it.
+    const orderable = mayRank && storeCode !== null;
     const close = (next: boolean) => (next ? undefined : setDialog(null));
     const show = (next: Dialog, trigger: HTMLElement | null) => {
         opener.current = trigger;
         setDialog(next);
     };
+
+    /** One parent's children in their new order, written as places 1, 2, 3 … in the store shown. */
+    function order(group: string, ids: string[]) {
+        if (storeCode === null) {
+            return;
+        }
+
+        setSent({ group, ids });
+        const ranks = Object.fromEntries(ids.map((id, index) => [id, index + 1]));
+        router.post('/admin/categories/order', { store: storeCode, ranks }, { preserveScroll: true, onFinish: () => setSent(null) });
+    }
 
     const nodeOf = (id: string): Node | null => {
         const find = (list: Node[]): Node | null => {
@@ -102,32 +142,38 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
         return find(nodes);
     };
 
-    const rows: ReactNode[] = [];
-    const walk = (list: Node[]) => {
-        for (const node of list) {
-            rows.push(
-                <Row
-                    key={node.category.id}
-                    node={node}
-                    open={open.has(node.category.id)}
-                    toggle={() => {
-                        const next = new Set(open);
-                        next.has(node.category.id) ? next.delete(node.category.id) : next.add(node.category.id);
-                        setOpen(next);
-                    }}
-                    storeShown={storeCode !== null}
-                    manageReason={manageReason}
-                    mayRank={mayRank}
-                    show={show}
-                />,
-            );
+    // The rows stand flat in the table, each parent's children right under it; each group of siblings
+    // is its own drag group around them, drawing nothing, so a row moves among its siblings only.
+    const rowsOf = (list: Node[], group: string): ReactNode => {
+        const ids = list.map((node) => node.category.id);
 
-            if (open.has(node.category.id)) {
-                walk(node.children);
-            }
-        }
+        return (
+            <SortableGroup key={`group-${group}`} id={group} ids={ids}>
+                {list.map((node, index) => (
+                    <Fragment key={node.category.id}>
+                        <Row
+                            node={node}
+                            open={open.has(node.category.id)}
+                            toggle={() => {
+                                const next = new Set(open);
+                                next.has(node.category.id) ? next.delete(node.category.id) : next.add(node.category.id);
+                                setOpen(next);
+                            }}
+                            storeShown={storeCode !== null}
+                            manageReason={manageReason}
+                            orderable={orderable}
+                            first={index === 0}
+                            last={index === list.length - 1}
+                            toTop={() => order(group, [node.category.id, ...ids.filter((id) => id !== node.category.id)])}
+                            toBottom={() => order(group, [...ids.filter((id) => id !== node.category.id), node.category.id])}
+                            show={show}
+                        />
+                        {open.has(node.category.id) && node.children.length > 0 ? rowsOf(node.children, node.category.id) : null}
+                    </Fragment>
+                ))}
+            </SortableGroup>
+        );
     };
-    walk(nodes);
 
     // Where a product may be moved: an active lowest category outside what is deactivated.
     const moveTargets = (outside: string[]) =>
@@ -149,11 +195,6 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                 <FormError />
                 <div className="flex flex-wrap items-end gap-3">
                     <StoreFilter stores={stores} value={storeCode} className="max-w-xs" />
-                    {mayRank && nodes.length > 1 ? (
-                        <Button type="button" variant="outline" onClick={(event) => show({ action: 'order', category: null }, event.currentTarget)} data-test="order-top">
-                            {t('catalog::admin_categories.order_top')}
-                        </Button>
-                    ) : null}
                 </div>
 
                 {nodes.length === 0 ? (
@@ -169,23 +210,29 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <div className="material-base overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t('catalog::admin_categories.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead>{t('catalog::admin.column.name')}</TableHead>
-                                    <TableHead className="text-end">{t('catalog::admin.column.products')}</TableHead>
-                                    {storeCode !== null ? <TableHead>{t('catalog::admin_categories.column.place')}</TableHead> : null}
-                                    <TableHead>{t('catalog::admin.column.state')}</TableHead>
-                                    <TableHead className="w-12">
-                                        <span className="sr-only">{t('catalog::admin.column.actions')}</span>
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>{rows}</TableBody>
-                        </Table>
-                    </div>
+                    <SortableRows groups={groups} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={order}>
+                        <div className="material-base overflow-x-auto">
+                            <Table>
+                                <TableCaption className="sr-only">{t('catalog::admin_categories.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        {orderable ? (
+                                            <TableHead className="w-10">
+                                                <span className="sr-only">{t('catalog::admin.order.column')}</span>
+                                            </TableHead>
+                                        ) : null}
+                                        <TableHead>{t('catalog::admin.column.name')}</TableHead>
+                                        <TableHead className="text-end">{t('catalog::admin.column.products')}</TableHead>
+                                        <TableHead>{t('catalog::admin.column.state')}</TableHead>
+                                        <TableHead className="w-12">
+                                            <span className="sr-only">{t('catalog::admin.column.actions')}</span>
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>{rowsOf(nodes, TOP)}</TableBody>
+                            </Table>
+                        </div>
+                    </SortableRows>
                 )}
             </div>
 
@@ -219,18 +266,6 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
             {dialog !== null && dialog.action === 'delete' && dialog.category !== null ? (
                 <DeleteCategoryDialog category={dialog.category} open onOpenChange={close} returnFocusTo={opener} />
             ) : null}
-            {dialog !== null && dialog.action === 'order' && storeCode !== null ? (
-                <OrderDialog
-                    parent={dialog.category}
-                    siblings={(dialog.category === null ? nodes : (nodeOf(dialog.category.id)?.children ?? [])).map((node) => node.category)}
-                    storeCode={storeCode}
-                    storeName={storeName ?? storeCode}
-                    byId={byId}
-                    open
-                    onOpenChange={close}
-                    returnFocusTo={opener}
-                />
-            ) : null}
         </AdminLayout>
     );
 }
@@ -241,7 +276,11 @@ function Row({
     toggle,
     storeShown,
     manageReason,
-    mayRank,
+    orderable,
+    first,
+    last,
+    toTop,
+    toBottom,
     show,
 }: {
     node: Node;
@@ -250,7 +289,12 @@ function Row({
     storeShown: boolean;
     /** Why the tree cannot be changed by this reader (P2); undefined when it can. */
     manageReason: string | undefined;
-    mayRank: boolean;
+    /** Whether the reader orders the store's menu shown here. */
+    orderable: boolean;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
     show: (dialog: Dialog, trigger: HTMLElement | null) => void;
 }) {
     const t = useTranslator();
@@ -263,10 +307,23 @@ function Row({
     const parentHere = node.children.length > 0;
     const deleteReason = parentHere ? t('catalog::admin_categories.reason.children') : category.products > 0 ? t('catalog::admin_categories.reason.products') : null;
     const subReason = category.productsHere > 0 ? t('catalog::admin_categories.reason.holds_products') : !category.active ? t('catalog::admin_categories.reason.inactive') : null;
-    const ordersHere = mayRank && storeShown && parentHere;
+    const row = useSortableRow(category.id, !orderable);
+    // Not placed by this store's admins yet: it shows at the base store's place (amendment 5(a)).
+    const basePlace = storeShown && category.storeRank === null && category.baseRank !== null;
 
     return (
-        <TableRow data-test={`category-${category.id}`}>
+        <TableRow
+            ref={row.ref}
+            style={row.style}
+            data-dragging={row.dragging || undefined}
+            className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+            data-test={`category-${category.id}`}
+        >
+            {orderable ? (
+                <TableCell>
+                    <DragHandle handle={row.handle} label={name} test={`drag-category-${category.id}`} />
+                </TableCell>
+            ) : null}
             <TableCell>
                 <span className="flex items-center gap-2" style={{ paddingInlineStart: `${node.depth * 1.5}rem` }}>
                     {parentHere ? (
@@ -291,28 +348,19 @@ function Row({
                             {other}
                         </span>
                     </span>
+                    {basePlace ? (
+                        <Badge className={tone('gray-subtle')} data-test="base-place">
+                            {t('catalog::admin_categories.base_place')}
+                        </Badge>
+                    ) : null}
                 </span>
             </TableCell>
             <TableCell className="tw-figure text-end">{figure(locale, category.products)}</TableCell>
-            {storeShown ? (
-                <TableCell data-test="category-place">
-                    {category.storeRank !== null ? (
-                        <span className="tw-figure">{figure(locale, category.storeRank)}</span>
-                    ) : category.baseRank !== null ? (
-                        <span className="flex items-center gap-2">
-                            <span className="tw-figure">{figure(locale, category.baseRank)}</span>
-                            <Badge className={tone('gray-subtle')}>{t('catalog::admin_categories.base_place')}</Badge>
-                        </span>
-                    ) : (
-                        <span className="text-ink-muted">—</span>
-                    )}
-                </TableCell>
-            ) : null}
             <TableCell>
                 <StateBadge active={category.active} />
             </TableCell>
             <TableCell className="text-end">
-                {manageReason !== undefined && !ordersHere ? (
+                {manageReason !== undefined && !orderable ? (
                     <MoreButtonOff name={name} reason={manageReason} />
                 ) : (
                     <DropdownMenu>
@@ -324,11 +372,8 @@ function Row({
                             <Item label={t('catalog::admin_categories.edit')} reason={manageReason ?? null} onSelect={() => show({ action: 'edit', category }, more.current)} test="edit-category" />
                             <Item label={t('catalog::admin_categories.add_sub')} reason={manageReason ?? subReason} onSelect={() => show({ action: 'add', category: null, parent: category.id }, more.current)} test="add-sub" />
                             <Item label={t('catalog::admin_categories.move')} reason={manageReason ?? null} onSelect={() => show({ action: 'move', category }, more.current)} test="move-category" />
-                            {ordersHere ? (
-                                <DropdownMenuItem onSelect={() => show({ action: 'order', category }, more.current)} data-test="order-children">
-                                    {t('catalog::admin_categories.order_children')}
-                                </DropdownMenuItem>
-                            ) : null}
+                            {/* Among its siblings, in the store shown (catalog.category.rank there). */}
+                            {orderable ? <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} /> : null}
                             {manageReason === undefined && !category.active ? (
                                 <DropdownMenuItem
                                     disabled={busy}
@@ -381,7 +426,6 @@ type CategoryForm = {
     slug_ar: string;
     slug_en: string;
     parent_id: string;
-    rank: string;
     image_media_id: string;
     image: File | null;
     remove_image: boolean;
@@ -416,7 +460,6 @@ function CategoryDialog({
         slug_ar: category?.slugAr ?? '',
         slug_en: category?.slugEn ?? '',
         parent_id: mode === 'add' ? (parent ?? '') : (category?.parentId ?? ''),
-        rank: '0',
         image_media_id: category?.imageMediaId ?? '',
         image: null,
         remove_image: false,
@@ -470,29 +513,14 @@ function CategoryDialog({
                 )}
 
                 {mode === 'edit' ? null : (
-                    <>
-                        <SelectField id="category-parent" label={t('catalog::admin_categories.field.parent')} value={form.data.parent_id} error={form.errors.parent_id} onChange={(event) => form.setData('parent_id', event.target.value)} data-test="category-parent">
-                            <NativeSelectOption value="">{t('catalog::admin_categories.field.top')}</NativeSelectOption>
-                            {parents.map((each) => (
-                                <NativeSelectOption key={each.id} value={each.id}>
-                                    {nameIn(locale, each.nameAr, each.nameEn)}
-                                </NativeSelectOption>
-                            ))}
-                        </SelectField>
-                        <TextField
-                            id="category-rank"
-                            dir="ltr"
-                            inputMode="numeric"
-                            className="max-w-40"
-                            inputClassName="tw-figure"
-                            label={t('catalog::admin_categories.field.place')}
-                            helper={t('catalog::admin_categories.field.place_helper')}
-                            value={form.data.rank}
-                            error={form.errors.rank}
-                            onChange={(event) => form.setData('rank', toLatinDigits(event.target.value))}
-                            data-test="category-rank"
-                        />
-                    </>
+                    <SelectField id="category-parent" label={t('catalog::admin_categories.field.parent')} value={form.data.parent_id} error={form.errors.parent_id} onChange={(event) => form.setData('parent_id', event.target.value)} data-test="category-parent">
+                        <NativeSelectOption value="">{t('catalog::admin_categories.field.top')}</NativeSelectOption>
+                        {parents.map((each) => (
+                            <NativeSelectOption key={each.id} value={each.id}>
+                                {nameIn(locale, each.nameAr, each.nameEn)}
+                            </NativeSelectOption>
+                        ))}
+                    </SelectField>
                 )}
 
                 {mode === 'move' ? null : (
@@ -521,70 +549,6 @@ function CategoryDialog({
                     </>
                 )}
             </div>
-        </PanelDialog>
-    );
-}
-
-/** One parent's children (or the top categories) dragged into their order in the store shown (P8). */
-function OrderDialog({
-    parent,
-    siblings,
-    storeCode,
-    storeName,
-    byId,
-    open,
-    onOpenChange,
-    returnFocusTo,
-}: {
-    parent: CategoryData | null;
-    siblings: CategoryData[];
-    storeCode: string;
-    storeName: string;
-    byId: Map<string, CategoryData>;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    returnFocusTo?: React.RefObject<HTMLElement | null>;
-}) {
-    const t = useTranslator();
-    const locale = useLocale();
-    const [order, setOrder] = useState<string[]>(() => siblings.map((each) => each.id));
-    const [busy, setBusy] = useState(false);
-
-    useEffect(() => {
-        if (open) {
-            setOrder(siblings.map((each) => each.id));
-        }
-    }, [open, parent?.id]);
-
-    function save() {
-        // Places ten apart, in the order dragged, so a category added later can go between two.
-        const ranks = Object.fromEntries(order.map((id, index) => [id, (index + 1) * 10]));
-        router.post('/admin/categories/order', { store: storeCode, ranks }, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: () => onOpenChange(false) });
-    }
-
-    return (
-        <PanelDialog
-            open={open}
-            onOpenChange={onOpenChange}
-            returnFocusTo={returnFocusTo}
-            title={parent === null ? t('catalog::admin_categories.order_top_title') : t('catalog::admin_categories.order_title', { name: nameIn(locale, parent.nameAr, parent.nameEn) })}
-            description={t('catalog::admin_categories.order_body', { store: storeName })}
-            busy={busy}
-            confirm={
-                <ActionButton loading={busy} onClick={save} data-test="confirm-order">
-                    {t('catalog::admin_categories.order_save')}
-                </ActionButton>
-            }
-        >
-            <SortableList
-                testPrefix="order"
-                items={order.map((id) => {
-                    const each = byId.get(id);
-
-                    return { id, label: each === undefined ? id : nameIn(locale, each.nameAr, each.nameEn) };
-                })}
-                onChange={setOrder}
-            />
         </PanelDialog>
     );
 }

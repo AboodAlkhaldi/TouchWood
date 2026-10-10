@@ -12,7 +12,6 @@ use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Model\Category;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ProductRepository;
-use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Domain\ValueObject\Slugs;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -20,7 +19,7 @@ use Modules\Platform\Public\Dto\StoreDto;
 
 /**
  * What adding, editing and moving a category share (catalog.md §1.5): its names and slugs, the
- * parent it goes under, and its place among its siblings, written into every store's order.
+ * parent it goes under, and its place among its siblings — last — written into every store's order.
  */
 final readonly class CategoryInput
 {
@@ -92,17 +91,18 @@ final readonly class CategoryInput
     }
 
     /**
-     * Its place among its siblings, chosen by whoever adds or moves it, starting the same in every
-     * store — on or off, so a store turned on later already has its order (amendment 1(d)).
+     * A category added or moved goes **last among its siblings, in every store** — on or off, so a
+     * store turned on later already has its order — after the place each sibling shows there; each
+     * store's admins drag it into place there afterwards (owner, 2026-10-09, amendment 16(d),
+     * replacing amendments 1(d) and 2(c)'s place chosen by whoever adds or moves it).
      *
      * @throws InvalidCatalogAttribute
      */
-    public function placeEverywhere(string $categoryId, int $rank): void
+    public function placeLast(string $categoryId, ?string $parentId): void
     {
-        $this->categories->placeIn(
-            $categoryId,
-            array_map(static fn (StoreDto $store): string => $store->id, $this->platform->allStores()),
-            ListPosition::check($rank, 'rank'),
-        );
+        $stores = $this->platform->allStores();
+        $base = array_values(array_filter($stores, static fn (StoreDto $store): bool => $store->isBase))[0] ?? null;
+
+        $this->categories->placeLast($categoryId, $parentId, array_map(static fn (StoreDto $store): string => $store->id, $stores), $base?->id);
     }
 }

@@ -51,7 +51,7 @@ final readonly class EditBrandHandler
             $input->requireFreeSlugs($this->brands, $brand->id());
 
             $shown = $brand->showInDefaultListings();
-            $brand->edit($input->name, $input->slugs, $input->descriptionAr, $input->descriptionEn, $logo, $command->originCountry, $input->agencyType, $command->showInDefaultListings, $command->position);
+            $brand->edit($input->name, $input->slugs, $input->descriptionAr, $input->descriptionEn, $logo, $command->originCountry, $input->agencyType, $command->showInDefaultListings);
             $entry = ListAudit::changed('brand', 'edited', $brand->id(), $brand->pullChanges(), $brand->snapshot());
 
             if ($entry === null) {

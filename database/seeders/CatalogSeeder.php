@@ -35,7 +35,6 @@ final class CatalogSeeder extends Seeder
             nameEn: 'TouchWood',
             agencyType: AgencyType::House->value,
             showInDefaultListings: true,
-            position: 0,
             slugEn: self::SLUG_EN,
             originCountry: 'SA',
         ));

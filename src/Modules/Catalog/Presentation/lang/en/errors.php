@@ -183,5 +183,7 @@ return [
         'choice' => 'choice',
         'move_to' => 'where to move',
         'products' => 'products',
+        // An order sent from a list's screen (amendment 16(d)).
+        'ids' => 'order',
     ],
 ];
