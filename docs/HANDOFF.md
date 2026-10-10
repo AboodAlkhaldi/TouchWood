@@ -123,6 +123,8 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-07 | §10.1, §10.3 | **The lowest applicable price wins** — base, sale, campaign, category discount and, on wholesale lines, the quantity price; nothing stacks. Replaces "priority DESC, first hit wins". Quantity prices apply to wholesale lines only. Category discounts: a percentage or a fixed amount, dated, per store (a fixed amount skips a product it would take to 0 or below). **A price is always above 0.** Prices are kept and shown **without VAT**; VAT is added at checkout and rounded once, on the order, half up | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.1 | **A store with no provider counts every product on its stock**; the stock-dependent switch exists only in a wired store. Stock is **held when an order is placed and taken when it ships**; a cancel frees it. The safety buffer is dropped. The low-stock threshold is per variant per store; "ending soon": an admin's switch per product in a store with no provider, automatic on stock-dependent products in a wired one. Low-stock alerts are shown in the panel until Ops sends them | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.2 | **A wired store's provider key** is kept encrypted in the database, set by a Super Admin, never shown again. One audit entry per pull, the detail in the stock and price histories. The sync report, Retry and Sync Now are per-store permissions. An off store's prices and stock are set by Super Admins (or its file). Whether discounts come from the provider, us or both, and whether the provider calls us on a change, wait for the provider's team | Stage 5 questions, owner decision |
+| 2026-10-09 | §10.1, §12.1 | **"Always wins while on"**: a sale or a category discount may be marked so — while it runs it beats cheaper sales and discounts on its sizes; two at once on a size are refused; it never beats a wholesale quantity price. Saving one shows what it affects and what it overlaps. Sales and discounts start and end by timed tasks with a daily safety check. **A wired store's stock is read, never held or reduced.** One code is one size (Catalog's amendment). The details: `docs/modules/pricing.md` | Pricing spec questions, owner decision |
+| 2026-10-09 | §9.2, §12.1 | **Inventory**: one permission, **Manage Stock**, per store, any role — stock, hand changes (Received, Damaged / lost, Offline sale, Correction with a note; a stocktake "set to"), thresholds, the switches, the Low Stock list. A variant with no threshold uses the store's default, **10 pieces**; the threshold **only alerts, never limits ordering**. Removing pieces held for orders is allowed, the orders flagged "not enough stock". The stock-dependent switch is **per variant** — all of a product's, some or one; a variant added later starts off. **A wired ordinary product the provider reports at 0 stays orderable** (replaces §9.2's provisional rule); staff mark it "Not available now". **"Ending soon" shows on cards too**, when any of the product's variants is. The details: `docs/modules/inventory.md` | Inventory spec questions, owner decision |
 | 2026-10-08 | §4.2, §4.4, §11.1–§11.3, §11.6, §15.2 | **Promotions' rules** (`docs/modules/promotions.md`): the automatic promotions are the gift levels alone; a coupon takes a percentage (optional cap) or a fixed amount, skips already-reduced lines unless switched on, may have a total number of uses, and is **refused whole if it would pass the ceiling**; a coupon use **never comes back**, even on a cancellation; segments are per store and count every placed order whatever its state; one gift per order, the highest level reached; **the ceiling starts at 30%**, admin-only; bundles / kits wait for their own job after stage 6 | Promotions spec, owner decision |
 
 ---
@@ -982,8 +984,9 @@ A product is out of stock in a store when:
 - the store is **wired** (§12.2) and the product is **stock-dependent**: its stock, as §12.1 counts
   it, is used up;
 - the store is wired and the product is **not** stock-dependent: staff mark it so
-  (`force_unavailable`), **or the provider reports 0** — automatically. This last rule is
-  provisional (owner, 2026-10-02: "let it checked for now"); the owner may change it.
+  (`force_unavailable`) — **only then**. ~~or the provider reports 0 — automatically (provisional,
+  2026-10-02)~~ **[REVISED 2026-10-09]** The provider's 0 does not stop it: its stock never limits
+  ordering, "since its not stock-dependent" (owner).
 
 In every store, a product staff mark "Not available now" (`force_unavailable`) is hidden the same way.
 
@@ -1095,7 +1098,9 @@ are no company prices, and the lowest price wins.
 | ~~Company price~~ | ~~`audience = COMPANY`~~ — none (owner, 2026-10-07) |
 
 **Resolution:** filter by store, variant and active date (and, on a wholesale line, the quantity
-band) → **the lowest price wins**; nothing stacks. ~~order by `priority DESC` → first hit wins.~~
+band) → **the lowest price wins**; nothing stacks — **unless a sale or category discount is marked
+"always wins while on"** (owner, 2026-10-09), which then beats cheaper sales and discounts on its
+sizes, never a wholesale quantity price. ~~order by `priority DESC` → first hit wins.~~
 Prices are kept **without VAT** (§10.2 adds it once, on the order). The module's spec:
 `docs/modules/pricing.md`.
 
@@ -1280,8 +1285,11 @@ this system's scope.** Do not model warehouses, branches, bins or transfers.
 - **Wired to a provider** (§12.2) — the provider's stock is read in, by product code. **An ordinary
   product's stock does not limit ordering**: placing an order neither reserves nor reduces it, and a
   customer may order more than it shows. Staff reduce stock **in the provider**, by hand, as they ship.
-  The product goes out of stock only when the provider reports 0 or staff mark it (§9.2).
-- **Stock-dependent products** — a flag, **off by default, per product per store**, for a wired
+  The product goes out of stock only when staff mark it (§9.2) ~~or the provider reports 0~~
+  (revised 2026-10-09).
+- **Stock-dependent products** — a flag, **off by default**, ~~per product~~ **per variant** per
+  store — staff pick all of a product's variants, some or one, and a variant added later starts off
+  (owner, 2026-10-09) — for a wired
   store's products that must not be oversold. Our figure is **the provider's stock minus the
   quantities of this store's orders not yet ticked "reduced in the provider"** by staff (§12.3).
   Staff tick an order once they have reduced its stock in the provider. Whatever the provider sends
@@ -1301,6 +1309,12 @@ staff**, shown in the panel until Ops sends them (stage 8). Low-stock alerts wor
 store with no provider. **"Ending soon"** for customers: in a store with no provider, where an admin
 switches it on for the product; in a wired store, automatically on stock-dependent products only —
 in both, when a variant's stock is at or below its threshold.
+**[REVISED 2026-10-09]** A variant with no threshold uses **the store's default, 10 pieces**. The
+threshold **only alerts staff — it never changes what can be ordered**. The alerts, the stock, hand
+changes and the switches ("ending soon" included) belong to **one permission, Manage Stock**, per
+store, any role. Removing pieces held for orders is allowed; those orders are flagged "not enough
+stock" for staff. **"Ending soon" shows on cards and lists too**: a card says it when any of its
+product's variants is ending soon. The details: `docs/modules/inventory.md`.
 
 ```
 available_to_sell = on_hand − reserved      (the safety buffer is dropped, owner 2026-10-07)
