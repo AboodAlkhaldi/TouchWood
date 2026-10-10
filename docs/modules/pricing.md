@@ -1,6 +1,7 @@
 # Pricing — module specification
 
-**Status (2026-10-09): the full spec, for the owner's OK.** §2 — what other modules call — was agreed
+**Status (2026-10-10): the full spec, accepted** (#100, 2026-10-09); **amended 2026-10-10** — a
+wholesale line's list price is its band (§1.6 step 5, §9.2). Was: **the full spec, for the owner's OK.** §2 — what other modules call — was agreed
 first and is on `main` (#97, "interfaces first", owner 2026-10-07). The rest follows from the owner's
 answers of 2026-10-07 to 2026-10-09; my proposals of the first draft were accepted on 2026-10-08,
 the timing one replaced on 2026-10-09 (§9.2). What waits for the provider's team is §9.1. Handoff
@@ -129,7 +130,12 @@ For a line — a size, its sale mode, a quantity — in a store, at a moment:
 4. **Otherwise the cheapest candidate is the unit price**; its kind is reported. Equal candidates: the
    dated one first — sale, category discount — then the wholesale band, then the retail price, so the
    shopper sees why it is cheaper (owner, 2026-10-08).
-5. **The list price** — what `gross_subtotal` counts and a card crosses out — is the retail price.
+5. **The list price** — what `gross_subtotal` counts — is the line's normal price: **on a retail line,
+   the retail price; on a wholesale line, its band** where one applies, else the retail price. **A
+   wholesale price is that line's normal price, not a discount** (owner, 2026-10-10): only a sale or a
+   category discount below it reduces a line, so coupons and points reach a band-priced line and the
+   discount ceiling (handoff §11.3) measures real reductions only. A card crosses out the retail price
+   (it shows retail-line prices, §1.10).
 6. **When it stops applying**: the end of the winning sale or discount — or the start of an "always
    wins" one scheduled on the size, which would replace it — or null.
 
@@ -146,7 +152,7 @@ The handoff's canonical amounts (§10.2), computed by `PricingApi::totals` (§2)
 no database, no clock** — from the prices (§1.6) and the amounts Sales hands in:
 
 ```
-gross_subtotal = Σ (retail price × quantity)          over the priced lines
+gross_subtotal = Σ (list price × quantity)            over the priced lines (§1.6 step 5)
 net_subtotal   = Σ (unit price × quantity)
 goods_total    = net_subtotal − coupon_discount − points_discount
 taxable_base   = goods_total + shipping
@@ -217,7 +223,7 @@ no error classes.
 | DTO | Fields |
 |---|---|
 | `CartLineDto` | `variantId` · `mode` (`Catalog\Public\Enums\SaleMode`: `RETAIL`, `WHOLESALE`) · `quantity` (≥ 1) |
-| `LinePriceDto` | `variantId` · `mode` · `quantity` · `listUnit` (the `BASE` price of one piece) · `unit` (what one piece costs on this line) · `kind` (`PriceKind` that won) · `listTotal` (= `listUnit` × quantity) · `total` (= `unit` × quantity) · `?endsAt` (when that price stops applying — the end of its sale, campaign or discount; null for `BASE` and quantity prices without dates) |
+| `LinePriceDto` | `variantId` · `mode` · `quantity` · `listUnit` (the line's normal price of one piece, §1.6 step 5: the retail price; on a wholesale line its band where one applies — a line is reduced exactly when `unit` < `listUnit`) · `unit` (what one piece costs on this line) · `kind` (`PriceKind` that won) · `listTotal` (= `listUnit` × quantity) · `total` (= `unit` × quantity) · `?endsAt` (when that price stops applying — the end of its sale, campaign or discount; null for `BASE` and quantity prices without dates) |
 | `CartPricesDto` | `storeId` · `currencyCode` · `taxRateBasisPoints` · `lines` (list of `LinePriceDto`) · `unpriced` (variant ids with no price there) · `grossSubtotal` (Σ `listTotal`) · `netSubtotal` (Σ `total`) · `pricedAt` · `?validUntil` (the earliest `endsAt`: a quote built on these prices must not outlive it) |
 | `TotalsDto` | `grossSubtotal` · `netSubtotal` · `couponDiscount` · `pointsDiscount` · `goodsTotal` · `shipping` · `taxableBase` · `vat` · `orderTotal` · `taxRateBasisPoints` |
 | `PriceKind` (enum) | `BASE` · `SALE` · `CAMPAIGN` · `CATEGORY` · `QUANTITY` |
@@ -371,7 +377,9 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
    by the order in §1.6; no retail price → unpriced; a scheduled sale not yet applying; an ended one
    no longer; an "always wins" sale beating a cheaper sale and a cheaper category discount; an
    "always wins" on a wholesale line losing to a cheaper band; a running sale's `endsAt` cut short by
-   an "always wins" one scheduled on the size.
+   an "always wins" one scheduled on the size; **the list price** — a retail line's is the retail
+   price, a wholesale line's its band (retail under the first band), so a band-priced line has
+   `unit` = `listUnit` and a sale below the band has `unit` < `listUnit`.
 2. **Totals** (pure): every §10.2 amount; VAT rounded once, half up, at .5 exactly; refusals —
    unpriced line, another currency, a negative amount, discounts above `net_subtotal`; the same input
    twice gives the same answer.
@@ -434,3 +442,9 @@ only a scheduled one removed; **5** wholesale bands kept unused, and a lowered m
 under the first band at retail, marked; **6** ties shown as the offer; **9** no event published yet.
 **7** replaced (2026-10-09): materialized candidates stand; the every-minute job became **timed tasks
 at each start and end, and a daily safety check**. **8** dropped: one code is one size.
+
+**A wholesale line's list price** (2026-10-10, raised by stage 5's cross-check of Promotions): is a
+band a discount? **No — "wholesale is normal"** (owner): a band is the line's normal price (§1.6 step
+5), so coupons and points reach band-priced lines and the ceiling counts only sales and discounts.
+Before, a wholesale line's list price was the retail price, and a 70 band under a 100 retail price
+used up a 30% ceiling on its own.
