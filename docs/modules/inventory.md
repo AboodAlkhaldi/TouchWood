@@ -1,7 +1,8 @@
 # Inventory — module specification
 
-**Status (2026-10-10): the full spec, accepted** (#102, 2026-10-10); **returns (§1.9) and order edits
-(§1.4, `adjustHold`) added, for the owner's review** — the two new calls marked [PROPOSED]. §2 — what
+**Status (2026-10-10): the full spec, accepted** (#102); **returns (§1.9) and order edits (§1.4,
+`adjustHold`) added and accepted** (#106); **being built** from 2026-10-10 in five steps — see
+[its README](../../src/Modules/Inventory/README.md). §2 — what
 other modules call — was agreed first and is on `main` (#97, "interfaces first", owner 2026-10-07). The
 rest follows from the owner's answers of 2026-10-01 to 2026-10-10 (§9.2). What waits for the
 provider's team or another session is §9.1. Handoff §12.1, revised 2026-10-07, 2026-10-09 and
@@ -115,7 +116,7 @@ the handoff's dashboard "low stock"), seen by holders of **Manage Stock** there 
 the panel only until Ops (stage 8) adds email and SMS (owner, 2026-10-07).
 
 **A size given only as a gift** — one the store does not sell (Promotions may give any ready size) —
-**[PROPOSED]**: staff may set its stock like any other, and once it has a stock row it is on the Low
+(accepted with #106): staff may set its stock like any other, and once it has a stock row it is on the Low
 Stock list too. The list covers every size the store has switched on **and** every size with a stock
 row there. Without stock it gives nothing (`availableAsGift` 0).
 
@@ -166,8 +167,8 @@ Quantities are whole pieces (≥ 1). **On `main` since #97.**
 | `ship(string $orderId, list<HoldLineDto> $lines): void` | Sales (an order or part of it shipped) | Takes the shipped pieces off the stock and off the hold — in a store with no provider. In a wired store nothing is taken: the provider is the source; a stock-dependent line's hold waits for the tick. |
 | `reducedInProvider(string $orderId, list<string> $variantIds): void` | Sales (staff ticked "reduced in the provider") | Ends those lines' holds in a wired store. |
 | `release(string $orderId): void` | Sales (a cancel; a shipped parcel that came back, sales.md §1.5), Inventory's own expiry job | Frees whatever the order still holds — and only that: after a shipment, what was shipped or ticked is not held any more and is left alone (in a store with no provider a fully shipped order frees nothing; in a wired store, the stock-dependent and gift lines not yet ticked). |
-| `adjustHold(string $orderId, list<HoldLineDto> $newLines): void` | Sales (staff edited an order before it ships) | Moves the order's hold to exactly `newLines`, all or nothing (§1.4): the extra held, refused with `inventory.not_enough_stock` as at placement; lowered or removed lines freed; the expiry kept. No hold for the order: `inventory.no_hold`; a line already shipped or ticked: `inventory.hold_not_editable`. **[PROPOSED** — stage 6's shape, 2026-10-10**]** |
-| `returned(string $orderId, string $returnId, list<HoldLineDto> $lines): void` | Sales (staff marked a return received; a shipped parcel marked "came back", settled as a whole return — sales.md §1.5, owner 2026-10-10 — after `release`, with its own id in `returnId`) | Puts the lines' pieces back as §1.9 says, by kind of store and size; a gift line on gift rules. Only the pieces going back — for a parcel that came back, those whose stock was taken: every shipped piece in a store with no provider, the ticked lines in a wired store. The store is the order's (its hold). **[PROPOSED** — agreed with stage 6, 2026-10-10**]** |
+| `adjustHold(string $orderId, list<HoldLineDto> $newLines): void` | Sales (staff edited an order before it ships) | Moves the order's hold to exactly `newLines`, all or nothing (§1.4): the extra held, refused with `inventory.not_enough_stock` as at placement; lowered or removed lines freed; the expiry kept. No hold for the order: `inventory.no_hold`; a line already shipped or ticked: `inventory.hold_not_editable`. (stage 6's shape; accepted with #106) |
+| `returned(string $orderId, string $returnId, list<HoldLineDto> $lines): void` | Sales (staff marked a return received; a shipped parcel marked "came back", settled as a whole return — sales.md §1.5, owner 2026-10-10 — after `release`, with its own id in `returnId`) | Puts the lines' pieces back as §1.9 says, by kind of store and size; a gift line on gift rules. Only the pieces going back — for a parcel that came back, those whose stock was taken: every shipped piece in a store with no provider, the ticked lines in a wired store. The store is the order's (its hold). (agreed with stage 6; accepted with #106) |
 
 `ship`, `reducedInProvider`, `release`, `adjustHold` and `returned` are safe to repeat: a line already
 shipped, ticked or freed is left as it is; the same edit twice changes nothing; a return id counts once.
@@ -365,9 +366,8 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 1 | Which warehouse / location counts for the online store, and "On hand" or "Available"? | The provider's team (asked 2026-10-09) |
 | 2 | Does the provider call us when stock changes (a webhook), besides our reading every few minutes? | Same |
 | 3 | **Returns in a wired store** (§1.9): the provisional rule stands until the provider's team says whether we may write to it — then the owner and I discuss it again | The provider's team (owner, 2026-10-10) |
-| 4 | `ListingFacts::endingSoon` (§2.3) | Catalog's amendment 16(h), PR #103 — the owner's review |
+| 4 | `ListingFacts::endingSoon` (§2.3) | Catalog's amendment 16(h), accepted (#103, 50e9991); its backend being built |
 | 5 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |
-| 6 | `adjustHold` and `returned` — the shapes in §2.1; a gift-only size's stock (§1.7) | The owner's review of this amendment |
 
 ### 9.2 Answered (owner, 2026-10-09 and 2026-10-10)
 
