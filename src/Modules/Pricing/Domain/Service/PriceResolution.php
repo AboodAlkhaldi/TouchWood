@@ -19,12 +19,13 @@ use Modules\Pricing\Public\Enums\PriceKind;
  * 2. The candidates: the retail price, every sale and category discount running, and on a wholesale
  *    line the band with the highest start at or below the quantity.
  * 3. An "always wins" one running is the price, every other sale and discount set aside - on a
- *    wholesale line the lower of it and the band (owner, 2026-10-08/09); and never above the retail
- *    price, where a sale "simply stops winning" (§1.3).
+ *    wholesale line the lower of it and the band (owner, 2026-10-08/09). Above the retail price it has
+ *    "simply stopped winning" (§1.3) and pauses nothing: the others count again (owner, 2026-10-10).
  * 4. Otherwise the cheapest wins. Equal ones: the dated first - sale, then category discount - then the
- *    band, then the retail price, so the shopper sees why it is cheaper (owner, 2026-10-08).
+ *    band, then the retail price, so the shopper sees why it is cheaper (owner, 2026-10-08); equal in
+ *    amount and kind, the one lasting longest (owner, 2026-10-10).
  * 5. The list price: the retail price; on a wholesale line its band where one applies - a wholesale
- *    price is not a discount (owner, 2026-10-10).
+ *    price is not a discount - but never above the retail price (owner, 2026-10-10).
  * 6. It stops applying at the winner's end, or sooner at the start of an "always wins" one scheduled
  *    on the line, which would replace it.
  */
@@ -74,17 +75,26 @@ final class PriceResolution
         }
 
         $alwaysWins = array_values(array_filter($running, static fn (Candidate $candidate): bool => $candidate->alwaysWins));
+        $leading = $alwaysWins === [] ? null : self::cheapest($alwaysWins);
+        $bands = $band === null ? [] : [$band];
 
-        if ($alwaysWins !== []) {
-            // Every other sale and discount set aside - but never dearer than the retail price (a sale
-            // above it "simply stops winning", §1.3) or, on a wholesale line, the band.
-            $winner = self::cheapest([self::cheapest($alwaysWins), $base, ...($band === null ? [] : [$band])]);
+        if ($leading !== null && $leading->amount->compareTo($base->amount) <= 0) {
+            // While it is the price, every other sale and discount is set aside; on a wholesale line
+            // it never beats a cheaper band.
+            $winner = self::cheapest([$leading, ...$bands]);
         } else {
-            $winner = self::cheapest([$base, ...($band === null ? [] : [$band]), ...$running]);
+            // None running, or one above the retail price, which has "simply stopped winning" (§1.3):
+            // it no longer pauses the others, and the cheapest wins (owner, 2026-10-10).
+            $winner = self::cheapest([$base, ...$bands, ...$running]);
         }
 
+        // A wholesale line's normal price is its band - a wholesale price is not a discount (owner,
+        // 2026-10-10) - but never above the retail price, so a band left above a lowered retail price
+        // never shows as a reduction (owner, 2026-10-10).
+        $listUnit = $band !== null && $band->amount->compareTo($base->amount) < 0 ? $band->amount : $base->amount;
+
         return new ResolvedPrice(
-            listUnit: $band !== null ? $band->amount : $base->amount,
+            listUnit: $listUnit,
             unit: $winner->amount,
             kind: $winner->kind,
             endsAt: self::earliest([$winner->endsAt, ...array_map(static fn (Candidate $candidate): ?DateTimeImmutable => $candidate->startsAt, $scheduledAlwaysWins)]),

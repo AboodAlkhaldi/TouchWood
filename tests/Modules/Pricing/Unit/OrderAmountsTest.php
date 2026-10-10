@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Modules\Pricing\Domain\Exception\AmountsInvalid;
 use Modules\Pricing\Domain\Exception\LinesWithoutPrice;
 use Modules\Pricing\Domain\Exception\PercentOutOfRange;
+use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Service\FixedOff;
 use Modules\Pricing\Domain\Service\OrderTotals;
 use Modules\Pricing\Domain\Service\PercentOff;
@@ -30,10 +31,12 @@ describe('a percentage off (§1.1 rule 5: half up to the smallest coin)', functi
         expect(PercentOff::price(Money::of($price, $currency), $basisPoints)->minorUnits)->toBe($expected);
     })->with([
         '15 % of 100.00 SAR' => [10000, 'SAR', 1500, 8500],
-        'half a halala rounds up: 50 % of 1.01' => [101, 'SAR', 5000, 51],
-        'under half rounds down: 33.33 % of 1.00' => [100, 'SAR', 3333, 67],
-        'three decimals, half a fils rounds up: 15 % of 1.001 KWD' => [1001, 'KWD', 1500, 851],
-        'three decimals: 12.5 % of 10.000 KWD' => [10000, 'KWD', 1250, 8750],
+        'exactly half a halala rounds up: 50 % of 1.01 = 0.505' => [101, 'SAR', 5000, 51],
+        'under half a halala rounds down: 60 % of 1.01 = 0.404' => [101, 'SAR', 6000, 40],
+        'over half a halala rounds up: 33.33 % of 1.00 = 0.6667' => [100, 'SAR', 3333, 67],
+        'three decimals, exactly half a fils rounds up: 50 % of 1.003 KWD = 0.5015' => [1003, 'KWD', 5000, 502],
+        'three decimals, under half a fils rounds down: 40 % of 1.001 KWD = 0.6006' => [1001, 'KWD', 4000, 601],
+        'three decimals, no rounding: 12.5 % of 10.000 KWD' => [10000, 'KWD', 1250, 8750],
         'the smallest step: 0.01 % of 1.00' => [100, 'SAR', 1, 100],
         'the largest step: 99.99 % of 100.00' => [10000, 'SAR', 9999, 1],
     ]);
@@ -41,6 +44,11 @@ describe('a percentage off (§1.1 rule 5: half up to the smallest coin)', functi
     it('refuses a percentage not above 0 and below 100', function (int $basisPoints) {
         expect(fn () => PercentOff::price(Money::of(10000, 'SAR'), $basisPoints))->toThrow(PercentOutOfRange::class);
     })->with(['nothing off' => [0], 'everything off' => [10000], 'more than everything' => [12000], 'a negative percentage' => [-500]]);
+
+    it('refuses a percentage that would bring the price to 0 (owner, 2026-10-10)', function () {
+        // 99.99 % of 0.49 = 0.000049, rounded to 0.
+        expect(fn () => PercentOff::price(Money::of(49, 'SAR'), 9999))->toThrow(PriceNotPositive::class);
+    });
 });
 
 describe('a fixed amount off (§1.5)', function () {
@@ -51,6 +59,10 @@ describe('a fixed amount off (§1.5)', function () {
     it('skips a size it would take to 0 or below', function (int $off) {
         expect(FixedOff::price(Money::of(10000, 'SAR'), Money::of($off, 'SAR')))->toBeNull();
     })->with(['to exactly 0' => [10000], 'below 0' => [15000]]);
+
+    it('refuses an amount that is not above 0', function (int $off) {
+        expect(fn () => FixedOff::price(Money::of(10000, 'SAR'), Money::of($off, 'SAR')))->toThrow(PriceNotPositive::class);
+    })->with(['nothing' => [0], 'a negative amount' => [-2500]]);
 });
 
 describe('the totals (§1.7, handoff §10.2)', function () {
@@ -102,7 +114,18 @@ describe('the totals (§1.7, handoff §10.2)', function () {
         'negative points' => [Money::zero('SAR'), Money::of(-1, 'SAR'), Money::zero('SAR')],
         'negative shipping' => [Money::zero('SAR'), Money::zero('SAR'), Money::of(-1, 'SAR')],
         'discounts one halala above the net' => [Money::of(6000, 'SAR'), Money::of(4001, 'SAR'), Money::zero('SAR')],
+        'a coupon above the net on its own' => [Money::of(10001, 'SAR'), Money::zero('SAR'), Money::zero('SAR')],
+        'a coupon too big to add to anything' => [Money::of(PHP_INT_MAX, 'SAR'), Money::of(1, 'SAR'), Money::zero('SAR')],
     ]);
+
+    it('takes the rate as it is, from 0 to 100 %, and refuses a negative one', function () {
+        $none = OrderTotals::of(pricingAmountsPrices(gross: 10000, net: 10000, rateBasisPoints: 0), Money::zero('SAR'), Money::zero('SAR'), Money::zero('SAR'));
+        $whole = OrderTotals::of(pricingAmountsPrices(gross: 10000, net: 10000, rateBasisPoints: 10000), Money::zero('SAR'), Money::zero('SAR'), Money::zero('SAR'));
+
+        expect($none->vat->minorUnits)->toBe(0)
+            ->and($whole->vat->minorUnits)->toBe(10000)
+            ->and(fn () => OrderTotals::of(pricingAmountsPrices(gross: 10000, net: 10000, rateBasisPoints: -1500), Money::zero('SAR'), Money::zero('SAR'), Money::zero('SAR')))->toThrow(AmountsInvalid::class);
+    });
 
     it('gives the same answer to the same input', function () {
         $prices = pricingAmountsPrices(gross: 120000, net: 100000);

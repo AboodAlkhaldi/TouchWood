@@ -107,6 +107,29 @@ it('gives a wholesale line its band, and takes the band as its list price', func
     'past the last' => [9000, [7000, 7000, PriceKind::Quantity, null]],
 ]);
 
+it('takes the band with the highest start, whatever order the bands come in', function () {
+    $candidates = [pricingEngineBand(500, 7000), pricingEngineBase(10000, SaleMode::Wholesale), pricingEngineBand(20, 8500), pricingEngineBand(100, 7800)];
+
+    expect(pricingEngineResolve($candidates, SaleMode::Wholesale, 150))->toBe([7800, 7800, PriceKind::Quantity, null]);
+});
+
+it('never shows a band above the retail price as a reduction: the line\'s normal price is the lower (owner, 2026-10-10)', function () {
+    expect(pricingEngineResolve([pricingEngineBase(9000, SaleMode::Wholesale), pricingEngineBand(20, 9500)], SaleMode::Wholesale, 20))
+        ->toBe([9000, 9000, PriceKind::Base, null]);
+});
+
+it('never lets a retail line take a band, even one wrongly kept for retail', function () {
+    expect(pricingEngineResolve([pricingEngineBase(10000), new Candidate(SaleMode::Retail, 1, pricingEngineMoney(5000), PriceKind::Quantity)], SaleMode::Retail, 50))
+        ->toBe([10000, 10000, PriceKind::Base, null]);
+});
+
+it('prices each mode from its own candidates: a retail sale never reaches a wholesale line', function () {
+    $candidates = [pricingEngineBase(10000), pricingEngineBase(9900, SaleMode::Wholesale), pricingEngineDated(PriceKind::Sale, 8000), pricingEngineDated(PriceKind::Category, 7000)];
+
+    expect(pricingEngineResolve($candidates, SaleMode::Wholesale, 5))->toBe([9900, 9900, PriceKind::Base, null])
+        ->and(pricingEngineResolve($candidates, SaleMode::Retail, 5))->toBe([10000, 7000, PriceKind::Category, '2026-10-15 12:00']);
+});
+
 it('never gives a retail line a band', function () {
     expect(pricingEngineResolve([pricingEngineBase(10000), pricingEngineBase(10000, SaleMode::Wholesale), pricingEngineBand(1, 5000)], SaleMode::Retail, 50))
         ->toBe([10000, 10000, PriceKind::Base, null]);
@@ -152,9 +175,21 @@ describe('"always wins while on" (owner, 2026-10-08/09)', function () {
         expect(pricingEngineResolve($candidates))->toBe([10000, 9500, PriceKind::Sale, '2026-10-13 12:00']);
     });
 
+    // Only a sale with a fixed new price can sit above the retail price: a percentage is worked out
+    // again whenever the retail price changes.
     it('stops winning once the retail price drops below it, as any sale does (§1.3)', function () {
-        expect(pricingEngineResolve([pricingEngineBase(9000), pricingEngineDated(PriceKind::Category, 9500, alwaysWins: true), pricingEngineDated(PriceKind::Sale, 8000)]))
+        expect(pricingEngineResolve([pricingEngineBase(9000), pricingEngineDated(PriceKind::Sale, 9500, alwaysWins: true)]))
             ->toBe([9000, 9000, PriceKind::Base, null]);
+    });
+
+    it('pauses nothing once it has stopped winning: the cheapest counts again (owner, 2026-10-10)', function () {
+        expect(pricingEngineResolve([pricingEngineBase(9000), pricingEngineDated(PriceKind::Sale, 9500, alwaysWins: true), pricingEngineDated(PriceKind::Sale, 8000, until: '+2 days')]))
+            ->toBe([9000, 8000, PriceKind::Sale, '2026-10-12 12:00']);
+    });
+
+    it('takes no notice of one that has ended', function () {
+        expect(pricingEngineResolve([pricingEngineBase(10000), pricingEngineDated(PriceKind::Sale, 9500, from: '-5 days', until: '-1 day', alwaysWins: true), pricingEngineDated(PriceKind::Sale, 9000)]))
+            ->toBe([10000, 9000, PriceKind::Sale, '2026-10-15 12:00']);
     });
 
     it('wins a tie with the retail price, so the shopper sees the offer', function () {

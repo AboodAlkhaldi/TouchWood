@@ -37,7 +37,9 @@ final class OrderTotals
             }
         }
 
-        if ($couponDiscount->add($pointsDiscount)->compareTo($prices->netSubtotal) > 0) {
+        // Each against what is left, so a huge amount is refused here rather than overflowing an addition.
+        if ($couponDiscount->compareTo($prices->netSubtotal) > 0
+            || $pointsDiscount->compareTo($prices->netSubtotal->subtract($couponDiscount)) > 0) {
             throw new AmountsInvalid;
         }
 
