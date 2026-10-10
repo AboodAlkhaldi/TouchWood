@@ -34,13 +34,13 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Frontend foundation (stage 2b, not a module) | [approved](frontend.md) — revised 2026-09-22 against the merged Access; built; **rebuilt on shadcn's code with Geist's rules** (§1.11, 2026-10-03/04): every screen, its words and its error messages | — |
 | B2B | [accepted](b2b.md) 2026-09-26, amendments 1–25 — **built and merged** (seven steps, from 2026-09-27; its screens rebuilt on shadcn, amendments 22–25). See [its README](../../src/Modules/B2B/README.md) | — |
 | Feedback | [draft](feedback.md) 2026-10-09 — **for the owner's review**; stage 6, built after Promotions | Sales (the verified purchase) — Sales's spec, next |
-| Catalog | [approved](catalog.md) 2026-10-02 — **being built** (from 2026-10-02) in seven steps, backend first; the JSON import's file format was agreed on 2026-10-05 — the format, a guide and examples in [`catalog-import/`](catalog-import/README.md) — and the import is built last. See [its README](../../src/Modules/Catalog/README.md) | — |
+| Catalog | [approved](catalog.md) 2026-10-02, amendments 1–15 — **backend built and merged** (seven steps, 2026-10-02 to 2026-10-06; `v0.6.0`); the JSON import's file format, a guide and examples in [`catalog-import/`](catalog-import/README.md). Its screens are specified (amendments 13–15) and built by another session. See [its README](../../src/Modules/Catalog/README.md) | — |
 | Pricing | [spec](pricing.md) — its public contract on `main` (#97, 2026-10-07); the full spec accepted and merged (#100, 2026-10-09); built next (stage 5) | Catalog |
 | Inventory | [spec](inventory.md) — its public contract on `main` (#97, 2026-10-07); the full spec, its questions answered by the owner 2026-10-09 (stage 5) | Catalog |
 | Sync | not started — waits for the provider's team: API access, a sample, whether discounts come from it, change notifications (pricing.md §9.1) | Pricing, Inventory, the provider's answers |
 | Sales | not started | Catalog, Pricing, Inventory |
-| Promotions | not started | Pricing |
-| Loyalty | not started | Pricing |
+| Promotions | [draft](promotions.md) 2026-10-08 — **for the owner's review**; stage 6, built after Loyalty | — (Platform, Access, Catalog, Pricing — Pricing's interfaces on `main` since #97) |
+| Loyalty | [draft](loyalty.md) 2026-10-07 — **for the owner's review**; the first of stage 6 to be built (owner: Loyalty → Promotions → Feedback → Sales) | — (Platform, Access: handoff §4.4; this row had said Pricing) |
 | Payments | not started | MyFatoorah API docs + sandbox |
 | Shipping | not started | box list + carrier list + rate tables |
 | Content | not started | Catalog |
