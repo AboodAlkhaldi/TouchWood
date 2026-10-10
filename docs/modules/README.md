@@ -40,7 +40,7 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Sync | not started — waits for the provider's team: API access, a sample, whether discounts come from it, change notifications (pricing.md §9.1) | Pricing, Inventory, the provider's answers |
 | Sales | [accepted](sales.md) 2026-10-10 (#110) — the last of stage 6 to be built | Pricing, Inventory (built in stage 5); Shipping and Payments (stage 7) through the interfaces it defines |
 | Promotions | [accepted](promotions.md) 2026-10-10 (#101) — stage 6, built after Loyalty | — (Platform, Access, Catalog, Pricing — Pricing's interfaces on `main` since #97) |
-| Loyalty | [accepted](loyalty.md) 2026-10-10 (#96) — the first of stage 6 to be built (owner: Loyalty → Promotions → Feedback → Sales) | — (Platform, Access: handoff §4.4; this row had said Pricing) |
+| Loyalty | [accepted](loyalty.md) 2026-10-10 (#96) — **being built** from 2026-10-10 in six steps (step 1, the foundation: schema, permissions, settings, errors), the first of stage 6 (owner: Loyalty → Promotions → Feedback → Sales). See [its README](../../src/Modules/Loyalty/README.md) | — (Platform, Access: handoff §4.4; this row had said Pricing) |
 | Payments | not started | MyFatoorah API docs + sandbox |
 | Shipping | not started | box list + carrier list + rate tables |
 | Content | not started | Catalog |
