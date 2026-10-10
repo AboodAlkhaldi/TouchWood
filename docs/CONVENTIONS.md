@@ -155,6 +155,13 @@ step branches under them: they left a tangled history, with no version marking w
   commit or roll back together. Any new cache follows the same rule.
 - Cache reads are database queries: never promise "zero queries". State what a warm request reads
   and test it against the real `database` cache store (tests use it, see `phpunit.xml`).
+- **A web request may keep a cached snapshot it read for the rest of the request** (owner,
+  2026-10-08; access.md amendment 65, platform.md §9.11 - the permissions, the settings and the
+  store directory do), in a **scoped** instance, never a singleton. Never for the system (the
+  console, a queued job); never after the request itself changed that data - the change forgets
+  it and the rest of the request reads the cache; and never inside a transaction opened after the
+  request began, where a check made after its locks must see what was committed meanwhile
+  (amendment 65 (h), kept by the owner, 2026-10-09). Nothing is kept beyond the request or the job.
 - Background jobs run from the `jobs` table: a worker must run (`php artisan queue:work`), and the
   scheduler (`php artisan schedule:work`) for scheduled tasks.
 - Schedule work with `$schedule->job(...)`, never `command()` or `call()`: scheduled work is queued as

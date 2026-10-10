@@ -41,6 +41,16 @@ interface StaffReader
     public function member(string $staffId): ?array;
 
     /**
+     * What the admin panel shows of the person it is shown to, in one statement and without a row
+     * lock - a read, on every page (amendment 65): their name, picture, language, whether they are a
+     * Super Admin, and their role's name in both languages (none for a Super Admin, who holds no
+     * role). Null when no staff member has this id.
+     *
+     * @return array{first_name: string, last_name: string, avatar_media_id: string|null, locale: string, is_super_admin: bool, role_name_ar: string|null, role_name_en: string|null}|null
+     */
+    public function shell(string $staffId): ?array;
+
+    /**
      * Where one person's role reaches beyond - or short of - the stores of their assignment.
      *
      * An exception is one action given its own stores (access.md §1.5). The screen that shows a
