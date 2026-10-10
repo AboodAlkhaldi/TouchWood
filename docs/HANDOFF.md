@@ -132,6 +132,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-07 | §11.5 | **A points balance never goes below 0** ("there is no minus points ever"): what a cancellation or a return cannot take back — from the order's own points first, then the customer's other points — is dropped, and the customer keeps the discount — no negative balance, no checkout warning. Points given back keep their old expiry dates and first cover what is taken back; earned points that expired unused count as taken back. Earned points are usable at once; admins may also add or remove points by hand, with a reason; the points that expire first are spent first. Was: negative balances allowed, never expiring, with a checkout warning | Loyalty spec, owner decision |
 | 2026-10-08 | §4.2, §4.4, §11.1–§11.3, §11.6, §15.2 | **Promotions' rules** (`docs/modules/promotions.md`): the automatic promotions are the gift levels alone; a coupon takes a percentage (optional cap) or a fixed amount, skips already-reduced lines unless switched on, may have a total number of uses, and is **refused whole if it would pass the ceiling**; a coupon use **never comes back**, even on a cancellation; segments are per store and count every placed order whatever its state; one gift per order, the highest level reached; **the ceiling starts at 30%**, admin-only; bundles / kits wait for their own job after stage 6 | Promotions spec, owner decision |
 | 2026-10-09 | §4.1, §13.1, §13.3, §16, §17 | **Feedback's rules** (`docs/modules/feedback.md`): reviews shown only after the writing store's staff approve them; one per product, never edited, a rejected one never written again; a verified purchase is a delivered order and the mark flips to "Returned" once any of that product is returned; no photos; ratings in the shop's lists switchable per store; questions per store; a rejection's reason is sent only when written; **the favourites ranking ban is lifted** — staff see per store how many customers saved each product | Feedback spec, owner decision |
+| 2026-10-10 | §1, §5.3, §7.5, §7.9, §11.3, §12.1, §12.3–§12.5 | **Sales's rules** (`docs/modules/sales.md`): a guest's lines the account may not buy — wholesale for an individual, **a category hidden from its account type, which is not for sale to it** — leave the cart on signing in, with a notice; **individuals pay online or by staff contact, companies by bank transfer (uploading its document) or staff contact, never online**; **a hold has no expiry**: unpaid orders wait until staff cancel them; staff decide per order whether an unpaid order may ship; **one shipment per order**; staff contact the customer before shipping, and nothing is cancelled once shipped; **staff may fully edit an order before it ships** (kept lines keep their price, added pieces today's; the coupon then the points checked again under the order's own rules, the points giving way first and **the coupon only staying or shrinking** — §11.3's one exception; differences settled by hand; the gift staff's call); staff mark an order delivered, which starts the 14-day return window, **or came back**, settled as a whole return; returns asked by the customer with pieces, a reason and photos, the gift included for nothing, staff accept; a refund includes its pieces' share of VAT; order numbers per store (`SA-10428`); an anonymized customer's orders lose the email; an off store's unfinished orders stay with its staff; **a flat shipping fee per store until Shipping (stage 7)**; every message to customers waits for Ops | Sales spec, owner decision |
 
 ---
 
@@ -172,7 +173,8 @@ about read models, pagination and query counts in this document traces back to t
   its customers' addresses in it, and the staff screens about it. It remains only in history and the
   audit log.
 - Customers whose home store is off still sign in and shop in the stores that are on. The off store's
-  open orders stay with staff to finish. A company of an off store cannot order there, and may apply
+  open orders stay with staff to finish — **its own staff keep it in the order screens until they
+  are finished** (owner, 2026-10-10, `docs/modules/sales.md` §1.12). A company of an off store cannot order there, and may apply
   in another store (§8.1).
 
 Was: all three launch together, with no per-store launch lifecycle (§16).
@@ -474,7 +476,7 @@ Arabic is the default language. Both locales are first-class.
 | | |
 |---|---|
 | Primary keys | ULID. `bigint` for high-volume ledgers (`stock_movements`, `point_entries`). |
-| Public identifiers | Separate human-facing codes — `TW-10428`. Never expose the ULID as an identifier people read or type. File paths such as media object keys may contain it. |
+| Public identifiers | Separate human-facing codes — ~~`TW-10428`~~ **an order's number is per store, its store's code in capitals: `SA-10428`** (owner, 2026-10-09). Never expose the ULID as an identifier people read or type. File paths such as media object keys may contain it. |
 | Timestamps | `timestamptz`, UTC in the database, converted at the presentation edge using the store timezone. |
 | Soft deletes | Only where genuinely needed. **Never** on ledgers or orders. |
 | Errors | One global standard, errors owned by modules. Every expected business error extends `DomainError` (Shared) and declares a stable `type` and an `ErrorCategory`. One exception handler maps category → HTTP status and renders one RFC 7807-style envelope. Each module defines its own error classes under its own base. |
@@ -718,7 +720,8 @@ setting). Access can also answer "which stores may this actor do this in", for a
 **Actors** (owner, 2026-09-18): staff, customer, guest (browses and keeps a cart, with no
 favourites; the cart moves to the account when they register), integration (a machine, such as a
 payment webhook) and the system. A guest's cart moves to the account when they register and merges
-into it when they sign in (owner, 2026-09-19). Every actor id is a ULID, and an id is never a secret: a guest's
+into it when they sign in (owner, 2026-09-19); lines the account may not buy then leave it, with a
+notice (owner, 2026-10-09/10, `docs/modules/sales.md` §1.1). Every actor id is a ULID, and an id is never a secret: a guest's
 id is safe to keep in the audit log forever, while whatever proves the cart is theirs (an encrypted
 cookie, or an app's token stored only as a hash) is kept apart from it. A person's permission is checked when they start an action; a queued job then acts as the
 system on behalf of that person, and the audit log records who asked.
@@ -829,7 +832,8 @@ signing in during those 14 days cancels it (owner, 2026-09-19).
   2026-09-20), phone → null, saved addresses purged, and anything else the account had chosen for
   itself cleared.
 - **Orders keep their snapshot** of name, phone and delivery address as captured at order
-  time. This is a financial record and it never gets anonymized, with no retention cutoff.
+  time. This is a financial record and it never gets anonymized, with no retention cutoff. **The
+  order's email is cleared** (owner, 2026-10-10).
 - **Reviews and questions survive**, attributed to "Deleted customer".
 
 **Built in step 6 (owner, 2026-09-20).** Confirming a deletion signs the customer out of every
@@ -1246,6 +1250,11 @@ Evaluation is strictly ordered, so the outcome is always deterministic:
 Points are evaluated last and refused first. Points are all-or-nothing, so a partial
 application is never attempted.
 
+**One exception — a staff edit before shipping** (owner, 2026-10-10; `docs/modules/sales.md` §1.7):
+the coupon and points already on the order are checked again on the edited lines, **under the
+ceiling and the points cap the order was placed under**, and **trimmed or removed** if they no longer fit — the points giving way first, the coupon only ever staying or
+shrinking. Nothing is added.
+
 ### 11.4 Two guards, different scopes
 
 They are not the same rule and both apply:
@@ -1347,7 +1356,8 @@ stock. No explicit lock, no race, no deadlock. (Reserving applies where stock li
 store with no provider, and stock-dependent products.)
 
 `stock_movements` is an **append-only ledger** with a unique `external_ref`. It records what the
-provider sends, too (§12.2). Reservations expire; a scheduled job releases them.
+provider sends, too (§12.2). ~~Reservations expire; a scheduled job releases them.~~ **A hold has no
+expiry**: an unpaid order waits until staff cancel it, which frees its stock (owner, 2026-10-09).
 
 Customers never see raw counts. An out-of-stock product is not listed at all (§9.2); a low one may
 say "ending soon" where an admin has turned that on.
@@ -1417,14 +1427,16 @@ ordinary product's stock; staff reduce stock in the provider by hand. An order h
 have reduced its stock there, and which shows them which orders are still to be reduced — the
 product's stock figure counts on it.
 
-**Four independent state machines:** order, payment, fulfilment (per shipment), return.
+**Four independent state machines:** order, payment, ~~fulfilment (per shipment)~~ **the shipment —
+one per order** (owner, 2026-10-10: staff send everything at once), return.
 The customer sees **one derived status**; staff see all four.
 
 Customer-facing statuses from the design: New · Processing · Shipped · Delivered ·
 Cancelled · Refunded.
 
 **Cancellation.** The customer clicks cancel, selects a reason, confirms. Status → 
-`CANCELLED`, staff notified, stock released where it was reserved (§12.1), points reversed. The self-serve window
+`CANCELLED`, ~~staff notified~~ shown to staff in the panel (messages wait for Ops, owner 2026-10-10),
+stock released where it was reserved (§12.1), points reversed. The self-serve window
 **closes at `SHIPPED`** — once the parcel is with the carrier it becomes a return, not a
 cancellation. If the order was paid, the refund is manual (§12.4).
 
@@ -1458,7 +1470,12 @@ They are available to **individual customers only**.
 
 **Bank transfer verification:** the customer uploads a receipt image, staff verify against
 the order, with an admin-set "hours to verify" target and a "hold stock while verifying"
-setting.
+setting. **[2026-10-10]** The ways to pay go by account: **individuals online or "staff will contact
+you"; companies bank transfer or "staff will contact you", never online** (owner, 2026-10-09). **The
+transfer's document is uploaded in Sales, stage 6** (owner, 2026-09-26, `docs/modules/b2b.md` §9), and
+staff record every payment by hand until Payments; the target time stays Payments'; holding stock
+while verifying is moot now that every order holds its stock from placement (§12.1) — for the owner
+to confirm with Payments.
 
 ### 12.5 Shipping
 
@@ -1470,7 +1487,8 @@ Free-shipping threshold per store per carrier.
 dimensions against box maxima with admin-set padding and picks the smallest fit. Manual
 bypasses the engine entirely and flags the order for staff. **No 3D bin packing.**
 
-**Returns.** Window is admin-configurable per store; return shipping is paid by the
+**Returns.** Window is admin-configurable per store — **14 days from delivery** by default, staff
+marking the order delivered (owner, 2026-10-09/10); return shipping is paid by the
 company; refund is manual. **[ADDED 2026-10-10]** The pieces taken back return to stock when staff
 mark the return received (§12.1); a damaged piece may be left out.
 
