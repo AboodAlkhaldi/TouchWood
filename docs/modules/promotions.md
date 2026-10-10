@@ -131,9 +131,11 @@ coupon is worked out again on the edited lines, by the same coupon as it is now 
 its switch, its uses and the assignment**, which were settled at placement and whose use already
 counts:
 
-- **never more than at placement**;
+- **never more than it is now** — the use's recorded discount, the last edit's after an earlier edit
+  (`updateCouponUse` only ever lowers it);
 - **removed** (0) if the edited order is under its minimum or no line is eligible any more;
-- **trimmed to the room** under the ceiling (§1.6) — after the points have given way first (handoff
+- **trimmed to the room** under **the ceiling the order was placed under** (§1.6; owner, 2026-10-10:
+  an edit keeps the order's own rules) — after the points have given way first (handoff
   §11.3: "points are evaluated last and refused first"): Sales lowers the points to fit what is left,
   and only if the coupon alone passes the room is the coupon trimmed to it.
 
@@ -201,6 +203,9 @@ owns the number; Sales applies the check** with the room Promotions gives it.
 - **The order of evaluation is fixed** (handoff §11.3): the coupon first — it must fit the room, or it
   is refused; then points, which must fit what is left, or the whole redemption is refused and the
   points stay unused (Loyalty §1.7). Sales asks Promotions for the room; Promotions owns the number.
+- **An edit keeps the order's ceiling** (owner, 2026-10-10: an edit keeps the rules the order was
+  placed under, so an address changed never trims a coupon): `recordOrder` records the ceiling of the
+  moment, and `orderDiscountRoom` works an edited order's room with it, by the same formula.
 
 ### 1.7 Gifts — the automatic promotion
 
@@ -243,8 +248,9 @@ panel offers off stores to Super Admins alone (platform.md §9.10) — as its pr
 
 ### 2.1 `Modules\Promotions\Public\Contracts\PromotionsApi`
 
-Ids and values in, DTOs out (handoff §4.3). The two writes are Sales's, made **inside Sales's checkout
-transaction** (handoff §4.4: "so a one-time coupon can never be used twice"), and name **the Sales
+Ids and values in, DTOs out (handoff §4.3). The three writes are Sales's — `useCoupon` and
+`recordOrder` made **inside Sales's checkout transaction** (handoff §4.4: "so a one-time coupon can never
+be used twice"), `updateCouponUse` inside its edit's — and name **the Sales
 permission that allowed the change**; Promotions builds the scope itself — as Loyalty (loyalty.md
 §2.1) — from **the coupon's own store** for `useCoupon`, and refuses a store passed in that differs.
 
@@ -254,7 +260,8 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 | `customerDiscountRoom(StoreId $store, Money $grossSubtotal, Money $netSubtotal): Money` | Sales: the room left under the ceiling (§1.6), against which it checks the coupon, then the points |
 | `giftLevels(StoreId $store, Audience $audience, Money $goodsTotal): list<GiftOfferDto>` | Sales: the levels the order reaches, highest first (§1.7) |
 | `useCoupon(UseCoupon $change): void` | Placing the order: **every check of §1.3 again, as the coupon is now** — dates, switch, uses for everyone and for this customer, the assignment, the minimum, the rules, the points, the ceiling — under a lock on the coupon so two orders never take its last use; **recomputes the discount and refuses (`CouponChanged`) if it is not the one quoted**, so checkout quotes again; then records the use. The same order with the same coupon again does nothing; the same order with another coupon is refused. **A use never comes back**, not even when the order is cancelled (owner, 2026-10-08) |
-| `couponAfterEdit(EditedCouponRequest $request): CouponResult` | Sales, after a staff edit (§1.3, the exception): the coupon's discount on the edited lines, never more than at placement, 0 if it no longer applies. Reads only |
+| `orderDiscountRoom(string $orderId, Money $grossSubtotal, Money $netSubtotal): Money` | Sales, working out a staff edit: the room under the ceiling **recorded with the order** (§1.6) |
+| `couponAfterEdit(EditedCouponRequest $request): CouponResult` | Sales, after a staff edit (§1.3, the exception): the coupon's discount on the edited lines, never more than it is now, 0 if it no longer applies. Reads only |
 | `updateCouponUse(UpdateCouponUse $change): void` | Sales, after a staff edit: records the use's new discount (never higher). Idempotent by the edit's id |
 | `recordOrder(RecordOrder $change): void` | Placing the order, with or without a coupon: the fact segments count (§1.5). The same order again does nothing |
 | `segmentMembers(string $segmentId, ?string $after, int $limit): list<string>` | Ops later: a segment's customer ids, keyset-paged (handoff §5.4) |
@@ -275,11 +282,12 @@ permission that allowed the change**; Promotions builds the scope itself — as 
   caller's permission.
 - `EditedCouponRequest`: the order's id, the coupon's id, the edited order's prices (Pricing's, over
   its kept and added parts — `pricesForEdit`, pricing.md §1.11), the audience, **the whole room under
-  the ceiling** (`customerDiscountRoom` for the edited prices — the coupon is trimmed to it only when it
-  alone passes it; Sales then lowers the points into what is left, sales.md §1.7), and the discount at
-  placement (the most it may be).
+  the ceiling** (`orderDiscountRoom` for the edited prices, with the order's own ceiling — the coupon is
+  trimmed to it only when it alone passes it; Sales then lowers the points into what is left, sales.md
+  §1.7), and the coupon's discount now (the most it may be).
 - `UpdateCouponUse`: the order's id, the edit's id, the new discount, the caller's permission.
-- `RecordOrder`: the order's id, customer, store, the moment placed, the caller's permission. (Not
+- `RecordOrder`: the order's id, customer, store, the moment placed, the caller's permission; Promotions
+  adds the store's ceiling of that moment. (Not
   named `OrderPlaced`: that is Sales's integration event, handoff §4.5.)
 - `GiftOfferDto`: the level's id, amount, the gift's variant id.
 - `Audience`: `PUBLIC`, `COMPANY` — Promotions' own, as Loyalty's (loyalty.md §9.2: one Shared enum
@@ -322,7 +330,7 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 | Refresh every segment, nightly | `promotions.segment.refresh` (reserved, global: the system only) |
 | `useCoupon`, `recordOrder` | **The caller's** — Sales's placing an order — in the coupon's store (`useCoupon`), the order's store (`recordOrder`) |
 | `updateCouponUse` | The caller's — Sales's editing an order — in the coupon's store |
-| `applyCoupon`, `couponAfterEdit`, `customerDiscountRoom`, `giftLevels`, `segmentMembers` | **None of their own**: reads for modules inside flows they have authorized |
+| `applyCoupon`, `couponAfterEdit`, `customerDiscountRoom`, `orderDiscountRoom`, `giftLevels`, `segmentMembers` | **None of their own**: reads for modules inside flows they have authorized |
 
 | Read (query) | Permission |
 |---|---|
@@ -382,7 +390,7 @@ composite key on (`id`, `store_id`), so one store's rows never reach another's.
 | `promotions.coupon_rules` | `id`, `coupon_id` → coupons CASCADE, `kind`, `product_id` NULL → `catalog.products` RESTRICT, `category_id` NULL → `catalog.categories` RESTRICT, `brand_id` NULL → `catalog.brands` RESTRICT | CHECK `kind IN ('INCLUDE', 'EXCLUDE')`; CHECK exactly one of the three is NOT NULL (`num_nonnulls(product_id, category_id, brand_id) = 1`); UNIQUE (`coupon_id`, `kind`, `product_id`, `category_id`, `brand_id`) NULLS NOT DISTINCT. The Catalog rows are global (slugs and products are, handoff §4.1) |
 | `promotions.coupon_assignments` | `coupon_id`, `store_id`, `customer_id` → `access.customers` RESTRICT, `segment_id` NULL, `assigned_at` | PK (`coupon_id`, `customer_id`); (`coupon_id`, `store_id`) → coupons (`id`, `store_id`) CASCADE (an unused coupon's delete takes them, §1.1); (`segment_id`, `store_id`) → segments (`id`, `store_id`) SET NULL (`segment_id`) — a segment of the same store only |
 | `promotions.coupon_uses` | `id` bigint identity, `coupon_id`, `store_id`, `customer_id` → `access.customers` RESTRICT, `order_id` (Sales's id, text — no foreign key: Promotions never depends on Sales), `order_number` (its public number), `discount_minor`, `last_edit_id` NULL, `used_at` | (`coupon_id`, `store_id`) → coupons (`id`, `store_id`) RESTRICT; UNIQUE (`order_id`) — one coupon per order; CHECK `discount_minor >= 0` (0 once an edit removed it — the use still counts); never deleted (a use never comes back); the discount only ever lowered, by a staff edit (`last_edit_id`, §1.3) |
-| `promotions.order_facts` | `order_id` PK (text), `store_id`, `customer_id` → `access.customers` RESTRICT, `placed_at` | Never changed: a placed order counts whatever happens to it |
+| `promotions.order_facts` | `order_id` PK (text), `store_id`, `customer_id` → `access.customers` RESTRICT, `placed_at`, `ceiling_percent` (the ceiling it was placed under, §1.6) | CHECK `ceiling_percent BETWEEN 0 AND 100`. Never changed: a placed order counts whatever happens to it |
 | `promotions.segments` | `id`, `store_id`, `name_ar`, `name_en`, `type`, `audience`, `rule` NULL, `rule_months` NULL, `rule_orders` NULL, `refreshed_at` NULL, `created_at`, `updated_at` | UNIQUE (`id`, `store_id`); CHECK `type IN ('STATIC', 'DYNAMIC')`, `audience IN ('INDIVIDUAL', 'COMPANY')`, `rule IS NULL OR rule IN ('NO_ORDERS_EVER', 'NO_ORDER_FOR', 'AT_LEAST_ORDERS')`; CHECK `(type = 'STATIC' AND rule IS NULL AND rule_months IS NULL AND rule_orders IS NULL) OR (type = 'DYNAMIC' AND rule IS NOT NULL)`; CHECK `rule IS DISTINCT FROM 'NO_ORDERS_EVER' OR (rule_months IS NULL AND rule_orders IS NULL)`; CHECK `rule IS DISTINCT FROM 'NO_ORDER_FOR' OR (rule_months IS NOT NULL AND rule_months BETWEEN 1 AND 120 AND rule_orders IS NULL)`; CHECK `rule IS DISTINCT FROM 'AT_LEAST_ORDERS' OR (rule_months IS NOT NULL AND rule_months BETWEEN 1 AND 120 AND rule_orders IS NOT NULL AND rule_orders BETWEEN 1 AND 1000)` |
 | `promotions.segment_members` | `segment_id` → segments CASCADE, `customer_id` → `access.customers` RESTRICT, `added_at` | PK (`segment_id`, `customer_id`) |
 | `promotions.gift_levels` | `id`, `store_id`, `amount_minor`, `currency_code`, `variant_id` → `catalog.variants` RESTRICT, `for_public`, `for_company`, `starts_at` NULL, `ends_at` NULL, `active`, `created_at`, `updated_at` | CHECK `amount_minor > 0`; CHECK `for_public OR for_company`; CHECK `ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at` |
@@ -455,8 +463,9 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
   `CouponChanged`, never the old discount.
 - The same order and coupon twice: one use; the same order with another coupon: refused — in code,
   and by the database as a backstop.
-- After a staff edit: the coupon worked out on the edited lines, never above the placement's; removed
-  under the minimum; trimmed to the room only after the points gave way; its dates, switch, uses and
+- After a staff edit: the coupon worked out on the edited lines, never above its discount now (a second
+  edit after one that trimmed it stays at the trimmed amount or below); the room by the order's own
+  ceiling though the store's changed since; removed under the minimum; trimmed to the room only after the points gave way; its dates, switch, uses and
   assignment not asked again; the same edit recorded once.
 - `max_uses_total` lowered below the uses made: refused; set to them: the coupon ends.
 - Deleting an unused coupon takes its assignments; a used one cannot be deleted.
@@ -540,6 +549,7 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 19. A percentage coupon **rounds half up**, like prices.
 20. After a staff edit the coupon is **checked again; trimmed or removed if it no longer fits — and it
     can only stay or shrink** (sales.md §1.7).
+21. **An edit keeps the rules the order was placed under** — the ceiling among them (2026-10-10).
 
 ### 9.2 Still open
 
