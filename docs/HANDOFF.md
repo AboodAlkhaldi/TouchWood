@@ -125,7 +125,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-07 | §12.2 | **A wired store's provider key** is kept encrypted in the database, set by a Super Admin, never shown again. One audit entry per pull, the detail in the stock and price histories. The sync report, Retry and Sync Now are per-store permissions. An off store's prices and stock are set by Super Admins (or its file). Whether discounts come from the provider, us or both, and whether the provider calls us on a change, wait for the provider's team | Stage 5 questions, owner decision |
 | 2026-10-09 | §10.1, §12.1 | **"Always wins while on"**: a sale or a category discount may be marked so — while it runs it beats cheaper sales and discounts on its sizes; two at once on a size are refused; it never beats a wholesale quantity price. Saving one shows what it affects and what it overlaps. Sales and discounts start and end by timed tasks with a daily safety check. **A wired store's stock is read, never held or reduced.** One code is one size (Catalog's amendment). The details: `docs/modules/pricing.md` | Pricing spec questions, owner decision |
 | 2026-10-09 | §9.2, §12.1 | **Inventory**: one permission, **Manage Stock**, per store, any role — stock, hand changes (Received, Damaged / lost, Offline sale, Correction with a note; a stocktake "set to"), thresholds, the switches, the Low Stock list. A variant with no threshold uses the store's default, **10 pieces**; the threshold **only alerts, never limits ordering**. Removing pieces held for orders is allowed, the orders flagged "not enough stock". The stock-dependent switch is **per variant** — all of a product's, some or one; a variant added later starts off. **A wired ordinary product the provider reports at 0 stays orderable** (replaces §9.2's provisional rule); staff mark it "Not available now". **"Ending soon" shows on cards too**, when any of the product's variants is. The details: `docs/modules/inventory.md` | Inventory spec questions, owner decision |
-| 2026-10-10 | §7.5, §12.1, §12.3–§12.5 | **Sales's rules** (`docs/modules/sales.md`): a guest's lines the account may not buy — wholesale for an individual, **a category hidden from its account type, which is not for sale to it** — leave the cart on signing in, with a notice; **individuals pay online or by staff contact, companies by bank transfer or staff contact, never online**; **a hold has no expiry**: unpaid orders wait until staff cancel them; staff decide per order whether an unpaid order may ship; **one shipment per order**; staff contact the customer before shipping, and nothing is cancelled once shipped; **staff may fully edit an order before it ships** (kept lines keep their price, added pieces today's; the points then the coupon checked again, **the coupon only staying or shrinking**; differences settled by hand; the gift staff's call); staff mark an order delivered, which starts the 14-day return window; returns asked by the customer with pieces, a reason and photos, staff accept; a refund includes its pieces' share of VAT; order numbers per store (`SA-10428`); **a flat shipping fee per store until Shipping (stage 7)**; every message to customers waits for Ops | Sales spec, owner decision |
+| 2026-10-10 | §1, §5.3, §7.5, §7.9, §11.3, §12.1, §12.3–§12.5 | **Sales's rules** (`docs/modules/sales.md`): a guest's lines the account may not buy — wholesale for an individual, **a category hidden from its account type, which is not for sale to it** — leave the cart on signing in, with a notice; **individuals pay online or by staff contact, companies by bank transfer (uploading its document) or staff contact, never online**; **a hold has no expiry**: unpaid orders wait until staff cancel them; staff decide per order whether an unpaid order may ship; **one shipment per order**; staff contact the customer before shipping, and nothing is cancelled once shipped; **staff may fully edit an order before it ships** (kept lines keep their price, added pieces today's; the points then the coupon checked again, **the coupon only staying or shrinking** — §11.3's one exception; differences settled by hand; the gift staff's call); staff mark an order delivered, which starts the 14-day return window, **or came back**, settled as a whole return; returns asked by the customer with pieces, a reason and photos, the gift included for nothing, staff accept; a refund includes its pieces' share of VAT; order numbers per store (`SA-10428`); an anonymized customer's orders lose the email; an off store's unfinished orders stay with its staff; **a flat shipping fee per store until Shipping (stage 7)**; every message to customers waits for Ops | Sales spec, owner decision |
 
 ---
 
@@ -166,7 +166,8 @@ about read models, pagination and query counts in this document traces back to t
   its customers' addresses in it, and the staff screens about it. It remains only in history and the
   audit log.
 - Customers whose home store is off still sign in and shop in the stores that are on. The off store's
-  open orders stay with staff to finish. A company of an off store cannot order there, and may apply
+  open orders stay with staff to finish — **its own staff keep it in the order screens until they
+  are finished** (owner, 2026-10-10, `docs/modules/sales.md` §1.12). A company of an off store cannot order there, and may apply
   in another store (§8.1).
 
 Was: all three launch together, with no per-store launch lifecycle (§16).
@@ -467,7 +468,7 @@ Arabic is the default language. Both locales are first-class.
 | | |
 |---|---|
 | Primary keys | ULID. `bigint` for high-volume ledgers (`stock_movements`, `point_entries`). |
-| Public identifiers | Separate human-facing codes — `TW-10428`. Never expose the ULID as an identifier people read or type. File paths such as media object keys may contain it. |
+| Public identifiers | Separate human-facing codes — ~~`TW-10428`~~ **an order's number is per store, its store's code in capitals: `SA-10428`** (owner, 2026-10-09). Never expose the ULID as an identifier people read or type. File paths such as media object keys may contain it. |
 | Timestamps | `timestamptz`, UTC in the database, converted at the presentation edge using the store timezone. |
 | Soft deletes | Only where genuinely needed. **Never** on ledgers or orders. |
 | Errors | One global standard, errors owned by modules. Every expected business error extends `DomainError` (Shared) and declares a stable `type` and an `ErrorCategory`. One exception handler maps category → HTTP status and renders one RFC 7807-style envelope. Each module defines its own error classes under its own base. |
@@ -823,7 +824,8 @@ signing in during those 14 days cancels it (owner, 2026-09-19).
   2026-09-20), phone → null, saved addresses purged, and anything else the account had chosen for
   itself cleared.
 - **Orders keep their snapshot** of name, phone and delivery address as captured at order
-  time. This is a financial record and it never gets anonymized, with no retention cutoff.
+  time. This is a financial record and it never gets anonymized, with no retention cutoff. **The
+  order's email is cleared** (owner, 2026-10-10).
 - **Reviews and questions survive**, attributed to "Deleted customer".
 
 **Built in step 6 (owner, 2026-09-20).** Confirming a deletion signs the customer out of every
@@ -1235,6 +1237,11 @@ Evaluation is strictly ordered, so the outcome is always deterministic:
 Points are evaluated last and refused first. Points are all-or-nothing, so a partial
 application is never attempted.
 
+**One exception — a staff edit before shipping** (owner, 2026-10-10; `docs/modules/sales.md` §1.7):
+the coupon and points already on the order are checked again on the edited lines and **trimmed or
+removed** if they no longer fit — the points giving way first, the coupon only ever staying or
+shrinking. Nothing is added.
+
 ### 11.4 Two guards, different scopes
 
 They are not the same rule and both apply:
@@ -1438,7 +1445,12 @@ They are available to **individual customers only**.
 
 **Bank transfer verification:** the customer uploads a receipt image, staff verify against
 the order, with an admin-set "hours to verify" target and a "hold stock while verifying"
-setting.
+setting. **[2026-10-10]** The ways to pay go by account: **individuals online or "staff will contact
+you"; companies bank transfer or "staff will contact you", never online** (owner, 2026-10-09). **The
+transfer's document is uploaded in Sales, stage 6** (owner, 2026-09-26, `docs/modules/b2b.md` §9), and
+staff record every payment by hand until Payments; the target time stays Payments'; holding stock
+while verifying is moot now that every order holds its stock from placement (§12.1) — for the owner
+to confirm with Payments.
 
 ### 12.5 Shipping
 
