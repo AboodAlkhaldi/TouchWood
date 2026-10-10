@@ -609,11 +609,11 @@ refuses.
 ### 9.2 Still open
 
 1. **Where `Audience` lives.** **Loyalty keeps its own enum** — agreed with the stage 5 session on
-   2026-10-07: with company prices on hold (owner, 2026-10-07: "retail and wholesale for every user are
-   same"), Pricing has no audience now. If company prices come back, Pricing becomes the third module
-   needing `PUBLIC` / `COMPANY` beside Loyalty and Promotions, and one Shared enum makes sense (handoff
-   §4.5) — the owner's call then. The hold is on Pricing's `COMPANY` prices, not on Loyalty's
-   per-audience redemption mode, which the handoff puts on the audience axis (§6).
+   2026-10-07. **There are no company prices** (owner, 2026-10-07: "we dont have two kind of pricings";
+   one price set for everyone), so Pricing has no audience. Individual vs company still decides what a
+   buyer may see and buy (handoff §6, amended 2026-10-07) and Loyalty's per-audience redemption mode
+   (§6); whether one Shared enum serves Loyalty, Promotions, Catalog's visibility and Sales is the
+   owner's call (handoff §4.5's three-module rule).
 2. **Loyalty's screens** — the settings come free on Platform's settings page; the customer's points
    page, the staff's view of a customer's points, the redemptions list and the change-by-hand dialog
    are to build. The owner gave the frontend to the screens session (stage 5 memory, 2026-10-07); to
