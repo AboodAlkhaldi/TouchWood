@@ -565,14 +565,15 @@ describe('the query budget (frontend.md §5, P21)', function () {
 
         expect(catalogProductScreensOwnQueries($browser, $uri))->toBe($recorded);
     })->with([
-        // Two of them ask Platform which stores are on: Add Product is offered only where it would be let in.
-        'the list' => ['/admin/products', 15],
-        'the list, one store' => ['/admin/products?store=sa&state=ON', 15],
-        'details' => ['/admin/products/{product}', 12],
-        'variants' => ['/admin/products/{product}?tab=variants', 13],
-        'photos' => ['/admin/products/{product}?tab=photos', 11],
-        'search and filters' => ['/admin/products/{product}?tab=search', 13],
-        'related, finding' => ['/admin/products/{product}?tab=related&find={code}', 13],
-        'related, finding many' => ['/admin/products/{product}?tab=related&find=drawer', 13],
+        // Since #108 a request reads the stores and the reader's permissions once: what a page counts
+        // is its own reads.
+        'the list' => ['/admin/products', 5],
+        'the list, one store' => ['/admin/products?store=sa&state=ON', 5],
+        'details' => ['/admin/products/{product}', 4],
+        'variants' => ['/admin/products/{product}?tab=variants', 5],
+        'photos' => ['/admin/products/{product}?tab=photos', 3],
+        'search and filters' => ['/admin/products/{product}?tab=search', 5],
+        'related, finding' => ['/admin/products/{product}?tab=related&find={code}', 5],
+        'related, finding many' => ['/admin/products/{product}?tab=related&find=drawer', 5],
     ]);
 });

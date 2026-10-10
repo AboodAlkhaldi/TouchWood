@@ -478,11 +478,13 @@ for their states (`PlatformApi::mediaOf`, added with this step) and one for thei
 each change saved at once. Search words, related products and a gallery save as they change; the
 details and the filters with their own Save, out of reach until something changed.
 
-**The query budget**: each page's own queries are recorded in `CatalogProductScreensTest` - the list 15
-(one store chosen 15: two of them ask Platform which stores are on, so Add Product is offered only to
-whoever it would let in - at the budget, with nothing to spare), a product's Details 12, Variants 13, Photos 11, Search and Filters 13, Related
-with a search 13 (finding one or many) - and the same again with more of every row a page shows:
-products, variants with photos, gallery photos, filters, search words, related products. The panel's frame around them is as step 1 says.
+**The query budget**: each page's own queries are recorded in `CatalogProductScreensTest` - the list 5
+(one store chosen 5), a product's Details 4, Variants 5, Photos 3, Search and Filters 5, Related with a
+search 5 (finding one or many) - and the same again with more of every row a page shows:
+products, variants with photos, gallery photos, filters, search words, related products. They were
+15, 15, 12, 13, 11, 13 and 13 until #108 made a request read the stores and the reader's permissions
+once (access.md amendment 65); the list was then at the budget, with nothing to spare. The panel's
+frame around them is as step 1 says.
 
 ## Tests
 
