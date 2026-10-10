@@ -19,9 +19,10 @@ it('creates the inventory schema, on the search path so a fresh migration wipes 
 });
 
 // A test database keeps its schemas from one run to the next (migrate:fresh drops tables, never
-// schemas), so the test above cannot tell whether the migration still creates it. This one starts
-// from nothing and runs what the migration runs; PostgreSQL's DDL is transactional, so the test's own
-// transaction puts everything back (as Catalog's schema test).
+// schemas), so the test above cannot tell whether the migration still creates it - CI, starting from
+// an empty database, can. This one starts from nothing and runs InventorySchema, which the migration
+// calls; PostgreSQL's DDL is transactional, so the test's own transaction puts everything back (as
+// Catalog's schema test).
 it('creates the schema from nothing, and its rollback drops it with what is in it', function () {
     DB::statement('DROP SCHEMA inventory CASCADE');
 

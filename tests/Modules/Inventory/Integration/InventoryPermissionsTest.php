@@ -87,14 +87,28 @@ it('reserves the system jobs, store-free and never offered', function (string $n
         ->and(array_map(static fn (PermissionDefinitionDto $offered): string => $offered->name, app(InMemoryPermissionCatalog::class)->assignable()))->not->toContain($name);
 })->with(InventoryPermissions::reserved());
 
-it('declares the store\'s default low-stock threshold: per store, a whole number from 0, 10 unless set, changed with Manage Stock', function () {
-    $setting = app(InMemorySettingsRegistry::class)->definition(InventorySettings::LOW_STOCK_DEFAULT);
+it('declares the store\'s default low-stock threshold: per store, from 0 to 100,000, 10 unless set, changed with Manage Stock', function () {
+    // The key itself, as the owner accepted it (inventory.md §9.2 #8) - not the constant.
+    $setting = app(InMemorySettingsRegistry::class)->definition('inventory.low_stock.default');
 
-    expect($setting?->scope)->toBe(SettingScope::Store)
+    expect($setting)->not->toBeNull()
+        ->and($setting?->key)->toBe(InventorySettings::LOW_STOCK_DEFAULT)
+        ->and($setting?->scope)->toBe(SettingScope::Store)
         ->and($setting?->type)->toBe(SettingType::Integer)
         ->and($setting?->default)->toBe(10)
         ->and($setting?->permission)->toBe(InventoryPermissions::STOCK_MANAGE)
-        ->and($setting?->bounds())->toBe(['min' => 0, 'max' => 100000])
-        ->and(trans('inventory::settings.low_stock.default', [], 'en'))->toBe('Default Low-Stock Threshold')
-        ->and(trans('inventory::settings.low_stock.default', [], 'ar'))->not->toBe('inventory::settings.low_stock.default');
+        ->and($setting?->bounds())->toBe(['min' => 0, 'max' => 100000]);
+});
+
+it('names the settings section and the setting on the settings screen, in Arabic and in English', function () {
+    $label = app(InMemorySettingsRegistry::class)->definition('inventory.low_stock.default')?->labelKey() ?? 'missing';
+
+    expect(trans('inventory::settings.module', [], 'en'))->toBe('Inventory')
+        ->and(trans($label, [], 'en'))->toBe('Default Low-Stock Threshold');
+
+    // Arabic is read with no fallback, so a line missing in Arabic cannot pass on the English one.
+    app('translator')->setFallback('ar');
+
+    expect(trans('inventory::settings.module', [], 'ar'))->toBe('المخزون')
+        ->and(trans($label, [], 'ar'))->toBe('حدّ المخزون المنخفض الافتراضي');
 });

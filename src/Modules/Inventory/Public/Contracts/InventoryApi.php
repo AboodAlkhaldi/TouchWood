@@ -24,7 +24,7 @@ interface InventoryApi
     /**
      * For each variant in the store: whether its stock limits ordering here, whether it can be ordered
      * now, how many can be (null where stock does not limit), and whether it is "ending soon". Never
-     * shown to a customer as a number (§1.9).
+     * shown to a customer as a number (§2.1).
      *
      * @param  list<string>  $variantIds
      * @return array<string, StockDto> by variant id

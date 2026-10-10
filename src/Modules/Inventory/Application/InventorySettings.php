@@ -13,7 +13,8 @@ use Modules\Platform\Public\Enums\SettingType;
  *
  * **The store's default low-stock threshold**: a size with no threshold of its own uses it - 10 pieces
  * unless the store sets another (owner, 2026-10-09). Per store; changed with Manage Stock, as every
- * threshold is (owner, 2026-10-09). The upper bound matches the largest quantity Catalog allows.
+ * threshold is (owner, 2026-10-09). From 0 to 100,000, as each size's own threshold (owner,
+ * 2026-10-10).
  */
 final class InventorySettings
 {
