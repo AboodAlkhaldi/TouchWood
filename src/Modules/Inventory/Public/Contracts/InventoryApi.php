@@ -51,7 +51,8 @@ interface InventoryApi
     public function ship(string $orderId, array $lines): void;
 
     /**
-     * Staff ticked "reduced in the provider" for these lines (a wired store): their holds end. Safe to
+     * Staff ticked "reduced in the provider" for these lines (a wired store): their holds end - a
+     * size's bought line and its gift line both, as staff reduce the provider by the size. Safe to
      * repeat.
      *
      * @param  list<string>  $variantIds

@@ -111,6 +111,11 @@ provider's number for an ordinary product. Per store, the **Low Stock list** —
 the handoff's dashboard "low stock"), seen by holders of **Manage Stock** there (owner, 2026-10-09). In
 the panel only until Ops (stage 8) adds email and SMS (owner, 2026-10-07).
 
+**A size given only as a gift** — one the store does not sell (Promotions may give any ready size) —
+**[PROPOSED]**: staff may set its stock like any other, and once it has a stock row it is on the Low
+Stock list too. The list covers every size the store has switched on **and** every size with a stock
+row there. Without stock it gives nothing (`availableAsGift` 0).
+
 ### 1.8 The store's file (catalog.md §2.3)
 
 Inventory's `ImportSection`: the file's page says, per item, the stock that will be set — or that it
@@ -162,7 +167,13 @@ Quantities are whole pieces (≥ 1). **On `main` since #97.**
 | `returned(string $orderId, string $returnId, list<HoldLineDto> $lines): void` | Sales (staff marked a return received) | Puts the lines' pieces back as §1.9 says, by kind of store and size; a gift line on gift rules. Only the pieces going back. The store is the order's (its hold). **[PROPOSED** — agreed with stage 6, 2026-10-10**]** |
 
 `ship`, `reducedInProvider`, `release`, `adjustHold` and `returned` are safe to repeat: a line already
-shipped, ticked or freed is left as it is; the same edit twice changes nothing; a return id counts once. A refusal reaches the caller as `Shared\Domain\Error\DomainError` with a stable
+shipped, ticked or freed is left as it is; the same edit twice changes nothing; a return id counts once.
+
+**A line is a size and whether it is a gift** (stage 5's review, 2026-10-10): an order may hold a
+bought line and a gift line of the same size — in a wired store the bought one may be only noted while
+the gift is held. `HoldLineDto`'s `gift` says which line is meant in `hold`, `ship`, `adjustHold` and
+`returned`; `reducedInProvider` names sizes and ends **both** lines of a size, as staff reduce the
+provider by the size. A refusal reaches the caller as `Shared\Domain\Error\DomainError` with a stable
 `type()` key and its `context()` — modules export no error classes.
 
 ### 2.2 The values
@@ -250,9 +261,9 @@ column is written so a NULL cannot slip through (lesson 162).
 | `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK ≥ 0 · `stock_dependent` boolean (wired) · `returned_extra` int NOT NULL DEFAULT 0 CHECK ≥ 0 — pieces returned in a wired store, not yet in the provider's number (§1.9, provisional) · `ending_soon` boolean — the last value pushed to Catalog · `updated_at` |
 | `inventory.store_products` | (`store_id`, `product_id` FK `catalog.products` CASCADE) PK · `ending_soon` boolean — "last pieces" switched on for the product (no provider) |
 | `inventory.holds` | `id` ULID PK · `store_id` · `order_id` unique · `expires_at` NULL · `created_at` |
-| `inventory.hold_lines` | (`hold_id` FK CASCADE, `variant_id`) PK · `quantity` CHECK ≥ 1 · `gift` boolean · `counts_on_stock` boolean · `shipped` int CHECK ≥ 0 · `ended` CHECK (`OPEN`, `SHIPPED`, `REDUCED`, `RELEASED`, `EXPIRED`) · `ended_at` NULL |
+| `inventory.hold_lines` | (`hold_id` FK CASCADE, `variant_id`, `gift`) PK — a bought line and a gift line of the same size are two lines · `quantity` CHECK ≥ 1 · `gift` boolean · `counts_on_stock` boolean · `shipped` int CHECK ≥ 0 · `ended` CHECK (`OPEN`, `SHIPPED`, `REDUCED`, `RELEASED`, `EXPIRED`) · `ended_at` NULL |
 | `inventory.stock_movements` | `id` bigint PK (handoff §5.3) · `store_id` · `variant_id` · `reason` CHECK (`STOCKTAKE`, `RECEIVED`, `DAMAGED_LOST`, `OFFLINE_SALE`, `CORRECTION`, `SHIPPED`, `RETURNED`, `FILE`, `PROVIDER`) · `change` int · `before` int · `after` int · `note` NULL (required for `CORRECTION`) · `reference` unique · `actor` · `created_at` — never updated, never deleted |
-| `inventory.return_lines` | (`return_id`, `variant_id`) PK · `store_id` · `order_id` · `quantity` CHECK ≥ 1 · `gift` boolean · `created_at` — each return counted once, and its history |
+| `inventory.return_lines` | (`return_id`, `variant_id`, `gift`) PK · `store_id` · `order_id` · `quantity` CHECK ≥ 1 · `gift` boolean · `created_at` — each return counted once, and its history |
 
 ---
 
@@ -300,7 +311,8 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 
 1. **Holding**: all or nothing; one short → nothing held, the shortfall named; two orders racing for
    the last piece — one wins (the atomic update, proved with two connections); a second hold for an
-   order refused; an ordinary line of a wired store noted, not held; a gift held in a wired store.
+   order refused; an ordinary line of a wired store noted, not held; a gift held in a wired store; a
+   bought line and a gift line of the same size in one order, each held, shipped and freed on its own.
 2. **Shipping**: in stock and held fall together, in parts too; repeating changes nothing; a wired
    store's shipment takes nothing; more than held refused.
 3. **The tick**: a wired stock-dependent line's hold ends; the worked example of handoff §12.1, step by
@@ -347,7 +359,7 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 3 | **Returns in a wired store** (§1.9): the provisional rule stands until the provider's team says whether we may write to it — then the owner and I discuss it again | The provider's team (owner, 2026-10-10) |
 | 4 | `ListingFacts::endingSoon` (§2.3) | Catalog's amendment 16(h), PR #103 — the owner's review |
 | 5 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |
-| 6 | `adjustHold` and `returned` — the shapes in §2.1 | The owner's review of this amendment |
+| 6 | `adjustHold` and `returned` — the shapes in §2.1; a gift-only size's stock (§1.7) | The owner's review of this amendment |
 
 ### 9.2 Answered (owner, 2026-10-09 and 2026-10-10)
 
