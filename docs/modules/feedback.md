@@ -311,7 +311,7 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 | `WishlistFull` | CONFLICT | A 501st item (§1.4) |
 | `InvalidModeration` | CONFLICT | A change its state does not allow: approving a rejected review, answering a rejected question, unpublishing one not approved |
 | `ReviewNotFound`, `QuestionNotFound` | NOT_FOUND | Unknown, or of a store the staff member does not cover — the same answer for both |
-| `InvalidFeedbackAttribute` | UNPROCESSABLE | A value refused: a rating outside 1–5, text empty or too long, a product that is not ready |
+| `InvalidFeedbackAttribute` | INVALID | A value refused: a rating outside 1–5, text empty or too long, a product that is not ready |
 
 ---
 
