@@ -123,9 +123,9 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-07 | §10.1, §10.3 | **The lowest applicable price wins** — base, sale, campaign, category discount and, on wholesale lines, the quantity price; nothing stacks. Replaces "priority DESC, first hit wins". Quantity prices apply to wholesale lines only. Category discounts: a percentage or a fixed amount, dated, per store (a fixed amount skips a product it would take to 0 or below). **A price is always above 0.** Prices are kept and shown **without VAT**; VAT is added at checkout and rounded once, on the order, half up | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.1 | **A store with no provider counts every product on its stock**; the stock-dependent switch exists only in a wired store. Stock is **held when an order is placed and taken when it ships**; a cancel frees it. The safety buffer is dropped. The low-stock threshold is per variant per store; "ending soon": an admin's switch per product in a store with no provider, automatic on stock-dependent products in a wired one. Low-stock alerts are shown in the panel until Ops sends them | Stage 5 questions, owner decision |
 | 2026-10-07 | §12.2 | **A wired store's provider key** is kept encrypted in the database, set by a Super Admin, never shown again. One audit entry per pull, the detail in the stock and price histories. The sync report, Retry and Sync Now are per-store permissions. An off store's prices and stock are set by Super Admins (or its file). Whether discounts come from the provider, us or both, and whether the provider calls us on a change, wait for the provider's team | Stage 5 questions, owner decision |
-| 2026-10-10 | §7.5, §12.3–§12.5 | **Sales's rules** (`docs/modules/sales.md`): a guest's wholesale lines leave the cart on signing in as an individual; **individuals pay online or by staff contact, companies by bank transfer or staff contact, never online**; unpaid orders wait until staff cancel them; staff decide per order whether an unpaid order may ship; **staff may fully edit an order before it ships** (kept lines keep their price, the coupon and points checked again, differences settled by hand, the gift staff's call); staff mark shipments delivered; returns asked by the customer within 14 days of delivery, with photos; order numbers per store (`SA-10428`); **a flat shipping fee per store until Shipping (stage 7)**; every message to customers waits for Ops | Sales spec, owner decision |
 | 2026-10-09 | §10.1, §12.1 | **"Always wins while on"**: a sale or a category discount may be marked so — while it runs it beats cheaper sales and discounts on its sizes; two at once on a size are refused; it never beats a wholesale quantity price. Saving one shows what it affects and what it overlaps. Sales and discounts start and end by timed tasks with a daily safety check. **A wired store's stock is read, never held or reduced.** One code is one size (Catalog's amendment). The details: `docs/modules/pricing.md` | Pricing spec questions, owner decision |
 | 2026-10-09 | §9.2, §12.1 | **Inventory**: one permission, **Manage Stock**, per store, any role — stock, hand changes (Received, Damaged / lost, Offline sale, Correction with a note; a stocktake "set to"), thresholds, the switches, the Low Stock list. A variant with no threshold uses the store's default, **10 pieces**; the threshold **only alerts, never limits ordering**. Removing pieces held for orders is allowed, the orders flagged "not enough stock". The stock-dependent switch is **per variant** — all of a product's, some or one; a variant added later starts off. **A wired ordinary product the provider reports at 0 stays orderable** (replaces §9.2's provisional rule); staff mark it "Not available now". **"Ending soon" shows on cards too**, when any of the product's variants is. The details: `docs/modules/inventory.md` | Inventory spec questions, owner decision |
+| 2026-10-10 | §7.5, §12.1, §12.3–§12.5 | **Sales's rules** (`docs/modules/sales.md`): a guest's lines the account may not buy — wholesale for an individual, **a category hidden from its account type, which is not for sale to it** — leave the cart on signing in, with a notice; **individuals pay online or by staff contact, companies by bank transfer or staff contact, never online**; **a hold has no expiry**: unpaid orders wait until staff cancel them; staff decide per order whether an unpaid order may ship; **one shipment per order**; staff contact the customer before shipping, and nothing is cancelled once shipped; **staff may fully edit an order before it ships** (kept lines keep their price, added pieces today's; the points then the coupon checked again, **the coupon only staying or shrinking**; differences settled by hand; the gift staff's call); staff mark an order delivered, which starts the 14-day return window; returns asked by the customer with pieces, a reason and photos, staff accept; a refund includes its pieces' share of VAT; order numbers per store (`SA-10428`); **a flat shipping fee per store until Shipping (stage 7)**; every message to customers waits for Ops | Sales spec, owner decision |
 
 ---
 
@@ -711,7 +711,8 @@ setting). Access can also answer "which stores may this actor do this in", for a
 **Actors** (owner, 2026-09-18): staff, customer, guest (browses and keeps a cart, with no
 favourites; the cart moves to the account when they register), integration (a machine, such as a
 payment webhook) and the system. A guest's cart moves to the account when they register and merges
-into it when they sign in (owner, 2026-09-19). Every actor id is a ULID, and an id is never a secret: a guest's
+into it when they sign in (owner, 2026-09-19); lines the account may not buy then leave it, with a
+notice (owner, 2026-10-09/10, `docs/modules/sales.md` §1.1). Every actor id is a ULID, and an id is never a secret: a guest's
 id is safe to keep in the audit log forever, while whatever proves the cart is theirs (an encrypted
 cookie, or an app's token stored only as a hash) is kept apart from it. A person's permission is checked when they start an action; a queued job then acts as the
 system on behalf of that person, and the audit log records who asked.
@@ -1323,7 +1324,8 @@ stock. No explicit lock, no race, no deadlock. (Reserving applies where stock li
 store with no provider, and stock-dependent products.)
 
 `stock_movements` is an **append-only ledger** with a unique `external_ref`. It records what the
-provider sends, too (§12.2). Reservations expire; a scheduled job releases them.
+provider sends, too (§12.2). ~~Reservations expire; a scheduled job releases them.~~ **A hold has no
+expiry**: an unpaid order waits until staff cancel it, which frees its stock (owner, 2026-10-09).
 
 Customers never see raw counts. An out-of-stock product is not listed at all (§9.2); a low one may
 say "ending soon" where an admin has turned that on.
@@ -1393,14 +1395,16 @@ ordinary product's stock; staff reduce stock in the provider by hand. An order h
 have reduced its stock there, and which shows them which orders are still to be reduced — the
 product's stock figure counts on it.
 
-**Four independent state machines:** order, payment, fulfilment (per shipment), return.
+**Four independent state machines:** order, payment, ~~fulfilment (per shipment)~~ **the shipment —
+one per order** (owner, 2026-10-10: staff send everything at once), return.
 The customer sees **one derived status**; staff see all four.
 
 Customer-facing statuses from the design: New · Processing · Shipped · Delivered ·
 Cancelled · Refunded.
 
 **Cancellation.** The customer clicks cancel, selects a reason, confirms. Status → 
-`CANCELLED`, staff notified, stock released where it was reserved (§12.1), points reversed. The self-serve window
+`CANCELLED`, ~~staff notified~~ shown to staff in the panel (messages wait for Ops, owner 2026-10-10),
+stock released where it was reserved (§12.1), points reversed. The self-serve window
 **closes at `SHIPPED`** — once the parcel is with the carrier it becomes a return, not a
 cancellation. If the order was paid, the refund is manual (§12.4).
 
@@ -1446,7 +1450,8 @@ Free-shipping threshold per store per carrier.
 dimensions against box maxima with admin-set padding and picks the smallest fit. Manual
 bypasses the engine entirely and flags the order for staff. **No 3D bin packing.**
 
-**Returns.** Window is admin-configurable per store; return shipping is paid by the
+**Returns.** Window is admin-configurable per store — **14 days from delivery** by default, staff
+marking the order delivered (owner, 2026-10-09/10); return shipping is paid by the
 company; refund is manual.
 
 ### 12.6 Invoicing
