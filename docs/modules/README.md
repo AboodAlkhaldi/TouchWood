@@ -38,7 +38,7 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Pricing | [spec](pricing.md) — its public contract on `main` (#97, 2026-10-07); the full spec accepted and merged (#100, 2026-10-09); built next (stage 5) | Catalog |
 | Inventory | [spec](inventory.md) — its public contract on `main` (#97, 2026-10-07); the full spec, its questions answered by the owner 2026-10-09 (stage 5) | Catalog |
 | Sync | not started — waits for the provider's team: API access, a sample, whether discounts come from it, change notifications (pricing.md §9.1) | Pricing, Inventory, the provider's answers |
-| Sales | not started | Catalog, Pricing, Inventory |
+| Sales | [draft](sales.md) 2026-10-10 — **for the owner's review**; the last of stage 6 to be built | Pricing, Inventory (built in stage 5); Shipping and Payments (stage 7) through the interfaces it defines |
 | Promotions | not started | Pricing |
 | Loyalty | not started | Pricing |
 | Payments | not started | MyFatoorah API docs + sandbox |
