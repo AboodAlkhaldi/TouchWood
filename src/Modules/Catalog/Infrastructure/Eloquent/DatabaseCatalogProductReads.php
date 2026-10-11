@@ -13,6 +13,7 @@ use Modules\Catalog\Application\Query\Products\ProductOptions;
 use Modules\Catalog\Application\Query\Products\ProductRow;
 use Modules\Catalog\Application\Query\Products\RelatedRow;
 use Modules\Catalog\Application\Query\Products\VariantView;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**

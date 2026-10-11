@@ -19,6 +19,7 @@ use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Domain\ValueObject\StaffProfile;
 use Modules\Access\Public\Enums\StaffStatus;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseStaffUserRepository implements StaffUserRepository

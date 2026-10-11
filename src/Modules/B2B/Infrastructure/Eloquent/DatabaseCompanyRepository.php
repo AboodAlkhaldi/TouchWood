@@ -16,6 +16,7 @@ use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
 use Modules\B2B\Public\Enums\CompanyStatus;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseCompanyRepository implements CompanyRepository

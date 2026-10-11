@@ -12,6 +12,7 @@ use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Domain\ValueObject\Slugs;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseCategoryRepository implements CategoryRepository

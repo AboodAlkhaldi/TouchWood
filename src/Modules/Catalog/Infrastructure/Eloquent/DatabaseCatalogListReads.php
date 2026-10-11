@@ -17,6 +17,7 @@ use Modules\Catalog\Application\Query\Lists\ReachedProductRow;
 use Modules\Catalog\Application\Query\Lists\ValueRow;
 use Modules\Catalog\Application\Query\Lists\WarrantyRow;
 use Modules\Catalog\Application\Query\Lists\WordPairRow;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**

@@ -10,6 +10,7 @@ use LogicException;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Dto\ListingPrice;
 use Shared\Domain\ValueObject\StoreId;
+use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * `ListingFacts`, received (catalog.md §2.2, §5.2; amendments 15, 16(h), 16(i)): each fact pushed is

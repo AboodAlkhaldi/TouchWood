@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Modules\B2B\Infrastructure\Eloquent;
+namespace Shared\Infrastructure\Persistence;
 
 /**
  * Ids arrive from requests: anything that is not a ULID matches no row, so it is answered as "not
  * found" without asking the database.
  *
- * Access keeps the same ten lines for itself; a module may not reach into another's
- * Infrastructure, and the Shared kernel takes a class only when three modules need it (handoff
- * §4.5). B2B is the second.
+ * Access, B2B and Catalog each kept these lines for themselves (catalog.md amendment 1(h)); with
+ * Loyalty a fourth module needed them, and the owner moved them here, the handoff's rule for anything
+ * three or more modules use (handoff §4.5; owner, 2026-10-10).
  */
 final class Ulids
 {

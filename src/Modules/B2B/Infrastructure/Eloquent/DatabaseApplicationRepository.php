@@ -26,6 +26,7 @@ use Modules\B2B\Domain\ValueObject\RegistrationNumber;
 use Modules\B2B\Domain\ValueObject\Remark;
 use Modules\B2B\Domain\ValueObject\RequestAnswer;
 use Modules\B2B\Domain\ValueObject\RequestKind;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseApplicationRepository implements ApplicationRepository
