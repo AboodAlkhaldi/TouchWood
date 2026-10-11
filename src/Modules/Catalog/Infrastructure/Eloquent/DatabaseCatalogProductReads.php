@@ -180,6 +180,18 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
         return $cores;
     }
 
+    public function onSaleAmong(array $productIds): array
+    {
+        $ids = array_values(array_unique(array_map(strtolower(...), array_filter($productIds, Ulids::valid(...)))));
+
+        return $ids === [] ? [] : array_values(array_map('strval', $this->db->table('catalog.store_variants')
+            ->whereIn('product_id', $ids)
+            ->where('is_active', true)
+            ->distinct()
+            ->pluck('product_id')
+            ->all()));
+    }
+
     private static function toCore(stdClass $row): ProductCore
     {
         /** @var array{variants: int, photos: int, searchWords: int, filterValues: int, related: int, goesWith: int} $counts */

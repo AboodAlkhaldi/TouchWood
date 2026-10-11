@@ -128,6 +128,8 @@ return [
         'agency_type' => 'agency type',
         'attribute' => 'attribute',
         'attribute_id' => 'attribute',
+        'target_id' => 'catalog item',
+        'new_codes' => 'new codes',
         'attribute_ids' => 'attributes',
         'description_ar' => 'Arabic description',
         'description_en' => 'English description',

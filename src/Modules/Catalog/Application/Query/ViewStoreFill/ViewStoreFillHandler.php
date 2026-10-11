@@ -18,7 +18,6 @@ use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Public\Contracts\ImportSection;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Contracts\PlatformApi;
-use Modules\Platform\Public\Enums\MediaVariantsStatus;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -60,14 +59,14 @@ final readonly class ViewStoreFillHandler
         // Every item's code: one switched on or removed still names its product (the review of step 3).
         $codes = $this->codes->in($store, array_values(array_unique(array_map(static fn (StoreFillItem $item): string => $item->code, $items))));
         $products = $this->products->cores(array_values(array_unique(array_map(static fn (StoreFillCode $code): string => $code->productId, $codes))));
-        $photoStates = $this->photoStates(array_filter($products, static fn (ProductCore $product): bool => $product->stage === ProductStage::Draft->value));
+        $missing = ProductMissing::ofDrafts($this->platform, $products);
 
         return new StoreFillView(
             $import->id,
             $store,
             $import->fileName,
             (string) $import->uploadedAt,
-            array_map(fn (StoreFillItem $item): StoreFillItemView => $this->item($item, $store, $sections, $codes, $products, $photoStates), $items),
+            array_map(fn (StoreFillItem $item): StoreFillItemView => $this->item($item, $store, $sections, $codes, $products, $missing), $items),
             $sections !== [],
         );
     }
@@ -76,9 +75,9 @@ final readonly class ViewStoreFillHandler
      * @param  list<ImportSection>  $sections
      * @param  array<string, StoreFillCode>  $codes
      * @param  array<string, ProductCore>  $products
-     * @param  array<string, string>  $photoStates
+     * @param  array<string, list<string>>  $missing  what each draft lacks
      */
-    private function item(StoreFillItem $item, string $store, array $sections, array $codes, array $products, array $photoStates): StoreFillItemView
+    private function item(StoreFillItem $item, string $store, array $sections, array $codes, array $products, array $missing): StoreFillItemView
     {
         $code = $codes[$item->code] ?? null;
         $product = $code === null ? null : ($products[$code->productId] ?? null);
@@ -96,7 +95,7 @@ final readonly class ViewStoreFillHandler
         [$standing, $missing] = match (true) {
             $code === null, $product === null => [StoreFillItemView::UNKNOWN, []],
             $product->stage === ProductStage::Archived->value => [StoreFillItemView::ARCHIVED, []],
-            $product->stage === ProductStage::Draft->value => [StoreFillItemView::NOT_READY, ProductMissing::of($product, array_intersect_key($photoStates, array_flip($product->gallery)))],
+            $product->stage === ProductStage::Draft->value => [StoreFillItemView::NOT_READY, $missing[$product->id] ?? []],
             default => [self::standing($code), []],
         };
 
@@ -116,32 +115,5 @@ final readonly class ViewStoreFillHandler
             $code->onHere => StoreFillItemView::ALREADY_ON,
             default => StoreFillItemView::READY,
         };
-    }
-
-    /**
-     * The drafts' gallery photos' states, in one Platform read.
-     *
-     * @param  array<string, ProductCore>  $drafts
-     * @return array<string, string> media id => its state
-     */
-    private function photoStates(array $drafts): array
-    {
-        $mediaIds = [];
-
-        foreach ($drafts as $draft) {
-            $mediaIds = [...$mediaIds, ...$draft->gallery];
-        }
-
-        if ($mediaIds === []) {
-            return [];
-        }
-
-        $states = [];
-
-        foreach ($this->platform->mediaOf(array_values(array_unique($mediaIds))) as $mediaId => $media) {
-            $states[$mediaId] = $media->variantsStatus->value ?? MediaVariantsStatus::Pending->value;
-        }
-
-        return $states;
     }
 }

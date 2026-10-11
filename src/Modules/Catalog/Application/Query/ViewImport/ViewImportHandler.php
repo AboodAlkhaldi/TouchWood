@@ -13,11 +13,11 @@ use Modules\Catalog\Application\Import\ImportName;
 use Modules\Catalog\Application\Import\ImportNameRow;
 use Modules\Catalog\Application\Import\ImportProduct;
 use Modules\Catalog\Application\Import\Imports;
-use Modules\Catalog\Application\Products\Readiness;
+use Modules\Catalog\Application\Query\Products\CatalogProductReads;
+use Modules\Catalog\Application\Query\Products\ProductMissing;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
-use Modules\Catalog\Domain\Repository\ProductRepository;
-use Modules\Catalog\Domain\Repository\StoreListingRepository;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -26,6 +26,11 @@ use Shared\Application\Unauthorized;
  * **A products file's page** (catalog.md §1.12): `catalog.import.run`. Its products as they will come
  * in — the page's changes included —; for one brought in and still a draft, what it lacks to be
  * accepted (§1.1). Prices and stock are not kept until stage 5.
+ *
+ * **Read in batches** (P13): the products brought in through the product page's own core read, many
+ * at once, what the drafts lack with their photos in one Platform read (`ProductMissing`), and which
+ * catalog products the file would change are on sale in one query - never one an import's product,
+ * so a file of 2,000 reads the same few queries as a file of one.
  */
 final readonly class ViewImportHandler
 {
@@ -35,10 +40,9 @@ final readonly class ViewImportHandler
     public function __construct(
         private Authorizer $authorizer,
         private Imports $imports,
-        private ProductRepository $products,
-        private Readiness $readiness,
+        private CatalogProductReads $reads,
+        private PlatformApi $platform,
         private ImportAddresses $addresses,
-        private StoreListingRepository $listings,
         private ImportCodeChanges $codeChanges,
         private ImportAttributeChanges $attributeChanges,
     ) {}
@@ -63,6 +67,10 @@ final readonly class ViewImportHandler
         // Those the file gives other variant attributes than it may (P33): replace whole, or skip.
         $attributeChanges = $import->isDeciding() ? array_fill_keys($this->attributeChanges->of($import->id, ImportProduct::takingPart($rows)), true) : [];
         $created = array_values(array_filter($names, static fn (ImportName $name): bool => $name->kind === ImportNameRow::CATEGORY && $name->decision === ImportName::CREATE));
+        $missing = ProductMissing::ofDrafts($this->platform, $this->reads->cores(array_values(array_unique(array_filter(array_map(static fn (ImportProduct $row): ?string => $row->productId, $rows))))));
+        // Whether the catalog's product a waiting one changes is on sale: it then needs keep or take off (amendment 9(c)).
+        $waiting = array_filter($rows, static fn (ImportProduct $row): bool => $row->conflictProductId !== null && $row->state === 'WAITING');
+        $onSale = array_fill_keys($this->reads->onSaleAmong(array_values(array_unique(array_map(static fn (ImportProduct $row): string => (string) $row->conflictProductId, $waiting)))), true);
 
         return new ImportView(
             $import->id,
@@ -73,7 +81,7 @@ final readonly class ViewImportHandler
             $import->uploadedBy,
             (string) $import->uploadedAt,
             array_map(fn (ImportName $name): ImportNameView => new ImportNameView($name->id, $name->kind, $name->written, $name->attribute, $name->attributeKind?->value, $name->decision, $name->targetId, $name->nameAr, $name->nameEn, $name->products, $name->matches, $name->slugAr, $name->slugEn, $import->isDeciding() && in_array($name, $created, true) && $this->categoryTaken($name, $created)), $names),
-            array_map(fn (ImportProduct $row): ImportProductView => $this->product($row, $taken[$row->id] ?? [], isset($codeChanges[$row->id]), isset($attributeChanges[$row->id])), $rows),
+            array_map(fn (ImportProduct $row): ImportProductView => self::product($row, $taken[$row->id] ?? [], isset($codeChanges[$row->id]), isset($attributeChanges[$row->id]), $missing, $onSale), $rows),
         );
     }
 
@@ -93,14 +101,12 @@ final readonly class ViewImportHandler
 
     /**
      * @param  list<string>  $addressTaken
+     * @param  array<string, list<string>>  $missing  what each draft brought in lacks
+     * @param  array<string, true>  $onSale  the catalog products on sale
      */
-    private function product(ImportProduct $row, array $addressTaken, bool $codeChange, bool $attributeChange): ImportProductView
+    private static function product(ImportProduct $row, array $addressTaken, bool $codeChange, bool $attributeChange, array $missing, array $onSale): ImportProductView
     {
         $product = $row->effective();
-        $draft = $row->productId === null ? null : $this->products->find($row->productId);
-        $missing = $draft !== null && $draft->isDraft() ? $this->readiness->missing($draft) : [];
-        // Whether the catalog's product it changes is on sale: it then needs keep or take off (amendment 9(c)).
-        $onSale = $row->conflictProductId !== null && $row->state === 'WAITING' && $this->listings->activeStoresOf($row->conflictProductId) !== [];
 
         return new ImportProductView(
             $row->id,
@@ -114,9 +120,9 @@ final readonly class ViewImportHandler
             $row->state,
             $row->productId,
             $row->edited !== null,
-            $missing,
+            $row->productId === null ? [] : ($missing[strtolower($row->productId)] ?? []),
             $addressTaken,
-            $onSale,
+            $row->conflictProductId !== null && $row->state === 'WAITING' && isset($onSale[strtolower($row->conflictProductId)]),
             $row->sale,
             $row->refusal,
             $codeChange,

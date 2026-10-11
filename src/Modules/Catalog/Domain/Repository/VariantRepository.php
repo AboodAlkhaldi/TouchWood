@@ -38,6 +38,15 @@ interface VariantRepository
     public function delete(string $variantId): void;
 
     /**
+     * Many products' variants at once, each product's in its order - an import's page and confirm
+     * read every product the file changes together (P13).
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, list<Variant>> by product id
+     */
+    public function ofProducts(array $productIds): array;
+
+    /**
      * Writes the product's variants' places again, 1, 2, 3 … in this order (P29).
      *
      * @param  list<string>  $variantIds  every variant of the product

@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Route;
 use Modules\Catalog\Presentation\Http\Controller\AttributesController;
 use Modules\Catalog\Presentation\Http\Controller\BrandsController;
 use Modules\Catalog\Presentation\Http\Controller\CategoriesController;
+use Modules\Catalog\Presentation\Http\Controller\ImportGuideController;
+use Modules\Catalog\Presentation\Http\Controller\ImportsController;
 use Modules\Catalog\Presentation\Http\Controller\LabelsController;
 use Modules\Catalog\Presentation\Http\Controller\ProductChangesController;
 use Modules\Catalog\Presentation\Http\Controller\ProductsController;
@@ -17,8 +19,9 @@ use Modules\Catalog\Presentation\Http\Controller\WarrantiesController;
 
 /*
 | Catalog's screens in the admin panel (catalog.md §4.4, amendment 13): the six shared lists first
-| (step 1), then the products (step 2) — brands, categories, attributes and their values, labels, warranties, and the
-| search words with the searches that found nothing.
+| (step 1) — brands, categories, attributes and their values, labels, warranties, and the search words
+| with the searches that found nothing —, then the products (step 2), each store's rows and the store
+| files (step 3), and the Super Admin's products import with the files' guide (step 4).
 |
 | Mounted into the area App\Http\AdminArea names, as Platform's and B2B's screens are. Who may open
 | any of these is Catalog's answer, never the routing's: each read asks for the list's job in some
@@ -124,4 +127,24 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('store-files/{file}/switch-on', [StoreFilesController::class, 'switchOn'])->name('catalog.admin.store-files.switch-on');
         Route::post('store-files/{file}/remove', [StoreFilesController::class, 'remove'])->name('catalog.admin.store-files.remove');
         Route::post('store-files/{file}/items/{item}/code', [StoreFilesController::class, 'correctCode'])->name('catalog.admin.store-files.code');
+
+        // The Super Admin's products import (§4.4 S11, §1.12) and the files' guide (S10, S11).
+        Route::get('imports', [ImportsController::class, 'index'])->name('catalog.admin.imports');
+        Route::post('imports', [ImportsController::class, 'upload'])->name('catalog.admin.imports.upload');
+        Route::get('imports/{import}', [ImportsController::class, 'show'])->name('catalog.admin.imports.show');
+        Route::post('imports/{import}/names', [ImportsController::class, 'names'])->name('catalog.admin.imports.names');
+        Route::post('imports/{import}/codes', [ImportsController::class, 'codes'])->name('catalog.admin.imports.codes');
+        Route::post('imports/{import}/brand', [ImportsController::class, 'brand'])->name('catalog.admin.imports.brand');
+        Route::post('imports/{import}/category', [ImportsController::class, 'category'])->name('catalog.admin.imports.category');
+        Route::post('imports/{import}/warranty', [ImportsController::class, 'warranty'])->name('catalog.admin.imports.warranty');
+        Route::post('imports/{import}/filters', [ImportsController::class, 'filters'])->name('catalog.admin.imports.filters');
+        Route::post('imports/{import}/words', [ImportsController::class, 'words'])->name('catalog.admin.imports.words');
+        Route::post('imports/{import}/products/{product}/addresses', [ImportsController::class, 'addresses'])->name('catalog.admin.imports.addresses');
+        Route::post('imports/{import}/bring-in', [ImportsController::class, 'bringIn'])->name('catalog.admin.imports.bring-in');
+        Route::post('imports/{import}/accept', [ImportsController::class, 'accept'])->name('catalog.admin.imports.accept');
+        Route::post('imports/{import}/archive', [ImportsController::class, 'archive'])->name('catalog.admin.imports.archive');
+        Route::post('imports/{import}/delete', [ImportsController::class, 'delete'])->name('catalog.admin.imports.delete');
+        Route::post('imports/{import}/discard', [ImportsController::class, 'discard'])->name('catalog.admin.imports.discard');
+        Route::get('import-guide', [ImportGuideController::class, 'show'])->name('catalog.admin.import-guide');
+        Route::get('import-guide/{file}', [ImportGuideController::class, 'example'])->whereIn('file', ['products', 'store-fill'])->name('catalog.admin.import-guide.example');
     });

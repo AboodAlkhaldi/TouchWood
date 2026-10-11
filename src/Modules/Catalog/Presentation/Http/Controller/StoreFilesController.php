@@ -33,7 +33,7 @@ use Shared\Domain\Error\DomainError;
 final readonly class StoreFilesController
 {
     /** @var list<string> */
-    private const array WORDS = ['catalog::admin', 'catalog::admin_products', 'catalog::admin_store_files', 'admin'];
+    private const array WORDS = ['catalog::admin', 'catalog::admin_products', 'catalog::admin_store_files', 'catalog::admin_imports', 'admin'];
 
     private const string PROBLEMS = 'catalog.store_file_problems';
 

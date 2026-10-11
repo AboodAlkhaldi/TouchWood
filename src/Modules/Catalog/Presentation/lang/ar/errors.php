@@ -128,6 +128,8 @@ return [
         'agency_type' => 'نوع الوكالة',
         'attribute' => 'الخاصية',
         'attribute_id' => 'الخاصية',
+        'target_id' => 'عنصر الكتالوج',
+        'new_codes' => 'الرموز الجديدة',
         'attribute_ids' => 'الخصائص',
         'description_ar' => 'الوصف العربي',
         'description_en' => 'الوصف الإنجليزي',
