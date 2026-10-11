@@ -20,7 +20,7 @@ essentially never change. When in doubt, keep it in the module. The ceiling is ~
 | `CrossStoreWrite` | Application | Thrown when code tries to write another store's row. |
 | `CorrelationId` | Application | The key under which the request's correlation id is kept in Laravel's `Context`. |
 | `BelongsToStore`, `StoreScope` | Infrastructure | The Eloquent trait for store-scoped models. |
-| `Ulids` | Infrastructure | `valid($id)`: whether an id from a caller is a ULID, checked before it reaches a query, so anything else is "not found" without asking the database. Access, B2B and Catalog each kept a copy; moved here when Loyalty became the fourth module to need it (owner, 2026-10-10). |
+| `Ulids` | Infrastructure | `valid($id)`: whether an id from a caller is a ULID, checked before it reaches a query, so anything else is "not found" without asking the database. Access, B2B and Catalog each kept a copy; moved here when Loyalty became the fourth module to need it (owner, 2026-10-10), and Platform's media repository uses it too (2026-10-11). |
 | `VersionedCache` | Infrastructure | A cached snapshot that is never served stale: a change replaces its version inside the change's transaction (the cache table shares the connection). Used by Platform's stores and settings and Access's staff permissions; moved here from Platform on 2026-09-19 (owner). |
 
 ## How the pieces work

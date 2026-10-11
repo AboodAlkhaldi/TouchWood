@@ -176,7 +176,8 @@ src/Shared/
 `VersionedCache` moved here from Platform when Access needed it for staff permissions (owner,
 2026-09-19): every module that caches follows the same never-stale rule. `Ulids` — whether an id from
 a caller is a ULID, before it reaches a query — moved here when Loyalty became the fourth module to
-need it; Access, B2B and Catalog had each kept a copy (owner, 2026-10-10). **20 classes: the
+need it; Access, B2B and Catalog had each kept a copy (owner, 2026-10-10), and Platform's media
+repository its own looser one (2026-10-11). **20 classes: the
 ceiling.**
 
 The error renderer (`ProblemDetails`) and the correlation-id middleware are framework glue and live
