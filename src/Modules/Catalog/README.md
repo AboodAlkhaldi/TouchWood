@@ -581,7 +581,8 @@ what it lacked, whether the product its codes find is on sale); it now reads the
 through the product page's own core read, many at once, what the drafts lack with their photos in one
 Platform read (`ProductMissing::ofDrafts`, shared with the store file's page), and which catalog
 products are on sale in one query (`CatalogProductReads::onSaleAmong`). Each part's own queries are
-recorded, the same for 3 products and for 120: names 8, codes 6, before 8, products 6, the list 3.
+recorded, the same for 3 products and for 120: names 9, codes 6, before 8, products 6, the list 3 - and
+the same for 2 products the file updates and for 12 (their codes and attributes read together).
 
 **The files' guide** (`/admin/import-guide`, linked from S10's and S11's uploads): the repository's
 own `docs/modules/catalog-import/README.md` rendered on the server (CommonMark, raw HTML stripped),

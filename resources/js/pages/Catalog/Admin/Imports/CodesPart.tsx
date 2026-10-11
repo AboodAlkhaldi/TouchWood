@@ -1,18 +1,21 @@
 import { useRef, useState } from 'react';
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { TextField } from '@/components/Fields';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { FieldError } from '@/components/ui/field';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { ImportPage, ImportProductData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 import { nameIn, useLocale } from '../parts';
-import { SelectAll, useSelection } from './parts';
+import { isDeciding, SelectAll, useSelection } from './parts';
 import { ImportShell } from './shell';
 
 /*
@@ -27,13 +30,16 @@ import { ImportShell } from './shell';
 const DECISIONS = ['UPDATE', 'REPLACE', 'SKIP', 'RECODE'] as const;
 const SALES = ['KEEP', 'TAKE_OFF'] as const;
 
+/** A sale is chosen only for a product updated or replaced (amendment 9(c)). */
+const SELLING = ['UPDATE', 'REPLACE'];
+
 type Decision = { product_id: string; decision: string; sale: string | null; new_codes?: Record<string, string> };
 
 function Codes({ page }: { page: ImportPage }) {
     const t = useTranslator();
     const locale = useLocale();
     const rows = page.products ?? [];
-    const deciding = page.import.state === 'DECIDING';
+    const deciding = isDeciding(page.import.state);
     const selection = useSelection(deciding ? rows.map((row) => row.id) : []);
     const [busy, setBusy] = useState(false);
     const [recoding, setRecoding] = useState<ImportProductData | null>(null);
@@ -41,12 +47,14 @@ function Codes({ page }: { page: ImportPage }) {
     const ticked = rows.filter((row) => selection.has(row.id));
     const save = (decisions: Decision[], onSuccess?: () => void) =>
         router.post(`/admin/imports/${page.import.id}/codes`, { decisions }, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess });
-    // A decision is sent with the sale kept as it is: the two are one row's choice.
+    // A new decision asks the sale again: every time, no default (amendment 9(c)).
     const decide = (targets: ImportProductData[], decision: string) =>
         save(
-            targets.map((row) => ({ product_id: row.id, decision, sale: row.onSale && decision !== 'SKIP' ? row.sale : null })),
+            targets.map((row) => ({ product_id: row.id, decision, sale: null })),
             selection.clear,
         );
+    const selling = ticked.filter((row) => row.onSale && row.decision !== null && SELLING.includes(row.decision));
+    const sell = (sale: string) => save(selling.map((row) => ({ product_id: row.id, decision: row.decision ?? '', sale })), selection.clear);
 
     if (rows.length === 0) {
         return <p className="text-copy-14 text-ink-muted" data-test="codes-empty">{t('catalog::admin_imports.codes.empty')}</p>;
@@ -68,6 +76,19 @@ function Codes({ page }: { page: ImportPage }) {
                             data-test={`selected-${decision}`}
                         >
                             {t(`catalog::admin_imports.codes.decision.${decision}`)}
+                        </ActionButton>
+                    ))}
+                    {SALES.map((sale) => (
+                        <ActionButton
+                            key={sale}
+                            type="button"
+                            variant="outline"
+                            loading={busy}
+                            disabledReason={ticked.length === 0 ? t('catalog::admin_imports.none_selected') : selling.length === 0 ? t('catalog::admin_imports.codes.sale_none') : undefined}
+                            onClick={() => sell(sale)}
+                            data-test={`selected-${sale}`}
+                        >
+                            {t(`catalog::admin_imports.codes.sale.${sale}`)}
                         </ActionButton>
                     ))}
                 </div>
@@ -115,9 +136,12 @@ function Codes({ page }: { page: ImportPage }) {
                                                 <Link href={`/admin/products/${row.conflictProductId}`} className="text-label-14 text-ink underline-offset-4 hover:underline">
                                                     {nameIn(locale, row.conflictNameAr, row.conflictNameEn) || row.conflictProductId}
                                                 </Link>
-                                                <Badge className={tone(row.onSale ? 'green-subtle' : 'gray-subtle')} data-test="on-sale">
-                                                    {t(row.onSale ? 'catalog::admin_imports.codes.on_sale' : 'catalog::admin_imports.codes.not_on_sale')}
-                                                </Badge>
+                                                {/* Read while deciding: once brought in, the product's own page says it. */}
+                                                {deciding ? (
+                                                    <Badge className={tone(row.onSale ? 'green-subtle' : 'gray-subtle')} data-test="on-sale">
+                                                        {t(row.onSale ? 'catalog::admin_imports.codes.on_sale' : 'catalog::admin_imports.codes.not_on_sale')}
+                                                    </Badge>
+                                                ) : null}
                                             </span>
                                         ) : (
                                             '—'
@@ -155,9 +179,24 @@ function Codes({ page }: { page: ImportPage }) {
                                         ) : (
                                             <span className="text-copy-14">{t(`catalog::admin_imports.codes.decision.${row.decision ?? 'none'}`)}</span>
                                         )}
+                                        {deciding && row.decision === 'RECODE' ? (
+                                            <Button
+                                                type="button"
+                                                variant="link"
+                                                size="sm"
+                                                className="px-0"
+                                                onClick={(event) => {
+                                                    opener.current = event.currentTarget;
+                                                    setRecoding(row);
+                                                }}
+                                                data-test="edit-recode"
+                                            >
+                                                {t('catalog::admin_imports.codes.decision.RECODE')}
+                                            </Button>
+                                        ) : null}
                                     </TableCell>
                                     <TableCell>
-                                        {row.onSale && row.decision !== null && row.decision !== 'SKIP' ? (
+                                        {row.onSale && row.decision !== null && SELLING.includes(row.decision) ? (
                                             deciding ? (
                                                 <span className="grid gap-1">
                                                     <NativeSelect
@@ -166,7 +205,7 @@ function Codes({ page }: { page: ImportPage }) {
                                                         aria-label={t('catalog::admin_imports.codes.sale_label', { name })}
                                                         value={row.sale ?? ''}
                                                         disabled={busy}
-                                                        onChange={(event) => (event.target.value === '' ? undefined : save([{ product_id: row.id, decision: row.decision ?? '', sale: event.target.value, ...(row.decision === 'RECODE' && row.newCodes !== null ? { new_codes: row.newCodes } : {}) }]))}
+                                                        onChange={(event) => (event.target.value === '' ? undefined : save([{ product_id: row.id, decision: row.decision ?? '', sale: event.target.value }]))}
                                                         data-test="sale"
                                                     >
                                                         <NativeSelectOption value="">{t('catalog::admin_imports.codes.decision.none')}</NativeSelectOption>
@@ -196,7 +235,7 @@ function Codes({ page }: { page: ImportPage }) {
                 <RecodeDialog
                     row={recoding}
                     busy={busy}
-                    onSave={(newCodes) => save([{ product_id: recoding.id, decision: 'RECODE', sale: recoding.onSale ? recoding.sale : null, new_codes: newCodes }], () => setRecoding(null))}
+                    onSave={(newCodes) => save([{ product_id: recoding.id, decision: 'RECODE', sale: null, new_codes: newCodes }], () => setRecoding(null))}
                     onOpenChange={(next) => (next ? undefined : setRecoding(null))}
                     returnFocusTo={opener}
                 />
@@ -205,7 +244,7 @@ function Codes({ page }: { page: ImportPage }) {
     );
 }
 
-/** New Codes…: a new code for each code the catalog already has - the codes left empty are not sent. */
+/** New Codes…: a new code for each of its codes the catalog holds - each one, as the decision asks. */
 function RecodeDialog({
     row,
     busy,
@@ -220,8 +259,10 @@ function RecodeDialog({
     returnFocusTo: React.RefObject<HTMLElement | null>;
 }) {
     const t = useTranslator();
+    const { errors } = usePage<SharedProps>().props;
     const [codes, setCodes] = useState<Record<string, string>>(row.newCodes ?? {});
-    const filled = Object.fromEntries(Object.entries(codes).filter(([, to]) => to.trim() !== ''));
+    const filled = Object.fromEntries(row.heldCodes.map((code) => [code, (codes[code] ?? '').trim()]));
+    const missing = row.heldCodes.some((code) => (codes[code] ?? '').trim() === '');
 
     return (
         <PanelDialog
@@ -232,13 +273,13 @@ function RecodeDialog({
             description={t('catalog::admin_imports.codes.recode_body')}
             busy={busy}
             confirm={
-                <ActionButton loading={busy} disabledReason={Object.keys(filled).length === 0 ? t('catalog::admin_imports.before.choose_first') : undefined} onClick={() => onSave(filled)} data-test="confirm-recode">
+                <ActionButton loading={busy} disabledReason={missing ? t('catalog::admin_imports.codes.recode_all') : undefined} onClick={() => onSave(filled)} data-test="confirm-recode">
                     {t('catalog::admin_imports.codes.recode_confirm')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4 sm:grid-cols-2">
-                {row.codes.map((code) => (
+                {row.heldCodes.map((code) => (
                     <TextField
                         key={code}
                         id={`recode-${code}`}
@@ -251,6 +292,7 @@ function RecodeDialog({
                         data-test={`recode-${code}`}
                     />
                 ))}
+                {errors.new_codes ? <FieldError className="sm:col-span-2">{errors.new_codes}</FieldError> : null}
             </div>
         </PanelDialog>
     );

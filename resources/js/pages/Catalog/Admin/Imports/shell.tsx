@@ -12,7 +12,7 @@ import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { ImportPage, ImportWaitingData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, useLocale } from '../parts';
-import { ConfirmByName, ImportStateBadge } from './parts';
+import { ConfirmByName, ImportStateBadge, isDeciding } from './parts';
 
 /*
 | One import (catalog.md §4.4 S11, §1.12): its file above **four parts kept in the address**
@@ -22,7 +22,8 @@ import { ConfirmByName, ImportStateBadge } from './parts';
 |
 | **The main action follows the state**: Bring Products In while deciding - out of reach, with what
 | still waits, until nothing does -; while bringing in, a line saying so, the page asking again every
-| few seconds until it is done (P12); failed, the reason and that nothing was kept. **Discard
+| few seconds until it is done (P12); failed, the reason and that nothing was kept, and Bring Products
+| In again once it is mended (§1.12) - every decision kept. **Discard
 | Import…** (⋯, deciding or failed) asks for the file's name typed (P10).
 */
 
@@ -49,9 +50,9 @@ export function ImportShell({ page, children }: { page: ImportPage; children: Re
     const [busy, setBusy] = useState(false);
     const [discarding, setDiscarding] = useState(false);
     const more = useRef<HTMLButtonElement>(null);
-    const deciding = file.state === 'DECIDING';
+    const deciding = isDeciding(file.state);
     const total = waitingTotal(waiting);
-    const mayDiscard = deciding || file.state === 'FAILED';
+    const mayDiscard = deciding;
 
     useEffect(() => setOpen(asPart(page.part)), [page.part]);
 
@@ -85,7 +86,7 @@ export function ImportShell({ page, children }: { page: ImportPage; children: Re
         names: waiting.names,
         codes: waiting.codes + waiting.sales + waiting.codeChanges + waiting.attributeChanges,
         before: waiting.addresses,
-        products: 0,
+        products: page.toAccept,
     };
     const waitingItems = (
         [

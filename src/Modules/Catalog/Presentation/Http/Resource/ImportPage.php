@@ -22,6 +22,8 @@ final class ImportPage extends Data
      * @param  list<CategoryOptionData>|null  $categories
      * @param  list<WarrantyOptionData>|null  $warranties
      * @param  list<AttributeChoiceData>|null  $attributes
+     * @param  list<CategoryOptionData>|null  $meansCategories  every active category, for a name It Means… (a level of a path)
+     * @param  list<string>|null  $takenCategories  the new categories, as written, whose address is taken (decided in Names)
      */
     public function __construct(
         public ImportHeadData $import,
@@ -35,5 +37,9 @@ final class ImportPage extends Data
         public ?array $categories,
         public ?array $warranties,
         public ?array $attributes,
+        public ?array $meansCategories,
+        public ?array $takenCategories,
+        /** The products brought in and not accepted yet: what the products part still waits for. */
+        public int $toAccept,
     ) {}
 }

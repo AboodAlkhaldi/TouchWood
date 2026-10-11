@@ -19,8 +19,9 @@ use Modules\Catalog\Presentation\Http\Controller\WarrantiesController;
 
 /*
 | Catalog's screens in the admin panel (catalog.md §4.4, amendment 13): the six shared lists first
-| (step 1), then the products (step 2) — brands, categories, attributes and their values, labels, warranties, and the
-| search words with the searches that found nothing.
+| (step 1) — brands, categories, attributes and their values, labels, warranties, and the search words
+| with the searches that found nothing —, then the products (step 2), each store's rows and the store
+| files (step 3), and the Super Admin's products import with the files' guide (step 4).
 |
 | Mounted into the area App\Http\AdminArea names, as Platform's and B2B's screens are. Who may open
 | any of these is Catalog's answer, never the routing's: each read asks for the list's job in some

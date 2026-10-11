@@ -160,6 +160,9 @@ brands: BrandOptionData[] | null,
 categories: CategoryOptionData[] | null,
 warranties: WarrantyOptionData[] | null,
 attributes: AttributeChoiceData[] | null,
+meansCategories: CategoryOptionData[] | null,
+takenCategories: string[] | null,
+toAccept: number,
 };
 export type ImportProblemData = {
 at: string,
@@ -186,6 +189,7 @@ sale: string | null,
 refusal: string | null,
 codeChange: boolean,
 attributeChange: boolean,
+heldCodes: string[],
 };
 export type ImportWaitingData = {
 names: number,

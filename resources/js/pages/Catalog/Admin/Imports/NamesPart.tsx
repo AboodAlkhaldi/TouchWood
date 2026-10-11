@@ -13,7 +13,7 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { ImportNameData, ImportPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { nameIn, useLocale, type Locale } from '../parts';
-import { SelectAll, useSelection } from './parts';
+import { isDeciding, SelectAll, useSelection } from './parts';
 import { ImportShell } from './shell';
 
 /*
@@ -34,12 +34,21 @@ const CREATED = ['CATEGORY', 'VALUE'];
 type Dialog = { action: 'means' | 'refuse'; ids: string[] } | { action: 'create'; ids: [string] } | null;
 
 /** The catalog items a name of this kind may mean: the active ones, as the decision accepts them. */
-function choices(page: ImportPage, name: ImportNameData, locale: Locale): SearchOption[] {
+function choices(page: ImportPage, name: ImportNameData, locale: Locale, t: (key: string) => string): SearchOption[] {
     switch (name.kind) {
         case 'BRAND':
             return (page.brands ?? []).filter((brand) => brand.active).map((brand) => ({ value: brand.id, label: nameIn(locale, brand.nameAr, brand.nameEn) }));
-        case 'CATEGORY':
-            return (page.categories ?? []).filter((category) => category.active).map((category) => ({ value: category.id, label: locale === 'ar' ? category.pathAr : category.pathEn }));
+        case 'CATEGORY': {
+            // Any active category - a level of the file's path may mean one with sub-categories; a
+            // product's own must hold products, which the decision checks and those are marked.
+            const lowest = new Set((page.categories ?? []).map((category) => category.id));
+
+            return (page.meansCategories ?? []).map((category) => ({
+                value: category.id,
+                label: locale === 'ar' ? category.pathAr : category.pathEn,
+                description: lowest.has(category.id) ? t('catalog::admin_imports.names.holds_products') : undefined,
+            }));
+        }
         case 'WARRANTY':
             return (page.warranties ?? []).filter((warranty) => warranty.active).map((warranty) => ({ value: warranty.id, label: nameIn(locale, warranty.nameAr, warranty.nameEn) }));
         case 'ATTRIBUTE':
@@ -59,7 +68,7 @@ function choices(page: ImportPage, name: ImportNameData, locale: Locale): Search
 /** What a decided name now means, in words. */
 function decided(page: ImportPage, name: ImportNameData, locale: Locale): string | null {
     if (name.decision === 'EXISTING') {
-        return choices(page, name, locale).find((option) => option.value === name.targetId)?.label ?? null;
+        return choices(page, name, locale, () => '').find((option) => option.value === name.targetId)?.label ?? null;
     }
 
     return name.decision === 'CREATE' ? nameIn(locale, name.nameAr, name.nameEn) : null;
@@ -69,13 +78,13 @@ function Names({ page }: { page: ImportPage }) {
     const t = useTranslator();
     const locale = useLocale();
     const names = page.names ?? [];
-    const deciding = page.import.state === 'DECIDING';
+    const deciding = isDeciding(page.import.state);
     const selection = useSelection(deciding ? names.map((name) => name.id) : []);
     const [dialog, setDialog] = useState<Dialog>(null);
     const opener = useRef<HTMLElement | null>(null);
     const ticked = names.filter((name) => selection.has(name.id));
     // Ticked rows mean one item together only when they are of one kind - for values, of one attribute.
-    const oneKind = ticked.length > 0 && ticked.every((name) => name.kind === ticked[0]?.kind && name.valueAttributeId === ticked[0]?.valueAttributeId);
+    const oneKind = ticked.length > 0 && ticked.every((name) => name.kind === ticked[0]?.kind && name.attributeKind === ticked[0]?.attributeKind && name.valueAttributeId === ticked[0]?.valueAttributeId);
     const open = (next: Dialog, trigger: HTMLElement) => {
         opener.current = trigger;
         setDialog(next);
@@ -179,9 +188,16 @@ function Names({ page }: { page: ImportPage }) {
                                                             {t('catalog::admin_imports.names.means')}
                                                         </Button>
                                                         {CREATED.includes(name.kind) ? (
-                                                            <Button type="button" variant="outline" size="sm" onClick={(event) => open({ action: 'create', ids: [name.id] }, event.currentTarget)} data-test="create">
+                                                            <ActionButton
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabledReason={name.kind === 'VALUE' && name.valueAttributeId === null ? t('catalog::admin_imports.names.attribute_first') : undefined}
+                                                                onClick={(event) => open({ action: 'create', ids: [name.id] }, event.currentTarget)}
+                                                                data-test="create"
+                                                            >
                                                                 {t('catalog::admin_imports.names.create')}
-                                                            </Button>
+                                                            </ActionButton>
                                                         ) : null}
                                                         <Button type="button" variant="ghost" size="sm" onClick={(event) => open({ action: 'refuse', ids: [name.id] }, event.currentTarget)} data-test="refuse">
                                                             {t('catalog::admin_imports.names.refuse')}
@@ -199,7 +215,7 @@ function Names({ page }: { page: ImportPage }) {
             </div>
 
             {dialog?.action === 'means' && shown[0] !== undefined ? (
-                <MeansDialog importId={page.import.id} names={shown} options={choices(page, shown[0], locale)} onDone={selection.clear} onOpenChange={close} returnFocusTo={opener} />
+                <MeansDialog importId={page.import.id} names={shown} options={choices(page, shown[0], locale, t)} onDone={selection.clear} onOpenChange={close} returnFocusTo={opener} />
             ) : null}
             {dialog?.action === 'create' && shown[0] !== undefined ? <CreateDialog importId={page.import.id} name={shown[0]} onOpenChange={close} returnFocusTo={opener} /> : null}
             {dialog?.action === 'refuse' ? <RefuseDialog importId={page.import.id} names={shown} onDone={selection.clear} onOpenChange={close} returnFocusTo={opener} /> : null}
@@ -284,9 +300,11 @@ function MeansDialog({
 function CreateDialog({ importId, name, onOpenChange, returnFocusTo }: { importId: string; name: ImportNameData; onOpenChange: (open: boolean) => void; returnFocusTo: React.RefObject<HTMLElement | null> }) {
     const t = useTranslator();
     const category = name.kind === 'CATEGORY';
+    // Started from the name as written, in the language its letters are: the rest is completed here.
+    const arabic = /[\u0600-\u06FF]/.test(name.written);
     const form = useForm({
-        name_ar: name.nameAr ?? '',
-        name_en: name.nameEn ?? '',
+        name_ar: name.nameAr ?? (arabic ? name.written : ''),
+        name_en: name.nameEn ?? (arabic ? '' : name.written),
         slug_ar: name.slugAr ?? '',
         slug_en: name.slugEn ?? '',
     });

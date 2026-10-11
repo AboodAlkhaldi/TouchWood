@@ -9,7 +9,7 @@ return [
     'subtitle' => 'Files of products for the catalog, decided here and then brought in.',
     'upload' => 'Upload Products File',
     'upload_title' => 'Upload Products File',
-    'upload_body' => 'A .json of products, or a .zip with products.json at its top and its photos: 2,000 products, 20 MB for a JSON, 500 MB for a zip.',
+    'upload_body' => 'A .json of products, or a .zip with products.json at its top and its photos: 2,000 products, 20 MB for a JSON, 500 MB and 100,000 entries for a zip.',
     'upload_field' => 'File',
     'upload_confirm' => 'Upload',
     'guide' => 'How to fill the files',
@@ -53,7 +53,6 @@ return [
     'in' => 'The products are in. Accept the ready ones: they become ready, on sale nowhere until a store chooses them.',
     'with_photos' => 'With photos',
     'uploaded_by' => 'Uploaded by :name',
-    'actions' => 'Import actions',
     'discard' => 'Discard Import…',
     'discard_title' => 'Discard Import',
     'discard_body' => 'The import, its decisions and its zip are deleted. Type the file name to confirm.',
@@ -66,6 +65,7 @@ return [
     'select_row' => 'Select :name',
     'select_all' => 'Select every row shown',
     'names' => [
+        'holds_products' => 'Holds products',
         'empty' => 'Every name the file uses is in the catalog.',
         'kind' => [
             'CATEGORY' => 'Category',
@@ -107,6 +107,8 @@ return [
         'none_offered' => 'No catalog item of this kind is active.',
     ],
     'codes' => [
+        'sale_none' => 'No ticked product is on sale and updated or replaced.',
+        'recode_all' => 'Give each code a new one.',
         'empty' => 'No product of the file holds a code the catalog has.',
         'column' => [
             'product' => 'In the File',
@@ -139,6 +141,12 @@ return [
         'sale_label' => 'Sale for :name',
     ],
     'before' => [
+        'mode_choose' => 'Choose how',
+        'mode_first' => 'Choose how first.',
+        'language' => [
+            'ar' => 'Arabic',
+            'en' => 'English',
+        ],
         'changes' => 'Changes to the Products',
         'changes_body' => 'To every product of the file, or to the ticked ones.',
         'brand' => 'Brand',
@@ -168,6 +176,8 @@ return [
         ],
     ],
     'products' => [
+        'only_ready' => 'Only products that lack nothing are accepted: clear the others from the selection.',
+        'only_created' => 'Only products this import created, not accepted yet, are archived or deleted: clear the others from the selection.',
         'column' => [
             'number' => 'Number',
             'product' => 'Product',

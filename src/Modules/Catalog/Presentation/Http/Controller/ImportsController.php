@@ -6,6 +6,7 @@ namespace Modules\Catalog\Presentation\Http\Controller;
 
 use App\Http\FormErrors;
 use App\Http\Page;
+use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -39,6 +40,7 @@ use Modules\Catalog\Application\Command\SetImportedWarranty\SetImportedWarrantyH
 use Modules\Catalog\Application\Command\UploadImport\UploadImport;
 use Modules\Catalog\Application\Command\UploadImport\UploadImportHandler;
 use Modules\Catalog\Domain\Exception\ImportRefused;
+use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
 use Modules\Catalog\Presentation\Http\Resource\ImportPages;
 use Shared\Domain\Error\DomainError;
@@ -120,13 +122,13 @@ final readonly class ImportsController
     /** Names: `decisions[]`, each `name_id` and `decision` (EXISTING with `target_id`, CREATE with names, REFUSE). */
     public function names(CatalogFormRequest $request, string $import, DecideImportNamesHandler $handler): RedirectResponse
     {
-        return CatalogRefusals::act($request, fn () => $handler->handle(new DecideImportNames($import, self::list($request->input('decisions')))), 'catalog::admin_imports.toast.decided', ['name_ar', 'name_en', 'slug_ar', 'slug_en']);
+        return self::decide($request, fn () => $handler->handle(new DecideImportNames($import, self::list($request->input('decisions')))), ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'target_id']);
     }
 
     /** Codes: `decisions[]`, each `product_id`, `decision` (UPDATE, REPLACE, SKIP, RECODE with `new_codes`) and `sale`. */
     public function codes(CatalogFormRequest $request, string $import, DecideImportCodesHandler $handler): RedirectResponse
     {
-        return CatalogRefusals::act($request, fn () => $handler->handle(new DecideImportCodes($import, self::list($request->input('decisions')))), 'catalog::admin_imports.toast.decided', ['new_codes']);
+        return self::decide($request, fn () => $handler->handle(new DecideImportCodes($import, self::list($request->input('decisions')))), ['new_codes']);
     }
 
     public function brand(CatalogFormRequest $request, string $import, SetImportedBrandHandler $handler): RedirectResponse
@@ -191,6 +193,29 @@ final readonly class ImportsController
         }
 
         return redirect('/admin/imports')->with('status', __('catalog::admin_imports.toast.discarded'));
+    }
+
+    /**
+     * A decision, its refusal said beside the field the dialog shows - the handlers name it within the
+     * decisions sent (`decisions.0.slug_ar`, `decisions.0.new_codes.1304`) - else at the top.
+     *
+     * @param  list<string>  $fields
+     */
+    private static function decide(CatalogFormRequest $request, Closure $work, array $fields): RedirectResponse
+    {
+        try {
+            $work();
+        } catch (InvalidCatalogAttribute $error) {
+            if (preg_match('/^decisions\.\d+\.([a-z_]+)/', $error->attribute, $match) === 1 && in_array($match[1], $fields, true)) {
+                return back()->withErrors([$match[1] => FormErrors::message(new InvalidCatalogAttribute($match[1], $error->reason))]);
+            }
+
+            return CatalogRefusals::back($request, $error);
+        } catch (DomainError $error) {
+            return CatalogRefusals::back($request, $error);
+        }
+
+        return back()->with('status', __('catalog::admin_imports.toast.decided'));
     }
 
     /**

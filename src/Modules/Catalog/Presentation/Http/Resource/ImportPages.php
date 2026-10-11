@@ -8,9 +8,12 @@ use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\ImportName;
 use Modules\Catalog\Application\Import\ImportNameRow;
 use Modules\Catalog\Application\Import\ImportProduct;
+use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Import\ImportSummary;
 use Modules\Catalog\Application\Query\ListImports\ListImports;
 use Modules\Catalog\Application\Query\ListImports\ListImportsHandler;
+use Modules\Catalog\Application\Query\Lists\CatalogListReads;
+use Modules\Catalog\Application\Query\Lists\CategoryRow;
 use Modules\Catalog\Application\Query\Products\AttributeChoice;
 use Modules\Catalog\Application\Query\Products\CatalogProductReads;
 use Modules\Catalog\Application\Query\Products\ProductCore;
@@ -42,6 +45,8 @@ final readonly class ImportPages
         private ViewImportHandler $view,
         private StaffNames $staff,
         private CatalogProductReads $reads,
+        private CatalogListReads $lists,
+        private Imports $imports,
     ) {}
 
     /**
@@ -76,7 +81,8 @@ final readonly class ImportPages
     public function import(string $importId, ?string $part, int $page): ImportPage
     {
         $view = $this->view->handle(new ViewImport($importId));
-        $deciding = $view->state === ImportHeader::DECIDING;
+        // A failed import is decided again and brought in again (§1.12; `ImportHeader::isDeciding`).
+        $deciding = in_array($view->state, [ImportHeader::DECIDING, ImportHeader::FAILED], true);
         $part = in_array($part, self::PARTS, true) ? $part : ($deciding ? 'names' : 'products');
         $page = max($page, 1);
         $taking = array_values(array_filter($view->products, static fn (ImportProductView $row): bool => $row->state !== ImportProduct::REFUSED));
@@ -91,6 +97,8 @@ final readonly class ImportPages
         };
         // The catalog products the codes part's would change, named and linked.
         $conflicts = $part === 'codes' ? $this->reads->cores(array_values(array_unique(array_map(static fn (ImportProductView $row): string => (string) $row->conflictProductId, $products)))) : [];
+        // The codes the catalog holds, which New Codes… must each give a new one - one query.
+        $held = $part === 'codes' ? $this->imports->codeHolders(array_values(array_unique(array_merge([], ...array_map(static fn (ImportProductView $row): array => $row->codes, $products))))) : [];
 
         return new ImportPage(
             new ImportHeadData($view->id, $view->fileName, $view->state, $view->failure, $view->withPhotos, $uploader, $view->uploadedAt, count($view->products)),
@@ -101,14 +109,44 @@ final readonly class ImportPages
                 $name->nameAr, $name->nameEn, $name->products, $name->matches, $name->slugAr, $name->slugEn, $name->addressTaken,
                 $name->kind === ImportNameRow::VALUE ? self::valueAttribute($name, $view->names, $attributes ?? []) : null,
             ), $view->names) : null,
-            $part === 'names' ? null : array_map(static fn (ImportProductView $row): ImportProductData => self::product($row, $conflicts), $products),
+            $part === 'names' ? null : array_map(static fn (ImportProductView $row): ImportProductData => self::product($row, $conflicts, $held), $products),
             $part === 'products' ? $page : 1,
             $part === 'products' && $page * self::PER_PAGE < count($view->products),
             $options === null ? null : ProductPages::brands($options),
             $options === null ? null : ProductPages::categories($options),
             $options === null ? null : ProductPages::warranties($options),
             $attributes === null ? null : ProductPages::attributes($attributes),
+            $part === 'names' ? $this->meansCategories() : null,
+            $part === 'before' ? array_values(array_map(static fn (ImportNameView $name): string => $name->written, array_filter($view->names, static fn (ImportNameView $name): bool => $name->addressTaken))) : null,
+            count(array_filter($view->products, static fn (ImportProductView $row): bool => $row->productId !== null && in_array($row->state, ['IN', 'UPDATED', 'REPLACED'], true))),
         );
+    }
+
+    /**
+     * Every active category with its path, for a name It Means…: a level of the file's path may mean
+     * any category; a product's own, one that holds products - the decision refuses another.
+     *
+     * @return list<CategoryOptionData>
+     */
+    private function meansCategories(): array
+    {
+        $rows = [];
+
+        foreach ($this->lists->categories(null, null) as $row) {
+            $rows[$row->id] = $row;
+        }
+
+        $path = static function (CategoryRow $row, string $locale) use ($rows): string {
+            $names = [];
+
+            for ($at = $row, $depth = 0; $at !== null && $depth < 20; $at = $at->parentId === null ? null : ($rows[$at->parentId] ?? null), $depth++) {
+                array_unshift($names, $locale === 'ar' ? $at->nameAr : $at->nameEn);
+            }
+
+            return implode(' › ', $names);
+        };
+
+        return array_values(array_map(static fn (CategoryRow $row): CategoryOptionData => new CategoryOptionData($row->id, $path($row, 'ar'), $path($row, 'en'), true), array_filter($rows, static fn (CategoryRow $row): bool => $row->active)));
     }
 
     /**
@@ -140,15 +178,16 @@ final readonly class ImportPages
     {
         $key = ImportNameRow::keyOf([(string) $value->attribute]);
 
-        foreach ($names as $name) {
-            if ($name->kind === ImportNameRow::ATTRIBUTE && ImportNameRow::keyOf([$name->written]) === $key) {
-                return $name->decision === ImportName::EXISTING ? $name->targetId : null;
-            }
-        }
-
+        // The catalog's first, then the file's name decided as one - as `DecideImportNamesHandler::attributeOf` reads it.
         foreach ($attributes as $attribute) {
             if (ImportNameRow::keyOf([$attribute->nameEn]) === $key || ImportNameRow::keyOf([$attribute->nameAr]) === $key) {
                 return $attribute->id;
+            }
+        }
+
+        foreach ($names as $name) {
+            if ($name->kind === ImportNameRow::ATTRIBUTE && ImportNameRow::keyOf([$name->written]) === $key) {
+                return $name->decision === ImportName::EXISTING ? $name->targetId : null;
             }
         }
 
@@ -157,8 +196,9 @@ final readonly class ImportPages
 
     /**
      * @param  array<string, ProductCore>  $conflicts
+     * @param  array<string, string>  $held  code => the product holding it
      */
-    private static function product(ImportProductView $row, array $conflicts): ImportProductData
+    private static function product(ImportProductView $row, array $conflicts, array $held): ImportProductData
     {
         $conflict = $row->conflictProductId === null ? null : ($conflicts[strtolower($row->conflictProductId)] ?? null);
 
@@ -167,6 +207,7 @@ final readonly class ImportPages
             $conflict?->nameAr, $conflict?->nameEn, $row->decision, $row->newCodes, $row->state, $row->productId,
             $row->changed, $row->missing, $row->addressTaken, $row->onSale, $row->sale, $row->refusal,
             $row->codeChange, $row->attributeChange,
+            array_values(array_filter($row->codes, static fn (string $code): bool => isset($held[$code]))),
         );
     }
 }

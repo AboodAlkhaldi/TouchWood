@@ -20,6 +20,8 @@ use Modules\Catalog\Application\Command\BringInImport\BringInImport;
 use Modules\Catalog\Application\Command\BringInImport\BringInImportHandler;
 use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProducts;
 use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProductsHandler;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Domain\Exception\ImportUndecided;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -249,6 +251,57 @@ describe('an import\'s parts', function () {
             ->and(AdminBrowser::formError($super->post("/admin/imports/{$import}/bring-in")))->not->toBeEmpty();
     });
 
+    it('decides a failed import again and brings it in again, every decision kept (§1.12)', function () {
+        $super = catalogImportScreensSuper();
+        $import = catalogImportScreensId(catalogImportScreensUpload($super, [Ix::product('880601', ['brand' => 'Nobody at all'])]));
+        DB::table('catalog.imports')->where('id', $import)->update(['state' => 'FAILED', 'failure' => 'bringing in: the brand Nobody at all was deactivated']);
+
+        $super->get("/admin/imports/{$import}")->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('import.state', 'FAILED')
+            ->where('waiting.names', 1));
+
+        $super->post("/admin/imports/{$import}/names", ['decisions' => [['name_id' => Ix::nameId($import, 'BRAND', 'Nobody at all'), 'decision' => 'REFUSE']]]);
+
+        expect(catalogImportScreensToast($super->post("/admin/imports/{$import}/bring-in")))->toBe('Bringing the products in')
+            ->and(DB::table('catalog.imports')->where('id', $import)->value('state'))->toBe('BRINGING_IN');
+    });
+
+    it('says a refusal of one decision beside its field: a new category\'s address taken, a new code missing', function () {
+        $category = Px::category('Drawers');
+        $taken = (string) DB::table('catalog.category_slugs')->where('category_id', $category)->where('locale', 'en')->value('slug');
+        ['variants' => [$variant]] = Px::ready();
+        $code = (string) DB::table('catalog.variants')->where('id', $variant)->value('code');
+        $super = catalogImportScreensSuper();
+        $import = catalogImportScreensId(catalogImportScreensUpload($super, [Ix::product('880701', ['category' => 'Brand New Shelf']), Ix::product($code)]));
+        $nameId = Ix::nameId($import, 'CATEGORY', 'Brand New Shelf');
+        $row = Ix::productId($import, 2);
+
+        expect(array_keys(catalogImportScreensErrors($super->post("/admin/imports/{$import}/names", ['decisions' => [['name_id' => $nameId, 'decision' => 'CREATE', 'name_ar' => 'رف جديد', 'name_en' => 'Brand New Shelf', 'slug_ar' => null, 'slug_en' => $taken]]]))))->toBe(['slug_en']);
+
+        // New Codes…: the page names the codes the catalog holds; one each is asked.
+        $super->get("/admin/imports/{$import}?part=codes")->assertInertia(fn (AssertableInertia $page) => $page->where('products.0.heldCodes', [$code]));
+
+        expect(array_keys(catalogImportScreensErrors($super->post("/admin/imports/{$import}/codes", ['decisions' => [['product_id' => $row, 'decision' => 'RECODE', 'sale' => null, 'new_codes' => ['1' => '990001']]]]))))->toBe(['new_codes'])
+            ->and(catalogImportScreensToast($super->post("/admin/imports/{$import}/codes", ['decisions' => [['product_id' => $row, 'decision' => 'RECODE', 'sale' => null, 'new_codes' => [$code => '990001']]]])))->toBe('Decision saved')
+            ->and(DB::table('catalog.import_products')->where('id', $row)->value('decision'))->toBe('RECODE');
+    });
+
+    it('asks Keep on Sale or Take Off Sale for a product on sale it updates, and counts it until chosen', function () {
+        ['product' => $product, 'variants' => [$variant]] = Px::ready();
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $product, true)));
+        $code = (string) DB::table('catalog.variants')->where('id', $variant)->value('code');
+        $super = catalogImportScreensSuper();
+        $import = catalogImportScreensId(catalogImportScreensUpload($super, [Ix::product($code)]));
+        $row = Ix::productId($import, 1);
+
+        $super->post("/admin/imports/{$import}/codes", ['decisions' => [['product_id' => $row, 'decision' => 'UPDATE', 'sale' => null]]]);
+        $super->get("/admin/imports/{$import}?part=codes")->assertInertia(fn (AssertableInertia $page) => $page->where('products.0.onSale', true)->where('waiting.sales', 1));
+
+        expect(catalogImportScreensToast($super->post("/admin/imports/{$import}/codes", ['decisions' => [['product_id' => $row, 'decision' => 'UPDATE', 'sale' => 'KEEP']]])))->toBe('Decision saved');
+
+        $super->get("/admin/imports/{$import}?part=codes")->assertInertia(fn (AssertableInertia $page) => $page->where('products.0.sale', 'KEEP')->where('waiting.sales', 0));
+    });
+
     it('brings the products in, then accepts, archives and discards as the Super Admin says', function () {
         $super = catalogImportScreensSuper();
         $import = catalogImportScreensId(catalogImportScreensUpload($super, [Ix::product('880401'), Ix::product('880402')]));
@@ -297,8 +350,31 @@ describe('an import\'s parts', function () {
         }
 
         // Each the same for 3 products and for 120: none is read a product at a time (P13).
-        expect($counts)->toBe(['names' => 8, 'codes' => 6, 'before' => 8, 'products' => 6])
+        expect($counts)->toBe(['names' => 9, 'codes' => 6, 'before' => 8, 'products' => 6])
             ->and(catalogImportScreensOwnQueries($super, '/admin/imports'))->toBe(3);
+    });
+
+    it('reads the products a file updates together, however many - the codes and attributes they keep', function () {
+        $super = catalogImportScreensSuper();
+        $file = static function (int $count) use ($super): string {
+            $codes = [];
+
+            foreach (range(1, $count) as $n) {
+                ['variants' => [$variant]] = Px::ready();
+                $codes[] = (string) DB::table('catalog.variants')->where('id', $variant)->value('code');
+            }
+
+            $import = catalogImportScreensId(catalogImportScreensUpload($super, array_map(static fn (string $code): array => Ix::product($code), $codes)));
+            $super->post("/admin/imports/{$import}/codes", ['decisions' => array_map(static fn (int $number): array => ['product_id' => Ix::productId($import, $number), 'decision' => 'UPDATE', 'sale' => null], range(1, $count))]);
+
+            return $import;
+        };
+        $few = $file(2);
+        $many = $file(12);
+
+        foreach (['codes', 'products'] as $part) {
+            expect(catalogImportScreensOwnQueries($super, "/admin/imports/{$many}?part={$part}"))->toBe(catalogImportScreensOwnQueries($super, "/admin/imports/{$few}?part={$part}"));
+        }
     });
 });
 
@@ -312,6 +388,8 @@ describe('the files\' guide', function () {
         $super->get('/admin/import-guide/products')->assertOk()->assertDownload('products.example.json');
 
         catalogImportScreensAs(Fx::staffWith([P::LISTING_FILL, P::PRODUCT_VIEW], ['sa'], RoleLevel::Admin))->get('/admin/import-guide/store-fill')->assertOk();
-        catalogImportScreensAs(Fx::staffWith([P::PRODUCT_VIEW], ['sa']))->get('/admin/import-guide')->assertForbidden();
+        $reader = catalogImportScreensAs(Fx::staffWith([P::PRODUCT_VIEW], ['sa']));
+        $reader->get('/admin/import-guide')->assertForbidden();
+        $reader->get('/admin/import-guide/products')->assertForbidden();
     });
 });

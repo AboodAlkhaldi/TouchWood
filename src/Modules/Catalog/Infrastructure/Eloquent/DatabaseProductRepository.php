@@ -120,6 +120,44 @@ final readonly class DatabaseProductRepository implements ProductRepository
         return $this->ordered('catalog.product_attributes', 'product_id', $productId, 'attribute_id');
     }
 
+    public function variantAttributesOf(array $productIds): array
+    {
+        $ids = self::validIds($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $byProduct = array_fill_keys($ids, []);
+
+        foreach ($this->db->table('catalog.product_attributes')->whereIn('product_id', $ids)->orderBy('position')->get(['product_id', 'attribute_id']) as $row) {
+            $byProduct[(string) $row->product_id][] = (string) $row->attribute_id;
+        }
+
+        return $byProduct;
+    }
+
+    public function stagesOf(array $productIds): array
+    {
+        $ids = self::validIds($productIds);
+        $stages = [];
+
+        foreach ($ids === [] ? [] : $this->db->table(self::TABLE)->whereIn('id', $ids)->get(['id', 'stage']) as $row) {
+            $stages[(string) $row->id] = ProductStage::from((string) $row->stage);
+        }
+
+        return $stages;
+    }
+
+    /**
+     * @param  list<string>  $productIds
+     * @return list<string> the ULIDs among them, lower-cased, once each
+     */
+    private static function validIds(array $productIds): array
+    {
+        return array_values(array_unique(array_map(strtolower(...), array_filter($productIds, Ulids::valid(...)))));
+    }
+
     public function replaceVariantAttributes(string $productId, array $attributeIds): void
     {
         $this->db->table('catalog.product_attributes')->where('product_id', strtolower($productId))->delete();

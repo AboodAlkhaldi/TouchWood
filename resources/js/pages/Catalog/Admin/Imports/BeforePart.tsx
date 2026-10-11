@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { router, useForm } from '@inertiajs/react';
+import { Link, router, useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { TextField, TextareaField } from '@/components/Fields';
 import { PanelDialog } from '@/components/PanelDialog';
@@ -15,7 +15,7 @@ import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { ImportPage, ImportProductData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { nameIn, useLocale } from '../parts';
-import { SelectAll, useSelection } from './parts';
+import { isDeciding, SelectAll, useSelection } from './parts';
 import { ImportShell } from './shell';
 
 /*
@@ -40,7 +40,9 @@ function Before({ page }: { page: ImportPage }) {
     const t = useTranslator();
     const locale = useLocale();
     const rows = page.products ?? [];
-    const deciding = page.import.state === 'DECIDING';
+    const deciding = isDeciding(page.import.state);
+    const takenCategories = page.takenCategories ?? [];
+    const language = (code: string) => t(`catalog::admin_imports.before.language.${code}`);
     const selection = useSelection(deciding ? rows.map((row) => row.id) : []);
     const [own, setOwn] = useState<ImportProductData | null>(null);
     const opener = useRef<HTMLElement | null>(null);
@@ -129,17 +131,32 @@ function Before({ page }: { page: ImportPage }) {
                 <h2 id="addresses-title" className="text-heading-16 text-ink">
                     {t('catalog::admin_imports.before.addresses')}
                 </h2>
-                {colliding.length === 0 ? (
+                {takenCategories.length > 0 ? (
+                    <ul className="grid gap-2" data-test="taken-categories">
+                        {takenCategories.map((written) => (
+                            <li key={written} className="material-small flex flex-wrap items-center justify-between gap-3 px-3 py-2">
+                                <span className="grid gap-0.5">
+                                    <bdi className="text-label-14 text-ink">{written}</bdi>
+                                    <span className="text-copy-13 text-warn">{t('catalog::admin_imports.names.address_taken')}</span>
+                                </span>
+                                <Link href={`/admin/imports/${page.import.id}?part=names`} className="text-label-14 text-ink underline underline-offset-4">
+                                    {t('catalog::admin_imports.part.names')}
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                ) : null}
+                {colliding.length === 0 && takenCategories.length === 0 ? (
                     <p className="text-copy-14 text-ink-muted" data-test="addresses-empty">
                         {t('catalog::admin_imports.before.addresses_empty')}
                     </p>
-                ) : (
+                ) : colliding.length === 0 ? null : (
                     <ul className="grid gap-2" data-test="addresses">
                         {colliding.map((row) => (
                             <li key={row.id} className="material-small flex flex-wrap items-center justify-between gap-3 px-3 py-2">
                                 <span className="grid gap-0.5">
                                     <bdi className="text-label-14 text-ink">{nameIn(locale, row.nameAr, row.nameEn)}</bdi>
-                                    <span className="text-copy-13 text-warn">{t('catalog::admin_imports.before.address_taken', { languages: row.addressTaken.map((language) => (language === 'ar' ? 'العربية' : 'English')).join(' · ') })}</span>
+                                    <span className="text-copy-13 text-warn">{t('catalog::admin_imports.before.address_taken', { languages: row.addressTaken.map(language).join(' · ') })}</span>
                                 </span>
                                 {deciding ? (
                                     <Button
@@ -213,9 +230,11 @@ function Before({ page }: { page: ImportPage }) {
 function Change({ importId, kind, chosen, onDone, children }: { importId: string; kind: Kind; chosen: string[]; onDone: () => void; children: (value: string, set: (value: string) => void) => ReactNode }) {
     const t = useTranslator();
     const [value, setValue] = useState('');
-    const [mode, setMode] = useState(MODES[kind][0] ?? 'REPLACE');
+    // How it applies is chosen each time, never preset (amendment 7(d)).
+    const [mode, setMode] = useState('');
     const [busy, setBusy] = useState(false);
     const empty = value.trim() === '';
+    const reason = empty ? t('catalog::admin_imports.before.choose_first') : mode === '' ? t('catalog::admin_imports.before.mode_first') : undefined;
     const payload = (): Record<string, string | string[]> => {
         switch (kind) {
             case 'words':
@@ -233,6 +252,7 @@ function Change({ importId, kind, chosen, onDone, children }: { importId: string
             onFinish: () => setBusy(false),
             onSuccess: () => {
                 setValue('');
+                setMode('');
                 onDone();
             },
         });
@@ -244,6 +264,7 @@ function Change({ importId, kind, chosen, onDone, children }: { importId: string
                 <div className="grid gap-2">
                     <Label htmlFor={`mode-${kind}`}>{t('catalog::admin_imports.before.mode')}</Label>
                     <NativeSelect id={`mode-${kind}`} size="sm" value={mode} onChange={(event) => setMode(event.target.value)} data-test={`mode-${kind}`}>
+                        <NativeSelectOption value="">{t('catalog::admin_imports.before.mode_choose')}</NativeSelectOption>
                         {MODES[kind].map((option) => (
                             <NativeSelectOption key={option} value={option}>
                                 {t(`catalog::admin_imports.before.modes.${option}`)}
@@ -251,14 +272,14 @@ function Change({ importId, kind, chosen, onDone, children }: { importId: string
                         ))}
                     </NativeSelect>
                 </div>
-                <ActionButton type="button" variant="secondary" loading={busy} disabledReason={empty ? t('catalog::admin_imports.before.choose_first') : undefined} onClick={() => apply(null)} data-test={`apply-all-${kind}`}>
+                <ActionButton type="button" variant="secondary" loading={busy} disabledReason={reason} onClick={() => apply(null)} data-test={`apply-all-${kind}`}>
                     {t('catalog::admin_imports.before.apply_all')}
                 </ActionButton>
                 <ActionButton
                     type="button"
                     variant="outline"
                     loading={busy}
-                    disabledReason={empty ? t('catalog::admin_imports.before.choose_first') : chosen.length === 0 ? t('catalog::admin_imports.none_selected') : undefined}
+                    disabledReason={reason ?? (chosen.length === 0 ? t('catalog::admin_imports.none_selected') : undefined)}
                     onClick={() => apply(chosen)}
                     data-test={`apply-selected-${kind}`}
                 >
@@ -281,7 +302,7 @@ function OwnAddressDialog({ importId, row, onOpenChange, returnFocusTo }: { impo
             onOpenChange={onOpenChange}
             returnFocusTo={returnFocusTo}
             title={t('catalog::admin_imports.before.own_title', { name: nameIn(locale, row.nameAr, row.nameEn) })}
-            description={t('catalog::admin_imports.before.address_taken', { languages: row.addressTaken.map((language) => (language === 'ar' ? 'العربية' : 'English')).join(' · ') })}
+            description={t('catalog::admin_imports.before.address_taken', { languages: row.addressTaken.map((code) => t(`catalog::admin_imports.before.language.${code}`)).join(' · ') })}
             busy={form.processing}
             confirm={
                 <ActionButton loading={form.processing} onClick={() => form.post(`/admin/imports/${importId}/products/${row.id}/addresses`, { preserveScroll: true, onSuccess: () => onOpenChange(false) })} data-test="confirm-own">

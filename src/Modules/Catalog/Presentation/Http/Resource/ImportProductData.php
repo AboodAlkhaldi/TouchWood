@@ -19,6 +19,7 @@ final class ImportProductData extends Data
      * @param  array<string, string>|null  $newCodes  each code the catalog has → its new one
      * @param  list<string>  $missing
      * @param  list<string>  $addressTaken  the languages whose web address another product holds
+     * @param  list<string>  $heldCodes  its codes the catalog holds: New Codes… gives each a new one
      */
     public function __construct(
         public string $id,
@@ -41,5 +42,6 @@ final class ImportProductData extends Data
         public ?string $refusal,
         public bool $codeChange,
         public bool $attributeChange,
+        public array $heldCodes,
     ) {}
 }

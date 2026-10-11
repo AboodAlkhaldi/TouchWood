@@ -4,6 +4,7 @@ import { TextField } from '@/components/Fields';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
 import type { ImportProblemData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
@@ -13,6 +14,14 @@ import type { ImportProblemData } from '@/types/generated/Modules/Catalog/Presen
 | badges - in words, never colour alone -, the files' guide, a refused file's problems in the format's
 | own words, a choice of rows, and Geist's Destructive Action Modal, the file's name typed (P10).
 */
+
+/**
+ * Whether an import is still decided: while deciding, and once it failed - mended, it is brought in
+ * again (§1.12; `ImportHeader::isDeciding`).
+ */
+export function isDeciding(state: string): boolean {
+    return state === 'DECIDING' || state === 'FAILED';
+}
 
 /** At most this many problems come back with a refused file; past it, the page says so. */
 export const PROBLEMS_SHOWN = 500;
@@ -140,7 +149,8 @@ export function ConfirmByName({
 }) {
     const t = useTranslator();
     const [typed, setTyped] = useState('');
-    const matches = typed.trim() === fileName;
+    // Digits typed in any script read 0-9, as the file's name holds them (frontend.md §1.8).
+    const matches = toLatinDigits(typed).trim() === toLatinDigits(fileName);
 
     return (
         <PanelDialog

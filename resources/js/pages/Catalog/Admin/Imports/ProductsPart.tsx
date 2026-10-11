@@ -23,21 +23,24 @@ import { ImportShell } from './shell';
 | file's name (P10) -; and **Accept Every Ready One**.
 */
 
-/** The states of a product brought in, which these actions reach. */
-const BROUGHT_IN = ['IN', 'UPDATED', 'REPLACED', 'ACCEPTED'];
+/** A product brought in and not accepted yet: Accept takes it once it lacks nothing. */
+const ACCEPTABLE = ['IN', 'UPDATED', 'REPLACED'];
 
 function Products({ page }: { page: ImportPage }) {
     const t = useTranslator();
     const locale = useLocale();
     const list = useLoadMore<ImportProductData>(page.products ?? [], (row) => row.id);
     const isIn = page.import.state === 'IN';
-    const actionable = isIn ? list.rows.filter((row) => row.productId !== null && BROUGHT_IN.includes(row.state)) : [];
+    const actionable = isIn ? list.rows.filter((row) => row.productId !== null && ACCEPTABLE.includes(row.state)) : [];
     const selection = useSelection(actionable.map((row) => row.id));
     const [busy, setBusy] = useState(false);
     const [dialog, setDialog] = useState<'archive' | 'delete' | null>(null);
     const opener = useRef<HTMLElement | null>(null);
-    const ready = actionable.some((row) => row.state !== 'ACCEPTED' && row.missing.length === 0);
     const none = selection.chosen.length === 0 ? t('catalog::admin_imports.none_selected') : undefined;
+    const chosenRows = actionable.filter((row) => selection.has(row.id));
+    // Archive and Delete take only what this import created (`IN`); Accept, only what lacks nothing.
+    const acceptReason = none ?? (chosenRows.some((row) => row.missing.length > 0) ? t('catalog::admin_imports.products.only_ready') : undefined);
+    const createdReason = none ?? (chosenRows.some((row) => row.state !== 'IN') ? t('catalog::admin_imports.products.only_created') : undefined);
     const notIn = isIn ? undefined : t('catalog::admin_imports.products.not_in_yet');
     const send = (action: 'accept' | 'archive' | 'delete', productIds: string[] | null, onSuccess?: () => void) =>
         router.post(`/admin/imports/${page.import.id}/${action}`, productIds === null ? {} : { product_ids: productIds }, {
@@ -57,16 +60,16 @@ function Products({ page }: { page: ImportPage }) {
     return (
         <div className="grid gap-4">
             <div className="flex flex-wrap items-center gap-3">
-                <ActionButton type="button" loading={busy} disabledReason={notIn ?? (ready ? undefined : t('catalog::admin_imports.products.ready_none'))} onClick={() => send('accept', null)} data-test="accept-ready">
+                <ActionButton type="button" loading={busy} disabledReason={notIn} onClick={() => send('accept', null)} data-test="accept-ready">
                     {t('catalog::admin_imports.products.accept_ready')}
                 </ActionButton>
-                <ActionButton type="button" variant="secondary" loading={busy} disabledReason={notIn ?? none} onClick={() => send('accept', selection.chosen)} data-test="accept-selected">
+                <ActionButton type="button" variant="secondary" loading={busy} disabledReason={notIn ?? acceptReason} onClick={() => send('accept', selection.chosen)} data-test="accept-selected">
                     {t('catalog::admin_imports.products.accept')}
                 </ActionButton>
-                <ActionButton type="button" variant="outline" disabledReason={notIn ?? none} onClick={(event) => open('archive', event.currentTarget)} data-test="archive-selected">
+                <ActionButton type="button" variant="outline" disabledReason={notIn ?? createdReason} onClick={(event) => open('archive', event.currentTarget)} data-test="archive-selected">
                     {t('catalog::admin_imports.products.archive')}
                 </ActionButton>
-                <ActionButton type="button" variant="outline" disabledReason={notIn ?? none} onClick={(event) => open('delete', event.currentTarget)} data-test="delete-selected">
+                <ActionButton type="button" variant="outline" disabledReason={notIn ?? createdReason} onClick={(event) => open('delete', event.currentTarget)} data-test="delete-selected">
                     {t('catalog::admin_imports.products.delete')}
                 </ActionButton>
             </div>
