@@ -30,7 +30,7 @@ import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens
 |---|---|
 | `Application/CatalogPermissions.php` | The twenty-two permissions of catalog.md §3, declared into Access's catalog at boot: nineteen jobs a role may hold — two only an admin role, declared `adminOnly`: `catalog.listing.fill`, the store file (amendment 6(h)), and `catalog.category.audience`, who sees a category in a store (amendment 14(c)) — and three reserved to a Super Admin and the system |
 | `Application/Command` | One folder per change: a command and its handler, which names its `PERMISSION` and authorizes first. Step 2: the six shared lists and each store's order of the menu; step 3: products and variants; step 4: each store's choice (below) |
-| `Application/Lists` | What the lists' handlers share: `SharedListChange` (the permission with All stores, the transaction, the list's lock — after the products' for a change that changes products — the audit), `ProductFates` (each product's fate in a deactivation), the forms' parsing (`BrandInput`, `CategoryInput`, `AttributeInput`, `LabelInput`, `WarrantyInput`) and `CatalogImages` (a logo or photo must be a public image) |
+| `Application/Lists` | What the lists' handlers share: `SharedListChange` (the permission with All stores, the transaction, the list's lock — after the products' for a change that changes products — the audit), `ProductFates` (each product's fate in a deactivation), the forms' parsing (`BrandInput`, `CategoryInput`, `AttributeInput`, `LabelInput`, `WarrantyInput`), `CatalogImages` (a logo or photo must be a public image) and `ListOrder` (an order sent from a list's screen, amendment 16(d)) |
 | `Application/Products` | What the product handlers share: `ProductAccess` (who may change a product's shared data), `ProductReferences` (the list rows a product points at, row-locked), `ProductInput`, `VariantInput` and `ProductParts` (the forms' parsing), `Readiness` and `ReadyPhotos` (what a product needs to be shown) |
 | `Application/Listing` | `StoreListingChange` — what a store's changes share: the job in that store, the transaction, the products' lock first, the audit in that store; `ListingRows` — the listing's writer, called inside every change that alters a row (step 5, below); `CardPhotoReady` — a photo's sizes ready, its products' rows written again |
 | `Application/Import` | The import and the store file (step 6, below): reading the files (`ProductsFile`, `StoreFillFile`, `DescriptionText`, `FileProblems`), checking one against the catalog (`CatalogNames`, `CatalogCheck`), the zip (`ImportArchives`), the import's rows (`Imports`), the changes before bringing in (`ImportedProductsChange`), bringing in (`ImportReferences`, `ImportBringer`, `ImportPhotos`), the steps after it (`BroughtInProducts`) and the store file's (`StoreFills`) |
@@ -50,8 +50,8 @@ import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens
 | `Domain/ValueObject` | Names in both languages, slugs, the structured text of descriptions and terms, list positions, a label's look (`LabelTone`, the Badge's ten), a warranty's period; a product's name (Arabic required, English optional) and slugs, a code (`ProductCode`), a variant's combination, details and measures, search words; a product's quantity limits in a store (`SellingLimits`). **Every digit typed is saved 0-9** (amendment 12): one-line text (`CatalogText`), codes, a detail's number and each run of structured text turn Arabic and Persian digits with Shared's `LatinDigits` |
 | `Domain/Service/ArabicText.php` | Arabic as search compares it (handoff §5.2): marks off, alef and yeh forms folded, digits Latin, lower case |
 | `Domain/Exception` | `CatalogError`, the refusals of steps 2 and 3 (`AttributeSetInUse` and `AttributeSetLocked` gone with the sets, amendment 16(b)), step 4's two (`NotChosenInStore`, `InvalidSellingTerms`) and step 6's three (`ImportRefused`, `ImportUndecided`, `ImportClosed`), named in both languages in `lang/{ar,en}/errors.php` |
-| `Domain/Repository` | The lists', the products', the variants' and the stores' rows' repositories, and `ListLocks` |
-| `Infrastructure/Eloquent` | The repositories on the query builder; `SlugHistory`; `DatabaseListLocks`; ids checked by the Shared kernel's `Ulids` (once Catalog's own copy, amendment 1(h); moved by the owner, 2026-10-10); step 5's `DatabaseListingRows`, `DatabaseShopReader` and `DatabaseSearchLog`; the screens' `DatabaseCatalogListReads` and `DatabaseCatalogProductReads` |
+| `Domain/Repository` | The lists', the products', the variants' and the stores' rows' repositories, `ListLocks`, and `ListOrders` (every ordered list's order, amendment 16(d)) |
+| `Infrastructure/Eloquent` | The repositories on the query builder; `SlugHistory`; `DatabaseListLocks`; `DatabaseListOrders`; ids checked by the Shared kernel's `Ulids` (once Catalog's own copy, amendment 1(h); moved by the owner, 2026-10-10); step 5's `DatabaseListingRows`, `DatabaseShopReader` and `DatabaseSearchLog`; the screens' `DatabaseCatalogListReads` and `DatabaseCatalogProductReads` |
 | `Infrastructure/Listener`, `Infrastructure/Queue` | `RefreshCardPhotos` (Platform's `MediaVariantsReady`); `PruneSearchLogJob`, queued nightly; `BringInImportJob` and `LaravelImportQueue` (step 6) |
 | `Infrastructure/Import` | `DiskImportArchives`: a products file's zip kept on the disk `config/catalog.php` names, read from a local copy, its photos unpacked only into temporary files of its own naming |
 | `Infrastructure/Media` | `CatalogImagesUsage`: brand logos and category photos as Platform media; `ProductPhotosUsage`: product and variant photos (below) |
@@ -59,7 +59,7 @@ import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens
 | `Presentation/Console` | `catalog:listing:rebuild` — the listing's repair, run by hand |
 | `Presentation/admin-routes.php`, `Presentation/Http` | The panel's Catalog screens (`catalog.admin.*`): the controllers, `CatalogFormRequest` (shape only), `CatalogRefusals` (where a refusal is said) and the pages' data (`Resource`: `ListPages` and one `#[TypeScript]` class per page and row) |
 | `Presentation/lang/{ar,en}` | The permissions' names, the errors, the audit log's name for every action, and the queued work's names (`jobs.php`); the panel's menu entries (`menu.php`) and the screens' words (`admin.php`, shared, and one file a screen: `admin_brands.php`, `admin_categories.php`, `admin_attributes.php`, `admin_labels.php`, `admin_warranties.php`, `admin_search_words.php`) |
-| `resources/js/pages/Catalog/Admin` (outside the module) | The screens themselves: one folder a screen, and what they share — `parts.tsx`, `FatesDialog.tsx`, `SortableList.tsx`, `marks.ts` |
+| `resources/js/pages/Catalog/Admin` (outside the module) | The screens themselves: one folder a screen, and what they share — `parts.tsx`, `FatesDialog.tsx`, `ImageField.tsx` (a module of its own, so only the two dialogs that take a photo load its file input and checkbox), `SortableList.tsx`, `marks.ts` |
 | `Public/Contracts`, `Public/Dto`, `Public/Events` | `CatalogApi` and its DTOs (`VariantDto`, `VariantValueDto`, `ProductDto`, `StoreVariantDto`, `ListingPrice`); `ListingFacts` and `ImportSections` with `ImportSection`, bound for stage 5 (amendment 16(i)); the events, `CategoryMoved` among them |
 | `Public/Enums` | `AttributeKind`, `AgencyType`, `ProductStage`, `ProductFate`, `SaleMode` — and so their TypeScript types |
 | `Public/Events` | `ProductMadeReady`, `ProductArchived`, `ProductRestored`, `ProductChanged`, `VariantAdded`, `VariantArchived`, `VariantRestored`, `VariantCodeCorrected`, `StoreListingChanged`: ids only |
@@ -100,11 +100,45 @@ transaction, none when nothing changed.
 | List | What the code keeps |
 |---|---|
 | Brands | Two slugs, one per language, global — Arabic letters and digits for `ar`, `a-z` and digits for `en` (§5.3) — each kept in the history table while the brand exists, so a slug it once held is never given to another; deleting the brand frees them (owner, amendment 2(a)); the redirect itself arrives with the storefront, step 5; **exactly one default** — the first brand becomes it, moving it un-marks the old one in the same step, the default is never deactivated or deleted; an optional two-letter origin country (amendment 1(j)); a description in both languages or neither. The seed adds TouchWood «تاتش وود» only |
-| Categories | One tree, nesting without limit, never under itself or below itself; a new or moved category goes under an **active** parent only, and **its place among its siblings is chosen by whoever adds or moves it** and written into every store, on or off (amendment 1(d)); each store's admins reorder their own menu with `RankCategories` (`catalog.category.rank` in that store). Deactivating takes every active category below it, each remembering it went with its parent, so activating brings back exactly that; a category under a deactivated parent cannot be activated. Only an empty category is deleted |
+| Categories | One tree, nesting without limit, never under itself or below itself; a new or moved category goes under an **active** parent only, and **last among its siblings, in every store**, on or off — after the place each sibling shows there, its own or, until the store's admins place it, the base store's (amendment 16(d), replacing 1(d) and 2(c)'s place chosen by the adder); each store's admins reorder their own menu (`catalog.category.rank` in that store) with `OrderCategories` — one parent's children, as every list is ordered (below) — or `RankCategories`, places given. Every place written is audited in its store (`catalog.category.ranked`, §3), the one a category takes when added or moved too. Deactivating takes every active category below it, each remembering it went with its parent, so activating brings back exactly that; a category under a deactivated parent cannot be activated. Only an empty category is deleted |
 | Attributes | A job — details only, filter, or variant-making — that changes, with being a colour, **only while the attribute has no values** (amendment 1(i)); an attribute a product makes its variants of stays variant-making (amendment 16(b)). Values: never two alike in either language ignoring case; a colour attribute's values need a `#rrggbb` swatch, no other's take one; an attribute is deleted only after its values (RESTRICT, §5.3), which its handler deletes and audits one by one. There are no attribute sets (amendment 16(b)): a product's variants are made of the attributes its Variants tab gives it (below) |
 | Labels | «الشارات»: one or two words in each language, at most 30 characters, and one of the Badge's ten looks, chosen by meaning (amendment 1(e), (f)) |
 | Warranties | Name and formatted terms in both languages, 1–600 months or for life |
 | Word pairs | Kept as search compares words, in byte order, once whichever way they were typed; added and deleted, never edited. The ordering CHECK compares with `COLLATE "C"`: the database's language order ignores spaces and hyphens and would refuse pairs the code accepts |
+
+**Every ordered list is ordered by dragging** (amendment 16(d), P29): the brands, the labels, the
+warranties — which gained a `position` with it, the ones already there numbered in name order — the
+attributes, and each attribute's values. `OrderBrands`, `OrderLabels`, `OrderWarranties`,
+`OrderAttributes` and `OrderAttributeValues` each take **the ids in their new order**, under the
+list's own job with All stores and its lock, as every other change to it: those sent come first, in
+the order sent, and **every other keeps its order after them** — so two people ordering at once lose
+nothing, Move to Top sends one id, and Move to Bottom every other one first. The positions are
+**written again 1, 2, 3 …** each time (`ListOrder`, one statement through `ListOrders::write`), and each
+item whose place changed is audited (`catalog.{list}.ordered`, from its position to its position) —
+not one only numbered again where it stands, as a list whose places were typed ten apart is at its
+first order; an order that leaves a list numbered 1, 2, 3 where it was writes and records nothing. An id sent twice is refused, and one not in the list
+— a value of another attribute, too — is not found. **No form takes a place any more: a new item goes
+last** (`ListOrders::afterLast`, read under the list's lock). Positions are a sort key
+(`ListPosition`), and only a list never ordered since its places were typed can reach the cap: then
+the list is numbered again 1, 2, 3 … in its order before the new item takes the next — the categories
+the same, per store, among the siblings (`DatabaseCategoryRepository::placeLast`). A brand's **fixed
+number** is another thing, never its place (amendment 7(b)). A value made from a product's Variants
+tab goes last the same way (`AddValueFromProduct`).
+
+**The categories are ordered the same way, store by store** (`OrderCategories`, the review of #122):
+one parent's children in one store's menu, the ids sent first and every other sibling after them in
+the order that store shows — its own place, else the base store's (amendment 5(a)), then the English
+name, then the id, which the screen sorts by too — each written again 1, 2, 3 … as the store's own,
+those moved audited there. `RankCategories`, which writes only the places given, stays for whoever
+gives places; the screen no longer uses it. A product's variants (`OrderVariants`, #120) refuse an id
+sent twice as every list does (`ListOrder::sent`).
+
+**The places typed before** are written again 1, 2, 3 … by
+`2026_10_11_120000_renumber_catalog_list_places` — the brands, the labels, the attributes, and each
+attribute's values, in the order each list showed (place, English name, id) — so no two items share a
+place and Move to Top, which sends one id, moves the row the screen shows. The warranties gained
+theirs with `2026_10_11_110000_add_position_to_catalog_warranties`, numbered in name order; both run
+after the variants' own renumbering (#120's `2026_10_11_100000`), and none reads another's table.
 
 **What the products changed (step 3).** A list item a product or variant uses is not deleted
 (`BrandInUse`, `CategoryNotEmpty`, `ListItemInUse`); a category holding products takes no
@@ -438,6 +472,25 @@ partial reload, the address kept — only for someone who may deactivate, keeps 
 try, and sends one fate for all with a choice per product over it (§1.5, §1.6). A category's dialog
 names the sub-categories going with it and the category each product sits in (S2).
 
+**The lists are put in order by dragging** (amendment 16(d), P8): a handle on each row — shadcn's
+`dashboard-01` handles on @dnd-kit, by mouse, touch or keyboard, each move said aloud — and **Move to
+Top** and **Move to Bottom** on the row's ⋯ menu; the order is **saved when dropped**, through the
+list's `…/order` address, and the rows stay where they were dropped until the answer arrives
+(`useSavedOrder`). There is no typed place and no "#" column any more; the brands show their fixed
+number as **Brand No.**. `SortableList.tsx` holds what the screens share — `SortableGroups` (the drag
+context, a row moving among its own group only, by pointer or by keys), `SortableGroup`,
+`useSortableRow`, `DragHandle`, `MoveItems`, and `useSavedOrder`, whose saves go one at a time, each
+when the one before it is answered (`useSaveQueue`) — and `SortableList`, the short list a dialog
+shows. A product's Variants tab is dragged with the same parts (#120's table, ported). **The
+categories' tree** is dragged in its own rows, each parent's children one group, for the store the
+page shows (`OrderCategories`: Move to Top sends the one id, as every list does); its old order dialog and "Save Order" are gone, and a
+category the store has not placed is marked "Base Store's Place" beside its name. For a reader
+without All stores every handle stays in sight, out of reach, with the reason (P2). The brands' and
+the categories' add and edit dialogs are modules of their own (`Brands/BrandDialog.tsx`,
+`Categories/CategoryDialog.tsx`), loaded when first opened, not with the page: the drag code and the
+checks as typed (#121) took both pages past the 60 KB page budget otherwise (61.2 and 60.0 KB by
+`JavaScriptBudgetTest`; about 53.7 and 55.2 KB after, frontend.md §5).
+
 **A logo or a category's photo is chosen in its own form** and uploaded when the form is sent, through
 `UploadBrandLogo` or `UploadCategoryImage`, before the save (P5). A save refused after the upload leaves that public image
 unused in the media library, where it can be deleted. A file that did not arrive whole — larger than
@@ -705,7 +758,7 @@ sees it — was tried on this branch and reverted.)
 | `Unit/CatalogValuesTest` | Text on one line, names, slugs (Arabic and accented Latin), structured text, Arabic normalisation, a label's words and looks, word pairs, warranty periods; Arabic digits saved 0-9 in each (amendment 12) |
 | `Unit/CatalogErrorsTest` | Every error has a unique `catalog.*` type, a category, and a title and detail in both languages |
 | `Integration/CatalogBrandsTest` | The seed; who may; slugs and their history; the one default; deactivating and deleting; the database's CHECKs; each brand's number, the lowest free (amendment 10(a)) |
-| `Integration/CatalogCategoriesTest` | Who may change the tree and who a store's order; places chosen by the adder in every store, an off store included; moving and loops; deactivating and activating exactly what went; deleting; a store opened later starting with no order; the database's CHECKs |
+| `Integration/CatalogCategoriesTest` | Who may change the tree and who a store's order; a category added or moved last among its siblings in every store, an off store included, after each store's own places (the base store's where it has none), numbered again at the cap, every place written audited in its store; moving and loops; deactivating and activating exactly what went; deleting; a store opened later starting with no order; `OrderCategories` — the ids sent first and the rest after them as the store showed them, a move made since on a page left open kept, a sibling showing the base store's place given its own, nothing recorded for an order that moves nothing, its refusals; the database's CHECKs |
 | `Integration/CatalogAttributesTest` | Jobs locked by values and by products' variant attributes; values alike ignoring case; swatches; the database's CHECKs |
 | `Integration/CatalogVariantAttributesTest` | Has Variants: the first attribute, every variant's value (archived too), at most ten, removing while the variants stay apart, their order, a value made from the product, the migration from sets |
 | `Integration/CatalogSmallListsTest` | Labels, warranties and word pairs, including a pair the database's language order would sort the other way |
@@ -719,7 +772,8 @@ sees it — was tried on this branch and reverted.)
 | `Integration/CatalogProductConstraintsTest` | The products' named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code |
 | `Integration/CatalogStoreListingsTest` | Who may choose in which store, an off store prepared; a whole product or single variants; selling terms; "Not available now"; labels; archiving switching off everywhere; a product's shared data needing the job in every store that sells it |
 | `Integration/CatalogDeactivationsTest` | A category or brand deactivated with each product's fate, all or nothing; activating bringing back what hid with it |
-| `Integration/CatalogListGuardsTest` | For every one of the sixty-two list, product and store changes: its lock is the first query inside its own transaction (the products' before its list's, for the seven that change products or their listing rows), nothing of the catalog read before it; an id not in its list is answered as not found; and what the audit log keeps reads from what was to what is. For the thirty-five that can be asked to change nothing: nothing written to the lists, nothing recorded |
+| `Integration/CatalogListGuardsTest` | For every one of the sixty-four list, product and store changes: its lock is the first query inside its own transaction (the products' before its list's, for the eight that change products or their listing rows — choosing who sees a category among them), nothing of the catalog read before it; an id not in its list is answered as not found; and what the audit log keeps reads from what was to what is. For the thirty-nine that can be asked to change nothing: nothing written to the lists, nothing recorded |
+| `Integration/CatalogListOrdersTest` | Every ordered list's order (amendment 16(d)): the ids sent first, every other after them, written 1, 2, 3 …; each moved item audited and none that stayed; refused without the job with All stores; an id sent twice refused before anything is read; one attribute's values and no other's; the screen's own read and the order agreeing where places are tied; a deactivated item ordered as any other; a new item last, after an order too; the list numbered again at the cap; the warranties' migration numbering them in name order; the places typed before written again 1, 2, 3 in the order each list showed |
 | `Integration/CatalogListConstraintsTest` | The database's named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code; an id that is not a ULID never reaching the database |
 | `Integration/CatalogListingTest` | Which products have rows, and what a row holds — never a code; each of thirty-one changes writing exactly what the repair writes, eight that alter nothing writing nothing; a row that stays updated in place; the card photo; the repair and its locks |
 | `Integration/CatalogShopTest` | The menu per store and its order, a secondary brand's own category in it; a category's page by keyset, ties included, every brand, the brand filter, labels in the list's order, slugs moved; a brand's page; a product's page or "Not available now"; suggestions |
@@ -759,8 +813,8 @@ sees it — was tried on this branch and reverted.)
 | `tests/Browser/CatalogImportScreensTest.php` | The products import in a real browser: a name refused from its row, the products brought in once nothing waits, the parts moved between; every page of it, and the guide, in Arabic at a phone's width |
 | `tests/Browser/CatalogStoreScreensTest.php` | The store screens in a real browser: a ready product switched on in a store from its Stores tab and off again; a store file's ticked item switched on; both pages and the files list in Arabic at a phone's width |
 | `tests/Browser/CatalogProductScreensTest.php` | The products screens in a real browser: adding a draft opens its page saying what it lacks; tabs in the address, each fetched as it opens; details saved once changed; a search word added; a variant added from its dialog, shown in its row; Arabic at a phone's width |
-| `Feature/CatalogListScreensTest` | The seven screens over HTTP: the menu; who opens each page; the categories' store filter; every form's success and refusal, said beside its field or at the top; a logo and a photo uploaded from their forms; the fates; each page's own queries, recorded |
-| `tests/Browser/CatalogListScreensTest.php` | The screens in a real browser: adding from each dialog, the fates dialog reading the products before its button, a branch of the tree opened, a label's look, a warranty for life, a word pair added and deleted, a page in Arabic at a phone's width |
+| `Feature/CatalogListScreensTest` | The seven screens over HTTP: the menu; who opens each page; the categories' store filter; every form's success and refusal, said beside its field or at the top; a logo and a photo uploaded from their forms; the fates; each list's order saved as dropped and moved to the top or the bottom, and refused; each page's own queries, recorded |
+| `tests/Browser/CatalogListScreensTest.php` | The screens in a real browser: adding from each dialog, the fates dialog reading the products before its button, a branch of the tree opened, a label's look, a warranty for life, a word pair added and deleted, a page in Arabic at a phone's width; a brand dragged by its handle and another moved to the top, and a parent's sub-categories dragged in one store's order, each saved when dropped |
 
 `CatalogListGuardsTest` records every query to check each change takes its lock first, inside its
 own transaction (level 2 under `RefreshDatabase`); `CatalogFixtures::lockedTables` reads from the

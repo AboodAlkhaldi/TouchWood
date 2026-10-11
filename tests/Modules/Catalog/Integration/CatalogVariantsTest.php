@@ -324,7 +324,10 @@ describe('their order', function () {
 
         expect($places())->toBe([$ninety, $sixty, $eighty])
             ->and(Fx::audits('catalog.product.variants_ordered', $drawer))->toBe(1)
-            ->and(fn () => $order(catalogVariantsAdd(Px::product(), '1400')))->toThrow(InvalidCatalogAttribute::class, 'own variants');
+            ->and(fn () => $order(catalogVariantsAdd(Px::product(), '1400')))->toThrow(InvalidCatalogAttribute::class, 'own variants')
+            // One id twice says two places for one variant: refused, as every list's order refuses it.
+            ->and(fn () => $order($sixty, strtoupper($sixty)))->toThrow(InvalidCatalogAttribute::class, 'variant_ids')
+            ->and($places())->toBe([$ninety, $sixty, $eighty]);
     });
 
     it('writes the places typed before as 1, 2, 3 … in each product\'s order, ties by id (the review of #120)', function () {

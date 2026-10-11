@@ -8,6 +8,7 @@ use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Listing\ListingRows;
+use Modules\Catalog\Application\Lists\ListOrder;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
@@ -22,7 +23,8 @@ use Shared\Application\Unauthorized;
  * **Ordering a product's variants** (catalog.md §1.2, P29, amendment 16(d)): `catalog.product.update`,
  * as the product's shared data. Saved as the ids in their new order: those sent first, the rest after
  * in the order they had, archived ones included, so two people ordering at once lose nothing; their
- * places written again 1, 2, 3 …. The listing follows, since a card shows the first variant in the
+ * places written again 1, 2, 3 …. An id sent twice is refused, as every list's order refuses it
+ * (`ListOrder::sent`). The listing follows, since a card shows the first variant in the
  * product's order (§4.5). Audited when the order changed.
  */
 final readonly class OrderVariantsHandler
@@ -44,12 +46,13 @@ final readonly class OrderVariantsHandler
     public function handle(OrderVariants $command): void
     {
         $this->access->authorize(self::PERMISSION);
+        // An id sent twice says two places for one variant: refused, as every list's order refuses it.
+        $sent = ListOrder::sent($command->variantIds, 'variant_ids');
 
-        $this->change->run(ListLocks::PRODUCTS, function () use ($command): array {
+        $this->change->run(ListLocks::PRODUCTS, function () use ($command, $sent): array {
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
             $this->access->authorizeFor(self::PERMISSION, $product->id());
             $held = array_map(static fn (Variant $variant): string => $variant->id(), $this->variants->ofProduct($product->id()));
-            $sent = array_values(array_unique(array_map(static fn (string $id): string => strtolower(trim($id)), $command->variantIds)));
 
             if (array_diff($sent, $held) !== []) {
                 throw new InvalidCatalogAttribute('variant_ids', "the product's own variants");

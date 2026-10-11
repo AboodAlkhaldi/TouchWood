@@ -157,7 +157,7 @@ function catalogListScreensNotYours(): string
 
 function catalogListScreensLabel(string $nameEn = 'New'): string
 {
-    return Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('جديد', $nameEn, 'green', 10)));
+    return Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('جديد', $nameEn, 'green')));
 }
 
 /** A description typed with the products file's marks (P1). */
@@ -261,7 +261,7 @@ describe('the brands', function () {
         $browser = catalogListScreens([P::BRAND_MANAGE]);
 
         $added = $browser->post('/admin/brands', [
-            'name_ar' => 'هيتش', 'name_en' => 'Hettich', 'agency_type' => 'EXCLUSIVE_AGENT', 'position' => '30',
+            'name_ar' => 'هيتش', 'name_en' => 'Hettich', 'agency_type' => 'EXCLUSIVE_AGENT',
             'show_in_default_listings' => '1', 'origin_country' => 'DE',
             'description_ar' => 'صنع في ألمانيا.', 'description_en' => catalogListScreensMarks(),
             'logo' => UploadedFile::fake()->image('hettich.png', 300, 200),
@@ -270,7 +270,8 @@ describe('the brands', function () {
 
         expect(catalogListScreensToast($added))->toBe('Brand added')
             ->and($row?->agency_type)->toBe('EXCLUSIVE_AGENT')
-            ->and($row?->position)->toBe(30)
+            // No place is typed: it goes last (amendment 16(d)), here the first and only.
+            ->and($row?->position)->toBe(1)
             ->and($row?->origin_country)->toBe('DE')
             ->and(json_decode((string) $row?->description_en, true)['blocks'][1]['type'] ?? null)->toBe('list')
             ->and(DB::table('platform.media')->where('id', $row?->logo_media_id)->value('visibility'))->toBe('PUBLIC');
@@ -281,7 +282,7 @@ describe('the brands', function () {
         $logo = Cx::media();
         DB::table('catalog.brands')->where('id', $brand)->update(['logo_media_id' => $logo]);
         $browser = catalogListScreens([P::BRAND_MANAGE]);
-        $form = ['name_ar' => 'هيتش', 'name_en' => 'Hettich', 'agency_type' => 'DISTRIBUTOR', 'position' => '10'];
+        $form = ['name_ar' => 'هيتش', 'name_en' => 'Hettich', 'agency_type' => 'DISTRIBUTOR'];
 
         expect(catalogListScreensToast($browser->post("/admin/brands/{$brand}", [...$form, 'logo_media_id' => $logo])))->toBe('Brand saved')
             ->and(DB::table('catalog.brands')->where('id', $brand)->value('logo_media_id'))->toBe($logo);
@@ -296,7 +297,7 @@ describe('the brands', function () {
         $old = Cx::media();
         DB::table('catalog.brands')->where('id', $brand)->update(['logo_media_id' => $old]);
         $browser = catalogListScreens([P::BRAND_MANAGE]);
-        $form = ['name_ar' => 'هيتش', 'name_en' => 'Hettich', 'agency_type' => 'DISTRIBUTOR', 'position' => '10', 'logo_media_id' => $old];
+        $form = ['name_ar' => 'هيتش', 'name_en' => 'Hettich', 'agency_type' => 'DISTRIBUTOR', 'logo_media_id' => $old];
 
         expect(catalogListScreensToast($browser->post("/admin/brands/{$brand}", [...$form, 'logo' => UploadedFile::fake()->image('new.png', 200, 200)])))->toBe('Brand saved');
 
@@ -317,21 +318,20 @@ describe('the brands', function () {
         // As PHP hands over a file larger than it accepts: named, with its error, and nothing to read.
         $tooBig = new UploadedFile(UploadedFile::fake()->image('big.png')->getPathname(), 'big.png', 'image/png', UPLOAD_ERR_INI_SIZE, true);
 
-        $response = $browser->post('/admin/brands', ['name_ar' => 'بلوم', 'name_en' => 'Blum', 'agency_type' => 'DISTRIBUTOR', 'position' => '10', 'logo' => $tooBig]);
+        $response = $browser->post('/admin/brands', ['name_ar' => 'بلوم', 'name_en' => 'Blum', 'agency_type' => 'DISTRIBUTOR', 'logo' => $tooBig]);
 
         $response->assertRedirect();
         expect(catalogListScreensErrors($response)['logo_media_id'][0] ?? null)->toBe(trans('catalog::admin.image.not_arrived', [], 'en'))
             ->and(DB::table('catalog.brands')->count())->toBe(0);
     });
 
-    it('says an empty name, a country and a position beside their fields, and a taken address at the top', function () {
+    it('says an empty name and a country beside their fields, and a taken address at the top', function () {
         $taken = Px::brand('Hettich');
         $browser = catalogListScreens([P::BRAND_MANAGE]);
-        $form = ['name_ar' => 'بلوم', 'name_en' => 'Blum', 'agency_type' => 'DISTRIBUTOR', 'position' => '10'];
+        $form = ['name_ar' => 'بلوم', 'name_en' => 'Blum', 'agency_type' => 'DISTRIBUTOR'];
 
         expect(catalogListScreensErrors($browser->post('/admin/brands', [...$form, 'name_ar' => ''])))->toHaveKey('name_ar')
             ->and(catalogListScreensErrors($browser->post('/admin/brands', [...$form, 'origin_country' => 'Germany'])))->toHaveKey('origin_country')
-            ->and(catalogListScreensErrors($browser->post('/admin/brands', [...$form, 'position' => 'ten'])))->toHaveKey('position')
             // A brand's name may repeat; its address may not, and the same name makes the same address.
             ->and(AdminBrowser::formError($browser->post('/admin/brands', [...$form, 'name_en' => (string) DB::table('catalog.brands')->where('id', $taken)->value('name_en')])))->toContain('is used, or was used, by another')
             ->and(DB::table('catalog.brands')->count())->toBe(1);
@@ -342,7 +342,7 @@ describe('the brands', function () {
         $browser = catalogListScreens([P::BRAND_MANAGE], ['sa']);
 
         // A logo sent with a refused form is refused before it is uploaded: nothing is left in the library.
-        expect(AdminBrowser::formError($browser->post('/admin/brands', ['name_ar' => 'بلوم', 'name_en' => 'Blum', 'agency_type' => 'DISTRIBUTOR', 'position' => '10', 'logo' => UploadedFile::fake()->image('blum.png', 200, 200)])))->toBe(catalogListScreensNotYours())
+        expect(AdminBrowser::formError($browser->post('/admin/brands', ['name_ar' => 'بلوم', 'name_en' => 'Blum', 'agency_type' => 'DISTRIBUTOR', 'logo' => UploadedFile::fake()->image('blum.png', 200, 200)])))->toBe(catalogListScreensNotYours())
             ->and(DB::table('platform.media')->count())->toBe(0)
             ->and(AdminBrowser::formError($browser->post("/admin/brands/{$brand}/deactivate", ['every_product' => 'HIDE'])))->toBe(catalogListScreensNotYours())
             ->and(AdminBrowser::formError($browser->post("/admin/brands/{$brand}/delete")))->toBe(catalogListScreensNotYours())
@@ -444,15 +444,17 @@ describe('the categories', function () {
     it('adds a top category with an uploaded photo and a sub-category under it, and says what is wrong beside its field', function () {
         $browser = catalogListScreens([P::CATEGORY_MANAGE]);
 
-        $added = $browser->post('/admin/categories', ['name_ar' => 'مطابخ', 'name_en' => 'Kitchens', 'rank' => '10', 'image' => UploadedFile::fake()->image('kitchen.jpg', 400, 300)]);
+        $added = $browser->post('/admin/categories', ['name_ar' => 'مطابخ', 'name_en' => 'Kitchens', 'image' => UploadedFile::fake()->image('kitchen.jpg', 400, 300)]);
         $top = DB::table('catalog.categories')->where('name_en', 'Kitchens')->first();
 
         expect(catalogListScreensToast($added))->toBe('Category added')
             ->and(DB::table('platform.media')->where('id', $top?->image_media_id)->value('visibility'))->toBe('PUBLIC')
-            ->and(catalogListScreensToast($browser->post('/admin/categories', ['name_ar' => 'أدراج', 'name_en' => 'Drawers', 'parent_id' => $top?->id, 'rank' => '10'])))->toBe('Category added')
+            ->and(catalogListScreensToast($browser->post('/admin/categories', ['name_ar' => 'أدراج', 'name_en' => 'Drawers', 'parent_id' => $top?->id])))->toBe('Category added')
             ->and(DB::table('catalog.categories')->where('name_en', 'Drawers')->value('parent_id'))->toBe($top?->id)
-            ->and(catalogListScreensErrors($browser->post('/admin/categories', ['name_ar' => 'أبواب', 'name_en' => '', 'rank' => '10'])))->toHaveKey('name_en')
-            ->and(catalogListScreensErrors($browser->post('/admin/categories', ['name_ar' => 'أبواب', 'name_en' => 'Doors'])))->toHaveKey('rank');
+            ->and(catalogListScreensErrors($browser->post('/admin/categories', ['name_ar' => 'أبواب', 'name_en' => ''])))->toHaveKey('name_en')
+            // No place is typed: a second top category goes after Kitchens, in every store (amendment 16(d)).
+            ->and(catalogListScreensToast($browser->post('/admin/categories', ['name_ar' => 'أبواب', 'name_en' => 'Doors'])))->toBe('Category added')
+            ->and(DB::table('catalog.store_category_ranks')->where('category_id', DB::table('catalog.categories')->where('name_en', 'Doors')->value('id'))->pluck('rank')->unique()->values()->all())->toBe([2]);
     });
 
     it('renames a category and moves it under another, and refuses a move under itself at the top', function () {
@@ -462,28 +464,44 @@ describe('the categories', function () {
 
         expect(catalogListScreensToast($browser->post("/admin/categories/{$doors}", ['name_ar' => 'أبواب', 'name_en' => 'Cabinet doors'])))->toBe('Category saved')
             ->and(DB::table('catalog.categories')->where('id', $doors)->value('name_en'))->toBe('Cabinet doors')
-            ->and(catalogListScreensToast($browser->post("/admin/categories/{$doors}/move", ['parent_id' => $kitchens, 'rank' => '20'])))->toBe('Category moved')
+            ->and(catalogListScreensToast($browser->post("/admin/categories/{$doors}/move", ['parent_id' => $kitchens])))->toBe('Category moved')
             ->and(DB::table('catalog.categories')->where('id', $doors)->value('parent_id'))->toBe($kitchens)
-            ->and(AdminBrowser::formError($browser->post("/admin/categories/{$kitchens}/move", ['parent_id' => $doors, 'rank' => '20'])))->toBe(trans('catalog::errors.category_loop.detail', [], 'en'))
+            ->and(AdminBrowser::formError($browser->post("/admin/categories/{$kitchens}/move", ['parent_id' => $doors])))->toBe(trans('catalog::errors.category_loop.detail', [], 'en'))
             ->and(DB::table('catalog.categories')->where('id', $kitchens)->value('parent_id'))->toBeNull();
     });
 
     it('saves a menu order in the store the page sent, and refuses no store or one the reader does not order', function () {
         $kitchens = Px::category('Kitchens');
         $doors = Px::category('Doors');
+        $drawers = Px::category('Drawers', $kitchens);
+        $hinges = Px::category('Hinges', $kitchens);
         $browser = catalogListScreens([P::CATEGORY_RANK], ['eg']);
-        $ranks = [$doors => '10', $kitchens => '20'];
-        $places = fn (string $store): array => DB::table('catalog.store_category_ranks')->where('store_id', Fx::storeId($store))->orderBy('category_id')->pluck('rank', 'category_id')->all();
+        // Move to Top: the one id, the others after it as the store's menu has them.
+        $order = ['ids' => [$doors]];
+        $places = fn (string $store): array => array_map('intval', DB::table('catalog.store_category_ranks')->where('store_id', Fx::storeId($store))->orderBy('category_id')->pluck('rank', 'category_id')->all());
         $saBefore = $places('sa');
         $egBefore = $places('eg');
 
-        expect(AdminBrowser::formError($browser->post('/admin/categories/order', ['ranks' => $ranks])))->toBe(catalogListScreensNotYours())
-            ->and(AdminBrowser::formError($browser->post('/admin/categories/order', ['store' => 'sa', 'ranks' => $ranks])))->toBe(catalogListScreensNotYours())
+        expect(AdminBrowser::formError($browser->post('/admin/categories/order', $order)))->toBe(catalogListScreensNotYours())
+            ->and(AdminBrowser::formError($browser->post('/admin/categories/order', ['store' => 'sa', ...$order])))->toBe(catalogListScreensNotYours())
             ->and($places('eg'))->toBe($egBefore)
-            ->and(catalogListScreensToast($browser->post('/admin/categories/order', ['store' => 'eg', 'ranks' => $ranks])))->toBe('Order saved')
-            ->and($places('eg')[$doors] ?? null)->toBe(10)
-            ->and($places('eg')[$kitchens] ?? null)->toBe(20)
+            ->and(catalogListScreensToast($browser->post('/admin/categories/order', ['store' => 'eg', ...$order])))->toBe('Order saved')
+            ->and($places('eg')[$doors])->toBe(1)
+            ->and($places('eg')[$kitchens])->toBeGreaterThan(1)
+            // One parent's children, named by the parent.
+            ->and(catalogListScreensToast($browser->post('/admin/categories/order', ['store' => 'eg', 'parent' => $kitchens, 'ids' => [$hinges]])))->toBe('Order saved')
+            ->and([$places('eg')[$hinges], $places('eg')[$drawers]])->toBe([1, 2])
             ->and($places('sa'))->toBe($saBefore);
+    });
+
+    it('says a refused order at the top of the page, which has no place field any more', function () {
+        $kitchens = Px::category('Kitchens');
+        $browser = catalogListScreens([P::CATEGORY_RANK], ['eg']);
+
+        $refused = $browser->post('/admin/categories/order', ['store' => 'eg', 'ids' => [$kitchens, $kitchens]]);
+
+        expect(AdminBrowser::formError($refused))->toBe('The order is not valid.')
+            ->and(catalogListScreensErrors($refused))->not->toHaveKey('ids');
     });
 
     it('reads the products a category\'s deactivation reaches, in it and under it, only for someone who may deactivate', function () {
@@ -553,14 +571,14 @@ describe('a reader without All stores (P2)', function () {
             ->and($after())->toBe($before)
             ->and(DB::table('platform.media')->count())->toBe(0);
     })->with([
-        'add a category, with a photo' => [P::CATEGORY_MANAGE, fn (): array => ['/admin/categories', ['name_ar' => 'مطابخ', 'name_en' => 'Kitchens', 'rank' => '10', 'image' => UploadedFile::fake()->image('k.jpg')]]],
+        'add a category, with a photo' => [P::CATEGORY_MANAGE, fn (): array => ['/admin/categories', ['name_ar' => 'مطابخ', 'name_en' => 'Kitchens', 'image' => UploadedFile::fake()->image('k.jpg')]]],
         'edit a category' => [P::CATEGORY_MANAGE, fn (): array => ['/admin/categories/'.Px::category('Kitchens'), ['name_ar' => 'مطابخ', 'name_en' => 'Cabinets']]],
-        'move a category' => [P::CATEGORY_MANAGE, fn (): array => ['/admin/categories/'.Px::category('Doors').'/move', ['parent_id' => Px::category('Kitchens'), 'rank' => '10']]],
+        'move a category' => [P::CATEGORY_MANAGE, fn (): array => ['/admin/categories/'.Px::category('Doors').'/move', ['parent_id' => Px::category('Kitchens')]]],
         'deactivate a category' => [P::CATEGORY_MANAGE, fn (): array => ['/admin/categories/'.Px::category('Kitchens').'/deactivate', ['every_product' => 'HIDE']]],
         'delete a category' => [P::CATEGORY_MANAGE, fn (): array => ['/admin/categories/'.Px::category('Kitchens').'/delete', []]],
-        'add an attribute' => [P::ATTRIBUTE_MANAGE, fn (): array => ['/admin/attributes', ['name_ar' => 'العرض', 'name_en' => 'Width', 'kind' => 'VARIANT', 'position' => '10']]],
-        'edit an attribute' => [P::ATTRIBUTE_MANAGE, fn (): array => ['/admin/attributes/'.Px::attribute('Width'), ['name_ar' => 'العرض', 'name_en' => 'Breadth', 'kind' => 'VARIANT', 'position' => '10']]],
-        'edit a value' => [P::ATTRIBUTE_MANAGE, fn (): array => ['/admin/attribute-values/'.Px::value(Px::attribute('Width'), '60 cm'), ['name_ar' => 'ستون', 'name_en' => '600 mm', 'position' => '5']]],
+        'add an attribute' => [P::ATTRIBUTE_MANAGE, fn (): array => ['/admin/attributes', ['name_ar' => 'العرض', 'name_en' => 'Width', 'kind' => 'VARIANT']]],
+        'edit an attribute' => [P::ATTRIBUTE_MANAGE, fn (): array => ['/admin/attributes/'.Px::attribute('Width'), ['name_ar' => 'العرض', 'name_en' => 'Breadth', 'kind' => 'VARIANT']]],
+        'edit a value' => [P::ATTRIBUTE_MANAGE, fn (): array => ['/admin/attribute-values/'.Px::value(Px::attribute('Width'), '60 cm'), ['name_ar' => 'ستون', 'name_en' => '600 mm']]],
         'add a warranty' => [P::WARRANTY_MANAGE, fn (): array => ['/admin/warranties', ['name_ar' => 'ضمان', 'name_en' => 'Lifetime', 'terms_ar' => 'الشروط.', 'terms_en' => 'Terms.', 'lifetime' => '1']]],
         'add a word pair' => [P::SEARCH_WORD_MANAGE, fn (): array => ['/admin/search-words', ['word_a' => 'rail', 'word_b' => 'runner']]],
         'delete a word pair' => [P::SEARCH_WORD_MANAGE, fn (): array => ['/admin/search-words/'.Fx::asSystem(fn (): string => app(AddWordPairHandler::class)->handle(new AddWordPair('rail', 'runner'))).'/delete', []]],
@@ -570,23 +588,23 @@ describe('a reader without All stores (P2)', function () {
 describe('the attributes and their values', function () {
     it('adds and edits an attribute, and says a unit in one language only beside it', function () {
         $browser = catalogListScreens([P::ATTRIBUTE_MANAGE]);
-        $form = ['name_ar' => 'العرض', 'name_en' => 'Width', 'kind' => 'VARIANT', 'unit_ar' => 'سم', 'unit_en' => 'cm', 'position' => '10'];
+        $form = ['name_ar' => 'العرض', 'name_en' => 'Width', 'kind' => 'VARIANT', 'unit_ar' => 'سم', 'unit_en' => 'cm'];
 
         expect(catalogListScreensToast($browser->post('/admin/attributes', $form)))->toBe('Attribute added')
             ->and(catalogListScreensErrors($browser->post('/admin/attributes', [...$form, 'name_en' => 'Depth', 'unit_ar' => ''])))->toHaveKey('unit_ar');
 
         $width = (string) DB::table('catalog.attributes')->where('name_en', 'Width')->value('id');
 
-        expect(catalogListScreensToast($browser->post("/admin/attributes/{$width}", [...$form, 'kind' => 'FILTERABLE', 'position' => '20'])))->toBe('Attribute saved')
-            ->and(DB::table('catalog.attributes')->where('id', $width)->first(['kind', 'position']))->toEqual((object) ['kind' => 'FILTERABLE', 'position' => 20]);
+        expect(catalogListScreensToast($browser->post("/admin/attributes/{$width}", [...$form, 'kind' => 'FILTERABLE'])))->toBe('Attribute saved')
+            ->and(DB::table('catalog.attributes')->where('id', $width)->first(['kind', 'position']))->toEqual((object) ['kind' => 'FILTERABLE', 'position' => 1]);
     });
 
     it('shows one attribute with its values, and adds a colour value with its swatch', function () {
         $colour = Fx::asSystem(fn (): string => app(AddAttributeHandler::class)->handle(new AddAttribute('اللون', 'Colour', 'VARIANT', isColour: true)));
         $browser = catalogListScreens([P::ATTRIBUTE_MANAGE]);
 
-        expect(catalogListScreensErrors($browser->post("/admin/attributes/{$colour}/values", ['name_ar' => 'أبيض', 'name_en' => 'White', 'swatch' => 'white', 'position' => '10'])))->toHaveKey('swatch')
-            ->and(catalogListScreensToast($browser->post("/admin/attributes/{$colour}/values", ['name_ar' => 'أبيض', 'name_en' => 'White', 'swatch' => '#ffffff', 'position' => '10'])))->toBe('Value added');
+        expect(catalogListScreensErrors($browser->post("/admin/attributes/{$colour}/values", ['name_ar' => 'أبيض', 'name_en' => 'White', 'swatch' => 'white'])))->toHaveKey('swatch')
+            ->and(catalogListScreensToast($browser->post("/admin/attributes/{$colour}/values", ['name_ar' => 'أبيض', 'name_en' => 'White', 'swatch' => '#ffffff'])))->toBe('Value added');
 
         $browser->get("/admin/attributes/{$colour}")
             ->assertOk()
@@ -605,7 +623,7 @@ describe('the attributes and their values', function () {
         $value = Px::value($width, '60 cm');
         $browser = catalogListScreens([P::ATTRIBUTE_MANAGE]);
 
-        expect(catalogListScreensToast($browser->post("/admin/attribute-values/{$value}", ['name_ar' => '٦٠ سم', 'name_en' => '600 mm', 'position' => '5'])))->toBe('Value saved')
+        expect(catalogListScreensToast($browser->post("/admin/attribute-values/{$value}", ['name_ar' => '٦٠ سم', 'name_en' => '600 mm'])))->toBe('Value saved')
             ->and(DB::table('catalog.attribute_values')->where('id', $value)->value('name_en'))->toBe('600 mm')
             ->and(catalogListScreensToast($browser->post("/admin/attribute-values/{$value}/deactivate")))->toBe('Value deactivated')
             ->and(DB::table('catalog.attribute_values')->where('id', $value)->value('is_active'))->toBeFalse()
@@ -632,7 +650,7 @@ describe('the attributes and their values', function () {
         $width = Px::attribute('Width');
         $browser = catalogListScreens([P::ATTRIBUTE_MANAGE], ['sa']);
 
-        expect(AdminBrowser::formError($browser->post("/admin/attributes/{$width}/values", ['name_ar' => 'قيمة', 'name_en' => '60 cm', 'position' => '10'])))->toBe(catalogListScreensNotYours())
+        expect(AdminBrowser::formError($browser->post("/admin/attributes/{$width}/values", ['name_ar' => 'قيمة', 'name_en' => '60 cm'])))->toBe(catalogListScreensNotYours())
             ->and(AdminBrowser::formError($browser->post("/admin/attributes/{$width}/delete")))->toBe(catalogListScreensNotYours())
             ->and(DB::table('catalog.attribute_values')->count())->toBe(0)
             ->and(DB::table('catalog.attributes')->where('id', $width)->exists())->toBeTrue();
@@ -642,7 +660,7 @@ describe('the attributes and their values', function () {
 describe('the labels', function () {
     it('adds a label with its look, says a look Geist has not beside it, edits, deactivates, activates and deletes it', function () {
         $browser = catalogListScreens([P::LABEL_MANAGE]);
-        $form = ['name_ar' => 'جديد', 'name_en' => 'New', 'tone' => 'green', 'position' => '10'];
+        $form = ['name_ar' => 'جديد', 'name_en' => 'New', 'tone' => 'green'];
 
         expect(catalogListScreensErrors($browser->post('/admin/labels', [...$form, 'tone' => 'pink'])))->toHaveKey('tone')
             ->and(catalogListScreensToast($browser->post('/admin/labels', $form)))->toBe('Label added');
@@ -749,6 +767,63 @@ describe('the search words', function () {
 
         catalogListScreens([P::SEARCH_WORD_MANAGE], ['sa'])->get('/admin/search-words')
             ->assertInertia(fn (AssertableInertia $page) => $page->has('pairs', 1)->where('searches', null)->where('mayChange', false));
+    });
+});
+
+/**
+ * A list's ids in its order, as the screens read it: by position, then English name, then id.
+ *
+ * @param  array<string, string>  $scope  an attribute's values: its id
+ * @return list<string>
+ */
+function catalogListScreensOrder(string $table, array $scope = []): array
+{
+    return array_values(array_map('strval', DB::table($table)->where($scope)->orderBy('position')->orderBy('name_en')->orderBy('id')->pluck('id')->all()));
+}
+
+describe('the orders (amendment 16(d))', function () {
+    it('saves a list\'s order as dropped, the rest after the ids sent, and one moved to the top or the bottom', function (string $job, string $table, Closure $make) {
+        // Made before anyone signs in, as the system (lesson 120); each added last, so 1, 2, 3.
+        [$uri, [$a, $b, $c], $scope] = $make();
+        $browser = catalogListScreens([$job]);
+
+        expect(catalogListScreensOrder($table, $scope))->toBe([$a, $b, $c])
+            // Dropped: the order shown, sent whole.
+            ->and(catalogListScreensToast($browser->post($uri, ['ids' => [$c, $a, $b]])))->toBe('Order saved')
+            ->and(catalogListScreensOrder($table, $scope))->toBe([$c, $a, $b])
+            // Move to Top: that one id, every other keeping its order after it.
+            ->and(catalogListScreensToast($browser->post($uri, ['ids' => [$b]])))->toBe('Order saved')
+            ->and(catalogListScreensOrder($table, $scope))->toBe([$b, $c, $a])
+            // Move to Bottom: every other one first, then it.
+            ->and(catalogListScreensToast($browser->post($uri, ['ids' => [$c, $a, $b]])))->toBe('Order saved')
+            ->and(catalogListScreensOrder($table, $scope))->toBe([$c, $a, $b])
+            // Written again 1, 2, 3 … each time (P29).
+            ->and(array_map('intval', DB::table($table)->where($scope)->orderBy('position')->pluck('position')->all()))->toBe(range(1, count(catalogListScreensOrder($table, $scope))));
+    })->with([
+        'brands' => [P::BRAND_MANAGE, 'catalog.brands', fn (): array => ['/admin/brands/order', [Px::brand('Blum'), Px::brand('Hettich'), Px::brand('Grass')], []]],
+        'labels' => [P::LABEL_MANAGE, 'catalog.labels', fn (): array => ['/admin/labels/order', [catalogListScreensLabel('New'), catalogListScreensLabel('Sale'), catalogListScreensLabel('Last')], []]],
+        'warranties' => [P::WARRANTY_MANAGE, 'catalog.warranties', fn (): array => ['/admin/warranties/order', [Px::warranty(), Px::warranty(), Px::warranty()], []]],
+        'attributes' => [P::ATTRIBUTE_MANAGE, 'catalog.attributes', fn (): array => ['/admin/attributes/order', [Px::attribute('Width'), Px::attribute('Height'), Px::attribute('Depth')], []]],
+        'an attribute\'s values' => [P::ATTRIBUTE_MANAGE, 'catalog.attribute_values', function (): array {
+            $width = Px::attribute('Width');
+
+            return ["/admin/attributes/{$width}/values/order", [Px::value($width, '45 cm'), Px::value($width, '60 cm'), Px::value($width, '80 cm')], ['attribute_id' => $width]];
+        }],
+    ]);
+
+    it('refuses an order to a reader without All stores, and says an item not in the list, or one sent twice, at the top', function () {
+        $brand = Px::brand('Hettich');
+        $label = catalogListScreensLabel();
+        $width = Px::attribute('Width');
+        $other = Px::value(Px::attribute('Height'), '60 cm');
+        $before = catalogListScreensOrder('catalog.brands');
+
+        expect(AdminBrowser::formError(catalogListScreens([P::BRAND_MANAGE], ['sa'])->post('/admin/brands/order', ['ids' => [$brand]])))->toBe(catalogListScreensNotYours())
+            ->and(AdminBrowser::formError(catalogListScreens([P::BRAND_MANAGE])->post('/admin/brands/order', ['ids' => ['01hzzzzzzzzzzzzzzzzzzzzzzz', $brand]])))->toBe(trans('catalog::errors.brand_not_found.detail', [], 'en'))
+            ->and(catalogListScreensOrder('catalog.brands'))->toBe($before)
+            ->and(AdminBrowser::formError(catalogListScreens([P::LABEL_MANAGE])->post('/admin/labels/order', ['ids' => [$label, $label]])))->toBe('The order is not valid.')
+            // A value of another attribute is not one of this attribute's.
+            ->and(AdminBrowser::formError(catalogListScreens([P::ATTRIBUTE_MANAGE])->post("/admin/attributes/{$width}/values/order", ['ids' => [$other]])))->toBe(trans('catalog::errors.list_item_not_found.detail', [], 'en'));
     });
 });
 

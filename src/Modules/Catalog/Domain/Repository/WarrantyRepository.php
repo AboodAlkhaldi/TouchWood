@@ -21,7 +21,7 @@ interface WarrantyRepository
     public function delete(string $warrantyId): void;
 
     /**
-     * @return list<Warranty>
+     * @return list<Warranty> by position and then name: the order of the product form's choice
      */
     public function all(): array;
 }

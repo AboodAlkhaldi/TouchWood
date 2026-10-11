@@ -9,6 +9,7 @@ import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { AttributeData, AttributesPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
+import { DragHandle, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
 import { AttributeDialog, AttributeMenu, DeleteAttributeDialog } from './AttributeDialog';
 
 /*
@@ -16,7 +17,9 @@ import { AttributeDialog, AttributeMenu, DeleteAttributeDialog } from './Attribu
 | whether it is a colour, how many values it has, its state. **The whole row opens the attribute**,
 | where its details are edited and its values kept (and a colour's swatches, so there is no Colours
 | screen - owner, 2026-10-07). Every change needs `catalog.attribute.manage` with All stores (§3); for
-| anyone else its buttons stay in sight, out of reach, with that reason (P2).
+| anyone else its buttons stay in sight, out of reach, with that reason (P2). The list's order is the
+| order of the shop's filters: dragged, saved when dropped, or an attribute moved to the top or the
+| bottom from its ⋯ menu; a new attribute goes last (amendment 16(d)).
 */
 
 type Dialog = { action: 'add' | 'delete'; attribute: AttributeData | null } | null;
@@ -27,9 +30,14 @@ export default function Index({ attributes, mayChange }: AttributesPage) {
     const [dialog, setDialog] = useState<Dialog>(null);
     const opener = useRef<HTMLElement | null>(null);
     const close = (open: boolean) => (open ? undefined : setDialog(null));
-    const nextPosition = attributes.reduce((highest, each) => Math.max(highest, each.position), 0) + 10;
     const add = () => setDialog({ action: 'add', attribute: null });
     const reason = useAllStoresReason(mayChange);
+    const { order, move, toTop, toBottom } = useSavedOrder(
+        attributes.map((attribute) => attribute.id),
+        '/admin/attributes/order',
+    );
+    const byId = new Map(attributes.map((attribute) => [attribute.id, attribute]));
+    const rows = order.flatMap((id) => byId.get(id) ?? []);
 
     return (
         <AdminLayout
@@ -56,79 +64,119 @@ export default function Index({ attributes, mayChange }: AttributesPage) {
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <div className="material-base overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t('catalog::admin_attributes.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead className="w-12">
-                                        <span aria-hidden="true">#</span>
-                                        <span className="sr-only">{t('catalog::admin.column.position')}</span>
-                                    </TableHead>
-                                    <TableHead>{t('catalog::admin.column.name')}</TableHead>
-                                    <TableHead>{t('catalog::admin_attributes.column.kind')}</TableHead>
-                                    <TableHead>{t('catalog::admin_attributes.column.unit')}</TableHead>
-                                    <TableHead>{t('catalog::admin_attributes.colour')}</TableHead>
-                                    <TableHead className="text-end">{t('catalog::admin_attributes.column.values')}</TableHead>
-                                    <TableHead>{t('catalog::admin.column.state')}</TableHead>
-                                    <TableHead className="w-12">
-                                        <span className="sr-only">{t('catalog::admin.column.actions')}</span>
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {attributes.map((attribute) => {
-                                    const name = nameIn(locale, attribute.nameAr, attribute.nameEn);
-                                    const other = locale === 'ar' ? attribute.nameEn : attribute.nameAr;
-
-                                    return (
-                                        <TableRow key={attribute.id} className="relative hover:bg-surface-sunken" data-test={`attribute-${attribute.id}`}>
-                                            <TableCell className="tw-figure text-ink-muted">{figure(locale, attribute.position)}</TableCell>
-                                            <TableCell>
-                                                {/* The whole row opens the attribute: the name's link stretches over it. */}
-                                                <span className="grid">
-                                                    <Link href={`/admin/attributes/${attribute.id}`} className="text-label-14 text-ink after:absolute after:inset-0 focus-visible:after:ring-[3px]">
-                                                        {name}
-                                                    </Link>
-                                                    <span className="text-copy-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
-                                                        {other}
-                                                    </span>
-                                                </span>
-                                            </TableCell>
-                                            <TableCell>{t(`catalog::admin_attributes.kind.${attribute.kind}`)}</TableCell>
-                                            <TableCell>{(locale === 'ar' ? attribute.unitAr : attribute.unitEn) ?? '—'}</TableCell>
-                                            <TableCell>{attribute.isColour ? t('catalog::admin_attributes.colour_yes') : '—'}</TableCell>
-                                            <TableCell className="tw-figure text-end">{attribute.kind === 'INFORMATIONAL' ? '—' : figure(locale, attribute.values)}</TableCell>
-                                            <TableCell>
-                                                <StateBadge active={attribute.active} />
-                                            </TableCell>
-                                            <TableCell className="relative z-10 text-end">
-                                                {reason !== undefined ? (
-                                                    <MoreButtonOff name={name} reason={reason} />
-                                                ) : (
-                                                    <AttributeMenu
-                                                        attribute={attribute}
-                                                        name={name}
-                                                        open={(action, trigger) => {
-                                                            opener.current = trigger;
-                                                            setDialog({ action, attribute });
-                                                        }}
-                                                    />
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    <SortableGroups groups={{ attributes: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
+                        <div className="material-base overflow-x-auto">
+                            <Table>
+                                <TableCaption className="sr-only">{t('catalog::admin_attributes.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead className="w-10">
+                                            <span className="sr-only">{t('catalog::admin.order.column')}</span>
+                                        </TableHead>
+                                        <TableHead>{t('catalog::admin.column.name')}</TableHead>
+                                        <TableHead>{t('catalog::admin_attributes.column.kind')}</TableHead>
+                                        <TableHead>{t('catalog::admin_attributes.column.unit')}</TableHead>
+                                        <TableHead>{t('catalog::admin_attributes.colour')}</TableHead>
+                                        <TableHead className="text-end">{t('catalog::admin_attributes.column.values')}</TableHead>
+                                        <TableHead>{t('catalog::admin.column.state')}</TableHead>
+                                        <TableHead className="w-12">
+                                            <span className="sr-only">{t('catalog::admin.column.actions')}</span>
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <SortableGroup id="attributes" ids={order}>
+                                        {rows.map((attribute, index) => (
+                                            <Row
+                                                key={attribute.id}
+                                                attribute={attribute}
+                                                reason={reason}
+                                                first={index === 0}
+                                                last={index === rows.length - 1}
+                                                toTop={() => toTop(attribute.id)}
+                                                toBottom={() => toBottom(attribute.id)}
+                                                open={(action, trigger) => {
+                                                    opener.current = trigger;
+                                                    setDialog({ action, attribute });
+                                                }}
+                                            />
+                                        ))}
+                                    </SortableGroup>
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </SortableGroups>
                 )}
             </div>
 
-            {dialog !== null && dialog.action === 'add' ? <AttributeDialog nextPosition={nextPosition} open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {dialog !== null && dialog.action === 'add' ? <AttributeDialog open onOpenChange={close} returnFocusTo={opener} /> : null}
             {dialog !== null && dialog.action === 'delete' && dialog.attribute !== null ? (
                 <DeleteAttributeDialog attribute={dialog.attribute} open onOpenChange={close} returnFocusTo={opener} />
             ) : null}
         </AdminLayout>
+    );
+}
+
+function Row({
+    attribute,
+    reason,
+    first,
+    last,
+    toTop,
+    toBottom,
+    open,
+}: {
+    attribute: AttributeData;
+    reason: string | undefined;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
+    open: (action: 'delete', trigger: HTMLElement | null) => void;
+}) {
+    const t = useTranslator();
+    const locale = useLocale();
+    const name = nameIn(locale, attribute.nameAr, attribute.nameEn);
+    const other = locale === 'ar' ? attribute.nameEn : attribute.nameAr;
+    const row = useSortableRow(attribute.id, reason !== undefined);
+
+    return (
+        <TableRow
+            ref={row.ref}
+            style={row.style}
+            data-dragging={row.dragging || undefined}
+            className="relative z-0 hover:bg-surface-sunken data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+            data-test={`attribute-${attribute.id}`}
+        >
+            {/* Above the name's link, which stretches over the row, as the ⋯ button is. */}
+            <TableCell className="relative z-10">
+                <DragHandle handle={row.handle} label={name} reason={reason} test={`drag-attribute-${attribute.id}`} />
+            </TableCell>
+            <TableCell>
+                {/* The whole row opens the attribute: the name's link stretches over it. */}
+                <span className="grid">
+                    <Link href={`/admin/attributes/${attribute.id}`} className="text-label-14 text-ink after:absolute after:inset-0 focus-visible:after:ring-[3px]">
+                        {name}
+                    </Link>
+                    <span className="text-copy-12 text-ink-muted" dir={locale === 'ar' ? 'ltr' : 'rtl'}>
+                        {other}
+                    </span>
+                </span>
+            </TableCell>
+            <TableCell>{t(`catalog::admin_attributes.kind.${attribute.kind}`)}</TableCell>
+            <TableCell>{(locale === 'ar' ? attribute.unitAr : attribute.unitEn) ?? '—'}</TableCell>
+            <TableCell>{attribute.isColour ? t('catalog::admin_attributes.colour_yes') : '—'}</TableCell>
+            <TableCell className="tw-figure text-end">{attribute.kind === 'INFORMATIONAL' ? '—' : figure(locale, attribute.values)}</TableCell>
+            <TableCell>
+                <StateBadge active={attribute.active} />
+            </TableCell>
+            <TableCell className="relative z-10 text-end">
+                {reason !== undefined ? (
+                    <MoreButtonOff name={name} reason={reason} />
+                ) : (
+                    <AttributeMenu attribute={attribute} name={name} open={open} order={{ first, last, toTop, toBottom }} />
+                )}
+            </TableCell>
+        </TableRow>
     );
 }

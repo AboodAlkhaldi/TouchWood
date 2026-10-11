@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Domain\Model;
 
+use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Domain\ValueObject\WarrantyPeriod;
@@ -12,6 +14,9 @@ use Modules\Catalog\Domain\ValueObject\WarrantyPeriod;
  * A warranty a product may carry — at most one, the same in every store (catalog.md §1.9): a name
  * and its terms in both languages, the terms as simple formatted text (at most 5,000 characters,
  * §9.3 #2), and how long it lasts, in months or for life.
+ *
+ * Its position is the list's order — the order of the product form's choice — given when it is
+ * added, last, and changed only by ordering the list (owner, 2026-10-09, amendment 16(d)).
  */
 final class Warranty
 {
@@ -27,19 +32,23 @@ final class Warranty
         private StructuredText $termsAr,
         private StructuredText $termsEn,
         private WarrantyPeriod $period,
+        private int $position,
         private bool $isActive,
     ) {
         $this->changes = new ChangeLog;
     }
 
-    public static function add(string $id, LocalizedName $name, StructuredText $termsAr, StructuredText $termsEn, WarrantyPeriod $period): self
+    /**
+     * @throws InvalidCatalogAttribute
+     */
+    public static function add(string $id, LocalizedName $name, StructuredText $termsAr, StructuredText $termsEn, WarrantyPeriod $period, int $position): self
     {
-        return new self($id, $name, $termsAr, $termsEn, $period, true);
+        return new self($id, $name, $termsAr, $termsEn, $period, ListPosition::check($position), true);
     }
 
-    public static function reconstitute(string $id, LocalizedName $name, StructuredText $termsAr, StructuredText $termsEn, WarrantyPeriod $period, bool $isActive): self
+    public static function reconstitute(string $id, LocalizedName $name, StructuredText $termsAr, StructuredText $termsEn, WarrantyPeriod $period, int $position, bool $isActive): self
     {
-        return new self($id, $name, $termsAr, $termsEn, $period, $isActive);
+        return new self($id, $name, $termsAr, $termsEn, $period, $position, $isActive);
     }
 
     public function edit(LocalizedName $name, StructuredText $termsAr, StructuredText $termsEn, WarrantyPeriod $period): void
@@ -92,6 +101,11 @@ final class Warranty
         return $this->period;
     }
 
+    public function position(): int
+    {
+        return $this->position;
+    }
+
     public function isActive(): bool
     {
         return $this->isActive;
@@ -108,6 +122,7 @@ final class Warranty
             'terms_ar' => $this->termsAr->toJson(),
             'terms_en' => $this->termsEn->toJson(),
             'period_months' => $this->period->months,
+            'position' => $this->position,
             'is_active' => $this->isActive,
         ];
     }

@@ -93,7 +93,7 @@ describe('labels', function () {
 
     it('adds a label with one of the ten looks, audited under the labels\' lock', function () {
         $locks = Cx::recordLocks();
-        $id = app(AddLabelHandler::class)->handle(new AddLabel('تخفيض', 'Clearance', 'red-subtle', 2));
+        $id = app(AddLabelHandler::class)->handle(new AddLabel('تخفيض', 'Clearance', 'red-subtle'));
         $label = app(LabelRepository::class)->find($id);
 
         expect($label?->tone()->value)->toBe('red-subtle')
@@ -117,7 +117,7 @@ describe('labels', function () {
         $id = app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'New', 'blue'));
 
         app(EditLabelHandler::class)->handle(new EditLabel($id, 'جديد', 'New', 'blue'));
-        app(EditLabelHandler::class)->handle(new EditLabel($id, 'وصل حديثا', 'Just in', 'green', 1));
+        app(EditLabelHandler::class)->handle(new EditLabel($id, 'وصل حديثا', 'Just in', 'green'));
         app(DeactivateLabelHandler::class)->handle(new DeactivateLabel($id));
         app(ActivateLabelHandler::class)->handle(new ActivateLabel($id));
 

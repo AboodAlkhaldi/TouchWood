@@ -12,7 +12,7 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { AttributeChoiceData, ProductPage, VariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, nameIn, useLocale } from '../parts';
-import { RowHandle, SortableRow, SortableRows } from '../SortableList';
+import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
 import { ProductShell } from './shell';
 import { AttributesPanel } from './variant-attributes';
 
@@ -37,6 +37,9 @@ const DeleteVariantDialog = lazy(() => import('./variant-dialogs').then((module)
 // open across a save shows - and sends - what the server answered, not what it opened with.
 type Dialog = { action: 'add' | 'edit' | 'code' | 'photos' | 'delete'; variantId: string | null } | null;
 
+/** The table's one drag group. */
+const VARIANTS = 'variants';
+
 export function VariantsTab({ page }: { page: ProductPage }) {
     const { product, mayUpdate } = page;
     const t = useTranslator();
@@ -48,9 +51,15 @@ export function VariantsTab({ page }: { page: ProductPage }) {
     const setAttributes = product.variantAttributeIds.map((id) => attributes.find((attribute) => attribute.id === id)).filter((attribute): attribute is AttributeChoiceData => attribute !== undefined);
     const reason = mayUpdate ? undefined : t('catalog::admin_products.read_only');
     const close = (open: boolean) => (open ? undefined : setDialog(null));
-    const [ordering, setOrdering] = useState(false);
-    // The variants in their new order, always the whole of it as the table shows it (P29).
-    const order = (ids: string[]) => router.post(`/admin/products/${product.id}/variants/order`, { variant_ids: ids }, { preserveScroll: true, onStart: () => setOrdering(true), onFinish: () => setOrdering(false) });
+    // The variants in their new order (P29): dropped, the whole of it as the table shows it; moved to
+    // the top, that one first and the rest after it as they stand then.
+    const { order, move, toTop, toBottom } = useSavedOrder(
+        variants.map((variant) => variant.id),
+        `/admin/products/${product.id}/variants/order`,
+        'variant_ids',
+    );
+    const byId = new Map(variants.map((variant) => [variant.id, variant]));
+    const rows = order.flatMap((id) => byId.get(id) ?? []);
     const chosen = dialog?.variantId == null ? null : (variants.find((variant) => variant.id === dialog.variantId) ?? null);
     // With no variant attributes every variant has the same values - none - so a product has one variant only.
     const addReason = reason ?? (product.variantAttributeIds.length === 0 && variants.length > 0 ? t('catalog::admin_products.variants.one_only') : undefined);
@@ -89,7 +98,7 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                         </EmptyHeader>
                     </Empty>
                 ) : (
-                    <SortableRows items={variants.map((variant) => ({ id: variant.id, label: variant.code }))} onChange={order}>
+                    <SortableGroups groups={{ [VARIANTS]: order }} labelOf={(id) => byId.get(id)?.code ?? ''} onMove={(_, ids) => move(ids)}>
                     <div className="overflow-x-auto">
                         <Table>
                             <TableCaption className="sr-only">{t('catalog::admin_products.tab.variants')}</TableCaption>
@@ -112,32 +121,32 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {variants.map((variant, index) => (
-                                    <Row
-                                        key={variant.id}
-                                        index={index}
-                                        page={page}
-                                        variant={variant}
-                                        attributes={attributes}
-                                        held={setAttributes}
-                                        reason={reason}
-                                        dragging={reason !== undefined || ordering}
-                                        moves={{
-                                            busy: ordering,
-                                            top: index === 0 ? null : () => order([variant.id, ...variants.filter((other) => other.id !== variant.id).map((other) => other.id)]),
-                                            bottom: index === variants.length - 1 ? null : () => order([...variants.filter((other) => other.id !== variant.id).map((other) => other.id), variant.id]),
-                                        }}
-                                        open={(action, trigger) => {
-                                            opener.current = trigger;
-                                            setDialog({ action, variantId: variant.id });
-                                        }}
-                                    />
-                                ))}
+                                <SortableGroup id={VARIANTS} ids={order}>
+                                    {rows.map((variant, index) => (
+                                        <Row
+                                            key={variant.id}
+                                            index={index}
+                                            page={page}
+                                            variant={variant}
+                                            attributes={attributes}
+                                            held={setAttributes}
+                                            reason={reason}
+                                            first={index === 0}
+                                            last={index === rows.length - 1}
+                                            toTop={() => toTop(variant.id)}
+                                            toBottom={() => toBottom(variant.id)}
+                                            open={(action, trigger) => {
+                                                opener.current = trigger;
+                                                setDialog({ action, variantId: variant.id });
+                                            }}
+                                        />
+                                    ))}
+                                </SortableGroup>
                             </TableBody>
                         </Table>
                     </div>
                     {variants.length > 1 && reason === undefined ? <p className="text-copy-13 text-ink-muted">{t('catalog::admin_products.variants.order_body')}</p> : null}
-                    </SortableRows>
+                    </SortableGroups>
                 )}
             </CardContent>
 
@@ -161,8 +170,10 @@ function Row({
     attributes,
     held,
     reason,
-    dragging,
-    moves,
+    first,
+    last,
+    toTop,
+    toBottom,
     open,
 }: {
     index: number;
@@ -172,16 +183,18 @@ function Row({
     /** The product's variant attributes, a column each. */
     held: AttributeChoiceData[];
     reason: string | undefined;
-    /** Not picked up: read only, or an order still being saved. */
-    dragging: boolean;
-    /** Move to Top and Move to Bottom: null where it is already. */
-    moves: { busy: boolean; top: (() => void) | null; bottom: (() => void) | null };
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
     open: (action: 'edit' | 'code' | 'photos' | 'delete', trigger: HTMLElement | null) => void;
 }) {
     const t = useTranslator();
     const locale = useLocale();
     const [busy, setBusy] = useState(false);
     const more = useRef<HTMLButtonElement>(null);
+    // Picked up only by someone who may change the product.
+    const row = useSortableRow(variant.id, reason !== undefined);
     const ready = page.product.stage !== 'DRAFT';
     const post = (path: string) => router.post(`/admin/products/${page.product.id}/variants/${variant.id}/${path}`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
     const attributeNamed = (id: string) => attributes.find((attribute) => attribute.id === id);
@@ -192,8 +205,16 @@ function Row({
     ].filter((part): part is string => part !== null);
 
     return (
-        <SortableRow id={variant.id} label={variant.code} disabled={dragging} data-test={`variant-${variant.id}`}>
-            <TableCell>{reason === undefined ? <RowHandle testId={`variant-drag-${index}`} /> : null}</TableCell>
+        <TableRow
+            ref={row.ref}
+            style={row.style}
+            data-dragging={row.dragging || undefined}
+            className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+            data-test={`variant-${variant.id}`}
+        >
+            <TableCell>
+                <DragHandle handle={row.handle} label={variant.code} reason={reason} test={`variant-drag-${index}`} />
+            </TableCell>
             <TableCell className="tw-figure font-mono text-copy-13" dir="ltr">
                 {variant.code}
             </TableCell>
@@ -263,15 +284,10 @@ function Row({
                                     {t('catalog::admin_products.variants.correct')}
                                 </DropdownMenuItem>
                             ) : null}
-                            {reason === undefined && (moves.top !== null || moves.bottom !== null) ? (
+                            {reason === undefined ? (
                                 <>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem disabled={moves.top === null || moves.busy} onSelect={() => moves.top?.()} data-test="variant-top">
-                                        {t('catalog::admin_products.variants.move_top')}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem disabled={moves.bottom === null || moves.busy} onSelect={() => moves.bottom?.()} data-test="variant-bottom">
-                                        {t('catalog::admin_products.variants.move_bottom')}
-                                    </DropdownMenuItem>
+                                    <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} testPrefix="variant" />
                                 </>
                             ) : null}
                             {reason === undefined ? (
@@ -307,7 +323,7 @@ function Row({
                     </DropdownMenu>
                 )}
             </TableCell>
-        </SortableRow>
+        </TableRow>
     );
 }
 

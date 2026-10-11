@@ -117,7 +117,7 @@ function catalogStoreScreensOn(string $store, string $productId): void
 /** A label - its names one or two words, as labels are. */
 function catalogStoreScreensLabel(string $nameEn): string
 {
-    return Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel("وسم {$nameEn}", $nameEn, 'green', 10)));
+    return Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel("وسم {$nameEn}", $nameEn, 'green')));
 }
 
 /**
