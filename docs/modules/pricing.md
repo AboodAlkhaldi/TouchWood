@@ -254,7 +254,8 @@ variant and sale mode once — Sales merges a cart's repeated lines first — an
 (`pricing.duplicate_lines`) rather than guess.
 
 **A store that does not exist** is invalid input (`pricing.invalid_pricing_input`, field `store`; owner,
-2026-10-11), as is **a quantity below 1** (field `quantity`).
+2026-10-11), as is **a quantity below 1 or above 2,147,483,647** (field `quantity`); a line's total beyond
+what minor units keep is `pricing.amounts_invalid`.
 
 Refusals reach the caller as `Shared\Domain\Error\DomainError` with a stable `type()` key —
 `pricing.duplicate_lines`, `pricing.lines_without_price`, `pricing.amounts_invalid` — modules export
@@ -269,7 +270,7 @@ no error classes.
 | `CartPricesDto` | `storeId` · `currencyCode` · `taxRateBasisPoints` · `lines` (list of `LinePriceDto`) · `unpriced` (variant ids with no price there) · `grossSubtotal` (Σ `listTotal`) · `netSubtotal` (Σ `total`) · `pricedAt` · `?validUntil` (the earliest `endsAt`: a quote built on these prices must not outlive it) |
 | `TotalsDto` | `grossSubtotal` · `netSubtotal` · `couponDiscount` · `pointsDiscount` · `goodsTotal` · `shipping` · `taxableBase` · `vat` · `orderTotal` · `taxRateBasisPoints` |
 | `PriceKind` (enum) | `BASE` · `SALE` · `CAMPAIGN` · `CATEGORY` · `QUANTITY` |
-| `KeptPartDto` **[PROPOSED]** | `variantId` · `mode` · `quantity` (as edited: never above what the order held) · `listUnit` · `unit` · `kind` — as the order's snapshot holds them (§1.11) |
+| `KeptPartDto` **[PROPOSED]** | `variantId` · `mode` · `quantity` (as edited: never above what the order held; 1 or more — a part whose pieces were all taken off is left out) · `listUnit` · `unit` · `kind` — as the order's snapshot holds them, in the store's currency, above 0 (§1.11) |
 
 ### 2.3 What Pricing gives Catalog
 

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Pricing\Application;
 
+use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Pricing\Domain\Exception\AmountsInvalid;
 use Modules\Pricing\Domain\Exception\DuplicateLines;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
@@ -21,6 +23,7 @@ use Modules\Pricing\Public\Dto\KeptPartDto;
 use Modules\Pricing\Public\Dto\LinePriceDto;
 use Modules\Pricing\Public\Dto\TotalsDto;
 use Shared\Domain\ValueObject\Money;
+use Shared\Domain\ValueObject\MoneyException;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -32,6 +35,9 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final readonly class PricingApiImpl implements PricingApi
 {
+    /** The most pieces a line may ask for, as Inventory keeps a size's stock. */
+    public const int QUANTITY_MOST = 2147483647;
+
     public function __construct(
         private PlatformApi $platform,
         private PriceCandidates $candidates,
@@ -59,8 +65,15 @@ final readonly class PricingApiImpl implements PricingApi
         $keptPieces = [];
 
         foreach ($kept as $part) {
-            if ($part->quantity < 1) {
+            if ($part->quantity < 1 || $part->quantity > self::QUANTITY_MOST) {
                 throw new InvalidPricingInput('quantity');
+            }
+
+            // A part as sold: in the store's currency, its prices above 0.
+            foreach ([$part->listUnit, $part->unit] as $price) {
+                if ($price->currencyCode !== $found->currencyCode || ! $price->isPositive()) {
+                    throw new AmountsInvalid;
+                }
             }
 
             $key = self::key($part->variantId, $part->mode);
@@ -133,7 +146,7 @@ final readonly class PricingApiImpl implements PricingApi
         $seen = [];
 
         foreach ($lines as $line) {
-            if ($line->quantity < 1) {
+            if ($line->quantity < 1 || $line->quantity > self::QUANTITY_MOST) {
                 throw new InvalidPricingInput('quantity');
             }
 
@@ -157,9 +170,16 @@ final readonly class PricingApiImpl implements PricingApi
         return self::id($variantId).'|'.$mode->value;
     }
 
+    /**
+     * Exact, or refused: a total beyond what minor units keep is no amount (`Money` says so).
+     */
     private static function times(Money $unit, int $quantity): Money
     {
-        return Money::of($unit->minorUnits * $quantity, $unit->currencyCode);
+        try {
+            return $unit->multiply($quantity, RoundingMode::Unnecessary);
+        } catch (MoneyException) {
+            throw new AmountsInvalid;
+        }
     }
 
     private static function earlier(?DateTimeImmutable $a, ?DateTimeImmutable $b): ?DateTimeImmutable

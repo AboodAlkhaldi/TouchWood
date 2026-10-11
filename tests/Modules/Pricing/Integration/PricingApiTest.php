@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Catalog\Public\Enums\SaleMode;
+use Modules\Pricing\Domain\Exception\AmountsInvalid;
 use Modules\Pricing\Domain\Exception\DuplicateLines;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Dto\CartLineDto;
@@ -82,12 +83,14 @@ describe('prices()', function () {
         $prices = app(PricingApi::class)->prices(pricingApiStore(), [
             new CartLineDto($b, SaleMode::Retail, 2),
             new CartLineDto($c, SaleMode::Retail, 1),
-            new CartLineDto($a, SaleMode::Retail, 3),
+            new CartLineDto(strtoupper($a), SaleMode::Retail, 3),
         ]);
+
+        $upper = strtoupper($a);
 
         expect(pricingApiLines($prices))->toBe([
             "{$b} RETAIL 2 5050 5050 BASE 10100 10100 -",
-            "{$a} RETAIL 3 10000 10000 BASE 30000 30000 -",
+            "{$upper} RETAIL 3 10000 10000 BASE 30000 30000 -",
         ])->and($prices->unpriced)->toBe([$c])
             ->and([$prices->grossSubtotal->minorUnits, $prices->netSubtotal->minorUnits, $prices->currencyCode, $prices->taxRateBasisPoints])->toBe([40100, 40100, 'SAR', 1500])
             ->and($prices->storeId)->toBe(Rx::storeId('sa'))
@@ -95,20 +98,22 @@ describe('prices()', function () {
     });
 
     it('takes a running sale, says when it ends, and lets a scheduled "always wins" cut that short', function () {
-        [$a, $b] = Px::ready(['60 cm', '80 cm'])['variants'];
-        Rx::set('sa', [$a => '100', $b => '100']);
+        [$a, $b, $c] = Px::ready(['60 cm', '80 cm', '100 cm'])['variants'];
+        Rx::set('sa', [$a => '100', $b => '100', $c => '100']);
         pricingApiCandidate($a, SaleMode::Retail, 8000, PriceKind::Sale, startsAt: '2026-10-01 00:00:00+00', endsAt: '2026-10-20 00:00:00+00');
+        pricingApiCandidate($c, SaleMode::Retail, 7000, PriceKind::Sale, startsAt: '2026-10-01 00:00:00+00', endsAt: '2026-10-25 00:00:00+00');
         pricingApiCandidate($b, SaleMode::Retail, 9000, PriceKind::Sale, startsAt: '2026-10-01 00:00:00+00', endsAt: '2026-10-30 00:00:00+00');
         pricingApiCandidate($b, SaleMode::Retail, 9500, PriceKind::Sale, alwaysWins: true, startsAt: '2026-10-15 00:00:00+00', endsAt: '2026-10-25 00:00:00+00');
 
-        // The earliest end first, so the quote's end is the earliest, not the last line's.
-        $prices = app(PricingApi::class)->prices(pricingApiStore(), [new CartLineDto($b, SaleMode::Retail, 1), new CartLineDto($a, SaleMode::Retail, 1)]);
+        // The earliest end in the middle, so the quote's end is the earliest, not the first or the last line's.
+        $prices = app(PricingApi::class)->prices(pricingApiStore(), [new CartLineDto($a, SaleMode::Retail, 1), new CartLineDto($b, SaleMode::Retail, 1), new CartLineDto($c, SaleMode::Retail, 1)]);
 
         expect(pricingApiLines($prices))->toBe([
-            "{$b} RETAIL 1 10000 9000 SALE 10000 9000 2026-10-15",
             "{$a} RETAIL 1 10000 8000 SALE 10000 8000 2026-10-20",
+            "{$b} RETAIL 1 10000 9000 SALE 10000 9000 2026-10-15",
+            "{$c} RETAIL 1 10000 7000 SALE 10000 7000 2026-10-25",
         ])->and($prices->validUntil?->format('Y-m-d'))->toBe('2026-10-15')
-            ->and([$prices->grossSubtotal->minorUnits, $prices->netSubtotal->minorUnits])->toBe([20000, 17000]);
+            ->and([$prices->grossSubtotal->minorUnits, $prices->netSubtotal->minorUnits])->toBe([30000, 24000]);
     });
 
     it('gives a wholesale line its band, as the line\'s normal price', function () {
@@ -133,7 +138,9 @@ describe('prices()', function () {
 
         app(PricingApi::class)->prices($store, array_map(static fn (string $id): CartLineDto => new CartLineDto($id, SaleMode::Retail, 1), $sizes));
 
-        expect(array_values(array_filter($queries->getArrayCopy(), static fn (array $query): bool => str_contains($query['sql'], '"pricing"'))))->toHaveCount(1);
+        // One read of Pricing's, and nothing of Catalog's: no category, no product, at request time.
+        expect(array_values(array_filter($queries->getArrayCopy(), static fn (array $query): bool => str_contains($query['sql'], '"pricing"'))))->toHaveCount(1)
+            ->and(array_values(array_filter($queries->getArrayCopy(), static fn (array $query): bool => str_contains($query['sql'], '"catalog"'))))->toBe([]);
     });
 
     it('refuses a variant and mode given twice, however its id is written, a quantity below 1 and a store that does not exist', function () {
@@ -143,7 +150,13 @@ describe('prices()', function () {
         expect(fn () => $api->prices(pricingApiStore(), [new CartLineDto($size, SaleMode::Retail, 1), new CartLineDto(strtoupper($size), SaleMode::Retail, 2)]))->toThrow(DuplicateLines::class)
             ->and(Rx::invalid(fn () => $api->prices(pricingApiStore(), [new CartLineDto($size, SaleMode::Retail, 0)]))?->attribute)->toBe('quantity')
             ->and(Rx::invalid(fn () => $api->prices(StoreId::fromString(strtolower((string) Str::ulid())), []))?->attribute)->toBe('store')
-            ->and($api->prices(pricingApiStore(), [new CartLineDto($size, SaleMode::Retail, 1), new CartLineDto($size, SaleMode::Wholesale, 1)])->unpriced)->toBe([$size, $size]);
+            ->and($api->prices(pricingApiStore(), [new CartLineDto($size, SaleMode::Retail, 1), new CartLineDto($size, SaleMode::Wholesale, 1)])->unpriced)->toBe([$size, $size])
+            ->and(Rx::invalid(fn () => $api->prices(pricingApiStore(), [new CartLineDto($size, SaleMode::Retail, PHP_INT_MAX)]))?->attribute)->toBe('quantity');
+
+        // A total beyond what minor units keep is refused as an amount, never a server error.
+        Rx::set('sa', [$size => '100000000']);
+
+        expect(fn () => $api->prices(pricingApiStore(), [new CartLineDto($size, SaleMode::Retail, 2147483647)]))->toThrow(AmountsInvalid::class);
     });
 });
 
@@ -177,7 +190,18 @@ describe('pricesForEdit() (§1.11)', function () {
             "{$size} WHOLESALE 40 7800 7800 QUANTITY 312000 312000 -",
             "{$size} WHOLESALE 400 7000 7000 QUANTITY 2800000 2800000 -",
         ])->and($prices->taxRateBasisPoints)->toBe(1000)
-            ->and($prices->netSubtotal->minorUnits)->toBe(3580000);
+            ->and($prices->netSubtotal->minorUnits)->toBe(3580000)
+            ->and(app(PricingApi::class)->totals($prices, Money::zero('SAR'), Money::zero('SAR'), Money::zero('SAR'))->vat->minorUnits)->toBe(358000);
+
+        // Kept pieces of the other way of buying do not count toward the band.
+        $other = app(PricingApi::class)->pricesForEdit(pricingApiStore(), [
+            new KeptPartDto($size, SaleMode::Retail, 100, Money::of(10000, 'SAR'), Money::of(10000, 'SAR'), PriceKind::Base),
+        ], [new CartLineDto($size, SaleMode::Wholesale, 400)], 1000);
+
+        expect(pricingApiLines($other)[1])->toBe("{$size} WHOLESALE 400 7800 7800 QUANTITY 3120000 3120000 -")
+            ->and(fn () => app(PricingApi::class)->pricesForEdit(pricingApiStore(), [
+                new KeptPartDto($size, SaleMode::Retail, 1, Money::of(100, 'EGP'), Money::of(100, 'EGP'), PriceKind::Base),
+            ], [], 1000))->toThrow(AmountsInvalid::class);
     });
 
     it('ends with the added pieces\' prices only, names an added size with no price, and refuses an added line given twice', function () {
