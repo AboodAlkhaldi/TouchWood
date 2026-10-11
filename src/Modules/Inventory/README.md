@@ -63,3 +63,8 @@ says; until then a hand change leaves Catalog's facts as they were.
 | `tests/Modules/Inventory/Integration/InventoryPermissionsTest.php` | The one job and the two reserved, by name, kind, group and reservation; a staff role may hold Manage Stock; its English name; the default threshold's scope, type, default, bounds and permission |
 | `tests/Modules/Inventory/Unit/InventoryErrorsTest.php` | Exactly §7's thirteen errors, each with §7's type and category; a non-empty title and detail in both languages with the same placeholders |
 | `tests/Architecture/InventoryAccessUseTest.php` | Inventory takes from Access only what declaring its permission needs |
+
+## On deploy
+
+Run `php artisan inventory:orderable:rebuild` once when step 4 first reaches a server: sizes switched
+on before it have never been told to Catalog. Run it again whenever Sync changes a store's wiring.

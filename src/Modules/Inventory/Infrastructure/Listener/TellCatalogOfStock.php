@@ -12,6 +12,7 @@ use Modules\Inventory\Domain\Repository\InventoryLocks;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Platform\Public\Events\SettingChanged;
 use Shared\Domain\ValueObject\StoreId;
+use Throwable;
 
 /**
  * What Catalog is told when something outside Inventory changes a size's figures (inventory.md §2.3,
@@ -47,9 +48,15 @@ final readonly class TellCatalogOfStock
      */
     private function inStore(StoreId $store, callable $work): void
     {
-        $this->db->transaction(function () use ($store, $work): void {
-            $this->locks->lockStore($store);
-            $work($store);
-        }, 3);
+        // After the other module's change committed: a failure here is reported, never thrown back at
+        // that change - the repair (inventory:orderable:rebuild) tells Catalog again.
+        try {
+            $this->db->transaction(function () use ($store, $work): void {
+                $this->locks->lockStore($store);
+                $work($store);
+            }, 3);
+        } catch (Throwable $error) {
+            report($error);
+        }
     }
 }

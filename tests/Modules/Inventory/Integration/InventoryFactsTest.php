@@ -82,6 +82,21 @@ it('tells Catalog a size can be ordered when it has stock, and cannot when it ha
     expect(inventoryFactsTold($size))->toBe([true, false]);
 });
 
+it('tells a flip from a removal by hand and from a shipment', function () {
+    [$a, $b] = Px::ready(['60 cm', '80 cm'])['variants'];
+    Ix::count('sa', [$a => 1, $b => 1]);
+
+    Ix::adjust('sa', $a, 'REMOVE', 1, 'DAMAGED_LOST');
+
+    $order = strtolower((string) Str::ulid());
+    app(InventoryApi::class)->hold(StoreId::fromString(Ix::storeId('sa')), $order, [new HoldLineDto($b, 1)], null);
+    app(InventoryApi::class)->ship($order, [new HoldLineDto($b, 1)]);
+
+    expect(inventoryFactsTold($a))->toBe([false, false])
+        ->and(inventoryFactsTold($b))->toBe([false, false])
+        ->and(Ix::stock('sa', $b))->toMatchObject(['in_stock' => 0, 'held' => 0]);
+});
+
 it('tells only a flip, inside the change\'s own transaction, and nothing when the change is rolled back', function () {
     $size = Px::ready()['variants'][0];
     Ix::count('sa', [$size => 5]);

@@ -23,6 +23,7 @@ use Modules\Inventory\Domain\Repository\Holds;
 use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Repository\StoreProducts;
+use Modules\Inventory\Domain\Service\StockFigures;
 use Modules\Inventory\Domain\ValueObject\Hold;
 use Modules\Inventory\Domain\ValueObject\HoldLine;
 use Modules\Inventory\Domain\ValueObject\MovementReason;
@@ -65,14 +66,13 @@ final readonly class InventoryApiImpl implements InventoryApi
 
         foreach ($ids as $id) {
             $row = $rows[$id] ?? null;
-            $free = $row === null ? 0 : max(0, $row->inStock + ($wired ? $row->returnedExtra : 0) - $row->held);
-            // A store with no provider counts every product; a wired one only its stock-dependent sizes
-            // (§1.1 rule 3). A gift counts in every store, so its figure is always a number.
-            $counts = ! $wired || ($row !== null && $row->stockDependent);
-            $endingSoon = $counts && $row !== null && $free >= 1 && $free <= ($row->threshold ?? $default)
-                && ($wired || isset($switchedOn[$row->productId]));
+            // One place for what stock means (StockFigures), so stock() and Catalog never disagree. A
+            // gift counts on stock in every store, so its figure is always a number.
+            $free = StockFigures::free($row, $wired);
+            $counts = StockFigures::counts($row, $wired);
+            $endingSoon = StockFigures::endingSoon($row, $wired, $default, $row !== null && isset($switchedOn[$row->productId]));
 
-            $answer[$id] = new StockDto($id, $counts, ! $counts || $free > 0, $counts ? $free : null, $free, $endingSoon);
+            $answer[$id] = new StockDto($id, $counts, StockFigures::orderable($row, $wired), $counts ? $free : null, $free, $endingSoon);
         }
 
         return $answer;
@@ -353,8 +353,7 @@ final readonly class InventoryApiImpl implements InventoryApi
             $available = [];
 
             foreach (array_keys($short) as $variantId) {
-                $row = $rows[$variantId] ?? null;
-                $available[$variantId] = $row === null ? 0 : max(0, $row->inStock + ($wired ? $row->returnedExtra : 0) - $row->held);
+                $available[$variantId] = StockFigures::free($rows[$variantId] ?? null, $wired);
             }
 
             throw new NotEnoughStock($available);

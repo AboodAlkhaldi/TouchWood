@@ -482,8 +482,9 @@ describe('one change, one transaction', function () {
         // Rows locked by size id, the one order every writer keeps (StockRows), so none waits on another.
         expect($inside[0]['sql'] ?? null)->toContain('pg_advisory_xact_lock')
             ->and($inside[0]['bindings'] ?? null)->toBe(['inventory:store:'.Ix::storeId('sa')])
-            ->and($locked)->toHaveCount(1)
-            ->and($locked[0]['sql'] ?? '')->toContain('order by "variant_id" asc');
+            // The change's own read, and Catalog's facts read again under the same lock (step 4).
+            ->and($locked)->toHaveCount(2)
+            ->and(array_filter($locked, static fn (array $query): bool => ! str_contains($query['sql'], 'order by "variant_id" asc')))->toBe([]);
     });
 
     it('writes nothing - no stock, no ledger line - when the change is rolled back', function () {

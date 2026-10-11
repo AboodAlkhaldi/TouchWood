@@ -18,7 +18,7 @@ use Shared\Application\Unauthorized;
 /**
  * **The repair** (inventory.md §3): in every store, on or off, every size it has switched on or holds
  * stock of is told to Catalog again - whether it can be ordered and whether it is "ending soon" - a
- * size with no stock row as 0. One transaction per store under its lock, 500 sizes a push. Changes
+ * size with no stock row as 0. One transaction per store and 500 sizes under the store's lock. Changes
  * nothing a person did, so it audits nothing; answers how many sizes were told.
  */
 final readonly class RebuildOrderableHandler
@@ -45,19 +45,18 @@ final readonly class RebuildOrderableHandler
         $told = 0;
 
         foreach ($this->platform->allStores() as $store) {
-            $told += $this->db->transaction(function () use ($store): int {
-                $storeId = $store->storeId();
-                $this->locks->lockStore($storeId);
-                $sizes = array_values(array_unique([...$this->stock->variantIds($storeId), ...$this->catalog->switchedOnVariantIds($storeId)]));
-                sort($sizes);
-                $told = 0;
+            $storeId = $store->storeId();
+            $sizes = array_values(array_unique([...$this->stock->variantIds($storeId), ...$this->catalog->switchedOnVariantIds($storeId)]));
+            sort($sizes);
 
-                foreach (array_chunk($sizes, 500) as $chunk) {
-                    $told += $this->facts->refresh($storeId, $chunk, all: true);
-                }
+            // A transaction a chunk, so a big store's checkout never waits on the whole repair.
+            foreach (array_chunk($sizes, 500) as $chunk) {
+                $told += $this->db->transaction(function () use ($storeId, $chunk): int {
+                    $this->locks->lockStore($storeId);
 
-                return $told;
-            }, 3);
+                    return $this->facts->refresh($storeId, $chunk, all: true);
+                }, 3);
+            }
         }
 
         return $told;

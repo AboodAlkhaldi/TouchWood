@@ -9,17 +9,21 @@ use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Repository\StoreProducts;
 use Modules\Inventory\Domain\Service\StockFigures;
+use Modules\Inventory\Domain\ValueObject\StockRow;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Tells Catalog whether each size can be ordered and is "ending soon" there (inventory.md §1.2, §1.3,
  * §2.3), inside the change's own transaction - only what flipped since Catalog was last told, kept on
- * the size's row. With `all` (the repair, a size just switched on) every size is told, a size with no
- * row too: it counts as 0.
+ * the size's row. The rows are read locked, in size-id order, so a hold committing meanwhile is never
+ * overwritten with older figures. With `all` (the repair, a size just switched on) every size is
+ * told, a size with no row too: it counts as 0. 500 sizes a push, under PostgreSQL's parameter limit.
  */
 final readonly class StockFacts
 {
+    private const int CHUNK = 500;
+
     public function __construct(
         private PlatformApi $platform,
         private StoreWiring $wiring,
@@ -35,15 +39,30 @@ final readonly class StockFacts
     public function refresh(StoreId $store, array $variantIds, bool $all = false): int
     {
         $variantIds = array_values(array_unique($variantIds));
+        sort($variantIds);
 
         if ($variantIds === []) {
             return 0;
         }
 
         $wired = $this->wiring->isWired($store);
-        $rows = $this->stock->read($store, $variantIds);
         $default = (int) $this->platform->setting(InventorySettings::LOW_STOCK_DEFAULT, $store)->value;
-        $switchedOn = $wired ? [] : array_flip($this->products->endingSoonOf($store, array_values(array_unique(array_map(static fn ($row): string => $row->productId, $rows)))));
+        $told = 0;
+
+        foreach (array_chunk($variantIds, self::CHUNK) as $chunk) {
+            $told += $this->chunk($store, $chunk, $all, $wired, $default);
+        }
+
+        return $told;
+    }
+
+    /**
+     * @param  list<string>  $variantIds
+     */
+    private function chunk(StoreId $store, array $variantIds, bool $all, bool $wired, int $default): int
+    {
+        $rows = $this->stock->lockExisting($store, $variantIds);
+        $switchedOn = $wired ? [] : array_flip($this->products->endingSoonOf($store, array_values(array_unique(array_map(static fn (StockRow $row): string => $row->productId, $rows)))));
         $orderable = $notOrderable = $endingSoon = $notEndingSoon = $told = [];
 
         foreach ($variantIds as $variantId) {

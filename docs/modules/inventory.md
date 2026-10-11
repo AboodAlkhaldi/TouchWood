@@ -309,7 +309,8 @@ A low-stock event for Ops comes with Ops (stage 8).
 
 | Event | From | Inventory |
 |---|---|---|
-| `StoreListingChanged` | Catalog | Nothing to store: a size with no stock row counts as 0 in a store with no provider |
+| `StoreListingChanged` | Catalog | The sizes switched on are told to Catalog at once - with no stock row as 0 (step 4); nothing stored |
+| `SettingChanged` (`inventory.low_stock.default`) | Platform | The store's sizes told again: "last pieces" may flip (step 4) |
 | `VariantArchived`, `ProductArchived` | Catalog | Nothing: stock is kept; an archived size is not on sale anyway, and read-only by hand until restored (owner, 2026-10-11) — read from `VariantDto::isArchived` and `ProductDto::stage` when a change names it |
 
 ---
