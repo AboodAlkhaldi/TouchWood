@@ -113,6 +113,27 @@ it('shows the switches out of reach, with the reason, to someone who only orders
     $page->assertNoJavaScriptErrors();
 });
 
+it('still opens the fates dialog, now fetched when it is first opened, and deactivates the category', function () {
+    $category = catalogAudiencesBrowserCategory('Sinks');
+
+    $page = catalogAudiencesBrowser([P::CATEGORY_MANAGE, P::CATEGORY_AUDIENCE]);
+    $page->navigate('/admin/categories?store=sa', BROWSER_PAGE_LOAD);
+    $page->assertSee('Categories');
+
+    $page->click("[data-test=\"category-actions-{$category}\"]")
+        ->click('[data-test="deactivate-category"]');
+
+    // The dialog reads the products the category reaches before its button (none here).
+    expect(browserUntil($page, 'document.querySelector(\'[data-test="reached-count"]\') !== null'))->toBeTrue();
+
+    $page->click('[data-test="confirm-deactivate"]');
+
+    expect(browserUntil($page, "document.querySelector('[data-test=\"category-{$category}\"]')?.textContent.includes('Inactive') === true"))->toBeTrue()
+        ->and(DB::table('catalog.categories')->where('id', $category)->value('is_active'))->toBeFalse();
+
+    $page->assertNoJavaScriptErrors();
+});
+
 it('reads right to left in Arabic, at a phone\'s width, with nothing wider than the screen', function () {
     catalogAudiencesBrowserCategory('Wardrobes');
     $page = catalogAudiencesBrowser([P::CATEGORY_AUDIENCE, P::CATEGORY_RANK, P::CATEGORY_MANAGE], 'ar');

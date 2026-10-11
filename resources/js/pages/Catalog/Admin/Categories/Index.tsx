@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
@@ -19,11 +19,15 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import { useChecks } from '@/lib/use-checks';
 import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
-import { FatesDialog } from '../FatesDialog';
 import { ImageField, MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale, type Locale } from '../parts';
 import { SLUG_RULES, slugsWrong } from '../slugs';
 import { SortableList } from '../SortableList';
 import { AudienceSwitch } from './AudienceSwitch';
+
+// The fates dialog opens only when a category is deactivated, never on the page's first paint, so it
+// is fetched then (frontend.md §5: the page within 60 KB once the switches joined it; lesson 180's SSR
+// rule holds, as nothing lazy is drawn by the server).
+const FatesDialog = lazy(() => import('../FatesDialog').then((module) => ({ default: module.FatesDialog })));
 
 /*
 | The categories screen (catalog.md §1.5, §4.4 S2): **the whole tree** in one table, a parent's
@@ -222,19 +226,21 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                 />
             ) : null}
             {dialog !== null && dialog.action === 'deactivate' && dialog.category !== null ? (
-                <FatesDialog
-                    kind="category"
-                    target={{ id: dialog.category.id, name: nameIn(locale, dialog.category.nameAr, dialog.category.nameEn) }}
-                    reached={reachedFor === dialog.category.id ? reached : null}
-                    moveTargets={moveTargets(nodeOf(dialog.category.id) ? below(nodeOf(dialog.category.id) as Node) : [dialog.category.id])}
-                    goingWith={(nodeOf(dialog.category.id) ? below(nodeOf(dialog.category.id) as Node) : [])
-                        .filter((id) => id !== dialog.category?.id && byId.get(id)?.active === true)
-                        .map((id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null))}
-                    placeOf={(id) => (id === null ? null : nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null) || null)}
-                    open
-                    onOpenChange={close}
-                    returnFocusTo={opener}
-                />
+                <Suspense fallback={null}>
+                    <FatesDialog
+                        kind="category"
+                        target={{ id: dialog.category.id, name: nameIn(locale, dialog.category.nameAr, dialog.category.nameEn) }}
+                        reached={reachedFor === dialog.category.id ? reached : null}
+                        moveTargets={moveTargets(nodeOf(dialog.category.id) ? below(nodeOf(dialog.category.id) as Node) : [dialog.category.id])}
+                        goingWith={(nodeOf(dialog.category.id) ? below(nodeOf(dialog.category.id) as Node) : [])
+                            .filter((id) => id !== dialog.category?.id && byId.get(id)?.active === true)
+                            .map((id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null))}
+                        placeOf={(id) => (id === null ? null : nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null) || null)}
+                        open
+                        onOpenChange={close}
+                        returnFocusTo={opener}
+                    />
+                </Suspense>
             ) : null}
             {dialog !== null && dialog.action === 'delete' && dialog.category !== null ? (
                 <DeleteCategoryDialog category={dialog.category} open onOpenChange={close} returnFocusTo={opener} />
