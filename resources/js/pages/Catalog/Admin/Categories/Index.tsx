@@ -1,27 +1,27 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { router, useForm } from '@inertiajs/react';
+import { Fragment, lazy, Suspense, useMemo, useRef, useState, type ReactNode } from 'react';
+import { router } from '@inertiajs/react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
-import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { PanelDialog } from '@/components/PanelDialog';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import { NativeSelectOption } from '@/components/ui/native-select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
-import { ImageField } from '../ImageField';
 import { MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSaveQueue, useSortableRow } from '../SortableList';
+
+// The add, edit and move dialog - its form and its checks as typed - loads when it is first opened, not
+// with the page, which the drag handles' code shares (frontend.md §5, the page budget).
+const CategoryDialog = lazy(() => import('./CategoryDialog').then((module) => ({ default: module.CategoryDialog })));
 
 /*
 | The categories screen (catalog.md §1.5, §4.4 S2): **the whole tree** in one table, a parent's
@@ -248,16 +248,18 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
             </div>
 
             {dialog !== null && (dialog.action === 'add' || dialog.action === 'edit' || dialog.action === 'move') ? (
-                <CategoryDialog
-                    mode={dialog.action}
-                    category={dialog.category}
-                    parent={dialog.action === 'add' ? (dialog.parent ?? null) : null}
-                    categories={categories}
-                    excluded={dialog.category !== null ? (nodeOf(dialog.category.id) ? below(nodeOf(dialog.category.id) as Node) : []) : []}
-                    open
-                    onOpenChange={close}
-                    returnFocusTo={opener}
-                />
+                <Suspense fallback={null}>
+                    <CategoryDialog
+                        mode={dialog.action}
+                        category={dialog.category}
+                        parent={dialog.action === 'add' ? (dialog.parent ?? null) : null}
+                        categories={categories}
+                        excluded={dialog.category !== null ? (nodeOf(dialog.category.id) ? below(nodeOf(dialog.category.id) as Node) : []) : []}
+                        open
+                        onOpenChange={close}
+                        returnFocusTo={opener}
+                    />
+                </Suspense>
             ) : null}
             {dialog !== null && dialog.action === 'deactivate' && dialog.category !== null ? (
                 <FatesDialog
@@ -428,139 +430,6 @@ function Item({ label, reason, onSelect, test, destructive = false }: { label: s
                 {reason !== null ? <span className="text-copy-12 text-ink-muted">{reason}</span> : null}
             </span>
         </DropdownMenuItem>
-    );
-}
-
-type CategoryForm = {
-    name_ar: string;
-    name_en: string;
-    slug_ar: string;
-    slug_en: string;
-    parent_id: string;
-    image_media_id: string;
-    image: File | null;
-    remove_image: boolean;
-};
-
-/** Add a category (under a parent, or at the top), edit one's names and photo, or move one. */
-function CategoryDialog({
-    mode,
-    category,
-    parent,
-    categories,
-    excluded,
-    open,
-    onOpenChange,
-    returnFocusTo,
-}: {
-    mode: 'add' | 'edit' | 'move';
-    category: CategoryData | null;
-    parent: string | null;
-    categories: CategoryData[];
-    /** Itself and everything under it: never its own new parent (CategoryLoop). */
-    excluded: string[];
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    returnFocusTo?: React.RefObject<HTMLElement | null>;
-}) {
-    const t = useTranslator();
-    const locale = useLocale();
-    const initial = (): CategoryForm => ({
-        name_ar: category?.nameAr ?? '',
-        name_en: category?.nameEn ?? '',
-        slug_ar: category?.slugAr ?? '',
-        slug_en: category?.slugEn ?? '',
-        parent_id: mode === 'add' ? (parent ?? '') : (category?.parentId ?? ''),
-        image_media_id: category?.imageMediaId ?? '',
-        image: null,
-        remove_image: false,
-    });
-    const form = useForm<CategoryForm>(initial());
-    const [addresses, setAddresses] = useState(false);
-    // A refused address is never left folded away out of sight.
-    const addressRefused = form.errors.slug_ar !== undefined || form.errors.slug_en !== undefined;
-
-    useEffect(() => {
-        if (open) {
-            form.setDefaults(initial());
-            form.reset();
-            form.clearErrors();
-            setAddresses(false);
-        }
-    }, [open, category?.id, parent]);
-
-    // A parent is an active category holding no products itself (CategoryHoldsProducts).
-    const parents = categories.filter((each) => each.active && each.productsHere === 0 && !excluded.includes(each.id));
-    const title = mode === 'add' ? (parent === null ? t('catalog::admin_categories.add') : t('catalog::admin_categories.add_sub_title')) : mode === 'edit' ? t('catalog::admin_categories.edit_title') : t('catalog::admin_categories.move_title');
-    const body = mode === 'add' ? t('catalog::admin_categories.add_body') : mode === 'edit' ? t('catalog::admin_categories.edit_body') : t('catalog::admin_categories.move_body');
-
-    function submit() {
-        const target = mode === 'add' ? '/admin/categories' : mode === 'edit' ? `/admin/categories/${category?.id ?? ''}` : `/admin/categories/${category?.id ?? ''}/move`;
-        // Sent as multipart only when a photo file is attached (Inertia does that by itself).
-        form.post(target, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
-    }
-
-    return (
-        <PanelDialog
-            wide={mode !== 'move'}
-            open={open}
-            onOpenChange={onOpenChange}
-            returnFocusTo={returnFocusTo}
-            title={title}
-            description={body}
-            busy={form.processing}
-            confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test={`confirm-${mode}-category`}>
-                    {mode === 'add' ? title : mode === 'edit' ? t('catalog::admin_categories.save') : t('catalog::admin_categories.move_confirm')}
-                </ActionButton>
-            }
-        >
-            <div className="grid gap-4">
-                {mode === 'move' ? null : (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <TextField id="category-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="category-name-ar" />
-                        <TextField id="category-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="category-name-en" />
-                    </div>
-                )}
-
-                {mode === 'edit' ? null : (
-                    <SelectField id="category-parent" label={t('catalog::admin_categories.field.parent')} value={form.data.parent_id} error={form.errors.parent_id} onChange={(event) => form.setData('parent_id', event.target.value)} data-test="category-parent">
-                        <NativeSelectOption value="">{t('catalog::admin_categories.field.top')}</NativeSelectOption>
-                        {parents.map((each) => (
-                            <NativeSelectOption key={each.id} value={each.id}>
-                                {nameIn(locale, each.nameAr, each.nameEn)}
-                            </NativeSelectOption>
-                        ))}
-                    </SelectField>
-                )}
-
-                {mode === 'move' ? null : (
-                    <>
-                        <ImageField
-                            id="category-image"
-                            label={t('catalog::admin_categories.field.image')}
-                            held={(category?.imageMediaId ?? null) !== null}
-                            current={category?.image ?? null}
-                            onFile={(file) => form.setData('image', file)}
-                            remove={form.data.remove_image}
-                            onRemove={(remove) => form.setData('remove_image', remove)}
-                            error={form.errors.image_media_id}
-                        />
-                        <Collapsible open={addresses || addressRefused} onOpenChange={setAddresses}>
-                            <CollapsibleTrigger asChild>
-                                <Button type="button" variant="ghost" size="sm" className="justify-start px-0" data-test="category-addresses">
-                                    {t('catalog::admin.addresses.title')}
-                                </Button>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="grid gap-4 pt-2 sm:grid-cols-2">
-                                <TextField id="category-slug-ar" dir="rtl" label={t('catalog::admin.field.slug_ar')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_ar} error={form.errors.slug_ar} onChange={(event) => form.setData('slug_ar', event.target.value)} />
-                                <TextField id="category-slug-en" dir="ltr" label={t('catalog::admin.field.slug_en')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_en} error={form.errors.slug_en} onChange={(event) => form.setData('slug_en', event.target.value)} />
-                            </CollapsibleContent>
-                        </Collapsible>
-                    </>
-                )}
-            </div>
-        </PanelDialog>
     );
 }
 

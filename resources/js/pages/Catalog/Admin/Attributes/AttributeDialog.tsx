@@ -9,6 +9,7 @@ import { NativeSelectOption } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
+import { type Checks, useChecks } from '@/lib/use-checks';
 import type { AttributeData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, nameIn, useLocale } from '../parts';
 import { MoveItems } from '../SortableList';
@@ -38,6 +39,26 @@ export function attributeForm(attribute: AttributeData | null): AttributeForm {
     };
 }
 
+/**
+ * The attribute's boxes as typed (frontend.md §1.7), for the dialog and its own page alike, with the
+ * domain's rules: names of up to 100 characters (Attribute::NAME_MAX, LocalizedName), units of up to
+ * 20 (Attribute::UNIT_MAX). A unit's "both languages or neither" is left to the server; a new
+ * attribute goes last, with no place to type (amendment 16(d)). `off` - every field out of reach -
+ * checks nothing.
+ */
+export function useAttributeChecks(form: InertiaFormProps<AttributeForm>, off = false): Checks {
+    const t = useTranslator();
+    const name = { required: true, length: { max: 100 } };
+    const unit = { length: { max: 20 } };
+
+    return useChecks([
+        { id: 'attribute-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name, off },
+        { id: 'attribute-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name, off },
+        { id: 'attribute-unit-ar', label: t('catalog::admin_attributes.field.unit_ar'), value: form.data.unit_ar, rules: unit, off },
+        { id: 'attribute-unit-en', label: t('catalog::admin_attributes.field.unit_en'), value: form.data.unit_en, rules: unit, off },
+    ]);
+}
+
 /** Add an attribute, from the list. */
 export function AttributeDialog({
     open,
@@ -50,6 +71,7 @@ export function AttributeDialog({
 }) {
     const t = useTranslator();
     const form = useForm<AttributeForm>(attributeForm(null));
+    const checks = useAttributeChecks(form);
 
     useEffect(() => {
         if (open) {
@@ -60,7 +82,7 @@ export function AttributeDialog({
     }, [open]);
 
     function submit() {
-        form.post('/admin/attributes', { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post('/admin/attributes', { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -73,18 +95,21 @@ export function AttributeDialog({
             description={t('catalog::admin_attributes.add_body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-attribute">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-attribute">
                     {t('catalog::admin_attributes.add')}
                 </ActionButton>
             }
         >
-            <AttributeFields form={form} attribute={null} />
+            <AttributeFields form={form} checks={checks} attribute={null} />
         </PanelDialog>
     );
 }
 
-/** The attribute's fields, in a dialog or on its own page; `off` keeps every field out of reach. */
-export function AttributeFields({ form, attribute, off = false }: { form: InertiaFormProps<AttributeForm>; attribute: AttributeData | null; off?: boolean }) {
+/**
+ * The attribute's fields, in a dialog or on its own page; `off` keeps every field out of reach.
+ * `checks` is the form's useAttributeChecks, made where the form is sent.
+ */
+export function AttributeFields({ form, checks, attribute, off = false }: { form: InertiaFormProps<AttributeForm>; checks: Checks; attribute: AttributeData | null; off?: boolean }) {
     const t = useTranslator();
     // Values, or variants carrying details of it, lock both its job and Colour; products making their
     // variants of it keep only its job (S3, amendment 1(i)) - Colour may still change until it has values.
@@ -94,8 +119,8 @@ export function AttributeFields({ form, attribute, off = false }: { form: Inerti
     return (
             <div className="grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField id="attribute-name-ar" dir="rtl" disabled={off} label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="attribute-name-ar" />
-                    <TextField id="attribute-name-en" dir="ltr" disabled={off} label={t('catalog::admin.field.name_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="attribute-name-en" />
+                    <TextField id="attribute-name-ar" dir="rtl" disabled={off} label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} check={checks.box('attribute-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="attribute-name-ar" />
+                    <TextField id="attribute-name-en" dir="ltr" disabled={off} label={t('catalog::admin.field.name_en')} value={form.data.name_en} check={checks.box('attribute-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="attribute-name-en" />
                 </div>
                 <SelectField
                     id="attribute-kind"
@@ -114,8 +139,8 @@ export function AttributeFields({ form, attribute, off = false }: { form: Inerti
                     ))}
                 </SelectField>
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField id="attribute-unit-ar" dir="rtl" disabled={off} label={t('catalog::admin_attributes.field.unit_ar')} value={form.data.unit_ar} error={form.errors.unit_ar} onChange={(event) => form.setData('unit_ar', event.target.value)} />
-                    <TextField id="attribute-unit-en" dir="ltr" disabled={off} label={t('catalog::admin_attributes.field.unit_en')} helper={t('catalog::admin_attributes.field.unit_helper')} value={form.data.unit_en} error={form.errors.unit_en} onChange={(event) => form.setData('unit_en', event.target.value)} />
+                    <TextField id="attribute-unit-ar" dir="rtl" disabled={off} label={t('catalog::admin_attributes.field.unit_ar')} value={form.data.unit_ar} check={checks.box('attribute-unit-ar', form.errors.unit_ar)} onChange={(event) => form.setData('unit_ar', event.target.value)} />
+                    <TextField id="attribute-unit-en" dir="ltr" disabled={off} label={t('catalog::admin_attributes.field.unit_en')} helper={t('catalog::admin_attributes.field.unit_helper')} value={form.data.unit_en} check={checks.box('attribute-unit-en', form.errors.unit_en)} onChange={(event) => form.setData('unit_en', event.target.value)} />
                 </div>
                 {form.data.kind === 'INFORMATIONAL' ? null : (
                     <Field orientation="horizontal">

@@ -6,8 +6,10 @@ import { FormError } from '@/components/FormError';
 import { Description } from '@/components/geist-only/Description';
 import { PasswordInput } from '@/components/PasswordInput';
 import { Field, FieldGroup } from '@/components/ui/field';
+import { toLatinDigits } from '@/lib/digits';
 import { useRepeatedPassword } from '@/lib/passwords';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { InvitationPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -32,6 +34,14 @@ export default function AcceptInvitation({ token, name, email, phone, minimumLen
     // account they have not signed in to yet.
     const repeat = useRepeatedPassword(form.data.password);
     const differ = t('access::auth.passwords_differ');
+    // Each box as typed (frontend.md §1.7): the number as Access keeps one, with its country code
+    // (PhoneNumber); the password at least the setting's length (StaffSecuritySettings::
+    // PASSWORD_MIN_LENGTH, as PasswordPolicy::hashNew counts it), its spaces kept as typed. Whether
+    // it is on a breach list is the server's alone to know.
+    const checks = useChecks([
+        { id: 'phone', label: t('access::auth.phone'), value: form.data.phone, rules: { required: true, phone: true } },
+        { id: 'password', label: t('access::auth.password'), value: form.data.password, rules: { required: true, keepSpaces: true, length: { min: minimumLength } } },
+    ]);
 
     return (
         <SignInLayout title={t('access::auth.invitation_title')} subtitle={t('access::auth.invitation_subtitle', { name })}>
@@ -47,7 +57,7 @@ export default function AcceptInvitation({ token, name, email, phone, minimumLen
                         return;
                     }
 
-                    form.post(`/admin/invitation/${token}`);
+                    checks.submit(() => form.post(`/admin/invitation/${token}`));
                 }}
             >
                 <FieldGroup className="gap-5">
@@ -61,13 +71,13 @@ export default function AcceptInvitation({ token, name, email, phone, minimumLen
                         type="tel"
                         label={t('access::auth.phone')}
                         helper={t('access::auth.phone_hint')}
-                        error={form.errors.phone}
+                        check={checks.box('phone', form.errors.phone)}
                         autoComplete="tel"
                         required
                         dir="ltr"
                         inputClassName="tw-figure"
                         value={form.data.phone}
-                        onChange={(event) => form.setData('phone', event.target.value)}
+                        onChange={(event) => form.setData('phone', toLatinDigits(event.target.value))}
                     />
 
                     <PasswordInput
@@ -75,7 +85,7 @@ export default function AcceptInvitation({ token, name, email, phone, minimumLen
                         name="password"
                         label={t('access::auth.password')}
                         helper={t('access::auth.password_rule', { count: minimumLength })}
-                        error={form.errors.password}
+                        check={checks.box('password', form.errors.password)}
                         autoComplete="new-password"
                         required
                         value={form.data.password}
@@ -99,7 +109,7 @@ export default function AcceptInvitation({ token, name, email, phone, minimumLen
                             type="submit"
                             data-test="accept-invitation"
                             loading={form.processing}
-                            disabledReason={repeat.differs ? differ : undefined}
+                            disabledReason={(repeat.differs ? differ : undefined) ?? checks.reason}
                             className="w-full"
                         >
                             {t('access::auth.accept_invitation')}

@@ -2,22 +2,23 @@ import { type RefObject, useEffect, useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
-import { TextField } from '@/components/Fields';
+import { Messages, TextField, checked, describedBy } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { AttributePage, ValueData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
-import { AttributeFields, AttributeMenu, DeleteAttributeDialog, attributeForm } from './AttributeDialog';
+import { AttributeFields, AttributeMenu, DeleteAttributeDialog, attributeForm, useAttributeChecks } from './AttributeDialog';
 
 /*
 | One attribute (catalog.md §1.7, §4.4 S3): its details as a form, then its values in order - each
@@ -41,6 +42,8 @@ export default function Show({ attribute, values, mayChange }: AttributePage) {
     const hasValues = attribute.kind !== 'INFORMATIONAL';
     const reason = useAllStoresReason(mayChange);
     const form = useForm(attributeForm(attribute));
+    // Nothing is checked while every field is out of reach (P2).
+    const checks = useAttributeChecks(form, reason !== undefined);
     const { order, move, toTop, toBottom } = useSavedOrder(
         values.map((value) => value.id),
         `/admin/attributes/${attribute.id}/values/order`,
@@ -92,13 +95,13 @@ export default function Show({ attribute, values, mayChange }: AttributePage) {
                         <CardDescription className="text-copy-14 text-ink-muted">{t('catalog::admin_attributes.edit_body')}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <AttributeFields form={form} attribute={attribute} off={reason !== undefined} />
+                        <AttributeFields form={form} checks={checks} attribute={attribute} off={reason !== undefined} />
                     </CardContent>
                     <CardFooter className="justify-end">
                         <ActionButton
                             loading={form.processing}
-                            disabledReason={reason}
-                            onClick={() => form.post(`/admin/attributes/${attribute.id}`, { preserveScroll: true })}
+                            disabledReason={reason ?? checks.reason}
+                            onClick={() => checks.submit(() => form.post(`/admin/attributes/${attribute.id}`, { preserveScroll: true }))}
                             data-test="save-attribute"
                         >
                             {t('catalog::admin_attributes.save')}
@@ -314,10 +317,27 @@ function ValueDialog({
     }, [open, value?.id]);
 
     const title = value === null ? t('catalog::admin_attributes.value.add') : t('catalog::admin_attributes.value.edit_title');
+    // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 100 characters
+    // (AttributeValue::NAME_MAX, LocalizedName); on a colour attribute only, a swatch, required, of the
+    // shape AttributeValue::checkedSwatch takes (`#rrggbb`, 7 characters at most). A new value goes
+    // last; it has no place to type (amendment 16(d)).
+    const name = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'value-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name },
+        { id: 'value-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name },
+        {
+            id: 'value-swatch',
+            label: t('catalog::admin_attributes.value.swatch'),
+            value: form.data.swatch,
+            rules: { required: true, length: { max: 7 }, format: { pattern: SWATCH, key: 'catalog::admin_attributes.check.swatch' } },
+            off: !colour,
+        },
+    ]);
+    const swatch = checks.box('value-swatch', form.errors.swatch);
 
     function submit() {
         form.transform((data) => (colour ? data : { ...data, swatch: '' }));
-        form.post(value === null ? `/admin/attributes/${attributeId}/values` : `/admin/attribute-values/${value.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post(value === null ? `/admin/attributes/${attributeId}/values` : `/admin/attribute-values/${value.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -329,14 +349,14 @@ function ValueDialog({
             description={t('catalog::admin_attributes.value.body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-value">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-value">
                     {value === null ? title : t('catalog::admin_attributes.value.save')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
-                <TextField id="value-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="value-name-ar" />
-                <TextField id="value-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="value-name-en" />
+                <TextField id="value-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} check={checks.box('value-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="value-name-ar" />
+                <TextField id="value-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} check={checks.box('value-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="value-name-en" />
                 {colour ? (
                     <Field>
                         <FieldLabel htmlFor="value-swatch">{t('catalog::admin_attributes.value.swatch')}</FieldLabel>
@@ -362,19 +382,23 @@ function ValueDialog({
                                     onChange={(event) => form.setData('swatch', event.target.value)}
                                 />
                             )}
+                            {/* Wired to its check by hand: shadcn's Input beside the picker, not a TextField. */}
                             <Input
                                 id="value-swatch"
                                 dir="ltr"
                                 className="tw-figure max-w-32"
                                 value={form.data.swatch}
-                                aria-invalid={form.errors.swatch ? true : undefined}
-                                aria-describedby="value-swatch-helper"
-                                onChange={(event) => form.setData('swatch', toLatinDigits(event.target.value))}
+                                {...checked<HTMLInputElement>(swatch, {})}
+                                aria-invalid={swatch.message ? true : undefined}
+                                aria-describedby={describedBy('value-swatch', t('catalog::admin_attributes.value.swatch_helper'), swatch.message)}
+                                onChange={(event) => {
+                                    form.setData('swatch', toLatinDigits(event.target.value));
+                                    swatch.onType();
+                                }}
                                 data-test="value-swatch"
                             />
                         </div>
-                        <FieldDescription id="value-swatch-helper">{t('catalog::admin_attributes.value.swatch_helper')}</FieldDescription>
-                        {form.errors.swatch ? <FieldError>{form.errors.swatch}</FieldError> : null}
+                        <Messages id="value-swatch" helper={t('catalog::admin_attributes.value.swatch_helper')} error={swatch.message} check={swatch} />
                     </Field>
                 ) : null}
             </div>

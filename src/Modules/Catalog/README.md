@@ -483,9 +483,11 @@ shows. A product's Variants tab is dragged with the same parts (#120's table, po
 categories' tree** is dragged in its own rows, each parent's children one group, for the store the
 page shows (`OrderCategories`: Move to Top sends the one id, as every list does); its old order dialog and "Save Order" are gone, and a
 category the store has not placed is marked "Base Store's Place" beside its name. For a reader
-without All stores every handle stays in sight, out of reach, with the reason (P2). The brand
-dialog's country picker loads when the dialog first opens, not with the page: the drag code took the
-brands page past the 60 KB page budget otherwise (65.3 KB measured, 58.1 KB after; frontend.md §5).
+without All stores every handle stays in sight, out of reach, with the reason (P2). The brands' and
+the categories' add and edit dialogs are modules of their own (`Brands/BrandDialog.tsx`,
+`Categories/CategoryDialog.tsx`), loaded when first opened, not with the page: the drag code and the
+checks as typed (#121) took both pages past the 60 KB page budget otherwise (61.2 and 60.0 KB by
+`JavaScriptBudgetTest`; about 53.7 and 55.2 KB after, frontend.md §5).
 
 **A logo or a category's photo is chosen in its own form** and uploaded when the form is sent, through
 `UploadBrandLogo` or `UploadCategoryImage`, before the save (P5). A save refused after the upload leaves that public image

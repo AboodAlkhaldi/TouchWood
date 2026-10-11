@@ -15,6 +15,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
+import { useChecks } from '@/lib/use-checks';
 import type { LabelData, LabelsPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
@@ -276,10 +277,18 @@ function LabelDialog({
 
     const title = label === null ? t('catalog::admin_labels.add') : t('catalog::admin_labels.edit_title');
     const preview = nameIn(locale, form.data.name_ar, form.data.name_en) || t('catalog::admin_labels.preview_empty');
+    // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 30 characters
+    // (Label::NAME_MAX) of one or two words - what the spaces separate (Label::checkWords, amendment
+    // 1(f)). A new label goes last; it has no place to type (amendment 16(d)).
+    const name = { required: true, length: { max: 30 }, format: { pattern: /^\S+(\s+\S+)?$/u, key: 'catalog::admin_labels.check.words' } };
+    const checks = useChecks([
+        { id: 'label-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name },
+        { id: 'label-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name },
+    ]);
 
     function submit() {
         form.transform((data) => ({ name_ar: data.name_ar, name_en: data.name_en, tone: toneOf(data.meaning, data.subtle) }));
-        form.post(label === null ? '/admin/labels' : `/admin/labels/${label.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post(label === null ? '/admin/labels' : `/admin/labels/${label.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -291,14 +300,14 @@ function LabelDialog({
             description={t('catalog::admin_labels.body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-label">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-label">
                     {label === null ? title : t('catalog::admin_labels.save')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
-                <TextField id="label-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} helper={t('catalog::admin_labels.name_helper')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="label-name-ar" />
-                <TextField id="label-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} helper={t('catalog::admin_labels.name_helper')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="label-name-en" />
+                <TextField id="label-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} helper={t('catalog::admin_labels.name_helper')} value={form.data.name_ar} check={checks.box('label-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="label-name-ar" />
+                <TextField id="label-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} helper={t('catalog::admin_labels.name_helper')} value={form.data.name_en} check={checks.box('label-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="label-name-en" />
 
                 <FieldSet>
                     <FieldLegend className="text-label-14 text-ink">{t('catalog::admin_labels.column.meaning')}</FieldLegend>

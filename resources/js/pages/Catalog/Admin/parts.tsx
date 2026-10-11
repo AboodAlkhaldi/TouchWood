@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { TableCell, TableHead } from '@/components/ui/table';
 import { useTranslator } from '@/lib/t';
+import type { BoxCheck } from '@/lib/use-checks';
 import { tone } from '@/lib/tones';
 import type { SharedProps } from '@/types/page';
 import { readMarks, type Run } from './marks';
@@ -127,6 +128,7 @@ export function MarksField({
     value,
     onChange,
     error,
+    check,
     dir,
     rows = 6,
     disabled = false,
@@ -136,6 +138,8 @@ export function MarksField({
     value: string;
     onChange: (value: string) => void;
     error?: string;
+    /** Its check as it is typed (frontend.md §1.7), counted as the server counts marks (marksLength). */
+    check?: BoxCheck;
     dir: 'rtl' | 'ltr';
     rows?: number;
     disabled?: boolean;
@@ -153,6 +157,7 @@ export function MarksField({
                 helper={t('catalog::admin.marks.helper')}
                 value={value}
                 error={error}
+                check={check}
                 disabled={disabled}
                 onChange={(event) => onChange(event.target.value)}
                 data-test={id}

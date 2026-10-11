@@ -1,32 +1,24 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { router, useForm } from '@inertiajs/react';
+import { lazy, Suspense, useRef, useState } from 'react';
+import { router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
-import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/ui/field';
-import { NativeSelectOption } from '@/components/ui/native-select';
-import { Spinner } from '@/components/ui/spinner';
-import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
-import type { BrandData, BrandsPage, CountryOptionData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
+import type { BrandData, BrandsPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
-import { ImageField } from '../ImageField';
-import { MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
+import { MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
 
-// The country picker, and the command list under it, load when the brand's dialog first opens - not
-// with the page, which the drag handles' code now shares (frontend.md §5, the page budget).
-const CountryCombobox = lazy(() => import('@/components/CountryCombobox').then((module) => ({ default: module.CountryCombobox })));
+// The add and edit dialog - its form, its checks as typed, the country picker - loads when it is first
+// opened, not with the page, which the drag handles' code shares (frontend.md §5, the page budget).
+const BrandDialog = lazy(() => import('./BrandDialog').then((module) => ({ default: module.BrandDialog })));
 
 /*
 | The brands screen (catalog.md §1.6, §4.4 S1), on shadcn's parts with Geist's rules (frontend.md
@@ -43,8 +35,6 @@ const CountryCombobox = lazy(() => import('@/components/CountryCombobox').then((
 | never deactivated or deleted, and a brand any product carries is not deleted - their items stay in
 | the menu, out of reach, the reason written under them.
 */
-
-const AGENCIES = ['HOUSE', 'EXCLUSIVE_AGENT', 'DISTRIBUTOR'] as const;
 
 type Dialog = { action: 'add' | 'edit' | 'deactivate' | 'delete'; brand: BrandData | null } | null;
 
@@ -135,7 +125,9 @@ export default function Index({ brands, mayChange, reached, reachedFor, countrie
             </div>
 
             {dialog !== null && (dialog.action === 'add' || dialog.action === 'edit') ? (
-                <BrandDialog brand={dialog.brand} countries={countries} open onOpenChange={close} returnFocusTo={opener} />
+                <Suspense fallback={null}>
+                    <BrandDialog brand={dialog.brand} countries={countries} open onOpenChange={close} returnFocusTo={opener} />
+                </Suspense>
             ) : null}
             {dialog !== null && dialog.action === 'deactivate' && dialog.brand !== null ? (
                 <FatesDialog
@@ -278,179 +270,6 @@ function Guarded({ label, reason, onSelect, test }: { label: string; reason: str
                 {reason !== null ? <span className="text-copy-12 text-ink-muted">{reason}</span> : null}
             </span>
         </DropdownMenuItem>
-    );
-}
-
-type BrandForm = {
-    name_ar: string;
-    name_en: string;
-    slug_ar: string;
-    slug_en: string;
-    agency_type: string;
-    show_in_default_listings: boolean;
-    origin_country: string;
-    description_ar: string;
-    description_en: string;
-    logo_media_id: string;
-    logo: File | null;
-    remove_logo: boolean;
-};
-
-function initial(brand: BrandData | null): BrandForm {
-    return {
-        name_ar: brand?.nameAr ?? '',
-        name_en: brand?.nameEn ?? '',
-        slug_ar: brand?.slugAr ?? '',
-        slug_en: brand?.slugEn ?? '',
-        agency_type: brand?.agencyType ?? 'DISTRIBUTOR',
-        show_in_default_listings: brand?.showInDefaultListings ?? true,
-        origin_country: brand?.originCountry ?? '',
-        description_ar: brand?.descriptionAr ?? '',
-        description_en: brand?.descriptionEn ?? '',
-        logo_media_id: brand?.logoMediaId ?? '',
-        logo: null,
-        remove_logo: false,
-    };
-}
-
-/** Add a brand, or edit one: the whole form, as the handler takes it. */
-function BrandDialog({
-    brand,
-    countries,
-    open,
-    onOpenChange,
-    returnFocusTo,
-}: {
-    brand: BrandData | null;
-    countries: CountryOptionData[];
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    returnFocusTo?: React.RefObject<HTMLElement | null>;
-}) {
-    const t = useTranslator();
-    const form = useForm<BrandForm>(initial(brand));
-    const [addresses, setAddresses] = useState(false);
-    // A refused address is never left folded away out of sight.
-    const addressRefused = form.errors.slug_ar !== undefined || form.errors.slug_en !== undefined;
-
-    useEffect(() => {
-        if (open) {
-            form.setDefaults(initial(brand));
-            form.reset();
-            form.clearErrors();
-            setAddresses(false);
-        }
-    }, [open, brand?.id]);
-
-    const title = brand === null ? t('catalog::admin_brands.add') : t('catalog::admin_brands.edit_title');
-
-    function submit() {
-        // Sent as multipart only when a logo file is attached (Inertia does that by itself).
-        form.post(brand === null ? '/admin/brands' : `/admin/brands/${brand.id}`, {
-            preserveScroll: true,
-            onSuccess: () => onOpenChange(false),
-        });
-    }
-
-    return (
-        <PanelDialog
-            wide
-            open={open}
-            onOpenChange={onOpenChange}
-            returnFocusTo={returnFocusTo}
-            title={title}
-            description={brand === null ? t('catalog::admin_brands.add_body') : t('catalog::admin_brands.edit_body')}
-            busy={form.processing}
-            confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-brand">
-                    {brand === null ? t('catalog::admin_brands.add') : t('catalog::admin_brands.save')}
-                </ActionButton>
-            }
-        >
-            <div className="grid gap-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField id="brand-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="brand-name-ar" />
-                    <TextField id="brand-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="brand-name-en" />
-                </div>
-
-                <SelectField id="brand-agency" label={t('catalog::admin_brands.field.agency')} value={form.data.agency_type} error={form.errors.agency_type} onChange={(event) => form.setData('agency_type', event.target.value)} data-test="brand-agency">
-                    {AGENCIES.map((agency) => (
-                        <NativeSelectOption key={agency} value={agency}>
-                            {t(`catalog::admin_brands.agency.${agency}`)}
-                        </NativeSelectOption>
-                    ))}
-                </SelectField>
-
-                {/* One setting on its own is a switch, its sentence tied to it (Geist's Toggle). */}
-                <Field orientation="horizontal">
-                    <FieldContent>
-                        <FieldLabel htmlFor="brand-listings" className="text-label-14 text-ink">
-                            {t('catalog::admin_brands.field.listings')}
-                        </FieldLabel>
-                        <FieldDescription id="brand-listings-helper" className="text-copy-13 text-ink-muted">
-                            {t('catalog::admin_brands.field.listings_helper')}
-                        </FieldDescription>
-                    </FieldContent>
-                    <Switch
-                        id="brand-listings"
-                        checked={form.data.show_in_default_listings}
-                        onCheckedChange={(on) => form.setData('show_in_default_listings', on)}
-                        aria-describedby="brand-listings-helper"
-                        className="data-[state=unchecked]:bg-ink-subtle"
-                        data-test="brand-listings"
-                    />
-                </Field>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <Suspense fallback={<Spinner className="text-ink-muted" aria-label={t('ui.loading')} />}>
-                        <CountryCombobox
-                            id="brand-country"
-                            label={t('catalog::admin_brands.field.country')}
-                            countries={countries}
-                            value={form.data.origin_country}
-                            onChange={(code) => form.setData('origin_country', code)}
-                            error={form.errors.origin_country}
-                            words={{
-                                search: t('catalog::admin_brands.country.search'),
-                                none: (query) => t('catalog::admin_brands.country.none', { query }),
-                            }}
-                        />
-                    </Suspense>
-                    {/* Optional: a country chosen can be taken back (amendment 1(j)). */}
-                    {form.data.origin_country !== '' ? (
-                        <Button type="button" variant="ghost" size="sm" className="self-end justify-self-start" onClick={() => form.setData('origin_country', '')} data-test="brand-country-clear">
-                            {t('catalog::admin_brands.country.clear')}
-                        </Button>
-                    ) : null}
-                </div>
-
-                <ImageField
-                    id="brand-logo"
-                    label={t('catalog::admin_brands.field.logo')}
-                    held={(brand?.logoMediaId ?? null) !== null}
-                    current={brand?.logo ?? null}
-                    onFile={(file) => form.setData('logo', file)}
-                    remove={form.data.remove_logo}
-                    onRemove={(remove) => form.setData('remove_logo', remove)}
-                    error={form.errors.logo_media_id}
-                />
-
-                <MarksField id="brand-description-ar" dir="rtl" label={t('catalog::admin_brands.field.description_ar')} value={form.data.description_ar} error={form.errors.description_ar} onChange={(value) => form.setData('description_ar', value)} />
-                <MarksField id="brand-description-en" dir="ltr" label={t('catalog::admin_brands.field.description_en')} value={form.data.description_en} error={form.errors.description_en} onChange={(value) => form.setData('description_en', value)} />
-
-                <Collapsible open={addresses || addressRefused} onOpenChange={setAddresses}>
-                    <CollapsibleTrigger asChild>
-                        <Button type="button" variant="ghost" size="sm" className="justify-start px-0" data-test="brand-addresses">
-                            {t('catalog::admin.addresses.title')}
-                        </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="grid gap-4 pt-2 sm:grid-cols-2">
-                        <TextField id="brand-slug-ar" dir="rtl" label={t('catalog::admin.field.slug_ar')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_ar} error={form.errors.slug_ar} onChange={(event) => form.setData('slug_ar', event.target.value)} />
-                        <TextField id="brand-slug-en" dir="ltr" label={t('catalog::admin.field.slug_en')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_en} error={form.errors.slug_en} onChange={(event) => form.setData('slug_en', event.target.value)} />
-                    </CollapsibleContent>
-                </Collapsible>
-            </div>
-        </PanelDialog>
     );
 }
 
