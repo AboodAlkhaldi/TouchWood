@@ -7,6 +7,7 @@ use App\Providers\TypeScriptTransformerServiceProvider;
 use Modules\Access\Infrastructure\AccessServiceProvider;
 use Modules\B2B\Infrastructure\B2BServiceProvider;
 use Modules\Catalog\Infrastructure\CatalogServiceProvider;
+use Modules\Inventory\Infrastructure\InventoryServiceProvider;
 use Modules\Loyalty\Infrastructure\LoyaltyServiceProvider;
 use Modules\Platform\Infrastructure\PlatformServiceProvider;
 use Modules\Pricing\Infrastructure\PricingServiceProvider;
@@ -23,6 +24,9 @@ return [
     // After Catalog: Pricing prices Catalog's variants and declares its permissions through Access
     // (handoff §4.4, pricing.md §2.4).
     PricingServiceProvider::class,
+    // After Catalog: Inventory counts Catalog's variants, declares its permissions through Access
+    // and its default threshold through Platform (handoff §4.4, inventory.md §2.4).
+    InventoryServiceProvider::class,
     // After Access too: Loyalty declares its permissions through it, and depends on Platform and
     // Access only (handoff §4.4).
     LoyaltyServiceProvider::class,
