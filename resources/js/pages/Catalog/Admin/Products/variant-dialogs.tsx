@@ -4,7 +4,8 @@ import { ActionButton } from '@/components/ActionButton';
 import { SelectField, TextField } from '@/components/Fields';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Button } from '@/components/ui/button';
-import { FieldError, FieldLegend, FieldSet } from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
@@ -20,6 +21,8 @@ import { PhotoGrid } from './photos';
 */
 
 const base = (page: ProductPage) => `/admin/products/${page.product.id}`;
+
+const SWATCH = /^#[0-9a-f]{6}$/i;
 
 /** One more attribute: which, and each variant's value of it, archived ones too. */
 export function AddAttributeDialog({
@@ -218,7 +221,30 @@ function NewValueDialog({ page, attribute, onMade, onOpenChange }: { page: Produ
                 <TextField id="new-value-ar" dir="rtl" label={t('catalog::admin_products.variants.new_value_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="new-value-ar" />
                 <TextField id="new-value-en" dir="ltr" label={t('catalog::admin_products.variants.new_value_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="new-value-en" />
                 {attribute.isColour ? (
-                    <TextField id="new-value-swatch" dir="ltr" inputClassName="font-mono" label={t('catalog::admin_products.variants.new_value_swatch')} placeholder="#1f2937" value={form.data.swatch} error={form.errors.swatch} onChange={(event) => form.setData('swatch', event.target.value.trim().toLowerCase())} data-test="new-value-swatch" />
+                    // As the values screen takes it (Attributes/Show.tsx): the browser's own picker, holding
+                    // the colour typed once it is one - no colour of ours is written into the screen.
+                    <Field className="sm:col-span-2">
+                        <FieldLabel htmlFor="new-value-swatch">{t('catalog::admin_products.variants.new_value_swatch')}</FieldLabel>
+                        <div className="flex items-center gap-2">
+                            {SWATCH.test(form.data.swatch) ? (
+                                <Input key="chosen" type="color" className="h-9 w-12 p-1" aria-label={t('catalog::admin_attributes.value.swatch_pick')} value={form.data.swatch} onChange={(event) => form.setData('swatch', event.target.value)} />
+                            ) : (
+                                <Input key="unset" type="color" className="h-9 w-12 p-1" aria-label={t('catalog::admin_attributes.value.swatch_pick')} onChange={(event) => form.setData('swatch', event.target.value)} />
+                            )}
+                            <Input
+                                id="new-value-swatch"
+                                dir="ltr"
+                                className="tw-figure max-w-32"
+                                value={form.data.swatch}
+                                aria-invalid={form.errors.swatch ? true : undefined}
+                                aria-describedby="new-value-swatch-helper"
+                                onChange={(event) => form.setData('swatch', toLatinDigits(event.target.value))}
+                                data-test="new-value-swatch"
+                            />
+                        </div>
+                        <FieldDescription id="new-value-swatch-helper">{t('catalog::admin_attributes.value.swatch_helper')}</FieldDescription>
+                        {form.errors.swatch ? <FieldError>{form.errors.swatch}</FieldError> : null}
+                    </Field>
                 ) : null}
             </div>
         </PanelDialog>
