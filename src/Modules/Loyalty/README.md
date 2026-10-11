@@ -52,13 +52,15 @@ behind the screens (5), the module's own pass (6).
   is needed; composite keys tie every row to its account and store; `entries` and `lot_movements`
   are append-only (a trigger refuses UPDATE, DELETE and TRUNCATE).
 - **`Domain/Service/PointsArithmetic`** (spec §1.5) — whole numbers only, in the currency's smallest
-  unit and on its own exponent: points earned, what points are worth, the cap, the most points the
-  cap lets count, the fewest points for a discount. Products are worked in `BigInteger`.
+  unit and on its own exponent (0 to 6, as Platform's currencies allow): points earned, what points
+  are worth, the cap, the most points the cap lets count, the fewest points for a discount. Products
+  are worked in `BigInteger`; a result past 64 bits is refused as `InvalidPointsAttribute`.
 - **`Domain/Repository/PointsAccounts`**, **`Infrastructure/Eloquent/DatabasePointsAccounts`** — an
-  account per customer per store, inserted only if absent and **locked before anything changes**
-  (refused outside a transaction); the live lots in the order they are spent; the live balance; the
-  dead lots expired by a write, once each. Every moment goes to PostgreSQL in UTC with its offset:
-  Laravel binds a date as `Y-m-d H:i:s`, which drops both.
+  account per customer per store, inserted only if absent; `lockOrCreate` **locks it and expires its
+  dead lots in one call** (refused outside a transaction), so no write can lock an account and skip
+  its expiry, and answers the balance as it is after; the live lots in the order they are spent; the
+  live balance. Customer ids are lowercased before they reach the database. Every moment goes to
+  PostgreSQL in UTC with its offset: Laravel binds a date as `Y-m-d H:i:s`, which drops both.
 
 ## Approaches
 
@@ -78,7 +80,9 @@ nothing and the migration file up and down, the error messages (every class in t
 pinned and unique, Arabic checked without falling back to English), and the Points menu section on a
 menu of the test's own. Platform's `SettingsScreenTest` saves the programme's settings through the
 page itself. Step 2: `LoyaltyLedgerConstraintsTest` breaks every CHECK, key, index and trigger of the
-ledger once, after a valid row in every table; `LoyaltyAccountsTest` the accounts, the lock (recorded
-inside the change's own transaction), the lots' order and their expiry, and a moment given in another
-timezone; `Unit/PointsArithmeticTest` the arithmetic on the spec's cases and its "never charged a
-point that bought nothing" rule across rates.
+ledger once, after a valid row in every table, each constraint matched by its quoted name;
+`LoyaltyAccountsTest` the accounts, the locks (recorded inside the change's own transaction, the
+account's first, then its lots' in spending order), the lots' order and their expiry, and a moment
+given in another timezone; `Unit/PointsArithmeticTest` the arithmetic on the spec's cases and its
+"never charged a point that bought nothing" rule across rates and exponents; `Unit/LotTest` when a
+lot is live.

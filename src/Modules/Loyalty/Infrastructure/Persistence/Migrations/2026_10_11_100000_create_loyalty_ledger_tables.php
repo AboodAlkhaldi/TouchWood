@@ -27,7 +27,9 @@ return new class extends Migration
             $table->ulid('customer_id');
             $table->ulid('store_id');
             $table->bigInteger('balance')->default(0);
-            $table->timestampsTz();
+            // NOT NULL, as every column of §5 not marked NULL: timestampsTz() would make both nullable.
+            $table->timestampTz('created_at');
+            $table->timestampTz('updated_at');
 
             $table->primary('id', 'accounts_pkey');
             $table->foreign('customer_id', 'accounts_customer')->references('id')->on('access.customers')->restrictOnDelete();

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Loyalty\Domain\Service;
 
 use Brick\Math\BigInteger;
+use Brick\Math\Exception\IntegerOverflowException;
 use Brick\Math\RoundingMode;
 use Modules\Loyalty\Domain\Exception\InvalidPointsAttribute;
 
@@ -14,7 +15,8 @@ use Modules\Loyalty\Domain\Exception\InvalidPointsAttribute;
  * store currency's (2 for a currency counted in hundredths), read from its currencies row; `ppu` is
  * points_per_unit_off.
  *
- * Products are worked in BigInteger, so an amount times a rate never passes 64 bits on the way.
+ * Products are worked in BigInteger, so an amount times a rate never passes 64 bits on the way; a
+ * result that would is refused as the domain's own error, never the library's.
  */
 final class PointsArithmetic
 {
@@ -27,7 +29,7 @@ final class PointsArithmetic
         self::notNegative($goodsTotalMinor, 'amount');
         self::positive($earnPerUnit);
 
-        return BigInteger::of($goodsTotalMinor)->multipliedBy($earnPerUnit)->dividedBy(self::unit($exponent), RoundingMode::Floor)->toInt();
+        return self::whole(BigInteger::of($goodsTotalMinor)->multipliedBy($earnPerUnit)->dividedBy(self::unit($exponent), RoundingMode::Floor));
     }
 
     /**
@@ -38,7 +40,7 @@ final class PointsArithmetic
         self::notNegative($points, 'points');
         self::positive($pointsPerUnitOff);
 
-        return BigInteger::of($points)->multipliedBy(self::unit($exponent))->dividedBy($pointsPerUnitOff, RoundingMode::Floor)->toInt();
+        return self::whole(BigInteger::of($points)->multipliedBy(self::unit($exponent))->dividedBy($pointsPerUnitOff, RoundingMode::Floor));
     }
 
     /**
@@ -52,7 +54,7 @@ final class PointsArithmetic
             throw new InvalidPointsAttribute('percent', 'must be from 0 to 100');
         }
 
-        return BigInteger::of($netSubtotalMinor)->multipliedBy($maxRedemptionPercent)->dividedBy(100, RoundingMode::Floor)->toInt();
+        return self::whole(BigInteger::of($netSubtotalMinor)->multipliedBy($maxRedemptionPercent)->dividedBy(100, RoundingMode::Floor));
     }
 
     /**
@@ -64,7 +66,7 @@ final class PointsArithmetic
         self::notNegative($capMinor, 'amount');
         self::positive($pointsPerUnitOff);
 
-        return BigInteger::of($capMinor)->plus(1)->multipliedBy($pointsPerUnitOff)->minus(1)->dividedBy(self::unit($exponent), RoundingMode::Floor)->toInt();
+        return self::whole(BigInteger::of($capMinor)->plus(1)->multipliedBy($pointsPerUnitOff)->minus(1)->dividedBy(self::unit($exponent), RoundingMode::Floor));
     }
 
     /**
@@ -76,17 +78,26 @@ final class PointsArithmetic
         self::notNegative($discountMinor, 'amount');
         self::positive($pointsPerUnitOff);
 
-        return BigInteger::of($discountMinor)->multipliedBy($pointsPerUnitOff)->dividedBy(self::unit($exponent), RoundingMode::Ceiling)->toInt();
+        return self::whole(BigInteger::of($discountMinor)->multipliedBy($pointsPerUnitOff)->dividedBy(self::unit($exponent), RoundingMode::Ceiling));
     }
 
-    /** 10^e, the smallest units in one unit of the currency. */
+    /** 10^e, the smallest units in one unit of the currency: 0 to 6 decimals, as Platform's currencies allow. */
     private static function unit(int $exponent): BigInteger
     {
-        if ($exponent < 0 || $exponent > 4) {
-            throw new InvalidPointsAttribute('currency', 'its exponent must be from 0 to 4');
+        if ($exponent < 0 || $exponent > 6) {
+            throw new InvalidPointsAttribute('currency', 'its exponent must be from 0 to 6');
         }
 
         return BigInteger::ten()->power($exponent);
+    }
+
+    private static function whole(BigInteger $result): int
+    {
+        try {
+            return $result->toInt();
+        } catch (IntegerOverflowException) {
+            throw new InvalidPointsAttribute('amount', 'too large to count');
+        }
     }
 
     private static function notNegative(int $value, string $attribute): void

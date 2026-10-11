@@ -20,7 +20,8 @@ use stdClass;
 /**
  * The points accounts and their lots on the query builder (loyalty.md §1.12): no Eloquent model, the
  * store named in every call. The account row is the lock every change of an account takes first;
- * its lots after it, in one order — the date they expire, then their id (lesson 37).
+ * its lots after it, in one order — the date they expire, then their id (lesson 37). Locking and
+ * expiring are one call, so no write can lock an account and skip its dead lots (§1.1).
  */
 final readonly class DatabasePointsAccounts implements PointsAccounts
 {
@@ -34,17 +35,13 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
             return null;
         }
 
-        $row = $this->db->table('loyalty.accounts')
-            ->where('customer_id', $customerId)
-            ->where('store_id', $store->value)
-            ->first();
-
-        return $row instanceof stdClass ? self::account($row) : null;
+        return $this->row(strtolower($customerId), $store, lock: false);
     }
 
-    public function lockOrCreate(string $customerId, StoreId $store): PointsAccount
+    public function lockOrCreate(string $customerId, StoreId $store, DateTimeImmutable $now): PointsAccount
     {
-        // A lock outside a transaction ends with its statement and guards nothing.
+        // A lock outside a transaction ends with its statement and guards nothing, and the expiry's
+        // entries and lots would commit one by one (both kept for ever).
         if ($this->db->transactionLevel() === 0) {
             throw new LogicException('A points account is locked inside its change\'s transaction.');
         }
@@ -53,26 +50,23 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
             throw new LogicException('A points account belongs to a customer\'s ULID.');
         }
 
-        $now = CarbonImmutable::now();
+        // Ids are stored lowercase; the column compares exactly.
+        $customerId = strtolower($customerId);
+        $stamp = self::moment(CarbonImmutable::now());
 
         // Inserted only if absent: two first writes for one customer in one store make one account,
         // and each then waits on the other's lock instead of failing on the unique key (lesson 64).
         $this->db->statement(
             'INSERT INTO loyalty.accounts (id, customer_id, store_id, balance, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?) ON CONFLICT (customer_id, store_id) DO NOTHING',
-            [strtolower((string) Str::ulid()), $customerId, $store->value, self::moment($now), self::moment($now)],
+            [strtolower((string) Str::ulid()), $customerId, $store->value, $stamp, $stamp],
         );
 
-        $row = $this->db->table('loyalty.accounts')
-            ->where('customer_id', $customerId)
-            ->where('store_id', $store->value)
-            ->lockForUpdate()
-            ->first();
+        $account = $this->row($customerId, $store, lock: true)
+            ?? throw new LogicException('The points account just made could not be read back.');
 
-        if (! $row instanceof stdClass) {
-            throw new LogicException('The points account just made could not be read back.');
-        }
-
-        return self::account($row);
+        return $this->expireDeadLots($account, $now) > 0
+            ? ($this->row($customerId, $store, lock: false) ?? $account)
+            : $account;
     }
 
     public function liveLots(PointsAccount $account, DateTimeImmutable $now): array
@@ -99,7 +93,12 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
             ->sum('points_left');
     }
 
-    public function expireDeadLots(PointsAccount $account, DateTimeImmutable $now): int
+    /**
+     * Expires the locked account's lots whose date has passed (§1.10): each loses its remaining points
+     * as one EXPIRED entry, dated the moment of the write, with its movement, and the balance falls
+     * by them. Answers the points expired; a lot already empty needs nothing.
+     */
+    private function expireDeadLots(PointsAccount $account, DateTimeImmutable $now): int
     {
         $dead = $this->db->table('loyalty.lots')
             ->where('account_id', $account->id)
@@ -117,7 +116,6 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
             /** @var stdClass $row */
             $points = (int) $row->points_left;
 
-            // One EXPIRED entry a lot (§1.10), its movement off the lot, and the lot emptied.
             $entry = $this->db->table('loyalty.entries')->insertGetId([
                 'account_id' => $account->id,
                 'store_id' => $account->store->value,
@@ -144,6 +142,17 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
         }
 
         return $expired;
+    }
+
+    private function row(string $customerId, StoreId $store, bool $lock): ?PointsAccount
+    {
+        $query = $this->db->table('loyalty.accounts')
+            ->where('customer_id', $customerId)
+            ->where('store_id', $store->value);
+
+        $row = ($lock ? $query->lockForUpdate() : $query)->first();
+
+        return $row instanceof stdClass ? self::account($row) : null;
     }
 
     /**
