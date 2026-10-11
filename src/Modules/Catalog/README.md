@@ -602,16 +602,16 @@ viewer right after the language — `ShopperKind $viewer` — and **the page ask
 | `menu($store, $locale, $viewer)` | the categories with something listed **for this viewer** in them or below them |
 | `category($store, $locale, $viewer, $slug, …)` | its cards for this viewer; **no page (null)** when it lists nothing for them |
 | `brand($store, $locale, $viewer, $slug, …)` | its cards for this viewer; an active brand keeps its page |
-| `product($store, $locale, $viewer, $slug)` | available only while this viewer sees it — otherwise the "Not available now" page (P18); its `variants` **retail ones only for an individual** (14(e)), and for a guest where only individuals see the product |
+| `product($store, $locale, $viewer, $slug)` | available only while this viewer sees it — otherwise the "Not available now" page (P18); its `variants` **retail ones only for an individual** (14(e)); both sides for a company or a guest (§4.5) |
 | `relations($store, $locale, $viewer, $productId)` | only what this viewer sees |
 | `ShopSearch::suggest(…, $viewer, $typed)`, `results(…, $viewer, $typed)` | only what this viewer sees; a submitted search is logged with how many this viewer found |
 
 An individual sees a row with `for_individuals`, a company one with `for_companies`, **a guest one with
 either** (P25) — so a category switched off for both is seen by no one. Every `ProductCard` carries
 **`variantId`, the variant its card shows this viewer**: `retail_card_variant_id` for an individual,
-`card_variant_id` for a company; a guest gets the companies' card where companies see the product and
-the individuals' where only they do — and, on a product's page, its wholesale sizes only where
-companies see it (pick 6). Who is looking costs no query of its own: it narrows the
+`card_variant_id` for a company or a guest — a guest is on the companies' side, both sides and the
+companies' card (§2.2, §4.5, §8 #33), wherever P25 lets it see the product (the open question below).
+Who is looking costs no query of its own: it narrows the
 same reads (`CatalogShopAudiencesTest` records each read's count, the same for every viewer); asking
 `ShopperType` costs one query for a signed-in customer, none for a guest.
 
@@ -624,12 +624,25 @@ switches (`Categories/AudienceSwitch.tsx`), each posting to `catalog.admin.categ
 moment it flips (P9) with the store shown; the page comes back with every row as the server has it,
 so a parent's switch shows on everything under it. Someone who may not choose there sees them in
 place, out of reach, the reason in a tooltip and for a screen reader. The page's own queries stay 3
-(`CatalogCategoryAudiencesScreenTest`, as `CatalogListScreensTest` records them).
+(`CatalogCategoryAudiencesScreenTest`, as `CatalogListScreensTest` records them). **Its script**: with
+the switches and #121's checks the page measured 61.9 KB gzipped, over the 60 KB budget; the fates
+dialog, opened only when a category is deactivated and never drawn by the server, is now fetched when
+it opens (`React.lazy`), and the page is 57.7 KB.
 
 **Left to step 6** (P22, with the shop's pages): the card's price, its old price and "Last pieces" per
-side, and the card's variant narrowed by "orderable now" and "priced" once the listing reads
-`store_variant_facts`; the Retail/Wholesale filter (P14) from `sells_retail` / `sells_wholesale`; and
-the filter values (`value_ids`), which still hold every variant on sale for every viewer.
+side — a guest's on the companies' side, as its card — and the card's variant narrowed by "orderable
+now" and "priced" once the listing reads `store_variant_facts`; the Retail/Wholesale filter (P14) from
+`sells_retail` / `sells_wholesale`; and the filter values (`value_ids`), which still hold every variant
+on sale for every viewer.
+
+**Open for the owner** (found by the independent review; built as the spec words it): **a guest on a
+product only individuals see.** §2.2 ("companies and guests" share a card), §4.5 and P17 ("wholesale
+for a company or a guest"), §8 #33 ("a guest and a staff view see both") and sales.md §9.1 #2 (the
+owner, 2026-10-09: guests may add wholesale lines) put a guest on the companies' side; P25 lets a guest see a product whose
+category is on for individuals only. Together, a guest is shown that product's wholesale sizes and
+the companies' card, which no kind of account sees there. The other reading — a guest shown each
+product as the side that sees it, its retail sizes and card in such a category — is one condition in
+`DatabaseShopReader` (tried and reverted on this branch, so it is known to work).
 
 **My picks** (the spec is silent; each the conservative choice, for the owner):
 
@@ -641,13 +654,7 @@ the filter values (`value_ids`), which still hold every variant on sale for ever
 4. **A switch can be set on a deactivated category**, as its menu order can: it shows nothing anyway.
 5. **A command with neither switch is refused** (`InvalidCatalogAttribute` on `audience`), not taken
    as "nothing to do".
-6. **A guest is shown the union of the two sides, product by product** — P25's "what either kind of
-   account sees" read literally (found by the independent review): in a category on for individuals
-   only, a guest sees a mixed product's retail sizes and the retail card, as individuals do, never a
-   wholesale size no kind of account sees there; where companies see it, everything, with the
-   companies' card (§2.2). The alternative — a guest always on the companies' side, as §2.2 and §4.5
-   pair them — is one condition in `DatabaseShopReader`.
-7. **A submitted search is logged with how many this viewer found** (the log still names no person):
+6. **A submitted search is logged with how many this viewer found** (the log still names no person):
    an individual's search for words whose products are hidden from individuals lands in the
    zero-result list staff read for word pairs. Logging what any side would find instead would take
    one more count a search.
@@ -700,10 +707,10 @@ the filter values (`value_ids`), which still hold every variant on sale for ever
 | `Integration/CatalogImportDiscardTest` | Amendment 10(b): a file not brought in discarded whole with its zip, deciding or failed; one bringing in or brought in stays; a store's file is not one; a Super Admin's |
 | `Integration/CatalogImportReviewTest` | After step 6's reviews (amendment 8): ambiguous names and colliding addresses decided on the page; the confirm asking again; holding back, replacing whole, updating and restoring; the page's picks brought in, filling and adding counted against an updated product as it is when brought in; a job given up on; the zip's sizes; linking back on accepting, by any code held; the store file kept to its store |
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema; the store file's job and who sees a category, admin roles only (amendments 6(h), 14(c)) |
-| `Integration/CatalogShopAudiencesTest` | Screens step 5 (amendment 14): who may switch — an admin role's job in that store only, refusals, an off store prepared, the products' lock then the categories' first; a parent's switch reaching everything under it, the other switch kept, a sub-category alone; the audit, nothing written when nothing changes; P24 on adding and moving, the top keeping its own; each change writing the listing as the repair does; who sees a product and each side's card; the two CHECKs; the menu, pages, search, suggestions and relations for each viewer, P25, wholesale-only (14(e)), the card's variant (14(f)), a company account through `ShopperType`; each read's recorded queries, the same for every viewer |
+| `Integration/CatalogShopAudiencesTest` | Screens step 5 (amendment 14): who may switch — an admin role's job in that store only, refusals, an off store prepared, the products' lock then the categories' first; a parent's switch reaching everything under it, the other switch kept, a sub-category alone; the audit, nothing written when nothing changes; P24 on adding and moving, the top keeping its own; a store opened later showing everything to both; each change writing the listing as the repair does; who sees a product and each side's card; the two CHECKs; the menu, pages, search, suggestions and relations for each viewer, P25, a guest on the companies' side even where only individuals see a product (the open question), wholesale-only (14(e)), the card's variant (14(f)), a company account through `ShopperType`; each read's recorded queries, the same for every viewer |
 | `Feature/CatalogCategoryAudiencesScreenTest` | The categories screen's switches over HTTP: what the page is handed for the store shown, the stores offered and what the reader may do there, the menu entry, the page's recorded queries; a switch saved for the store shown and reaching below, refused without the job there, with no store, no switch or one neither on nor off |
-| `tests/Browser/CatalogCategoryAudiencesTest.php` | In a real browser: an admin switches a category off for individuals and the one under it follows; the switches out of reach for someone who only orders the menu; Arabic at a phone's width |
-| `tests/Modules/Access/Feature/ShopperTypeTest.php` | Platform's `ShopperType` as Access binds it: a guest, an individual, a company account that never applied; a guest during a staff view over a signed-in customer; one query a customer, none a guest |
+| `tests/Browser/CatalogCategoryAudiencesTest.php` | In a real browser: an admin switches a category off for individuals and the one under it follows; the switches out of reach, with the reason said, for someone who only orders the menu; the fates dialog, now fetched when opened, deactivating a category; Arabic at a phone's width |
+| `tests/Modules/Access/Feature/ShopperTypeTest.php` | Platform's `ShopperType` as Access binds it: a guest, an individual, a company account that never applied, and one whose company is pending, rejected, suspended or approved; a guest during a staff view over a signed-in customer; one query a customer, none a guest |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 | `Integration/CatalogListReadsTest` | The list screens' reads: who may read and who may change, refused before anything is read; each list's rows; a fixed number of queries however long the list; a store's places beside the base store's; the searches that found nothing, grouped and paged; the products a deactivation reaches; Platform's photos read together; descriptions' marks both ways |
 | `Integration/CatalogProductReadsTest` | The products screens' reads: every product to a reader in some store, refused before reading to anyone else; where each is on among the stores covered; finding by name, by a code in any digits, by stage, category and brand; one store's state and narrowing by it; pages by keyset in a fixed number of queries; one product above its tabs; what a draft lacks, the same as `Readiness`; each tab's own data - a variant's details, size and photos, the photos' states read together; what the reader may do, as the handlers check it |

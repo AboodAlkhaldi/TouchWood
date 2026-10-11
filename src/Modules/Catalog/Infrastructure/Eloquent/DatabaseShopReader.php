@@ -216,12 +216,7 @@ final readonly class DatabaseShopReader implements ShopReader
             ->where('v.is_archived', false)
             // Individuals buy retail only (amendment 14(e)): a mixed product shows them its retail sizes.
             ->when($viewer === ShopperKind::Individual, static fn (Builder $retail): Builder => $retail->where('sv.sells_retail', true))
-            // A guest sees what either kind of account sees (P25): its wholesale sizes only where
-            // companies see the product here - in a category on for individuals alone, its retail ones.
-            ->when($viewer === ShopperKind::Guest, static fn (Builder $either): Builder => $either->whereRaw(
-                '(sv.sells_retail OR EXISTS (SELECT 1 FROM '.self::LISTING.' l WHERE l.store_id = sv.store_id AND l.product_id = sv.product_id AND l.locale = ? AND l.for_companies))',
-                [$locale],
-            ))
+            // A company and a guest see both sides: retail and wholesale (§4.5, §8 #33).
             ->orderBy('v.position')->orderBy('v.id')
             ->pluck('sv.variant_id')
             ->all()));
@@ -285,7 +280,7 @@ final readonly class DatabaseShopReader implements ShopReader
     {
         // The nearness text is the page's name, then the other one, a line apart (DatabaseListingRows).
         $rows = $this->db->select(
-            'SELECT * FROM (SELECT l.product_id, l.name, l.slug, l.card_photo, l.label_ids, l.sales_rank, l.card_variant_id, l.retail_card_variant_id, l.for_companies,'
+            'SELECT * FROM (SELECT l.product_id, l.name, l.slug, l.card_photo, l.label_ids, l.sales_rank, l.card_variant_id, l.retail_card_variant_id,'
             .' CASE WHEN split_part(l.search_text, chr(10), 1) = ?::text OR split_part(l.search_text, chr(10), 2) = ?::text THEN 1'
             ." WHEN l.search_document @@ to_tsquery('simple', ?) THEN 2"
             .' WHEN ?::text <% l.search_text THEN 3'
@@ -371,20 +366,15 @@ final readonly class DatabaseShopReader implements ShopReader
 
     /**
      * Each card with the variant it shows to this viewer (amendment 14(f)): the first an individual can
-     * buy — a retail one — or, for a company, the first on sale here. A guest shares the companies'
-     * card (§2.2) where companies see the product, and the individuals' where only they do (P25: what
-     * either kind of account sees, never a size neither sees).
+     * buy — a retail one — or, for a company or a guest, the first on sale here (§2.2: companies and
+     * guests share a card).
      *
      * @param  array<array-key, mixed>  $rows  listing rows
      * @return list<ProductCard>
      */
     private function cards(array $rows, string $locale, ShopperKind $viewer): array
     {
-        $variant = static fn (stdClass $row): string => (string) match ($viewer) {
-            ShopperKind::Individual => $row->retail_card_variant_id,
-            ShopperKind::Company => $row->card_variant_id,
-            ShopperKind::Guest => (bool) $row->for_companies ? $row->card_variant_id : $row->retail_card_variant_id,
-        };
+        $variant = static fn (stdClass $row): string => (string) ($viewer === ShopperKind::Individual ? $row->retail_card_variant_id : $row->card_variant_id);
         $rows = array_values(array_filter($rows, static fn (mixed $row): bool => $row instanceof stdClass));
         $labelIds = [];
 

@@ -553,7 +553,11 @@ describe('what each viewer sees in the shop', function () {
             ->and(catalogAudiencesPage($forIndividuals, ShopperKind::Guest)->available)->toBeTrue();
     });
 
-    it('shows a guest the wholesale sizes and card only where companies see the product (P25: what either kind sees)', function () {
+    // §2.2, §4.5 and §8 #33 put a guest on the companies' side - both sides, the companies' card -
+    // and P25 lets a guest see a product only individuals see: there a guest is shown its wholesale
+    // sizes, which no kind of account sees. Built as the spec words it; the case is the owner's
+    // question (README, "Open for the owner").
+    it('shows a guest both sides and the companies\' card, even where only individuals see the product', function () {
         $individualsOnly = Px::category('Kitchens');
         $companiesOnly = Px::category('Wardrobes');
         ['product' => $forIndividuals, 'variants' => [$sixty, $eighty]] = catalogAudiencesProduct($individualsOnly, ['60 cm', '80 cm']);
@@ -572,10 +576,12 @@ describe('what each viewer sees in the shop', function () {
             app(ShopSearch::class)->results(catalogAudiencesStore('sa'), 'en', ShopperKind::Guest, 'Drawer')->cards,
         ), 1, 0);
 
-        // Only individuals see the first: a guest is shown what they are - its retail size, its retail card.
-        expect(catalogAudiencesVariantsShown($forIndividuals, ShopperKind::Guest))->toBe([$eighty])
-            ->and($card($individualsOnly))->toBe($eighty)
-            ->and($search[$forIndividuals] ?? null)->toBe($eighty)
+        // Only individuals see the first, who are shown its retail size; a guest is shown both, and the
+        // companies' card.
+        expect(catalogAudiencesVariantsShown($forIndividuals, ShopperKind::Individual))->toBe([$eighty])
+            ->and(catalogAudiencesVariantsShown($forIndividuals, ShopperKind::Guest))->toBe([$sixty, $eighty])
+            ->and($card($individualsOnly))->toBe($sixty)
+            ->and($search[$forIndividuals] ?? null)->toBe($sixty)
             // Companies see the second: a guest is shown its wholesale size too, and the companies' card.
             ->and(catalogAudiencesVariantsShown($forCompanies, ShopperKind::Guest))->toBe([$wholesale, $retail])
             ->and($card($companiesOnly))->toBe($wholesale)
