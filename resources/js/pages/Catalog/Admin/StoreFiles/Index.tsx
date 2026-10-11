@@ -15,6 +15,7 @@ import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
 import type { ImportProblemData, StoreFileRowData, StoreFilesPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
+import { GuideLink } from '../Imports/parts';
 import { useLocale } from '../parts';
 
 /*
@@ -161,6 +162,7 @@ function UploadDialog({
                     />
                     {form.errors.file ? <FieldError id="store-file-error">{form.errors.file}</FieldError> : null}
                 </Field>
+                <GuideLink />
                 {shown.length > 0 ? (
                     <div className="grid gap-2" data-test="file-problems">
                         <p className="text-label-14 text-ink">{t('catalog::admin_store_files.problems_title')}</p>

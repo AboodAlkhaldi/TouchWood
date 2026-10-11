@@ -52,6 +52,23 @@ final readonly class DatabaseVariantRepository implements VariantRepository
         return $this->toVariants($this->db->table(self::TABLE)->where('product_id', strtolower($productId))->orderBy('position')->orderBy('id')->get()->all());
     }
 
+    public function ofProducts(array $productIds): array
+    {
+        $ids = array_values(array_unique(array_map(strtolower(...), array_filter($productIds, Ulids::valid(...)))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $byProduct = array_fill_keys($ids, []);
+
+        foreach ($this->toVariants($this->db->table(self::TABLE)->whereIn('product_id', $ids)->orderBy('position')->orderBy('id')->get()->all()) as $variant) {
+            $byProduct[$variant->productId()][] = $variant;
+        }
+
+        return $byProduct;
+    }
+
     public function hasAny(string $productId): bool
     {
         return Ulids::valid($productId) && $this->db->table(self::TABLE)->where('product_id', strtolower($productId))->exists();

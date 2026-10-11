@@ -138,6 +138,9 @@ final class CatalogServiceProvider extends ServiceProvider
             new MenuEntryDto('catalog', 'warranties', PermissionGroup::Catalog->value, 'catalog.admin.warranties', CatalogPermissions::WARRANTY_MANAGE, 70, icon: 'catalog'),
             new MenuEntryDto('catalog', 'search_words', PermissionGroup::Catalog->value, 'catalog.admin.search-words', CatalogPermissions::SEARCH_WORD_MANAGE, 80, icon: 'catalog'),
             new MenuEntryDto('catalog', 'store_files', PermissionGroup::Catalog->value, 'catalog.admin.store-files', CatalogPermissions::LISTING_FILL, 90, icon: 'catalog'),
+            // The first entry under a reserved permission (§4.4 S11): offered to the Super Admin, whom
+            // storesWith() answers with every store; the entry names its own group.
+            new MenuEntryDto('catalog', 'imports', PermissionGroup::Catalog->value, 'catalog.admin.imports', CatalogPermissions::IMPORT_RUN, 100, icon: 'catalog'),
         );
 
         if (! $this->app->routesAreCached()) {

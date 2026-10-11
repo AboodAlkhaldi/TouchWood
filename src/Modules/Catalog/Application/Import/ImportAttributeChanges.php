@@ -53,11 +53,15 @@ final readonly class ImportAttributeChanges
 
         $references = new ImportReferences(CatalogNames::load($this->brands, $this->categories, $this->attributes, $this->warranties), $names, [], $this->brands->defaultBrand()?->id() ?? '');
         $found = [];
+        // Every product the file changes, read together (P13): its attributes, its variants.
+        $productIds = array_values(array_unique(array_map(static fn (ImportProduct $row): string => strtolower((string) $row->conflictProductId), $changing)));
+        $heldOf = $this->products->variantAttributesOf($productIds);
+        $variantsOf = $this->variants->ofProducts($productIds);
 
         foreach ($changing as $row) {
             $file = $row->effective();
             $given = self::attributes($file, $references);
-            $held = $this->products->variantAttributes((string) $row->conflictProductId);
+            $held = $heldOf[strtolower((string) $row->conflictProductId)] ?? [];
             sort($held);
 
             if ($given === null || $given === $held) {
@@ -65,7 +69,7 @@ final readonly class ImportAttributeChanges
             }
 
             $codes = array_map(static fn (FileVariant $variant): string => $variant->code, $file->variants);
-            $unnamed = array_filter($this->variants->ofProduct((string) $row->conflictProductId), static fn ($variant): bool => ! in_array($variant->code()->value, $codes, true));
+            $unnamed = array_filter($variantsOf[strtolower((string) $row->conflictProductId)] ?? [], static fn ($variant): bool => ! in_array($variant->code()->value, $codes, true));
 
             if ($row->decision === ImportProduct::UPDATE || $unnamed !== []) {
                 $found[] = $row->id;

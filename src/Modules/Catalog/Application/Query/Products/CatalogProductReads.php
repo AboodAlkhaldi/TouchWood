@@ -30,6 +30,15 @@ interface CatalogProductReads
     public function cores(array $productIds): array;
 
     /**
+     * Those of these products a store has switched on - any variant on in any store - in one query
+     * (an import's page asks it of every product its file would change, amendment 9(c)).
+     *
+     * @param  list<string>  $productIds
+     * @return list<string>
+     */
+    public function onSaleAmong(array $productIds): array;
+
+    /**
      * Its variants, archived ones too, in their order.
      *
      * @return list<VariantView>
