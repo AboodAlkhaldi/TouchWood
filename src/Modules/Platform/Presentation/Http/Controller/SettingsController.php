@@ -91,16 +91,46 @@ final readonly class SettingsController
      * the module's own answer, so reading the value by it cannot disagree with what it will be
      * checked against. An unknown key has no type, and its raw text goes to the handler, which
      * refuses it by name.
+     *
+     * Only text that **is** a number or a yes/no becomes one: anything else reaches the registry as
+     * it came, and its strict type check refuses it with the setting's own message. Laravel's
+     * `integer()` and `boolean()` would turn an emptied field into 0 and any text into false, so
+     * clearing "the most of an order points may pay" saved 0 and switched redemption off while the
+     * page said "Saved" (Loyalty step 1's review, owner 2026-10-10).
      */
     private function value(Request $request, ?SettingType $type): mixed
     {
         $raw = $request->string('value')->toString();
 
         return match ($type) {
-            SettingType::Integer => $request->integer('value'),
-            SettingType::Boolean => $request->boolean('value'),
+            SettingType::Integer => self::wholeNumber($request->input('value')),
+            SettingType::Boolean => self::yesOrNo($request->input('value')),
             SettingType::List => $request->array('value'),
             default => $raw,
+        };
+    }
+
+    /** A whole number written as one ("12", "-3"), as a number; anything else as it came. */
+    private static function wholeNumber(mixed $value): mixed
+    {
+        if (is_string($value) && preg_match('/\A-?\d{1,18}\z/', trim($value)) === 1) {
+            return (int) trim($value);
+        }
+
+        return $value;
+    }
+
+    /** "true" or "false" (what the page's switch sends), "1" or "0", as a yes/no; anything else as it came. */
+    private static function yesOrNo(mixed $value): mixed
+    {
+        if (! is_string($value)) {
+            return $value;
+        }
+
+        return match (strtolower(trim($value))) {
+            'true', '1' => true,
+            'false', '0' => false,
+            default => $value,
         };
     }
 }
