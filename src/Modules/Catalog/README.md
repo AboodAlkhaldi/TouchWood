@@ -573,8 +573,10 @@ categories'** (`StoreListingChange::runAfterProducts`): the listing is written u
 read under the second. Each category whose switches changed is audited in that store
 (`catalog.category.audience_set`, from what was to what is); nothing changed, nothing is written or
 recorded. The listing rows of the products in the categories that changed are written in the same
-transaction. Each store's rows go through `CategoryAudienceRepository`, which names the store in every
-call (amendment 4(h)) but one: `inEveryStore`, for P24.
+transaction. Each store's rows are written through `CategoryAudienceRepository`, which names the
+store in every call (amendment 4(h)) but one: `inEveryStore`, for P24; the listing's writer and the
+screen's read take them in their own one query (§5.2 allows reads across stores where a rule needs
+them).
 
 **P24** (`CategoryAudiences::takeParents`): a sub-category **added** under a parent, and a branch
 **moved** under one, take the parent's switches in every store where either has a row, each store's
@@ -600,14 +602,16 @@ viewer right after the language — `ShopperKind $viewer` — and **the page ask
 | `menu($store, $locale, $viewer)` | the categories with something listed **for this viewer** in them or below them |
 | `category($store, $locale, $viewer, $slug, …)` | its cards for this viewer; **no page (null)** when it lists nothing for them |
 | `brand($store, $locale, $viewer, $slug, …)` | its cards for this viewer; an active brand keeps its page |
-| `product($store, $locale, $viewer, $slug)` | available only while this viewer sees it — otherwise the "Not available now" page (P18); its `variants` **retail ones only for an individual** (14(e)) |
+| `product($store, $locale, $viewer, $slug)` | available only while this viewer sees it — otherwise the "Not available now" page (P18); its `variants` **retail ones only for an individual** (14(e)), and for a guest where only individuals see the product |
 | `relations($store, $locale, $viewer, $productId)` | only what this viewer sees |
 | `ShopSearch::suggest(…, $viewer, $typed)`, `results(…, $viewer, $typed)` | only what this viewer sees; a submitted search is logged with how many this viewer found |
 
 An individual sees a row with `for_individuals`, a company one with `for_companies`, **a guest one with
 either** (P25) — so a category switched off for both is seen by no one. Every `ProductCard` carries
 **`variantId`, the variant its card shows this viewer**: `retail_card_variant_id` for an individual,
-`card_variant_id` for a company or a guest. Who is looking costs no query of its own: it narrows the
+`card_variant_id` for a company; a guest gets the companies' card where companies see the product and
+the individuals' where only they do — and, on a product's page, its wholesale sizes only where
+companies see it (pick 6). Who is looking costs no query of its own: it narrows the
 same reads (`CatalogShopAudiencesTest` records each read's count, the same for every viewer); asking
 `ShopperType` costs one query for a signed-in customer, none for a guest.
 
@@ -637,6 +641,16 @@ the filter values (`value_ids`), which still hold every variant on sale for ever
 4. **A switch can be set on a deactivated category**, as its menu order can: it shows nothing anyway.
 5. **A command with neither switch is refused** (`InvalidCatalogAttribute` on `audience`), not taken
    as "nothing to do".
+6. **A guest is shown the union of the two sides, product by product** — P25's "what either kind of
+   account sees" read literally (found by the independent review): in a category on for individuals
+   only, a guest sees a mixed product's retail sizes and the retail card, as individuals do, never a
+   wholesale size no kind of account sees there; where companies see it, everything, with the
+   companies' card (§2.2). The alternative — a guest always on the companies' side, as §2.2 and §4.5
+   pair them — is one condition in `DatabaseShopReader`.
+7. **A submitted search is logged with how many this viewer found** (the log still names no person):
+   an individual's search for words whose products are hidden from individuals lands in the
+   zero-result list staff read for word pairs. Logging what any side would find instead would take
+   one more count a search.
 
 ## Tests
 

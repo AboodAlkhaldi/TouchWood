@@ -30,6 +30,9 @@ use Modules\Catalog\Application\Query\Shop\ShopSearch;
 use Modules\Catalog\Application\Query\Shop\ShopVariant;
 use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
+use Modules\Platform\Application\Command\CreateStore\CreateStore;
+use Modules\Platform\Application\Command\CreateStore\CreateStoreHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Platform\Public\Contracts\ShopperType;
@@ -272,7 +275,7 @@ describe('who may switch', function () {
 });
 
 describe('the switches', function () {
-    it('shows a category nobody switched to both kinds of account, in every store — a store opened later too', function () {
+    it('shows a category nobody switched to both kinds of account, in every store', function () {
         $category = Px::category('Kitchens');
         $p = catalogAudiencesProduct($category, stores: ['sa', 'eg', 'ae']);
 
@@ -281,6 +284,26 @@ describe('the switches', function () {
         foreach (['sa', 'eg', 'ae'] as $store) {
             expect(catalogAudiencesListing($p['product'], $store))->toMatchArray(['for_individuals' => true, 'for_companies' => true]);
         }
+    });
+
+    it('shows everything to both in a store opened later, whatever the other stores switched off (§8 #32)', function () {
+        $top = Px::category('Kitchens');
+        $category = Px::category('Drawers', $top);
+        $p = catalogAudiencesProduct($category, stores: ['sa', 'eg']);
+        catalogAudiencesSwitch('sa', $top, false, false);
+        catalogAudiencesSwitch('eg', $top, false, false);
+
+        // A store has a currency of its own (platform.md §9.7 #3): Kuwait's is made with it. It opens
+        // off - its id read from its row, as an off store's code finds no store (lesson 187).
+        Fx::asSystem(fn () => app(CreateStoreHandler::class)->handle(new CreateStore('kw', 'الكويت', 'Kuwait', 'KW', '', 1500, 'Asia/Kuwait', 4, new CreateCurrency('KWD', 3, 'دينار كويتي', 'Kuwaiti dinar', 'د.ك', 'KWD', null))));
+        $kw = (string) DB::table('platform.stores')->where('code', 'kw')->value('id');
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore($kw, $p['product'], true)));
+        $row = DB::table('catalog.listing')->where('store_id', $kw)->where('locale', 'en')->where('product_id', $p['product'])->first(['for_individuals', 'for_companies']);
+
+        expect(DB::table('catalog.store_category_audiences')->where('store_id', $kw)->count())->toBe(0)
+            ->and($row)->toEqual((object) ['for_individuals' => true, 'for_companies' => true])
+            ->and(catalogAudiencesMenuIds(app(ShopCatalog::class)->menu(StoreId::fromString($kw), 'en', ShopperKind::Individual)))->toBe([$top, $category])
+            ->and(catalogAudiencesMenuIds(app(ShopCatalog::class)->menu(catalogAudiencesStore('sa'), 'en', ShopperKind::Individual)))->toBe([]);
     });
 
     it('switches everything under a parent the same way, the other switch left as each has it; a sub-category may then change alone; another store untouched', function () {
@@ -528,6 +551,35 @@ describe('what each viewer sees in the shop', function () {
             ->and($menu(ShopperKind::Guest))->toEqualCanonicalizing([$individualsOnly, $companiesOnly])
             ->and(catalogAudiencesPage($forNobody, ShopperKind::Guest)->available)->toBeFalse()
             ->and(catalogAudiencesPage($forIndividuals, ShopperKind::Guest)->available)->toBeTrue();
+    });
+
+    it('shows a guest the wholesale sizes and card only where companies see the product (P25: what either kind sees)', function () {
+        $individualsOnly = Px::category('Kitchens');
+        $companiesOnly = Px::category('Wardrobes');
+        ['product' => $forIndividuals, 'variants' => [$sixty, $eighty]] = catalogAudiencesProduct($individualsOnly, ['60 cm', '80 cm']);
+        ['product' => $forCompanies, 'variants' => [$wholesale, $retail]] = catalogAudiencesProduct($companiesOnly, ['60 cm', '80 cm']);
+        catalogAudiencesSell('sa', $forIndividuals, [$sixty => 'W']);
+        catalogAudiencesSell('sa', $forCompanies, [$wholesale => 'W']);
+        catalogAudiencesSwitch('sa', $individualsOnly, null, false);
+        catalogAudiencesSwitch('sa', $companiesOnly, false);
+        $card = static function (string $categoryId): string {
+            $page = app(ShopCatalog::class)->category(catalogAudiencesStore('sa'), 'en', ShopperKind::Guest, catalogAudiencesSlug('category', $categoryId));
+
+            return $page instanceof CategoryPage ? $page->products->cards[0]->variantId : '';
+        };
+        $search = array_column(array_map(
+            static fn (ProductCard $found): array => [$found->productId, $found->variantId],
+            app(ShopSearch::class)->results(catalogAudiencesStore('sa'), 'en', ShopperKind::Guest, 'Drawer')->cards,
+        ), 1, 0);
+
+        // Only individuals see the first: a guest is shown what they are - its retail size, its retail card.
+        expect(catalogAudiencesVariantsShown($forIndividuals, ShopperKind::Guest))->toBe([$eighty])
+            ->and($card($individualsOnly))->toBe($eighty)
+            ->and($search[$forIndividuals] ?? null)->toBe($eighty)
+            // Companies see the second: a guest is shown its wholesale size too, and the companies' card.
+            ->and(catalogAudiencesVariantsShown($forCompanies, ShopperKind::Guest))->toBe([$wholesale, $retail])
+            ->and($card($companiesOnly))->toBe($wholesale)
+            ->and($search[$forCompanies] ?? null)->toBe($wholesale);
     });
 
     it('never shows an individual a product all wholesale-only, nor the wholesale sizes of another; a company and a guest see both sides', function () {

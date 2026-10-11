@@ -111,7 +111,8 @@ interface ShopReader
 
     /**
      * The variants this viewer can order in this store, in the product's order — for an individual,
-     * those sold retail only (amendment 14(e)).
+     * those sold retail only (amendment 14(e)); for a guest, those either kind of account is shown
+     * (P25): the wholesale ones only where companies see the product.
      *
      * @return list<ShopVariant>
      */

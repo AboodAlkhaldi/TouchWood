@@ -98,7 +98,10 @@ it('shows the switches out of reach, with the reason, to someone who only orders
     $page->navigate('/admin/categories?store=sa', BROWSER_PAGE_LOAD);
     $page->assertSee('Categories');
 
-    expect($page->script("document.querySelector('[data-test=\"audience-individuals-{$category}\"]').getAttribute('aria-disabled')"))->toBe('true');
+    // Out of reach, and the reason said to a screen reader with it (the tooltip shows the same words).
+    expect($page->script("document.querySelector('[data-test=\"audience-individuals-{$category}\"]').getAttribute('aria-disabled')"))->toBe('true')
+        ->and($page->script("document.getElementById(document.querySelector('[data-test=\"audience-individuals-{$category}\"]').getAttribute('aria-describedby')).textContent"))
+        ->toBe('Choosing who sees categories in Saudi Arabia needs an admin role with that job.');
 
     // A pointer cannot press it (the browser treats it as disabled). A click sent to it anyway changes
     // nothing - the page ignores it, and the server would refuse it too (the feature test's), so this

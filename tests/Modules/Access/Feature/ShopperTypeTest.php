@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Modules\Access\Application\Customer\CustomerShopperType;
+use Modules\B2B\Public\Contracts\B2BApi;
+use Modules\B2B\Public\Enums\CompanyStatus;
 use Modules\Platform\Application\Routing\GuestShoppers;
 use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Enums\ShopperKind;
@@ -19,6 +21,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\B2B\Support\B2BFixtures;
 
 use function Pest\Laravel\seed;
 
@@ -62,6 +65,20 @@ it('answers a guest for nobody signed in, an individual and a company by their a
     // A company account that never applied for a company here: the company side all the same.
     shopperTypeSignedIn('works@example.test', 'company')->get('/sa/en/shopper-type-probe')->assertOk()->assertSeeText('COMPANY');
 });
+
+it('answers a company for a company account whose company in the store is pending, rejected or suspended (§8 #33)', function (Closure $state, CompanyStatus $status) {
+    $customerId = B2BFixtures::verifiedCompanyAccount();
+    $state($customerId);
+    Fx::actAsCustomer($customerId);
+
+    expect(app(B2BApi::class)->status($customerId, Fx::storeId('sa')))->toBe($status)
+        ->and(app(ShopperType::class)->current())->toBe(ShopperKind::Company);
+})->with([
+    'pending' => [fn (string $customerId) => B2BFixtures::sent($customerId), CompanyStatus::Pending],
+    'rejected' => [fn (string $customerId) => B2BFixtures::rejected($customerId), CompanyStatus::Rejected],
+    'suspended after its approval' => [fn (string $customerId) => B2BFixtures::suspend(B2BFixtures::approved($customerId)[0]), CompanyStatus::Suspended],
+    'approved' => [fn (string $customerId) => B2BFixtures::approved($customerId), CompanyStatus::Approved],
+]);
 
 it('answers a guest while a staff view holds, though a customer is signed in underneath, and the customer again once it ends', function () {
     $browser = shopperTypeSignedIn('sara@example.test', 'company');

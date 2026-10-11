@@ -182,13 +182,13 @@ describe('a switch', function () {
         $below = Px::category('Drawers', $top);
         $browser = catalogAudienceScreen([P::CATEGORY_AUDIENCE], ['sa']);
 
-        expect(catalogAudienceScreenToast($browser->post("/admin/categories/{$top}/audience", ['store' => 'sa', 'individuals' => '0'])))->toBe('Who sees it saved')
+        expect(catalogAudienceScreenToast($browser->post("/admin/categories/{$top}/audience", ['store' => 'sa', 'individuals' => '0'])))->toBe('Switch saved')
             ->and(catalogAudienceScreenRow('sa', $top))->toBe([false, true])
             ->and(catalogAudienceScreenRow('sa', $below))->toBe([false, true])
-            ->and(catalogAudienceScreenToast($browser->post("/admin/categories/{$below}/audience", ['store' => 'sa', 'companies' => 'false'])))->toBe('Who sees it saved')
+            ->and(catalogAudienceScreenToast($browser->post("/admin/categories/{$below}/audience", ['store' => 'sa', 'companies' => 'false'])))->toBe('Switch saved')
             ->and(catalogAudienceScreenRow('sa', $below))->toBe([false, false])
             ->and(catalogAudienceScreenRow('sa', $top))->toBe([false, true])
-            ->and(catalogAudienceScreenToast($browser->post("/admin/categories/{$top}/audience", ['store' => 'sa', 'individuals' => '1'])))->toBe('Who sees it saved')
+            ->and(catalogAudienceScreenToast($browser->post("/admin/categories/{$top}/audience", ['store' => 'sa', 'individuals' => '1'])))->toBe('Switch saved')
             ->and(catalogAudienceScreenRow('sa', $below))->toBe([true, false]);
     });
 

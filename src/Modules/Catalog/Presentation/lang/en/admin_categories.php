@@ -61,7 +61,7 @@ return [
         'activated' => 'Category activated',
         'deactivated' => 'Category deactivated',
         'deleted' => 'Category deleted',
-        'audience_set' => 'Who sees it saved',
+        'audience_set' => 'Switch saved',
     ],
     // Who sees each category in the store shown (amendment 14): two switches a row, each saved as it flips.
     'audience' => [
