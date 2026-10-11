@@ -16,8 +16,8 @@ use Modules\Catalog\Domain\Repository\VariantRepository;
 use Shared\Application\Unauthorized;
 
 /**
- * **Deleting an attribute** (catalog.md §1.7, §9.3 #14): only one nothing uses — no attribute set
- * holds it — and its values go first, each deleted and audited. **Never one a variant carries**, as a value
+ * **Deleting an attribute** (catalog.md §1.7, §9.3 #14): only one nothing uses — no product makes
+ * its variants of it (amendment 16(b)) — and its values go first, each deleted and audited. **Never one a variant carries**, as a value
  * or a detail, nor one a product filters by (`ListItemInUse`), asked after the attribute's row is locked.
  */
 final readonly class DeleteAttributeHandler
@@ -41,7 +41,7 @@ final readonly class DeleteAttributeHandler
         $this->change->run(ListLocks::ATTRIBUTES, function () use ($command): array {
             $attribute = $this->attributes->byId($command->attributeId) ?? throw new ListItemNotFound($command->attributeId);
 
-            if ($this->attributes->inSets($attribute->id()) || $this->variants->anyWithAttribute($attribute->id()) || $this->products->anyWithFilterAttribute($attribute->id())) {
+            if ($this->attributes->makesVariants($attribute->id()) || $this->variants->anyWithAttribute($attribute->id()) || $this->products->anyWithFilterAttribute($attribute->id())) {
                 throw new ListItemInUse;
             }
 

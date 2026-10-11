@@ -13,7 +13,6 @@ use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ProductInput;
 use Modules\Catalog\Application\Products\ProductReferences;
 use Modules\Catalog\Application\Products\Readiness;
-use Modules\Catalog\Domain\Exception\AttributeSetLocked;
 use Modules\Catalog\Domain\Exception\BrandInactive;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
 use Modules\Catalog\Domain\Exception\CategoryInactive;
@@ -27,14 +26,13 @@ use Modules\Catalog\Domain\Exception\ProductNotReady;
 use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
-use Modules\Catalog\Domain\Repository\VariantRepository;
 use Shared\Application\Unauthorized;
 
 /**
  * **Editing a product's own details** (catalog.md §1.1): `catalog.product.update`, as the product's
  * shared data. What it newly points at must be active — a category also the lowest of its branch;
- * what it already points at may stay. Its attribute set is fixed once it has a variant (§1.7). A
- * slug that changes leaves the old one held, redirecting.
+ * what it already points at may stay. Its variant attributes are not here: the Variants tab changes
+ * them (amendment 16(b)). A slug that changes leaves the old one held, redirecting.
  */
 final readonly class EditProductDetailsHandler
 {
@@ -44,7 +42,6 @@ final readonly class EditProductDetailsHandler
         private ProductAccess $access,
         private SharedListChange $change,
         private ProductRepository $products,
-        private VariantRepository $variants,
         private ProductInput $input,
         private ProductReferences $references,
         private Readiness $readiness,
@@ -53,7 +50,7 @@ final readonly class EditProductDetailsHandler
     ) {}
 
     /**
-     * @throws AttributeSetLocked|BrandInactive|BrandNotFound|CategoryInactive|CategoryNotFound|CategoryNotLowest|InvalidCatalogAttribute|ListItemInactive|ListItemNotFound|ProductNotFound|ProductNotReady|SlugTaken|Unauthorized
+     * @throws BrandInactive|BrandNotFound|CategoryInactive|CategoryNotFound|CategoryNotLowest|InvalidCatalogAttribute|ListItemInactive|ListItemNotFound|ProductNotFound|ProductNotReady|SlugTaken|Unauthorized
      */
     public function handle(EditProductDetails $command): void
     {
@@ -75,8 +72,6 @@ final readonly class EditProductDetailsHandler
                 $this->references->brand($command->brandId, $product->brandId()),
                 $this->references->category($command->categoryId, $product->categoryId()),
                 $this->references->warranty($command->warrantyId, $product->warrantyId()),
-                $this->references->attributeSet($command->attributeSetId, $product->attributeSetId())?->id(),
-                $this->variants->hasAny($product->id()),
             );
             $entry = ListAudit::changed('product', 'edited', $product->id(), $product->pullChanges(), $product->snapshot());
 

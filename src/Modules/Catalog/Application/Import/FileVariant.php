@@ -33,7 +33,9 @@ final readonly class FileVariant
     {
         return [
             'code' => $this->code,
-            'values' => $this->values,
+            // As pairs, in the file's order: a JSON object kept as jsonb loses its keys' order, and the
+            // first variant's order is the order of the product's attributes (amendment 16(b)).
+            'values' => array_map(static fn (string $attribute, string $value): array => [$attribute, $value], array_map('strval', array_keys($this->values)), array_values($this->values)),
             'details' => $this->details,
             'weight_g' => $this->weightGrams,
             'length_mm' => $this->lengthMm,
@@ -48,8 +50,17 @@ final readonly class FileVariant
      */
     public static function fromArray(array $data): self
     {
-        /** @var array<string, string> $values */
-        $values = $data['values'] ?? [];
+        $values = [];
+
+        // Pairs, as written since amendment 16(b); a map, as an import read before kept it.
+        foreach (is_array($data['values'] ?? null) ? $data['values'] : [] as $key => $pair) {
+            if (is_array($pair) && array_is_list($pair) && count($pair) === 2) {
+                $values[(string) $pair[0]] = (string) $pair[1];
+            } elseif (is_string($pair)) {
+                $values[(string) $key] = $pair;
+            }
+        }
+
         /** @var array<string, array{ar: string, en: string}|string> $details */
         $details = $data['details'] ?? [];
         /** @var list<string> $photos */

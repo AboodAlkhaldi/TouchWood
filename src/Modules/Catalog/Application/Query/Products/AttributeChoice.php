@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Catalog\Application\Query\Products;
 
 /**
- * An attribute with its values, as a product's forms offer it (catalog.md §4.4 S9): a variation's
+ * An attribute with its values, as a product's forms offer it (catalog.md §4.4 S9): the variant-making
  * attributes to choose a variant's values, "details only" ones for its details, filter ones for the
  * product's filters. Inactive values are offered only where a product already holds them.
  */

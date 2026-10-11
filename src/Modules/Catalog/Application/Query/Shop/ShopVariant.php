@@ -10,7 +10,7 @@ namespace Modules\Catalog\Application\Query\Shop;
 final readonly class ShopVariant
 {
     /**
-     * @param  list<VariantChoice>  $values  in the attribute set's order
+     * @param  list<VariantChoice>  $values  in the product's order of its variant attributes
      */
     public function __construct(
         public string $variantId,

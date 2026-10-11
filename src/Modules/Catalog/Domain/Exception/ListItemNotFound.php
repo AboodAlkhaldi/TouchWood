@@ -7,7 +7,7 @@ namespace Modules\Catalog\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * An attribute, value, attribute set, label, warranty or word pair that does not exist (catalog.md §7) —
+ * An attribute, value, label, warranty or word pair that does not exist (catalog.md §7) —
  * or an uploaded file, or one of its names or products (amendment 6).
  */
 final class ListItemNotFound extends CatalogError

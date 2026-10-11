@@ -15,7 +15,7 @@ final readonly class ProductCore
      * @param  array<string, mixed>|null  $descriptionAr  the structured text (§1.1), or none
      * @param  array<string, mixed>|null  $descriptionEn
      * @param  list<array{ar: string, en: string}>  $categoryPath  from the top down to its category
-     * @param  list<string>  $setAttributeIds  its variation's attributes, in order
+     * @param  list<string>  $variantAttributeIds  its variants' attributes, in its order (amendment 16(b))
      * @param  list<string>  $codes
      * @param  list<string>  $gallery  media ids, the card's photo first
      * @param  list<string>  $onIn  the stores where any of its variants is switched on, as ids
@@ -36,10 +36,7 @@ final readonly class ProductCore
         public array $categoryPath,
         public bool $categoryShowable,
         public ?string $warrantyId,
-        public ?string $attributeSetId,
-        public ?string $attributeSetNameAr,
-        public ?string $attributeSetNameEn,
-        public array $setAttributeIds,
+        public array $variantAttributeIds,
         public ?array $descriptionAr,
         public ?array $descriptionEn,
         public bool $hiddenByCategory,

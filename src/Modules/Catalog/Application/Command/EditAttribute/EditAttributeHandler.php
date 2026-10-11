@@ -22,8 +22,8 @@ use Shared\Application\Unauthorized;
 /**
  * **Editing an attribute** (catalog.md §1.7). Its job, and being a colour, change only while it has
  * no values (amendment 1(i)) and no variant carries a detail of it (3(k)) — asked under the attributes' lock, so a value added at the same moment
- * is seen. An attribute a set holds stays variant-making, values or none: the set is made of
- * variant-making attributes only.
+ * is seen. An attribute products make their variants of stays variant-making, values or none
+ * (amendment 16(b)).
  */
 final readonly class EditAttributeHandler
 {
@@ -47,8 +47,8 @@ final readonly class EditAttributeHandler
         $this->change->run(ListLocks::ATTRIBUTES, function () use ($command, $name, $kind): array {
             $attribute = $this->attributes->byId($command->attributeId) ?? throw new ListItemNotFound($command->attributeId);
 
-            if ($kind !== AttributeKind::Variant && $this->attributes->inSets($attribute->id())) {
-                throw new InvalidCatalogAttribute('kind', 'variant-making while an attribute set holds it');
+            if ($kind !== AttributeKind::Variant && $this->attributes->makesVariants($attribute->id())) {
+                throw new InvalidCatalogAttribute('kind', 'variant-making while products make their variants of it');
             }
 
             // Its job stays once it has values (amendment 1(i)), or variants carry details of it (3(k)).

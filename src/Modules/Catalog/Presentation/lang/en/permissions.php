@@ -32,7 +32,7 @@ return [
         'manage' => 'Manage brands',
     ],
     'attribute' => [
-        'manage' => 'Manage attributes, values, colours and attribute sets',
+        'manage' => 'Manage attributes, values and colours',
     ],
     'label' => [
         'manage' => 'Manage labels',

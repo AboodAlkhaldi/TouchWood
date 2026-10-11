@@ -23,8 +23,6 @@ use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariant;
 use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariantHandler;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValue;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValueHandler;
-use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
-use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Domain\Exception\CodeTaken;
@@ -32,7 +30,6 @@ use Modules\Catalog\Domain\Exception\DuplicateCombination;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
-use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\ValueObject\VariantDetail;
 use Shared\Application\Unauthorized;
@@ -45,7 +42,7 @@ use function Pest\Laravel\seed;
 /*
 | Variants and their codes (catalog.md §1.2, amendments 3, 16(a)): a code of digits is one variant's,
 | and stays with its product until the product — a draft — is deleted; one value
-| of every attribute of the product's set, a combination of its own; details as text or a number;
+| of each of the product's variant attributes (amendment 16(b)), a combination of its own; details as text or a number;
 | in a draft, codes edited and variants deleted freely, a code given up free again.
 */
 
@@ -58,7 +55,7 @@ beforeEach(function () {
 });
 
 /**
- * A draft whose set is one variant-making attribute with these values.
+ * A draft whose variants are made of one attribute, with these values.
  *
  * @param  list<string>  $values
  * @return array{string, string, array<string, string>} the product, the attribute, value name => id
@@ -73,18 +70,9 @@ function catalogVariantsSized(array $values = ['60 cm', '80 cm', '90 cm']): arra
     }
 
     $product = Px::product();
-    catalogVariantsSetOn($product, Px::set([$width]));
+    Px::variantAttributes($product, [$width]);
 
     return [$product, $width, $ids];
-}
-
-function catalogVariantsSetOn(string $productId, string $setId): void
-{
-    $product = app(ProductRepository::class)->find($productId) ?? throw new LogicException('No such product.');
-
-    Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
-        $productId, $product->name()->ar, $product->name()->en, $product->brandId(), attributeSetId: $setId,
-    )));
 }
 
 /**
@@ -201,7 +189,7 @@ describe('codes', function () {
 });
 
 describe('values and combinations', function () {
-    it('takes one active value of every attribute of the set, and no combination twice, archived included', function () {
+    it('takes one active value of each of the product\'s variant attributes, and no combination twice, archived included', function () {
         [$drawer, $width, $sizes] = catalogVariantsSized();
         $other = Px::attribute('Colour');
         $black = Px::value($other, 'Black');
@@ -246,7 +234,7 @@ describe('values and combinations', function () {
             ->and($changes)->toBe(['value_ids' => [$sizes['60 cm'], $sizes['90 cm']]]);
     });
 
-    it('gives a product without a set one variant only', function () {
+    it('gives a product with no variant attributes one variant only', function () {
         $product = Px::product();
         catalogVariantsAdd($product, '1001');
 
@@ -388,7 +376,7 @@ describe('the rows a variant points at', function () {
         $finish = Px::attribute('Finish');
         [$sixty, $oak] = [Px::value($width, '60 cm'), Px::value($finish, 'Oak')];
         $drawer = Px::product();
-        catalogVariantsSetOn($drawer, Px::set([$width, $finish]));
+        Px::variantAttributes($drawer, [$width, $finish]);
         $queries = Cx::recordQueries();
 
         catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sixty, $finish => $oak]]);
