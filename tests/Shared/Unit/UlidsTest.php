@@ -15,7 +15,11 @@ it('takes a ULID as Str::ulid() makes it, in either case', function () {
 
     expect(Ulids::valid(strtolower($ulid)))->toBeTrue()
         ->and(Ulids::valid(strtoupper($ulid)))->toBeTrue()
-        ->and(Ulids::valid('01j8z3k4m5n6p7q8r9s0t1v2w3'))->toBeTrue();
+        ->and(Ulids::valid('01j8z3k4m5n6p7q8r9s0t1v2w3'))->toBeTrue()
+        // The first character runs from 0 to 7, and every one of Crockford's other characters counts.
+        ->and(Ulids::valid('7zzzzzzzzzzzzzzzzzzzzzzzzz'))->toBeTrue()
+        ->and(Ulids::valid('0123456789abcdefghjkmnpqrs'))->toBeTrue()
+        ->and(Ulids::valid('7tvwxyz0123456789abcdefghj'))->toBeTrue();
 });
 
 it('refuses anything that is not one', function (string $id) {
@@ -32,5 +36,6 @@ it('refuses anything that is not one', function (string $id) {
     'a U' => ['01j8z3k4m5n6p7q8r9s0t1v2wu'],
     'a trailing newline' => ["01j8z3k4m5n6p7q8r9s0t1v2w3\n"],
     'a UUID' => ['0190c2a4-7a1b-7cde-8f00-112233445566'],
-    'bytes that are not UTF-8' => ["\xC3\x28"],
+    // 26 bytes, so only the bytes themselves are wrong.
+    'bytes that are not UTF-8' => ["01j8z3k4m5n6p7q8r9s0t1v2\xC3\x28"],
 ]);
