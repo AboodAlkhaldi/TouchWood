@@ -542,12 +542,52 @@ one, within 15; the old per-item reads asked five an item. `CatalogStoreScreensT
 pages' own: a file 8, with a ready product's code, a draft's with a photo, an archived product's and
 unknown ones, however many; the list 4.
 
-**The import guide** the upload links to is built with step 4 (the products import), whose page links
-it too - one page for both formats.
+**The import guide** the upload links to came with step 4: one page for both formats.
 
 **Found while building**: the panel's breadcrumb on a phone could not shrink, so a long page name - a
 store file's - pushed the page wider than the screen; the breadcrumb and its last crumb may shrink
 now, and the name is cut short (`AdminLayout`).
+
+### The screens: the products import (screens step 4)
+
+**Products Import** (S11, menu entry 100): the Super Admin's alone (`catalog.import.run`) - the first
+menu entry under a reserved permission (Access's `PermissionGroup` note says so now). The files,
+newest first: name, who uploaded it (Platform's `StaffNames`), when, products, state; **Upload
+Products File** takes a `.json` or a `.zip` and opens the import's page; a refused file's problems are
+listed under the upload, as a store file's are.
+
+**One import** - `/admin/imports/{id}?part=` - in **four parts, each a page of its own** (P12;
+lesson 180), the open part's data only (`ImportPages`):
+- **Names** - grouped by kind; per row It Means… (a combobox of the active items of that kind; a
+  value's, its attribute's values - the attribute decided first), Create It… (a value or a category:
+  its names, a category's own addresses) or Refuse It; ticked rows of one kind take It Means… or
+  Refuse It together.
+- **Codes** - the catalog's product named and linked, on sale or not; Update · Replace Whole · Skip
+  · New Codes… and, on sale, Keep on Sale or Take Off Sale, each saved as it is chosen.
+- **Before Bringing In** - brand, category, warranty, search words, filter values, to all or the
+  ticked products, Replace · Only Fill Empty (· Add); the web addresses that would collide, each
+  given its own.
+- **Products** - a hundred at a time (P13), each with its state and what it still lacks; once in,
+  Accept, Archive…, Delete… (the file's name typed, P10) and Accept Every Ready One.
+
+**The main action follows the state**: Bring Products In while deciding, out of reach with what
+still waits; while bringing in, the page asks again every three seconds (P12); failed, the reason.
+**Discard Import…** asks for the file's name typed (P10). **What still waits is counted as Bring
+Products In counts it**, from the same view (`ImportPages::waiting`) - `CatalogImportScreensTest`
+holds the two to the same numbers.
+
+**Read in batches** (P13): `ViewImport` read the catalog three times for every product (its product,
+what it lacked, whether the product its codes find is on sale); it now reads the products brought in
+through the product page's own core read, many at once, what the drafts lack with their photos in one
+Platform read (`ProductMissing::ofDrafts`, shared with the store file's page), and which catalog
+products are on sale in one query (`CatalogProductReads::onSaleAmong`). Each part's own queries are
+recorded, the same for 3 products and for 120: names 8, codes 6, before 8, products 6, the list 3.
+
+**The files' guide** (`/admin/import-guide`, linked from S10's and S11's uploads): the repository's
+own `docs/modules/catalog-import/README.md` rendered on the server (CommonMark, raw HTML stripped),
+its links to the two example files pointing at their downloads - whoever fills a file opens it
+(`catalog.listing.fill` in some store, or `catalog.import.run`). **Assumption for hosting**: the
+`docs/` folder ships with the application, as the guide is read from it.
 
 ## Tests
 
@@ -602,6 +642,8 @@ now, and the name is cut short (`AdminLayout`).
 | `Integration/CatalogProductReadsTest` | The products screens' reads: every product to a reader in some store, refused before reading to anyone else; where each is on among the stores covered; finding by name, by a code in any digits, by stage, category and brand; one store's state and narrowing by it; pages by keyset in a fixed number of queries; one product above its tabs; what a draft lacks, the same as `Readiness`; each tab's own data - a variant's details, size and photos, the photos' states read together; what the reader may do, as the handlers check it |
 | `Feature/CatalogProductScreensTest` | The products screens over HTTP: who opens the list and a product's page, and the menu; the store filter; finding (any digits, `%` and `_` as characters, bytes that are not text) and the next page; the filters as applied; every brand and category offered, active or not; Add Product offered only with the job in a store that is on, and a draft added with no store; the codes the variants carry; what the reader may do; an archived product; every tab's change, said where the panel says it, refused - nothing uploaded - without the job in every store where the product is on; photos uploaded, ordered, removed and refused, a variant's only for that product's variant; making ready, archiving, restoring, deleting a draft; each page's own queries, recorded |
 | `Feature/CatalogStoreScreensTest` | A product's Stores tab over HTTP: a card per store covered, a Super Admin's off stores marked, what the reader may do in each; switching on and off, selling, not available now, labels (10 at most), each refused where the reader holds no job; the store files: the list with what is still open, the upload and a refused file's problems said once, a file's page, switching on the selected and every ready one, removing, correcting a code; each page's own queries, recorded |
+| `Feature/CatalogImportScreensTest` | The products import over HTTP: the Super Admin's alone; the files newest first with who uploaded each; the upload and a refused file's problems said once; each part a page of its own; a name decided, a code decided with the catalog's product named, a change before bringing in; what still waits counted as Bring Products In counts it; bringing in, the products part a hundred at a time, archiving, discarding; the guide and its examples for whoever fills a file; each part's own queries, recorded |
+| `tests/Browser/CatalogImportScreensTest.php` | The products import in a real browser: a name refused from its row, the products brought in once nothing waits, the parts moved between; every page of it, and the guide, in Arabic at a phone's width |
 | `tests/Browser/CatalogStoreScreensTest.php` | The store screens in a real browser: a ready product switched on in a store from its Stores tab and off again; a store file's ticked item switched on; both pages and the files list in Arabic at a phone's width |
 | `tests/Browser/CatalogProductScreensTest.php` | The products screens in a real browser: adding a draft opens its page saying what it lacks; tabs in the address, each fetched as it opens; details saved once changed; a search word added; a variant added from its dialog, shown in its row; Arabic at a phone's width |
 | `Feature/CatalogListScreensTest` | The seven screens over HTTP: the menu; who opens each page; the categories' store filter; every form's success and refusal, said beside its field or at the top; a logo and a photo uploaded from their forms; the fates; each page's own queries, recorded |
