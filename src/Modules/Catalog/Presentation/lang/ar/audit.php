@@ -80,6 +80,7 @@ return [
     'product.variant_attribute_added' => 'أُضيفت خاصية إلى أنواع منتج',
     'product.variant_attribute_removed' => 'أُزيلت خاصية من أنواع منتج',
     'product.variant_attributes_ordered' => 'أُعيد ترتيب خصائص أنواع منتج',
+    'product.variants_ordered' => 'أُعيد ترتيب أنواع منتج',
 
     'import.added' => 'رُفع ملف منتجات',
     'import.checked_again' => 'أُعيد فحص أسماء ورموز ملف منتجات قبل الإدخال',

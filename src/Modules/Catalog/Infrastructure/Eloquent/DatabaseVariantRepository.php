@@ -91,6 +91,20 @@ final readonly class DatabaseVariantRepository implements VariantRepository
             ->exists();
     }
 
+    public function renumber(string $productId, array $variantIds): void
+    {
+        $now = CarbonImmutable::now();
+
+        foreach ($variantIds as $index => $variantId) {
+            $this->db->table(self::TABLE)->where('product_id', strtolower($productId))->where('id', $variantId)->update(['position' => $index + 1, 'updated_at' => $now]);
+        }
+    }
+
+    public function nextPosition(string $productId): int
+    {
+        return Ulids::valid($productId) ? (int) $this->db->table(self::TABLE)->where('product_id', strtolower($productId))->max('position') + 1 : 1;
+    }
+
     public function codeInUse(string $productId, string $code): bool
     {
         return $this->db->table(self::TABLE)->where('product_id', strtolower($productId))->where('code', $code)->exists();

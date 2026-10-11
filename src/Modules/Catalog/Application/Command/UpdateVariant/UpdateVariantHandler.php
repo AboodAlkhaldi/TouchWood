@@ -79,7 +79,7 @@ final readonly class UpdateVariantHandler
                 throw new DuplicateCombination;
             }
 
-            $variant->edit($combination, $this->input->details($command->details, array_keys($variant->details())), $measures, $command->position);
+            $variant->edit($combination, $this->input->details($command->details, array_keys($variant->details())), $measures, $command->position ?? $variant->position());
             $entry = ListAudit::changed('variant', 'edited', $variant->id(), $variant->pullChanges(), $variant->snapshot());
 
             if ($entry === null) {

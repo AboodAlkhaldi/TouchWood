@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Http\Controller;
 
+use App\Http\FormErrors;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Modules\Catalog\Application\Command\AddValueFromProduct\AddValueFromProduct;
+use Modules\Catalog\Application\Command\AddValueFromProduct\AddValueFromProductHandler;
 use Modules\Catalog\Application\Command\AddVariant\AddVariant;
 use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
+use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttribute;
+use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttributeHandler;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
@@ -22,6 +27,12 @@ use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
+use Modules\Catalog\Application\Command\OrderVariantAttributes\OrderVariantAttributes;
+use Modules\Catalog\Application\Command\OrderVariantAttributes\OrderVariantAttributesHandler;
+use Modules\Catalog\Application\Command\OrderVariants\OrderVariants;
+use Modules\Catalog\Application\Command\OrderVariants\OrderVariantsHandler;
+use Modules\Catalog\Application\Command\RemoveVariantAttribute\RemoveVariantAttribute;
+use Modules\Catalog\Application\Command\RemoveVariantAttribute\RemoveVariantAttributeHandler;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProduct;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProductHandler;
 use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
@@ -39,6 +50,7 @@ use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotosHandler
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Application\Command\UploadProductPhoto\UploadProductPhotoHandler;
+use Modules\Catalog\Domain\Exception\NameTaken;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
 use Shared\Domain\Error\DomainError;
 
@@ -51,7 +63,11 @@ final readonly class ProductChangesController
 {
     private const array DETAILS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'description_ar', 'description_en'];
 
-    private const array VARIANT = ['code', 'values', 'details', 'number', 'weight_grams', 'length_mm', 'width_mm', 'height_mm', 'position'];
+    private const array VARIANT = ['code', 'values', 'details', 'number', 'weight_grams', 'length_mm', 'width_mm', 'height_mm'];
+
+    private const array ATTRIBUTE = ['attribute_id', 'values'];
+
+    private const array VALUE = ['attribute_id', 'name_ar', 'name_en', 'swatch'];
 
     public function details(CatalogFormRequest $request, string $product, EditProductDetailsHandler $handler): RedirectResponse
     {
@@ -80,7 +96,6 @@ final readonly class ProductChangesController
             $request->optionalNumber('length_mm'),
             $request->optionalNumber('width_mm'),
             $request->optionalNumber('height_mm'),
-            $request->optionalNumber('position') ?? 0,
         )), 'catalog::admin_products.toast.variant_added', self::VARIANT);
     }
 
@@ -95,8 +110,47 @@ final readonly class ProductChangesController
             $request->optionalNumber('length_mm'),
             $request->optionalNumber('width_mm'),
             $request->optionalNumber('height_mm'),
-            $request->optionalNumber('position') ?? 0,
         )), 'catalog::admin_products.toast.variant_saved', self::VARIANT);
+    }
+
+    /** The variants in the order dragged: `variant_ids[]`, those sent first (P29). */
+    public function orderVariants(CatalogFormRequest $request, string $product, OrderVariantsHandler $handler): RedirectResponse
+    {
+        return CatalogRefusals::act($request, fn () => $handler->handle(new OrderVariants($product, $request->texts('variant_ids'))), 'catalog::admin_products.toast.variants_ordered');
+    }
+
+    /** Has Variants: one more attribute, each variant given its value (`values[variant id]`, amendment 16(b)). */
+    public function addAttribute(CatalogFormRequest $request, string $product, AddVariantAttributeHandler $handler): RedirectResponse
+    {
+        return CatalogRefusals::act($request, fn () => $handler->handle(new AddVariantAttribute($product, $request->text('attribute_id'), self::map($request->input('values')))), 'catalog::admin_products.toast.attribute_added', self::ATTRIBUTE);
+    }
+
+    public function removeAttribute(Request $request, string $product, string $attribute, RemoveVariantAttributeHandler $handler): RedirectResponse
+    {
+        return CatalogRefusals::act($request, fn () => $handler->handle(new RemoveVariantAttribute($product, $attribute)), 'catalog::admin_products.toast.attribute_removed');
+    }
+
+    /** The attributes in the order dragged: `attribute_ids[]`, those sent first (P29). */
+    public function orderAttributes(CatalogFormRequest $request, string $product, OrderVariantAttributesHandler $handler): RedirectResponse
+    {
+        return CatalogRefusals::act($request, fn () => $handler->handle(new OrderVariantAttributes($product, $request->texts('attribute_ids'))), 'catalog::admin_products.toast.attributes_ordered');
+    }
+
+    /**
+     * "New value…" from a variant's dialog (P28, amendment 16(c)). A name taken is said beside the
+     * English name, so the dialog it was opened over does not say it too (the review of #120).
+     */
+    public function addValue(CatalogFormRequest $request, string $product, AddValueFromProductHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new AddValueFromProduct($product, $request->text('attribute_id'), $request->text('name_ar'), $request->text('name_en'), $request->optionalText('swatch')));
+        } catch (NameTaken $taken) {
+            return back()->withErrors(['name_en' => FormErrors::message($taken)]);
+        } catch (DomainError $error) {
+            return CatalogRefusals::back($request, $error, self::VALUE);
+        }
+
+        return back()->with('status', __('catalog::admin_products.toast.value_added'));
     }
 
     /** A ready product's code corrected on every variant holding it (amendment 3(c)). */

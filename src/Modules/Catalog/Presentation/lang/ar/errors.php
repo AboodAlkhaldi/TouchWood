@@ -127,6 +127,7 @@ return [
     'fields' => [
         'agency_type' => 'نوع الوكالة',
         'attribute' => 'الخاصية',
+        'attribute_id' => 'الخاصية',
         'attribute_ids' => 'الخصائص',
         'description_ar' => 'الوصف العربي',
         'description_en' => 'الوصف الإنجليزي',
@@ -172,6 +173,7 @@ return [
         'modes' => 'طرق البيع',
         'product' => 'المنتج',
         'variants' => 'الأنواع',
+        'variant_ids' => 'الأنواع',
         'choice' => 'الاختيار',
         'move_to' => 'وجهة النقل',
         'products' => 'المنتجات',

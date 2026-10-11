@@ -220,7 +220,8 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                     WHERE d.variant_id = v.id) as details
                 SQL)
             ->selectRaw("(SELECT coalesce(json_agg(vp.media_id ORDER BY vp.position), '[]') FROM catalog.variant_photos vp WHERE vp.variant_id = v.id) as photos")
-            ->orderBy('v.position')->orderBy('v.code')->orderBy('v.id')
+            // As every other read orders them, so the tab, a drag and the shop agree (the review of #120).
+            ->orderBy('v.position')->orderBy('v.id')
             ->get();
 
         return array_values($rows->map(static fn (stdClass $row): VariantView => new VariantView(

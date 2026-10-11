@@ -23,6 +23,7 @@ final readonly class UpdateVariant
         public ?int $lengthMm = null,
         public ?int $widthMm = null,
         public ?int $heightMm = null,
-        public int $position = 0,
+        // Its place; none: where it is (its order is dragged, OrderVariants, amendment 16(d)).
+        public ?int $position = null,
     ) {}
 }
