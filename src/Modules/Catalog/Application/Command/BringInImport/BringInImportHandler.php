@@ -13,6 +13,7 @@ use Modules\Catalog\Application\Import\CatalogNames;
 use Modules\Catalog\Application\Import\FileProblems;
 use Modules\Catalog\Application\Import\FileProduct;
 use Modules\Catalog\Application\Import\ImportAddresses;
+use Modules\Catalog\Application\Import\ImportAttributeChanges;
 use Modules\Catalog\Application\Import\ImportCodeChanges;
 use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\ImportName;
@@ -69,6 +70,7 @@ final readonly class BringInImportHandler
         private WarrantyRepository $warranties,
         private StoreListingRepository $listings,
         private ImportCodeChanges $codeChanges,
+        private ImportAttributeChanges $attributeChanges,
         private ConnectionInterface $db,
     ) {}
 
@@ -81,7 +83,7 @@ final readonly class BringInImportHandler
 
         // What is asked again is kept whether or not anything still waits, so the page shows what to
         // decide; the refusal comes after it is saved.
-        [$names, $codes, $addresses, $sales, $codeChanges] = $this->db->transaction(function () use ($command): array {
+        [$names, $codes, $addresses, $sales, $codeChanges, $attributeChanges] = $this->db->transaction(function () use ($command): array {
             $import = $this->imports->lock($command->importId);
 
             if ($import === null || $import->kind !== ImportHeader::PRODUCTS) {
@@ -100,23 +102,25 @@ final readonly class BringInImportHandler
             $sales = count(array_filter($rows, fn (ImportProduct $row): bool => $this->needsSale($row)));
             // A product not a draft keeps its codes (amendment 11(b)): skipped, or the file corrected.
             $codeChanges = count($this->codeChanges->of($import->id, $rows));
+            // Other attributes (P33): an update needs the product's own; a replace, every variant named.
+            $attributeChanges = count($this->attributeChanges->of($import->id, $rows));
 
             if ($checked !== null) {
                 $this->platform->recordAudit($checked);
             }
 
-            if ($names === 0 && $codes === 0 && $addresses === 0 && $sales === 0 && $codeChanges === 0) {
+            if ($names === 0 && $codes === 0 && $addresses === 0 && $sales === 0 && $codeChanges === 0 && $attributeChanges === 0) {
                 $this->imports->start($import->id);
                 $this->queue->bringIn($import->id);
                 $now = ['state' => ImportHeader::BRINGING_IN, 'products' => count($rows)];
                 $this->platform->recordAudit(ListAudit::changed('import', 'bringing_in', $import->id, ['state' => $import->state, 'products' => null], $now) ?? throw new LogicException('No change to record.'));
             }
 
-            return [$names, $codes, $addresses, $sales, $codeChanges];
+            return [$names, $codes, $addresses, $sales, $codeChanges, $attributeChanges];
         }, 3);
 
-        if ($names > 0 || $codes > 0 || $addresses > 0 || $sales > 0 || $codeChanges > 0) {
-            throw new ImportUndecided($names, $codes, $addresses, $sales, $codeChanges);
+        if ($names > 0 || $codes > 0 || $addresses > 0 || $sales > 0 || $codeChanges > 0 || $attributeChanges > 0) {
+            throw new ImportUndecided($names, $codes, $addresses, $sales, $codeChanges, $attributeChanges);
         }
     }
 

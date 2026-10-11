@@ -22,7 +22,7 @@ const CodeDialog = lazy(() => import('./VariantDialogs').then((module) => ({ def
 
 /*
 | A product's variants (catalog.md §4.4 S9): # · code · its values · details · weight and size · photos ·
-| Archived. Add Variant… takes the code (1–10 digits), one value for each attribute of the variation,
+| Archived. Add Variant… takes the code (1–10 digits), one value for each of the product's variant attributes,
 | the details of each "details only" attribute - text in both languages, or a number with its unit -,
 | the weight and size, the place. On a row: Edit… (its code only while the product is a draft - a
 | ready product's code is **corrected**, amendment 3(c)), Correct Code…, Photos… (up to 10), Archive
@@ -40,13 +40,13 @@ export function VariantsTab({ page }: { page: ProductPage }) {
     const opener = useRef<HTMLElement | null>(null);
     const variants = page.variants ?? [];
     const attributes = page.attributes ?? [];
-    const setAttributes = product.setAttributeIds.map((id) => attributes.find((attribute) => attribute.id === id)).filter((attribute): attribute is AttributeChoiceData => attribute !== undefined);
+    const setAttributes = product.variantAttributeIds.map((id) => attributes.find((attribute) => attribute.id === id)).filter((attribute): attribute is AttributeChoiceData => attribute !== undefined);
     const reason = mayUpdate ? undefined : t('catalog::admin_products.read_only');
     const close = (open: boolean) => (open ? undefined : setDialog(null));
     const nextPosition = variants.reduce((highest, variant) => Math.max(highest, variant.position), 0) + 10;
     const chosen = dialog?.variantId == null ? null : (variants.find((variant) => variant.id === dialog.variantId) ?? null);
-    // With no variation every variant has the same values - none - so a product has one variant only.
-    const addReason = reason ?? (product.attributeSetId === null && variants.length > 0 ? t('catalog::admin_products.variants.one_only') : undefined);
+    // With no variant attributes every variant has the same values - none - so a product has one variant only.
+    const addReason = reason ?? (product.variantAttributeIds.length === 0 && variants.length > 0 ? t('catalog::admin_products.variants.one_only') : undefined);
 
     useEffect(() => {
         // A variant gone from the page (deleted) closes its dialog.
@@ -59,7 +59,7 @@ export function VariantsTab({ page }: { page: ProductPage }) {
         <Card className="material-base border-0">
             <CardContent className="grid gap-4 pt-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    {product.attributeSetId === null && variants.length === 0 ? <Note data-test="no-variation">{t('catalog::admin_products.variants.no_variation')}</Note> : <span />}
+                    {product.variantAttributeIds.length === 0 && variants.length <= 1 ? <Note data-test="no-variation">{t('catalog::admin_products.variants.no_variation')}</Note> : <span />}
                     <ActionButton
                         type="button"
                         disabledReason={addReason}

@@ -42,7 +42,6 @@ unless this guide says otherwise.
 | `brand` | No | number or text | The brand's **number** as the panel shows it (`2`) — best, no typo possible — or its name in Arabic or English. Left out, the default brand (TouchWood). The brand must already be in the catalog. |
 | `category` | No | text | The path from the top, names separated by ` / ` (space, slash, space): `"Kitchens / Drawers / Runners"`. It must end at a category with **no sub-categories**. **Needed for the product to be ready.** |
 | `warranty` | No | text | A warranty's name. It must already be in the catalog. |
-| `attribute_set` | When variants have `values` | text | The set whose attributes make the variants (e.g. `"Runner sizes"` = Length + Finish). |
 | `variants` | **Yes** | list | **At least one.** See §1.2. |
 | `photos` | No | list of text | The gallery, in order: **paths inside the zip**, at most 20, each once. **At least one is needed for the product to be ready.** Leave out when uploading the JSON alone. |
 | `search_words` | No | list of text | Extra words shoppers might type, either language. At most 30, each at most 50 characters. |
@@ -58,7 +57,7 @@ with no `values`. **Every variant has its own code** ("Codes" below).
 | Field | Required | Type | Rules |
 |---|---|---|---|
 | `code` | **Yes** | text of digits | **1 to 10 digits, written as text**: `"1304"`, never `1304` (a number would lose leading zeros). Arabic digits (`"١٣٠٤"`) are read as `1304`, as every number in the system is saved in 0-9. **Its own**: no other variant in the file has it. |
-| `values` | When the product has an `attribute_set` | `{attribute: value}` | **One value for each attribute of the set**, by name: `{"Length": "45 cm", "Finish": "Zinc"}`. Two variants of one product never have the same values. |
+| `values` | When the product has more than one variant | `{attribute: value}` | Its value of each attribute that makes the product's variants, by name: `{"Length": "45 cm", "Finish": "Zinc"}`. **Every variant of a product names the same attributes**; the first variant's order is the order shoppers choose in. Two variants of one product never have the same values. A product with one variant may have none (no sizes or finishes). |
 | `details` | No | `{attribute: …}` | Information-only attributes. Each is **either** text in both languages `{"ar": "فولاذ", "en": "Steel"}` (each at most 200 characters) **or** a number (`35`, at most 9 digits and 3 decimals, read with the attribute's unit). At most 100. |
 | `weight_g` | No | whole number | Grams, 1 to 1,000,000. |
 | `length_mm`, `width_mm`, `height_mm` | No | whole numbers | Millimetres, 1 to 1,000,000. |
@@ -72,7 +71,7 @@ each row with its own code; the same code on two rows is a mistake to fix in the
 
 ### 1.3 Names in the file
 
-Brands, categories, attributes, values, attribute sets and warranties are written **by name**, as they
+Brands, categories, attributes, values and warranties are written **by name**, as they
 appear in the panel, in **Arabic or English** — a brand also **by its number**, written as a number:
 `2`, not `"2"` (in quotes it is read as a name). A category's name never holds a `/`: it separates the
 levels of a path. Names are matched
@@ -80,10 +79,10 @@ ignoring upper/lower case, extra spaces, Arabic marks (tashkeel) and letter form
 ى = ي).
 
 **Brands, warranties and attributes must already be in the catalog** — add them in the panel before
-uploading. **Values, categories and attribute sets may be new.**
+uploading. **Values and categories may be new.**
 
 **A name the catalog does not have yet is not an error.** The import's page lists it, and the Super
-Admin decides there: it is a typo for an existing one (pick it), or — for a value, a category or a set
+Admin decides there: it is a typo for an existing one (pick it), or — for a value or a category
 only — create it (fixing the wording and giving its name in the other language), or refuse it. A
 refused brand becomes the default brand (TouchWood). A name **several** catalog items answer to — two
 warranties both called "Two years" — is asked about the same way, to pick which.
@@ -134,12 +133,15 @@ Anything missing can also be completed later in the product page.
 
 The file is refused, **every problem listed**, if: it is not valid JSON or not this format; a field
 has the wrong type; a product has no Arabic name or no variant; a code is not 1–10 digits; two
-variants share a code (in one product or in two); two variants of one product have the same values; a photo named in the JSON is
+variants share a code (in one product or in two); two variants of one product have the same values;
+the variants of one product name different attributes; a product with more than one variant has a
+variant with no values; a photo named in the JSON is
 not in the zip (or photos are named in a JSON uploaded alone); a number is out of range; a list is too
 long; the file is over its limits. Nothing is kept from a refused file.
 
 A product that still has a `stores` field is refused too: prices and stock come with each store's own
-file (§2).
+file (§2). So is one with an `attribute_set`: there are no attribute sets — each variant's `values`
+name the attributes that make the product's variants (owner, 2026-10-09).
 
 Once the file is in its format, it is read against the catalog, and also refused — every problem of
 this second reading listed — if:
@@ -147,8 +149,6 @@ this second reading listed — if:
 - an attribute is used for two jobs in the file (in `values`, `filters` or `details`), or for a job
   the catalog's attribute of that name does not have;
 - a `category` path ends at a category that has sub-categories;
-- a product's variants do not give exactly the attributes of its catalog `attribute_set`, or two
-  products give a new set different attributes;
 - a photo is not JPEG, PNG or WebP, or is over the media library's limit (10 MB by default).
 
 **Left out, the rest of the file coming in** — shown on the import's page as refused, with the reason:
@@ -165,7 +165,10 @@ picked.
 **A product already in the catalog is matched variant by variant, by code**: a code it carries
 updates that variant, a new code adds one. **A product that is not a draft keeps its codes**: updating
 or replacing it with a variant of the same values but another code is listed on the import's page:
-skip that product, or upload the file corrected.
+skip that product, or upload the file corrected. **Its variants' attributes**: updating it needs the
+file to name the product's own attributes; a file naming others is listed — replace the product whole
+(it then takes the file's attributes, and the file must name every variant the product has, archived
+ones too) or skip it.
 
 A file that passes changes **nothing** until the Super Admin decides on its page: new names, codes the
 catalog already has (update that product, replace it whole, skip, or give another code). There, all

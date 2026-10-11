@@ -16,8 +16,8 @@ import { ProductShell } from './shell';
 
 /*
 | A product's Details (catalog.md §4.4 S9): both names, the web addresses (folded), the brand, the
-| category - the lowest active ones, each by its path -, the warranty or none, the variation (fixed
-| once the product has variants), the description in both languages (P1). Save Details is out of reach
+| category - the lowest active ones, each by its path -, the warranty or none, the description in both
+| languages (P1); the attributes its variants are made of are the Variants tab's (amendment 16(b)). Save Details is out of reach
 | until something changes (Geist's Fieldset), and for whoever may not change the product.
 */
 
@@ -29,7 +29,6 @@ type DetailsForm = {
     brand_id: string;
     category_id: string;
     warranty_id: string;
-    attribute_set_id: string;
     description_ar: string;
     description_en: string;
 };
@@ -43,7 +42,6 @@ function initial(product: ProductHeadData): DetailsForm {
         brand_id: product.brandId,
         category_id: product.categoryId ?? '',
         warranty_id: product.warrantyId ?? '',
-        attribute_set_id: product.attributeSetId ?? '',
         description_ar: product.descriptionAr,
         description_en: product.descriptionEn,
     };
@@ -57,7 +55,6 @@ export function DetailsTab({ page }: { page: ProductPage }) {
     const [addresses, setAddresses] = useState(false);
     const addressRefused = form.errors.slug_ar !== undefined || form.errors.slug_en !== undefined;
     const off = !mayUpdate;
-    const variationLocked = product.counts.variants > 0;
     // Each box as typed (frontend.md §1.7), with the domain's rules: a name of up to 200 characters in
     // each language, the Arabic one required (ProductName; a draft may wait for its English name),
     // descriptions of up to 20,000 characters counted as StructuredText counts them
@@ -141,25 +138,6 @@ export function DetailsTab({ page }: { page: ProductPage }) {
                             {warranties.map((warranty) => (
                                 <NativeSelectOption key={warranty.id} value={warranty.id}>
                                     {nameIn(locale, warranty.nameAr, warranty.nameEn)}
-                                </NativeSelectOption>
-                            ))}
-                        </SelectField>
-                        <SelectField
-                            id="details-variation"
-                            disabled={off || variationLocked}
-                            label={t('catalog::admin_products.field.variation')}
-                            helper={variationLocked ? t('catalog::admin_products.details.variation_locked') : undefined}
-                            value={form.data.attribute_set_id}
-                            onChange={(event) => form.setData('attribute_set_id', event.target.value)}
-                            data-test="details-variation"
-                        >
-                            <NativeSelectOption value="">{t('catalog::admin_products.none')}</NativeSelectOption>
-                            {product.attributeSetId !== null && !(page.variations ?? []).some((set) => set.id === product.attributeSetId) ? (
-                                <NativeSelectOption value={product.attributeSetId}>{nameIn(locale, product.attributeSetNameAr, product.attributeSetNameEn)}</NativeSelectOption>
-                            ) : null}
-                            {(page.variations ?? []).map((set) => (
-                                <NativeSelectOption key={set.id} value={set.id}>
-                                    {nameIn(locale, set.nameAr, set.nameEn)}
                                 </NativeSelectOption>
                             ))}
                         </SelectField>

@@ -16,7 +16,6 @@ return [
         'category_search' => 'Search categories',
         'category_none' => 'No category matches ":query".',
         'warranty' => 'Warranty',
-        'variation' => 'Variation',
         'description_ar' => 'Arabic Description',
         'description_en' => 'English Description',
     ],
@@ -97,7 +96,6 @@ return [
     'delete_body' => ':name is deleted whole: its codes and addresses are free again.',
     'details' => [
         'save' => 'Save Details',
-        'variation_locked' => 'It has variants, so its variation stays.',
         'no_changes' => 'Nothing has changed yet.',
     ],
     'variants' => [
@@ -135,8 +133,8 @@ return [
         'delete_title' => 'Delete Variant',
         'delete_body' => 'Variant :code is deleted.',
         'delete_reason' => 'Only a draft\'s variant is deleted; archive this one.',
-        'no_variation' => 'With no variation, a product has one variant. Choose a variation in Details to give it more.',
-        'one_only' => 'With no variation, a product has one variant only.',
+        'no_variation' => 'Has Variants: No. The product has one variant; give it an attribute to make more.',
+        'one_only' => 'With no variant attributes, a product has one variant only.',
         'grams' => ':value g',
         'millimetres' => ':value mm',
         'empty_title' => 'No variants yet',

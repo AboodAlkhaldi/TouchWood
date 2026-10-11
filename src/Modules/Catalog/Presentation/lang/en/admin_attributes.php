@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// The attributes and variations screens (catalog.md §1.7, §4.4 S3, S4): one job, one word file.
+// The attributes screens (catalog.md §1.7, §4.4 S3): one job, one word file.
 // Geist's writing rules (frontend.md §1.10).
 return [
     'title' => 'Attributes',
@@ -51,11 +51,9 @@ return [
     ],
     'reason' => [
         'locked' => 'Its job stays: it has values, or variants carry details of it.',
-        'in_variation' => 'It stays Makes Variants: a variation holds it.',
-        'in_use' => 'A variation, a variant or a product\'s filters use it.',
+        'in_products' => 'It stays Makes Variants: products make their variants of it.',
+        'in_use' => 'A product\'s variants or its filters use it.',
         'value_in_use' => 'A variant or a product\'s filters use it.',
-        'variation_in_use' => 'Products take it.',
-        'built_on' => 'Variants are built on it, so its attributes stay; its name may still change.',
     ],
     'value' => [
         'title' => 'Values',
@@ -80,30 +78,6 @@ return [
     'check' => [
         'swatch' => ':field takes a colour code like #1a2b3c.',
     ],
-    'variations' => [
-        'title' => 'Variations',
-        'subtitle' => 'Attribute sets, such as measurement and finish, that generate a product\'s variants.',
-        'add' => 'Add Variation',
-        'edit' => 'Edit…',
-        'edit_title' => 'Edit Variation',
-        'body' => 'One to ten attributes that make variants, in the order shoppers choose them.',
-        'save' => 'Save Variation',
-        'activate' => 'Activate Variation',
-        'deactivate' => 'Deactivate Variation',
-        'delete' => 'Delete Variation…',
-        'delete_title' => 'Delete Variation',
-        'delete_body' => ':name is deleted.',
-        'in_use' => 'In Use',
-        'remove' => 'Remove',
-        'pick' => 'Attribute to Add',
-        'add_member' => 'Add Attribute',
-        'attributes_helper' => 'Drag them into the order shoppers choose them in.',
-        'empty_title' => 'No Variations Yet',
-        'empty_body' => 'Add one for each way products come in sizes, finishes or both.',
-        'column' => [
-            'attributes' => 'Attributes',
-        ],
-    ],
     'toast' => [
         'added' => 'Attribute added',
         'edited' => 'Attribute saved',
@@ -115,10 +89,5 @@ return [
         'value_activated' => 'Value activated',
         'value_deactivated' => 'Value deactivated',
         'value_deleted' => 'Value deleted',
-        'variation_added' => 'Variation added',
-        'variation_edited' => 'Variation saved',
-        'variation_activated' => 'Variation activated',
-        'variation_deactivated' => 'Variation deactivated',
-        'variation_deleted' => 'Variation deleted',
     ],
 ];

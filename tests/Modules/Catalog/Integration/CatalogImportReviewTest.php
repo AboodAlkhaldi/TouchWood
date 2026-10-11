@@ -228,11 +228,10 @@ describe('the confirm asks again', function () {
 });
 
 describe('bringing in', function () {
-    it('holds back a product a value of whose variants was refused, its set the catalog\'s', function () {
+    it('holds back a product a value of whose variants was refused, its attribute the catalog\'s', function () {
         $ready = Px::ready(['60 cm']);
         $width = catalogReviewEnglish('attributes', $ready['width']);
-        $set = catalogReviewEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
-        $import = Ix::uploadProducts([Ix::product('7100', ['attribute_set' => $set, 'variants' => [['code' => '7100', 'values' => [$width => '61 cm']]]]), Ix::product('7200')]);
+        $import = Ix::uploadProducts([Ix::product('7100', ['variants' => [['code' => '7100', 'values' => [$width => '61 cm']]]]), Ix::product('7200')]);
         Ix::decideNames($import);
 
         Ix::bringIn($import);
@@ -243,19 +242,17 @@ describe('bringing in', function () {
     it('replaces a draft whole: its variants the file does not name archived, its relations, gallery and words cleared', function () {
         $width = Px::attribute('Width');
         [$sixtyValue, $eightyValue] = [Px::value($width, '60 cm'), Px::value($width, '80 cm')];
-        $set = Px::set([$width]);
         $draft = Px::product();
-        $row = DB::table('catalog.products')->where('id', $draft)->first(['name_ar', 'name_en', 'brand_id']) ?? throw new LogicException('No product.');
+        Px::variantAttributes($draft, [$width]);
         $related = Px::ready();
-        Fx::asSystem(function () use ($draft, $row, $set, $related): void {
-            app(EditProductDetailsHandler::class)->handle(new EditProductDetails($draft, (string) $row->name_ar, (string) $row->name_en, (string) $row->brand_id, attributeSetId: $set));
+        Fx::asSystem(function () use ($draft, $related): void {
             app(SetProductGalleryHandler::class)->handle(new SetProductGallery($draft, [Cx::media()]));
             app(SetRelationsHandler::class)->handle(new SetRelations($draft, 'RELATED', [$related['product']]));
         });
         $sixty = Px::variant($draft, '4400', [$width => $sixtyValue]);
         $eighty = Px::variant($draft, '4401', [$width => $eightyValue]);
         DB::table('catalog.product_search_words')->insert(['product_id' => $draft, 'normalized' => 'old', 'word' => 'old', 'position' => 0]);
-        $import = Ix::uploadProducts([Ix::product('4400', ['attribute_set' => catalogReviewEnglish('attribute_sets', $set), 'variants' => [['code' => '4400', 'values' => [catalogReviewEnglish('attributes', $width) => '60 cm']]]])]);
+        $import = Ix::uploadProducts([Ix::product('4400', ['variants' => [['code' => '4400', 'values' => [catalogReviewEnglish('attributes', $width) => '60 cm']]]])]);
         app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'REPLACE']]));
 
         Ix::bringIn($import);
@@ -270,14 +267,12 @@ describe('bringing in', function () {
     it('corrects a draft\'s code when the file gives its variant\'s values under a code it does not carry (P33, amendment 11(b))', function () {
         $width = Px::attribute('Width');
         [$sixtyValue, $eightyValue] = [Px::value($width, '60 cm'), Px::value($width, '80 cm')];
-        $set = Px::set([$width]);
         $draft = Px::product();
-        $row = DB::table('catalog.products')->where('id', $draft)->first(['name_ar', 'name_en', 'brand_id']) ?? throw new LogicException('No product.');
-        Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($draft, (string) $row->name_ar, (string) $row->name_en, (string) $row->brand_id, attributeSetId: $set)));
+        Px::variantAttributes($draft, [$width]);
         $sixty = Px::variant($draft, '4500', [$width => $sixtyValue]);
         $eighty = Px::variant($draft, '4501', [$width => $eightyValue]);
         $widthEn = catalogReviewEnglish('attributes', $width);
-        $import = Ix::uploadProducts([Ix::product('4500', ['attribute_set' => catalogReviewEnglish('attribute_sets', $set), 'variants' => [
+        $import = Ix::uploadProducts([Ix::product('4500', ['variants' => [
             ['code' => '4500', 'values' => [$widthEn => '60 cm']],
             ['code' => '4502', 'values' => [$widthEn => '80 cm'], 'weight_g' => 80],
         ]])]);
@@ -298,14 +293,13 @@ describe('bringing in', function () {
         $warranty = Px::warranty();
         $product = DB::table('catalog.products')->where('id', $ready['product'])->first() ?? throw new LogicException('No product.');
         Fx::asSystem(function () use ($ready, $product, $warranty, $eighty): void {
-            app(EditProductDetailsHandler::class)->handle(new EditProductDetails($ready['product'], (string) $product->name_ar, (string) $product->name_en, (string) $product->brand_id, descriptionAr: json_decode((string) $product->description_ar, true), descriptionEn: json_decode((string) $product->description_en, true), categoryId: (string) $product->category_id, warrantyId: $warranty, attributeSetId: (string) $product->attribute_set_id));
+            app(EditProductDetailsHandler::class)->handle(new EditProductDetails($ready['product'], (string) $product->name_ar, (string) $product->name_en, (string) $product->brand_id, descriptionAr: json_decode((string) $product->description_ar, true), descriptionEn: json_decode((string) $product->description_en, true), categoryId: (string) $product->category_id, warrantyId: $warranty));
             app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($eighty));
         });
         DB::table('catalog.variants')->where('id', $sixty)->update(['length_mm' => 600]);
         $codes = DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->pluck('code', 'id');
         $width = catalogReviewEnglish('attributes', $ready['width']);
         $import = Ix::uploadProducts([Ix::product((string) $codes[$sixty], [
-            'attribute_set' => catalogReviewEnglish('attribute_sets', (string) $product->attribute_set_id),
             'variants' => [['code' => (string) $codes[$sixty], 'values' => [$width => '60 cm'], 'weight_g' => 900], ['code' => (string) $codes[$eighty], 'values' => [$width => '80 cm']]],
         ])]);
         app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE']]));
@@ -354,9 +348,8 @@ describe('bringing in', function () {
         [$bareBefore, $fullBefore] = [$before($bare), $before($full)];
         $file = static function (array $ready): array {
             $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
-            $set = catalogReviewEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
 
-            return Ix::product($code, ['attribute_set' => $set, 'variants' => [['code' => $code, 'values' => [catalogReviewEnglish('attributes', $ready['width']) => '60 cm']]]]);
+            return Ix::product($code, ['variants' => [['code' => $code, 'values' => [catalogReviewEnglish('attributes', $ready['width']) => '60 cm']]]]);
         };
         $import = Ix::uploadProducts([$file($bare), $file($full)]);
         [$first, $second] = [Ix::productId($import, 1), Ix::productId($import, 2)];
@@ -577,8 +570,8 @@ describe('a new value', function () {
     it('is not made twice by one file under one attribute', function () {
         $width = catalogReviewEnglish('attributes', Px::attribute('Width'));
         $import = Ix::uploadProducts([
-            Ix::product('1', ['attribute_set' => 'Sizes', 'variants' => [['code' => '1', 'values' => [$width => '60cm']]]]),
-            Ix::product('2', ['attribute_set' => 'Sizes', 'variants' => [['code' => '2', 'values' => [$width => '60 cms']]]]),
+            Ix::product('1', ['variants' => [['code' => '1', 'values' => [$width => '60cm']]]]),
+            Ix::product('2', ['variants' => [['code' => '2', 'values' => [$width => '60 cms']]]]),
         ]);
         $decide = fn (string $written) => app(DecideImportNamesHandler::class)->handle(new DecideImportNames($import, [['name_id' => Ix::nameId($import, 'VALUE', $written), ...Ix::create('60 سم', '60 cm')]]));
         $decide('60cm');

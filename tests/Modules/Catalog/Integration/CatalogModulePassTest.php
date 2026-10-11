@@ -140,9 +140,8 @@ describe('a product not a draft keeps its codes (11(b))', function () {
         $ready = Px::ready(['60 cm', '80 cm']);
         $sixty = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
         $width = (string) DB::table('catalog.attributes')->where('id', $ready['width'])->value('name_en');
-        $set = (string) DB::table('catalog.attribute_sets')->where('id', DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'))->value('name_en');
         // Its 80 cm variant given another code.
-        $import = Ix::uploadProducts([Ix::product($sixty, ['attribute_set' => $set, 'variants' => [['code' => $sixty, 'values' => [$width => '60 cm']], ['code' => '7171', 'values' => [$width => '80 cm']]]])]);
+        $import = Ix::uploadProducts([Ix::product($sixty, ['variants' => [['code' => $sixty, 'values' => [$width => '60 cm']], ['code' => '7171', 'values' => [$width => '80 cm']]]])]);
         $decide = fn (string $decision) => app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => $decision]]));
         $decide('UPDATE');
 
@@ -165,8 +164,7 @@ describe('a product not a draft keeps its codes (11(b))', function () {
         DB::table('catalog.products')->where('id', $draft['product'])->update(['stage' => 'DRAFT']);
         $sixty = (string) DB::table('catalog.variants')->where('id', $draft['variants'][0])->value('code');
         $width = (string) DB::table('catalog.attributes')->where('id', $draft['width'])->value('name_en');
-        $set = (string) DB::table('catalog.attribute_sets')->where('id', DB::table('catalog.products')->where('id', $draft['product'])->value('attribute_set_id'))->value('name_en');
-        $import = Ix::uploadProducts([Ix::product($sixty, ['attribute_set' => $set, 'variants' => [['code' => $sixty, 'values' => [$width => '60 cm']], ['code' => '7171', 'values' => [$width => '80 cm']]]])]);
+        $import = Ix::uploadProducts([Ix::product($sixty, ['variants' => [['code' => $sixty, 'values' => [$width => '60 cm']], ['code' => '7171', 'values' => [$width => '80 cm']]]])]);
         app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE']]));
 
         app(BringInImportHandler::class)->handle(new BringInImport($import));

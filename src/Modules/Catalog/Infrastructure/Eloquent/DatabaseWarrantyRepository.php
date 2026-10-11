@@ -12,6 +12,7 @@ use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Domain\ValueObject\WarrantyPeriod;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseWarrantyRepository implements WarrantyRepository

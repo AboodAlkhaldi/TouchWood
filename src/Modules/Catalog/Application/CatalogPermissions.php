@@ -63,7 +63,7 @@ final class CatalogPermissions
     /** Brands: add, edit, make default, deactivate with each product's fate, activate, delete. */
     public const string BRAND_MANAGE = 'catalog.brand.manage';
 
-    /** Attributes, their values and colours, and attribute sets. */
+    /** Attributes, their values and colours. */
     public const string ATTRIBUTE_MANAGE = 'catalog.attribute.manage';
 
     /** The list of labels stores attach to products. */

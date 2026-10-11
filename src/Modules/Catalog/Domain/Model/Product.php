@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Modules\Catalog\Domain\Model;
 
 use LogicException;
-use Modules\Catalog\Domain\Exception\AttributeSetLocked;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
 use Modules\Catalog\Domain\Exception\ProductArchived;
@@ -21,7 +20,8 @@ use Modules\Catalog\Public\Enums\ProductStage;
  * products' lock.
  *
  * **Created as a draft** with its Arabic name at least (amendment 3(g)); everything else may wait
- * until it is made ready. **Its attribute set is fixed once it has a variant** (§1.7). Its stage moves
+ * until it is made ready. **Its variant attributes** are kept beside it (`product_attributes`, §1.7,
+ * amendment 16(b)), changed by their own commands. Its stage moves
  * draft → ready; either is archived, and restored to the stage it left (§4.1, amendment 3(m)); never
  * from ready back to draft.
  */
@@ -40,7 +40,6 @@ final class Product
         private string $brandId,
         private ?string $categoryId,
         private ?string $warrantyId,
-        private ?string $attributeSetId,
         private ProductStage $stage,
         private ?ProductStage $archivedFrom,
         private bool $hiddenByCategory,
@@ -51,7 +50,7 @@ final class Product
 
     public static function create(string $id, ProductName $name, ProductSlugs $slugs, string $brandId): self
     {
-        return new self($id, $name, $slugs, null, null, $brandId, null, null, null, ProductStage::Draft, null, false, false);
+        return new self($id, $name, $slugs, null, null, $brandId, null, null, ProductStage::Draft, null, false, false);
     }
 
     public static function reconstitute(
@@ -63,21 +62,18 @@ final class Product
         string $brandId,
         ?string $categoryId,
         ?string $warrantyId,
-        ?string $attributeSetId,
         ProductStage $stage,
         ?ProductStage $archivedFrom,
         bool $hiddenByCategory,
         bool $hiddenByBrand,
     ): self {
-        return new self($id, $name, $slugs, $descriptionAr, $descriptionEn, $brandId, $categoryId, $warrantyId, $attributeSetId, $stage, $archivedFrom, $hiddenByCategory, $hiddenByBrand);
+        return new self($id, $name, $slugs, $descriptionAr, $descriptionEn, $brandId, $categoryId, $warrantyId, $stage, $archivedFrom, $hiddenByCategory, $hiddenByBrand);
     }
 
     /**
      * The product's own form, sent whole.
      *
-     * @param  bool  $hasVariants  whether any variant of it exists, read under the products' lock
-     *
-     * @throws AttributeSetLocked|InvalidCatalogAttribute
+     * @throws InvalidCatalogAttribute
      */
     public function editDetails(
         ProductName $name,
@@ -87,13 +83,7 @@ final class Product
         string $brandId,
         ?string $categoryId,
         ?string $warrantyId,
-        ?string $attributeSetId,
-        bool $hasVariants,
     ): void {
-        if ($hasVariants && $attributeSetId !== $this->attributeSetId) {
-            throw new AttributeSetLocked;
-        }
-
         $before = $this->snapshot();
 
         // Hidden with its category or brand, it comes back when it moves to another (§5.1).
@@ -112,7 +102,6 @@ final class Product
         $this->brandId = $brandId;
         $this->categoryId = $categoryId;
         $this->warrantyId = $warrantyId;
-        $this->attributeSetId = $attributeSetId;
 
         foreach ($this->snapshot() as $column => $now) {
             $this->changes->record($column, $before[$column], $now);
@@ -211,11 +200,6 @@ final class Product
         return $this->warrantyId;
     }
 
-    public function attributeSetId(): ?string
-    {
-        return $this->attributeSetId;
-    }
-
     public function stage(): ProductStage
     {
         return $this->stage;
@@ -312,7 +296,6 @@ final class Product
             'brand_id' => $this->brandId,
             'category_id' => $this->categoryId,
             'warranty_id' => $this->warrantyId,
-            'attribute_set_id' => $this->attributeSetId,
             'stage' => $this->stage->value,
             'hidden_by_category' => $this->hiddenByCategory,
             'hidden_by_brand' => $this->hiddenByBrand,

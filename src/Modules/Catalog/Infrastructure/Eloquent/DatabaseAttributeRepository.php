@@ -8,11 +8,11 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Catalog\Domain\Model\Attribute;
-use Modules\Catalog\Domain\Model\AttributeSet;
 use Modules\Catalog\Domain\Model\AttributeValue;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Public\Enums\AttributeKind;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseAttributeRepository implements AttributeRepository
@@ -20,10 +20,6 @@ final readonly class DatabaseAttributeRepository implements AttributeRepository
     private const string ATTRIBUTES = 'catalog.attributes';
 
     private const string VALUES = 'catalog.attribute_values';
-
-    private const string SETS = 'catalog.attribute_sets';
-
-    private const string MEMBERS = 'catalog.attribute_set_members';
 
     public function __construct(
         private ConnectionInterface $db,
@@ -77,9 +73,9 @@ final readonly class DatabaseAttributeRepository implements AttributeRepository
         return $this->db->table(self::VALUES)->where('attribute_id', strtolower($attributeId))->exists();
     }
 
-    public function inSets(string $attributeId): bool
+    public function makesVariants(string $attributeId): bool
     {
-        return $this->db->table(self::MEMBERS)->where('attribute_id', strtolower($attributeId))->exists();
+        return $this->db->table('catalog.product_attributes')->where('attribute_id', strtolower($attributeId))->exists();
     }
 
     public function findValue(string $valueId): ?AttributeValue
@@ -135,46 +131,6 @@ final readonly class DatabaseAttributeRepository implements AttributeRepository
         ));
     }
 
-    public function findSet(string $setId): ?AttributeSet
-    {
-        $row = $this->row(self::SETS, $setId, false);
-
-        return $row === null ? null : $this->toSet($row);
-    }
-
-    public function setById(string $setId): ?AttributeSet
-    {
-        $row = $this->row(self::SETS, $setId, true);
-
-        return $row === null ? null : $this->toSet($row);
-    }
-
-    public function addSet(AttributeSet $set): void
-    {
-        $now = CarbonImmutable::now();
-        $this->db->table(self::SETS)->insert(['id' => $set->id(), 'name_ar' => $set->name()->ar, 'name_en' => $set->name()->en, 'is_active' => $set->isActive(), 'created_at' => $now, 'updated_at' => $now]);
-        $this->writeMembers($set);
-    }
-
-    public function updateSet(AttributeSet $set): void
-    {
-        $this->db->table(self::SETS)->where('id', $set->id())->update(['name_ar' => $set->name()->ar, 'name_en' => $set->name()->en, 'is_active' => $set->isActive(), 'updated_at' => CarbonImmutable::now()]);
-        $this->writeMembers($set);
-    }
-
-    public function deleteSet(string $setId): void
-    {
-        $this->db->table(self::SETS)->where('id', strtolower($setId))->delete();
-    }
-
-    public function sets(): array
-    {
-        return array_values(array_map(
-            fn (stdClass $row): AttributeSet => $this->toSet($row),
-            $this->db->table(self::SETS)->orderBy('name_en')->orderBy('id')->get()->all(),
-        ));
-    }
-
     private function row(string $table, string $id, bool $lock): ?stdClass
     {
         if (! Ulids::valid($id)) {
@@ -184,22 +140,6 @@ final readonly class DatabaseAttributeRepository implements AttributeRepository
         $row = $this->db->table($table)->where('id', strtolower($id))->when($lock, fn ($query) => $query->lockForUpdate())->first();
 
         return $row instanceof stdClass ? $row : null;
-    }
-
-    private function writeMembers(AttributeSet $set): void
-    {
-        $this->db->table(self::MEMBERS)->where('attribute_set_id', $set->id())->delete();
-
-        foreach ($set->memberIds() as $position => $attributeId) {
-            $this->db->table(self::MEMBERS)->insert(['attribute_set_id' => $set->id(), 'attribute_id' => $attributeId, 'position' => $position]);
-        }
-    }
-
-    private function toSet(stdClass $row): AttributeSet
-    {
-        $members = array_values(array_map('strval', $this->db->table(self::MEMBERS)->where('attribute_set_id', (string) $row->id)->orderBy('position')->pluck('attribute_id')->all()));
-
-        return AttributeSet::reconstitute((string) $row->id, LocalizedName::reconstitute((string) $row->name_ar, (string) $row->name_en), $members, (bool) $row->is_active);
     }
 
     private static function toAttribute(stdClass $row): Attribute

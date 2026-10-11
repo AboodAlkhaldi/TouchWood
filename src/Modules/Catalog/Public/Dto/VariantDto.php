@@ -12,7 +12,7 @@ namespace Modules\Catalog\Public\Dto;
 final readonly class VariantDto
 {
     /**
-     * @param  list<VariantValueDto>  $values  in the attribute set's order
+     * @param  list<VariantValueDto>  $values  in the product's order of its variant attributes (amendment 16(b))
      */
     public function __construct(
         public string $id,

@@ -105,6 +105,55 @@ describe('the confirm', function () {
         Queue::assertPushed(BringInImportJob::class, fn (BringInImportJob $job): bool => $job->importId === $import);
     });
 
+    it('asks before updating a product with other attributes, or replacing one without naming every variant it has (P33)', function () {
+        $ready = Px::ready(['60 cm', '80 cm']);
+        [$sixty, $eighty] = $ready['variants'];
+        $codes = DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->pluck('code', 'id');
+        $width = catalogBringEnglish('attributes', $ready['width']);
+        $finish = Px::attribute('Finish');
+        Px::value($finish, 'Zinc');
+        $finishEn = catalogBringEnglish('attributes', $finish);
+        // Width and Finish, where the product has Width only; its 80 cm variant left out.
+        $import = Ix::uploadProducts([Ix::product((string) $codes[$sixty], ['variants' => [
+            ['code' => (string) $codes[$sixty], 'values' => [$finishEn => 'Zinc', $width => '60 cm']],
+        ]])]);
+        $decide = fn (string $decision) => app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => $decision]]));
+        $undecided = static function (string $import): ?ImportUndecided {
+            try {
+                app(BringInImportHandler::class)->handle(new BringInImport($import));
+            } catch (ImportUndecided $waiting) {
+                return $waiting;
+            }
+
+            return null;
+        };
+
+        $decide('UPDATE');
+        expect($undecided($import)?->attributeChanges)->toBe(1);
+
+        $decide('REPLACE');
+        expect($undecided($import)?->attributeChanges)->toBe(1)
+            ->and(DB::table('catalog.imports')->where('id', $import)->value('state'))->toBe('DECIDING');
+    });
+
+    it('replaces a product whole with the file\'s attributes, in its order, when the file names every variant', function () {
+        $product = Px::product();
+        $width = Px::attribute('Width');
+        Px::variantAttributes($product, [$width]);
+        $sixty = Px::variant($product, '4600', [$width => Px::value($width, '60 cm')]);
+        $finish = Px::attribute('Finish');
+        Px::value($finish, 'Zinc');
+        [$widthEn, $finishEn] = [catalogBringEnglish('attributes', $width), catalogBringEnglish('attributes', $finish)];
+        $import = Ix::uploadProducts([Ix::product('4600', ['variants' => [['code' => '4600', 'values' => [$finishEn => 'Zinc', $widthEn => '60 cm']]]])]);
+        app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'REPLACE']]));
+
+        catalogBringIn($import);
+
+        expect(catalogBringRow($import, 1)['state'])->toBe('REPLACED')
+            ->and(DB::table('catalog.product_attributes')->where('product_id', $product)->orderBy('position')->pluck('attribute_id')->all())->toBe([$finish, $width])
+            ->and(DB::table('catalog.variant_values')->where('variant_id', $sixty)->count())->toBe(2);
+    });
+
     it('asks the names and codes again, keeps what it found, and says how many wait', function () {
         $import = Ix::uploadProducts([Ix::product('77', ['brand' => 'Blumm', 'warranty' => 'Two yeers'])]);
         // Since the file came: the catalog gained a product holding its code.
@@ -140,7 +189,6 @@ describe('bringing in', function () {
                 'description' => ['ar' => $text, 'en' => $text],
                 'brand' => $blumNumber,
                 'category' => 'Kitchens / Drawers / Runners',
-                'attribute_set' => 'Runner sizes',
                 'variants' => [
                     ['code' => '1304', 'values' => [$lengthEn => '45 cm', $finishEn => 'Zinc'], 'details' => [$loadEn => 35], 'weight_g' => 1450],
                     ['code' => '1314', 'values' => [$lengthEn => '50 cm', $finishEn => 'Zinc']],
@@ -155,7 +203,6 @@ describe('bringing in', function () {
             'Kitchens' => catalogBringCreate('مطابخ', 'Kitchens'),
             'Kitchens / Drawers' => catalogBringCreate('أدراج', 'Drawers'),
             'Kitchens / Drawers / Runners' => catalogBringCreate('مجاري', 'Runners'),
-            'Runner sizes' => catalogBringCreate('مقاسات المجاري', 'Runner sizes'),
             '45 cm' => catalogBringCreate('45 سم', '45 cm'),
             '50 cm' => catalogBringCreate('50 سم', '50 cm'),
             'Zinc' => catalogBringCreate('زنك', 'Zinc'),
@@ -174,7 +221,8 @@ describe('bringing in', function () {
         expect([$product->stage, $product->brand_id, $product->category_id])->toBe(['DRAFT', $blum, $runners])
             ->and(catalogBringEnglish('categories', $drawers))->toBe('Drawers')
             ->and(catalogBringEnglish('categories', (string) DB::table('catalog.categories')->where('id', $drawers)->value('parent_id')))->toBe('Kitchens')
-            ->and(catalogBringEnglish('attribute_sets', (string) $product->attribute_set_id))->toBe('Runner sizes')
+            // Its variants are made of the file's attributes, in the first variant's order (amendment 16(b)).
+            ->and(DB::table('catalog.product_attributes')->where('product_id', $runner)->orderBy('position')->pluck('attribute_id')->all())->toBe([$length, $finish])
             ->and(DB::table('catalog.variants')->where('product_id', $runner)->orderBy('position')->pluck('weight_grams')->all())->toBe([1450, null])
             ->and(DB::table('catalog.variants')->where('product_id', $runner)->orderBy('position')->pluck('code')->all())->toBe(['1304', '1314'])
             ->and((float) DB::table('catalog.variant_details')->where('attribute_id', $load)->value('number'))->toBe(35.0)
@@ -215,7 +263,7 @@ describe('bringing in', function () {
         $import = Ix::uploadProducts([
             Ix::product($code($first)),
             Ix::product($code($second)),
-            Ix::product('9100', ['attribute_set' => 'Sizes', 'variants' => [['code' => '9100', 'values' => [$width => '99 cm']]]]),
+            Ix::product('9100', ['variants' => [['code' => '9100', 'values' => [$width => '99 cm']]]]),
             Ix::product('9200'),
         ]);
         catalogBringDecide($import);
@@ -236,9 +284,8 @@ describe('bringing in', function () {
         $ready = Px::ready(['60 cm']);
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
         $width = catalogBringEnglish('attributes', $ready['width']);
-        $set = catalogBringEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
         $gallery = DB::table('catalog.product_photos')->where('product_id', $ready['product'])->pluck('media_id')->all();
-        $import = Ix::uploadProducts([Ix::product($code, ['name' => ['ar' => 'مجرى محدث'], 'attribute_set' => $set, 'variants' => [
+        $import = Ix::uploadProducts([Ix::product($code, ['name' => ['ar' => 'مجرى محدث'], 'variants' => [
             ['code' => $code, 'values' => [$width => '60 cm'], 'weight_g' => 999],
             ['code' => '7314', 'values' => [$width => '80 cm']],
         ]])]);
@@ -261,8 +308,7 @@ describe('bringing in', function () {
         [$sixty, $eighty] = $ready['variants'];
         $codes = DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->pluck('code', 'id');
         $width = catalogBringEnglish('attributes', $ready['width']);
-        $set = catalogBringEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
-        $import = Ix::uploadProducts([Ix::product((string) $codes[$sixty], ['attribute_set' => $set, 'variants' => [
+        $import = Ix::uploadProducts([Ix::product((string) $codes[$sixty], ['variants' => [
             ['code' => (string) $codes[$sixty], 'values' => [$width => '90 cm']],
             ['code' => (string) $codes[$eighty], 'values' => [$width => '80 cm'], 'weight_g' => 800],
         ]])]);
@@ -283,9 +329,8 @@ describe('bringing in', function () {
         [$sixty, $eighty] = $ready['variants'];
         $codes = DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->pluck('code', 'id');
         $width = catalogBringEnglish('attributes', $ready['width']);
-        $set = catalogBringEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
         // Listed first, 60 cm's code takes 80 cm, which 80 cm's code is leaving for 90 cm: written the other way round.
-        $import = Ix::uploadProducts([Ix::product((string) $codes[$sixty], ['attribute_set' => $set, 'variants' => [
+        $import = Ix::uploadProducts([Ix::product((string) $codes[$sixty], ['variants' => [
             ['code' => (string) $codes[$sixty], 'values' => [$width => '80 cm']],
             ['code' => (string) $codes[$eighty], 'values' => [$width => '90 cm']],
         ]])]);
@@ -305,8 +350,7 @@ describe('bringing in', function () {
         [$sixty, $eighty] = $ready['variants'];
         $codes = DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->pluck('code', 'id');
         $width = catalogBringEnglish('attributes', $ready['width']);
-        $set = catalogBringEnglish('attribute_sets', (string) DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'));
-        $import = Ix::uploadProducts([Ix::product((string) $codes[$sixty], ['attribute_set' => $set, 'variants' => [
+        $import = Ix::uploadProducts([Ix::product((string) $codes[$sixty], ['variants' => [
             ['code' => (string) $codes[$sixty], 'values' => [$width => '80 cm']],
             ['code' => (string) $codes[$eighty], 'values' => [$width => '60 cm']],
         ]])]);

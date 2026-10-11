@@ -433,7 +433,7 @@ describe('every change to a product\'s shared data', function () {
             app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
                 $r['product'], 'درج مختلف', $product->name()->en, $product->brandId(),
                 descriptionAr: $product->descriptionAr()?->toArray(), descriptionEn: $product->descriptionEn()?->toArray(),
-                categoryId: $product->categoryId(), attributeSetId: $product->attributeSetId(),
+                categoryId: $product->categoryId(),
             ));
         }],
         'a new variant' => [CatalogPermissions::PRODUCT_UPDATE, fn (array $r) => app(AddVariantHandler::class)->handle(new AddVariant($r['product'], '7100001', [$r['width'] => Px::value($r['width'], '100 cm')]))],

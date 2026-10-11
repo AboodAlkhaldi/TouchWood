@@ -6,8 +6,6 @@ namespace Modules\Catalog\Application;
 
 use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
-use Modules\Catalog\Domain\Model\Variant;
-use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
@@ -17,10 +15,8 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantDto;
-use Modules\Catalog\Public\Dto\VariantValueDto;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Catalog\Public\Enums\SaleMode;
-use Modules\Platform\Public\Dto\TranslatedTextDto;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -31,7 +27,6 @@ final readonly class CatalogApiImpl implements CatalogApi
     public function __construct(
         private ProductRepository $products,
         private VariantRepository $variants,
-        private AttributeRepository $attributes,
         private StoreListingRepository $listings,
         private CategoryRepository $categories,
         private ApiReads $reads,
@@ -39,9 +34,7 @@ final readonly class CatalogApiImpl implements CatalogApi
 
     public function variant(string $variantId): ?VariantDto
     {
-        $variant = $this->variants->find($variantId);
-
-        return $variant === null ? null : $this->toDto($variant);
+        return $this->reads->variants([$variantId])[strtolower(trim($variantId))] ?? null;
     }
 
     public function variantByCode(string $code): ?VariantDto
@@ -52,7 +45,7 @@ final readonly class CatalogApiImpl implements CatalogApi
             return null;
         }
 
-        return $variant === null ? null : $this->toDto($variant);
+        return $variant === null ? null : $this->variant($variant->id());
     }
 
     public function variantIdsOf(string $productId, bool $includeArchived = false): array
@@ -142,7 +135,7 @@ final readonly class CatalogApiImpl implements CatalogApi
 
     public function resolveVariant(string $productId, array $valueIds): ?string
     {
-        // A product with no attribute set has one variant, made of no values: nothing picked names it.
+        // A product with no variant attributes has one variant, made of no values: nothing picked names it.
         $picked = array_values(array_unique(array_map(static fn (string $id): string => strtolower(trim($id)), $valueIds)));
         sort($picked);
 
@@ -156,38 +149,5 @@ final readonly class CatalogApiImpl implements CatalogApi
         }
 
         return null;
-    }
-
-    private function toDto(Variant $variant): VariantDto
-    {
-        $values = [];
-
-        foreach ($variant->combination()->valueIds as $attributeId => $valueId) {
-            $attribute = $this->attributes->find((string) $attributeId);
-            $value = $this->attributes->findValue($valueId);
-
-            if ($attribute !== null && $value !== null) {
-                $values[] = new VariantValueDto(
-                    $attribute->id(),
-                    new TranslatedTextDto($attribute->name()->ar, $attribute->name()->en),
-                    $value->id(),
-                    new TranslatedTextDto($value->name()->ar, $value->name()->en),
-                );
-            }
-        }
-
-        $measures = $variant->measures();
-
-        return new VariantDto(
-            $variant->id(),
-            $variant->productId(),
-            $variant->code()->value,
-            $values,
-            $measures->weightGrams,
-            $measures->lengthMm,
-            $measures->widthMm,
-            $measures->heightMm,
-            $variant->isArchived(),
-        );
     }
 }

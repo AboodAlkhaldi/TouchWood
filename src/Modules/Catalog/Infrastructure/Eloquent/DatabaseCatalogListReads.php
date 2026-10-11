@@ -15,9 +15,9 @@ use Modules\Catalog\Application\Query\Lists\LabelRow;
 use Modules\Catalog\Application\Query\Lists\NoResultSearchRow;
 use Modules\Catalog\Application\Query\Lists\ReachedProductRow;
 use Modules\Catalog\Application\Query\Lists\ValueRow;
-use Modules\Catalog\Application\Query\Lists\VariationRow;
 use Modules\Catalog\Application\Query\Lists\WarrantyRow;
 use Modules\Catalog\Application\Query\Lists\WordPairRow;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**
@@ -130,33 +130,6 @@ final readonly class DatabaseCatalogListReads implements CatalogListReads
             (bool) $row->is_active,
             (int) $row->position,
             (bool) $row->in_use,
-        ))->all());
-    }
-
-    public function variations(): array
-    {
-        $sets = $this->db->table('catalog.attribute_sets as s')
-            ->select(['s.id', 's.name_ar', 's.name_en', 's.is_active'])
-            ->selectRaw('EXISTS (SELECT 1 FROM catalog.products p JOIN catalog.variants v ON v.product_id = p.id WHERE p.attribute_set_id = s.id) as built_on')
-            ->selectRaw('(SELECT count(*) FROM catalog.products p WHERE p.attribute_set_id = s.id) as products')
-            ->orderBy('s.name_en')->orderBy('s.id')
-            ->get();
-
-        // Every set's members in one more query, never one per set.
-        $members = [];
-
-        foreach ($this->db->table('catalog.attribute_set_members')->orderBy('attribute_set_id')->orderBy('position')->orderBy('attribute_id')->get() as $member) {
-            $members[(string) $member->attribute_set_id][] = (string) $member->attribute_id;
-        }
-
-        return array_values($sets->map(static fn (stdClass $row): VariationRow => new VariationRow(
-            (string) $row->id,
-            (string) $row->name_ar,
-            (string) $row->name_en,
-            (bool) $row->is_active,
-            $members[(string) $row->id] ?? [],
-            (bool) $row->built_on,
-            (int) $row->products,
         ))->all());
     }
 
@@ -273,7 +246,8 @@ final readonly class DatabaseCatalogListReads implements CatalogListReads
 
     /**
      * An attribute's row: its job locked by values or by details variants carry (amendments 1(i),
-     * 3(k)); held by a set; used by a set, a variant or a product's filters.
+     * 3(k)); held by products making their variants of it (amendment 16(b)); used by a product's
+     * variants or its filters.
      *
      * @return Builder
      */
@@ -283,7 +257,7 @@ final readonly class DatabaseCatalogListReads implements CatalogListReads
             ->select(['a.id', 'a.name_ar', 'a.name_en', 'a.kind', 'a.unit_ar', 'a.unit_en', 'a.is_colour', 'a.is_active', 'a.position'])
             ->selectRaw('(SELECT count(*) FROM catalog.attribute_values v WHERE v.attribute_id = a.id) as values_count')
             ->selectRaw('EXISTS (SELECT 1 FROM catalog.variant_details d WHERE d.attribute_id = a.id) as has_details')
-            ->selectRaw('EXISTS (SELECT 1 FROM catalog.attribute_set_members m WHERE m.attribute_id = a.id) as in_variation')
+            ->selectRaw('EXISTS (SELECT 1 FROM catalog.product_attributes pa WHERE pa.attribute_id = a.id) as in_products')
             ->selectRaw('(EXISTS (SELECT 1 FROM catalog.variant_values vv WHERE vv.attribute_id = a.id)
                 OR EXISTS (SELECT 1 FROM catalog.product_filter_values f WHERE f.attribute_id = a.id)) as carried')
             ->orderBy('a.position')->orderBy('a.name_en')->orderBy('a.id');
@@ -305,8 +279,8 @@ final readonly class DatabaseCatalogListReads implements CatalogListReads
             (int) $row->position,
             $values,
             $values > 0 || (bool) $row->has_details,
-            (bool) $row->in_variation,
-            (bool) $row->in_variation || (bool) $row->has_details || (bool) $row->carried,
+            (bool) $row->in_products,
+            (bool) $row->in_products || (bool) $row->has_details || (bool) $row->carried,
         );
     }
 

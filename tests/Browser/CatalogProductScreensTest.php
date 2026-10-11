@@ -7,16 +7,14 @@ use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\CatalogPermissions as P;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttribute;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttributeHandler;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSet;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSetHandler;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValue;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValueHandler;
 use Modules\Catalog\Application\Command\AddBrand\AddBrand;
 use Modules\Catalog\Application\Command\AddBrand\AddBrandHandler;
+use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttribute;
+use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttributeHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
-use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
-use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -157,15 +155,13 @@ it('keeps the tab in the address, and saves the details once something changed',
     $page->assertNoJavaScriptErrors();
 });
 
-it('adds a variant from its dialog, with a value of the product\'s variation', function () {
+it('adds a variant from its dialog, with a value of the product\'s variant attribute', function () {
     $n = catalogProductBrowserFresh();
     $product = catalogProductBrowserDraft($n);
     [$width, $value] = Fx::asSystem(function () use ($n, $product): array {
         $width = app(AddAttributeHandler::class)->handle(new AddAttribute("عرض {$n}", "Width {$n}", 'VARIANT'));
         $value = app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($width, "ستون {$n}", "60 cm {$n}"));
-        $set = app(AddAttributeSetHandler::class)->handle(new AddAttributeSet("مقاسات {$n}", "Sizes {$n}", [$width]));
-        $brand = (string) DB::table('catalog.products')->where('id', $product)->value('brand_id');
-        app(EditProductDetailsHandler::class)->handle(new EditProductDetails($product, "درج {$n}", "Drawer {$n}", $brand, attributeSetId: $set));
+        app(AddVariantAttributeHandler::class)->handle(new AddVariantAttribute($product, $width, []));
 
         return [$width, $value];
     });

@@ -8,7 +8,7 @@ use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
- * An attribute (catalog.md §1.7, §4.4 S3): its job and what locks it, whether a variation holds it,
+ * An attribute (catalog.md §1.7, §4.4 S3): its job and what locks it, whether products make their variants of it,
  * and whether anything uses it.
  */
 #[TypeScript]
@@ -28,7 +28,8 @@ final class AttributeData extends Data
         public int $values,
         /** Its job and colour stay as they are: it has values, or variants carry details of it. */
         public bool $kindLocked,
-        public bool $inVariation,
+        /** Products make their variants of it (amendment 16(b)): it stays Makes Variants. */
+        public bool $inProducts,
         public bool $inUse,
     ) {}
 }

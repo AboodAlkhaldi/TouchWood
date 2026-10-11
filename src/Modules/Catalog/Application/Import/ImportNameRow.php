@@ -20,8 +20,6 @@ final readonly class ImportNameRow
 
     public const string VALUE = 'VALUE';
 
-    public const string SET = 'SET';
-
     public const string WARRANTY = 'WARRANTY';
 
     /**

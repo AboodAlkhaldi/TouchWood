@@ -108,8 +108,8 @@ function catalogStagesWhole(): array
     app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
         $id, $product->name()->ar, $product->name()->en, $product->brandId(),
         descriptionAr: catalogStagesText('درج'), descriptionEn: catalogStagesText('Drawer'), categoryId: $category,
-        attributeSetId: Px::set([$width]),
     ));
+    Px::variantAttributes($id, [$width]);
     $variant = Px::variant($id, '1304', [$width => $sixty]);
     $photo = Cx::media();
     app(SetProductGalleryHandler::class)->handle(new SetProductGallery($id, [$photo]));
@@ -132,7 +132,6 @@ function catalogStagesEdit(string $productId, array $changes): void
         'descriptionAr' => $product->descriptionAr()?->toArray(),
         'descriptionEn' => $product->descriptionEn()?->toArray(),
         'categoryId' => $product->categoryId(),
-        'attributeSetId' => $product->attributeSetId(),
         ...$changes,
     ]));
 }
