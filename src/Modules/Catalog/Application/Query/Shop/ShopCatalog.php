@@ -6,6 +6,7 @@ namespace Modules\Catalog\Application\Query\Shop;
 
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -13,6 +14,12 @@ use Shared\Domain\ValueObject\StoreId;
  * brand's pages, a product's page and what it suggests. Anyone may read them — a guest included — so
  * no permission is asked; what a shopper may not see is simply not in the listing (§5.4). The store
  * is the one the storefront's request resolved, and nothing answered holds a code (amendment 5(d)).
+ *
+ * **Every read answers for one viewer** (§1.13, amendment 14): the page asks Platform's
+ * `ShopperType` who is looking and passes it in — an individual sees the categories switched on for
+ * individuals and the retail side only, a company the categories switched on for companies, a guest
+ * (a staff view too) what either sees (P25). A product this viewer does not see has the "Not
+ * available now" page (P18); a category that lists nothing for them has no page.
  */
 final readonly class ShopCatalog
 {
@@ -42,7 +49,7 @@ final readonly class ShopCatalog
      *
      * @throws InvalidCatalogAttribute
      */
-    public function menu(StoreId $store, string $locale): array
+    public function menu(StoreId $store, string $locale, ShopperKind $viewer): array
     {
         $base = null;
 
@@ -54,7 +61,7 @@ final readonly class ShopCatalog
 
         $byParent = [];
 
-        foreach ($this->reader->menu($store->value, $base, ShopLocale::of($locale)) as $row) {
+        foreach ($this->reader->menu($store->value, $base, ShopLocale::of($locale), $viewer) as $row) {
             $byParent[$row['parent_id'] ?? ''][] = $row;
         }
 
@@ -70,7 +77,7 @@ final readonly class ShopCatalog
      *
      * @throws InvalidCatalogAttribute
      */
-    public function category(StoreId $store, string $locale, string $slug, array $brandIds = [], ?string $after = null, int $limit = self::PAGE): CategoryPage|Moved|null
+    public function category(StoreId $store, string $locale, ShopperKind $viewer, string $slug, array $brandIds = [], ?string $after = null, int $limit = self::PAGE): CategoryPage|Moved|null
     {
         $locale = ShopLocale::of($locale);
         $cursor = Cursor::parse($after);
@@ -82,7 +89,7 @@ final readonly class ShopCatalog
         $owner = $this->reader->slugOwner('category', $locale, self::slug($locale, $slug));
         $category = $owner === null ? null : $this->reader->category($owner['id'], $locale);
 
-        if ($owner === null || $category === null || ! $this->reader->categoryLists($store->value, $locale, $owner['id'])) {
+        if ($owner === null || $category === null || ! $this->reader->categoryLists($store->value, $locale, $viewer, $owner['id'])) {
             return null;
         }
 
@@ -92,7 +99,7 @@ final readonly class ShopCatalog
 
         $brands = array_values(array_unique(array_map(static fn (string $id): string => strtolower($id), $brandIds)));
 
-        return new CategoryPage($owner['id'], $category['name'], $owner['slug'], $this->reader->categoryCards($store->value, $locale, $owner['id'], $brands, $cursor, self::limit($limit, self::PAGE_MAX)));
+        return new CategoryPage($owner['id'], $category['name'], $owner['slug'], $this->reader->categoryCards($store->value, $locale, $viewer, $owner['id'], $brands, $cursor, self::limit($limit, self::PAGE_MAX)));
     }
 
     /**
@@ -101,7 +108,7 @@ final readonly class ShopCatalog
      *
      * @throws InvalidCatalogAttribute
      */
-    public function brand(StoreId $store, string $locale, string $slug, ?string $after = null, int $limit = self::PAGE): BrandPage|Moved|null
+    public function brand(StoreId $store, string $locale, ShopperKind $viewer, string $slug, ?string $after = null, int $limit = self::PAGE): BrandPage|Moved|null
     {
         $locale = ShopLocale::of($locale);
         $cursor = Cursor::parse($after);
@@ -116,7 +123,7 @@ final readonly class ShopCatalog
             return new Moved($owner['slug']);
         }
 
-        return new BrandPage($owner['id'], $brand['name'], $owner['slug'], $brand['logo_media_id'], $this->reader->brandCards($store->value, $locale, $owner['id'], $cursor, self::limit($limit, self::PAGE_MAX)));
+        return new BrandPage($owner['id'], $brand['name'], $owner['slug'], $brand['logo_media_id'], $this->reader->brandCards($store->value, $locale, $viewer, $owner['id'], $cursor, self::limit($limit, self::PAGE_MAX)));
     }
 
     /**
@@ -126,7 +133,7 @@ final readonly class ShopCatalog
      *
      * @throws InvalidCatalogAttribute
      */
-    public function product(StoreId $store, string $locale, string $slug): ProductPage|Moved|null
+    public function product(StoreId $store, string $locale, ShopperKind $viewer, string $slug): ProductPage|Moved|null
     {
         $locale = ShopLocale::of($locale);
         $owner = $this->reader->slugOwner('product', $locale, self::slug($locale, $slug));
@@ -140,7 +147,7 @@ final readonly class ShopCatalog
             return new Moved($owner['slug']);
         }
 
-        $available = $this->reader->isListed($store->value, $locale, $owner['id']);
+        $available = $this->reader->isListed($store->value, $locale, $viewer, $owner['id']);
         $photos = [];
 
         foreach ($this->reader->gallery($owner['id']) as $mediaId) {
@@ -159,7 +166,7 @@ final readonly class ShopCatalog
             $product['description'] ?? [],
             $photos,
             $available ? $this->reader->labels($store->value, $locale, $owner['id']) : [],
-            $available ? $this->reader->variantsOnSale($store->value, $locale, $owner['id']) : [],
+            $available ? $this->reader->variantsOnSale($store->value, $locale, $viewer, $owner['id']) : [],
         );
     }
 
@@ -171,7 +178,7 @@ final readonly class ShopCatalog
      *
      * @throws InvalidCatalogAttribute
      */
-    public function relations(StoreId $store, string $locale, string $productId, int $limit = self::SUGGESTIONS_MAX): Relations
+    public function relations(StoreId $store, string $locale, ShopperKind $viewer, string $productId, int $limit = self::SUGGESTIONS_MAX): Relations
     {
         $locale = ShopLocale::of($locale);
         $limit = self::limit($limit, self::SUGGESTIONS_MAX);
@@ -185,17 +192,17 @@ final readonly class ShopCatalog
         $picked = $this->reader->picked($id, 'RELATED');
 
         if ($picked !== []) {
-            $mayAlsoLike = array_slice($this->reader->cardsOf($store->value, $locale, $picked), 0, $limit);
+            $mayAlsoLike = array_slice($this->reader->cardsOf($store->value, $locale, $viewer, $picked), 0, $limit);
         } else {
-            $mayAlsoLike = $product['category_id'] === null ? [] : $this->reader->cardsSharing($store->value, $locale, 'category_id', $product['category_id'], $product['brand_id'], [$id], $limit);
+            $mayAlsoLike = $product['category_id'] === null ? [] : $this->reader->cardsSharing($store->value, $locale, $viewer, 'category_id', $product['category_id'], $product['brand_id'], [$id], $limit);
 
             if (count($mayAlsoLike) < $limit) {
                 $shown = [$id, ...array_map(static fn (ProductCard $card): string => $card->productId, $mayAlsoLike)];
-                array_push($mayAlsoLike, ...$this->reader->cardsSharing($store->value, $locale, 'brand_id', $product['brand_id'], $product['brand_id'], $shown, $limit - count($mayAlsoLike)));
+                array_push($mayAlsoLike, ...$this->reader->cardsSharing($store->value, $locale, $viewer, 'brand_id', $product['brand_id'], $product['brand_id'], $shown, $limit - count($mayAlsoLike)));
             }
         }
 
-        return new Relations($mayAlsoLike, array_slice($this->reader->cardsOf($store->value, $locale, $this->reader->picked($id, 'GOES_WITH')), 0, $limit));
+        return new Relations($mayAlsoLike, array_slice($this->reader->cardsOf($store->value, $locale, $viewer, $this->reader->picked($id, 'GOES_WITH')), 0, $limit));
     }
 
     /**

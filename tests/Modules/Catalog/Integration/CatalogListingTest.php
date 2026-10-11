@@ -107,7 +107,8 @@ function catalogRowsSnapshot(): array
         'SELECT store_id, locale, product_id, name, slug, brand_id, brand_visible_by_default, category_id,'
         .' category_path::text AS category_path, in_category_pages, value_ids::text AS value_ids,'
         .' label_ids::text AS label_ids, card_media_id, card_photo::text AS card_photo, orderable, price_minor,'
-        .' sales_rank, search_text, search_document::text AS search_document'
+        .' sales_rank, search_text, search_document::text AS search_document, for_individuals, for_companies,'
+        .' sells_retail, sells_wholesale, card_variant_id, retail_card_variant_id'
         .' FROM catalog.listing ORDER BY store_id, locale, product_id',
     )));
 }
@@ -465,6 +466,9 @@ describe('kept current', function () {
 
             return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($parent, $elsewhere));
         }],
+        // How each variant is sold decides who sees it and each side's card (amendment 14(e), (f)).
+        'selling a variant wholesale as well' => [fn (array $p) => fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $p['product'], [$p['variants'][0] => ['retail' => true, 'wholesale' => true]], wholesaleMinimum: 10))],
+        'selling the first variant wholesale only' => [fn (array $p) => fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $p['product'], [$p['variants'][0] => ['retail' => false, 'wholesale' => true]], wholesaleMinimum: 10))],
     ]);
 
     it('is not written by a change that alters nothing a row holds', function (Closure $prepare) {
@@ -513,7 +517,8 @@ describe('kept current', function () {
             return fn () => app(SetRelationsHandler::class)->handle(new SetRelations($p['product'], 'RELATED', [$other]));
         }],
         'setting a variant\'s own photos' => [fn (array $p) => fn () => app(SetVariantPhotosHandler::class)->handle(new SetVariantPhotos($p['variants'][0], [Cx::media()]))],
-        'setting the selling terms' => [fn (array $p) => fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $p['product'], [$p['variants'][0] => ['retail' => true, 'wholesale' => true]], wholesaleMinimum: 10))],
+        // A row holds how its variants are sold since amendment 14; the limits alone it does not.
+        'setting the quantity limits' => [fn (array $p) => fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $p['product'], [], 2, 50))],
     ]);
 
     it('changes a row that stays in place, and leaves one that did not change unwritten', function () {
@@ -599,11 +604,12 @@ describe('the repair', function () {
         $written = catalogRowsSnapshot();
 
         DB::table('catalog.listing')->where('product_id', $listed['product'])->where('store_id', Fx::storeId('eg'))->where('locale', 'en')->delete();
-        DB::table('catalog.listing')->where('product_id', $listed['product'])->where('store_id', Fx::storeId('sa'))->update(['name' => 'Stale']);
+        DB::table('catalog.listing')->where('product_id', $listed['product'])->where('store_id', Fx::storeId('sa'))->update(['name' => 'Stale', 'for_companies' => false]);
         DB::table('catalog.listing')->where('product_id', $left['product'])->update(['in_category_pages' => true]);
         DB::statement(
             'INSERT INTO catalog.listing SELECT store_id, locale, ?, name, slug, brand_id, brand_visible_by_default, category_id, in_category_pages,'
-            .' card_media_id, card_photo, orderable, price_minor, sales_rank, search_text, category_path, value_ids, label_ids, search_document'
+            .' card_media_id, card_photo, orderable, price_minor, sales_rank, search_text, category_path, value_ids, label_ids, search_document,'
+            .' for_individuals, for_companies, sells_retail, sells_wholesale, card_variant_id, retail_card_variant_id'
             .' FROM catalog.listing WHERE product_id = ? AND store_id = ? AND locale = ?',
             [$archived['product'], $left['product'], Fx::storeId('sa'), 'ar'],
         );

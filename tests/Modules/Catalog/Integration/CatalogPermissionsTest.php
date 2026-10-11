@@ -26,9 +26,10 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use function Pest\Laravel\seed;
 
 /*
-| Catalog's permissions in Access's catalog (catalog.md §3): one per job, eighteen a role may hold —
-| per store, in the Catalog group, one admin-only (the store file's, amendment 6(h)) — and three
-| reserved to a Super Admin and the system. Their names in both languages are checked with every module's by Access's own test.
+| Catalog's permissions in Access's catalog (catalog.md §3): one per job, nineteen a role may hold —
+| per store, in the Catalog group, two admin-only (the store file's, amendment 6(h); who sees a
+| category, 14(c)) — and three reserved to a Super Admin and the system. Their names in both languages
+| are checked with every module's by Access's own test.
 */
 
 uses(RefreshDatabase::class);
@@ -53,10 +54,11 @@ function catalogDeclaredPermissions(bool $reserved): array
 
 // Two literal lists, split by the reservation, so a name moved from one list to the other is caught
 // (review of step 1): the union alone would let the import become a job any role may hold.
-it('declares the eighteen jobs of the spec as jobs, and nothing else', function () {
+it('declares the nineteen jobs of the spec as jobs, and nothing else', function () {
     expect(catalogDeclaredPermissions(reserved: false))->toBe([
         'catalog.attribute.manage',
         'catalog.brand.manage',
+        'catalog.category.audience',
         'catalog.category.manage',
         'catalog.category.rank',
         'catalog.label.manage',
@@ -94,34 +96,35 @@ it('makes every job per store, offered in the role editor under Catalog, and nev
         ->and(array_map(static fn (PermissionDefinitionDto $offered): string => $offered->name, app(InMemoryPermissionCatalog::class)->assignable()))->toContain($name);
 })->with(CatalogPermissions::jobs());
 
-it('keeps every job but the store file open to staff roles as well as admin roles', function () {
+it('keeps every job but the two admin-only ones open to staff roles as well as admin roles', function () {
     $open = array_values(array_diff(CatalogPermissions::jobs(), CatalogPermissions::adminOnly()));
     // Creating the role goes through Access's own rules, which refuse an admin-only action in a
     // staff role — so a staff role holding all seventeen is the proof.
     $roleId = Fx::role($open, RoleLevel::Staff);
 
-    expect(CatalogPermissions::adminOnly())->toBe([CatalogPermissions::LISTING_FILL])
+    expect(CatalogPermissions::adminOnly())->toBe([CatalogPermissions::LISTING_FILL, CatalogPermissions::CATEGORY_AUDIENCE])
+        ->and($open)->toHaveCount(17)
         ->and(array_intersect($open, AccessPermissions::adminOnly()))->toBe([])
         ->and(Fx::rolePermissions($roleId))->toEqualCanonicalizing($open);
 });
 
-describe('the store file, for admin roles only (amendment 6(h))', function () {
-    it('goes into an admin role and never into a staff role', function () {
-        expect(app(InMemoryPermissionCatalog::class)->isAdminOnly(CatalogPermissions::LISTING_FILL))->toBeTrue()
-            ->and(app(InMemoryPermissionCatalog::class)->definition(CatalogPermissions::LISTING_FILL)?->adminOnly)->toBeTrue()
-            ->and(fn () => Fx::role([CatalogPermissions::LISTING_FILL], RoleLevel::Staff))->toThrow(AdminOnlyPermission::class);
+describe('the store file and who sees a category, for admin roles only (amendments 6(h), 14(c))', function () {
+    it('goes into an admin role and never into a staff role', function (string $permission) {
+        expect(app(InMemoryPermissionCatalog::class)->isAdminOnly($permission))->toBeTrue()
+            ->and(app(InMemoryPermissionCatalog::class)->definition($permission)?->adminOnly)->toBeTrue()
+            ->and(fn () => Fx::role([$permission], RoleLevel::Staff))->toThrow(AdminOnlyPermission::class);
 
-        $roleId = Fx::role([CatalogPermissions::LISTING_FILL], RoleLevel::Admin);
+        $roleId = Fx::role([$permission], RoleLevel::Admin);
 
-        expect(Fx::rolePermissions($roleId))->toBe([CatalogPermissions::LISTING_FILL]);
-    });
+        expect(Fx::rolePermissions($roleId))->toBe([$permission]);
+    })->with([CatalogPermissions::LISTING_FILL, CatalogPermissions::CATEGORY_AUDIENCE]);
 
-    it('is offered for an admin role, marked admin-only, and not for a staff role', function () {
+    it('is offered for an admin role, marked admin-only, and not for a staff role', function (string $permission) {
         Fx::actAsStaff(Fx::staff(superAdmin: true));
 
-        $offered = function (RoleLevel $level): ?EditorPermission {
+        $offered = function (RoleLevel $level) use ($permission): ?EditorPermission {
             foreach (app(RoleEditorPermissionsHandler::class)->handle(new RoleEditorPermissions($level)) as $item) {
-                if ($item->name === CatalogPermissions::LISTING_FILL) {
+                if ($item->name === $permission) {
                     return $item;
                 }
             }
@@ -131,22 +134,22 @@ describe('the store file, for admin roles only (amendment 6(h))', function () {
 
         expect($offered(RoleLevel::Admin)?->adminOnly)->toBeTrue()
             ->and($offered(RoleLevel::Staff))->toBeNull();
-    });
+    })->with([CatalogPermissions::LISTING_FILL, CatalogPermissions::CATEGORY_AUDIENCE]);
 
-    it('grants nothing through a staff role that came to hold it another way, and is granted through an admin role', function () {
+    it('grants nothing through a staff role that came to hold it another way, and is granted through an admin role', function (string $permission) {
         $staffId = Fx::staffWith([CatalogPermissions::LISTING_CHOOSE], ['sa']);
         $roleId = (string) DB::table('access.role_assignments')->where('staff_user_id', $staffId)->value('role_id');
-        DB::table('access.role_permissions')->insert(['role_id' => $roleId, 'permission' => CatalogPermissions::LISTING_FILL]);
+        DB::table('access.role_permissions')->insert(['role_id' => $roleId, 'permission' => $permission]);
         Fx::actAsStaff($staffId);
         $sa = PermissionScope::store(StoreId::fromString(Fx::storeId('sa')));
 
-        expect(fn () => app(Authorizer::class)->authorize(CatalogPermissions::LISTING_FILL, $sa))->toThrow(Unauthorized::class);
+        expect(fn () => app(Authorizer::class)->authorize($permission, $sa))->toThrow(Unauthorized::class);
 
-        Fx::actAsStaff(Fx::staffWith([CatalogPermissions::LISTING_FILL], ['sa'], RoleLevel::Admin));
-        app(Authorizer::class)->authorize(CatalogPermissions::LISTING_FILL, $sa);
+        Fx::actAsStaff(Fx::staffWith([$permission], ['sa'], RoleLevel::Admin));
+        app(Authorizer::class)->authorize($permission, $sa);
 
-        expect(app(Authorizer::class)->storesWith(CatalogPermissions::LISTING_FILL))->toEqual([StoreId::fromString(Fx::storeId('sa'))]);
-    });
+        expect(app(Authorizer::class)->storesWith($permission))->toEqual([StoreId::fromString(Fx::storeId('sa'))]);
+    })->with([CatalogPermissions::LISTING_FILL, CatalogPermissions::CATEGORY_AUDIENCE]);
 });
 
 it('names exactly the six shared-list jobs of the spec, which their handlers will check with All stores', function () {

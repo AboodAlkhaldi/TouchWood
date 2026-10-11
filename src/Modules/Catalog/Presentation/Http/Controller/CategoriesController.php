@@ -24,8 +24,11 @@ use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
 use Modules\Catalog\Application\Command\RankCategories\RankCategories;
 use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
 use Modules\Catalog\Application\Command\UploadCategoryImage\UploadCategoryImage;
 use Modules\Catalog\Application\Command\UploadCategoryImage\UploadCategoryImageHandler;
+use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
 use Modules\Catalog\Presentation\Http\Resource\ListPages;
 use Modules\Platform\Public\Contracts\StoreChoices;
@@ -131,15 +134,49 @@ final readonly class CategoriesController
     }
 
     /**
-     * @throws Unauthorized when no store is named, or one the reader does not order the menu of
+     * Who sees the category in the store the page shows (§1.13, amendment 14): the switch flipped —
+     * `individuals` or `companies`, each true or false, the other left out — saved the moment it flips
+     * (P9), reaching everything under it. A form that names no store, or one not offered here, is
+     * refused, as an order is.
      */
-    private static function storeId(StoreChoices $choices, ?string $code): string
+    public function audience(CatalogFormRequest $request, string $category, SetCategoryAudiencesHandler $handler, StoreChoices $choices): RedirectResponse
+    {
+        return CatalogRefusals::act($request, fn () => $handler->handle(new SetCategoryAudiences(
+            self::storeId($choices, $request->optionalText('store'), CatalogPermissions::CATEGORY_AUDIENCE),
+            $category,
+            self::switch($request->input('individuals')),
+            self::switch($request->input('companies')),
+        )), 'catalog::admin_categories.toast.audience_set');
+    }
+
+    /**
+     * @throws Unauthorized when no store is named, or one the reader does not hold the job in
+     */
+    private static function storeId(StoreChoices $choices, ?string $code, string $permission = CatalogPermissions::CATEGORY_RANK): string
     {
         if ($code === null) {
-            throw new Unauthorized(CatalogPermissions::CATEGORY_RANK);
+            throw new Unauthorized($permission);
         }
 
-        return $choices->chosen($code, CatalogPermissions::CATEGORY_RANK)->id ?? throw new Unauthorized(CatalogPermissions::CATEGORY_RANK);
+        return $choices->chosen($code, $permission)->id ?? throw new Unauthorized($permission);
+    }
+
+    /**
+     * A switch as posted: true or false — `1`, `0`, `true`, `false` — or left out.
+     *
+     * @throws InvalidCatalogAttribute for anything else
+     */
+    private static function switch(mixed $posted): ?bool
+    {
+        if ($posted === null || $posted === '') {
+            return null;
+        }
+
+        return is_bool($posted) ? $posted : match (is_scalar($posted) ? strtolower(trim((string) $posted)) : '') {
+            '1', 'true' => true,
+            '0', 'false' => false,
+            default => throw new InvalidCatalogAttribute('audience', 'a switch: on or off'),
+        };
     }
 
     /**

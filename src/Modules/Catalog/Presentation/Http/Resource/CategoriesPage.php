@@ -9,15 +9,16 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
  * The categories screen (catalog.md §4.4 S2): every category of the tree, which it builds; the store
- * chosen in the page's own filter — whose menu order the page shows and orders —; what the reader
- * may do; and, when a deactivation is being prepared, the products it would reach.
+ * chosen in the page's own filter — whose menu order the page shows and orders, and who sees each
+ * category there (amendment 14) —; what the reader may do; and, when a deactivation is being prepared,
+ * the products it would reach.
  */
 #[TypeScript]
 final class CategoriesPage extends Data
 {
     /**
      * @param  list<CategoryData>  $categories
-     * @param  list<StoreOptionData>  $stores  the stores whose menu the reader orders
+     * @param  list<StoreOptionData>  $stores  the stores whose menu the reader orders, or whose categories' audiences they choose
      * @param  list<ReachedProductData>|null  $reached
      */
     public function __construct(
@@ -27,6 +28,7 @@ final class CategoriesPage extends Data
         public array $stores,
         public bool $mayManage,
         public bool $mayRank,
+        public bool $mayChooseAudience,
         public ?array $reached,
         public ?string $reachedFor,
     ) {}

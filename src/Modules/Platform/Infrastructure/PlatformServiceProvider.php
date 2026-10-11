@@ -34,6 +34,7 @@ use Modules\Platform\Application\Query\AuthorizedStoreChoices;
 use Modules\Platform\Application\Query\ListAudit\AuditReader;
 use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Application\Query\StoreDirectory;
+use Modules\Platform\Application\Routing\GuestShoppers;
 use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
@@ -75,6 +76,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
+use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Modules\Platform\Public\Dto\HomeCardDto;
@@ -176,6 +178,9 @@ final class PlatformServiceProvider extends ServiceProvider
         // Nobody named until the module that owns people binds its own (Access does, amendment 54).
         // Scoped: who may be named depends on who is reading.
         $this->app->scoped(StaffNames::class, UnnamedStaff::class);
+        // Everyone a guest until the module that owns customers binds its own (Access does, catalog.md
+        // amendment 14(a)). Scoped: who is looking is this request's.
+        $this->app->scoped(ShopperType::class, GuestShoppers::class);
 
         $this->app->singleton(MediaStorage::class, fn (Application $app): MediaStorage => new LaravelMediaStorage(
             $app->make(Filesystems::class),

@@ -73,6 +73,7 @@ storeName: string | null,
 stores: StoreOptionData[],
 mayManage: boolean,
 mayRank: boolean,
+mayChooseAudience: boolean,
 reached: ReachedProductData[] | null,
 reachedFor: string | null,
 };
@@ -91,6 +92,8 @@ productsHere: number,
 products: number,
 storeRank: number | null,
 baseRank: number | null,
+forIndividuals: boolean,
+forCompanies: boolean,
 };
 export type CategoryOptionData = {
 id: string,

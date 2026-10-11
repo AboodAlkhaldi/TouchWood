@@ -15,6 +15,7 @@ use Modules\Catalog\Application\Query\Shop\ShopReader;
 use Modules\Catalog\Application\Query\Shop\ShopVariant;
 use Modules\Catalog\Application\Query\Shop\VariantChoice;
 use Modules\Catalog\Application\Search\SearchTerms;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
@@ -22,7 +23,8 @@ use stdClass;
  * The shopper's reads, from the listing (catalog.md §5.4): a grid is one indexed query on it, with
  * the labels of the whole page in a second. Ids from a request that are not ULIDs find nothing
  * without asking the database. Names come in the page's language — `ar` or `en`, nothing else is
- * ever written into a column name here.
+ * ever written into a column name here. Who is looking narrows every read in the same query, from
+ * the row's own columns (amendment 14): it costs no query of its own.
  */
 final readonly class DatabaseShopReader implements ShopReader
 {
@@ -39,14 +41,14 @@ final readonly class DatabaseShopReader implements ShopReader
         private ConnectionInterface $db,
     ) {}
 
-    public function menu(string $storeId, ?string $baseStoreId, string $locale): array
+    public function menu(string $storeId, ?string $baseStoreId, string $locale, ShopperKind $viewer): array
     {
         $name = self::column('name', $locale);
         $bindings = [$storeId, $locale, $locale, $storeId, $baseStoreId];
 
         $rows = $this->db->select(
             'WITH listed AS (SELECT DISTINCT unnest(category_path) AS id FROM '.self::LISTING
-            .' WHERE store_id = ? AND locale = ? AND in_category_pages AND orderable)'
+            .' WHERE store_id = ? AND locale = ? AND in_category_pages AND orderable AND '.self::seenBy($viewer).')'
             ." SELECT c.id, c.parent_id, c.{$name} AS name, s.slug, c.image_media_id FROM catalog.categories c"
             .' JOIN listed l ON l.id = c.id'
             .' JOIN catalog.category_slugs s ON s.category_id = c.id AND s.locale = ? AND s.is_current'
@@ -87,9 +89,9 @@ final readonly class DatabaseShopReader implements ShopReader
         return $row instanceof stdClass ? ['name' => (string) $row->name] : null;
     }
 
-    public function categoryLists(string $storeId, string $locale, string $categoryId): bool
+    public function categoryLists(string $storeId, string $locale, ShopperKind $viewer, string $categoryId): bool
     {
-        return $this->inCategoryPages($storeId, $locale, $categoryId)->exists();
+        return $this->inCategoryPages($storeId, $locale, $viewer, $categoryId)->exists();
     }
 
     public function brand(string $brandId, string $locale): ?array
@@ -101,9 +103,9 @@ final readonly class DatabaseShopReader implements ShopReader
             : null;
     }
 
-    public function categoryCards(string $storeId, string $locale, string $categoryId, array $brandIds, ?Cursor $after, int $limit): CardPage
+    public function categoryCards(string $storeId, string $locale, ShopperKind $viewer, string $categoryId, array $brandIds, ?Cursor $after, int $limit): CardPage
     {
-        $query = $this->inCategoryPages($storeId, $locale, $categoryId);
+        $query = $this->inCategoryPages($storeId, $locale, $viewer, $categoryId);
         $brandIds = array_values(array_filter($brandIds, Ulids::valid(...)));
 
         // Every brand, a secondary one included (amendment 5(k)); the shopper's filter narrows it.
@@ -111,15 +113,15 @@ final readonly class DatabaseShopReader implements ShopReader
             $query->whereIn('brand_id', $brandIds);
         }
 
-        return $this->page($query, $locale, $after, $limit);
+        return $this->page($query, $locale, $viewer, $after, $limit);
     }
 
-    public function brandCards(string $storeId, string $locale, string $brandId, ?Cursor $after, int $limit): CardPage
+    public function brandCards(string $storeId, string $locale, ShopperKind $viewer, string $brandId, ?Cursor $after, int $limit): CardPage
     {
-        return $this->page($this->listed($storeId, $locale)->where('brand_id', $brandId), $locale, $after, $limit);
+        return $this->page($this->listed($storeId, $locale, $viewer)->where('brand_id', $brandId), $locale, $viewer, $after, $limit);
     }
 
-    public function cardsOf(string $storeId, string $locale, array $productIds): array
+    public function cardsOf(string $storeId, string $locale, ShopperKind $viewer, array $productIds): array
     {
         $ids = array_values(array_filter($productIds, Ulids::valid(...)));
 
@@ -129,16 +131,16 @@ final readonly class DatabaseShopReader implements ShopReader
 
         $cards = [];
 
-        foreach ($this->cards($this->listed($storeId, $locale)->whereIn('product_id', $ids)->get()->all(), $locale) as $card) {
+        foreach ($this->cards($this->listed($storeId, $locale, $viewer)->whereIn('product_id', $ids)->get()->all(), $locale, $viewer) as $card) {
             $cards[$card->productId] = $card;
         }
 
         return array_values(array_filter(array_map(static fn (string $id): ?ProductCard => $cards[$id] ?? null, $ids)));
     }
 
-    public function cardsSharing(string $storeId, string $locale, string $column, string $value, string $brandId, array $except, int $limit): array
+    public function cardsSharing(string $storeId, string $locale, ShopperKind $viewer, string $column, string $value, string $brandId, array $except, int $limit): array
     {
-        $query = $this->listed($storeId, $locale)
+        $query = $this->listed($storeId, $locale, $viewer)
             ->where($column === 'brand_id' ? 'brand_id' : 'category_id', $value)
             ->where(static fn (Builder $brand): Builder => $brand->where('brand_visible_by_default', true)->orWhere('brand_id', $brandId));
 
@@ -146,7 +148,7 @@ final readonly class DatabaseShopReader implements ShopReader
             $query->whereNotIn('product_id', $except);
         }
 
-        return $this->cards(self::ordered($query)->limit($limit)->get()->all(), $locale);
+        return $this->cards(self::ordered($query)->limit($limit)->get()->all(), $locale, $viewer);
     }
 
     public function product(string $productId, string $locale): ?array
@@ -175,9 +177,9 @@ final readonly class DatabaseShopReader implements ShopReader
         ];
     }
 
-    public function isListed(string $storeId, string $locale, string $productId): bool
+    public function isListed(string $storeId, string $locale, ShopperKind $viewer, string $productId): bool
     {
-        return $this->listed($storeId, $locale)->where('product_id', $productId)->exists();
+        return $this->listed($storeId, $locale, $viewer)->where('product_id', $productId)->exists();
     }
 
     public function gallery(string $productId): array
@@ -199,7 +201,7 @@ final readonly class DatabaseShopReader implements ShopReader
         ));
     }
 
-    public function variantsOnSale(string $storeId, string $locale, string $productId): array
+    public function variantsOnSale(string $storeId, string $locale, ShopperKind $viewer, string $productId): array
     {
         $variantIds = array_values(array_map('strval', $this->db->table('catalog.store_variants as sv')
             ->join('catalog.store_products as sp', static function ($join): void {
@@ -212,6 +214,8 @@ final readonly class DatabaseShopReader implements ShopReader
             ->where('sv.not_available_now', false)
             ->where('sp.not_available_now', false)
             ->where('v.is_archived', false)
+            // Individuals buy retail only (amendment 14(e)): a mixed product shows them its retail sizes.
+            ->when($viewer === ShopperKind::Individual, static fn (Builder $retail): Builder => $retail->where('sv.sells_retail', true))
             ->orderBy('v.position')->orderBy('v.id')
             ->pluck('sv.variant_id')
             ->all()));
@@ -271,11 +275,11 @@ final readonly class DatabaseShopReader implements ShopReader
         ));
     }
 
-    public function search(string $storeId, string $locale, SearchTerms $terms, int $limit): SearchResults
+    public function search(string $storeId, string $locale, ShopperKind $viewer, SearchTerms $terms, int $limit): SearchResults
     {
         // The nearness text is the page's name, then the other one, a line apart (DatabaseListingRows).
         $rows = $this->db->select(
-            'SELECT * FROM (SELECT l.product_id, l.name, l.slug, l.card_photo, l.label_ids, l.sales_rank,'
+            'SELECT * FROM (SELECT l.product_id, l.name, l.slug, l.card_photo, l.label_ids, l.sales_rank, l.card_variant_id, l.retail_card_variant_id,'
             .' CASE WHEN split_part(l.search_text, chr(10), 1) = ?::text OR split_part(l.search_text, chr(10), 2) = ?::text THEN 1'
             ." WHEN l.search_document @@ to_tsquery('simple', ?) THEN 2"
             .' WHEN ?::text <% l.search_text THEN 3'
@@ -284,28 +288,46 @@ final readonly class DatabaseShopReader implements ShopReader
             .' word_similarity(?::text, l.search_text) AS nearness,'
             .' count(*) OVER () AS total'
             .' FROM '.self::LISTING.' l'
-            .' WHERE l.store_id = ? AND l.locale = ? AND l.orderable AND l.brand_visible_by_default'
+            .' WHERE l.store_id = ? AND l.locale = ? AND l.orderable AND l.brand_visible_by_default AND '.self::seenBy($viewer, 'l.')
             ." AND (l.search_document @@ to_tsquery('simple', ?) OR ?::text <% l.search_text)) found"
             .' ORDER BY tier, CASE WHEN tier = 3 THEN nearness END DESC NULLS LAST, sales_rank ASC NULLS LAST, product_id DESC'
             .' LIMIT ?',
             [$terms->text, $terms->text, $terms->inNames(), $terms->text, $terms->inWords(), $terms->text, $storeId, $locale, $terms->anywhere(), $terms->text, $limit],
         );
 
-        return new SearchResults($this->cards($rows, $locale), $rows === [] ? 0 : (int) $rows[0]->total);
+        return new SearchResults($this->cards($rows, $locale, $viewer), $rows === [] ? 0 : (int) $rows[0]->total);
     }
 
     /** What a category's page lists: everything below it in the pages, a product left in one that is off not. */
-    private function inCategoryPages(string $storeId, string $locale, string $categoryId): Builder
+    private function inCategoryPages(string $storeId, string $locale, ShopperKind $viewer, string $categoryId): Builder
     {
-        return $this->listed($storeId, $locale)
+        return $this->listed($storeId, $locale, $viewer)
             ->whereRaw('category_path @> ARRAY[?]::text[]', [$categoryId])
             ->where('in_category_pages', true);
     }
 
-    /** What a shopper can order in this store, in this language. */
-    private function listed(string $storeId, string $locale): Builder
+    /** What this viewer can order in this store, in this language. */
+    private function listed(string $storeId, string $locale, ShopperKind $viewer): Builder
     {
-        return $this->db->table(self::LISTING)->where('store_id', $storeId)->where('locale', $locale)->where('orderable', true);
+        return $this->db->table(self::LISTING)->where('store_id', $storeId)->where('locale', $locale)->where('orderable', true)->whereRaw(self::seenBy($viewer));
+    }
+
+    /**
+     * Whom a row is shown to (catalog.md §1.13, amendment 14): an individual a row individuals see —
+     * its category on for them, a variant sold retail — a company a row companies see, and **a guest
+     * what either kind of account sees** (P25), so a category switched off for both is seen by no one.
+     * A fixed fragment, never a value from the request.
+     *
+     * @param  ''|'l.'  $table  the listing's alias in the query, if it has one
+     * @return literal-string
+     */
+    private static function seenBy(ShopperKind $viewer, string $table = ''): string
+    {
+        return match ($viewer) {
+            ShopperKind::Individual => "{$table}for_individuals",
+            ShopperKind::Company => "{$table}for_companies",
+            ShopperKind::Guest => "({$table}for_individuals OR {$table}for_companies)",
+        };
     }
 
     /** Best-selling first — none ranked until Sales pushes ranks (§2.2) — then newest. */
@@ -314,7 +336,7 @@ final readonly class DatabaseShopReader implements ShopReader
         return $query->orderByRaw('sales_rank ASC NULLS LAST')->orderByDesc('product_id');
     }
 
-    private function page(Builder $query, string $locale, ?Cursor $after, int $limit): CardPage
+    private function page(Builder $query, string $locale, ShopperKind $viewer, ?Cursor $after, int $limit): CardPage
     {
         if ($after !== null) {
             $query->where(static function (Builder $where) use ($after): void {
@@ -336,17 +358,22 @@ final readonly class DatabaseShopReader implements ShopReader
         $last = $rows === [] ? null : $rows[count($rows) - 1];
 
         return new CardPage(
-            $this->cards($rows, $locale),
+            $this->cards($rows, $locale, $viewer),
             $more && $last instanceof stdClass ? Cursor::after($last->sales_rank === null ? null : (int) $last->sales_rank, (string) $last->product_id)->text() : null,
         );
     }
 
     /**
+     * Each card with the variant it shows to this viewer (amendment 14(f)): the first an individual can
+     * buy — a retail one — or, for a company or a guest, the first on sale here (§2.2: companies and
+     * guests share a card).
+     *
      * @param  array<array-key, mixed>  $rows  listing rows
      * @return list<ProductCard>
      */
-    private function cards(array $rows, string $locale): array
+    private function cards(array $rows, string $locale, ShopperKind $viewer): array
     {
+        $variant = $viewer === ShopperKind::Individual ? 'retail_card_variant_id' : 'card_variant_id';
         $rows = array_values(array_filter($rows, static fn (mixed $row): bool => $row instanceof stdClass));
         $labelIds = [];
 
@@ -363,7 +390,7 @@ final readonly class DatabaseShopReader implements ShopReader
             }
         }
 
-        return array_map(static function (stdClass $row) use ($labels): ProductCard {
+        return array_map(static function (stdClass $row) use ($labels, $variant): ProductCard {
             /** @var array<string, array<string, string>>|null $photo */
             $photo = $row->card_photo === null ? null : json_decode((string) $row->card_photo, true, 512, JSON_THROW_ON_ERROR);
 
@@ -373,6 +400,7 @@ final readonly class DatabaseShopReader implements ShopReader
                 (string) $row->slug,
                 $photo,
                 array_values(array_intersect_key($labels, array_flip(self::ids($row->label_ids)))),
+                (string) $row->{$variant},
             );
         }, $rows);
     }
