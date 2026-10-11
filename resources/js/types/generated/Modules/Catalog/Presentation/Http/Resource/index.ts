@@ -110,9 +110,97 @@ code: string,
 name: string,
 ours: boolean,
 };
+export type ImportFileRowData = {
+id: string,
+fileName: string,
+uploadedBy: string | null,
+uploadedAt: string,
+products: number,
+state: string,
+};
+export type ImportGuidePage = {
+html: string,
+};
+export type ImportHeadData = {
+id: string,
+fileName: string,
+state: string,
+failure: string | null,
+withPhotos: boolean,
+uploadedBy: string | null,
+uploadedAt: string,
+products: number,
+};
+export type ImportNameData = {
+id: string,
+kind: string,
+written: string,
+attribute: string | null,
+attributeKind: string | null,
+decision: string | null,
+targetId: string | null,
+nameAr: string | null,
+nameEn: string | null,
+products: number,
+matches: number,
+slugAr: string | null,
+slugEn: string | null,
+addressTaken: boolean,
+valueAttributeId: string | null,
+};
+export type ImportPage = {
+import: ImportHeadData,
+part: string,
+waiting: ImportWaitingData,
+names: ImportNameData[] | null,
+products: ImportProductData[] | null,
+page: number,
+more: boolean,
+brands: BrandOptionData[] | null,
+categories: CategoryOptionData[] | null,
+warranties: WarrantyOptionData[] | null,
+attributes: AttributeChoiceData[] | null,
+};
 export type ImportProblemData = {
 at: string,
 problem: string,
+};
+export type ImportProductData = {
+id: string,
+number: number,
+nameAr: string,
+nameEn: string | null,
+codes: string[],
+conflictProductId: string | null,
+conflictNameAr: string | null,
+conflictNameEn: string | null,
+decision: string | null,
+newCodes: Record<string, string> | null,
+state: string,
+productId: string | null,
+changed: boolean,
+missing: string[],
+addressTaken: string[],
+onSale: boolean,
+sale: string | null,
+refusal: string | null,
+codeChange: boolean,
+attributeChange: boolean,
+};
+export type ImportWaitingData = {
+names: number,
+codes: number,
+addresses: number,
+sales: number,
+codeChanges: number,
+attributeChanges: number,
+};
+export type ImportsPage = {
+files: ImportFileRowData[],
+page: number,
+more: boolean,
+problems: ImportProblemData[] | null,
+problemsTotal: number | null,
 };
 export type LabelChoiceData = {
 id: string,

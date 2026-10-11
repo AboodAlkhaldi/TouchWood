@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Http\Resource;
 
-use Illuminate\Contracts\Foundation\Application;
 use Modules\Catalog\Application\Import\ImportHeader;
 use Modules\Catalog\Application\Import\ImportName;
 use Modules\Catalog\Application\Import\ImportNameRow;
@@ -39,7 +38,6 @@ final readonly class ImportPages
     public const int PER_PAGE = 100;
 
     public function __construct(
-        private Application $app,
         private ListImportsHandler $list,
         private ViewImportHandler $view,
         private StaffNames $staff,
