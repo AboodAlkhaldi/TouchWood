@@ -35,12 +35,6 @@ return [
     'attribute_value.activated' => 'أُعيد تفعيل قيمة خاصية',
     'attribute_value.deleted' => 'حُذفت قيمة خاصية',
 
-    'attribute_set.added' => 'أُضيفت مجموعة خصائص',
-    'attribute_set.edited' => 'عُدّلت مجموعة خصائص',
-    'attribute_set.deactivated' => 'أُوقفت مجموعة خصائص',
-    'attribute_set.activated' => 'أُعيد تفعيل مجموعة خصائص',
-    'attribute_set.deleted' => 'حُذفت مجموعة خصائص',
-
     'label.added' => 'أُضيفت شارة',
     'label.edited' => 'عُدّلت شارة',
     'label.deactivated' => 'أُوقفت شارة',
@@ -83,6 +77,9 @@ return [
     'variant.edited' => 'عُدّل نوع منتج',
     'variant.deleted' => 'حُذف نوع من مسودة منتج',
     'variant.code_corrected' => 'صُحّح رمز نوع منتج',
+    'product.variant_attribute_added' => 'أُضيفت خاصية إلى أنواع منتج',
+    'product.variant_attribute_removed' => 'أُزيلت خاصية من أنواع منتج',
+    'product.variant_attributes_ordered' => 'أُعيد ترتيب خصائص أنواع منتج',
 
     'import.added' => 'رُفع ملف منتجات',
     'import.checked_again' => 'أُعيد فحص أسماء ورموز ملف منتجات قبل الإدخال',

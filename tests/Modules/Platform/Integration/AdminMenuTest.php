@@ -85,7 +85,6 @@ describe('the admin menu', function () {
             'catalog/categories',
             'catalog/brands',
             'catalog/attributes',
-            'catalog/variations',
             'catalog/labels',
             'catalog/warranties',
             'catalog/search_words',

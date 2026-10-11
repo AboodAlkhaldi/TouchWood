@@ -89,7 +89,7 @@ function catalogShopProduct(string $categoryId, array $stores = ['sa'], ?string 
     if ($brandId !== null) {
         $product = app(ProductRepository::class)->find($id) ?? throw new LogicException('No product.');
         $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Drawer']]]]];
-        Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, $product->name()->ar, $product->name()->en, $brandId, descriptionAr: $text, descriptionEn: $text, categoryId: $categoryId, attributeSetId: $product->attributeSetId())));
+        Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, $product->name()->ar, $product->name()->en, $brandId, descriptionAr: $text, descriptionEn: $text, categoryId: $categoryId)));
     }
 
     foreach ($stores as $store) {
@@ -429,7 +429,7 @@ describe('a product page', function () {
         $old = catalogShopSlug('product', $p['product']);
         $product = app(ProductRepository::class)->find($p['product']) ?? throw new LogicException('No product.');
         $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Drawer']]]]];
-        Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($p['product'], $product->name()->ar, 'Soft drawer', $product->brandId(), slugEn: 'soft-drawer', descriptionAr: $text, descriptionEn: $text, categoryId: $product->categoryId(), attributeSetId: $product->attributeSetId())));
+        Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($p['product'], $product->name()->ar, 'Soft drawer', $product->brandId(), slugEn: 'soft-drawer', descriptionAr: $text, descriptionEn: $text, categoryId: $product->categoryId())));
         $draft = Px::product('Draft');
         $archivedDraft = Px::product('Abandoned');
         Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($archivedDraft)));

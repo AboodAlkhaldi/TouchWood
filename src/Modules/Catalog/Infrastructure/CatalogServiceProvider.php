@@ -128,7 +128,6 @@ final class CatalogServiceProvider extends ServiceProvider
             new MenuEntryDto('catalog', 'categories', PermissionGroup::Catalog->value, 'catalog.admin.categories', ListCategoriesHandler::JOBS, 20, icon: 'catalog'),
             new MenuEntryDto('catalog', 'brands', PermissionGroup::Catalog->value, 'catalog.admin.brands', CatalogPermissions::BRAND_MANAGE, 30, icon: 'catalog'),
             new MenuEntryDto('catalog', 'attributes', PermissionGroup::Catalog->value, 'catalog.admin.attributes', CatalogPermissions::ATTRIBUTE_MANAGE, 40, icon: 'catalog'),
-            new MenuEntryDto('catalog', 'variations', PermissionGroup::Catalog->value, 'catalog.admin.variations', CatalogPermissions::ATTRIBUTE_MANAGE, 50, icon: 'catalog'),
             new MenuEntryDto('catalog', 'labels', PermissionGroup::Catalog->value, 'catalog.admin.labels', CatalogPermissions::LABEL_MANAGE, 60, icon: 'catalog'),
             new MenuEntryDto('catalog', 'warranties', PermissionGroup::Catalog->value, 'catalog.admin.warranties', CatalogPermissions::WARRANTY_MANAGE, 70, icon: 'catalog'),
             new MenuEntryDto('catalog', 'search_words', PermissionGroup::Catalog->value, 'catalog.admin.search-words', CatalogPermissions::SEARCH_WORD_MANAGE, 80, icon: 'catalog'),

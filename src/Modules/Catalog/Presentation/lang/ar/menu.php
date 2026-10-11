@@ -8,7 +8,6 @@ return [
     'categories' => 'الأقسام',
     'brands' => 'الماركات',
     'attributes' => 'الخصائص',
-    'variations' => 'الاختلافات',
     'labels' => 'الشارات',
     'warranties' => 'الضمانات',
     'search_words' => 'كلمات البحث',

@@ -8,8 +8,6 @@ use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ActivateAttribute\ActivateAttribute;
 use Modules\Catalog\Application\Command\ActivateAttribute\ActivateAttributeHandler;
-use Modules\Catalog\Application\Command\ActivateAttributeSet\ActivateAttributeSet;
-use Modules\Catalog\Application\Command\ActivateAttributeSet\ActivateAttributeSetHandler;
 use Modules\Catalog\Application\Command\ActivateAttributeValue\ActivateAttributeValue;
 use Modules\Catalog\Application\Command\ActivateAttributeValue\ActivateAttributeValueHandler;
 use Modules\Catalog\Application\Command\ActivateBrand\ActivateBrand;
@@ -22,8 +20,6 @@ use Modules\Catalog\Application\Command\ActivateWarranty\ActivateWarranty;
 use Modules\Catalog\Application\Command\ActivateWarranty\ActivateWarrantyHandler;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttribute;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttributeHandler;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSet;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSetHandler;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValue;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValueHandler;
 use Modules\Catalog\Application\Command\AddBrand\AddBrand;
@@ -54,8 +50,6 @@ use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
 use Modules\Catalog\Application\Command\DeactivateAttribute\DeactivateAttribute;
 use Modules\Catalog\Application\Command\DeactivateAttribute\DeactivateAttributeHandler;
-use Modules\Catalog\Application\Command\DeactivateAttributeSet\DeactivateAttributeSet;
-use Modules\Catalog\Application\Command\DeactivateAttributeSet\DeactivateAttributeSetHandler;
 use Modules\Catalog\Application\Command\DeactivateAttributeValue\DeactivateAttributeValue;
 use Modules\Catalog\Application\Command\DeactivateAttributeValue\DeactivateAttributeValueHandler;
 use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrand;
@@ -68,8 +62,6 @@ use Modules\Catalog\Application\Command\DeactivateWarranty\DeactivateWarranty;
 use Modules\Catalog\Application\Command\DeactivateWarranty\DeactivateWarrantyHandler;
 use Modules\Catalog\Application\Command\DeleteAttribute\DeleteAttribute;
 use Modules\Catalog\Application\Command\DeleteAttribute\DeleteAttributeHandler;
-use Modules\Catalog\Application\Command\DeleteAttributeSet\DeleteAttributeSet;
-use Modules\Catalog\Application\Command\DeleteAttributeSet\DeleteAttributeSetHandler;
 use Modules\Catalog\Application\Command\DeleteAttributeValue\DeleteAttributeValue;
 use Modules\Catalog\Application\Command\DeleteAttributeValue\DeleteAttributeValueHandler;
 use Modules\Catalog\Application\Command\DeleteBrand\DeleteBrand;
@@ -88,8 +80,6 @@ use Modules\Catalog\Application\Command\DeleteWordPair\DeleteWordPair;
 use Modules\Catalog\Application\Command\DeleteWordPair\DeleteWordPairHandler;
 use Modules\Catalog\Application\Command\EditAttribute\EditAttribute;
 use Modules\Catalog\Application\Command\EditAttribute\EditAttributeHandler;
-use Modules\Catalog\Application\Command\EditAttributeSet\EditAttributeSet;
-use Modules\Catalog\Application\Command\EditAttributeSet\EditAttributeSetHandler;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValue;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValueHandler;
 use Modules\Catalog\Application\Command\EditBrand\EditBrand;
@@ -225,13 +215,6 @@ function catalogGuardsValue(string $attributeId): string
     $n = catalogGuardsNext();
 
     return app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($attributeId, "قيمة {$n}", "Value {$n}"));
-}
-
-function catalogGuardsSet(string $attributeId): string
-{
-    $n = catalogGuardsNext();
-
-    return app(AddAttributeSetHandler::class)->handle(new AddAttributeSet("مجموعة {$n}", "Set {$n}", [$attributeId]));
 }
 
 function catalogGuardsLabel(): string
@@ -420,33 +403,6 @@ function catalogGuardsChanges(): array
             $id = catalogGuardsValue(catalogGuardsAttribute());
 
             return fn () => app(DeleteAttributeValueHandler::class)->handle(new DeleteAttributeValue($id));
-        }],
-        'add a set' => ['attributes', function () {
-            $attribute = catalogGuardsAttribute();
-
-            return fn () => catalogGuardsSet($attribute);
-        }],
-        'edit a set' => ['attributes', function () {
-            $attribute = catalogGuardsAttribute();
-            $id = catalogGuardsSet($attribute);
-
-            return fn () => app(EditAttributeSetHandler::class)->handle(new EditAttributeSet($id, 'مجموعة معدلة', 'Edited set', [$attribute]));
-        }],
-        'deactivate a set' => ['attributes', function () {
-            $id = catalogGuardsSet(catalogGuardsAttribute());
-
-            return fn () => app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($id));
-        }],
-        'activate a set' => ['attributes', function () {
-            $id = catalogGuardsSet(catalogGuardsAttribute());
-            app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($id));
-
-            return fn () => app(ActivateAttributeSetHandler::class)->handle(new ActivateAttributeSet($id));
-        }],
-        'delete a set' => ['attributes', function () {
-            $id = catalogGuardsSet(catalogGuardsAttribute());
-
-            return fn () => app(DeleteAttributeSetHandler::class)->handle(new DeleteAttributeSet($id));
         }],
         'add a label' => ['labels', fn () => fn () => catalogGuardsLabel()],
         'edit a label' => ['labels', function () {
@@ -678,11 +634,6 @@ describe('an id that is not in its list', function () {
         'deactivate a value' => [ListItemNotFound::class, fn () => app(DeactivateAttributeValueHandler::class)->handle(new DeactivateAttributeValue(CATALOG_GUARDS_UNKNOWN))],
         'activate a value' => [ListItemNotFound::class, fn () => app(ActivateAttributeValueHandler::class)->handle(new ActivateAttributeValue(CATALOG_GUARDS_UNKNOWN))],
         'delete a value' => [ListItemNotFound::class, fn () => app(DeleteAttributeValueHandler::class)->handle(new DeleteAttributeValue(CATALOG_GUARDS_UNKNOWN))],
-        'add a set of an unknown attribute' => [ListItemNotFound::class, fn () => catalogGuardsSet(CATALOG_GUARDS_UNKNOWN)],
-        'edit a set' => [ListItemNotFound::class, fn () => app(EditAttributeSetHandler::class)->handle(new EditAttributeSet(CATALOG_GUARDS_UNKNOWN, 'مجموعة', 'Set', [catalogGuardsAttribute()]))],
-        'deactivate a set' => [ListItemNotFound::class, fn () => app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet(CATALOG_GUARDS_UNKNOWN))],
-        'activate a set' => [ListItemNotFound::class, fn () => app(ActivateAttributeSetHandler::class)->handle(new ActivateAttributeSet(CATALOG_GUARDS_UNKNOWN))],
-        'delete a set' => [ListItemNotFound::class, fn () => app(DeleteAttributeSetHandler::class)->handle(new DeleteAttributeSet(CATALOG_GUARDS_UNKNOWN))],
         'edit a label' => [ListItemNotFound::class, fn () => app(EditLabelHandler::class)->handle(new EditLabel(CATALOG_GUARDS_UNKNOWN, 'شارة', 'Label', 'blue'))],
         'deactivate a label' => [ListItemNotFound::class, fn () => app(DeactivateLabelHandler::class)->handle(new DeactivateLabel(CATALOG_GUARDS_UNKNOWN))],
         'activate a label' => [ListItemNotFound::class, fn () => app(ActivateLabelHandler::class)->handle(new ActivateLabel(CATALOG_GUARDS_UNKNOWN))],
@@ -783,24 +734,6 @@ describe('a change that changes nothing', function () {
             $id = catalogGuardsValue(catalogGuardsAttribute());
 
             return fn () => app(ActivateAttributeValueHandler::class)->handle(new ActivateAttributeValue($id));
-        }],
-        'edit a set to what it is' => [function () {
-            $attribute = catalogGuardsAttribute();
-            $n = catalogGuardsNext();
-            $id = app(AddAttributeSetHandler::class)->handle(new AddAttributeSet("مجموعة {$n}", "Set {$n}", [$attribute]));
-
-            return fn () => app(EditAttributeSetHandler::class)->handle(new EditAttributeSet($id, "مجموعة {$n}", "Set {$n}", [$attribute]));
-        }],
-        'deactivate a set again' => [function () {
-            $id = catalogGuardsSet(catalogGuardsAttribute());
-            app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($id));
-
-            return fn () => app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($id));
-        }],
-        'activate an active set' => [function () {
-            $id = catalogGuardsSet(catalogGuardsAttribute());
-
-            return fn () => app(ActivateAttributeSetHandler::class)->handle(new ActivateAttributeSet($id));
         }],
         'deactivate a label again' => [function () {
             $id = catalogGuardsLabel();

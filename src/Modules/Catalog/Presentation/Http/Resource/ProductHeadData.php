@@ -16,7 +16,7 @@ final class ProductHeadData extends Data
 {
     /**
      * @param  string|null  $categoryPathAr  its category, by its path from the top
-     * @param  list<string>  $setAttributeIds  its variation's attributes, in order
+     * @param  list<string>  $variantAttributeIds  its variants' attributes, in its order (amendment 16(b)): Has Variants while there is one
      * @param  string  $descriptionAr  as typed, with the products file's marks (P1)
      * @param  list<string>  $codes
      */
@@ -35,10 +35,7 @@ final class ProductHeadData extends Data
         public ?string $categoryPathAr,
         public ?string $categoryPathEn,
         public ?string $warrantyId,
-        public ?string $attributeSetId,
-        public ?string $attributeSetNameAr,
-        public ?string $attributeSetNameEn,
-        public array $setAttributeIds,
+        public array $variantAttributeIds,
         public string $descriptionAr,
         public string $descriptionEn,
         public bool $hiddenByCategory,

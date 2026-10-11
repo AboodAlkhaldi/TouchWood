@@ -22,13 +22,10 @@ use Modules\Catalog\Application\Query\Lists\LabelRow;
 use Modules\Catalog\Application\Query\Lists\NoResultSearchRow;
 use Modules\Catalog\Application\Query\Lists\ReachedProductRow;
 use Modules\Catalog\Application\Query\Lists\ValueRow;
-use Modules\Catalog\Application\Query\Lists\VariationRow;
 use Modules\Catalog\Application\Query\Lists\WarrantyRow;
 use Modules\Catalog\Application\Query\Lists\WordPairRow;
 use Modules\Catalog\Application\Query\ListSearchesWithNoResults\ListSearchesWithNoResults;
 use Modules\Catalog\Application\Query\ListSearchesWithNoResults\ListSearchesWithNoResultsHandler;
-use Modules\Catalog\Application\Query\ListVariations\ListVariations;
-use Modules\Catalog\Application\Query\ListVariations\ListVariationsHandler;
 use Modules\Catalog\Application\Query\ListWarranties\ListWarranties;
 use Modules\Catalog\Application\Query\ListWarranties\ListWarrantiesHandler;
 use Modules\Catalog\Application\Query\ListWordPairs\ListWordPairs;
@@ -62,7 +59,6 @@ final readonly class ListPages
         private ListCategoriesHandler $categories,
         private ListAttributesHandler $attributes,
         private ViewAttributeHandler $attribute,
-        private ListVariationsHandler $variations,
         private ListLabelsHandler $labels,
         private ListWarrantiesHandler $warranties,
         private ListWordPairsHandler $pairs,
@@ -147,19 +143,6 @@ final readonly class ListPages
         );
     }
 
-    public function variations(): VariationsPage
-    {
-        $list = $this->variations->handle(new ListVariations);
-
-        return new VariationsPage(
-            array_map(static fn (VariationRow $set): VariationData => new VariationData(
-                $set->id, $set->nameAr, $set->nameEn, $set->active, $set->attributeIds, $set->builtOn, $set->products,
-            ), $list->variations),
-            array_map(self::attributeData(...), $list->attributes),
-            $list->mayChange,
-        );
-    }
-
     public function labels(): LabelsPage
     {
         $list = $this->labels->handle(new ListLabels);
@@ -240,7 +223,7 @@ final readonly class ListPages
         return new AttributeData(
             $attribute->id, $attribute->nameAr, $attribute->nameEn, $attribute->kind, $attribute->unitAr, $attribute->unitEn,
             $attribute->isColour, $attribute->active, $attribute->position, $attribute->values, $attribute->kindLocked,
-            $attribute->inVariation, $attribute->inUse,
+            $attribute->inProducts, $attribute->inUse,
         );
     }
 

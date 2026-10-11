@@ -98,7 +98,7 @@ final readonly class AttributesController
         return CatalogRefusals::act($request, fn () => $handler->handle(new DeactivateAttribute($attribute)), 'catalog::admin_attributes.toast.deactivated');
     }
 
-    /** Its values go with it (§1.7); refused while a variation, a variant or a product uses it. */
+    /** Its values go with it (§1.7); refused while a product makes its variants of it, or a variant or a product uses it. */
     public function delete(Request $request, string $attribute, DeleteAttributeHandler $handler): RedirectResponse
     {
         try {

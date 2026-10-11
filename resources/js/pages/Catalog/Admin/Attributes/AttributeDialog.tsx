@@ -17,7 +17,7 @@ import { MoreButton, nameIn, useLocale } from '../parts';
 | making variants - its unit in both languages or neither, whether it is a colour (a filter or
 | variant-making attribute only), and its place. Its job and colour are locked, with the reason, once
 | it has values or variants carry details of it (amendments 1(i), 3(k)); its job kept "Makes
-| Variants" while a variation holds it. Added in a dialog from the list; edited on the attribute's
+| Variants" while products make their variants of it (amendment 16(b)). Added in a dialog from the list; edited on the attribute's
 | own page, where its details are this form (S3).
 */
 
@@ -88,10 +88,10 @@ export function AttributeDialog({
 /** The attribute's fields, in a dialog or on its own page; `off` keeps every field out of reach. */
 export function AttributeFields({ form, attribute, off = false }: { form: InertiaFormProps<AttributeForm>; attribute: AttributeData | null; off?: boolean }) {
     const t = useTranslator();
-    // Values, or variants carrying details of it, lock both its job and Colour; a variation holding it
-    // keeps only its job (S3, amendment 1(i)) - Colour may still change until it has values.
+    // Values, or variants carrying details of it, lock both its job and Colour; products making their
+    // variants of it keep only its job (S3, amendment 1(i)) - Colour may still change until it has values.
     const lockedReason = attribute?.kindLocked === true ? t('catalog::admin_attributes.reason.locked') : null;
-    const kindReason = lockedReason ?? (attribute?.inVariation === true ? t('catalog::admin_attributes.reason.in_variation') : null);
+    const kindReason = lockedReason ?? (attribute?.inProducts === true ? t('catalog::admin_attributes.reason.in_products') : null);
 
     return (
             <div className="grid gap-4">

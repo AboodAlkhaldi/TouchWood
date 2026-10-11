@@ -91,7 +91,7 @@ describe('a file that passes', function () {
         $brands = DB::table('catalog.brands')->count();
 
         $id = Ix::upload(Ix::temp(Ix::json([
-            Ix::product('1304', ['brand' => 'Tallsen', 'attribute_set' => 'Sizes', 'variants' => [['code' => '1304', 'values' => ['Width' => '60 cm']], ['code' => '1305', 'values' => ['Width' => '80 cm']]]]),
+            Ix::product('1304', ['brand' => 'Tallsen', 'variants' => [['code' => '1304', 'values' => ['Width' => '60 cm']], ['code' => '1305', 'values' => ['Width' => '80 cm']]]]),
             Ix::product('2001'),
         ])), 'C:\\fakepath\\spring.json');
 
@@ -118,11 +118,11 @@ describe('a file that passes', function () {
 
     it('lists each name the catalog lacks once, with how many products use it', function () {
         $id = Ix::upload(Ix::temp(Ix::json([
-            Ix::product('1', ['brand' => 'Tallsen', 'category' => 'Kitchens / Drawers', 'warranty' => 'Two years', 'attribute_set' => 'Sizes', 'variants' => [
+            Ix::product('1', ['brand' => 'Tallsen', 'category' => 'Kitchens / Drawers', 'warranty' => 'Two years', 'variants' => [
                 ['code' => '1', 'values' => ['Width' => '60 cm'], 'details' => ['Material' => ['ar' => 'فولاذ', 'en' => 'Steel']]],
                 ['code' => '10', 'values' => ['Width' => '80 cm']],
             ], 'filters' => ['Use' => ['Kitchen']]]),
-            Ix::product('2', ['brand' => 'TALLSEN', 'category' => 'kitchens / Hinges', 'attribute_set' => 'sizes', 'variants' => [
+            Ix::product('2', ['brand' => 'TALLSEN', 'category' => 'kitchens / Hinges', 'variants' => [
                 ['code' => '2', 'values' => ['width' => '60 CM']],
             ]]),
         ])));
@@ -131,7 +131,6 @@ describe('a file that passes', function () {
             'ATTRIBUTE' => ['Material', 'Use', 'Width'],
             'BRAND' => ['Tallsen'],
             'CATEGORY' => ['Kitchens', 'Kitchens / Drawers', 'kitchens / Hinges'],
-            'SET' => ['Sizes'],
             'VALUE' => ['60 cm', '80 cm', 'Kitchen'],
             'WARRANTY' => ['Two years'],
         ]);
@@ -154,16 +153,14 @@ describe('a file that passes', function () {
         $drawers = Px::category('Drawers', $kitchens);
         $width = Px::attribute('Width');
         Px::value($width, '60 cm');
-        $set = Px::set([$width]);
         $names = fn (string $table, string $id): array => (array) DB::table("catalog.{$table}")->where('id', $id)->first(['name_ar', 'name_en']);
         [$brandAr, $brandEn] = array_values($names('brands', $brand));
         [$kitchensAr] = array_values($names('categories', $kitchens));
         [, $drawersEn] = array_values($names('categories', $drawers));
         [, $widthEn] = array_values($names('attributes', $width));
-        [, $setEn] = array_values($names('attribute_sets', $set));
 
         $id = Ix::upload(Ix::temp(Ix::json([
-            Ix::product('1', ['brand' => mb_strtoupper((string) $brandEn), 'category' => "{$kitchensAr} / ".strtolower((string) $drawersEn), 'attribute_set' => (string) $setEn, 'variants' => [
+            Ix::product('1', ['brand' => mb_strtoupper((string) $brandEn), 'category' => "{$kitchensAr} / ".strtolower((string) $drawersEn), 'variants' => [
                 ['code' => '1', 'values' => [strtoupper((string) $widthEn) => '60 CM']],
                 ['code' => '10', 'values' => [(string) $widthEn => '80 cm']],
             ]]),
@@ -217,7 +214,7 @@ describe('what refuses the file', function () {
 
     it('refuses an attribute used for two jobs in the file, once however many products repeat it', function () {
         $problems = catalogUploadProblems(Ix::temp(Ix::json([
-            Ix::product('1', ['attribute_set' => 'Sizes', 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm']]]]),
+            Ix::product('1', ['variants' => [['code' => '1', 'values' => ['Width' => '60 cm']]]]),
             Ix::product('2', ['filters' => ['width' => ['60 cm']]]),
             Ix::product('3', ['filters' => ['Width' => ['80 cm']]]),
         ])));
@@ -236,34 +233,6 @@ describe('what refuses the file', function () {
         expect($problems)->toBe([['at' => "product 1 › variants 1 › details › {$useEn}", 'problem' => "{$useEn} in filters, where the catalog uses it: an attribute has one job"]]);
     });
 
-    it('refuses variants whose values do not match the catalog\'s set', function () {
-        $width = Px::attribute('Width');
-        $finish = Px::attribute('Finish');
-        $other = Px::attribute('Depth');
-        $set = Px::set([$width, $finish]);
-        $en = fn (string $table, string $id): string => (string) DB::table("catalog.{$table}")->where('id', $id)->value('name_en');
-
-        $problems = catalogUploadProblems(Ix::temp(Ix::json([
-            Ix::product('1', ['attribute_set' => $en('attribute_sets', $set), 'variants' => [['code' => '1', 'values' => [$en('attributes', $width) => '60 cm', $en('attributes', $other) => '5 cm']]]]),
-            Ix::product('2', ['attribute_set' => $en('attribute_sets', $set), 'variants' => [['code' => '2', 'values' => [$en('attributes', $width) => '60 cm']]]]),
-        ])));
-
-        expect($problems)->toBe([
-            ['at' => 'product 1 › variants › values › '.$en('attributes', $other), 'problem' => 'an attribute of the set '.$en('attribute_sets', $set)],
-            ['at' => 'product 2 › variants › values', 'problem' => 'one value for each of the '.$en('attribute_sets', $set).' set\'s 2 attributes'],
-        ]);
-    });
-
-    it('refuses a new set given different attributes by two products', function () {
-        $problems = catalogUploadProblems(Ix::temp(Ix::json([
-            Ix::product('1', ['attribute_set' => 'Sizes', 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm', 'Finish' => 'Zinc']]]]),
-            Ix::product('2', ['attribute_set' => 'sizes', 'variants' => [['code' => '2', 'values' => ['finish' => 'Zinc', 'width' => '80 cm']]]]),
-            Ix::product('3', ['attribute_set' => 'Sizes', 'variants' => [['code' => '3', 'values' => ['Width' => '60 cm']]]]),
-        ])));
-
-        expect($problems)->toBe([['at' => 'product 3 › attribute_set', 'problem' => 'the same attributes in every product for the new set Sizes: product 1 gives it others']]);
-    });
-
     it('leaves out the products whose codes mix catalog products, saying why, and takes the rest (11(a))', function () {
         $first = Px::ready();
         $second = Px::ready();
@@ -273,7 +242,7 @@ describe('what refuses the file', function () {
 
         $import = Ix::uploadProducts([
             // Two catalog products' codes in one product of the file.
-            Ix::product('1', ['brand' => 'Hettichh', 'attribute_set' => 'Sizes', 'variants' => [['code' => $code($first['variants'][0]), 'values' => ['Width' => '1']], ['code' => $code($second['variants'][0]), 'values' => ['Width' => '2']]]]),
+            Ix::product('1', ['brand' => 'Hettichh', 'variants' => [['code' => $code($first['variants'][0]), 'values' => ['Width' => '1']], ['code' => $code($second['variants'][0]), 'values' => ['Width' => '2']]]]),
             // One catalog product's codes in two products of the file.
             Ix::product($sixty, ['brand' => 'Hettichh']),
             Ix::product($eighty, ['brand' => 'Hettichh']),
@@ -329,7 +298,6 @@ describe('a zip', function () {
             'ATTRIBUTE' => ['Closing', 'Finish', 'Length', 'Load', 'Material', 'Use'],
             'BRAND' => ['#2'],
             'CATEGORY' => ['Handles', 'Kitchens', 'Kitchens / Drawers', 'Kitchens / Drawers / Runners', 'Tallsen', 'Tallsen / Hinges'],
-            'SET' => ['Runner sizes'],
             'VALUE' => ['45 cm', '50 cm', 'Black', 'Kitchen', 'Soft-close', 'Wardrobe', 'Zinc'],
             'WARRANTY' => ['Two years'],
         ]);

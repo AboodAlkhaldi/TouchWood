@@ -24,6 +24,7 @@ use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\LabelRepository;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\Repository\WordPairRepository;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
@@ -132,7 +133,7 @@ it('answers an id that is not a ULID as not found without asking the database', 
         ->and(app(CategoryRepository::class)->idsBelow("01j8z3k4m5n6p7q8r9s0t1v2w3' OR 1=1"))->toBe([])
         ->and(app(AttributeRepository::class)->find('0'))->toBeNull()
         ->and(app(AttributeRepository::class)->findValue(''))->toBeNull()
-        ->and(app(AttributeRepository::class)->findSet('x'))->toBeNull()
+        ->and(app(ProductRepository::class)->variantAttributes('x'))->toBe([])
         ->and(app(LabelRepository::class)->find('not-an-id'))->toBeNull()
         ->and(app(WarrantyRepository::class)->find('not-an-id'))->toBeNull()
         ->and(app(WordPairRepository::class)->find('not-an-id'))->toBeNull()
