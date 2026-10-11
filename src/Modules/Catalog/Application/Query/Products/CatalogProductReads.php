@@ -22,6 +22,14 @@ interface CatalogProductReads
     public function core(string $productId): ?ProductCore;
 
     /**
+     * Many products as `core()` reads one, in one query - a store file's products (§4.4 S10, P13).
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, ProductCore> by product id; one not found, or not a ULID, is left out
+     */
+    public function cores(array $productIds): array;
+
+    /**
      * Its variants, archived ones too, in their order.
      *
      * @return list<VariantView>

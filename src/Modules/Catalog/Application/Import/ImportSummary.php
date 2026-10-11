@@ -17,5 +17,7 @@ final readonly class ImportSummary
         public int $count,
         public ?string $uploadedBy,
         public string $uploadedAt,
+        // A store file's items still open (catalog.md §4.4 S10); null for a products file.
+        public ?int $open = null,
     ) {}
 }

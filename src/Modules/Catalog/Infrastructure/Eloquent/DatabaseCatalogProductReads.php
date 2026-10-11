@@ -123,14 +123,21 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
 
     public function core(string $productId): ?ProductCore
     {
-        if (! Ulids::valid($productId)) {
-            return null;
+        return $this->cores([$productId])[strtolower($productId)] ?? null;
+    }
+
+    public function cores(array $productIds): array
+    {
+        $ids = array_values(array_unique(array_map(strtolower(...), array_filter($productIds, Ulids::valid(...)))));
+
+        if ($ids === []) {
+            return [];
         }
 
-        $row = $this->db->table('catalog.products as p')
+        $rows = $this->db->table('catalog.products as p')
             ->join('catalog.brands as b', 'b.id', '=', 'p.brand_id')
             ->leftJoin('catalog.categories as k', 'k.id', '=', 'p.category_id')
-            ->where('p.id', strtolower($productId))
+            ->whereIn('p.id', $ids)
             ->select([
                 'p.id', 'p.name_ar', 'p.name_en', 'p.stage', 'p.archived_from', 'p.brand_id', 'b.name_ar as brand_ar', 'b.name_en as brand_en',
                 'p.category_id', 'p.warranty_id',
@@ -162,12 +169,19 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                     'goesWith', (SELECT count(*) FROM catalog.product_relations r WHERE r.product_id = p.id AND r.kind = 'GOES_WITH')
                 ) as counts
                 SQL)
-            ->first();
+            ->get();
 
-        if ($row === null) {
-            return null;
+        $cores = [];
+
+        foreach ($rows as $row) {
+            $cores[(string) $row->id] = self::toCore($row);
         }
 
+        return $cores;
+    }
+
+    private static function toCore(stdClass $row): ProductCore
+    {
         /** @var array{variants: int, photos: int, searchWords: int, filterValues: int, related: int, goesWith: int} $counts */
         $counts = array_map('intval', self::json($row->counts) ?? []) + ['variants' => 0, 'photos' => 0, 'searchWords' => 0, 'filterValues' => 0, 'related' => 0, 'goesWith' => 0];
 

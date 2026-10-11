@@ -6,7 +6,7 @@ namespace Modules\Catalog\Application\Query\ViewProduct;
 
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Query\Products\CatalogProductReads;
-use Modules\Catalog\Application\Query\Products\ProductCore;
+use Modules\Catalog\Application\Query\Products\ProductMissing;
 use Modules\Catalog\Application\Query\Products\ProductReaders;
 use Modules\Catalog\Application\Query\Products\StoreListingRow;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
@@ -20,10 +20,8 @@ use Shared\Application\Unauthorized;
  * is. What the reader may do is asked of the authorizer as the handlers ask it (`ProductReaders`),
  * only for what the product's stage offers - making ready a draft, correcting a code of a ready one.
  *
- * What it lacks to be made ready follows `Readiness::missing()`'s rules from the page's own reads -
- * the English name and address, both descriptions, a category that may hold it, a variant not
- * archived, a ready photo - so the page reads nothing per rule (tests/Modules/Catalog/Integration/
- * CatalogProductReadsTest holds the two to the same answers).
+ * What it lacks to be made ready follows `Readiness::missing()`'s rules from the page's own reads
+ * (`ProductMissing`), so the page reads nothing per rule.
  */
 final readonly class ViewProductHandler
 {
@@ -74,7 +72,7 @@ final readonly class ViewProductHandler
         return new ProductView(
             $product,
             $tab,
-            self::missing($product, array_intersect_key($photoStates, array_flip($product->gallery))),
+            ProductMissing::of($product, array_intersect_key($photoStates, array_flip($product->gallery))),
             $photoStates,
             $this->readers->may(CatalogPermissions::PRODUCT_UPDATE, $product->onIn),
             $stage === ProductStage::Draft && $this->readers->may(CatalogPermissions::PRODUCT_PUBLISH, []),
@@ -103,40 +101,5 @@ final readonly class ViewProductHandler
         $rows = $this->reads->storeRows($productId);
 
         return $covered === null ? $rows : array_intersect_key($rows, array_flip($covered));
-    }
-
-    /**
-     * @param  array<string, string>  $photoStates  the gallery's photos' states
-     * @return list<string>
-     */
-    private static function missing(ProductCore $product, array $photoStates): array
-    {
-        $missing = [];
-
-        if ($product->nameEn === null || $product->slugEn === null) {
-            $missing[] = 'name_en';
-        }
-
-        if ($product->descriptionAr === null) {
-            $missing[] = 'description_ar';
-        }
-
-        if ($product->descriptionEn === null) {
-            $missing[] = 'description_en';
-        }
-
-        if (! $product->categoryShowable) {
-            $missing[] = 'category';
-        }
-
-        if (! $product->hasVariant) {
-            $missing[] = 'variants';
-        }
-
-        if (! in_array(MediaVariantsStatus::Ready->value, $photoStates, true)) {
-            $missing[] = 'photos';
-        }
-
-        return $missing;
     }
 }

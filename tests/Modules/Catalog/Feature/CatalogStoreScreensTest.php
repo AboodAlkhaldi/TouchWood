@@ -5,12 +5,14 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
+use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Catalog\Application\CatalogPermissions as P;
 use Modules\Catalog\Application\Command\AddLabel\AddLabel;
 use Modules\Catalog\Application\Command\AddLabel\AddLabelHandler;
@@ -108,7 +110,12 @@ function catalogStoreScreensLabel(string $nameEn): string
     return Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel("وسم {$nameEn}", $nameEn, 'green', 10)));
 }
 
-/** A store's card on the tab, by its code. */
+/**
+ * A store's card on the tab, by its code.
+ *
+ * @param  TestResponse<Response>  $response
+ * @return array<string, mixed>|null
+ */
 function catalogStoreScreensCard(TestResponse $response, string $code): ?array
 {
     $card = null;
@@ -122,6 +129,26 @@ function catalogStoreScreensCard(TestResponse $response, string $code): ?array
     });
 
     return $card;
+}
+
+/**
+ * One field of each variant row on a store's card.
+ *
+ * @param  array<string, mixed>|null  $card
+ * @return array<string, mixed> variant id => the field
+ */
+function catalogStoreScreensVariants(?array $card, string $field): array
+{
+    $values = [];
+    $rows = $card['variants'] ?? null;
+
+    foreach (is_array($rows) ? $rows : [] as $row) {
+        if (is_array($row) && is_string($row['variantId'] ?? null)) {
+            $values[$row['variantId']] = $row[$field] ?? null;
+        }
+    }
+
+    return $values;
 }
 
 /**
@@ -171,8 +198,8 @@ describe('a product\'s Stores tab', function () {
 
         expect($eg)->not->toBeNull()
             ->and([$eg['chosen'] ?? null, $eg['labelIds'] ?? null, $eg['mayChoose'] ?? null, $eg['maySell'] ?? null])->toBe([true, [$label], true, false])
-            ->and(collect($eg['variants'] ?? [])->pluck('on', 'variantId')->all())->toEqual([$sixty => true, $eighty => true])
-            ->and(collect($eg['variants'] ?? [])->pluck('retail', 'variantId')->all())->toEqual([$sixty => true, $eighty => true])
+            ->and(catalogStoreScreensVariants($eg, 'on'))->toEqual([$sixty => true, $eighty => true])
+            ->and(catalogStoreScreensVariants($eg, 'retail'))->toEqual([$sixty => true, $eighty => true])
             ->and([$sa['chosen'] ?? null, $sa['variants'] ?? null])->toBe([false, []]);
     });
 
@@ -266,6 +293,125 @@ describe('a product\'s Stores tab', function () {
     });
 });
 
+/** A store's admin: the store file is admin roles' only (amendment 6(h)). */
+function catalogStoreScreensFiller(string $store = 'sa'): AdminBrowser
+{
+    return catalogStoreScreensAs(Fx::staffWith([P::LISTING_FILL, P::PRODUCT_VIEW], [$store], RoleLevel::Admin));
+}
+
+/**
+ * A store file as the admin uploads it.
+ *
+ * @param  list<array<string, mixed>>  $items
+ * @return TestResponse<Response>
+ */
+function catalogStoreScreensUpload(AdminBrowser $browser, array $items, string $store = 'sa'): TestResponse
+{
+    $json = json_encode(['format' => 'touchwood-store-fill/1', 'items' => $items], JSON_THROW_ON_ERROR);
+
+    return $browser->post('/admin/store-files', ['store' => $store, 'file' => UploadedFile::fake()->createWithContent('prices.json', $json)]);
+}
+
+/** The variant code of a ready product's first variant. */
+function catalogStoreScreensCode(string $variantId): string
+{
+    return (string) DB::table('catalog.variants')->where('id', $variantId)->value('code');
+}
+
+describe('store files (S10)', function () {
+    it('lists a store\'s files to its admins, newest first with what is still open, and opens for no one else', function () {
+        $admin = catalogStoreScreensFiller();
+        $first = catalogStoreScreensUpload($admin, [['code' => '880001', 'price' => 1], ['code' => '880002', 'price' => 2]]);
+        $second = catalogStoreScreensUpload($admin, [['code' => '880003', 'price' => 3]]);
+        $firstId = basename((string) $first->headers->get('Location'));
+        $secondId = basename((string) $second->headers->get('Location'));
+
+        expect(catalogStoreScreensToast($first))->toBe('File uploaded');
+
+        $admin->get('/admin/store-files')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Catalog/Admin/StoreFiles/Index')
+            ->where('storeCode', 'sa')
+            ->where('files.0.id', $secondId)
+            ->where('files.1.id', $firstId)
+            ->where('files.1.items', 2)
+            ->where('files.1.open', 2)
+            ->where('problems', null)
+            ->where('more', false));
+
+        $admin->get('/admin/store-files?store=eg')->assertForbidden();
+        catalogStoreScreens([P::LISTING_CHOOSE, P::PRODUCT_VIEW], ['sa'])->get('/admin/store-files')->assertForbidden();
+        catalogStoreScreensFiller('eg')->get("/admin/store-files/{$firstId}")->assertNotFound();
+    });
+
+    it('lists every problem of a refused file under the upload, and keeps nothing of it', function () {
+        $admin = catalogStoreScreensFiller();
+        $refused = catalogStoreScreensUpload($admin, [['code' => 'abc'], ['code' => '880001', 'price' => -1]]);
+
+        expect(catalogStoreScreensErrors($refused))->toHaveKey('file')
+            ->and(DB::table('catalog.imports')->where('kind', 'STORE_FILL')->count())->toBe(0);
+
+        $admin->get('/admin/store-files')->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('problems', fn ($problems): bool => count($problems) >= 2 && collect($problems)->every(fn ($problem): bool => is_string($problem['at']) && is_string($problem['problem']))));
+        // Said once: the next visit no longer carries them.
+        $admin->get('/admin/store-files')->assertInertia(fn (AssertableInertia $page) => $page->where('problems', null));
+    });
+
+    it('shows each item as it stands, switches on the selected and every ready one, removes, and corrects a code', function () {
+        ['product' => $ready, 'variants' => [$sixty, $eighty]] = Px::ready(['60 cm', '80 cm']);
+        ['product' => $other, 'variants' => [$otherVariant]] = Px::ready();
+        $draft = Px::product();
+        Px::variant($draft, '7700');
+        $admin = catalogStoreScreensFiller();
+        $uploaded = catalogStoreScreensUpload($admin, [
+            ['code' => catalogStoreScreensCode($sixty), 'price' => 10], ['code' => catalogStoreScreensCode($eighty), 'price' => 12, 'stock' => 4],
+            ['code' => '7700', 'price' => 5], ['code' => '999111', 'price' => 6], ['code' => '999222', 'price' => 7],
+        ]);
+        $file = basename((string) $uploaded->headers->get('Location'));
+        $item = fn (int $number): string => (string) DB::table('catalog.store_fill_items')->where('import_id', $file)->where('number', $number)->value('id');
+        $state = fn (int $number): string => (string) DB::table('catalog.store_fill_items')->where('import_id', $file)->where('number', $number)->value('state');
+        $sa = Fx::storeId('sa');
+
+        $admin->get("/admin/store-files/{$file}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Catalog/Admin/StoreFiles/Show')
+            ->where('storeCode', 'sa')
+            ->where('pricesKept', false)
+            ->where('items.0.standing', 'READY')
+            ->where('items.0.productId', $ready)
+            ->where('items.0.productNameEn', DB::table('catalog.products')->where('id', $ready)->value('name_en'))
+            ->where('items.1.stock', 4)
+            ->where('items.2.standing', 'NOT_READY')
+            ->where('items.2.missing', fn ($missing): bool => in_array('photos', is_array($missing) ? $missing : $missing->all(), true))
+            ->where('items.3.standing', 'UNKNOWN'));
+
+        expect(catalogStoreScreensToast($admin->post("/admin/store-files/{$file}/switch-on", ['item_ids' => [$item(1)]])))->toBe('Switched on: 1')
+            ->and(DB::table('catalog.store_variants')->where('store_id', $sa)->where('variant_id', $sixty)->value('is_active'))->toBeTrue()
+            ->and($state(2))->toBe('OPEN')
+            // An unknown code corrected to a ready product's: checked again, now ready.
+            ->and(catalogStoreScreensErrors($admin->post("/admin/store-files/{$file}/items/{$item(4)}/code", ['code' => catalogStoreScreensCode($sixty)])))->toHaveKey('code')
+            ->and(catalogStoreScreensToast($admin->post("/admin/store-files/{$file}/items/{$item(4)}/code", ['code' => catalogStoreScreensCode($otherVariant)])))->toBe('Code corrected')
+            ->and(catalogStoreScreensToast($admin->post("/admin/store-files/{$file}/remove", ['item_ids' => [$item(5)]])))->toBe('Items removed')
+            ->and($state(5))->toBe('REMOVED')
+            // Every ready one: 80 cm and the corrected code; the draft's stays open.
+            ->and(catalogStoreScreensToast($admin->post("/admin/store-files/{$file}/switch-on")))->toBe('Switched on: 2')
+            ->and([$state(1), $state(2), $state(3), $state(4)])->toBe(['ON', 'ON', 'OPEN', 'ON'])
+            ->and(DB::table('catalog.store_variants')->where('store_id', $sa)->where('variant_id', $otherVariant)->value('is_active'))->toBeTrue()
+            ->and(AdminBrowser::formError(catalogStoreScreens([P::LISTING_CHOOSE, P::PRODUCT_VIEW], ['sa'])->post("/admin/store-files/{$file}/switch-on")))->not->toBeEmpty();
+
+        expect(DB::table('catalog.store_products')->where('store_id', $sa)->whereIn('product_id', [$ready, $other])->count())->toBe(2);
+    });
+
+    it('opens a file of any size in the same queries', function () {
+        $admin = catalogStoreScreensFiller();
+        $few = basename((string) catalogStoreScreensUpload($admin, array_map(static fn (int $n): array => ['code' => (string) (770000 + $n), 'price' => 1], range(1, 3)))->headers->get('Location'));
+        $many = basename((string) catalogStoreScreensUpload($admin, array_map(static fn (int $n): array => ['code' => (string) (771000 + $n), 'price' => 1], range(1, 60)))->headers->get('Location'));
+        $own = catalogStoreScreensOwnQueries($admin, "/admin/store-files/{$few}");
+
+        expect(catalogStoreScreensOwnQueries($admin, "/admin/store-files/{$many}"))->toBe($own)
+            ->and($own)->toBeLessThanOrEqual(15)
+            ->and(catalogStoreScreensOwnQueries($admin, '/admin/store-files'))->toBeLessThanOrEqual(15);
+    });
+});
+
 describe('the query budget (frontend.md §5, P21)', function () {
     it('opens a product\'s Stores tab in its own recorded number of queries, warm, however many stores and rows', function () {
         ['product' => $product, 'width' => $width] = Px::ready(['60 cm', '80 cm']);
@@ -274,9 +420,8 @@ describe('the query budget (frontend.md §5, P21)', function () {
         $uri = "/admin/products/{$product}?tab=stores";
         $own = catalogStoreScreensOwnQueries($browser, $uri);
 
-        // 28 today: every job asked reads the reader's grants again (two queries each - Access keeps them
-        // for no request), and this tab asks nine. Over the budget until that is decided (owner).
-        expect($own)->toBe(28)->and($own)->toBeLessThanOrEqual(15);
+        // 8 since #108 read the reader's grants once a request: the tab's own reads, within the 15.
+        expect($own)->toBe(8)->and($own)->toBeLessThanOrEqual(15);
 
         // More of everything the tab shows: never one query a store, a variant or a label.
         foreach (range(1, 5) as $n) {
