@@ -111,7 +111,7 @@ it('has a word in both languages for every value a refusal can name', function (
     foreach (['ar', 'en'] as $locale) {
         expect(Lang::hasForLocale("loyalty::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
-})->with(['points', 'reason', 'returned_amounts', 'currency', 'store', 'permission']);
+})->with(['points', 'reason', 'returned_amounts', 'currency', 'store', 'permission', 'amount', 'percent', 'rate']);
 
 it('never shows the English written for the log', function (LoyaltyError $error) {
     App::setLocale('ar');
