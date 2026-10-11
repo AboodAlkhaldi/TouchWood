@@ -10,5 +10,6 @@ return [
     'attributes' => 'الخصائص',
     'labels' => 'الشارات',
     'warranties' => 'الضمانات',
+    'store_files' => 'ملفات المتاجر',
     'search_words' => 'كلمات البحث',
 ];

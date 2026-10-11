@@ -475,7 +475,7 @@ Product** asks no store (amendment 13(f)): `CreateProduct` takes the job in some
 it would let in - and the import makes its drafts the same way.
 
 **A product's page** (S9): its name, stage and codes above **tabs kept in the address** (`?tab=`) -
-Details, Variants, Photos, Search and Filters, Related; a store's rows come with step 3. **Each tab is
+Details, Variants, Photos, Search and Filters, Related, Stores (step 3). **Each tab is
 read when it is opened** (`ViewProduct` answers the open tab's data only), so every tab keeps the
 query budget - and **each tab is a page of its own**, the product above it (`Products/shell.tsx`), so
 the browser loads the open tab's script only, within the JavaScript budget, and the server renders it
@@ -501,6 +501,53 @@ products, variants with photos, gallery photos, filters, search words, related p
 15, 15, 12, 13, 11, 13 and 13 until #108 made a request read the stores and the reader's permissions
 once (access.md amendment 65); the list was then at the budget, with nothing to spare. The panel's
 frame around them is as step 1 says.
+
+### The screens: each store's rows and the store file (screens step 3)
+
+**A product's Stores tab** (S9 "Stores", P6): a card for each store the reader covers - a Super
+Admin's off stores too, marked Off. A store that never chose the product offers only **Switch On**
+(a ready product only, else the reason). One that did shows the whole product's On switch (on while
+every variant not archived is on, saying "n of m"), a variant table with On, Retail, Wholesale and
+Not Available Now switches, the product's own Not Available Now, the quantities with Save Quantities,
+the labels as their badges with Labels… (10 at most), and the note that prices and stock come with
+Pricing and Inventory. Each control works for whoever holds its job in that store; anyone else sees
+its state, out of reach, and is told why - the jobs they lack there, or "read only" when they hold none
+of the four; a variant's other switches wait until it is on there, and say so. A label deactivated
+since it was attached stays on the card, marked Off, and is kept when the labels are saved - it can be
+taken off, not put back (§1.8, amendment 4). A switch saves as it flips; a Retail or Wholesale switch sends the stored
+quantities with it, as `SetSellingTerms` keeps them all at once. The store is named in the address
+by its code (`/admin/products/{p}/stores/{code}/…`) - **an off store's too** (`StoreCodes`): Platform's
+`storeByCode` answers stores that are on only, and read alone it left a Super Admin unable to prepare
+an off store from either screen (found by the review of this step). The tab reads every store's rows in one query
+each - 8 of its own, recorded in `CatalogStoreScreensTest` with more stores, variants and labels.
+
+**Store Files** (S10; amendment 6(g), (h)): the admins' job, `catalog.listing.fill`, in its menu entry.
+A store's files, newest first, 25 a page with Show More - name, when, items, items still open
+(`ImportSummary::open`) - for the store chosen in the page's own filter among those where the reader
+fills stores. **Upload Store File** takes the `.json`; a refused file's problems come back once,
+flashed with the list's next view (at most 500), in the format's own words - English, as the format is
+- and are listed under the upload in its dialog. A file's page shows each item: number, code, its
+product (named, linked to its page), price, stock, and where it stands - Ready, Not Ready and what it
+lacks, Archived, Already On, Unknown Code - or what was done (Switched On, Removed), still naming its
+product; ticked open items are switched on (ready ones only, said before the press) or removed, every
+ready one switched on at once, an unknown code corrected.
+
+**Read in batches** (P13): a store file's page asks its items, then every open code in one query
+(`StoreFillCodes`: the product holding it, the variant carrying it, archived or not, on in the store or
+not - a variant's code is always one its product holds, by the database's foreign key), the products
+holding them through the product page's own core read, many at once (`CatalogProductReads::cores`),
+and the drafts' photos in one Platform read. What a draft lacks is the product page's rules, now one
+class (`ProductMissing`). `CatalogImportPagesTest` holds a 50-item file to the same queries as a 3-item
+one, within 15; the old per-item reads asked five an item. `CatalogStoreScreensTest` records the
+pages' own: a file 8, with a ready product's code, a draft's with a photo, an archived product's and
+unknown ones, however many; the list 4.
+
+**The import guide** the upload links to is built with step 4 (the products import), whose page links
+it too - one page for both formats.
+
+**Found while building**: the panel's breadcrumb on a phone could not shrink, so a long page name - a
+store file's - pushed the page wider than the screen; the breadcrumb and its last crumb may shrink
+now, and the name is cut short (`AdminLayout`).
 
 ## Tests
 
@@ -554,6 +601,8 @@ frame around them is as step 1 says.
 | `Integration/CatalogListReadsTest` | The list screens' reads: who may read and who may change, refused before anything is read; each list's rows; a fixed number of queries however long the list; a store's places beside the base store's; the searches that found nothing, grouped and paged; the products a deactivation reaches; Platform's photos read together; descriptions' marks both ways |
 | `Integration/CatalogProductReadsTest` | The products screens' reads: every product to a reader in some store, refused before reading to anyone else; where each is on among the stores covered; finding by name, by a code in any digits, by stage, category and brand; one store's state and narrowing by it; pages by keyset in a fixed number of queries; one product above its tabs; what a draft lacks, the same as `Readiness`; each tab's own data - a variant's details, size and photos, the photos' states read together; what the reader may do, as the handlers check it |
 | `Feature/CatalogProductScreensTest` | The products screens over HTTP: who opens the list and a product's page, and the menu; the store filter; finding (any digits, `%` and `_` as characters, bytes that are not text) and the next page; the filters as applied; every brand and category offered, active or not; Add Product offered only with the job in a store that is on, and a draft added with no store; the codes the variants carry; what the reader may do; an archived product; every tab's change, said where the panel says it, refused - nothing uploaded - without the job in every store where the product is on; photos uploaded, ordered, removed and refused, a variant's only for that product's variant; making ready, archiving, restoring, deleting a draft; each page's own queries, recorded |
+| `Feature/CatalogStoreScreensTest` | A product's Stores tab over HTTP: a card per store covered, a Super Admin's off stores marked, what the reader may do in each; switching on and off, selling, not available now, labels (10 at most), each refused where the reader holds no job; the store files: the list with what is still open, the upload and a refused file's problems said once, a file's page, switching on the selected and every ready one, removing, correcting a code; each page's own queries, recorded |
+| `tests/Browser/CatalogStoreScreensTest.php` | The store screens in a real browser: a ready product switched on in a store from its Stores tab and off again; a store file's ticked item switched on; both pages and the files list in Arabic at a phone's width |
 | `tests/Browser/CatalogProductScreensTest.php` | The products screens in a real browser: adding a draft opens its page saying what it lacks; tabs in the address, each fetched as it opens; details saved once changed; a search word added; a variant added from its dialog, shown in its row; Arabic at a phone's width |
 | `Feature/CatalogListScreensTest` | The seven screens over HTTP: the menu; who opens each page; the categories' store filter; every form's success and refusal, said beside its field or at the top; a logo and a photo uploaded from their forms; the fates; each page's own queries, recorded |
 | `tests/Browser/CatalogListScreensTest.php` | The screens in a real browser: adding from each dialog, the fates dialog reading the products before its button, a branch of the tree opened, a label's look, a warranty for life, a word pair added and deleted, a page in Arabic at a phone's width |

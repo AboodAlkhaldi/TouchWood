@@ -110,6 +110,17 @@ code: string,
 name: string,
 ours: boolean,
 };
+export type ImportProblemData = {
+at: string,
+problem: string,
+};
+export type LabelChoiceData = {
+id: string,
+nameAr: string,
+nameEn: string,
+tone: string,
+active: boolean,
+};
 export type LabelData = {
 id: string,
 nameAr: string,
@@ -185,6 +196,8 @@ searchWords: string[] | null,
 filterValueIds: string[] | null,
 related: RelatedData[] | null,
 found: ProductRowData[] | null,
+stores: StoreCardData[] | null,
+labels: LabelChoiceData[] | null,
 };
 export type ProductRowData = {
 id: string,
@@ -242,11 +255,79 @@ storeCode: string | null,
 stores: StoreOptionData[],
 storeTimezone: string | null,
 };
+export type StoreCardData = {
+storeId: string,
+code: string,
+name: string,
+active: boolean,
+chosen: boolean,
+notAvailable: boolean,
+retailMinimum: number,
+retailMaximum: number | null,
+wholesaleMinimum: number | null,
+wholesaleMaximum: number | null,
+labelIds: string[],
+variants: StoreVariantData[],
+mayChoose: boolean,
+maySell: boolean,
+mayUnavailable: boolean,
+mayLabel: boolean,
+};
+export type StoreFileItemData = {
+id: string,
+number: number,
+code: string,
+price: string,
+stock: number | null,
+state: string,
+standing: string | null,
+productId: string | null,
+productNameAr: string | null,
+productNameEn: string | null,
+missing: string[],
+lines: string[],
+};
+export type StoreFilePage = {
+id: string,
+fileName: string,
+uploadedAt: string,
+storeCode: string,
+storeName: string,
+storeTimezone: string,
+pricesKept: boolean,
+items: StoreFileItemData[],
+};
+export type StoreFileRowData = {
+id: string,
+fileName: string,
+uploadedAt: string,
+items: number,
+open: number,
+};
+export type StoreFilesPage = {
+files: StoreFileRowData[],
+page: number,
+more: boolean,
+total: number,
+storeCode: string,
+storeName: string,
+storeTimezone: string,
+stores: StoreOptionData[],
+problems: ImportProblemData[] | null,
+problemsTotal: number | null,
+};
 export type StoreOptionData = {
 id: string,
 code: string,
 name: string,
 isActive: boolean,
+};
+export type StoreVariantData = {
+variantId: string,
+on: boolean,
+retail: boolean,
+wholesale: boolean,
+notAvailable: boolean,
 };
 export type ValueData = {
 id: string,
