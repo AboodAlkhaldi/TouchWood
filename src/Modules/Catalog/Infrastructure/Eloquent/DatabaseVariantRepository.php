@@ -215,7 +215,7 @@ final readonly class DatabaseVariantRepository implements VariantRepository
             $id = (string) $row->id;
             $valueIds = [];
 
-            // The combination keeps the set's order; the value rows say each value's attribute.
+            // The combination keeps the attributes' id order; the value rows say each value's attribute.
             foreach ((string) $row->combination === '' ? [] : explode(',', (string) $row->combination) as $valueId) {
                 $valueIds[$attributeOf[$id][$valueId] ?? ''] = $valueId;
             }

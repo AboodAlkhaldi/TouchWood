@@ -155,7 +155,6 @@ function catalogRowsEdit(string $productId, array $changes): void
         'descriptionAr' => $text,
         'descriptionEn' => $text,
         'categoryId' => $product->categoryId(),
-        'attributeSetId' => $product->attributeSetId(),
         ...$changes,
     ])));
 }

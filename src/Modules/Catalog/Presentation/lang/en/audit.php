@@ -38,12 +38,6 @@ return [
     'attribute_value.deleted' => 'Attribute value deleted',
     'attribute_value.ordered' => 'Attribute value moved in its attribute\'s order',
 
-    'attribute_set.added' => 'Attribute set added',
-    'attribute_set.edited' => 'Attribute set edited',
-    'attribute_set.deactivated' => 'Attribute set deactivated',
-    'attribute_set.activated' => 'Attribute set reactivated',
-    'attribute_set.deleted' => 'Attribute set deleted',
-
     'label.added' => 'Label added',
     'label.edited' => 'Label edited',
     'label.deactivated' => 'Label deactivated',
@@ -88,6 +82,9 @@ return [
     'variant.edited' => 'Variant edited',
     'variant.deleted' => 'Draft variant deleted',
     'variant.code_corrected' => 'Variant code corrected',
+    'product.variant_attribute_added' => 'Attribute added to the variants',
+    'product.variant_attribute_removed' => 'Attribute removed from the variants',
+    'product.variant_attributes_ordered' => 'Variant attributes reordered',
 
     'import.added' => 'Products file uploaded',
     'import.checked_again' => 'Names and codes of a products file asked again before bringing in',

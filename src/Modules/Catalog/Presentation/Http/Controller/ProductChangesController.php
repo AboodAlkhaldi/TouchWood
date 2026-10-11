@@ -66,7 +66,6 @@ final readonly class ProductChangesController
             descriptionEn: $request->marks('description_en'),
             categoryId: $request->optionalText('category_id'),
             warrantyId: $request->optionalText('warranty_id'),
-            attributeSetId: $request->optionalText('attribute_set_id'),
         )), 'catalog::admin_products.toast.details', self::DETAILS);
     }
 

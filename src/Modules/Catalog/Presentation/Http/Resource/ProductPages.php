@@ -110,7 +110,7 @@ final readonly class ProductPages
                 $core->brandId, $core->brandNameAr, $core->brandNameEn, $core->categoryId,
                 $core->categoryPath === [] ? null : implode(' › ', array_column($core->categoryPath, 'ar')),
                 $core->categoryPath === [] ? null : implode(' › ', array_column($core->categoryPath, 'en')),
-                $core->warrantyId, $core->attributeSetId, $core->attributeSetNameAr, $core->attributeSetNameEn, $core->setAttributeIds,
+                $core->warrantyId, $core->variantAttributeIds,
                 DescriptionText::text($core->descriptionAr), DescriptionText::text($core->descriptionEn),
                 $core->hiddenByCategory, $core->hiddenByBrand, $core->codes,
                 new ProductCountsData(...$core->counts),
@@ -125,7 +125,6 @@ final readonly class ProductPages
             $view->options === null ? null : self::brands($view->options),
             $view->options === null ? null : self::categories($view->options),
             $view->options === null ? null : array_map(static fn (array $warranty): WarrantyOptionData => new WarrantyOptionData(...$warranty), $view->options->warranties),
-            $view->options === null ? null : array_map(static fn (array $set): VariationOptionData => new VariationOptionData(...$set), $view->options->variations),
             $view->variants === null ? null : array_map(static fn (VariantView $variant): VariantData => new VariantData(
                 $variant->id, $variant->code, $variant->position, $variant->archived,
                 array_map(static fn (array $value): VariantValueData => new VariantValueData(...$value), $variant->values),

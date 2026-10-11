@@ -394,9 +394,8 @@ describe('a product\'s changes', function () {
         $width = Px::attribute('Width');
         $sixty = Px::value($width, '60 cm');
         $eighty = Px::value($width, '80 cm');
-        $set = Px::set([$width]);
         $draft = Px::product('Drawer');
-        DB::table('catalog.products')->where('id', $draft)->update(['attribute_set_id' => $set]);
+        Px::variantAttributes($draft, [$width]);
         $browser = catalogProductScreens([P::PRODUCT_VIEW, P::PRODUCT_UPDATE]);
 
         expect(catalogProductScreensErrors($browser->post("/admin/products/{$draft}/variants", ['code' => 'abc', 'values' => [$width => $sixty]])))->toHaveKey('code')

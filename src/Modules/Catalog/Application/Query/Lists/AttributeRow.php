@@ -6,7 +6,7 @@ namespace Modules\Catalog\Application\Query\Lists;
 
 /**
  * An attribute as the attributes screen reads it (catalog.md §1.7, §4.4 S3): what locks its job —
- * values, or details variants carry (amendments 1(i), 3(k)) — whether a variation holds it, and
+ * values, or details variants carry (amendments 1(i), 3(k)) — whether products make their variants of it (amendment 16(b)), and
  * whether anything uses it, for Delete.
  */
 final readonly class AttributeRow
@@ -23,7 +23,7 @@ final readonly class AttributeRow
         public int $position,
         public int $values,
         public bool $kindLocked,
-        public bool $inVariation,
+        public bool $inProducts,
         public bool $inUse,
     ) {}
 }

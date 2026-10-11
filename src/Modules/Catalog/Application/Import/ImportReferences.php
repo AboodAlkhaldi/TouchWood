@@ -59,11 +59,6 @@ final readonly class ImportReferences
         return $this->catalog->warranty($product->warranty) ?? $this->decided(ImportNameRow::WARRANTY, [$product->warranty]);
     }
 
-    public function set(string $name): ?string
-    {
-        return $this->catalog->set($name) ?? $this->decided(ImportNameRow::SET, [$name]);
-    }
-
     public function attribute(string $name): ?string
     {
         return $this->catalog->attribute($name)?->id() ?? $this->decided(ImportNameRow::ATTRIBUTE, [$name]);

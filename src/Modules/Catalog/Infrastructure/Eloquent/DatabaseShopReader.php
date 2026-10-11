@@ -226,11 +226,12 @@ final readonly class DatabaseShopReader implements ShopReader
             ->join('catalog.products as p', 'p.id', '=', 'v.product_id')
             ->join('catalog.attributes as a', 'a.id', '=', 'vv.attribute_id')
             ->join('catalog.attribute_values as av', 'av.id', '=', 'vv.value_id')
-            ->leftJoin('catalog.attribute_set_members as m', static function ($join): void {
-                $join->on('m.attribute_set_id', '=', 'p.attribute_set_id')->on('m.attribute_id', '=', 'vv.attribute_id');
+            // In the product's own order of its variant attributes (amendment 16(b)): its pickers' order.
+            ->leftJoin('catalog.product_attributes as pa', static function ($join): void {
+                $join->on('pa.product_id', '=', 'p.id')->on('pa.attribute_id', '=', 'vv.attribute_id');
             })
             ->whereIn('vv.variant_id', $variantIds)
-            ->orderBy('m.position')->orderBy('a.position')->orderBy('a.id')
+            ->orderBy('pa.position')->orderBy('a.position')->orderBy('a.id')
             ->get(['vv.variant_id', 'a.id as attribute_id', "a.{$name} as attribute", 'av.id as value_id', "av.{$name} as value", 'av.swatch']);
 
         foreach ($rows as $row) {

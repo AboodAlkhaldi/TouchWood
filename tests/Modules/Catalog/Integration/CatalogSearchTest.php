@@ -70,7 +70,7 @@ function catalogSearchProduct(string $nameEn, string $nameAr, ?string $categoryI
 
     Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
         $id, $nameAr, $nameEn, $brandId ?? $product->brandId(),
-        descriptionAr: $text, descriptionEn: $text, categoryId: $product->categoryId(), attributeSetId: $product->attributeSetId(),
+        descriptionAr: $text, descriptionEn: $text, categoryId: $product->categoryId(),
     )));
 
     foreach ($stores as $store) {

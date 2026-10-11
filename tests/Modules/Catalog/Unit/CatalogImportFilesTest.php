@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Modules\Catalog\Application\Import\DescriptionText;
 use Modules\Catalog\Application\Import\FileProduct;
+use Modules\Catalog\Application\Import\FileVariant;
 use Modules\Catalog\Application\Import\ProductsFile;
 use Modules\Catalog\Application\Import\StoreFillFile;
 use Modules\Catalog\Domain\Exception\ImportRefused;
@@ -29,7 +30,6 @@ function catalogImportProduct(string $code = '1304'): array
 {
     return [
         'name' => ['ar' => 'درج', 'en' => 'Drawer'],
-        'attribute_set' => 'Sizes',
         'variants' => [
             ['code' => $code, 'values' => ['Width' => '60 cm']],
             // Every variant its own code (amendment 16(a)).
@@ -65,7 +65,7 @@ describe('the guide\'s examples', function () {
             ->and([$runner->nameAr, $runner->nameEn, $runner->slugEn])->toBe(['مجرى درج تلسكوبي ناعم الإغلاق', 'Soft-close telescopic drawer runner', 'soft-close-drawer-runner'])
             ->and($runner->descriptionEn['blocks'][0] ?? null)->toBe(['type' => 'heading', 'runs' => [['text' => 'Soft-close drawer runner']]])
             ->and($runner->descriptionEn['blocks'][2]['items'][0] ?? null)->toBe([['text' => 'Holds up to '], ['text' => '35 kg', 'bold' => true]])
-            ->and([$runner->brand, $runner->brandNumber, $runner->category, $runner->warranty, $runner->attributeSet])->toBe(['TouchWood', null, ['Kitchens', 'Drawers', 'Runners'], 'Two years', 'Runner sizes'])
+            ->and([$runner->brand, $runner->brandNumber, $runner->category, $runner->warranty])->toBe(['TouchWood', null, ['Kitchens', 'Drawers', 'Runners'], 'Two years'])
             ->and($runner->codes())->toBe(['1304', '1314', '1305'])
             ->and($runner->variants[0]->values)->toBe(['Length' => '45 cm', 'Finish' => 'Zinc'])
             ->and($runner->variants[0]->details)->toBe(['Load' => '35', 'Material' => ['ar' => 'فولاذ', 'en' => 'Steel']])
@@ -76,8 +76,12 @@ describe('the guide\'s examples', function () {
             ->and($runner->searchWords)->toBe(['سحاب درج', 'مجرى', 'slide', 'rail'])
             ->and($runner->filters)->toBe(['Use' => ['Kitchen', 'Wardrobe'], 'Closing' => ['Soft-close']])
             ->and([$runner->related, $runner->goesWith])->toBe([['1306'], ['2001']])
-            ->and([$hinge->brand, $hinge->brandNumber, $hinge->category, $hinge->attributeSet, $hinge->codes()])->toBe([null, 2, ['Tallsen', 'Hinges'], null, ['2001']])
+            ->and([$hinge->brand, $hinge->brandNumber, $hinge->category, $hinge->codes()])->toBe([null, 2, ['Tallsen', 'Hinges'], ['2001']])
             ->and([$handle->nameAr, $handle->nameEn, $handle->descriptionAr, $handle->codes()])->toBe(['مقبض ألمنيوم 128 مم', null, null, ['1306']]);
+
+        // A variant kept before as a map of values still reads; written now as pairs, in order.
+        expect(FileVariant::fromArray(['code' => '1', 'values' => ['Length' => '45 cm', 'Finish' => 'Zinc']])->values)->toBe(['Length' => '45 cm', 'Finish' => 'Zinc'])
+            ->and($runner->variants[0]->toArray()['values'])->toBe([['Length', '45 cm'], ['Finish', 'Zinc']]);
 
         // Kept as it was read, for the import's page and the step that brings it in.
         expect(FileProduct::fromArray($runner->toArray()))->toEqual($runner)
@@ -127,9 +131,9 @@ describe('what refuses a product file', function () {
         'a code written as a number' => [fn (array $p) => [...$p, 'variants' => [['code' => 1304, 'values' => ['Width' => '60 cm']]]], 'product 1 › variants 1 › code', 'in quotes'],
         'two variants alike' => [fn (array $p) => [...$p, 'variants' => [['code' => '1304', 'values' => ['Width' => '60 cm']], ['code' => '1305', 'values' => ['width' => '60 CM']]]], 'product 1 › variants 2 › values', 'never alike'],
         'two variants sharing a code, typed once in Arabic digits' => [fn (array $p) => [...$p, 'variants' => [['code' => '1304', 'values' => ['Width' => '60 cm']], ['code' => '١٣٠٤', 'values' => ['Width' => '80 cm']]]], 'product 1 › variants 2 › code', 'not the code of variant 1: two variants never share a code'],
-        'values without a set' => [fn (array $p) => array_diff_key($p, ['attribute_set' => true]), 'product 1 › variants 1 › values', 'attribute_set'],
-        'a set without values' => [fn (array $p) => [...$p, 'variants' => [['code' => '1304']]], 'product 1 › variants 1 › values', 'one value for each'],
-        'two variants with no set' => [fn (array $p) => [...array_diff_key($p, ['attribute_set' => true]), 'variants' => [['code' => '1'], ['code' => '2']]], 'product 1 › variants', 'one variant'],
+        'an attribute set, gone (amendment 16(b))' => [fn (array $p) => [...$p, 'attribute_set' => 'Sizes'], 'product 1 › attribute_set', "not in a products file: each variant's values name the attributes"],
+        'two variants, one without values' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm']], ['code' => '2']]], 'product 1 › variants 2 › values', 'a product with more than one variant has them'],
+        'two variants, neither with values' => [fn (array $p) => [...$p, 'variants' => [['code' => '1'], ['code' => '2']]], 'product 1 › variants 1 › values', 'a product with more than one variant has them'],
         'variants made of other attributes' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm']], ['code' => '2', 'values' => ['Finish' => 'Zinc']]]], 'product 1 › variants 2 › values', 'same attributes'],
         'a measure not a whole number' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm'], 'weight_g' => 2.5]]], 'product 1 › variants 1 › weight_g', 'whole number'],
         'a measure out of range' => [fn (array $p) => [...$p, 'variants' => [['code' => '1', 'values' => ['Width' => '60 cm'], 'length_mm' => 0]]], 'product 1 › variants 1 › length_mm', 'a whole number from 1 to'],

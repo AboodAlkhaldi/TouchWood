@@ -6,7 +6,7 @@ namespace Modules\Catalog\Application\Command\EditProductDetails;
 
 /**
  * A product's own form, sent whole (catalog.md §1.1): names, slugs, the two descriptions (the
- * structured text, decoded), its brand, category, warranty and attribute set.
+ * structured text, decoded), its brand, category and warranty.
  */
 final readonly class EditProductDetails
 {
@@ -25,6 +25,5 @@ final readonly class EditProductDetails
         public ?array $descriptionEn = null,
         public ?string $categoryId = null,
         public ?string $warrantyId = null,
-        public ?string $attributeSetId = null,
     ) {}
 }

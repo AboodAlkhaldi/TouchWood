@@ -114,17 +114,23 @@ final readonly class DatabaseProductRepository implements ProductRepository
         return $this->anyWith('warranty_id', $warrantyId);
     }
 
-    public function anyWithAttributeSet(string $setId): bool
+    public function variantAttributes(string $productId): array
     {
-        return $this->anyWith('attribute_set_id', $setId);
+        return $this->ordered('catalog.product_attributes', 'product_id', $productId, 'attribute_id');
     }
 
-    public function variantsOnSet(string $setId): bool
+    public function replaceVariantAttributes(string $productId, array $attributeIds): void
     {
-        return Ulids::valid($setId) && $this->db->table(self::TABLE.' as p')
-            ->join('catalog.variants as v', 'v.product_id', '=', 'p.id')
-            ->where('p.attribute_set_id', strtolower($setId))
-            ->exists();
+        $this->db->table('catalog.product_attributes')->where('product_id', strtolower($productId))->delete();
+        $rows = [];
+
+        foreach ($attributeIds as $index => $attributeId) {
+            $rows[] = ['product_id' => strtolower($productId), 'attribute_id' => $attributeId, 'position' => $index + 1];
+        }
+
+        if ($rows !== []) {
+            $this->db->table('catalog.product_attributes')->insert($rows);
+        }
     }
 
     public function gallery(string $productId): array
@@ -317,7 +323,6 @@ final readonly class DatabaseProductRepository implements ProductRepository
             (string) $row->brand_id,
             $row->category_id === null ? null : (string) $row->category_id,
             $row->warranty_id === null ? null : (string) $row->warranty_id,
-            $row->attribute_set_id === null ? null : (string) $row->attribute_set_id,
             ProductStage::from((string) $row->stage),
             $row->archived_from === null ? null : ProductStage::from((string) $row->archived_from),
             (bool) $row->hidden_by_category,
@@ -338,7 +343,6 @@ final readonly class DatabaseProductRepository implements ProductRepository
             'brand_id' => $product->brandId(),
             'category_id' => $product->categoryId(),
             'warranty_id' => $product->warrantyId(),
-            'attribute_set_id' => $product->attributeSetId(),
             'stage' => $product->stage()->value,
             'archived_from' => $product->archivedFrom()?->value,
             'hidden_by_category' => $product->hiddenByCategory(),

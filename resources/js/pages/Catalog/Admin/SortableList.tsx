@@ -30,8 +30,8 @@ import { useTranslator } from '@/lib/t';
 | `SortableRows` holds one or more groups - a list's rows, or each parent's children in the category
 | tree - and a row moves only among its own group: a drop elsewhere, by pointer or by keys, is never
 | offered. `SortableGroup` names one group's rows; `useSortableRow` and `DragHandle` make a table row
-| one of them. `SortableList` is a short list of its own - a store's menu in a dialog, a variation's
-| attributes, a product's related products - or, laid out as a grid of tiles, a gallery.
+| one of them. `SortableList` is a short list of its own - a product's variant attributes, a
+| product's related products - or, laid out as a grid of tiles, a gallery.
 */
 
 /** `label` names it aloud; `content`, when given, is drawn in its place (a photo's tile). */
