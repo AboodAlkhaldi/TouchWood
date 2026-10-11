@@ -37,5 +37,8 @@ return [
         'currency' => 'currency',
         'store' => 'store',
         'permission' => 'permission',
+        'amount' => 'amount',
+        'percent' => 'percentage',
+        'rate' => 'points rate',
     ],
 ];
