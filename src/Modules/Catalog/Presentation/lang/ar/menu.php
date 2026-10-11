@@ -11,5 +11,6 @@ return [
     'labels' => 'الشارات',
     'warranties' => 'الضمانات',
     'store_files' => 'ملفات المتاجر',
+    'imports' => 'استيراد المنتجات',
     'search_words' => 'كلمات البحث',
 ];

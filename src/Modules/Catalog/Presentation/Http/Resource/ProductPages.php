@@ -134,11 +134,7 @@ final readonly class ProductPages
                 $variant->weightGrams, $variant->lengthMm, $variant->widthMm, $variant->heightMm,
                 array_map($photo, $variant->photos),
             ), $view->variants),
-            $view->attributes === null ? null : array_map(static fn (AttributeChoice $attribute): AttributeChoiceData => new AttributeChoiceData(
-                $attribute->id, $attribute->nameAr, $attribute->nameEn, $attribute->kind, $attribute->unitAr, $attribute->unitEn,
-                $attribute->isColour, $attribute->active,
-                array_map(static fn (array $value): ChoiceValueData => new ChoiceValueData(...$value), $attribute->values),
-            ), $view->attributes),
+            $view->attributes === null ? null : self::attributes($view->attributes),
             $view->searchWords,
             $view->filterValueIds,
             $view->related === null ? null : array_map(static fn (RelatedRow $row): RelatedData => new RelatedData(
@@ -214,15 +210,36 @@ final readonly class ProductPages
     /**
      * @return list<BrandOptionData>
      */
-    private static function brands(ProductOptions $options): array
+    public static function brands(ProductOptions $options): array
     {
         return array_map(static fn (array $brand): BrandOptionData => new BrandOptionData(...$brand), $options->brands);
     }
 
     /**
+     * @param  list<AttributeChoice>  $attributes
+     * @return list<AttributeChoiceData>
+     */
+    public static function attributes(array $attributes): array
+    {
+        return array_map(static fn (AttributeChoice $attribute): AttributeChoiceData => new AttributeChoiceData(
+            $attribute->id, $attribute->nameAr, $attribute->nameEn, $attribute->kind, $attribute->unitAr, $attribute->unitEn,
+            $attribute->isColour, $attribute->active,
+            array_map(static fn (array $value): ChoiceValueData => new ChoiceValueData(...$value), $attribute->values),
+        ), $attributes);
+    }
+
+    /**
+     * @return list<WarrantyOptionData>
+     */
+    public static function warranties(ProductOptions $options): array
+    {
+        return array_map(static fn (array $warranty): WarrantyOptionData => new WarrantyOptionData(...$warranty), $options->warranties);
+    }
+
+    /**
      * @return list<CategoryOptionData>
      */
-    private static function categories(ProductOptions $options): array
+    public static function categories(ProductOptions $options): array
     {
         return array_map(static fn (array $category): CategoryOptionData => new CategoryOptionData(
             $category['id'],
