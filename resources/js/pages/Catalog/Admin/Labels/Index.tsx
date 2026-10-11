@@ -15,6 +15,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
+import { useChecks } from '@/lib/use-checks';
 import type { LabelData, LabelsPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 
@@ -238,10 +239,20 @@ function LabelDialog({
 
     const title = label === null ? t('catalog::admin_labels.add') : t('catalog::admin_labels.edit_title');
     const preview = nameIn(locale, form.data.name_ar, form.data.name_en) || t('catalog::admin_labels.preview_empty');
+    // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 30 characters
+    // (Label::NAME_MAX) of one or two words - what the spaces separate (Label::checkWords, amendment
+    // 1(f)) - and a position from 0 to 10,000 (ListPosition; the request reads an empty or broken
+    // number as -1, so it is required).
+    const name = { required: true, length: { max: 30 }, format: { pattern: /^\S+(\s+\S+)?$/u, key: 'catalog::admin_labels.check.words' } };
+    const checks = useChecks([
+        { id: 'label-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name },
+        { id: 'label-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name },
+        { id: 'label-position', label: t('catalog::admin.field.position'), value: form.data.position, rules: { required: true, number: { min: 0, max: 10000 } } },
+    ]);
 
     function submit() {
         form.transform((data) => ({ name_ar: data.name_ar, name_en: data.name_en, tone: toneOf(data.meaning, data.subtle), position: data.position }));
-        form.post(label === null ? '/admin/labels' : `/admin/labels/${label.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post(label === null ? '/admin/labels' : `/admin/labels/${label.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -253,14 +264,14 @@ function LabelDialog({
             description={t('catalog::admin_labels.body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-label">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-label">
                     {label === null ? title : t('catalog::admin_labels.save')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
-                <TextField id="label-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} helper={t('catalog::admin_labels.name_helper')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="label-name-ar" />
-                <TextField id="label-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} helper={t('catalog::admin_labels.name_helper')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="label-name-en" />
+                <TextField id="label-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} helper={t('catalog::admin_labels.name_helper')} value={form.data.name_ar} check={checks.box('label-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="label-name-ar" />
+                <TextField id="label-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} helper={t('catalog::admin_labels.name_helper')} value={form.data.name_en} check={checks.box('label-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="label-name-en" />
 
                 <FieldSet>
                     <FieldLegend className="text-label-14 text-ink">{t('catalog::admin_labels.column.meaning')}</FieldLegend>
@@ -307,7 +318,7 @@ function LabelDialog({
                     label={t('catalog::admin.field.position')}
                     helper={t('catalog::admin_labels.position_helper')}
                     value={form.data.position}
-                    error={form.errors.position}
+                    check={checks.box('label-position', form.errors.position)}
                     onChange={(event) => form.setData('position', toLatinDigits(event.target.value))}
                 />
             </div>

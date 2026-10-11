@@ -31,4 +31,25 @@ return [
     'show_password' => 'Show password',
     'to_confirm' => 'To confirm, type ":phrase"',
     'to_confirm_named' => 'To confirm, type the :label ":phrase"',
+    // What a box says is wrong as it is typed (frontend.md §1.7; resources/js/lib/checks.ts), in
+    // Geist's "Validation" form: the box, then its rule, a period. :field is the box's label.
+    'check' => [
+        'required' => ':field is required.',
+        'number' => ':field takes numbers only.',
+        'whole' => ':field takes whole numbers only.',
+        'decimals_one' => ':field takes at most :count decimal place.',
+        'decimals' => ':field takes at most :count decimal places.',
+        'range' => ':field is from :min to :max.',
+        'at_least' => ':field is at least :min.',
+        'at_most' => ':field is at most :max.',
+        'digits' => ':field takes the digits 0 to 9 only.',
+        'min_digits' => ':field needs at least :min digits.',
+        'max_digits' => ':field is at most :max digits.',
+        'letters' => ':field takes the letters A to Z only.',
+        'min_length' => ':field needs at least :min characters.',
+        'max_length' => ':field is at most :max characters.',
+        'max_length_one' => ':field is at most one character.',
+        'email' => ':field takes an address like name@example.com.',
+        'phone' => ':field takes a number with its country code, starting with + or 00.',
+    ],
 ];

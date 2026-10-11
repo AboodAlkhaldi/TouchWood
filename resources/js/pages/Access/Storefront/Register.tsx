@@ -21,6 +21,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { SharedProps } from '@/types/page';
 import type { CustomerRegisterPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -61,6 +62,18 @@ export default function Register({ minimumLength }: Props) {
         terms: false,
     });
 
+    // Each box as typed (frontend.md §1.7), with the server's rules: names of up to 100 characters
+    // (RegisterCustomerHandler::NAME_MAX), an email address of up to 254 in an address's shape
+    // (EmailAddress::MAX_LENGTH; its own check is the stricter one), and a password of at least the
+    // customer's minimum, never trimmed (LaravelPasswordPolicy) - the breach list is the server's alone.
+    const name = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'first_name', label: t('access::auth.first_name'), value: form.data.first_name, rules: name },
+        { id: 'last_name', label: t('access::auth.last_name'), value: form.data.last_name, rules: name },
+        { id: 'email', label: t('access::auth.customer_email'), value: form.data.email, rules: { required: true, email: true, length: { max: 254 } } },
+        { id: 'password', label: t('access::auth.password'), value: form.data.password, rules: { required: true, keepSpaces: true, length: { min: minimumLength } } },
+    ]);
+
     return (
         <StorefrontLayout title={t('access::auth.register_title')}>
             <ShopCard title={t('access::auth.register_title')} subtitle={t('access::auth.register_subtitle')}>
@@ -70,13 +83,14 @@ export default function Register({ minimumLength }: Props) {
 
                         // Said here, in the page's own words, before anything is sent: the server's
                         // own refusal of a missing field is Laravel's English.
-                        if (form.data.account_type === '') {
-                            form.setError('account_type', t('access::auth.account_type_required'));
+                        const noKind = form.data.account_type === '';
 
-                            return;
+                        if (noKind) {
+                            form.setError('account_type', t('access::auth.account_type_required'));
                         }
 
-                        form.post(link('storefront.account.register'));
+                        // The boxes say their rules at the same press, so one press shows all that is missing.
+                        checks.submit(() => (noKind ? undefined : form.post(link('storefront.account.register'))));
                     }}
                 >
                     <FieldGroup className="gap-5">
@@ -127,7 +141,7 @@ export default function Register({ minimumLength }: Props) {
                                 id="first_name"
                                 name="first_name"
                                 label={t('access::auth.first_name')}
-                                error={form.errors.first_name}
+                                check={checks.box('first_name', form.errors.first_name)}
                                 autoComplete="given-name"
                                 required
                                 value={form.data.first_name}
@@ -138,7 +152,7 @@ export default function Register({ minimumLength }: Props) {
                                 id="last_name"
                                 name="last_name"
                                 label={t('access::auth.last_name')}
-                                error={form.errors.last_name}
+                                check={checks.box('last_name', form.errors.last_name)}
                                 autoComplete="family-name"
                                 required
                                 value={form.data.last_name}
@@ -151,7 +165,7 @@ export default function Register({ minimumLength }: Props) {
                             name="email"
                             type="email"
                             label={t('access::auth.customer_email')}
-                            error={form.errors.email}
+                            check={checks.box('email', form.errors.email)}
                             autoComplete="username"
                             required
                             dir="ltr"
@@ -164,7 +178,7 @@ export default function Register({ minimumLength }: Props) {
                             name="password"
                             label={t('access::auth.password')}
                             helper={t('access::auth.password_rule', { count: minimumLength })}
-                            error={form.errors.password}
+                            check={checks.box('password', form.errors.password)}
                             autoComplete="new-password"
                             required
                             value={form.data.password}
@@ -190,7 +204,7 @@ export default function Register({ minimumLength }: Props) {
                         {form.errors.terms ? <FieldError id="terms-error">{form.errors.terms}</FieldError> : null}
 
                         <Field>
-                            <ActionButton type="submit" loading={form.processing} className="w-full">
+                            <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} className="w-full">
                                 {t('access::auth.create_account')}
                             </ActionButton>
                             <FieldDescription className="text-center">

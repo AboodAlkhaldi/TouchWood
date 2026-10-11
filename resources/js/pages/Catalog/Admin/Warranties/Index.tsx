@@ -12,7 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { WarrantiesPage, WarrantyData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
+import { marksLength } from '../marks';
 import { MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 
 /*
@@ -183,9 +185,21 @@ function WarrantyDialog({ warranty, open, onOpenChange, returnFocusTo }: { warra
     }, [open, warranty?.id]);
 
     const title = warranty === null ? t('catalog::admin_warranties.add') : t('catalog::admin_warranties.edit_title');
+    // Each box as typed (frontend.md §1.7), with the domain's rules: a name of up to 100 characters
+    // (Warranty::NAME_MAX), terms of up to 5,000 (Warranty::TERMS_MAX, counted as StructuredText
+    // counts them), a period of 1 to 600 months unless for life (WarrantyPeriod).
+    const name = { required: true, length: { max: 100 } };
+    const terms = { required: true, length: { max: 5000, of: marksLength } };
+    const checks = useChecks([
+        { id: 'warranty-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name },
+        { id: 'warranty-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name },
+        { id: 'warranty-period', label: t('catalog::admin_warranties.field.period'), value: form.data.period_months, rules: { required: true, number: { min: 1, max: 600 } }, off: form.data.lifetime },
+        { id: 'warranty-terms-ar', label: t('catalog::admin_warranties.field.terms_ar'), value: form.data.terms_ar, rules: terms },
+        { id: 'warranty-terms-en', label: t('catalog::admin_warranties.field.terms_en'), value: form.data.terms_en, rules: terms },
+    ]);
 
     function submit() {
-        form.post(warranty === null ? '/admin/warranties' : `/admin/warranties/${warranty.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post(warranty === null ? '/admin/warranties' : `/admin/warranties/${warranty.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -198,15 +212,15 @@ function WarrantyDialog({ warranty, open, onOpenChange, returnFocusTo }: { warra
             description={t('catalog::admin_warranties.body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-warranty">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-warranty">
                     {warranty === null ? title : t('catalog::admin_warranties.save')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField id="warranty-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="warranty-name-ar" />
-                    <TextField id="warranty-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="warranty-name-en" />
+                    <TextField id="warranty-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} check={checks.box('warranty-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="warranty-name-ar" />
+                    <TextField id="warranty-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} check={checks.box('warranty-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="warranty-name-en" />
                 </div>
                 <div className="flex flex-wrap items-end gap-4">
                     <TextField
@@ -218,7 +232,7 @@ function WarrantyDialog({ warranty, open, onOpenChange, returnFocusTo }: { warra
                         label={t('catalog::admin_warranties.field.period')}
                         helper={t('catalog::admin_warranties.field.period_helper')}
                         value={form.data.period_months}
-                        error={form.errors.period_months}
+                        check={checks.box('warranty-period', form.errors.period_months)}
                         disabled={form.data.lifetime}
                         onChange={(event) => form.setData('period_months', toLatinDigits(event.target.value))}
                         data-test="warranty-period"
@@ -230,8 +244,8 @@ function WarrantyDialog({ warranty, open, onOpenChange, returnFocusTo }: { warra
                         </Label>
                     </div>
                 </div>
-                <MarksField id="warranty-terms-ar" dir="rtl" label={t('catalog::admin_warranties.field.terms_ar')} value={form.data.terms_ar} error={form.errors.terms_ar} onChange={(value) => form.setData('terms_ar', value)} />
-                <MarksField id="warranty-terms-en" dir="ltr" label={t('catalog::admin_warranties.field.terms_en')} value={form.data.terms_en} error={form.errors.terms_en} onChange={(value) => form.setData('terms_en', value)} />
+                <MarksField id="warranty-terms-ar" dir="rtl" label={t('catalog::admin_warranties.field.terms_ar')} value={form.data.terms_ar} check={checks.box('warranty-terms-ar', form.errors.terms_ar)} onChange={(value) => form.setData('terms_ar', value)} />
+                <MarksField id="warranty-terms-en" dir="ltr" label={t('catalog::admin_warranties.field.terms_en')} value={form.data.terms_en} check={checks.box('warranty-terms-en', form.errors.terms_en)} onChange={(value) => form.setData('terms_en', value)} />
             </div>
         </PanelDialog>
     );

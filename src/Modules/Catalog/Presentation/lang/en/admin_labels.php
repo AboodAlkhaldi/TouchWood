@@ -40,6 +40,10 @@ return [
     'preview' => 'As shoppers see it:',
     'preview_empty' => 'Label',
     'name_helper' => 'One or two words, up to 30 characters.',
+    // Said under a name as it is typed (frontend.md §1.7; Label::checkWords).
+    'check' => [
+        'words' => ':field is one or two words.',
+    ],
     'position_helper' => 'Its place on a product\'s card, lowest first.',
     'reason' => [
         'in_use' => 'A store shows it on products: take it off them first.',
