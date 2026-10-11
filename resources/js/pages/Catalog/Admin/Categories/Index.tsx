@@ -21,6 +21,7 @@ import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Cat
 import { FatesDialog } from '../FatesDialog';
 import { ImageField, MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale, type Locale } from '../parts';
 import { SortableList } from '../SortableList';
+import { AudienceSwitch } from './AudienceSwitch';
 
 /*
 | The categories screen (catalog.md §1.5, §4.4 S2): **the whole tree** in one table, a parent's
@@ -32,6 +33,11 @@ import { SortableList } from '../SortableList';
 | orders: the stores where the reader orders the menu (`catalog.category.rank`), a Super Admin's off
 | ones marked Off. A category the store has not placed shows the base store's place, marked so
 | (amendment 5(a)). Ordering one parent's children is a drag in a dialog (P8), saved for that store.
+|
+| **Who sees each category there** (amendment 14): two switches a row, Individuals and Companies, each
+| saved as it flips (P9, `AudienceSwitch`) - an admin role's job in that store (14(c)); the filter also
+| offers the stores where the reader holds only that job. For anyone else they are in sight, out of
+| reach, with the reason.
 |
 | The tree itself changes only with `catalog.category.manage` and All stores (§3); for anyone else its
 | buttons stay in sight, out of reach, with that reason (P2).
@@ -67,7 +73,7 @@ function below(node: Node): string[] {
     return [node.category.id, ...node.children.flatMap(below)];
 }
 
-export default function Index({ categories, storeCode, storeName, stores, mayManage, mayRank, reached, reachedFor }: CategoriesPage) {
+export default function Index({ categories, storeCode, storeName, stores, mayManage, mayRank, mayChooseAudience, reached, reachedFor }: CategoriesPage) {
     const t = useTranslator();
     const locale = useLocale();
     const nodes = useMemo(() => tree(categories, locale), [categories, locale]);
@@ -76,6 +82,15 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
     const [dialog, setDialog] = useState<Dialog>(null);
     const opener = useRef<HTMLElement | null>(null);
     const manageReason = useAllStoresReason(mayManage);
+    // Who sees each category in the store shown: its switches, or none when no store is shown.
+    const audience =
+        storeCode === null
+            ? null
+            : {
+                  storeCode,
+                  storeName: storeName ?? storeCode,
+                  reason: mayChooseAudience ? undefined : t('catalog::admin_categories.audience.reason', { store: storeName ?? storeCode }),
+              };
     const close = (next: boolean) => (next ? undefined : setDialog(null));
     const show = (next: Dialog, trigger: HTMLElement | null) => {
         opener.current = trigger;
@@ -118,6 +133,7 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                     storeShown={storeCode !== null}
                     manageReason={manageReason}
                     mayRank={mayRank}
+                    audience={audience}
                     show={show}
                 />,
             );
@@ -177,6 +193,8 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                                     <TableHead>{t('catalog::admin.column.name')}</TableHead>
                                     <TableHead className="text-end">{t('catalog::admin.column.products')}</TableHead>
                                     {storeCode !== null ? <TableHead>{t('catalog::admin_categories.column.place')}</TableHead> : null}
+                                    {audience !== null ? <TableHead>{t('catalog::admin_categories.audience.individuals')}</TableHead> : null}
+                                    {audience !== null ? <TableHead>{t('catalog::admin_categories.audience.companies')}</TableHead> : null}
                                     <TableHead>{t('catalog::admin.column.state')}</TableHead>
                                     <TableHead className="w-12">
                                         <span className="sr-only">{t('catalog::admin.column.actions')}</span>
@@ -242,6 +260,7 @@ function Row({
     storeShown,
     manageReason,
     mayRank,
+    audience,
     show,
 }: {
     node: Node;
@@ -251,6 +270,8 @@ function Row({
     /** Why the tree cannot be changed by this reader (P2); undefined when it can. */
     manageReason: string | undefined;
     mayRank: boolean;
+    /** The store whose switches the row shows, and why the reader may not flip them; null with no store shown. */
+    audience: { storeCode: string; storeName: string; reason: string | undefined } | null;
     show: (dialog: Dialog, trigger: HTMLElement | null) => void;
 }) {
     const t = useTranslator();
@@ -306,6 +327,16 @@ function Row({
                     ) : (
                         <span className="text-ink-muted">—</span>
                     )}
+                </TableCell>
+            ) : null}
+            {audience !== null ? (
+                <TableCell>
+                    <AudienceSwitch category={category} side="individuals" {...audience} />
+                </TableCell>
+            ) : null}
+            {audience !== null ? (
+                <TableCell>
+                    <AudienceSwitch category={category} side="companies" {...audience} />
                 </TableCell>
             ) : null}
             <TableCell>

@@ -406,9 +406,9 @@ page, never stored.
 
 Seven panel screens (catalog.md §4.4 S1–S7), under **Catalog** in the panel's menu, each offered to
 whoever holds its job in any store: Brands, Categories, Attributes (and one attribute's page — its
-details as a form, then its values), Labels, Warranties, Search Words (Variations removed with the sets, amendment 16(b)). **S2 is built but for
-its audience switches** (who sees a category in a store, amendment 14), which come with screens step 5
-with their permission, `catalog.category.audience`.
+details as a form, then its values), Labels, Warranties, Search Words (Variations removed with the sets, amendment 16(b)). **S2's audience
+switches** (who sees a category in a store, amendment 14) came with screens step 5 and their
+permission, `catalog.category.audience` (below).
 
 **Reading needs the list's job in any store; changing it, the job with All stores** (P2). A reader
 without All stores sees the list, and every button disabled with that reason ("Changing this list needs
@@ -564,6 +564,17 @@ either** (P25) — so a category switched off for both is seen by no one. Every 
 same reads (`CatalogShopAudiencesTest` records each read's count, the same for every viewer); asking
 `ShopperType` costs one query for a signed-in customer, none for a guest.
 
+**The screen** (S2): the categories page's store filter offers the stores where the reader orders the
+menu **or** chooses who sees the categories (`ListCategoriesHandler::STORE_JOBS`), and the page says
+which they may do there (`mayRank`, `mayChooseAudience`, each asked for its own job). For the store
+shown, each row carries its two switches (`forIndividuals`, `forCompanies`; a store that never
+switched it, both), read in the tree's one query. **Individuals** and **Companies** are two columns of
+switches (`Categories/AudienceSwitch.tsx`), each posting to `catalog.admin.categories.audience` the
+moment it flips (P9) with the store shown; the page comes back with every row as the server has it,
+so a parent's switch shows on everything under it. Someone who may not choose there sees them in
+place, out of reach, the reason in a tooltip and for a screen reader. The page's own queries stay 3
+(`CatalogCategoryAudiencesScreenTest`, as `CatalogListScreensTest` records them).
+
 **Left to step 6** (P22, with the shop's pages): the card's price, its old price and "Last pieces" per
 side, and the card's variant narrowed by "orderable now" and "priced" once the listing reads
 `store_variant_facts`; the Retail/Wholesale filter (P14) from `sells_retail` / `sells_wholesale`; and
@@ -629,6 +640,8 @@ the filter values (`value_ids`), which still hold every variant on sale for ever
 | `Integration/CatalogImportReviewTest` | After step 6's reviews (amendment 8): ambiguous names and colliding addresses decided on the page; the confirm asking again; holding back, replacing whole, updating and restoring; the page's picks brought in, filling and adding counted against an updated product as it is when brought in; a job given up on; the zip's sizes; linking back on accepting, by any code held; the store file kept to its store |
 | `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema; the store file's job and who sees a category, admin roles only (amendments 6(h), 14(c)) |
 | `Integration/CatalogShopAudiencesTest` | Screens step 5 (amendment 14): who may switch — an admin role's job in that store only, refusals, an off store prepared, the products' lock then the categories' first; a parent's switch reaching everything under it, the other switch kept, a sub-category alone; the audit, nothing written when nothing changes; P24 on adding and moving, the top keeping its own; each change writing the listing as the repair does; who sees a product and each side's card; the two CHECKs; the menu, pages, search, suggestions and relations for each viewer, P25, wholesale-only (14(e)), the card's variant (14(f)), a company account through `ShopperType`; each read's recorded queries, the same for every viewer |
+| `Feature/CatalogCategoryAudiencesScreenTest` | The categories screen's switches over HTTP: what the page is handed for the store shown, the stores offered and what the reader may do there, the menu entry, the page's recorded queries; a switch saved for the store shown and reaching below, refused without the job there, with no store, no switch or one neither on nor off |
+| `tests/Browser/CatalogCategoryAudiencesTest.php` | In a real browser: an admin switches a category off for individuals and the one under it follows; the switches out of reach for someone who only orders the menu; Arabic at a phone's width |
 | `tests/Modules/Access/Feature/ShopperTypeTest.php` | Platform's `ShopperType` as Access binds it: a guest, an individual, a company account that never applied; a guest during a staff view over a signed-in customer; one query a customer, none a guest |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 | `Integration/CatalogListReadsTest` | The list screens' reads: who may read and who may change, refused before anything is read; each list's rows; a fixed number of queries however long the list; a store's places beside the base store's; the searches that found nothing, grouped and paged; the products a deactivation reaches; Platform's photos read together; descriptions' marks both ways |
