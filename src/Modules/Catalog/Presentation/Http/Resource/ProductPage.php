@@ -26,6 +26,8 @@ final class ProductPage extends Data
      * @param  list<string>|null  $filterValueIds
      * @param  list<RelatedData>|null  $related
      * @param  list<ProductRowData>|null  $found  the ready products a search for a related product found
+     * @param  list<StoreCardData>|null  $stores  a card for each store the reader covers (the Stores tab)
+     * @param  list<LabelChoiceData>|null  $labels  the labels a store may put on it (the Stores tab)
      */
     public function __construct(
         public ProductHeadData $product,
@@ -45,5 +47,7 @@ final class ProductPage extends Data
         public ?array $filterValueIds,
         public ?array $related,
         public ?array $found,
+        public ?array $stores,
+        public ?array $labels,
     ) {}
 }

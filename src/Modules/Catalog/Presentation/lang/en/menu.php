@@ -11,4 +11,5 @@ return [
     'labels' => 'Labels',
     'warranties' => 'Warranties',
     'search_words' => 'Search Words',
+    'store_files' => 'Store Files',
 ];

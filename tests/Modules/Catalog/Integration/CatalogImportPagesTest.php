@@ -140,6 +140,46 @@ describe('a store file\'s page', function () {
             ->and([$view->storeId, $view->pricesKept])->toBe([Fx::storeId('sa'), false]);
     });
 
+    it('reads a file of any size in the same queries, names the product each code finds, and counts what is still open (P13)', function () {
+        $codeOf = fn (array $ready): string => (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
+        $readies = [Px::ready(), Px::ready(), Px::ready()];
+        $draft = Px::product();
+        Px::variant($draft, '7700');
+        $small = catalogPagesFill([['code' => $codeOf($readies[0]), 'price' => 1], ['code' => '7700', 'price' => 2], ['code' => '999000', 'price' => 3]]);
+        $large = catalogPagesFill([
+            ...array_map(static fn (array $ready): array => ['code' => $codeOf($ready), 'price' => 1], $readies),
+            ['code' => '7700', 'price' => 2],
+            ...array_map(static fn (int $n): array => ['code' => (string) (999000 + $n), 'price' => 3], range(1, 46)),
+        ]);
+        $queries = function (string $file): int {
+            app()->forgetScopedInstances();
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($file));
+            DB::disableQueryLog();
+
+            return count(DB::getQueryLog());
+        };
+        $few = $queries($small);
+
+        expect($queries($large))->toBe($few)
+            ->and($few)->toBeLessThanOrEqual(15);
+
+        $view = app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($large));
+        app(RemoveStoreFillItemsHandler::class)->handle(new RemoveStoreFillItems($small, [(string) DB::table('catalog.store_fill_items')->where('import_id', $small)->where('number', 3)->value('id')]));
+        $open = [];
+
+        foreach (app(ListStoreFillsHandler::class)->handle(new ListStoreFills(Fx::storeId('sa')))->imports as $file) {
+            $open[$file->id] = $file->open;
+        }
+
+        expect(count($view->items))->toBe(50)
+            ->and([$view->items[1]->productId, $view->items[1]->productNameEn])->toBe([$readies[1]['product'], DB::table('catalog.products')->where('id', $readies[1]['product'])->value('name_en')])
+            ->and([$view->items[3]->standing, $view->items[3]->productNameAr])->toBe(['NOT_READY', DB::table('catalog.products')->where('id', $draft)->value('name_ar')])
+            ->and([$view->items[4]->standing, $view->items[4]->productId, $view->items[4]->productNameEn])->toBe(['UNKNOWN', null, null])
+            ->and($open)->toBe([$large => 50, $small => 2]);
+    });
+
     it('is the job of whoever fills that store, and its list holds only that store\'s files', function () {
         $sa = catalogPagesFill([['code' => '1', 'price' => 1]]);
         catalogPagesFill([['code' => '2', 'price' => 1]], 'eg');

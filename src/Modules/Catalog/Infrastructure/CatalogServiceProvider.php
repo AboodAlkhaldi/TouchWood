@@ -17,6 +17,7 @@ use Modules\Catalog\Application\Import\ImportArchives;
 use Modules\Catalog\Application\Import\ImportQueue;
 use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Import\InMemoryImportSections;
+use Modules\Catalog\Application\Import\StoreFillCodes;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Query\ListCategories\ListCategoriesHandler;
 use Modules\Catalog\Application\Query\Lists\CatalogListReads;
@@ -47,6 +48,7 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseProductRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseSearchLog;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseShopReader;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseStoreFillCodes;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseStoreListingRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseVariantRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseWarrantyRepository;
@@ -91,6 +93,7 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(CatalogProductReads::class, DatabaseCatalogProductReads::class);
         $this->app->bind(SearchLog::class, DatabaseSearchLog::class);
         $this->app->bind(Imports::class, DatabaseImports::class);
+        $this->app->bind(StoreFillCodes::class, DatabaseStoreFillCodes::class);
         $this->app->bind(ImportQueue::class, LaravelImportQueue::class);
         // A products file's zip waits on the disk config/catalog.php names (amendment 6).
         $this->app->bind(ImportArchives::class, static fn ($app): DiskImportArchives => new DiskImportArchives($app->make(Factory::class), (string) config('catalog.imports.disk'), sys_get_temp_dir()));
@@ -131,6 +134,7 @@ final class CatalogServiceProvider extends ServiceProvider
             new MenuEntryDto('catalog', 'labels', PermissionGroup::Catalog->value, 'catalog.admin.labels', CatalogPermissions::LABEL_MANAGE, 60, icon: 'catalog'),
             new MenuEntryDto('catalog', 'warranties', PermissionGroup::Catalog->value, 'catalog.admin.warranties', CatalogPermissions::WARRANTY_MANAGE, 70, icon: 'catalog'),
             new MenuEntryDto('catalog', 'search_words', PermissionGroup::Catalog->value, 'catalog.admin.search-words', CatalogPermissions::SEARCH_WORD_MANAGE, 80, icon: 'catalog'),
+            new MenuEntryDto('catalog', 'store_files', PermissionGroup::Catalog->value, 'catalog.admin.store-files', CatalogPermissions::LISTING_FILL, 90, icon: 'catalog'),
         );
 
         if (! $this->app->routesAreCached()) {

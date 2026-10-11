@@ -16,8 +16,8 @@ import { StageBadge } from './parts';
 
 /*
 | One product (catalog.md §4.4 S9): its name, stage and codes above **tabs kept in the address**
-| (`?tab=`, owner 2026-10-07, #11) - Details, Variants, Photos, Search and Filters, Related; a store's
-| rows come with the next step. A draft says what it still lacks to be made ready, in words.
+| (`?tab=`, owner 2026-10-07, #11) - Details, Variants, Photos, Search and Filters, Related, Stores. A
+| draft says what it still lacks to be made ready, in words.
 |
 | **Each tab is a page of its own** (DetailsTab, VariantsTab, ...), all of them this one product above
 | it: the server reads the open tab's data only, and the browser loads the open tab's script only, so
@@ -30,7 +30,7 @@ import { StageBadge } from './parts';
 | the top, and every control is out of reach.
 */
 
-const TABS = ['details', 'variants', 'photos', 'search', 'related'] as const;
+const TABS = ['details', 'variants', 'photos', 'search', 'related', 'stores'] as const;
 
 type Tab = (typeof TABS)[number];
 
@@ -75,6 +75,7 @@ export function ProductShell({ page, children }: { page: ProductPage; children: 
         photos: product.counts.photos,
         search: product.counts.searchWords + product.counts.filterValues,
         related: product.counts.related + product.counts.goesWith,
+        stores: null,
     };
 
     return (

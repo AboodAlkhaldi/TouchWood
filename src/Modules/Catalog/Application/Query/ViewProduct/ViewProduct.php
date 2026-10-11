@@ -20,8 +20,10 @@ final readonly class ViewProduct
 
     public const string RELATED = 'related';
 
+    public const string STORES = 'stores';
+
     /** @var list<string> */
-    public const array TABS = [self::DETAILS, self::VARIANTS, self::PHOTOS, self::SEARCH, self::RELATED];
+    public const array TABS = [self::DETAILS, self::VARIANTS, self::PHOTOS, self::SEARCH, self::RELATED, self::STORES];
 
     public function __construct(
         public string $productId,
