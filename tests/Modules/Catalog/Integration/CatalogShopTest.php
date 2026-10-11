@@ -42,6 +42,7 @@ use Modules\Catalog\Application\Query\Shop\Moved;
 use Modules\Catalog\Application\Query\Shop\ProductCard;
 use Modules\Catalog\Application\Query\Shop\ProductPage;
 use Modules\Catalog\Application\Query\Shop\ShopCatalog;
+use Modules\Catalog\Application\Query\Shop\ShopFilters;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Platform\Public\Enums\ShopperKind;
@@ -134,7 +135,7 @@ function catalogShopAllCards(string $store, string $categoryId, int $limit, arra
     $after = null;
 
     do {
-        $page = app(ShopCatalog::class)->category(catalogShopStore($store), 'en', ShopperKind::Guest, catalogShopSlug('category', $categoryId), $brandIds, $after, $limit);
+        $page = app(ShopCatalog::class)->category(catalogShopStore($store), 'en', ShopperKind::Guest, catalogShopSlug('category', $categoryId), ShopFilters::of(brands: $brandIds), $after, $limit);
 
         if (! $page instanceof CategoryPage) {
             return $ids;
@@ -260,13 +261,16 @@ describe('a category page', function () {
         $tallsen = catalogShopProduct($category, brandId: $brand);
         $both = [$house, $tallsen];
         rsort($both);
-        $page = app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', ShopperKind::Guest, catalogShopSlug('category', $category), [Px::brand('Hettich')]);
+        $page = app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', ShopperKind::Guest, catalogShopSlug('category', $category), ShopFilters::of(brands: [Px::brand('Hettich')]));
 
+        // A brand the page does not offer counts as not chosen (the review of screens step 6): the
+        // cards are every brand's, as the chips and the counts say.
         expect(catalogShopAllCards('sa', $category, 10))->toBe($both)
             ->and(catalogShopAllCards('sa', $category, 10, [strtoupper($brand), 'not-a-brand']))->toBe([$tallsen])
             ->and($page)->toBeInstanceOf(CategoryPage::class)
-            ->and($page instanceof CategoryPage ? $page->products->cards : null)->toBe([])
-            ->and(fn () => app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', ShopperKind::Guest, catalogShopSlug('category', $category), array_fill(0, ShopCatalog::BRANDS_MAX + 1, $brand)))
+            ->and($page instanceof CategoryPage ? array_map(static fn (ProductCard $card): string => $card->productId, $page->products->cards) : null)->toBe($both)
+            ->and($page instanceof CategoryPage ? $page->chosen?->brands : null)->toBe([])
+            ->and(fn () => ShopFilters::of(brands: array_fill(0, ShopCatalog::BRANDS_MAX + 1, $brand)))
             ->toThrow(InvalidCatalogAttribute::class, 'at most '.ShopCatalog::BRANDS_MAX.' brands');
     });
 
@@ -311,7 +315,7 @@ describe('a category page', function () {
         $category = Px::category('Kitchens');
         catalogShopProduct($category);
 
-        expect(fn () => app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', ShopperKind::Guest, catalogShopSlug('category', $category), [], $after))
+        expect(fn () => app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', ShopperKind::Guest, catalogShopSlug('category', $category), null, $after))
             ->toThrow(InvalidCatalogAttribute::class, 'Invalid after: a page cursor');
     })->with(['no dot' => ['01k6abcdefghjkmnpqrstvwxyz'], 'not an id' => ['-.drawer'], 'a negative rank' => ['-1.01k6abcdefghjkmnpqrstvwxyz'], 'too big a rank' => ['99999999999.01k6abcdefghjkmnpqrstvwxyz']]);
 });

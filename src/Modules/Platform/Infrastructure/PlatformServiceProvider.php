@@ -37,6 +37,7 @@ use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Routing\GuestShoppers;
 use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
+use Modules\Platform\Application\Routing\InMemoryShopFrameParts;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
 use Modules\Platform\Application\Settings\SettingValues;
@@ -76,6 +77,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
+use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Platform\Public\Contracts\StoreChoices;
@@ -142,6 +144,10 @@ final class PlatformServiceProvider extends ServiceProvider
         // The admin home's cards, registered by every module as menu entries are (platform.md §2.6).
         $this->app->singleton(InMemoryHomeCards::class);
         $this->app->alias(InMemoryHomeCards::class, HomeCards::class);
+
+        // The shop frame's parts - Catalog's menu and search box (catalog.md §4.5, owner's #9).
+        $this->app->singleton(InMemoryShopFrameParts::class);
+        $this->app->alias(InMemoryShopFrameParts::class, ShopFrameParts::class);
 
         // One pattern for {store} on every route, built from every module's reserved paths, so no
         // module imports Platform's interior to register storefront routes. Built after every

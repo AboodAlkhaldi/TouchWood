@@ -62,8 +62,9 @@ final class CatalogFixtures
     }
 
     /**
-     * Every query from now on, in order, with its bindings and the transaction level it ran at — to
-     * tell what a change did first inside its own transaction (level 2 under RefreshDatabase).
+     * Every query from now on but the cache's, in order, with its bindings and the transaction level it
+     * ran at — to tell what a change did first inside its own transaction (level 2 under
+     * RefreshDatabase).
      *
      * @return ArrayObject<int, array{sql: string, bindings: array<array-key, mixed>, level: int}>
      */
@@ -73,6 +74,12 @@ final class CatalogFixtures
         $queries = new ArrayObject;
 
         DB::listen(function (QueryExecuted $query) use ($queries): void {
+            // The cache's own rows are not the catalog's: every change replaces the shop's pages'
+            // version before its first lock (DatabaseListLocks), which CatalogListLocksTest checks.
+            if (str_contains($query->sql, '"cache"')) {
+                return;
+            }
+
             $queries[] = ['sql' => $query->sql, 'bindings' => $query->bindings, 'level' => DB::transactionLevel()];
         });
 

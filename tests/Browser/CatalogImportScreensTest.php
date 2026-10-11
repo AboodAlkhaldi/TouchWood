@@ -121,7 +121,11 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
     $page->resize(375, 812);
 
     foreach (['/admin/imports' => "import-{$import}", "/admin/imports/{$import}" => 'names-BRAND', "/admin/imports/{$import}?part=before" => 'addresses-empty', "/admin/imports/{$import}?part=products" => 'product-row-1', '/admin/import-guide' => 'import-guide-text'] as $address => $shown) {
-        $page->navigate($address, BROWSER_PAGE_LOAD);
+        // The page before has settled - loaded, and no visit of its own on the way - before the next
+        // is asked for: one still arriving cut the guide's load short ("navigation … interrupted",
+        // seen 2026-10-11 in a full run), and the guide, the longest page, gets the longest wait.
+        expect(browserUntil($page, "document.readyState === 'complete' && (performance.getEntriesByType('navigation')[0]?.loadEventEnd ?? 1) > 0 && document.querySelector('[data-loading], #nprogress') === null"))->toBeTrue();
+        $page->navigate($address, $address === '/admin/import-guide' ? ['timeout' => 10_000] : BROWSER_PAGE_LOAD);
 
         expect(browserUntil($page, "document.querySelector('[data-test=\"{$shown}\"]') !== null"))->toBeTrue()
             ->and($page->script('document.documentElement.dir'))->toBe('rtl')

@@ -6,6 +6,7 @@ namespace Modules\Catalog\Infrastructure;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Factory;
+use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
@@ -22,6 +23,7 @@ use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Query\ListCategories\ListCategoriesHandler;
 use Modules\Catalog\Application\Query\Lists\CatalogListReads;
 use Modules\Catalog\Application\Query\Products\CatalogProductReads;
+use Modules\Catalog\Application\Query\Shop\ShopPagesCache;
 use Modules\Catalog\Application\Query\Shop\ShopReader;
 use Modules\Catalog\Application\Search\SearchLog;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
@@ -36,6 +38,7 @@ use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\Repository\WordPairRepository;
+use Modules\Catalog\Infrastructure\Cache\VersionedShopPagesCache;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseApiReads;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseAttributeRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseBrandRepository;
@@ -63,12 +66,16 @@ use Modules\Catalog\Infrastructure\Media\CatalogImagesUsage;
 use Modules\Catalog\Infrastructure\Media\ProductPhotosUsage;
 use Modules\Catalog\Infrastructure\Queue\LaravelImportQueue;
 use Modules\Catalog\Infrastructure\Queue\PruneSearchLogJob;
+use Modules\Catalog\Infrastructure\Queue\PruneShopPagesJob;
 use Modules\Catalog\Presentation\Console\RebuildListingCommand;
+use Modules\Catalog\Presentation\Storefront\CatalogFramePart;
+use Modules\Catalog\Presentation\Storefront\ShopVisit;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
+use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\MediaVariantsReady;
 
@@ -95,6 +102,11 @@ final class CatalogServiceProvider extends ServiceProvider
         $this->app->bind(StoreListingRepository::class, DatabaseStoreListingRepository::class);
         $this->app->bind(ListingRows::class, DatabaseListingRows::class);
         $this->app->bind(ShopReader::class, DatabaseShopReader::class);
+        // The shop's kept pages (§4.5, P21): one version, replaced by every change's lock.
+        // Scoped: the version is read once a request (VersionedShopPagesCache).
+        $this->app->scoped(ShopPagesCache::class, VersionedShopPagesCache::class);
+        // One shop request: who is looking, asked once, and its menu (§4.5).
+        $this->app->scoped(ShopVisit::class);
         // The panel's screens read the shared lists through their own reads (§4.4).
         $this->app->bind(CatalogListReads::class, DatabaseCatalogListReads::class);
         $this->app->bind(CatalogProductReads::class, DatabaseCatalogProductReads::class);
@@ -131,6 +143,11 @@ final class CatalogServiceProvider extends ServiceProvider
         // A photo whose sizes became ready may be a card's photo now (§6.2).
         Event::listen(MediaVariantsReady::class, [RefreshCardPhotos::class, 'handle']);
 
+        // A deploy may change what a kept page holds: none outlives the migrations (as Platform's caches).
+        Event::listen(MigrationsEnded::class, function (): void {
+            $this->app->make(ShopPagesCache::class)->invalidate();
+        });
+
         // The panel's menu: the products and the shared lists' screens (catalog.md §4.4), each offered
         // for any of the jobs its screen serves, in any store — the screen decides the rest.
         $this->app->make(AdminMenu::class)->register(
@@ -147,8 +164,12 @@ final class CatalogServiceProvider extends ServiceProvider
             new MenuEntryDto('catalog', 'imports', PermissionGroup::Catalog->value, 'catalog.admin.imports', CatalogPermissions::IMPORT_RUN, 100, icon: 'catalog'),
         );
 
+        // The category menu and the search box in every shop page's header (§4.5, owner's #9).
+        $this->app->make(ShopFrameParts::class)->register('catalog', CatalogFramePart::class);
+
         if (! $this->app->routesAreCached()) {
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/shop-routes.php');
         }
 
         if ($this->app->runningInConsole()) {
@@ -160,6 +181,8 @@ final class CatalogServiceProvider extends ServiceProvider
         // in Riyadh, away from Access's midnight sweep.
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->job(PruneSearchLogJob::class)->dailyAt('01:00')->onOneServer();
+            // The shop's kept pages of old versions (§4.5, P21), by the hour.
+            $schedule->job(PruneShopPagesJob::class)->hourly()->onOneServer();
         });
     }
 }

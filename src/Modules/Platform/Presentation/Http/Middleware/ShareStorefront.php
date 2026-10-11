@@ -12,6 +12,7 @@ use Inertia\Inertia;
 use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
 use Modules\Platform\Presentation\Http\StorefrontLanguage;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Dto\StoreDto;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -40,6 +41,7 @@ final readonly class ShareStorefront
         private InMemoryOffStoreViewers $offStoreViewers,
         private StorefrontLanguage $languages,
         private Application $app,
+        private ShopFrameParts $frameParts,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -58,6 +60,9 @@ final readonly class ShareStorefront
             // working in - and a page may still name a store of its own. One name for two shapes is
             // how a screen ends up reading the wrong one.
             'shop' => fn (): ?array => $this->shop($store, $locale),
+            // What modules put in the frame of every page under a store - Catalog's menu and search
+            // box (catalog.md §4.5, owner's #9) - by module; none on the country page.
+            'frame' => fn (): array => $store === null ? [] : $this->frameParts->for($store, $locale),
         ]);
 
         return $next($request);

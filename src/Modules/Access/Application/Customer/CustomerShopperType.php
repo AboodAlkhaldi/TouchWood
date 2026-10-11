@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Customer;
 
-use Modules\Access\Application\Query\CustomerReader;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Enums\ShopperKind;
@@ -22,7 +21,8 @@ use Shared\Application\ActorType;
  * identified, so the request acts as a guest), and the system.
  *
  * An account's type never changes (§1.1, a trigger holds it), so the answer is kept by customer id for
- * the life of this instance — one read a customer, never a stale one; a request that signs someone in
+ * the life of this instance — read through RequestCustomers, the same read the shop's frame names them
+ * from, so one read a customer, never a stale one; a request that signs someone in
  * asks again for the new id.
  */
 final class CustomerShopperType implements ShopperType
@@ -32,7 +32,7 @@ final class CustomerShopperType implements ShopperType
 
     public function __construct(
         private readonly ActorContext $actors,
-        private readonly CustomerReader $customers,
+        private readonly RequestCustomers $customers,
     ) {}
 
     public function current(): ShopperKind
