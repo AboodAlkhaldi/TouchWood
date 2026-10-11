@@ -62,6 +62,8 @@ it('earns on the whole units of goods_total, in a lot that lives the period and 
         ->and((int) $lot->points)->toBe(1_234)
         ->and(CarbonImmutable::parse((string) $lot->expires_at)->toIso8601String())->toBe('2027-06-01T12:00:00+00:00')
         ->and(DB::table('loyalty.entries')->where('order_id', $order)->where('kind', 'EARNED')->value('points'))->toBe(1_234)
+        // Dated the moment of the delivery, as the history will show it.
+        ->and(CarbonImmutable::parse((string) DB::table('loyalty.entries')->where('order_id', $order)->value('occurred_at'))->toIso8601String())->toBe('2026-06-01T12:00:00+00:00')
         ->and(loyaltyEarnBalance($customer))->toBe(1_234)
         // Usable at once (owner, 2026-10-07).
         ->and(Lx::quote($customer, 100, 100_000)->pointsCharged)->toBe(100);

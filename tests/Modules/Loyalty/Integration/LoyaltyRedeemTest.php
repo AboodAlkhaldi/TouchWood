@@ -89,6 +89,7 @@ it('takes the chosen points in PARTIAL, from the lot that expires first, and rec
         // 300 from the June lot, which expires first, then 100 from July's.
         ->and(array_map(static fn (stdClass $take): int => (int) $take->points, $takes))->toBe([300, 100])
         ->and(DB::table('loyalty.entries')->where('order_id', $order)->where('kind', 'REDEEMED')->value('points'))->toBe(-400)
+        ->and(CarbonImmutable::parse((string) DB::table('loyalty.entries')->where('order_id', $order)->value('occurred_at'))->toIso8601String())->toBe('2026-07-01T12:00:00+00:00')
         ->and([(int) $row->points_redeemed, (int) $row->discount_minor, (int) $row->redemption_cap_percent])->toBe([400, 400, 50]);
 });
 
