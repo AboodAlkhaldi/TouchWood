@@ -26,6 +26,8 @@ return [
     'field' => [
         'name_ar' => 'Arabic Name',
         'name_en' => 'English Name',
+        // A variant's typed place, until the variants too are ordered by dragging (amendment 16(d)).
+        'position_helper' => 'From 0 to 10,000, lowest first.',
         'slug_ar' => 'Arabic Address',
         'slug_en' => 'English Address',
     ],
