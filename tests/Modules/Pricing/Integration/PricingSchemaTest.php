@@ -7,6 +7,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Pricing\Domain\ValueObject\PriceSource;
 use Modules\Pricing\Infrastructure\Persistence\PricingSchema;
@@ -68,7 +69,7 @@ it('allows in each kind\'s column exactly the values the code has', function (st
 })->with([
     'modes' => ['price_candidates_mode', array_map(static fn (SaleMode $mode): string => $mode->value, SaleMode::cases())],
     'kinds' => ['price_candidates_kind', array_map(static fn (PriceKind $kind): string => $kind->value, PriceKind::cases())],
-    'sources' => ['retail_prices_source', array_values((new ReflectionClass(PriceSource::class))->getConstants())],
+    'sources' => ['retail_prices_source', array_map(static fn (PriceSource $source): string => $source->value, PriceSource::cases())],
 ]);
 
 describe('what the database refuses behind the code (§8 #15)', function () {
@@ -94,7 +95,7 @@ describe('what the database refuses behind the code (§8 #15)', function () {
         $row = [
             'store_id' => Fx::storeId('sa'), 'variant_id' => Px::ready()['variants'][0], 'mode' => 'RETAIL', 'from_quantity' => 1,
             'amount_minor' => 100, 'currency_code' => 'SAR', 'kind' => 'SALE', 'always_wins' => false,
-            'source_id' => null, 'starts_at' => null, 'ends_at' => null,
+            'source_id' => strtolower((string) Str::ulid()), 'starts_at' => null, 'ends_at' => null,
         ];
         $insert = static fn (array $changed): Closure => fn () => DB::transaction(fn () => DB::table('pricing.price_candidates')->insert([...$row, ...$changed]));
 
@@ -107,15 +108,21 @@ describe('what the database refuses behind the code (§8 #15)', function () {
             // The retail price and a band have no window and never always win; each NULL-able column broken alone.
             ->and($insert(['kind' => 'BASE', 'starts_at' => '2026-10-11 10:00:00+00']))->toThrow(QueryException::class, 'price_candidates_undated')
             ->and($insert(['kind' => 'QUANTITY', 'ends_at' => '2026-10-11 10:00:00+00']))->toThrow(QueryException::class, 'price_candidates_undated')
-            ->and($insert(['kind' => 'BASE', 'always_wins' => true]))->toThrow(QueryException::class, 'price_candidates_undated');
+            ->and($insert(['kind' => 'BASE', 'always_wins' => true]))->toThrow(QueryException::class, 'price_candidates_undated')
+            // A sale's or a discount's candidate names it.
+            ->and($insert(['source_id' => null]))->toThrow(QueryException::class, 'price_candidates_source')
+            ->and($insert(['kind' => 'CATEGORY', 'source_id' => null]))->toThrow(QueryException::class, 'price_candidates_source');
 
         // A sale may start with no end, end with no start known here, or have both; the retail price none.
         $insert(['starts_at' => '2026-10-11 10:00:00+00'])();
         $insert(['ends_at' => '2026-10-11 10:00:00+00'])();
         $insert(['starts_at' => '2026-10-11 10:00:00+00', 'ends_at' => '2026-10-12 10:00:00+00', 'always_wins' => true])();
-        $insert(['kind' => 'BASE'])();
+        $insert(['kind' => 'BASE', 'source_id' => null])();
+        $insert(['kind' => 'BASE', 'source_id' => null, 'mode' => 'WHOLESALE'])();
 
-        expect(DB::table('pricing.price_candidates')->count())->toBe(4);
+        // One retail price a size and a line in a store.
+        expect($insert(['kind' => 'BASE', 'source_id' => null, 'amount_minor' => 90]))->toThrow(QueryException::class, 'price_candidates_one_base')
+            ->and(DB::table('pricing.price_candidates')->count())->toBe(5);
     });
 
     it('never lets a store with prices go, and takes a size\'s prices with it when it goes', function () {

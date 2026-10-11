@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Pricing\Domain\Repository;
 
+use Modules\Pricing\Domain\ValueObject\PriceSource;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -19,7 +20,7 @@ interface RetailPrices
      */
     public function forVariants(StoreId $store, array $variantIds): array;
 
-    public function save(StoreId $store, string $variantId, Money $amount, string $source): void;
+    public function save(StoreId $store, string $variantId, Money $amount, PriceSource $source): void;
 
     public function remove(StoreId $store, string $variantId): void;
 

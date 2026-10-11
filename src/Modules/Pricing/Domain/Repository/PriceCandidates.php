@@ -15,11 +15,11 @@ use Shared\Domain\ValueObject\StoreId;
 interface PriceCandidates
 {
     /**
-     * A size's candidates in a store become exactly these.
+     * Each size's candidates in a store become exactly these - none, for a size given an empty list.
      *
-     * @param  list<Candidate>  $candidates
+     * @param  array<string, list<Candidate>>  $candidates  variant id => its candidates
      */
-    public function replace(StoreId $store, string $variantId, array $candidates): void;
+    public function replace(StoreId $store, array $candidates): void;
 
     /**
      * @param  list<string>  $variantIds

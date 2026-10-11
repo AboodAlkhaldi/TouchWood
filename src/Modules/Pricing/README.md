@@ -11,7 +11,7 @@ Built in eight steps, one PR each (stage 5's plan; owner's go 2026-10-10):
 |---|---|---|---|
 | 1 | Foundation: the `pricing` schema, the permissions, the errors and their words | — | built (#113) |
 | 2 | The engine, pure: `PriceResolution` (§1.6), `PercentOff` and `FixedOff` (§1.3, §1.5), `OrderTotals` (§1.7) | — | built (#117) |
-| 3a | Retail prices set and removed, the materialized candidates, the push into Catalog (§1.10), the repair and `pricing:rebuild-candidates`; the off-store guard, the unknown-store rule, the wired-store seam | `pricing.price.edit`, `pricing.candidates.rebuild` | **built** |
+| 3a | Retail prices set and removed, the materialized candidates, the push into Catalog (§1.10), the repair and `pricing:candidates:rebuild`; the off-store guard, the unknown-store rule, the wired-store seam | `pricing.price.edit`, `pricing.candidates.rebuild` | **built** |
 | 3b | `PricingApi` bound with all its methods (`prices`, `totals` through `OrderTotals`, `pricesForEdit`) | — | — |
 | 4 | Sales, and the timed tasks at their start and end | `pricing.price.edit`, `pricing.windows.apply`, `pricing.windows.check` | a sale for one size: buildable; for every size of a product: after Catalog's `variantIdsOf` is built |
 | 5 | Wholesale bands | `pricing.wholesale.edit` | — |
@@ -33,13 +33,13 @@ permission missing, before anything is looked up; a store that does not exist is
 | `Public/Dto`, `Public/Enums` | `CartLineDto`, `LinePriceDto`, `CartPricesDto`, `TotalsDto`, `KeptPartDto`; `PriceKind` |
 | `Application` | `PricingPermissions`: three jobs per store, any role, in the Pricing group; the system's three, reserved (§3) |
 | `Application/Command` | `SetRetailPrice` (one size or several), `RemoveRetailPrice`, `RebuildPriceCandidates` (the repair: every store, on or off; answers how many sizes were out of step) |
-| `Application/Prices` | What every change shares: `PricingChange` (the permission in the store, the store known, an off store only with the store switch; one transaction, the store's lock first, the audit entries), `AmountInput` (a typed amount: refused, never rounded), `CandidateWriter` (a size's candidates written again, then Catalog told its price), the `StoreWiring` port |
+| `Application/Prices` | What every change shares: `PricingChange` (the permission in the store, the store known, an off store only with the store switch; one transaction, the store's lock first, the audit entries), `AmountInput` (a typed amount: refused, never rounded), `SizeInput` (the sizes named, checked in two reads: none unknown, archived or of an archived product), `CandidateWriter` (sizes' candidates written again, then Catalog told their prices, 500 sizes a chunk), the `StoreWiring` port |
 | `Domain/Exception` | `PricingError` and the nineteen errors of §7, each a `pricing.*` type with a category |
 | `Domain/Repository` | `RetailPrices`, `PriceCandidates`, `PricingLocks` |
 | `Domain/ValueObject` | `Candidate` (one price a line could take, as the materialized candidates hold it), `ResolvedPrice`, `PriceSource` (staff, the store's file, the provider) |
 | `Domain/Service` | The engine, pure - no database, no clock: `PriceResolution` (what a line costs at a moment), `PercentOff` (half up to the coin, once), `FixedOff` (skips a size it would take to 0), `OrderTotals` (every amount, VAT rounded once) |
 | `Infrastructure` | `PricingServiceProvider` (after Catalog in `bootstrap/providers.php`); `Persistence/PricingSchema` and the migrations (the schema; `retail_prices` and `price_candidates`, §5); `Eloquent/` the three repositories (the store's lock a transaction-scoped advisory lock); `External/NoStoreWired` (no store is wired until Sync) |
-| `Presentation/Console` | `pricing:rebuild-candidates`, the repair run by hand |
+| `Presentation/Console` | `pricing:candidates:rebuild`, the repair run by hand |
 | `Presentation/lang/{ar,en}` | `permissions.php` (the names the role editor shows), `errors.php` (each error's title and detail, and the fields an invalid input names), `audit.php` (each audited action's name) |
 
 ## How it is built
@@ -61,7 +61,7 @@ permission missing, before anything is looked up; a store that does not exist is
 | File | Proves |
 |---|---|
 | `tests/Modules/Pricing/Integration/PricingSchemaTest.php` | The schema exists, is on the search path, and is created and dropped from nothing; every CHECK broken once, NULLs included (§8 #15); a store kept, a size's prices going with it |
-| `tests/Modules/Pricing/Integration/RetailPricesTest.php` | Retail prices set and removed per store; refusals (decimals, 0, not a number, unknown or archived size, unknown store, another store, an off store without the switch, a wired store); audit from and to; candidates on both lines; Catalog told inside the change and nothing after a rollback; the store's lock first; the repair writing the same rows, in every store (§8 #5, #7, #8, #14) |
+| `tests/Modules/Pricing/Integration/RetailPricesTest.php` | Retail prices set and removed per store; refusals (decimals, 0 or less, not a number, a size unknown, archived or of an archived product, one size twice with two prices, unknown store, another store, an off store without the switch, a wired store); audit from and to; candidates on both lines; Catalog told inside the change and nothing after a rollback; the store's lock first; the repair writing the same rows, in every store (§8 #5, #7, #8, #14) |
 | `tests/Modules/Pricing/Integration/PricingAuditNamesTest.php` | Every audited action named in both languages, nothing named that is not recorded |
 | `tests/Modules/Pricing/Integration/PricingPermissionsTest.php` | The three jobs and the three reserved, by name, kind, group and reservation; a staff role may hold all three; the owner's English names |
 | `tests/Modules/Pricing/Unit/PricingErrorsTest.php` | Exactly §7's nineteen errors, each with §7's type and category; a non-empty title and detail in both languages with the same placeholders |

@@ -25,7 +25,8 @@ final class AmountInput
     {
         $amount = trim($amount);
 
-        if (preg_match('/\A\d+(?:\.(\d+))?\z/', $amount, $parts) !== 1) {
+        // A minus sign is read, so a price below 0 is refused as one (§7), not as a number misread.
+        if (preg_match('/\A-?\d+(?:\.(\d+))?\z/', $amount, $parts) !== 1) {
             throw new InvalidPricingInput('amount');
         }
 

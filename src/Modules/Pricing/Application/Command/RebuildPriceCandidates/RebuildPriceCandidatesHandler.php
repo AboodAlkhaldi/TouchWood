@@ -58,12 +58,17 @@ final readonly class RebuildPriceCandidatesHandler
                     ...$this->catalog->switchedOnVariantIds($storeId),
                 ]));
                 sort($variantIds);
+                $outOfStep = 0;
 
-                $before = $this->rows($storeId, $variantIds);
-                $this->writer->refresh($storeId, $variantIds);
-                $after = $this->rows($storeId, $variantIds);
+                // A chunk at a time, as the writer writes them, so no statement outgrows its parameters.
+                foreach (array_chunk($variantIds, CandidateWriter::CHUNK) as $chunk) {
+                    $before = $this->rows($storeId, $chunk);
+                    $this->writer->refresh($storeId, $chunk);
+                    $after = $this->rows($storeId, $chunk);
+                    $outOfStep += count(array_filter($chunk, static fn (string $id): bool => ($before[$id] ?? []) !== ($after[$id] ?? [])));
+                }
 
-                return [count(array_filter($variantIds, static fn (string $id): bool => ($before[$id] ?? []) !== ($after[$id] ?? []))), []];
+                return [$outOfStep, []];
             });
         }
 

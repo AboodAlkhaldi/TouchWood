@@ -22,31 +22,43 @@ final readonly class DatabasePriceCandidates implements PriceCandidates
 {
     private const string TABLE = 'pricing.price_candidates';
 
+    private const int ROWS_A_STATEMENT = 1000;
+
     public function __construct(
         private ConnectionInterface $db,
     ) {}
 
-    public function replace(StoreId $store, string $variantId, array $candidates): void
+    public function replace(StoreId $store, array $candidates): void
     {
-        $this->db->table(self::TABLE)->where('store_id', $store->value)->where('variant_id', $variantId)->delete();
-
         if ($candidates === []) {
             return;
         }
 
-        $this->db->table(self::TABLE)->insert(array_map(static fn (Candidate $candidate): array => [
-            'store_id' => $store->value,
-            'variant_id' => $variantId,
-            'mode' => $candidate->mode->value,
-            'from_quantity' => $candidate->fromQuantity,
-            'amount_minor' => $candidate->amount->minorUnits,
-            'currency_code' => $candidate->amount->currencyCode,
-            'kind' => $candidate->kind->value,
-            'always_wins' => $candidate->alwaysWins,
-            'source_id' => $candidate->sourceId,
-            'starts_at' => $candidate->startsAt?->format('Y-m-d H:i:s.uP'),
-            'ends_at' => $candidate->endsAt?->format('Y-m-d H:i:s.uP'),
-        ], $candidates));
+        $this->db->table(self::TABLE)->where('store_id', $store->value)->whereIn('variant_id', array_map('strval', array_keys($candidates)))->delete();
+        $rows = [];
+
+        foreach ($candidates as $variantId => $ofSize) {
+            foreach ($ofSize as $candidate) {
+                $rows[] = [
+                    'store_id' => $store->value,
+                    'variant_id' => (string) $variantId,
+                    'mode' => $candidate->mode->value,
+                    'from_quantity' => $candidate->fromQuantity,
+                    'amount_minor' => $candidate->amount->minorUnits,
+                    'currency_code' => $candidate->amount->currencyCode,
+                    'kind' => $candidate->kind->value,
+                    'always_wins' => $candidate->alwaysWins,
+                    'source_id' => $candidate->sourceId,
+                    'starts_at' => $candidate->startsAt?->format('Y-m-d H:i:s.uP'),
+                    'ends_at' => $candidate->endsAt?->format('Y-m-d H:i:s.uP'),
+                ];
+            }
+        }
+
+        // Eleven columns a row: a thousand rows a statement stays far under 65,535 parameters.
+        foreach (array_chunk($rows, self::ROWS_A_STATEMENT) as $chunk) {
+            $this->db->table(self::TABLE)->insert($chunk);
+        }
     }
 
     public function forVariants(StoreId $store, array $variantIds): array

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Pricing\Application\Command\RemoveRetailPrice;
 
-use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\PricingChange;
+use Modules\Pricing\Application\Prices\SizeInput;
 use Modules\Pricing\Application\Prices\StoreWiring;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
@@ -20,8 +20,9 @@ use Shared\Application\Unauthorized;
 /**
  * **Removing retail prices** in a store (pricing.md §1.2, §3), under **Edit Prices and Sales** there:
  * each size goes off sale in that store (no price, no sale) and back on Needs a Price (owner,
- * 2026-10-08). Audited from the price to none; a size with no price changes nothing. A wired store's
- * prices are the provider's (§1.1 rule 9).
+ * 2026-10-08). Audited from the price to none; a size with no price changes nothing. An archived size
+ * is read-only until restored (owner, 2026-10-11); a wired store's prices are the provider's (§1.1
+ * rule 9).
  */
 final readonly class RemoveRetailPriceHandler
 {
@@ -30,7 +31,7 @@ final readonly class RemoveRetailPriceHandler
     public function __construct(
         private PricingChange $change,
         private StoreWiring $wiring,
-        private CatalogApi $catalog,
+        private SizeInput $sizes,
         private RetailPrices $retailPrices,
         private CandidateWriter $writer,
     ) {}
@@ -47,13 +48,7 @@ final readonly class RemoveRetailPriceHandler
             throw new ProviderOwnsPrice;
         }
 
-        $variantIds = [];
-
-        foreach ($command->variantIds as $variantId) {
-            $variantIds[] = ($this->catalog->variant($variantId) ?? throw new InvalidPricingInput('variant'))->id;
-        }
-
-        $variantIds = array_values(array_unique($variantIds));
+        $variantIds = array_values(array_unique($this->sizes->check($command->variantIds)));
 
         if ($variantIds === []) {
             return;

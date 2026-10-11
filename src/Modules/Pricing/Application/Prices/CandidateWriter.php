@@ -20,11 +20,17 @@ use Shared\Domain\ValueObject\StoreId;
  * the change's transaction, then tells Catalog the price a card shows (§1.10): what one piece costs
  * now on a retail line, and the retail price before it only while the price now is lower.
  *
+ * In chunks, so the repair of a whole store stays under PostgreSQL's 65,535 parameters a statement
+ * (as Catalog's listing rows): a few reads and writes a chunk, however many sizes.
+ *
  * Step 3a: the retail price, a candidate on both lines. Sales, bands and category discounts join their
  * own candidates here with their steps.
  */
 final readonly class CandidateWriter
 {
+    /** Sizes a chunk. */
+    public const int CHUNK = 500;
+
     public function __construct(
         private RetailPrices $retailPrices,
         private PriceCandidates $candidates,
@@ -36,32 +42,32 @@ final readonly class CandidateWriter
      */
     public function refresh(StoreId $store, array $variantIds): void
     {
-        if ($variantIds === []) {
-            return;
-        }
-
-        $retail = $this->retailPrices->forVariants($store, $variantIds);
         $now = CarbonImmutable::now()->toDateTimeImmutable();
-        $prices = [];
 
-        foreach ($variantIds as $variantId) {
-            $candidates = [];
+        foreach (array_chunk($variantIds, self::CHUNK) as $chunk) {
+            $retail = $this->retailPrices->forVariants($store, $chunk);
+            $written = [];
+            $prices = [];
 
-            if (isset($retail[$variantId])) {
-                foreach ([SaleMode::Retail, SaleMode::Wholesale] as $mode) {
-                    $candidates[] = new Candidate($mode, 1, $retail[$variantId], PriceKind::Base);
+            foreach ($chunk as $variantId) {
+                $candidates = [];
+
+                if (isset($retail[$variantId])) {
+                    foreach ([SaleMode::Retail, SaleMode::Wholesale] as $mode) {
+                        $candidates[] = new Candidate($mode, 1, $retail[$variantId], PriceKind::Base);
+                    }
                 }
+
+                $written[$variantId] = $candidates;
+                $price = PriceResolution::resolve($candidates, SaleMode::Retail, 1, $now);
+                $prices[$variantId] = $price === null ? null : new ListingPrice(
+                    $price->unit,
+                    $price->unit->compareTo($price->listUnit) < 0 ? $price->listUnit : null,
+                );
             }
 
-            $this->candidates->replace($store, $variantId, $candidates);
-
-            $price = PriceResolution::resolve($candidates, SaleMode::Retail, 1, $now);
-            $prices[$variantId] = $price === null ? null : new ListingPrice(
-                $price->unit,
-                $price->unit->compareTo($price->listUnit) < 0 ? $price->listUnit : null,
-            );
+            $this->candidates->replace($store, $written);
+            $this->listing->prices($store, $prices);
         }
-
-        $this->listing->prices($store, $prices);
     }
 }

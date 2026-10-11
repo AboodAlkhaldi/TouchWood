@@ -9,10 +9,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\PendingCommand;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariantHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Pricing\Application\Command\RebuildPriceCandidates\RebuildPriceCandidates;
@@ -23,7 +27,6 @@ use Modules\Pricing\Application\Command\SetRetailPrice\SetRetailPrice;
 use Modules\Pricing\Application\Command\SetRetailPrice\SetRetailPriceHandler;
 use Modules\Pricing\Application\Prices\StoreWiring;
 use Modules\Pricing\Application\PricingPermissions;
-use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Exception\PriceTooPrecise;
 use Modules\Pricing\Domain\Exception\ProviderOwnsPrice;
@@ -42,9 +45,10 @@ use function Pest\Laravel\seed;
 /*
 | Retail prices (pricing.md §1.1, §1.2, §1.6 "materialized", §1.10, §3; §8 #5, #7, #8, #14): set and
 | removed per store under Edit Prices and Sales there; refused - never rounded - with too many
-| decimals or at 0; an off store's only for whoever may switch stores; a wired store's never; each
-| change audited from and to, its candidates written again and Catalog told, inside one transaction
-| under the store's lock. The repair writes the same candidates from nothing.
+| decimals or at 0 or less; an archived size read-only until restored; an off store's only for
+| whoever may switch stores; a wired store's never; each change audited from and to, its candidates
+| written again and Catalog told, inside one transaction under the store's lock. The repair writes
+| the same candidates from nothing.
 */
 
 uses(RefreshDatabase::class);
@@ -62,6 +66,16 @@ beforeEach(function () {
 function pricingRetailSet(string $storeId, array $prices): void
 {
     app(SetRetailPriceHandler::class)->handle(new SetRetailPrice($storeId, $prices));
+}
+
+/**
+ * Remove prices as an actor already acting.
+ *
+ * @param  list<string>  $variantIds
+ */
+function pricingRetailRemove(string $storeId, array $variantIds): void
+{
+    app(RemoveRetailPriceHandler::class)->handle(new RemoveRetailPrice($storeId, $variantIds));
 }
 
 describe('setting a retail price', function () {
@@ -131,6 +145,18 @@ describe('setting a retail price', function () {
             ->and(Rx::candidates('sa', $size))->toHaveCount(2);
     });
 
+    it('refuses one size given twice with two prices, and takes it given twice with one', function () {
+        $size = Px::ready()['variants'][0];
+
+        expect(Rx::invalid(fn () => Rx::set('sa', [$size => '10', strtoupper($size) => '20']))?->attribute)->toBe('variant')
+            ->and(Rx::retail('sa', $size))->toBeNull();
+
+        Rx::set('sa', [$size => '10', strtoupper($size) => '10.00']);
+
+        expect(Rx::retail('sa', $size)?->amount_minor)->toBe(1000)
+            ->and(Fx::audits('pricing.retail_price.set', $size))->toBe(1);
+    });
+
     it('refuses more decimals than the store\'s currency has, never rounding', function (string $amount) {
         $size = Px::ready()['variants'][0];
 
@@ -149,24 +175,27 @@ describe('setting a retail price', function () {
             ->and(fn () => pricingRetailSet($kuwait, [$size => '12.3456']))->toThrow(PriceTooPrecise::class);
     });
 
-    it('refuses a price of 0', function (string $amount) {
+    it('refuses a price of 0 or less', function (string $amount) {
         $size = Px::ready()['variants'][0];
 
-        expect(fn () => Rx::set('sa', [$size => $amount]))->toThrow(PriceNotPositive::class);
-    })->with(['0', '0.00', '000']);
+        expect(fn () => Rx::set('sa', [$size => $amount]))->toThrow(PriceNotPositive::class)
+            ->and(Rx::retail('sa', $size))->toBeNull();
+    })->with(['0', '0.00', '000', '-5', '-0.01']);
 
     it('refuses an amount that is not a number, naming the price', function (string $amount) {
         $size = Px::ready()['variants'][0];
 
         expect(Rx::invalid(fn () => Rx::set('sa', [$size => $amount]))?->attribute)->toBe('amount')
             ->and(Rx::retail('sa', $size))->toBeNull();
-    })->with(['', '-5', '1e3', '1,5', '.5', '5.', 'ten', '99999999999999999999']);
+    })->with(['', '--5', '+5', '1e3', '1,5', '.5', '5.', 'ten', '99999999999999999999']);
 
-    it('refuses a size that does not exist or is archived, naming the size', function () {
+    it('refuses a size that does not exist, is archived or is of an archived product, naming the size', function () {
         $ready = Px::ready(['60 cm', '80 cm']);
         Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($ready['variants'][1])));
+        $retired = Px::ready();
+        Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($retired['product'])));
 
-        foreach ([strtolower((string) Str::ulid()), 'not-an-id', $ready['variants'][1]] as $size) {
+        foreach ([strtolower((string) Str::ulid()), 'not-an-id', '123', $ready['variants'][1], $retired['variants'][0]] as $size) {
             expect(Rx::invalid(fn () => Rx::set('sa', [$ready['variants'][0] => '10', $size => '10']))?->attribute)->toBe('variant', "{$size} was priced");
         }
 
@@ -203,27 +232,42 @@ describe('removing a retail price', function () {
             ->and(Rx::auditChanges('pricing.retail_price.removed', $sizes[0]))->toBe(['amount' => ['100.00', null]]);
     });
 
-    it('changes nothing for a size with no price there', function () {
+    it('changes nothing for a size with no price there, or when given nothing', function () {
         $size = Px::ready()['variants'][0];
         Rx::set('eg', [$size => '900']);
 
         Rx::remove('sa', [$size, $size]);
+        Rx::remove('eg', []);
 
         expect(Fx::audits('pricing.retail_price.removed'))->toBe(0)
             ->and(Rx::told('sa', $size))->toBeNull()
             ->and(Rx::retail('eg', $size)?->amount_minor)->toBe(90000);
     });
 
-    it('removes an archived size\'s price, and refuses a size that does not exist', function () {
+    it('takes the size\'s own id, however it was written', function () {
+        $size = Px::ready()['variants'][0];
+        Rx::set('sa', [$size => '100']);
+
+        Rx::remove('sa', [strtoupper($size)]);
+
+        expect(Rx::retail('sa', $size))->toBeNull()
+            ->and(Fx::audits('pricing.retail_price.removed', $size))->toBe(1);
+    });
+
+    it('keeps an archived size\'s price until it is restored, and refuses a size that does not exist', function () {
         // A ready product keeps one size that is not archived.
         $size = Px::ready(['60 cm', '80 cm'])['variants'][1];
         Rx::set('sa', [$size => '100']);
         Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($size)));
 
+        expect(Rx::invalid(fn () => Rx::remove('sa', [$size]))?->attribute)->toBe('variant')
+            ->and(Rx::retail('sa', $size)?->amount_minor)->toBe(10000)
+            ->and(Rx::invalid(fn () => Rx::remove('sa', [strtolower((string) Str::ulid())]))?->attribute)->toBe('variant');
+
+        Fx::asSystem(fn () => app(RestoreVariantHandler::class)->handle(new RestoreVariant($size)));
         Rx::remove('sa', [$size]);
 
-        expect(Rx::retail('sa', $size))->toBeNull()
-            ->and(fn () => Rx::remove('sa', [strtolower((string) Str::ulid())]))->toThrow(InvalidPricingInput::class);
+        expect(Rx::retail('sa', $size))->toBeNull();
     });
 });
 
@@ -232,23 +276,29 @@ describe('who may change a store\'s prices', function () {
         $size = Px::ready()['variants'][0];
 
         Cx::actAsStaffWith([PricingPermissions::PRICE_EDIT], ['eg']);
+        pricingRetailSet(Rx::storeId('eg'), [$size => '900']);
 
-        expect(fn () => pricingRetailSet(Rx::storeId('sa'), [$size => '10']))->toThrow(Unauthorized::class)
-            ->and(fn () => app(RemoveRetailPriceHandler::class)->handle(new RemoveRetailPrice(Rx::storeId('sa'), [$size])))->toThrow(Unauthorized::class);
+        expect(Rx::retail('eg', $size)?->amount_minor)->toBe(90000)
+            ->and(fn () => pricingRetailSet(Rx::storeId('sa'), [$size => '10']))->toThrow(Unauthorized::class)
+            ->and(fn () => pricingRetailRemove(Rx::storeId('sa'), [$size]))->toThrow(Unauthorized::class);
+
+        pricingRetailRemove(Rx::storeId('eg'), [$size]);
+
+        expect(Rx::retail('eg', $size))->toBeNull();
 
         Cx::actAsStaffWith([PricingPermissions::WHOLESALE_EDIT, PricingPermissions::CATEGORY_DISCOUNT_MANAGE], ['*']);
 
         expect(fn () => pricingRetailSet(Rx::storeId('sa'), [$size => '10']))->toThrow(Unauthorized::class)
+            ->and(fn () => pricingRetailRemove(Rx::storeId('sa'), [$size]))->toThrow(Unauthorized::class)
             ->and(Rx::retail('sa', $size))->toBeNull();
     });
 
-    it('refuses a store id that is not one before looking anything up, and an unknown store as invalid', function () {
+    it('refuses a store id that is not one as the permission missing, and an unknown store as invalid', function () {
         $size = Px::ready()['variants'][0];
         Cx::actAsStaffWith([PricingPermissions::PRICE_EDIT], ['*']);
 
-        expect(fn () => pricingRetailSet('not-a-store', [$size => '10']))->toThrow(Unauthorized::class);
-
-        expect(Rx::invalid(fn () => pricingRetailSet(StoreId::fromString(strtolower((string) Str::ulid()))->value, [$size => '10']))?->attribute)->toBe('store');
+        expect(fn () => pricingRetailSet('not-a-store', [$size => '10']))->toThrow(Unauthorized::class)
+            ->and(Rx::invalid(fn () => pricingRetailSet(StoreId::fromString(strtolower((string) Str::ulid()))->value, [$size => '10']))?->attribute)->toBe('store');
     });
 
     it('refuses an off store\'s prices to whoever may not switch stores, and lets a Super Admin', function () {
@@ -257,7 +307,7 @@ describe('who may change a store\'s prices', function () {
         Cx::actAsStaffWith([PricingPermissions::PRICE_EDIT], ['*']);
 
         expect(fn () => pricingRetailSet(Rx::storeId('eg'), [$size => '10']))->toThrow(StoreOff::class)
-            ->and(fn () => app(RemoveRetailPriceHandler::class)->handle(new RemoveRetailPrice(Rx::storeId('eg'), [$size])))->toThrow(StoreOff::class);
+            ->and(fn () => pricingRetailRemove(Rx::storeId('eg'), [$size]))->toThrow(StoreOff::class);
 
         pricingRetailSet(Rx::storeId('sa'), [$size => '10']);
         Fx::actAsStaff(Fx::staff(superAdmin: true));
@@ -299,7 +349,15 @@ describe('one change, one transaction', function () {
 
     it('tells Catalog inside the change, so a change rolled back tells it nothing', function () {
         $size = Px::ready()['variants'][0];
+        $queries = Cx::recordQueries();
+
         Rx::set('sa', [$size => '10']);
+
+        $pushes = array_values(array_filter($queries->getArrayCopy(), static fn (array $query): bool => str_contains($query['sql'], 'store_variant_facts')));
+
+        // Every write to Catalog's facts ran inside the change's own transaction (level 2 under the test's).
+        expect(array_values(array_unique(array_column($pushes, 'level'))))->toBe([2]);
+
         // The audit entry is written last: refused, it rolls the whole change back.
         DB::statement('ALTER TABLE platform.audit_entries ADD CONSTRAINT pricing_test_refused CHECK (false) NOT VALID');
 
@@ -339,7 +397,7 @@ describe('the repair', function () {
             throw new LogicException('Console output mocking is off, so the command cannot be checked.');
         }
 
-        $pending->expectsOutputToContain('3 sizes were out of step')->assertSuccessful()->run();
+        $pending->expectsOutputToContain('Sizes out of step: 3.')->assertSuccessful()->run();
 
         expect(Rx::allCandidates())->toBe($written)
             ->and(Rx::told('sa', $b))->toBe([null, null, null])
@@ -356,13 +414,13 @@ describe('the repair', function () {
 
     it('takes each store\'s lock inside that store\'s own transaction, every store, on or off', function () {
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
-        $locks = Cx::recordLocks();
+        $seen = Rx::recordTransactions();
 
         Fx::asSystem(fn () => app(RebuildPriceCandidatesHandler::class)->handle(new RebuildPriceCandidates));
 
-        expect($locks->getArrayCopy())->toBe(array_map(
-            static fn (string $code): array => ['key' => 'pricing:store:'.Rx::storeId($code), 'level' => 2],
+        expect($seen->getArrayCopy())->toBe(array_merge(...array_map(
+            static fn (string $code): array => ['begin', 'lock pricing:store:'.Rx::storeId($code), 'commit'],
             ['sa', 'eg', 'ae'],
-        ));
+        )));
     });
 });

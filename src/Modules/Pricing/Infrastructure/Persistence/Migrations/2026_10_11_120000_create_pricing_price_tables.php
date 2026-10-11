@@ -66,6 +66,10 @@ return new class extends Migration
         DB::statement('ALTER TABLE pricing.price_candidates ADD CONSTRAINT price_candidates_from_quantity CHECK (from_quantity >= 1)');
         DB::statement('ALTER TABLE pricing.price_candidates ADD CONSTRAINT price_candidates_window CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at)');
         DB::statement("ALTER TABLE pricing.price_candidates ADD CONSTRAINT price_candidates_undated CHECK (kind NOT IN ('BASE', 'QUANTITY') OR (starts_at IS NULL AND ends_at IS NULL AND always_wins = false))");
+        // A sale's or a discount's candidate names it, so a timed task can find what it covers (§1.10).
+        DB::statement("ALTER TABLE pricing.price_candidates ADD CONSTRAINT price_candidates_source CHECK (kind NOT IN ('SALE', 'CATEGORY') OR source_id IS NOT NULL)");
+        // One retail price a size, a line and a store: the engine takes the first it meets.
+        DB::statement("CREATE UNIQUE INDEX price_candidates_one_base ON pricing.price_candidates (store_id, variant_id, mode) WHERE kind = 'BASE'");
     }
 
     public function down(): void

@@ -14,7 +14,7 @@ use Modules\Pricing\Application\Command\RebuildPriceCandidates\RebuildPriceCandi
  */
 final class RebuildPriceCandidatesCommand extends Command
 {
-    public const string NAME = 'pricing:rebuild-candidates';
+    public const string NAME = 'pricing:candidates:rebuild';
 
     protected $signature = self::NAME;
 
@@ -24,7 +24,7 @@ final class RebuildPriceCandidatesCommand extends Command
     {
         $outOfStep = $handler->handle(new RebuildPriceCandidates);
 
-        $this->info("The candidates were written again; {$outOfStep} sizes were out of step.");
+        $this->info("The candidates were written again. Sizes out of step: {$outOfStep}.");
 
         return self::SUCCESS;
     }

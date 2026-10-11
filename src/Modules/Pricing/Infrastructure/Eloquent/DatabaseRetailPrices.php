@@ -7,6 +7,7 @@ namespace Modules\Pricing\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Pricing\Domain\Repository\RetailPrices;
+use Modules\Pricing\Domain\ValueObject\PriceSource;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -36,14 +37,14 @@ final readonly class DatabaseRetailPrices implements RetailPrices
         return $prices;
     }
 
-    public function save(StoreId $store, string $variantId, Money $amount, string $source): void
+    public function save(StoreId $store, string $variantId, Money $amount, PriceSource $source): void
     {
         $this->db->table(self::TABLE)->upsert([[
             'store_id' => $store->value,
             'variant_id' => $variantId,
             'amount_minor' => $amount->minorUnits,
             'currency_code' => $amount->currencyCode,
-            'source' => $source,
+            'source' => $source->value,
             'updated_at' => CarbonImmutable::now(),
         ]], ['store_id', 'variant_id'], ['amount_minor', 'currency_code', 'source', 'updated_at']);
     }

@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Modules\Pricing\Support;
 
+use ArrayObject;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\Events\TransactionBeginning;
+use Illuminate\Database\Events\TransactionCommitted;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
@@ -122,6 +127,32 @@ final class PricingFixtures
             $row->price_before_minor === null ? null : (int) $row->price_before_minor,
             $row->currency === null ? null : (string) $row->currency,
         ];
+    }
+
+    /**
+     * From now on, in order: each transaction begun and committed (savepoints too), and each advisory
+     * lock with its key - to tell which transaction a lock was taken in.
+     *
+     * @return ArrayObject<int, string>
+     */
+    public static function recordTransactions(): ArrayObject
+    {
+        /** @var ArrayObject<int, string> $seen */
+        $seen = new ArrayObject;
+
+        Event::listen(TransactionBeginning::class, static function () use ($seen): void {
+            $seen[] = 'begin';
+        });
+        Event::listen(TransactionCommitted::class, static function () use ($seen): void {
+            $seen[] = 'commit';
+        });
+        DB::listen(static function (QueryExecuted $query) use ($seen): void {
+            if (str_contains($query->sql, 'pg_advisory_xact_lock')) {
+                $seen[] = 'lock '.(string) ($query->bindings[0] ?? '');
+            }
+        });
+
+        return $seen;
     }
 
     /**

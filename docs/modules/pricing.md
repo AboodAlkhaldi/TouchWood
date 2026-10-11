@@ -53,7 +53,9 @@ the timing one replaced on 2026-10-09 (§9.2). What waits for the provider's tea
 The price of one piece of a size in a store: **one per size per store**, above 0, in the store's
 currency. Set by staff, by the store's file (§1.8) or, in a wired store, by the provider. **Removing
 it** (owner, 2026-10-08) takes the size off sale there; it returns to the Needs a Price list. A
-changed or removed price is audited from and to.
+changed or removed price is audited from and to. **An archived size — or a size of an archived
+product — is read-only until it is restored** (owner, 2026-10-11): its price is kept as it is, and
+setting or removing one is refused.
 
 ### 1.3 Sale
 
@@ -407,7 +409,7 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | `ProviderOwnsPrice` | CONFLICT | changing a retail price in a wired store |
 | `StoreOff` | FORBIDDEN | changing an off store's prices without the store switch |
 | `DuplicateLines`, `LinesWithoutPrice`, `AmountsInvalid` | INVALID / CONFLICT | §2.1 |
-| `InvalidPricingInput` | INVALID | a store or a size that does not exist (owner, 2026-10-10: an unknown store is invalid input), an archived size given a new price, an amount that is not a number — named by its field (`store`, `variant`, `amount`), as Catalog's invalid attribute is |
+| `InvalidPricingInput` | INVALID | a store or a size that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or a size of an archived product (owner, 2026-10-11: read-only until restored); one size given twice with two prices; an amount that is not a number — named by its field (`store`, `variant`, `amount`), as Catalog's invalid attribute is. A price below 0 is `PriceNotPositive` |
 
 ---
 
