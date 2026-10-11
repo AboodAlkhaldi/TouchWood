@@ -248,6 +248,44 @@ it('marks a store\'s lists reviewed, adds a company type, moves its holders off 
     $page->assertNoJavaScriptErrors();
 });
 
+/*
+| Every box checks itself as it is typed (frontend.md §1.7): a letter in a type's position is said
+| under it at once, and Add stays out of reach until the position is a number from 0 to 10,000.
+*/
+it('says a letter typed in a type\'s position at once, and keeps Add out of reach until it is right', function () {
+    $english = 'Checked Type '.substr((string) Str::ulid(), -8);
+    $page = companyStaffBrowserSignIn([B2BPermissions::COMPANY_TYPE_CREATE], ['ae']);
+
+    $page->navigate('/admin/company-types')
+        ->click('[data-test="add-type"]')
+        ->type('#type-name-ar', 'نوع '.substr((string) Str::ulid(), -8))
+        ->type('#type-name-en', $english)
+        ->clear('#type-position')
+        ->typeSlowly('#type-position', '9x', 20);
+
+    expect(browserUntil($page, 'document.getElementById("type-position-error")?.textContent === "Position takes numbers only."'))->toBeTrue()
+        ->and($page->script('document.getElementById("type-position").getAttribute("aria-invalid")'))->toBe('true')
+        ->and($page->script('document.querySelector(\'[data-test="confirm-add"]\').getAttribute("aria-disabled")'))->toBe('true');
+
+    // Pressed while out of reach, it sends nothing (Playwright will not press a button marked
+    // disabled, so the press is the page's own click).
+    $page->script('document.querySelector(\'[data-test="confirm-add"]\').click()');
+    $page->wait(0.5);
+    expect(DB::table('b2b.company_types')->where('name_en', $english)->exists())->toBeFalse();
+
+    $page->type('#type-position', '10001');
+    expect(browserUntil($page, 'document.getElementById("type-position-error")?.textContent === "Position is from 0 to 10,000."'))->toBeTrue();
+
+    $page->type('#type-position', '9100');
+    expect(browserUntil($page, 'document.getElementById("type-position-error") === null && document.querySelector(\'[data-test="confirm-add"]\').getAttribute("aria-disabled") === null'))->toBeTrue();
+
+    $page->click('[data-test="confirm-add"]');
+
+    expect(browserUntil($page, "document.body.innerText.includes('{$english}')"))->toBeTrue()
+        ->and(DB::table('b2b.company_types')->where('name_en', $english)->value('position'))->toBe(9100);
+    $page->assertNoJavaScriptErrors();
+});
+
 it('lays a type list out in the page\'s language, and keeps it right to left after a switch to Arabic', function () {
     // Both lists, so the page draws its tabs: with one list there are none.
     $page = companyStaffBrowserSignIn([B2BPermissions::DOCUMENT_TYPE_UPDATE, B2BPermissions::COMPANY_TYPE_UPDATE], ['sa']);

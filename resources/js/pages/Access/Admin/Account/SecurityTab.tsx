@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { FieldGroup } from '@/components/ui/field';
 import { useRepeatedPassword } from '@/lib/passwords';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -37,6 +38,14 @@ export function SecurityTab({ account }: Props) {
     // password acceptable is Access's, and Access answers that (see lib/passwords).
     const repeat = useRepeatedPassword(form.data.password);
     const differ = t('access::account.passwords_differ');
+    // Each box as typed (frontend.md §1.7): the current password, its spaces kept as typed
+    // (OwnPasswordRequest); the new one at least the setting's length (StaffSecuritySettings::
+    // PASSWORD_MIN_LENGTH, as PasswordPolicy::hashNew counts it), the number its helper names.
+    // Whether the current one is right, or the new one on a breach list, is the server's to say.
+    const checks = useChecks([
+        { id: 'current_password', label: t('access::account.current_password'), value: form.data.current_password, rules: { required: true, keepSpaces: true } },
+        { id: 'password', label: t('access::account.new_password'), value: form.data.password, rules: { required: true, keepSpaces: true, length: { min: account.passwordMinLength } } },
+    ]);
 
     return (
         <div className="grid gap-6">
@@ -53,13 +62,15 @@ export function SecurityTab({ account }: Props) {
                             return;
                         }
 
-                        form.post('/admin/account/password', {
-                            preserveScroll: true,
-                            onSuccess: () => {
-                                form.reset();
-                                repeat.clear();
-                            },
-                        });
+                        checks.submit(() =>
+                            form.post('/admin/account/password', {
+                                preserveScroll: true,
+                                onSuccess: () => {
+                                    form.reset();
+                                    repeat.clear();
+                                },
+                            }),
+                        );
                     }}
                 >
                     <CardHeader className="px-6 pt-5 pb-4">
@@ -77,7 +88,7 @@ export function SecurityTab({ account }: Props) {
                                 id="current_password"
                                 name="current_password"
                                 label={t('access::account.current_password')}
-                                error={form.errors.current_password}
+                                check={checks.box('current_password', form.errors.current_password)}
                                 autoComplete="current-password"
                                 required
                                 value={form.data.current_password}
@@ -89,7 +100,7 @@ export function SecurityTab({ account }: Props) {
                                 name="password"
                                 label={t('access::account.new_password')}
                                 helper={t('access::account.password_rule', { count: account.passwordMinLength })}
-                                error={form.errors.password}
+                                check={checks.box('password', form.errors.password)}
                                 autoComplete="new-password"
                                 required
                                 value={form.data.password}
@@ -111,7 +122,7 @@ export function SecurityTab({ account }: Props) {
                     </CardContent>
 
                     <CardFooter className="justify-end border-t border-line bg-surface-sunken px-6 py-4 [.border-t]:pt-4">
-                        <ActionButton type="submit" loading={form.processing} disabledReason={repeat.differs ? differ : undefined} data-test="save-password">
+                        <ActionButton type="submit" loading={form.processing} disabledReason={(repeat.differs ? differ : undefined) ?? checks.reason} data-test="save-password">
                             {t('access::account.change_password')}
                         </ActionButton>
                     </CardFooter>

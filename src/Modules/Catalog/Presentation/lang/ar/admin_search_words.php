@@ -35,6 +35,8 @@ return [
     'field' => [
         'word_a' => 'الكلمة',
         'word_b' => 'يُبحث عنها معها',
+        // The second word named inside a sentence that says what is wrong with it (frontend.md §1.7).
+        'word_b_subject' => 'الكلمة التي يُبحث عنها معها',
         'word_helper' => 'حتى 50 حرفًا لكل منهما.',
     ],
     'toast' => [
