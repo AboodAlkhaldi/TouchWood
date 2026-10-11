@@ -11,6 +11,7 @@ use Modules\Inventory\Domain\Repository\Holds;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
+use Throwable;
 
 /**
  * **Expired holds freed** (inventory.md §1.4, §3), the system's job every minute (owner, 2026-10-11):
@@ -38,10 +39,19 @@ final readonly class ReleaseExpiredHoldsHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $orders = $this->holds->expiredOrderIds(CarbonImmutable::now()->toDateTimeImmutable());
 
+        $freed = 0;
+
         foreach ($orders as $orderId) {
-            $this->api->expire($orderId);
+            // One order's failure is reported and the rest are still freed: the earliest expiry comes
+            // first every minute, so a failing one must not stop every later one.
+            try {
+                $this->api->expire($orderId);
+                $freed++;
+            } catch (Throwable $error) {
+                report($error);
+            }
         }
 
-        return count($orders);
+        return $freed;
     }
 }

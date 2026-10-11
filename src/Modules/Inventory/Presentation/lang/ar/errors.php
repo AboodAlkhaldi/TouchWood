@@ -63,6 +63,7 @@ return [
         'order' => 'الطلب',
         'product' => 'المنتج',
         'reason' => 'السبب',
+        'return' => 'المرتجع',
         'store' => 'المتجر',
         'variant' => 'المقاس',
     ],

@@ -18,7 +18,17 @@ interface Holds
     /** The order's hold, its row locked for the rest of the transaction; null when it has none. */
     public function lockForOrder(string $orderId): ?Hold;
 
-    public function create(Hold $hold): void;
+    /**
+     * The hold and its lines; false, writing nothing, when the order holds already - a hold placed
+     * at the same moment waits for the other and then finds it.
+     */
+    public function create(Hold $hold): bool;
+
+    /** A cancel or the expiry ended the hold: it is never edited back to life. */
+    public function markEnded(string $holdId): void;
+
+    /** The pieces of an order's line counted back by its returns so far. */
+    public function returnedSoFar(string $orderId, string $variantId, bool $gift): int;
 
     /** A line written as it is now: added, its quantity or shipped pieces changed, or ended. */
     public function saveLine(string $holdId, HoldLine $line): void;

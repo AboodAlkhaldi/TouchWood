@@ -187,6 +187,8 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
         inventoryHoldsApi()->hold(inventoryHoldsSa(), $order, [new HoldLineDto($size, 2)], null);
 
         inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 2)]);
+        // Shipped in full, open until its tick: the same shipment again changes nothing.
+        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 2)]);
 
         expect(inventoryHoldsFigures($size))->toBe([4, 2]);
 
@@ -232,6 +234,7 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
         expect(Fx::asSystem(fn () => app(ReleaseExpiredHoldsHandler::class)->handle(new ReleaseExpiredHolds)))->toBe(1)
             ->and(Fx::asSystem(fn () => app(ReleaseExpiredHoldsHandler::class)->handle(new ReleaseExpiredHolds)))->toBe(0)
             ->and(inventoryHoldsLines($expired))->toBe(["{$a} bought 1 0 EXPIRED"])
+            ->and(inventoryHoldsFigures($a))->toBe([5, 0])
             ->and(inventoryHoldsFigures($b))->toBe([5, 1]);
 
         Cx::actAsStaffWith([InventoryPermissions::STOCK_MANAGE]);
@@ -250,7 +253,8 @@ describe('an order edited before it ships (§8 #14)', function () {
 
         // One line short: nothing changes.
         expect(fn () => inventoryHoldsApi()->adjustHold($order, [new HoldLineDto($a, 4), new HoldLineDto($c, 2)]))->toThrow(NotEnoughStock::class)
-            ->and(inventoryHoldsFigures($a))->toBe([5, 2]);
+            ->and([inventoryHoldsFigures($a), inventoryHoldsFigures($b), inventoryHoldsFigures($c)])->toBe([[5, 2], [5, 2], [1, 0]])
+            ->and(inventoryHoldsLines($order))->toBe(["{$a} bought 2 0 OPEN", "{$b} bought 2 0 OPEN"]);
 
         inventoryHoldsApi()->adjustHold($order, [new HoldLineDto($a, 4), new HoldLineDto($c, 1)]);
         inventoryHoldsApi()->adjustHold($order, [new HoldLineDto($a, 4), new HoldLineDto($c, 1)]);
@@ -270,6 +274,17 @@ describe('an order edited before it ships (§8 #14)', function () {
         expect(fn () => inventoryHoldsApi()->adjustHold($order, [new HoldLineDto($size, 1)]))->toThrow(HoldNotEditable::class)
             ->and(fn () => inventoryHoldsApi()->adjustHold(inventoryHoldsOrder(), [new HoldLineDto($size, 1)]))->toThrow(NoHold::class);
     });
+
+    it('never edits a cancelled hold back to life', function () {
+        $size = Px::ready()['variants'][0];
+        Ix::count('sa', [$size => 5]);
+        $order = inventoryHoldsOrder();
+        inventoryHoldsApi()->hold(inventoryHoldsSa(), $order, [new HoldLineDto($size, 2)], null);
+        inventoryHoldsApi()->release($order);
+
+        expect(fn () => inventoryHoldsApi()->adjustHold($order, [new HoldLineDto($size, 3)]))->toThrow(HoldNotEditable::class)
+            ->and(inventoryHoldsFigures($size))->toBe([5, 0]);
+    });
 });
 
 describe('returns (§8 #15)', function () {
@@ -284,7 +299,12 @@ describe('returns (§8 #15)', function () {
         inventoryHoldsApi()->returned($order, 'return-1', [new HoldLineDto($size, 1)]);
 
         expect(inventoryHoldsFigures($size))->toBe([4, 0])
-            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→5 SYSTEM', 'SHIPPED 5→3 SYSTEM', 'RETURNED 3→4 SYSTEM']);
+            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→5 SYSTEM', 'SHIPPED 5→3 SYSTEM', 'RETURNED 3→4 SYSTEM'])
+            // Never more back than went out, only the order's own lines, and a return named.
+            ->and(fn () => inventoryHoldsApi()->returned($order, 'return-9', [new HoldLineDto($size, 2)]))->toThrow(QuantityInvalid::class)
+            ->and(Ix::invalid(fn () => inventoryHoldsApi()->returned($order, 'return-9', [new HoldLineDto($size, 1, gift: true)]))?->attribute)->toBe('variant')
+            ->and(Ix::invalid(fn () => inventoryHoldsApi()->returned($order, '  ', [new HoldLineDto($size, 1)]))?->attribute)->toBe('return')
+            ->and(inventoryHoldsFigures($size))->toBe([4, 0]);
     });
 
     it('in a wired store adds a stock-dependent size\'s or a gift\'s pieces on our side, and nothing for an ordinary product', function () {
@@ -342,7 +362,9 @@ describe('HoldsShort (§6.1; owner, 2026-10-11)', function () {
         inventoryHoldsApi()->hold(inventoryHoldsSa(), $second, [new HoldLineDto($size, 2)], null);
         Event::fake([HoldsShort::class]);
 
-        Ix::adjust('sa', $size, 'REMOVE', 1, 'DAMAGED_LOST');
+        Ix::adjust('sa', $size, 'REMOVE', 2, 'DAMAGED_LOST');
+        // Stock going back up, still below what is held, flags nothing again.
+        Ix::adjust('sa', $size, 'ADD', 1, 'RECEIVED');
         Ix::count('sa', [$size => 3]);
 
         $expected = [$first, $second];

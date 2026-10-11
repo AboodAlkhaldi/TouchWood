@@ -43,22 +43,42 @@ final readonly class DatabaseHolds implements Holds
             (string) $hold->order_id,
             $hold->expires_at === null ? null : CarbonImmutable::parse((string) $hold->expires_at)->toDateTimeImmutable(),
             $lines,
+            (bool) $hold->wired,
+            $hold->ended_at !== null,
         );
     }
 
-    public function create(Hold $hold): void
+    public function create(Hold $hold): bool
     {
-        $this->db->table('inventory.holds')->insert([
+        // ON CONFLICT DO NOTHING on the order: a second hold for it waits on the first, then writes nothing.
+        $made = $this->db->table('inventory.holds')->insertOrIgnore([
             'id' => $hold->id,
             'store_id' => $hold->storeId,
             'order_id' => $hold->orderId,
             'expires_at' => $hold->expiresAt?->format('Y-m-d H:i:s.uP'),
+            'wired' => $hold->wired,
             'created_at' => CarbonImmutable::now(),
         ]);
+
+        if ($made !== 1) {
+            return false;
+        }
 
         foreach ($hold->lines as $line) {
             $this->saveLine($hold->id, $line);
         }
+
+        return true;
+    }
+
+    public function markEnded(string $holdId): void
+    {
+        $this->db->table('inventory.holds')->where('id', $holdId)->whereNull('ended_at')->update(['ended_at' => CarbonImmutable::now()]);
+    }
+
+    public function returnedSoFar(string $orderId, string $variantId, bool $gift): int
+    {
+        return (int) $this->db->table('inventory.return_lines')->where('order_id', $orderId)->where('variant_id', $variantId)->where('gift', $gift)->sum('quantity');
     }
 
     public function saveLine(string $holdId, HoldLine $line): void
@@ -78,6 +98,7 @@ final readonly class DatabaseHolds implements Holds
     public function expiredOrderIds(DateTimeImmutable $at): array
     {
         return array_values(array_map('strval', $this->db->table('inventory.holds as h')
+            ->whereNull('h.ended_at')
             ->where('h.expires_at', '<=', $at->format('Y-m-d H:i:s.uP'))
             ->whereExists(fn ($query) => $query->selectRaw('1')->from('inventory.hold_lines as l')->whereColumn('l.hold_id', 'h.id')->where('l.ended', HoldLine::OPEN))
             ->orderBy('h.expires_at')

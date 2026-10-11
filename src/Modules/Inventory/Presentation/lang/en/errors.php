@@ -64,6 +64,7 @@ return [
         'order' => 'order',
         'product' => 'product',
         'reason' => 'reason',
+        'return' => 'return',
         'store' => 'store',
         'variant' => 'size',
     ],

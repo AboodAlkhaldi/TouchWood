@@ -79,7 +79,7 @@ final readonly class AdjustStockHandler
             $this->stock->setInStock($storeId, $variantId, $after);
 
             // Below what orders hold: every order holding it is named, none blocked (§1.5).
-            if ($after < $row->held) {
+            if ($change < 0 && $after < $row->held) {
                 $this->notice->send($storeId, $variantId);
             }
             $this->movements->record($storeId, $variantId, $reason, $before, $after, $note, 'hand:'.Str::ulid());

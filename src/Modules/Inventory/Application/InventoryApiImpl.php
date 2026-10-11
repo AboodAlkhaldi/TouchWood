@@ -83,10 +83,6 @@ final readonly class InventoryApiImpl implements InventoryApi
         $wanted = $this->lines($lines);
 
         $this->db->transaction(function () use ($store, $orderId, $wanted, $expiresAt): void {
-            if ($this->holds->lockForOrder($orderId) !== null) {
-                throw new AlreadyHeld;
-            }
-
             $wired = $this->wiring->isWired($store);
             $rows = $this->stock->read($store, array_values(array_unique(array_map(static fn (HoldLineDto $line): string => $line->variantId, $wanted))));
             $lines = [];
@@ -96,8 +92,12 @@ final readonly class InventoryApiImpl implements InventoryApi
                 $lines[$holdLine->key()] = $holdLine;
             }
 
-            $this->reserve($store, $wired, self::heldBySize($lines, $wired));
-            $this->holds->create(new Hold(strtolower((string) Str::ulid()), $store->value, $orderId, $expiresAt, $lines));
+            // The hold first: a second one for the order, even at the same moment, finds it.
+            if (! $this->holds->create(new Hold(strtolower((string) Str::ulid()), $store->value, $orderId, $expiresAt, $lines, $wired))) {
+                throw new AlreadyHeld;
+            }
+
+            $this->apply($store, $wired, self::heldBySize($lines, $wired));
         }, 3);
     }
 
@@ -108,11 +108,12 @@ final readonly class InventoryApiImpl implements InventoryApi
         $this->db->transaction(function () use ($orderId, $shipped): void {
             [$hold, $store, $wired] = $this->held($orderId);
 
-            foreach ($shipped as $line) {
+            foreach (self::sorted($shipped) as $line) {
                 $current = $hold->lines[HoldLine::keyOf($line->variantId, $line->gift)] ?? throw new InvalidInventoryInput('variant');
 
-                // A line shipped, ticked or freed already is left as it is.
-                if ($current->ended !== HoldLine::OPEN) {
+                // A line shipped in full, ticked or freed already is left as it is - in a wired store a
+                // line shipped in full stays open until its tick.
+                if ($current->ended !== HoldLine::OPEN || $current->shipped === $current->quantity) {
                     continue;
                 }
 
@@ -180,6 +181,11 @@ final readonly class InventoryApiImpl implements InventoryApi
         $this->db->transaction(function () use ($orderId, $wanted): void {
             [$hold, $store, $wired] = $this->held($orderId);
 
+            // Only while held (§4.1): never once cancelled or expired, nor once a line is shipped or ticked.
+            if ($hold->ended) {
+                throw new HoldNotEditable;
+            }
+
             foreach ($hold->lines as $line) {
                 if ($line->shipped > 0 || in_array($line->ended, [HoldLine::SHIPPED, HoldLine::REDUCED], true)) {
                     throw new HoldNotEditable;
@@ -197,20 +203,15 @@ final readonly class InventoryApiImpl implements InventoryApi
 
             $before = self::heldBySize($old, $wired);
             $after = self::heldBySize($new, $wired);
-            $more = [];
+            $changes = [];
 
             foreach (array_unique([...array_keys($before), ...array_keys($after)]) as $variantId) {
-                $change = ($after[$variantId] ?? 0) - ($before[$variantId] ?? 0);
-
-                if ($change > 0) {
-                    $more[$variantId] = $change;
-                } elseif ($change < 0) {
-                    $this->stock->free($store, $variantId, -$change);
-                }
+                $changes[$variantId] = ($after[$variantId] ?? 0) - ($before[$variantId] ?? 0);
             }
 
-            // The extra pieces held as at placement: one line short and nothing changes.
-            $this->reserve($store, $wired, $more);
+            // The extra pieces held as at placement, the fewer freed, in one pass in size-id order: one
+            // line short and nothing changes.
+            $this->apply($store, $wired, $changes);
 
             foreach ($new as $line) {
                 $this->holds->saveLine($hold->id, $line);
@@ -226,16 +227,30 @@ final readonly class InventoryApiImpl implements InventoryApi
 
     public function returned(string $orderId, string $returnId, array $lines): void
     {
+        $returnId = trim($returnId);
+
+        if ($returnId === '' || mb_strlen($returnId) > 64) {
+            throw new InvalidInventoryInput('return');
+        }
+
         $back = $this->lines($lines);
         $variants = $this->catalog->variants(array_map(static fn (HoldLineDto $line): string => $line->variantId, $back));
 
         $this->db->transaction(function () use ($orderId, $returnId, $back, $variants): void {
             [$hold, $store, $wired] = $this->held($orderId);
 
-            foreach ($back as $line) {
+            foreach (self::sorted($back) as $line) {
                 // Each return counted once (§2.1).
                 if ($this->holds->returnCounted($returnId, $line->variantId, $line->gift)) {
                     continue;
+                }
+
+                // Only the order's own line, and never more pieces back than went out: shipped from a
+                // store with no provider; the line's pieces in a wired one.
+                $held = $hold->lines[HoldLine::keyOf($line->variantId, $line->gift)] ?? throw new InvalidInventoryInput('variant');
+
+                if ($this->holds->returnedSoFar($hold->orderId, $line->variantId, $line->gift) + $line->quantity > ($wired ? $held->quantity : $held->shipped)) {
+                    throw new QuantityInvalid;
                 }
 
                 $this->holds->recordReturn($returnId, $line->variantId, $line->gift, $store, $hold->orderId, $line->quantity);
@@ -275,6 +290,8 @@ final readonly class InventoryApiImpl implements InventoryApi
                     $this->end($hold, $store, $wired, $line, $ended);
                 }
             }
+
+            $this->holds->markEnded($hold->id);
         }, 3);
     }
 
@@ -295,24 +312,27 @@ final readonly class InventoryApiImpl implements InventoryApi
     private function held(string $orderId): array
     {
         $hold = $this->holds->lockForOrder($orderId) ?? throw new NoHold;
-        $store = StoreId::fromString($hold->storeId);
 
-        return [$hold, $store, $this->wiring->isWired($store)];
+        // The wiring the hold was placed under: what each line holds is worked out by it for good.
+        return [$hold, StoreId::fromString($hold->storeId), $hold->wired];
     }
 
     /**
-     * Holds each size's pieces, in size-id order; every short size is named, and nothing is held.
+     * Holds each size's extra pieces and frees its fewer ones, in one pass in size-id order (the
+     * order every writer to the stock keeps); every short size is named, and nothing changes.
      *
-     * @param  array<string, int>  $pieces  variant id => pieces
+     * @param  array<string, int>  $changes  variant id => pieces more (above 0) or fewer (below 0)
      */
-    private function reserve(StoreId $store, bool $wired, array $pieces): void
+    private function apply(StoreId $store, bool $wired, array $changes): void
     {
-        ksort($pieces);
+        ksort($changes);
         $short = [];
 
-        foreach ($pieces as $variantId => $count) {
-            if (! $this->stock->reserve($store, (string) $variantId, $count, $wired)) {
+        foreach ($changes as $variantId => $count) {
+            if ($count > 0 && ! $this->stock->reserve($store, (string) $variantId, $count, $wired)) {
                 $short[(string) $variantId] = $count;
+            } elseif ($count < 0) {
+                $this->stock->free($store, (string) $variantId, -$count);
             }
         }
 
@@ -344,6 +364,17 @@ final readonly class InventoryApiImpl implements InventoryApi
         }
 
         return $held;
+    }
+
+    /**
+     * @param  list<HoldLineDto>  $lines
+     * @return list<HoldLineDto> by size id, then bought before gift: the order rows are locked in
+     */
+    private static function sorted(array $lines): array
+    {
+        usort($lines, static fn (HoldLineDto $a, HoldLineDto $b): int => [$a->variantId, $a->gift] <=> [$b->variantId, $b->gift]);
+
+        return $lines;
     }
 
     private static function counts(bool $wired, bool $gift, bool $stockDependent): bool

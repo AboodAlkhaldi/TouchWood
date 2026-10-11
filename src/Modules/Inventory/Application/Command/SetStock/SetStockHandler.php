@@ -99,7 +99,7 @@ final readonly class SetStockHandler
                 $this->stock->setInStock($storeId, $variantId, $count);
 
                 // Below what orders hold: every order holding it is named, none blocked (§1.5).
-                if ($count < $rows[$variantId]->held) {
+                if ($count < $before && $count < $rows[$variantId]->held) {
                     $this->notice->send($storeId, $variantId);
                 }
                 $entries[] = new AuditEntryDto(

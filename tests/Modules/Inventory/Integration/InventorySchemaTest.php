@@ -155,7 +155,7 @@ describe('what the database refuses behind the code (§8 #13)', function () {
     it('keeps a hold line\'s pieces from 1, shipped within them, an end it knows and a time only once ended, and a return\'s pieces from 1', function () {
         $size = Px::ready()['variants'][0];
         $hold = strtolower((string) Str::ulid());
-        DB::table('inventory.holds')->insert(['id' => $hold, 'store_id' => Fx::storeId('sa'), 'order_id' => strtolower((string) Str::ulid()), 'created_at' => now()]);
+        DB::table('inventory.holds')->insert(['id' => $hold, 'store_id' => Fx::storeId('sa'), 'order_id' => strtolower((string) Str::ulid()), 'wired' => false, 'created_at' => now()]);
         $line = ['hold_id' => $hold, 'variant_id' => $size, 'gift' => false, 'quantity' => 2, 'counts_on_stock' => true, 'shipped' => 0, 'ended' => 'OPEN', 'ended_at' => null];
         $insert = static fn (array $changed): Closure => fn () => DB::transaction(fn () => DB::table('inventory.hold_lines')->insert([...$line, ...$changed]));
         $return = ['return_id' => 'r-1', 'variant_id' => $size, 'gift' => false, 'store_id' => Fx::storeId('sa'), 'order_id' => strtolower((string) Str::ulid()), 'quantity' => 0, 'created_at' => now()];

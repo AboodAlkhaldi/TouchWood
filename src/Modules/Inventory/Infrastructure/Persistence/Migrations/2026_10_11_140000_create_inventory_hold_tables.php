@@ -22,12 +22,19 @@ return new class extends Migration
             $table->ulid('store_id');
             $table->ulid('order_id');
             $table->timestampTz('expires_at')->nullable();
+            // The store's wiring when the order was placed: how many pieces each line holds is worked
+            // out by it for the hold's whole life, whatever the store becomes meanwhile.
+            $table->boolean('wired');
+            // Set by a cancel or the expiry: an ended hold is never edited back to life (§4.1).
+            $table->timestampTz('ended_at')->nullable();
             $table->timestampTz('created_at');
 
             $table->unique('order_id', 'holds_order');
             $table->foreign('store_id', 'holds_store')->references('id')->on('platform.stores')->restrictOnDelete();
-            $table->index('expires_at', 'holds_expires_idx');
         });
+
+        // The expiry job looks only at holds still running.
+        DB::statement('CREATE INDEX holds_expires_idx ON inventory.holds (expires_at) WHERE ended_at IS NULL');
 
         Schema::create('inventory.hold_lines', function (Blueprint $table) {
             $table->ulid('hold_id');
