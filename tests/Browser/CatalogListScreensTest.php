@@ -111,6 +111,19 @@ function catalogListBrowserBrandOrder(): array
 }
 
 /**
+ * A row's ⋯ menu opened from the middle of the screen. The toast an order's save shows sits in the
+ * corner at the foot of the page for some seconds, over the buttons of the last rows - and these
+ * lists grow every run, their rows kept - so a click there can wait on it until it times out (seen
+ * once in four runs, 2026-10-11).
+ */
+function catalogListBrowserMenu(mixed $page, string $selector): mixed
+{
+    $page->script("document.querySelector('{$selector}')?.scrollIntoView({ block: 'center' })");
+
+    return $page->click($selector);
+}
+
+/**
  * Keys pressed on an element one at a time, a moment apart: dnd-kit measures the rows after each
  * one, and keys sent in the same instant arrive before it has (AddressFormatScreenTest).
  *
@@ -145,7 +158,7 @@ it('orders the brands by dragging a row by its handle, and moves one to the top 
         ->and(browserUntil($page, "[...document.querySelectorAll('tbody tr')].map((row) => row.dataset.test).slice(-2).join() === 'brand-{$beta},brand-{$alpha}'"))->toBeTrue();
 
     // Move to Top, from Alpha's ⋯ menu.
-    $page->click("[data-test=\"brand-actions-{$alpha}\"]")
+    catalogListBrowserMenu($page, "[data-test=\"brand-actions-{$alpha}\"]")
         ->click('[data-test="move-top"]');
 
     $first = catalogListBrowserSoon($page, fn (): ?string => catalogListBrowserBrandOrder()[0] ?? null, fn (?string $id): bool => $id === $alpha);
@@ -154,7 +167,7 @@ it('orders the brands by dragging a row by its handle, and moves one to the top 
         ->and(browserUntil($page, "document.querySelector('tbody tr')?.dataset.test === 'brand-{$alpha}'"))->toBeTrue();
 
     // Move to Bottom, from the same menu: Alpha goes last.
-    $page->click("[data-test=\"brand-actions-{$alpha}\"]")
+    catalogListBrowserMenu($page, "[data-test=\"brand-actions-{$alpha}\"]")
         ->click('[data-test="move-bottom"]');
 
     $last = catalogListBrowserSoon($page, fn (): ?string => array_slice(catalogListBrowserBrandOrder(), -1)[0] ?? null, fn (?string $id): bool => $id === $alpha);
@@ -209,7 +222,7 @@ it('orders a parent\'s sub-categories in the store shown by dragging, saved for 
         ->and([$place('sa', $doors), $place('sa', $shelves)])->toBe([1, 2]);
 
     // Move to Top, from Doors' ⋯ menu: first among its siblings again, in Egypt alone.
-    $page->click("[data-test=\"category-actions-{$doors}\"]")
+    catalogListBrowserMenu($page, "[data-test=\"category-actions-{$doors}\"]")
         ->click('[data-test="move-top"]');
 
     expect(catalogListBrowserSoon($page, fn (): array => [$place('eg', $doors), $place('eg', $shelves)], fn (array $now): bool => $now === [1, 2]))->toBe([1, 2])
