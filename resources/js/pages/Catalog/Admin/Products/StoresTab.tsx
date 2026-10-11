@@ -26,9 +26,10 @@ import { ProductShell } from './shell';
 | Admin's off stores too, marked Off - not a store filter, as the owner described the page (§1.3).
 | Each card: the whole product On in This Store and each variant's On, Retail and Wholesale; Not
 | Available Now, the whole product's and each variant's; the Quantities, saved together; the Labels.
-| Every switch saves as it flips (Geist's Switch). A control is drawn for whoever holds its job in that
-| store; anyone else sees the state, read only. A store that never chose the product offers Switch On
-| only. Prices and stock come with their modules.
+| Every switch saves as it flips (Geist's Switch). A control works for whoever holds its job in that
+| store; anyone else sees its state, out of reach, and is told why. A store that never chose the
+| product offers Switch On only. A label deactivated since it was attached stays, marked Off. Prices
+| and stock come with their modules.
 */
 
 const LABELS_MAX = 10;
@@ -76,6 +77,16 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
         wholesale_maximum: store.wholesaleMaximum,
     };
     const labels = (page.labels ?? []).filter((label) => store.labelIds.includes(label.id));
+    // Why a control is out of reach, said once under the header (frontend.md §1.11): the jobs the
+    // reader lacks here, when they hold some of the four - holding none, the card says read only.
+    const lacking = readOnly
+        ? []
+        : [
+              store.mayChoose ? null : t('catalog::admin_products.stores.needs_choose'),
+              store.maySell ? null : t('catalog::admin_products.stores.needs_selling'),
+              store.mayUnavailable ? null : t('catalog::admin_products.stores.needs_unavailable'),
+              store.mayLabel ? null : t('catalog::admin_products.stores.needs_labels'),
+          ].filter((reason): reason is string => reason !== null);
 
     return (
         <Card className="material-base border-0" data-test={`store-${store.code}`}>
@@ -104,6 +115,15 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
 
             <CardContent className="grid gap-6">
                 {readOnly ? <Note data-test={`store-read-only-${store.code}`}>{t('catalog::admin_products.stores.read_only')}</Note> : null}
+                {lacking.length > 0 ? (
+                    <Note data-test={`store-lacking-${store.code}`}>
+                        <ul className="grid gap-1">
+                            {lacking.map((reason) => (
+                                <li key={reason}>{reason}</li>
+                            ))}
+                        </ul>
+                    </Note>
+                ) : null}
 
                 {!store.chosen ? (
                     <p className="text-copy-14 text-ink-muted">{t('catalog::admin_products.stores.never')}</p>
@@ -117,6 +137,7 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
                                     </FieldLabel>
                                     <FieldDescription id={`on-${store.code}-count`} className="tw-figure text-copy-13 text-ink-muted">
                                         {t('catalog::admin_products.stores.on_count', { on: figure(locale, onCount), total: figure(locale, variants.length) })}
+                                        {!ready && onCount < variants.length ? ` ${t('catalog::admin_products.stores.ready_only')}` : null}
                                     </FieldDescription>
                                 </FieldContent>
                                 <Switch
@@ -150,6 +171,7 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
                             </Field>
                         </div>
 
+                        <div className="grid gap-2">
                         <div className="overflow-x-auto">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_products.stores.variants_caption', { store: store.name })}</TableCaption>
@@ -196,6 +218,7 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
                                                         disabled={busy || !store.maySell || row === undefined}
                                                         onCheckedChange={(on) => selling('retail', on)}
                                                         aria-label={named('retail')}
+                                                        aria-describedby={row === undefined ? `row-help-${store.code}` : undefined}
                                                         className="data-[state=unchecked]:bg-ink-subtle"
                                                         data-test="variant-retail"
                                                     />
@@ -206,6 +229,7 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
                                                         disabled={busy || !store.maySell || row === undefined}
                                                         onCheckedChange={(on) => selling('wholesale', on)}
                                                         aria-label={named('wholesale')}
+                                                        aria-describedby={row === undefined ? `row-help-${store.code}` : undefined}
                                                         className="data-[state=unchecked]:bg-ink-subtle"
                                                         data-test="variant-wholesale"
                                                     />
@@ -216,6 +240,7 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
                                                         disabled={busy || !store.mayUnavailable || row === undefined}
                                                         onCheckedChange={(on) => send('unavailable', { unavailable: on, variant_id: variant.id })}
                                                         aria-label={named('not_available')}
+                                                        aria-describedby={row === undefined ? `row-help-${store.code}` : undefined}
                                                         className="data-[state=unchecked]:bg-ink-subtle"
                                                         data-test="variant-unavailable"
                                                     />
@@ -225,6 +250,13 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
                                     })}
                                 </TableBody>
                             </Table>
+                        </div>
+                        {/* Why a variant's other switches wait: they are its row in the store, made once it is on. */}
+                        {onCount < variants.length ? (
+                            <p id={`row-help-${store.code}`} className="text-copy-13 text-ink-muted">
+                                {t('catalog::admin_products.stores.row_help')}
+                            </p>
+                        ) : null}
                         </div>
 
                         <Quantities store={store} url={url} />
@@ -252,8 +284,9 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
                             ) : (
                                 <ul className="flex flex-wrap gap-2" data-test={`store-labels-${store.code}`}>
                                     {labels.map((label) => (
-                                        <li key={label.id}>
+                                        <li key={label.id} className="flex items-center gap-1">
                                             <Badge className={tone(label.tone as Tone)}>{nameIn(locale, label.nameAr, label.nameEn)}</Badge>
+                                            {label.active ? null : <span className="text-copy-12 text-ink-muted">{t('catalog::admin.state.inactive')}</span>}
                                         </li>
                                     ))}
                                 </ul>
@@ -266,7 +299,7 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
                 <p className="text-copy-13 text-ink-muted">{t('catalog::admin_products.stores.prices_note')}</p>
             </CardFooter>
 
-            {labelling ? <LabelsDialog store={store} url={url} labels={page.labels ?? []} onOpenChange={(open) => (open ? undefined : setLabelling(false))} returnFocusTo={opener} /> : null}
+            {labelling ? <LabelsDialog store={store} url={url} labels={(page.labels ?? []).filter((label) => label.active || store.labelIds.includes(label.id))} onOpenChange={(open) => (open ? undefined : setLabelling(false))} returnFocusTo={opener} /> : null}
         </Card>
     );
 }
@@ -334,7 +367,10 @@ function Quantities({ store, url }: { store: StoreCardData; url: string }) {
     );
 }
 
-/** The labels a store puts on the product: the active ones, as their badges, 10 at most. */
+/**
+ * The labels a store puts on the product: the active ones, as their badges, 10 at most - and one
+ * deactivated since it was attached, kept unless unticked, never ticked again (§1.8, amendment 4).
+ */
 function LabelsDialog({
     store,
     url,
@@ -352,6 +388,9 @@ function LabelsDialog({
     const locale = useLocale();
     const { errors } = usePage<SharedProps>().props;
     const form = useForm<{ label_ids: string[] }>({ label_ids: store.labelIds.filter((id) => labels.some((label) => label.id === id)) });
+    // The page's refusal of the labels, said only once this dialog has sent them: an older one stays
+    // on the page until the next visit (as useFreshRefusal does for the form's).
+    const [sent, setSent] = useState(false);
     const full = form.data.label_ids.length >= LABELS_MAX;
     const toggle = (id: string, on: boolean) => form.setData('label_ids', on ? [...form.data.label_ids, id] : form.data.label_ids.filter((each) => each !== id));
 
@@ -364,7 +403,14 @@ function LabelsDialog({
             description={t('catalog::admin_products.stores.labels_body', { max: LABELS_MAX })}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={() => form.post(`${url}/labels`, { preserveScroll: true, onSuccess: () => onOpenChange(false) })} data-test="save-labels">
+                <ActionButton
+                    loading={form.processing}
+                    onClick={() => {
+                        setSent(true);
+                        form.post(`${url}/labels`, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+                    }}
+                    data-test="save-labels"
+                >
                     {t('catalog::admin_products.stores.save_labels')}
                 </ActionButton>
             }
@@ -379,17 +425,31 @@ function LabelsDialog({
                             const checked = form.data.label_ids.includes(label.id);
 
                             return (
-                                <div key={label.id} className="flex items-center gap-2">
-                                    <Checkbox id={`label-${label.id}`} checked={checked} disabled={!checked && full} onCheckedChange={(on) => toggle(label.id, on === true)} data-test={`label-${label.id}`} />
-                                    <Label htmlFor={`label-${label.id}`}>
-                                        <Badge className={tone(label.tone as Tone)}>{nameIn(locale, label.nameAr, label.nameEn)}</Badge>
-                                    </Label>
+                                <div key={label.id} className="flex items-start gap-2">
+                                    <Checkbox
+                                        id={`label-${label.id}`}
+                                        checked={checked}
+                                        disabled={!checked && (full || !label.active)}
+                                        onCheckedChange={(on) => toggle(label.id, on === true)}
+                                        aria-describedby={label.active ? undefined : `label-${label.id}-off`}
+                                        data-test={`label-${label.id}`}
+                                    />
+                                    <div className="grid gap-1">
+                                        <Label htmlFor={`label-${label.id}`}>
+                                            <Badge className={tone(label.tone as Tone)}>{nameIn(locale, label.nameAr, label.nameEn)}</Badge>
+                                        </Label>
+                                        {label.active ? null : (
+                                            <span id={`label-${label.id}-off`} className="text-copy-12 text-ink-muted">
+                                                {t('catalog::admin_products.stores.labels_off')}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}
                     </div>
                     {full ? <FieldDescription className="text-copy-13 text-ink-muted">{t('catalog::admin_products.stores.labels_max', { max: LABELS_MAX })}</FieldDescription> : null}
-                    {errors.labels ? <FieldError>{errors.labels}</FieldError> : null}
+                    {sent && errors.labels ? <FieldError>{errors.labels}</FieldError> : null}
                 </FieldSet>
             )}
         </PanelDialog>

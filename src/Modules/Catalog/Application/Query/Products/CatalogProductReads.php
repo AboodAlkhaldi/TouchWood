@@ -69,9 +69,10 @@ interface CatalogProductReads
     public function storeRows(string $productId): array;
 
     /**
-     * The active labels a store may put on a product, in their order.
+     * The labels a store may put on a product - the active ones - and those the product already
+     * carries in some store whatever their state (a label deactivated since stays, §1.8), in order.
      *
      * @return list<LabelChoice>
      */
-    public function labelChoices(): array;
+    public function labelChoices(string $productId): array;
 }

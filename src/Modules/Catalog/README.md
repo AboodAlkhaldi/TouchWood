@@ -511,9 +511,14 @@ every variant not archived is on, saying "n of m"), a variant table with On, Ret
 Not Available Now switches, the product's own Not Available Now, the quantities with Save Quantities,
 the labels as their badges with Labels… (10 at most), and the note that prices and stock come with
 Pricing and Inventory. Each control works for whoever holds its job in that store; anyone else sees
-its state, out of reach, and a card where the reader holds none of the four jobs says it is read only. A switch saves as it flips; a Retail or Wholesale switch sends the stored
+its state, out of reach, and is told why - the jobs they lack there, or "read only" when they hold none
+of the four; a variant's other switches wait until it is on there, and say so. A label deactivated
+since it was attached stays on the card, marked Off, and is kept when the labels are saved - it can be
+taken off, not put back (§1.8, amendment 4). A switch saves as it flips; a Retail or Wholesale switch sends the stored
 quantities with it, as `SetSellingTerms` keeps them all at once. The store is named in the address
-by its code (`/admin/products/{p}/stores/{code}/…`). The tab reads every store's rows in one query
+by its code (`/admin/products/{p}/stores/{code}/…`) - **an off store's too** (`StoreCodes`): Platform's
+`storeByCode` answers stores that are on only, and read alone it left a Super Admin unable to prepare
+an off store from either screen (found by the review of this step). The tab reads every store's rows in one query
 each - 8 of its own, recorded in `CatalogStoreScreensTest` with more stores, variants and labels.
 
 **Store Files** (S10; amendment 6(g), (h)): the admins' job, `catalog.listing.fill`, in its menu entry.
@@ -523,8 +528,9 @@ fills stores. **Upload Store File** takes the `.json`; a refused file's problems
 flashed with the list's next view (at most 500), in the format's own words - English, as the format is
 - and are listed under the upload in its dialog. A file's page shows each item: number, code, its
 product (named, linked to its page), price, stock, and where it stands - Ready, Not Ready and what it
-lacks, Archived, Already On, Unknown Code - or what was done (Switched On, Removed); ticked open items
-are switched on or removed, every ready one switched on at once, an unknown code corrected.
+lacks, Archived, Already On, Unknown Code - or what was done (Switched On, Removed), still naming its
+product; ticked open items are switched on (ready ones only, said before the press) or removed, every
+ready one switched on at once, an unknown code corrected.
 
 **Read in batches** (P13): a store file's page asks its items, then every open code in one query
 (`StoreFillCodes`: the product holding it, the variant carrying it, archived or not, on in the store or
@@ -532,13 +538,16 @@ not - a variant's code is always one its product holds, by the database's foreig
 holding them through the product page's own core read, many at once (`CatalogProductReads::cores`),
 and the drafts' photos in one Platform read. What a draft lacks is the product page's rules, now one
 class (`ProductMissing`). `CatalogImportPagesTest` holds a 50-item file to the same queries as a 3-item
-one, within 15; the old per-item reads asked five an item.
+one, within 15; the old per-item reads asked five an item. `CatalogStoreScreensTest` records the
+pages' own: a file 8, with a ready product's code, a draft's with a photo, an archived product's and
+unknown ones, however many; the list 4.
 
 **The import guide** the upload links to is built with step 4 (the products import), whose page links
 it too - one page for both formats.
 
 **Found while building**: the panel's breadcrumb on a phone could not shrink, so a long page name - a
-store file's - pushed the page wider than the screen; it is cut short now (`AdminLayout`).
+store file's - pushed the page wider than the screen; the breadcrumb and its last crumb may shrink
+now, and the name is cut short (`AdminLayout`).
 
 ## Tests
 

@@ -30,5 +30,7 @@ final class StoreFilesPage extends Data
         public string $storeTimezone,
         public array $stores,
         public ?array $problems,
+        /** How many problems the refused file had: the list holds the first 500. */
+        public ?int $problemsTotal,
     ) {}
 }

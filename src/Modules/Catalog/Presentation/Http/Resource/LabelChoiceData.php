@@ -18,5 +18,6 @@ final class LabelChoiceData extends Data
         public string $nameAr,
         public string $nameEn,
         public string $tone,
+        public bool $active,
     ) {}
 }

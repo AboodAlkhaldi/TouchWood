@@ -6,6 +6,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -16,8 +17,16 @@ use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Catalog\Application\CatalogPermissions as P;
 use Modules\Catalog\Application\Command\AddLabel\AddLabel;
 use Modules\Catalog\Application\Command\AddLabel\AddLabelHandler;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
+use Modules\Catalog\Application\Command\AttachLabels\AttachLabels;
+use Modules\Catalog\Application\Command\AttachLabels\AttachLabelsHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\DeactivateLabel\DeactivateLabel;
+use Modules\Catalog\Application\Command\DeactivateLabel\DeactivateLabelHandler;
+use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
+use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,6 +34,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 
 use function Pest\Laravel\seed;
@@ -351,7 +361,10 @@ describe('store files (S10)', function () {
             ->and(DB::table('catalog.imports')->where('kind', 'STORE_FILL')->count())->toBe(0);
 
         $admin->get('/admin/store-files')->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('problems', fn ($problems): bool => count($problems) >= 2 && collect($problems)->every(fn ($problem): bool => is_string($problem['at']) && is_string($problem['problem']))));
+            ->has('problems', 3)
+            ->where('problemsTotal', 3)
+            ->whereType('problems.0.at', 'string')
+            ->whereType('problems.0.problem', 'string'));
         // Said once: the next visit no longer carries them.
         $admin->get('/admin/store-files')->assertInertia(fn (AssertableInertia $page) => $page->where('problems', null));
     });
@@ -398,17 +411,72 @@ describe('store files (S10)', function () {
             ->and(AdminBrowser::formError(catalogStoreScreens([P::LISTING_CHOOSE, P::PRODUCT_VIEW], ['sa'])->post("/admin/store-files/{$file}/switch-on")))->not->toBeEmpty();
 
         expect(DB::table('catalog.store_products')->where('store_id', $sa)->whereIn('product_id', [$ready, $other])->count())->toBe(2);
+
+        // Switched on or removed, an item still names the product its code finds (the review of step 3).
+        $admin->get("/admin/store-files/{$file}")->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('items.0.state', 'ON')
+            ->where('items.0.productId', $ready)
+            ->where('items.0.standing', null)
+            ->where('items.3.productId', $other)
+            ->where('items.4.state', 'REMOVED')
+            ->where('items.4.productId', null));
     });
 
-    it('opens a file of any size in the same queries', function () {
+    it('fills a store that is switched off, for a Super Admin preparing it (§1.3, P6)', function () {
+        ['product' => $product, 'variants' => [$sixty]] = Px::ready();
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('ae')));
+        $ae = (string) DB::table('platform.stores')->where('code', 'ae')->value('id');
+        $super = catalogStoreScreensAs(Fx::staff(superAdmin: true));
+
+        expect(catalogStoreScreensToast($super->post("/admin/products/{$product}/stores/ae/choose", ['active' => true])))->toBe('Switched on in the store')
+            ->and(DB::table('catalog.store_variants')->where('store_id', $ae)->where('variant_id', $sixty)->value('is_active'))->toBeTrue();
+
+        $uploaded = catalogStoreScreensUpload($super, [['code' => catalogStoreScreensCode($sixty), 'price' => 1]], 'ae');
+
+        expect(catalogStoreScreensToast($uploaded))->toBe('File uploaded')
+            ->and(DB::table('catalog.imports')->where('store_id', $ae)->count())->toBe(1);
+    });
+
+    it('keeps a label deactivated since it was attached: shown marked, and kept when the labels are saved', function () {
+        ['product' => $product] = Px::ready();
+        catalogStoreScreensOn('eg', $product);
+        $summer = catalogStoreScreensLabel('Summer');
+        $sale = catalogStoreScreensLabel('Sale');
+        $eg = Fx::storeId('eg');
+        Fx::asSystem(function () use ($eg, $product, $summer): void {
+            app(AttachLabelsHandler::class)->handle(new AttachLabels($eg, $product, [$summer]));
+            app(DeactivateLabelHandler::class)->handle(new DeactivateLabel($summer));
+        });
+        $browser = catalogStoreScreens([P::PRODUCT_VIEW, P::LISTING_LABELS], ['eg']);
+
+        $browser->get("/admin/products/{$product}?tab=stores")->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('labels', fn (Collection $labels): bool => $labels->contains(fn (array $label): bool => $label['id'] === $summer && $label['active'] === false)));
+
+        expect(catalogStoreScreensToast($browser->post("/admin/products/{$product}/stores/eg/labels", ['label_ids' => [$summer, $sale]])))->toBe('Labels saved')
+            ->and(DB::table('catalog.store_product_labels')->where('store_id', $eg)->where('product_id', $product)->pluck('label_id')->all())->toEqualCanonicalizing([$summer, $sale]);
+    });
+
+    it('opens a file of any size in its own recorded number of queries, and its list too', function () {
+        ['variants' => [$ready]] = Px::ready();
+        ['product' => $archived, 'variants' => [$archivedVariant]] = Px::ready();
+        $draft = Px::product();
+        Px::variant($draft, '7700');
+        Fx::asSystem(function () use ($archived, $draft): void {
+            app(ArchiveProductHandler::class)->handle(new ArchiveProduct($archived));
+            app(SetProductGalleryHandler::class)->handle(new SetProductGallery($draft, [Cx::media()]));
+        });
+        // A ready product's code, a draft's with a photo, an archived product's, and unknown ones.
+        $kinds = [['code' => catalogStoreScreensCode($ready), 'price' => 1], ['code' => '7700', 'price' => 2], ['code' => catalogStoreScreensCode($archivedVariant), 'price' => 3]];
+        $unknown = static fn (int $count): array => array_map(static fn (int $n): array => ['code' => (string) (770000 + $n), 'price' => 1], range(1, $count));
         $admin = catalogStoreScreensFiller();
-        $few = basename((string) catalogStoreScreensUpload($admin, array_map(static fn (int $n): array => ['code' => (string) (770000 + $n), 'price' => 1], range(1, 3)))->headers->get('Location'));
-        $many = basename((string) catalogStoreScreensUpload($admin, array_map(static fn (int $n): array => ['code' => (string) (771000 + $n), 'price' => 1], range(1, 60)))->headers->get('Location'));
+        $few = basename((string) catalogStoreScreensUpload($admin, [...$kinds, ...$unknown(1)])->headers->get('Location'));
+        $many = basename((string) catalogStoreScreensUpload($admin, [...$kinds, ...$unknown(57)])->headers->get('Location'));
         $own = catalogStoreScreensOwnQueries($admin, "/admin/store-files/{$few}");
 
-        expect(catalogStoreScreensOwnQueries($admin, "/admin/store-files/{$many}"))->toBe($own)
-            ->and($own)->toBeLessThanOrEqual(15)
-            ->and(catalogStoreScreensOwnQueries($admin, '/admin/store-files'))->toBeLessThanOrEqual(15);
+        // 8 of its own and the list 4, however many items: none is read one item at a time (P13).
+        expect($own)->toBe(8)
+            ->and(catalogStoreScreensOwnQueries($admin, "/admin/store-files/{$many}"))->toBe($own)
+            ->and(catalogStoreScreensOwnQueries($admin, '/admin/store-files'))->toBe(4);
     });
 });
 

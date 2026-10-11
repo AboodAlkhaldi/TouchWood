@@ -85,7 +85,7 @@ final readonly class ViewProductHandler
             filterValueIds: $searchAndFilters['valueIds'] ?? null,
             related: $tab === ViewProduct::RELATED ? $this->reads->related($product->id) : null,
             stores: $stores,
-            labels: $tab === ViewProduct::STORES ? $this->reads->labelChoices() : null,
+            labels: $tab === ViewProduct::STORES ? $this->reads->labelChoices($product->id) : null,
             storeJobs: $tab === ViewProduct::STORES ? array_combine(self::STORE_JOBS, array_map($this->readers->heldIn(...), self::STORE_JOBS)) : null,
         );
     }

@@ -119,6 +119,7 @@ id: string,
 nameAr: string,
 nameEn: string,
 tone: string,
+active: boolean,
 };
 export type LabelData = {
 id: string,
@@ -313,6 +314,7 @@ storeName: string,
 storeTimezone: string,
 stores: StoreOptionData[],
 problems: ImportProblemData[] | null,
+problemsTotal: number | null,
 };
 export type StoreOptionData = {
 id: string,

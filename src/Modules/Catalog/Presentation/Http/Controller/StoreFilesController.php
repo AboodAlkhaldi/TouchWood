@@ -37,6 +37,8 @@ final readonly class StoreFilesController
 
     private const string PROBLEMS = 'catalog.store_file_problems';
 
+    private const string PROBLEMS_TOTAL = 'catalog.store_file_problems_total';
+
     /** A refused file names every problem; the page lists this many. */
     private const int PROBLEMS_SHOWN = 500;
 
@@ -50,10 +52,16 @@ final readonly class StoreFilesController
     {
         $store = $request->query('store');
         $problems = $request->session()->get(self::PROBLEMS);
+        $total = $request->session()->get(self::PROBLEMS_TOTAL);
 
         return $this->page->render(
             'Catalog/Admin/StoreFiles/Index',
-            $pages->files(is_string($store) && trim($store) !== '' ? trim($store) : null, max($request->integer('page', 1), 1), is_array($problems) ? array_values($problems) : null)->toArray(),
+            $pages->files(
+                is_string($store) && trim($store) !== '' ? trim($store) : null,
+                max($request->integer('page', 1), 1),
+                is_array($problems) ? array_values($problems) : null,
+                is_int($total) ? $total : null,
+            )->toArray(),
             self::WORDS,
         );
     }
@@ -76,9 +84,11 @@ final readonly class StoreFilesController
         $code = $request->optionalText('store') ?? '';
 
         try {
-            $id = $handler->handle(new UploadStoreFill($platform->storeByCode($code)->id ?? $code, (string) $file->getRealPath(), $file->getClientOriginalName()));
+            $id = $handler->handle(new UploadStoreFill(StoreCodes::id($platform, $code), (string) $file->getRealPath(), $file->getClientOriginalName()));
         } catch (ImportRefused $refused) {
-            return back()->withErrors(['file' => FormErrors::message($refused)])->with(self::PROBLEMS, array_slice($refused->problems, 0, self::PROBLEMS_SHOWN));
+            return back()->withErrors(['file' => FormErrors::message($refused)])
+                ->with(self::PROBLEMS, array_slice($refused->problems, 0, self::PROBLEMS_SHOWN))
+                ->with(self::PROBLEMS_TOTAL, count($refused->problems));
         } catch (DomainError $error) {
             return CatalogRefusals::back($request, $error, ['file']);
         }

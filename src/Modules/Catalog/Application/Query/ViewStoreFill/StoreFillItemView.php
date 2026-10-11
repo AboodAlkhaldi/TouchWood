@@ -26,7 +26,8 @@ final readonly class StoreFillItemView
      * @param  string|null  $standing  for an open item, where it stands now
      * @param  list<string>  $missing  for one not ready, as `Readiness` names them
      * @param  list<string>  $lines  for an open item, what the import's sections say of its price and stock (§2.3)
-     * @param  string|null  $productNameAr  for an open item a product holds, its name - the page links it (§4.4 S10)
+     * @param  string|null  $productId  the product holding its code - an item switched on or removed too
+     * @param  string|null  $productNameAr  that product's name - the page links it (§4.4 S10)
      */
     public function __construct(
         public string $id,

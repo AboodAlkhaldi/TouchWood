@@ -48,6 +48,8 @@ export default function Show({ id, fileName, uploadedAt, storeCode, storeName, p
     const ready = open.some((item) => item.standing === 'READY');
     const correcting = dialog?.action === 'code' ? (open.find((item) => item.id === dialog.itemId) ?? null) : null;
     const noneChosen = chosen.length === 0 ? t('catalog::admin_store_files.none_selected') : undefined;
+    // The whole choice is refused when one of it is not ready: said before the press.
+    const notReady = chosen.some((itemId) => open.find((item) => item.id === itemId)?.standing !== 'READY') ? t('catalog::admin_store_files.only_ready') : undefined;
     const switchOn = (itemIds: string[] | null) =>
         router.post(`/admin/store-files/${id}/switch-on`, itemIds === null ? {} : { item_ids: itemIds }, {
             preserveScroll: true,
@@ -68,7 +70,7 @@ export default function Show({ id, fileName, uploadedAt, storeCode, storeName, p
                 {pricesKept ? null : <Note data-test="prices-note">{t('catalog::admin_store_files.prices_note')}</Note>}
 
                 <div className="flex flex-wrap items-center gap-3">
-                    <ActionButton type="button" loading={busy} disabledReason={noneChosen} onClick={() => switchOn(chosen)} data-test="switch-on-selected">
+                    <ActionButton type="button" loading={busy} disabledReason={noneChosen ?? notReady} onClick={() => switchOn(chosen)} data-test="switch-on-selected">
                         {t('catalog::admin_store_files.switch_on_selected')}
                     </ActionButton>
                     <ActionButton type="button" variant="secondary" loading={busy} disabledReason={ready ? undefined : t('catalog::admin_store_files.none_ready')} onClick={() => switchOn(null)} data-test="switch-on-ready">
@@ -181,8 +183,8 @@ function Row({
                     '—'
                 )}
             </TableCell>
-            <TableCell className="tw-figure text-end" dir="ltr">
-                {item.price}
+            <TableCell className="tw-figure text-end">
+                <bdi dir="ltr">{item.price}</bdi>
             </TableCell>
             <TableCell className="tw-figure text-end">{item.stock === null ? '—' : figureOf(item.stock)}</TableCell>
             <TableCell>

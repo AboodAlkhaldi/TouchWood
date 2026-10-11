@@ -15,5 +15,7 @@ final readonly class LabelChoice
         public string $nameAr,
         public string $nameEn,
         public string $tone,
+        // Off since it was attached: shown where it is, never offered again.
+        public bool $active = true,
     ) {}
 }

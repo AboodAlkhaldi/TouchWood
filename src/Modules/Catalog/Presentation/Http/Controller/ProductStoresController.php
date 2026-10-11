@@ -24,8 +24,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
  * said where the panel says them (`CatalogRefusals`).
  *
  * The store is named in the address by its code, as `?store=` names it on every store screen (and as
- * Platform's pattern for `{store}` asks); a code that is no store is passed on as it is, and refused as
- * the job would be.
+ * Platform's pattern for `{store}` asks) - an off store's too (`StoreCodes`).
  */
 final readonly class ProductStoresController
 {
@@ -35,7 +34,7 @@ final readonly class ProductStoresController
         $variants = $request->input('variant_ids');
 
         return CatalogRefusals::act($request, fn () => $handler->handle(new ChooseInStore(
-            self::storeId($platform, $store),
+            StoreCodes::id($platform, $store),
             $product,
             $request->boolean('active'),
             is_array($variants) ? $request->texts('variant_ids') : null,
@@ -51,7 +50,7 @@ final readonly class ProductStoresController
         $modes = $request->input('modes');
 
         return CatalogRefusals::act($request, fn () => $handler->handle(new SetSellingTerms(
-            self::storeId($platform, $store),
+            StoreCodes::id($platform, $store),
             $product,
             is_array($modes) ? $modes : [],
             $request->number('retail_minimum'),
@@ -65,7 +64,7 @@ final readonly class ProductStoresController
     public function unavailable(CatalogFormRequest $request, string $product, string $store, PlatformApi $platform, MarkNotAvailableNowHandler $mark, ClearNotAvailableNowHandler $clear): RedirectResponse
     {
         $variant = $request->optionalText('variant_id');
-        $store = self::storeId($platform, $store);
+        $store = StoreCodes::id($platform, $store);
 
         return $request->boolean('unavailable')
             ? CatalogRefusals::act($request, fn () => $mark->handle(new MarkNotAvailableNow($store, $product, $variant)), 'catalog::admin_products.toast.not_available')
@@ -75,12 +74,6 @@ final readonly class ProductStoresController
     /** The labels it carries there, at most 10. */
     public function labels(CatalogFormRequest $request, string $product, string $store, PlatformApi $platform, AttachLabelsHandler $handler): RedirectResponse
     {
-        return CatalogRefusals::act($request, fn () => $handler->handle(new AttachLabels(self::storeId($platform, $store), $product, $request->texts('label_ids'))), 'catalog::admin_products.toast.labels', ['labels']);
-    }
-
-    /** The store's id, by the code in the address; a code that is no store stays as it came. */
-    private static function storeId(PlatformApi $platform, string $code): string
-    {
-        return $platform->storeByCode($code)->id ?? $code;
+        return CatalogRefusals::act($request, fn () => $handler->handle(new AttachLabels(StoreCodes::id($platform, $store), $product, $request->texts('label_ids'))), 'catalog::admin_products.toast.labels', ['labels']);
     }
 }

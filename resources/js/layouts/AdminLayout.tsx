@@ -84,7 +84,7 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
                             <SidebarTrigger className="-ms-1" aria-label={t('admin.sidebar_toggle')} />
                             <Separator orientation="vertical" className="me-2 data-[orientation=vertical]:h-4" />
                             {/* Its landmark named in the page's language, not shadcn's English. */}
-                            <Breadcrumb aria-label={t('ui.breadcrumbs')}>
+                            <Breadcrumb aria-label={t('ui.breadcrumbs')} className="min-w-0">
                                 <BreadcrumbList>
                                     {trail.map((crumb, index) => {
                                         const last = index === trail.length - 1;

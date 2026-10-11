@@ -417,12 +417,18 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
         return $stores;
     }
 
-    public function labelChoices(): array
+    public function labelChoices(string $productId): array
     {
-        $rows = $this->db->table('catalog.labels')
-            ->where('is_active', true)
-            ->select(['id', 'name_ar', 'name_en', 'tone'])
-            ->orderBy('position')->orderBy('name_en')->orderBy('id')
+        // The active labels, and those the product carries in some store whatever their state: a
+        // label deactivated since stays where it is attached (§1.8, amendment 4).
+        $rows = $this->db->table('catalog.labels as l')
+            ->where(function ($where) use ($productId): void {
+                $where->where('l.is_active', true)->orWhereExists(function ($attached) use ($productId): void {
+                    $attached->from('catalog.store_product_labels as spl')->whereColumn('spl.label_id', 'l.id')->where('spl.product_id', strtolower($productId));
+                });
+            })
+            ->select(['l.id', 'l.name_ar', 'l.name_en', 'l.tone', 'l.is_active'])
+            ->orderBy('l.position')->orderBy('l.name_en')->orderBy('l.id')
             ->get();
 
         return array_values($rows->map(static fn (stdClass $row): LabelChoice => new LabelChoice(
@@ -430,6 +436,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             (string) $row->name_ar,
             (string) $row->name_en,
             (string) $row->tone,
+            (bool) $row->is_active,
         ))->all());
     }
 

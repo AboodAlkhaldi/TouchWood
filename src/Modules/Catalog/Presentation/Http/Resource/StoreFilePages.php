@@ -37,10 +37,11 @@ final readonly class StoreFilePages
 
     /**
      * @param  list<array{at: string, problem: string}>|null  $problems  the last upload's, refused
+     * @param  int|null  $problemsTotal  how many it had, the list holding the first 500
      *
      * @throws InvalidCatalogAttribute|Unauthorized
      */
-    public function files(?string $storeCode, int $page, ?array $problems): StoreFilesPage
+    public function files(?string $storeCode, int $page, ?array $problems, ?int $problemsTotal = null): StoreFilesPage
     {
         // The stores offered, read once: the one shown is chosen among them, as StoreChoices::chosen()
         // chooses, without reading them again.
@@ -58,6 +59,7 @@ final readonly class StoreFilePages
             $chosen->timezone,
             array_map(fn (StoreDto $store): StoreOptionData => new StoreOptionData($store->id, $store->code, $store->name->in($this->locale()), $store->isActive), $offered),
             $problems === null ? null : array_map(static fn (array $problem): ImportProblemData => new ImportProblemData($problem['at'], $problem['problem']), $problems),
+            $problems === null ? null : ($problemsTotal ?? count($problems)),
         );
     }
 

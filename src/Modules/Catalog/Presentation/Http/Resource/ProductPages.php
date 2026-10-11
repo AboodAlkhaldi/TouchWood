@@ -147,7 +147,7 @@ final readonly class ProductPages
             $found,
             $view->stores === null ? null : $this->storeCards($view),
             $view->labels === null ? null : array_map(static fn (LabelChoice $label): LabelChoiceData => new LabelChoiceData(
-                $label->id, $label->nameAr, $label->nameEn, $label->tone,
+                $label->id, $label->nameAr, $label->nameEn, $label->tone, $label->active,
             ), $view->labels),
         );
     }

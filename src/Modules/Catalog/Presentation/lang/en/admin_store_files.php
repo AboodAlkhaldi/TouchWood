@@ -12,7 +12,6 @@ return [
     'upload_field' => 'File',
     'upload_none' => 'Choose a file to upload.',
     'upload_confirm' => 'Upload',
-    'guide' => 'How to fill the file',
     'problems_title' => 'The file was not read. Fix these and upload it again:',
     'problems_more' => 'Only the first 500 problems are listed.',
     'empty' => [
@@ -58,6 +57,7 @@ return [
     'select_open' => 'Select every open item',
     'none_selected' => 'Select items first.',
     'none_ready' => 'No item is ready.',
+    'only_ready' => 'Only ready items are switched on: clear the others from the selection.',
     'lacks' => 'Lacks:',
     'back' => 'Store Files',
     'toast' => [

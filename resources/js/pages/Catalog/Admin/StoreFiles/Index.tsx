@@ -25,10 +25,10 @@ import { useLocale } from '../parts';
 | problem - where, and what, in the format's own words - under the upload.
 */
 
-/** At most this many problems come back with a refused file (StoreFilesController). */
+/** At most this many problems come back with a refused file (StoreFilesController); past it, the page says so. */
 const PROBLEMS_SHOWN = 500;
 
-export default function Index({ files, page, more, storeCode, storeName, stores, problems }: StoreFilesPage) {
+export default function Index({ files, page, more, storeCode, storeName, stores, problems, problemsTotal }: StoreFilesPage) {
     const t = useTranslator();
     const locale = useLocale();
     const [uploading, setUploading] = useState(false);
@@ -101,7 +101,7 @@ export default function Index({ files, page, more, storeCode, storeName, stores,
                 )}
             </div>
 
-            {uploading ? <UploadDialog storeCode={storeCode} storeName={storeName} problems={problems} onOpenChange={setUploading} returnFocusTo={opener} /> : null}
+            {uploading ? <UploadDialog storeCode={storeCode} storeName={storeName} problems={problems} problemsTotal={problemsTotal} onOpenChange={setUploading} returnFocusTo={opener} /> : null}
         </AdminLayout>
     );
 }
@@ -110,12 +110,14 @@ function UploadDialog({
     storeCode,
     storeName,
     problems,
+    problemsTotal,
     onOpenChange,
     returnFocusTo,
 }: {
     storeCode: string;
     storeName: string;
     problems: ImportProblemData[] | null;
+    problemsTotal: number | null;
     onOpenChange: (open: boolean) => void;
     returnFocusTo: React.RefObject<HTMLElement | null>;
 }) {
@@ -170,7 +172,7 @@ function UploadDialog({
                                 </li>
                             ))}
                         </ol>
-                        {shown.length >= PROBLEMS_SHOWN ? <p className="text-copy-13 text-ink-muted">{t('catalog::admin_store_files.problems_more')}</p> : null}
+                        {(problemsTotal ?? 0) > PROBLEMS_SHOWN ? <p className="text-copy-13 text-ink-muted">{t('catalog::admin_store_files.problems_more')}</p> : null}
                     </div>
                 ) : null}
             </div>
