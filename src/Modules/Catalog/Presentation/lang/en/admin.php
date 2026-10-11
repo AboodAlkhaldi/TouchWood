@@ -19,7 +19,6 @@ return [
         'name' => 'Name',
         'name_ar' => 'Arabic Name',
         'name_en' => 'English Name',
-        'position' => 'Position',
         'products' => 'Products',
         'state' => 'State',
         'actions' => 'Actions',
@@ -27,8 +26,6 @@ return [
     'field' => [
         'name_ar' => 'Arabic Name',
         'name_en' => 'English Name',
-        'position' => 'Position',
-        'position_helper' => 'From 0 to 10,000, lowest first.',
         'slug_ar' => 'Arabic Address',
         'slug_en' => 'English Address',
     ],
@@ -62,6 +59,17 @@ return [
         'moved' => ':item moved to position :position of :total.',
         'dropped' => ':item dropped at position :position of :total.',
         'cancelled' => ':item put back.',
+    ],
+    // Every ordered list is ordered by dragging, and from each row's ⋯ menu (amendment 16(d)).
+    'order' => [
+        'column' => 'Order',
+        'top' => 'Move to Top',
+        'bottom' => 'Move to Bottom',
+        'at_top' => 'It is first already.',
+        'at_bottom' => 'It is last already.',
+    ],
+    'toast' => [
+        'ordered' => 'Order saved',
     ],
     'fates' => [
         'title' => [

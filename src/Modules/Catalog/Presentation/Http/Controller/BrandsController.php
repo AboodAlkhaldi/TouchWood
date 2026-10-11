@@ -21,6 +21,8 @@ use Modules\Catalog\Application\Command\EditBrand\EditBrand;
 use Modules\Catalog\Application\Command\EditBrand\EditBrandHandler;
 use Modules\Catalog\Application\Command\MakeBrandDefault\MakeBrandDefault;
 use Modules\Catalog\Application\Command\MakeBrandDefault\MakeBrandDefaultHandler;
+use Modules\Catalog\Application\Command\OrderBrands\OrderBrands;
+use Modules\Catalog\Application\Command\OrderBrands\OrderBrandsHandler;
 use Modules\Catalog\Application\Command\UploadBrandLogo\UploadBrandLogo;
 use Modules\Catalog\Application\Command\UploadBrandLogo\UploadBrandLogoHandler;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
@@ -37,7 +39,7 @@ final readonly class BrandsController
 
     /** The form's fields, where a refusal naming one is said. */
     private const array FIELDS = [
-        'name_ar', 'name_en', 'slug_ar', 'slug_en', 'agency_type', 'position', 'origin_country',
+        'name_ar', 'name_en', 'slug_ar', 'slug_en', 'agency_type', 'origin_country',
         'description_ar', 'description_en', 'logo_media_id',
     ];
 
@@ -59,7 +61,6 @@ final readonly class BrandsController
             nameEn: $request->text('name_en'),
             agencyType: $request->text('agency_type'),
             showInDefaultListings: $request->boolean('show_in_default_listings'),
-            position: $request->number('position'),
             slugAr: $request->optionalText('slug_ar'),
             slugEn: $request->optionalText('slug_en'),
             descriptionAr: $request->marks('description_ar'),
@@ -77,7 +78,6 @@ final readonly class BrandsController
             nameEn: $request->text('name_en'),
             agencyType: $request->text('agency_type'),
             showInDefaultListings: $request->boolean('show_in_default_listings'),
-            position: $request->number('position'),
             slugAr: $request->optionalText('slug_ar'),
             slugEn: $request->optionalText('slug_en'),
             descriptionAr: $request->marks('description_ar'),
@@ -85,6 +85,16 @@ final readonly class BrandsController
             logoMediaId: self::logo($request, $upload),
             originCountry: $request->optionalText('origin_country'),
         )), 'catalog::admin_brands.toast.edited', self::FIELDS);
+    }
+
+    /**
+     * The brands' order as dragged, or with one moved to the top or the bottom (amendment 16(d)):
+     * the ids in their new order, the rest keeping theirs after them (P29). A refusal is said at the
+     * top of the page: an order has no field of its own.
+     */
+    public function order(CatalogFormRequest $request, OrderBrandsHandler $handler): RedirectResponse
+    {
+        return CatalogRefusals::act($request, fn () => $handler->handle(new OrderBrands($request->texts('ids'))), 'catalog::admin.toast.ordered');
     }
 
     public function makeDefault(Request $request, string $brand, MakeBrandDefaultHandler $handler): RedirectResponse

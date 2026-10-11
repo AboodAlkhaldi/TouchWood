@@ -29,6 +29,7 @@ use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\LabelRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\Repository\ListOrders;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
@@ -45,6 +46,7 @@ use Modules\Catalog\Infrastructure\Eloquent\DatabaseLabelRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListingFacts;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListingRows;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseListLocks;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseListOrders;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseProductRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseSearchLog;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseShopReader;
@@ -77,6 +79,8 @@ final class CatalogServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(ListLocks::class, DatabaseListLocks::class);
+        // Every ordered list's order (amendment 16(d)): the brands, labels, warranties, attributes, values.
+        $this->app->bind(ListOrders::class, DatabaseListOrders::class);
         $this->app->bind(BrandRepository::class, DatabaseBrandRepository::class);
         $this->app->bind(CategoryRepository::class, DatabaseCategoryRepository::class);
         $this->app->bind(AttributeRepository::class, DatabaseAttributeRepository::class);

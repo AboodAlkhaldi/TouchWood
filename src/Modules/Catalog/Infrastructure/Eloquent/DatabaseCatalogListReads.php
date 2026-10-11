@@ -157,7 +157,8 @@ final readonly class DatabaseCatalogListReads implements CatalogListReads
         $rows = $this->db->table('catalog.warranties as w')
             ->select(['w.id', 'w.name_ar', 'w.name_en', 'w.period_months', 'w.terms_ar', 'w.terms_en', 'w.is_active'])
             ->selectRaw('(SELECT count(*) FROM catalog.products p WHERE p.warranty_id = w.id) as products')
-            ->orderBy('w.name_en')->orderBy('w.id')
+            // The list's own order, dragged (amendment 16(d)): the order of the product form's choice.
+            ->orderBy('w.position')->orderBy('w.name_en')->orderBy('w.id')
             ->get();
 
         return array_values($rows->map(static fn (stdClass $row): WarrantyRow => new WarrantyRow(

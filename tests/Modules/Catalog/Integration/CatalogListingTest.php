@@ -47,6 +47,8 @@ use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabels;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabelsHandler;
 use Modules\Catalog\Application\Command\RebuildListing\RebuildListing;
 use Modules\Catalog\Application\Command\RebuildListing\RebuildListingHandler;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProduct;
@@ -162,9 +164,9 @@ function catalogRowsRebuild(): void
     Fx::asSystem(fn () => app(RebuildListingHandler::class)->handle(new RebuildListing));
 }
 
-function catalogRowsLabel(string $nameEn, int $position): string
+function catalogRowsLabel(string $nameEn): string
 {
-    return Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('شارة', $nameEn, 'blue', $position)));
+    return Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('شارة', $nameEn, 'blue')));
 }
 
 /**
@@ -297,8 +299,10 @@ describe('a row', function () {
         $p = Px::ready();
         catalogRowsChoose('sa', $p['product']);
         catalogRowsChoose('eg', $p['product']);
-        $second = catalogRowsLabel('Second', 2);
-        $first = catalogRowsLabel('First', 1);
+        $second = catalogRowsLabel('Second');
+        $first = catalogRowsLabel('First');
+        // Ordered against the order they were made in (amendment 16(d)).
+        Fx::asSystem(fn () => app(OrderLabelsHandler::class)->handle(new OrderLabels([$first, $second])));
 
         Fx::asSystem(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels(Fx::storeId('sa'), $p['product'], [$second, $first])));
 
@@ -393,7 +397,7 @@ describe('kept current', function () {
             return fn () => app(ClearNotAvailableNowHandler::class)->handle(new ClearNotAvailableNow(Fx::storeId('eg'), $p['product']));
         }],
         'attaching labels' => [function (array $p) {
-            $label = catalogRowsLabel('New', 0);
+            $label = catalogRowsLabel('New');
 
             return fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels(Fx::storeId('sa'), $p['product'], [$label]));
         }],
@@ -437,7 +441,7 @@ describe('kept current', function () {
         'taking its brand out of default listings' => [function (array $p) {
             $brand = DB::table('catalog.brands')->where('id', app(ProductRepository::class)->find($p['product'])?->brandId())->first() ?? throw new LogicException('No brand.');
 
-            return fn () => app(EditBrandHandler::class)->handle(new EditBrand((string) $brand->id, (string) $brand->name_ar, (string) $brand->name_en, (string) $brand->agency_type, false, (int) $brand->position));
+            return fn () => app(EditBrandHandler::class)->handle(new EditBrand((string) $brand->id, (string) $brand->name_ar, (string) $brand->name_en, (string) $brand->agency_type, false));
         }],
         'deleting its card photo\'s file' => [function (array $p) {
             $second = Cx::media();

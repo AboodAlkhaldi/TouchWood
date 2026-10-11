@@ -7,7 +7,7 @@ return [
     'title' => 'Brands',
     'subtitle' => 'Every brand the products carry, shared by every store.',
     'add' => 'Add Brand',
-    'add_body' => 'It gets the next free number, which never changes while it exists.',
+    'add_body' => 'It gets the next free number, which never changes while it exists, and goes last in the list.',
     'edit' => 'Edit…',
     'edit_title' => 'Edit Brand',
     'edit_body' => 'Every store shows the change at once.',
@@ -24,7 +24,8 @@ return [
         'body' => 'Add the brands your products carry; a new product starts on the default one.',
     ],
     'column' => [
-        'number' => 'No.',
+        // The brand's fixed number, never its place in the list (amendment 16(d)).
+        'number' => 'Brand No.',
         'agency' => 'Agency',
         'listings' => 'Shown',
     ],

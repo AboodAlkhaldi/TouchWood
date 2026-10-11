@@ -44,7 +44,6 @@ return [
     'check' => [
         'words' => ':field is one or two words.',
     ],
-    'position_helper' => 'Its place on a product\'s card, lowest first.',
     'reason' => [
         'in_use' => 'A store shows it on products: take it off them first.',
     ],

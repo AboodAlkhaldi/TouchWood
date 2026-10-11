@@ -22,12 +22,12 @@ use Modules\Catalog\Application\Command\EditBrand\EditBrand;
 use Modules\Catalog\Application\Command\EditBrand\EditBrandHandler;
 use Modules\Catalog\Application\Command\EditCategory\EditCategory;
 use Modules\Catalog\Application\Command\EditCategory\EditCategoryHandler;
-use Modules\Catalog\Application\Command\EditLabel\EditLabel;
-use Modules\Catalog\Application\Command\EditLabel\EditLabelHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabels;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabelsHandler;
 use Modules\Catalog\Application\Command\RankCategories\RankCategories;
 use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
@@ -149,7 +149,7 @@ function catalogShopAllCards(string $store, string $categoryId, int $limit, arra
 function catalogShopHideBrandFromDefaults(string $brandId): void
 {
     $brand = DB::table('catalog.brands')->where('id', $brandId)->first() ?? throw new LogicException('No brand.');
-    Fx::asSystem(fn () => app(EditBrandHandler::class)->handle(new EditBrand($brandId, (string) $brand->name_ar, (string) $brand->name_en, (string) $brand->agency_type, false, (int) $brand->position)));
+    Fx::asSystem(fn () => app(EditBrandHandler::class)->handle(new EditBrand($brandId, (string) $brand->name_ar, (string) $brand->name_en, (string) $brand->agency_type, false)));
 }
 
 describe('the menu', function () {
@@ -272,8 +272,8 @@ describe('a category page', function () {
     it('shows a card\'s labels in the list\'s order as it is now', function () {
         $category = Px::category('Baskets');
         $product = catalogShopProduct($category);
-        $first = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('أول', 'First', 'green', 1)));
-        $second = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('ثان', 'Second', 'blue', 2)));
+        $first = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('أول', 'First', 'green')));
+        $second = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('ثان', 'Second', 'blue')));
         Fx::asSystem(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels(Fx::storeId('sa'), $product, [$first, $second])));
         $labels = static function () use ($category): array {
             $page = app(ShopCatalog::class)->category(catalogShopStore('sa'), 'en', catalogShopSlug('category', $category));
@@ -283,7 +283,8 @@ describe('a category page', function () {
 
         expect($labels())->toBe(['First', 'Second']);
 
-        Fx::asSystem(fn () => app(EditLabelHandler::class)->handle(new EditLabel($second, 'ثان', 'Second', 'blue', 0)));
+        // Moved to the top of the labels' order, as its ⋯ menu sends it (amendment 16(d)).
+        Fx::asSystem(fn () => app(OrderLabelsHandler::class)->handle(new OrderLabels([$second])));
 
         expect($labels())->toBe(['Second', 'First']);
     });
@@ -342,7 +343,7 @@ describe('a brand page', function () {
         catalogShopProduct(Px::category('Drawers'), brandId: $brand);
         $old = catalogShopSlug('brand', $brand);
         $row = DB::table('catalog.brands')->where('id', $brand)->first() ?? throw new LogicException('No brand.');
-        Fx::asSystem(fn () => app(EditBrandHandler::class)->handle(new EditBrand($brand, (string) $row->name_ar, 'Hettich fittings', (string) $row->agency_type, true, (int) $row->position, slugEn: 'hettich-fittings')));
+        Fx::asSystem(fn () => app(EditBrandHandler::class)->handle(new EditBrand($brand, (string) $row->name_ar, 'Hettich fittings', (string) $row->agency_type, true, slugEn: 'hettich-fittings')));
 
         expect(app(ShopCatalog::class)->brand(catalogShopStore('sa'), 'en', $old))->toEqual(new Moved('hettich-fittings'))
             ->and(app(ShopCatalog::class)->brand(catalogShopStore('sa'), 'en', 'hettich-fittings'))->toBeInstanceOf(BrandPage::class)
@@ -365,8 +366,9 @@ describe('a product page', function () {
         $p = Px::ready(['60 cm', '80 cm']);
         catalogShopChoose('sa', $p['product']);
         Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $p['product'], $p['variants'][0])));
-        $later = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('عرض', 'Offer', 'amber', 2)));
-        $label = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'New', 'green', 1)));
+        $later = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('عرض', 'Offer', 'amber')));
+        $label = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('جديد', 'New', 'green')));
+        Fx::asSystem(fn () => app(OrderLabelsHandler::class)->handle(new OrderLabels([$label, $later])));
         Fx::asSystem(fn () => app(AttachLabelsHandler::class)->handle(new AttachLabels(Fx::storeId('sa'), $p['product'], [$later, $label])));
         // A photo whose sizes are not ready yet is not shown.
         $pending = Cx::media();

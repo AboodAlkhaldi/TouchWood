@@ -6,7 +6,8 @@ namespace Modules\Catalog\Application\Command\AddAttribute;
 
 /**
  * A new attribute (catalog.md §1.7): its name, its job (`INFORMATIONAL`, `FILTERABLE`, `VARIANT`),
- * an optional unit in both languages, and whether it is a colour.
+ * an optional unit in both languages, and whether it is a colour. It goes last in the attributes'
+ * order: no place is typed (amendment 16(d)).
  */
 final readonly class AddAttribute
 {
@@ -17,6 +18,5 @@ final readonly class AddAttribute
         public ?string $unitAr = null,
         public ?string $unitEn = null,
         public bool $isColour = false,
-        public int $position = 0,
     ) {}
 }

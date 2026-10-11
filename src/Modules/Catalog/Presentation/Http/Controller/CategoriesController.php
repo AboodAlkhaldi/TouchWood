@@ -22,8 +22,8 @@ use Modules\Catalog\Application\Command\EditCategory\EditCategory;
 use Modules\Catalog\Application\Command\EditCategory\EditCategoryHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
-use Modules\Catalog\Application\Command\RankCategories\RankCategories;
-use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
+use Modules\Catalog\Application\Command\OrderCategories\OrderCategories;
+use Modules\Catalog\Application\Command\OrderCategories\OrderCategoriesHandler;
 use Modules\Catalog\Application\Command\UploadCategoryImage\UploadCategoryImage;
 use Modules\Catalog\Application\Command\UploadCategoryImage\UploadCategoryImageHandler;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
@@ -41,7 +41,7 @@ final readonly class CategoriesController
     /** @var list<string> */
     private const array WORDS = ['catalog::admin', 'catalog::admin_categories', 'admin'];
 
-    private const array FIELDS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'parent_id', 'rank', 'image_media_id'];
+    private const array FIELDS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'parent_id', 'image_media_id'];
 
     // What asks who is acting - the pages, the store choices - is taken by each action, never kept here:
     // a controller is kept on its route, longer than one request.
@@ -64,7 +64,6 @@ final readonly class CategoriesController
             nameAr: $request->text('name_ar'),
             nameEn: $request->text('name_en'),
             parentId: $request->optionalText('parent_id'),
-            rank: $request->number('rank'),
             slugAr: $request->optionalText('slug_ar'),
             slugEn: $request->optionalText('slug_en'),
             imageMediaId: self::image($request, $upload),
@@ -83,27 +82,32 @@ final readonly class CategoriesController
         )), 'catalog::admin_categories.toast.edited', self::FIELDS);
     }
 
-    /** Another parent, or the top, and its place among the new siblings (amendment 2(c)). */
+    /** Another parent, or the top: last among its new siblings in every store (amendment 16(d)). */
     public function move(CatalogFormRequest $request, string $category, MoveCategoryHandler $handler): RedirectResponse
     {
         return CatalogRefusals::act($request, fn () => $handler->handle(new MoveCategory(
             $category,
             $request->optionalText('parent_id'),
-            $request->number('rank'),
         )), 'catalog::admin_categories.toast.moved', self::FIELDS);
     }
 
     /**
-     * One parent's children in the order dragged, written as places in the store the page shows
-     * (amendment 1(d)). A form that names no store, or one not offered here, is refused — never sent
-     * to the first store.
+     * One parent's children in the order dropped, or with one moved to the top or the bottom, written
+     * as places 1, 2, 3 … in the store the page shows (amendment 16(d)). A form that names no store, or
+     * one not offered here, is refused — never sent to the first store. An order has no field of its
+     * own on the page, so a refusal is said at its top and in a toast.
      */
-    public function rank(CatalogFormRequest $request, RankCategoriesHandler $handler, StoreChoices $choices): RedirectResponse
+    /**
+     * One parent's children in the store shown, in their new order (amendment 16(d), P29): the ids
+     * dragged, or the one moved to the top, or every other then the one moved to the bottom.
+     */
+    public function order(CatalogFormRequest $request, OrderCategoriesHandler $handler, StoreChoices $choices): RedirectResponse
     {
-        return CatalogRefusals::act($request, fn () => $handler->handle(new RankCategories(
+        return CatalogRefusals::act($request, fn () => $handler->handle(new OrderCategories(
             self::storeId($choices, $request->optionalText('store')),
-            self::ranks($request->input('ranks')),
-        )), 'catalog::admin_categories.toast.ranked', ['rank', 'store']);
+            $request->optionalText('parent'),
+            $request->texts('ids'),
+        )), 'catalog::admin_categories.toast.ranked');
     }
 
     public function activate(Request $request, string $category, ActivateCategoryHandler $handler): RedirectResponse
@@ -140,22 +144,6 @@ final readonly class CategoriesController
         }
 
         return $choices->chosen($code, CatalogPermissions::CATEGORY_RANK)->id ?? throw new Unauthorized(CatalogPermissions::CATEGORY_RANK);
-    }
-
-    /**
-     * Category id => its place, as posted; anything else is left for the handler to refuse.
-     *
-     * @return array<string, mixed>
-     */
-    private static function ranks(mixed $posted): array
-    {
-        $ranks = [];
-
-        foreach (is_array($posted) ? $posted : [] as $categoryId => $rank) {
-            $ranks[(string) $categoryId] = is_numeric($rank) && (string) (int) $rank === trim((string) $rank) ? (int) $rank : $rank;
-        }
-
-        return $ranks;
     }
 
     private static function image(CatalogFormRequest $request, UploadCategoryImageHandler $upload): ?string

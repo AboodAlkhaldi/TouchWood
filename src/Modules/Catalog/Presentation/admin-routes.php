@@ -35,6 +35,8 @@ Route::prefix(AdminArea::PREFIX)
     ->group(function (): void {
         Route::get('brands', [BrandsController::class, 'index'])->name('catalog.admin.brands');
         Route::post('brands', [BrandsController::class, 'add'])->name('catalog.admin.brands.add');
+        // Every ordered list's order (amendment 16(d)), named before its items' routes take the word.
+        Route::post('brands/order', [BrandsController::class, 'order'])->name('catalog.admin.brands.order');
         Route::post('brands/{brand}', [BrandsController::class, 'edit'])->name('catalog.admin.brands.edit');
         Route::post('brands/{brand}/default', [BrandsController::class, 'makeDefault'])->name('catalog.admin.brands.default');
         Route::post('brands/{brand}/activate', [BrandsController::class, 'activate'])->name('catalog.admin.brands.activate');
@@ -44,7 +46,7 @@ Route::prefix(AdminArea::PREFIX)
         Route::get('categories', [CategoriesController::class, 'index'])->name('catalog.admin.categories');
         Route::post('categories', [CategoriesController::class, 'add'])->name('catalog.admin.categories.add');
         // A store's menu order: the store the page shows, sent with the order (catalog.md §1.5).
-        Route::post('categories/order', [CategoriesController::class, 'rank'])->name('catalog.admin.categories.rank');
+        Route::post('categories/order', [CategoriesController::class, 'order'])->name('catalog.admin.categories.order');
         Route::post('categories/{category}', [CategoriesController::class, 'edit'])->name('catalog.admin.categories.edit');
         Route::post('categories/{category}/move', [CategoriesController::class, 'move'])->name('catalog.admin.categories.move');
         Route::post('categories/{category}/activate', [CategoriesController::class, 'activate'])->name('catalog.admin.categories.activate');
@@ -53,12 +55,14 @@ Route::prefix(AdminArea::PREFIX)
 
         Route::get('attributes', [AttributesController::class, 'index'])->name('catalog.admin.attributes');
         Route::post('attributes', [AttributesController::class, 'add'])->name('catalog.admin.attributes.add');
+        Route::post('attributes/order', [AttributesController::class, 'order'])->name('catalog.admin.attributes.order');
         Route::get('attributes/{attribute}', [AttributesController::class, 'show'])->name('catalog.admin.attributes.show');
         Route::post('attributes/{attribute}', [AttributesController::class, 'edit'])->name('catalog.admin.attributes.edit');
         Route::post('attributes/{attribute}/activate', [AttributesController::class, 'activate'])->name('catalog.admin.attributes.activate');
         Route::post('attributes/{attribute}/deactivate', [AttributesController::class, 'deactivate'])->name('catalog.admin.attributes.deactivate');
         Route::post('attributes/{attribute}/delete', [AttributesController::class, 'delete'])->name('catalog.admin.attributes.delete');
         Route::post('attributes/{attribute}/values', [AttributesController::class, 'addValue'])->name('catalog.admin.attributes.values.add');
+        Route::post('attributes/{attribute}/values/order', [AttributesController::class, 'orderValues'])->name('catalog.admin.attributes.values.order');
         Route::post('attribute-values/{value}', [AttributesController::class, 'editValue'])->name('catalog.admin.values.edit');
         Route::post('attribute-values/{value}/activate', [AttributesController::class, 'activateValue'])->name('catalog.admin.values.activate');
         Route::post('attribute-values/{value}/deactivate', [AttributesController::class, 'deactivateValue'])->name('catalog.admin.values.deactivate');
@@ -66,6 +70,7 @@ Route::prefix(AdminArea::PREFIX)
 
         Route::get('labels', [LabelsController::class, 'index'])->name('catalog.admin.labels');
         Route::post('labels', [LabelsController::class, 'add'])->name('catalog.admin.labels.add');
+        Route::post('labels/order', [LabelsController::class, 'order'])->name('catalog.admin.labels.order');
         Route::post('labels/{label}', [LabelsController::class, 'edit'])->name('catalog.admin.labels.edit');
         Route::post('labels/{label}/activate', [LabelsController::class, 'activate'])->name('catalog.admin.labels.activate');
         Route::post('labels/{label}/deactivate', [LabelsController::class, 'deactivate'])->name('catalog.admin.labels.deactivate');
@@ -73,6 +78,7 @@ Route::prefix(AdminArea::PREFIX)
 
         Route::get('warranties', [WarrantiesController::class, 'index'])->name('catalog.admin.warranties');
         Route::post('warranties', [WarrantiesController::class, 'add'])->name('catalog.admin.warranties.add');
+        Route::post('warranties/order', [WarrantiesController::class, 'order'])->name('catalog.admin.warranties.order');
         Route::post('warranties/{warranty}', [WarrantiesController::class, 'edit'])->name('catalog.admin.warranties.edit');
         Route::post('warranties/{warranty}/activate', [WarrantiesController::class, 'activate'])->name('catalog.admin.warranties.activate');
         Route::post('warranties/{warranty}/deactivate', [WarrantiesController::class, 'deactivate'])->name('catalog.admin.warranties.deactivate');
