@@ -67,7 +67,7 @@ final readonly class AddVariantHandler
                 throw new DuplicateCombination;
             }
 
-            $variant = Variant::add($id, $product->id(), $code, $combination, $this->input->details($command->details), $measures, $command->position);
+            $variant = Variant::add($id, $product->id(), $code, $combination, $this->input->details($command->details), $measures, $command->position ?? $this->variants->nextPosition($product->id()));
             $this->products->holdCode($product->id(), $code->value);
             $this->variants->add($variant);
             $this->events->variantAdded($product, $id);

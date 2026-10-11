@@ -287,7 +287,7 @@ final readonly class ImportBringer
 
         foreach ($resolved['variants'] as $position => $variant) {
             $file = $variant['file'];
-            $variantId = $this->addVariant->handle(new AddVariant($id, $newCodes[$file->code] ?? $file->code, $variant['values'], $variant['details'], $file->weightGrams, $file->lengthMm, $file->widthMm, $file->heightMm, $position));
+            $variantId = $this->addVariant->handle(new AddVariant($id, $newCodes[$file->code] ?? $file->code, $variant['values'], $variant['details'], $file->weightGrams, $file->lengthMm, $file->widthMm, $file->heightMm, $position + 1));
 
             if ($file->photos !== []) {
                 $this->setVariantPhotos->handle(new SetVariantPhotos($variantId, $photos->ids($file->photos)));
@@ -328,7 +328,8 @@ final readonly class ImportBringer
             $file = $variant['file'];
 
             if ($match === null) {
-                $variantId = $this->addVariant->handle(new AddVariant($productId, $file->code, $variant['values'], $variant['details'], $file->weightGrams, $file->lengthMm, $file->widthMm, $file->heightMm, $position));
+                // Replaced, in the file's order; updated, a new variant goes last (amendment 16(d)).
+                $variantId = $this->addVariant->handle(new AddVariant($productId, $file->code, $variant['values'], $variant['details'], $file->weightGrams, $file->lengthMm, $file->widthMm, $file->heightMm, $replace ? $position + 1 : null));
             } else {
                 $variantId = $match->id();
 
@@ -348,7 +349,7 @@ final readonly class ImportBringer
                     $file->lengthMm ?? ($replace ? null : $measures->lengthMm),
                     $file->widthMm ?? ($replace ? null : $measures->widthMm),
                     $file->heightMm ?? ($replace ? null : $measures->heightMm),
-                    $replace ? $position : $match->position(),
+                    $replace ? $position + 1 : $match->position(),
                 ));
             }
 
